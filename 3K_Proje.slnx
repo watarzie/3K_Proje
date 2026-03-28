@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="3K.Application/3K.Application.csproj" />
+    <Project Path="3K.Core/3K.Core.csproj" />
+    <Project Path="3K.Infrastructure/3K.Infrastructure.csproj" />
+    <Project Path="3K_API/3K_API.csproj" />
+  </Folder>
+</Solution>
