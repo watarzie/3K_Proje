@@ -1,24 +1,31 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+using _3K.Core.Enums;
 
-namespace 3K.Core.Entities
+namespace _3K.Core.Entities
 {
     public class CekiSatiri : BaseEntity
     {
         public int CekiId { get; set; }
         public int SiraNo { get; set; }
-        public string BarkodNo { get; set; }
-        public string Aciklama { get; set; }
+        public string BarkodNo { get; set; } = string.Empty;
+        public string Aciklama { get; set; } = string.Empty;
         public int IstenenAdet { get; set; }
-        public string Birim { get; set; }
-        public string CekideGecenSandikNo { get; set; }
-        public string FiiliSandikNo { get; set; }
-        public string Remarks { get; set; }
+        public string Birim { get; set; } = string.Empty;
+        public string CekideGecenSandikNo { get; set; } = string.Empty;
+        public string? FiiliSandikNo { get; set; }
+        public string? Remarks { get; set; }
 
-        [cite_start]// Navigation Properties [cite: 308, 312, 314, 315]
-        public virtual Ceki Ceki { get; set; }
-        public virtual SandikIcerik SandikIcerik { get; set; } // 0..1 ilişki
+        // İş akışı 3: Ürün durumu (State Diagram)
+        public UrunDurum Durum { get; set; } = UrunDurum.Bekliyor;
+
+        // İş akışı 7: Paketleyen / Kontrol Eden
+        public int? PaketleyenId { get; set; }
+        public int? KontrolEdenId { get; set; }
+
+        // Navigation Properties
+        public virtual Ceki Ceki { get; set; } = null!;
+        public virtual Kullanici? Paketleyen { get; set; }
+        public virtual Kullanici? KontrolEden { get; set; }
+        public virtual ICollection<SandikIcerik> SandikIcerikleri { get; set; } = new List<SandikIcerik>();
         public virtual ICollection<FBTransfer> FBTransferleri { get; set; } = new List<FBTransfer>();
         public virtual ICollection<StokHareketi> StokHareketleri { get; set; } = new List<StokHareketi>();
     }

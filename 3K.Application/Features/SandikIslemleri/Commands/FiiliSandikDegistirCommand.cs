@@ -1,13 +1,12 @@
-﻿using MediatR;
+using MediatR;
 
-namespace 3K.Application.Features.SandikIslemleri.Commands
+namespace _3K.Application.Features.SandikIslemleri.Commands
 {
-    // İşlem sonucunda geriye bool (başarılı/başarısız) döneceğini belirtiyoruz.
     public class FiiliSandikDegistirCommand : IRequest<bool>
-{
-    public int CekiSatiriId { get; set; }
-    public string YeniFiiliSandikNo { get; set; }
-    public int ProjeId { get; set; }
-    public int KullaniciId { get; set; }
-}
+    {
+        public int CekiSatiriId { get; set; }
+        public string YeniFiiliSandikNo { get; set; } = string.Empty;
+        public int ProjeId { get; set; }
+        public int KullaniciId { get; set; }
+    }
 }

@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace 3K.Core.Entities
+namespace _3K.Core.Entities
 {
     public class SandikIcerik : BaseEntity
     {
@@ -11,8 +7,8 @@ namespace 3K.Core.Entities
         public int KonulanAdet { get; set; }
         public int EksikAdet { get; set; }
 
-        [cite_start]// Navigation Properties [cite: 310, 312]
-        public virtual Sandik Sandik { get; set; }
-        public virtual CekiSatiri CekiSatiri { get; set; }
+        // Navigation Properties
+        public virtual Sandik Sandik { get; set; } = null!;
+        public virtual CekiSatiri CekiSatiri { get; set; } = null!;
     }
 }

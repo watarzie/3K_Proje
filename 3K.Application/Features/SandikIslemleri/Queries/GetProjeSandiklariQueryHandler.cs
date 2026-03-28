@@ -1,26 +1,34 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MediatR;
-using 3K.Core.Entities;
-using 3K.Core.Interfaces;
+using _3K.Application.DTOs;
+using _3K.Core.Interfaces;
 
-namespace 3K.Application.Features.SandikIslemleri.Queries
+namespace _3K.Application.Features.SandikIslemleri.Queries
 {
-    public class GetProjeSandiklariQueryHandler : IRequestHandler<GetProjeSandiklariQuery, IEnumerable<Sandik>>
-{
-    private readonly IUnitOfWork _unitOfWork;
-
-    public GetProjeSandiklariQueryHandler(IUnitOfWork unitOfWork)
+    public class GetProjeSandiklariQueryHandler : IRequestHandler<GetProjeSandiklariQuery, IEnumerable<SandikDto>>
     {
-        _unitOfWork = unitOfWork;
-    }
+        private readonly ISandikService _sandikService;
 
-    public async Task<IEnumerable<Sandik>> Handle(GetProjeSandiklariQuery request, CancellationToken cancellationToken)
-    {
-        var sandikRepo = _unitOfWork.GetRepository<Sandik>();
-        // Sadece ilgili projeye ait sandıkları getiriyoruz
-        return await sandikRepo.FindAsync(s => s.ProjeId == request.ProjeId);
+        public GetProjeSandiklariQueryHandler(ISandikService sandikService)
+        {
+            _sandikService = sandikService;
+        }
+
+        public async Task<IEnumerable<SandikDto>> Handle(GetProjeSandiklariQuery request, CancellationToken cancellationToken)
+        {
+            var sandiklar = await _sandikService.GetProjeSandiklariAsync(request.ProjeId);
+
+            return sandiklar.Select(s => new SandikDto
+            {
+                Id = s.Id,
+                SandikNo = s.SandikNo,
+                Durum = s.Durum.ToString(),
+                DepoLokasyonu = s.DepoLokasyonu,
+                UrunSayisi = s.SandikIcerikleri?.Count ?? 0
+            });
+        }
     }
-}
 }

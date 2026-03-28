@@ -1,18 +1,16 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+using _3K.Core.Enums;
 
-namespace 3K.Core.Entities
+namespace _3K.Core.Entities
 {
     public class Sandik : BaseEntity
     {
         public int ProjeId { get; set; }
-        public string SandikNo { get; set; }
-        public string Durum { get; set; }
-        public string DepoLokasyonu { get; set; }
+        public string SandikNo { get; set; } = string.Empty;
+        public SandikDurum Durum { get; set; } = SandikDurum.Bos;
+        public string? DepoLokasyonu { get; set; }
 
-        [cite_start]// Navigation Properties [cite: 309, 310]
-        public virtual Proje Proje { get; set; }
+        // Navigation Properties
+        public virtual Proje Proje { get; set; } = null!;
         public virtual ICollection<SandikIcerik> SandikIcerikleri { get; set; } = new List<SandikIcerik>();
     }
 }

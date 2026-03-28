@@ -1,0 +1,120 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using System.Text;
+using _3K.Core.Interfaces;
+using _3K.Infrastructure.Data;
+using _3K.Infrastructure.Repositories;
+using _3K.Infrastructure.Services;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// ======= DbContext =======
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// ======= Repository & UnitOfWork =======
+builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+// ======= Services =======
+builder.Services.AddScoped<ICekiService, CekiService>();
+builder.Services.AddScoped<ISandikService, SandikService>();
+builder.Services.AddScoped<IUrunService, UrunService>();
+builder.Services.AddScoped<IStokService, StokService>();
+builder.Services.AddScoped<IFBTransferService, FBTransferService>();
+builder.Services.AddScoped<IHareketService, HareketService>();
+builder.Services.AddScoped<IRevizyonService, RevizyonService>();
+builder.Services.AddScoped<IPdfService, PdfService>();
+builder.Services.AddScoped<IMailService, MailService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+
+// ======= MediatR =======
+builder.Services.AddMediatR(cfg =>
+    cfg.RegisterServicesFromAssembly(typeof(_3K.Application.Features.SandikIslemleri.Commands.FiiliSandikDegistirCommand).Assembly));
+
+// ======= JWT Authentication =======
+var jwtKey = builder.Configuration["JwtSettings:SecretKey"]
+    ?? Environment.GetEnvironmentVariable("JWT_SECRET_KEY")
+    ?? throw new InvalidOperationException("JWT SecretKey yapılandırılmamış.");
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = builder.Configuration["JwtSettings:Issuer"] ?? "3K_API",
+            ValidAudience = builder.Configuration["JwtSettings:Audience"] ?? "3K_Client",
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+        };
+    });
+
+builder.Services.AddAuthorization();
+
+// ======= Controllers =======
+builder.Services.AddControllers();
+
+// ======= Swagger =======
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "3K Sevkiyat / Çeki Takip API",
+        Version = "v1",
+        Description = "Sevkiyat yönetimi, çeki takibi, sandık operasyonları ve stok yönetimi API'si"
+    });
+
+    // JWT Auth tanımı
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "JWT Bearer token girin. Örnek: Bearer {token}",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
+
+// ======= CORS =======
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+});
+
+var app = builder.Build();
+
+// ======= Middleware Pipeline =======
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "3K API v1"));
+}
+
+app.UseHttpsRedirection();
+app.UseCors("AllowAll");
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapControllers();
+
+app.Run();

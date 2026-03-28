@@ -1,11 +1,11 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using MediatR;
-using 3K.Core.Entities;
+using _3K.Application.DTOs;
 
-namespace 3K.Application.Features.SandikIslemleri.Queries
+namespace _3K.Application.Features.SandikIslemleri.Queries
 {
-    public class GetProjeSandiklariQuery : IRequest<IEnumerable<Sandik>>
-{
-    public int ProjeId { get; set; }
-}
+    public class GetProjeSandiklariQuery : IRequest<IEnumerable<SandikDto>>
+    {
+        public int ProjeId { get; set; }
+    }
 }

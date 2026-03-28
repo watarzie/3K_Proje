@@ -1,20 +1,18 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+using _3K.Core.Enums;
 
-namespace 3K.Core.Entities
+namespace _3K.Core.Entities
 {
     public class StokKaydi : BaseEntity
     {
-        public string MalzemeKodu { get; set; }
-        public string MalzemeAdi { get; set; }
+        public string MalzemeKodu { get; set; } = string.Empty;
+        public string MalzemeAdi { get; set; } = string.Empty;
         public int Miktar { get; set; }
-        public string Birim { get; set; }
-        public string Lokasyon { get; set; }
-        public string KaynakProje { get; set; }
-        public string Durum { get; set; }
+        public string Birim { get; set; } = string.Empty;
+        public string? Lokasyon { get; set; }
+        public string? KaynakProje { get; set; }
+        public StokDurum Durum { get; set; } = StokDurum.Aktif;
 
-        [cite_start]// Navigation Properties [cite: 316]
+        // Navigation Properties
         public virtual ICollection<StokHareketi> StokHareketleri { get; set; } = new List<StokHareketi>();
     }
 }

@@ -1,21 +1,20 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace 3K.Core.Entities
+namespace _3K.Core.Entities
 {
     public class StokHareketi : BaseEntity
     {
         public int StokKaydiId { get; set; }
         public int CekiSatiriId { get; set; }
         public int ProjeId { get; set; }
+        public int KullaniciId { get; set; }
         public int Miktar { get; set; }
-        public string IslemTipi { get; set; }
-        public DateTime Tarih { get; set; }
+        public string IslemTipi { get; set; } = string.Empty;
+        public string? Aciklama { get; set; }
+        public DateTime Tarih { get; set; } = DateTime.UtcNow;
 
-        [cite_start]// Navigation Properties [cite: 315, 316]
-        public virtual StokKaydi StokKaydi { get; set; }
-        public virtual CekiSatiri CekiSatiri { get; set; }
-        public virtual Proje Proje { get; set; }
+        // Navigation Properties
+        public virtual StokKaydi StokKaydi { get; set; } = null!;
+        public virtual CekiSatiri CekiSatiri { get; set; } = null!;
+        public virtual Proje Proje { get; set; } = null!;
+        public virtual Kullanici Kullanici { get; set; } = null!;
     }
 }
