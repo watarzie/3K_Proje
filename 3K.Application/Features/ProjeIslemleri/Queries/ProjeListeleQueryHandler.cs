@@ -26,7 +26,16 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                 Musteri = p.Musteri,
                 Durum = p.Durum.ToString(),
                 PlanlananSevkTarihi = p.PlanlananSevkTarihi,
-                SorumluKisi = p.SorumluKisi
+                SorumluKisi = p.SorumluKisi,
+                SandikSayisi = p.Sandiklar?.Count ?? 0,
+                FBNo = p.FBNo,
+                Guc = p.Guc,
+                Gerilim = p.Gerilim,
+                Lokasyon = p.Lokasyon,
+                OlcuResmiNo = p.OlcuResmiNo,
+                NakilOlcuResmiNo = p.NakilOlcuResmiNo,
+                SonMontajResmiNo = p.SonMontajResmiNo,
+                ProjeMuduru = p.ProjeMuduru
             });
         }
     }

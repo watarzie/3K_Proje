@@ -8,7 +8,6 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
     /// </summary>
     public class CekiYukleCommand : IRequest<CekiYuklemeResultDto>
     {
-        public int ProjeId { get; set; }
         public Stream ExcelDosya { get; set; } = null!;
         public string DosyaAdi { get; set; } = string.Empty;
         public int KullaniciId { get; set; }

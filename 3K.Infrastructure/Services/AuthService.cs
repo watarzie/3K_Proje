@@ -92,10 +92,10 @@ namespace _3K.Infrastructure.Services
             var claims = new[]
             {
                 new Claim(ClaimTypes.NameIdentifier, kullanici.Id.ToString()),
-                new Claim(ClaimTypes.Name, kullanici.AdSoyad),
-                new Claim(ClaimTypes.Email, kullanici.Email),
+                new Claim(ClaimTypes.Name, kullanici.AdSoyad ?? ""),
+                new Claim(ClaimTypes.Email, kullanici.Email ?? ""),
                 new Claim(ClaimTypes.Role, kullanici.Rol.ToString()),
-                new Claim("BasHarf", kullanici.BasHarf)
+                new Claim("BasHarf", kullanici.BasHarf ?? "")
             };
 
             var tokenDescriptor = new JwtSecurityToken(

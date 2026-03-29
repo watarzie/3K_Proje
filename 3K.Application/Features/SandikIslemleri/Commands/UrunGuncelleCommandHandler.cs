@@ -94,6 +94,40 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             cekiSatiriRepo.Update(urun);
 
+            // Sandık durumunu otomatik güncelle
+            var sandikRepo = _unitOfWork.GetRepository<Sandik>();
+            var sandik = await sandikRepo.GetByIdAsync(request.SandikId);
+            if (sandik != null)
+            {
+                var tumIcerikler = await sandikIcerikRepo.FindAsync(si => si.SandikId == request.SandikId);
+                var tumUrunIds = tumIcerikler.Select(si => si.CekiSatiriId).ToList();
+                
+                // Tüm ürünleri getir ve durumlarını kontrol et
+                bool hepsiTamamlandi = true;
+                bool enAzBiriKonuldu = false;
+                foreach (var urunId in tumUrunIds)
+                {
+                    var u = await cekiSatiriRepo.GetByIdAsync(urunId);
+                    if (u != null)
+                    {
+                        if (u.Durum != UrunDurum.Tamamlandi)
+                            hepsiTamamlandi = false;
+                        var uIcerik = tumIcerikler.FirstOrDefault(si => si.CekiSatiriId == urunId);
+                        if (uIcerik != null && uIcerik.KonulanAdet > 0)
+                            enAzBiriKonuldu = true;
+                    }
+                }
+
+                if (hepsiTamamlandi && tumUrunIds.Count > 0)
+                    sandik.Durum = SandikDurum.Hazir;
+                else if (enAzBiriKonuldu)
+                    sandik.Durum = SandikDurum.Hazirlaniyor;
+                else
+                    sandik.Durum = SandikDurum.Bos;
+
+                sandikRepo.Update(sandik);
+            }
+
             await _unitOfWork.SaveChangesAsync();
 
             // Hareket kaydı

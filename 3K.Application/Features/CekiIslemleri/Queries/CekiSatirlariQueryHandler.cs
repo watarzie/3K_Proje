@@ -21,6 +21,7 @@ namespace _3K.Application.Features.CekiIslemleri.Queries
             {
                 Id = s.Id,
                 SiraNo = s.SiraNo,
+                OlcuResmiPozNo = s.OlcuResmiPozNo,
                 BarkodNo = s.BarkodNo,
                 Aciklama = s.Aciklama,
                 IstenenAdet = s.IstenenAdet,

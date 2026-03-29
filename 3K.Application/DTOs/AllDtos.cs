@@ -11,6 +11,16 @@ namespace _3K.Application.DTOs
         public int SandikSayisi { get; set; }
         public int ToplamUrunSayisi { get; set; }
         public int TamamlananUrunSayisi { get; set; }
+
+        // Teknik bilgiler
+        public string? FBNo { get; set; }
+        public string? Guc { get; set; }
+        public string? Gerilim { get; set; }
+        public string? Lokasyon { get; set; }
+        public string? OlcuResmiNo { get; set; }
+        public string? NakilOlcuResmiNo { get; set; }
+        public string? SonMontajResmiNo { get; set; }
+        public string? ProjeMuduru { get; set; }
     }
 
     public class ProjeOlusturDto
@@ -33,6 +43,7 @@ namespace _3K.Application.DTOs
     {
         public int Id { get; set; }
         public int SiraNo { get; set; }
+        public string? OlcuResmiPozNo { get; set; }
         public string BarkodNo { get; set; } = string.Empty;
         public string Aciklama { get; set; } = string.Empty;
         public int IstenenAdet { get; set; }
@@ -69,6 +80,7 @@ namespace _3K.Application.DTOs
     {
         public int Id { get; set; }
         public int CekiSatiriId { get; set; }
+        public string? OlcuResmiPozNo { get; set; }
         public string BarkodNo { get; set; } = string.Empty;
         public string Aciklama { get; set; } = string.Empty;
         public int IstenenAdet { get; set; }

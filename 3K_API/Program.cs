@@ -8,6 +8,9 @@ using _3K.Infrastructure.Data;
 using _3K.Infrastructure.Repositories;
 using _3K.Infrastructure.Services;
 
+// Npgsql'in DateTime davranışı için eski uyumluluğu aç (Unspecified DateTime hatasını çözer)
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 // ======= DbContext =======
@@ -59,6 +62,12 @@ builder.Services.AddAuthorization();
 // ======= Controllers =======
 builder.Services.AddControllers();
 
+// ======= Dosya yükleme boyut limiti (50 MB) =======
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = 50 * 1024 * 1024;
+});
+
 // ======= Swagger =======
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -70,14 +79,13 @@ builder.Services.AddSwaggerGen(c =>
         Description = "Sevkiyat yönetimi, çeki takibi, sandık operasyonları ve stok yönetimi API'si"
     });
 
-    // JWT Auth tanımı
+    // JWT Auth tanımı — Http scheme kullanılıyor, Swagger otomatik "Bearer " ekler
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "JWT Bearer token girin. Örnek: Bearer {token}",
-        Name = "Authorization",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.ApiKey,
-        Scheme = "Bearer"
+        Description = "Login'den dönen token'ı buraya yapıştırın (Bearer öneki otomatik eklenir)",
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT"
     });
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
@@ -111,7 +119,11 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "3K API v1"));
 }
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+
 app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();

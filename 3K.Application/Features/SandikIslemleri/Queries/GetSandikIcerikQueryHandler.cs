@@ -31,6 +31,7 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 {
                     Id = i.Id,
                     CekiSatiriId = i.CekiSatiriId,
+                    OlcuResmiPozNo = i.CekiSatiri?.OlcuResmiPozNo,
                     BarkodNo = i.CekiSatiri?.BarkodNo ?? "",
                     Aciklama = i.CekiSatiri?.Aciklama ?? "",
                     IstenenAdet = i.CekiSatiri?.IstenenAdet ?? 0,

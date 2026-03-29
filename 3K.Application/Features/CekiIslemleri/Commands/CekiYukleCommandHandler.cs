@@ -19,7 +19,7 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
 
         public async Task<CekiYuklemeResultDto> Handle(CekiYukleCommand request, CancellationToken cancellationToken)
         {
-            var ceki = await _cekiService.CekiYukleAsync(request.ProjeId, request.ExcelDosya, request.DosyaAdi);
+            var ceki = await _cekiService.CekiYukleAsync(request.ExcelDosya, request.DosyaAdi);
 
             var satirlar = await _cekiService.GetCekiSatirlariAsync(ceki.Id);
             var satirList = satirlar.ToList();

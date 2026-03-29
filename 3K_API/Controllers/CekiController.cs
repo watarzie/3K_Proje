@@ -20,26 +20,32 @@ namespace _3K_API.Controllers
         }
 
         /// <summary>
-        /// İş akışı 2: Excel çeki dosyasını yükle
+        /// İş akışı 2: Excel çeki dosyasını yükle (Proje FB NO'ya göre otomatik bulunur/oluşturulur)
         /// </summary>
-        [HttpPost("yukle/{projeId}")]
+        [HttpPost("yukle")]
         [Authorize(Roles = "Admin")]
-        public async Task<ActionResult<CekiYuklemeResultDto>> Yukle(int projeId, IFormFile dosya)
+        public async Task<ActionResult<CekiYuklemeResultDto>> Yukle(IFormFile dosya)
         {
             if (dosya == null || dosya.Length == 0)
                 return BadRequest(new { message = "Dosya seçilmedi." });
 
-            using var stream = dosya.OpenReadStream();
-            var command = new CekiYukleCommand
+            try
             {
-                ProjeId = projeId,
-                ExcelDosya = stream,
-                DosyaAdi = dosya.FileName,
-                KullaniciId = GetKullaniciId()
-            };
+                using var stream = dosya.OpenReadStream();
+                var command = new CekiYukleCommand
+                {
+                    ExcelDosya = stream,
+                    DosyaAdi = dosya.FileName,
+                    KullaniciId = GetKullaniciId()
+                };
 
-            var result = await _mediator.Send(command);
-            return Ok(result);
+                var result = await _mediator.Send(command);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message, details = ex.InnerException?.Message });
+            }
         }
 
         [HttpGet("satirlar/{cekiId}")]

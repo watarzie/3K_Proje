@@ -6,6 +6,7 @@ namespace _3K.Core.Entities
     {
         public int CekiId { get; set; }
         public int SiraNo { get; set; }
+        public string? OlcuResmiPozNo { get; set; }
         public string BarkodNo { get; set; } = string.Empty;
         public string Aciklama { get; set; } = string.Empty;
         public int IstenenAdet { get; set; }

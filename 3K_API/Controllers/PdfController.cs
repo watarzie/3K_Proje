@@ -18,7 +18,7 @@ namespace _3K_API.Controllers
         }
 
         /// <summary>
-        /// İş akışı 9: PDF oluştur ve indir
+        /// İş akışı 9: PDF oluştur ve indir (QuestPDF ile)
         /// </summary>
         [HttpGet("indir/{projeId}")]
         public async Task<IActionResult> Indir(int projeId)
@@ -35,6 +35,36 @@ namespace _3K_API.Controllers
                 return File(pdfBytes, "application/pdf", $"Ceki_Proje_{projeId}.pdf");
             }
             catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// İş akışı 9: Orijinal Excel şablonunu operasyon verileriyle doldurarak indir.
+        /// "Excel neyse PDF odur" — şablon düzeni değişmez, sadece paketleyen/kontrol/remarks yazılır.
+        /// </summary>
+        [HttpGet("excel/{projeId}")]
+        public async Task<IActionResult> ExcelIndir(int projeId)
+        {
+            try
+            {
+                var kullaniciId = GetKullaniciId();
+                var excelBytes = await _mediator.Send(new ExcelOlusturCommand
+                {
+                    ProjeId = projeId,
+                    KullaniciId = kullaniciId
+                });
+
+                return File(excelBytes,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    $"Ceki_Proje_{projeId}.xlsx");
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (FileNotFoundException ex)
             {
                 return NotFound(new { message = ex.Message });
             }
