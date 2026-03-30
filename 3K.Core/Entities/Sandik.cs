@@ -6,8 +6,9 @@ namespace _3K.Core.Entities
     {
         public int ProjeId { get; set; }
         public string SandikNo { get; set; } = string.Empty;
+        public SandikTipi Tip { get; set; } = SandikTipi.Proje;
         public SandikDurum Durum { get; set; } = SandikDurum.Bos;
-        public string? DepoLokasyonu { get; set; }
+        public DepoLokasyon DepoLokasyonu { get; set; } = DepoLokasyon.Belirsiz;
 
         // Navigation Properties
         public virtual Proje Proje { get; set; } = null!;

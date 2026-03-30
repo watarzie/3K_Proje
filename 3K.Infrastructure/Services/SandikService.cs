@@ -44,7 +44,7 @@ namespace _3K.Infrastructure.Services
                 .FirstOrDefaultAsync(s => s.ProjeId == projeId && s.SandikNo == sandikNo);
         }
 
-        public async Task<Sandik> SandikOlusturAsync(int projeId, string sandikNo, string? depoLokasyonu = null)
+        public async Task<Sandik> SandikOlusturAsync(int projeId, string sandikNo, DepoLokasyon depoLokasyonu = DepoLokasyon.Belirsiz)
         {
             var sandikRepo = _unitOfWork.GetRepository<Sandik>();
             var sandik = new Sandik

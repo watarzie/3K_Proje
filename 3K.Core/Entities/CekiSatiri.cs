@@ -15,6 +15,11 @@ namespace _3K.Core.Entities
         public string? FiiliSandikNo { get; set; }
         public string? Remarks { get; set; }
 
+        public GridDurum GridDurumu { get; set; } = GridDurum.Bekliyor;
+        public UcKDurum UcKDurumu { get; set; } = UcKDurum.Bekliyor;
+        public bool IsManuelEklenen { get; set; } = false;
+        public string? EklemeNedeni { get; set; }
+
         // İş akışı 3: Ürün durumu (State Diagram)
         public UrunDurum Durum { get; set; } = UrunDurum.Bekliyor;
 

@@ -5,6 +5,8 @@ namespace _3K.Core.Enums
         Hazirlaniyor = 0,
         Devam = 1,
         Tamamlandi = 2,
-        Beklemede = 3
+        Beklemede = 3,
+        SevkEdildi = 4,
+        EksikSevkEdildi = 5
     }
 }

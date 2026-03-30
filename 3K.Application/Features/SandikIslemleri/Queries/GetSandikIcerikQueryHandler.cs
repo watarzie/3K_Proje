@@ -26,7 +26,7 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 Id = sandik.Id,
                 SandikNo = sandik.SandikNo,
                 Durum = sandik.Durum.ToString(),
-                DepoLokasyonu = sandik.DepoLokasyonu,
+                DepoLokasyonu = sandik.DepoLokasyonu.ToString(),
                 Icerikler = icerikler.Select(i => new SandikIcerikDto
                 {
                     Id = i.Id,

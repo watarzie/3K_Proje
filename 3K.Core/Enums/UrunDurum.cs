@@ -16,6 +16,9 @@ namespace _3K.Core.Enums
         StoktanKarsilandi = 4,
         FBdenKarsilandi = 5,
         SonraGidecek = 6,
-        SandikDegisti = 7
+        SandikDegisti = 7,
+        IptalVeyaPasif = 8,
+        TeslimAlindi = 9,
+        GeriGonderildi = 10
     }
 }

@@ -72,6 +72,17 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 urun.KontrolEdenId = request.KontrolEdenId.Value;
             }
 
+            // Grid ve 3K durumlarını güncelle (İş akışı 5)
+            if (request.GridDurumu.HasValue)
+            {
+                urun.GridDurumu = request.GridDurumu.Value;
+            }
+
+            if (request.UcKDurumu.HasValue)
+            {
+                urun.UcKDurumu = request.UcKDurumu.Value;
+            }
+
             // Açıklama güncelle (İş akışı 8)
             if (!string.IsNullOrEmpty(request.Aciklama))
             {
@@ -79,26 +90,36 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             }
 
             // Durum otomatik hesaplama (State Diagram)
-            if (icerik.KonulanAdet >= urun.IstenenAdet)
+            if (urun.UcKDurumu == UcKDurum.TamGeldi || icerik.KonulanAdet >= urun.IstenenAdet)
             {
                 urun.Durum = UrunDurum.Tamamlandi;
             }
-            else if (icerik.KonulanAdet > 0 && icerik.KonulanAdet < urun.IstenenAdet)
-            {
-                urun.Durum = UrunDurum.KismiGeldi;
-            }
-            else if (icerik.EksikAdet > 0)
+            else if (urun.UcKDurumu == UcKDurum.EksikGeldi || icerik.EksikAdet > 0)
             {
                 urun.Durum = UrunDurum.Eksik;
+            }
+            else if (urun.GridDurumu == GridDurum.Geldi || (icerik.KonulanAdet > 0 && icerik.KonulanAdet < urun.IstenenAdet))
+            {
+                urun.Durum = UrunDurum.KismiGeldi;
             }
 
             cekiSatiriRepo.Update(urun);
 
-            // Sandık durumunu otomatik güncelle
+            // Sandık durumunu ve depo lokasyonunu otomatik güncelle
             var sandikRepo = _unitOfWork.GetRepository<Sandik>();
             var sandik = await sandikRepo.GetByIdAsync(request.SandikId);
             if (sandik != null)
             {
+                // Lokasyon Otomasyonu
+                if (request.UcKDurumu.HasValue && request.UcKDurumu.Value != UcKDurum.Bekliyor)
+                {
+                    sandik.DepoLokasyonu = DepoLokasyon.UcK;
+                }
+                else if (request.GridDurumu.HasValue && request.GridDurumu.Value != GridDurum.Bekliyor)
+                {
+                    sandik.DepoLokasyonu = DepoLokasyon.Grid;
+                }
+
                 var tumIcerikler = await sandikIcerikRepo.FindAsync(si => si.SandikId == request.SandikId);
                 var tumUrunIds = tumIcerikler.Select(si => si.CekiSatiriId).ToList();
                 
@@ -138,7 +159,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 ReferansId = urun.Id.ToString(),
                 Islem = "Ürün Güncellendi",
                 KullaniciId = request.KullaniciId,
-                Aciklama = $"Konulan: {icerik.KonulanAdet}, Eksik: {icerik.EksikAdet}, Durum: {urun.Durum}"
+                Aciklama = $"Durum: {urun.Durum}, Grid: {urun.GridDurumu}, 3K: {urun.UcKDurumu}, Konulan: {icerik.KonulanAdet}, Eksik: {icerik.EksikAdet}"
             });
 
             return true;

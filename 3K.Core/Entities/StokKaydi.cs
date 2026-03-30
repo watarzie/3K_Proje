@@ -10,6 +10,7 @@ namespace _3K.Core.Entities
         public string Birim { get; set; } = string.Empty;
         public string? Lokasyon { get; set; }
         public string? KaynakProje { get; set; }
+        public string? StokGirisNedeni { get; set; }
         public StokDurum Durum { get; set; } = StokDurum.Aktif;
 
         // Navigation Properties

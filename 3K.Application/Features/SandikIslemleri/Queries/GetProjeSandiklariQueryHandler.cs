@@ -26,7 +26,7 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 Id = s.Id,
                 SandikNo = s.SandikNo,
                 Durum = s.Durum.ToString(),
-                DepoLokasyonu = s.DepoLokasyonu,
+                DepoLokasyonu = s.DepoLokasyonu.ToString(),
                 UrunSayisi = s.SandikIcerikleri?.Count ?? 0
             });
         }

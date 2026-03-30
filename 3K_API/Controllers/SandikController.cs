@@ -66,5 +66,52 @@ namespace _3K_API.Controllers
             var result = await _mediator.Send(command);
             return result ? Ok(new { message = "Sandık değiştirildi." }) : NotFound(new { message = "İşlem başarısız." });
         }
+
+        /// <summary>
+        /// İş akışı 9: Ekrandan sisteme "manuel" ürün satırı eklenmesi.
+        /// </summary>
+        [HttpPost("manuel-ekle")]
+        public async Task<ActionResult> ManuelUrunEkle([FromBody] ManuelUrunEkleCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result ? Ok(new { message = "Manuel ürün eklendi." }) : BadRequest(new { message = "Eklerken hata oluştu." });
+        }
+
+        /// <summary>
+        /// İş akışı 9: Ürün satırının durumunu pasif / iptal olarak işaretle.
+        /// </summary>
+        [HttpPost("iptal")]
+        public async Task<ActionResult> UrunIptal([FromBody] UrunIptalCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result ? Ok(new { message = "Ürün iptal edildi." }) : NotFound(new { message = "Ürün bulunamadı." });
+        }
+
+        /// <summary>
+        /// İş akışı 10: Bekleyen eksik ürünü mevcut bir stok ile karşıla.
+        /// </summary>
+        [HttpPost("stoktan-karsila")]
+        public async Task<ActionResult> StoktanKarsila([FromBody] StoktanKarsilaCommand command)
+        {
+            try
+            {
+                var result = await _mediator.Send(command);
+                return result ? Ok(new { message = "Ürün stoktan başarıyla karşılandı." }) : BadRequest(new { message = "İşlem başarısız." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// İş akışı 11: Bekleyen eksik ürünü farklı bir Birim/Tesis transferi (FB) ile karşıla.
+        /// </summary>
+        [HttpPost("fbden-karsila")]
+        public async Task<ActionResult> FBDenKarsila([FromBody] FBDenKarsilaCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result ? Ok(new { message = "Ürün FB'den karşılandı." }) : BadRequest(new { message = "İşlem başarısız." });
+        }
     }
 }
