@@ -72,5 +72,15 @@ namespace _3K_API.Controllers
             var result = await _mediator.Send(command);
             return result.ToActionResult();
         }
+
+        /// <summary>
+        /// Projeye yeni boş sandık ekler — çeki dışı ek sandık ihtiyacı için.
+        /// </summary>
+        [HttpPost("ekle")]
+        public async Task<ActionResult> SandikEkle([FromBody] SandikEkleCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
     }
 }
