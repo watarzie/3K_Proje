@@ -1,7 +1,6 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Core.Entities;
-using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.SandikIslemleri.Commands
@@ -25,7 +24,6 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             var urun = await cekiSatiriRepo.GetByIdAsync(request.CekiSatiriId);
             if (urun == null) return Result.Failure("Ürün bulunamadı.", 404);
 
-            // SandikIcerik kaydını bul veya oluştur
             var icerikler = await sandikIcerikRepo.FindAsync(si =>
                 si.CekiSatiriId == request.CekiSatiriId && si.SandikId == request.SandikId);
             var icerik = icerikler.FirstOrDefault();
@@ -49,19 +47,18 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (request.PaketleyenId.HasValue) urun.PaketleyenId = request.PaketleyenId.Value;
             if (request.KontrolEdenId.HasValue) urun.KontrolEdenId = request.KontrolEdenId.Value;
 
-            // Grid ve 3K durumlarını güncelle
-            if (request.GridDurumu.HasValue) urun.GridDurumu = request.GridDurumu.Value;
-            if (request.UcKDurumu.HasValue) urun.UcKDurumu = request.UcKDurumu.Value;
+            if (!string.IsNullOrEmpty(request.GridDurumu)) urun.GridDurumu = request.GridDurumu;
+            if (!string.IsNullOrEmpty(request.UcKDurumu)) urun.UcKDurumu = request.UcKDurumu;
 
             if (!string.IsNullOrEmpty(request.Aciklama)) urun.Remarks = request.Aciklama;
 
-            // Durum hesaplama (State Diagram)
-            if (urun.UcKDurumu == UcKDurum.TamGeldi || icerik.KonulanAdet >= urun.IstenenAdet)
-                urun.Durum = UrunDurum.Tamamlandi;
-            else if (urun.UcKDurumu == UcKDurum.EksikGeldi || icerik.EksikAdet > 0)
-                urun.Durum = UrunDurum.Eksik;
-            else if (urun.GridDurumu == GridDurum.Geldi || (icerik.KonulanAdet > 0 && icerik.KonulanAdet < urun.IstenenAdet))
-                urun.Durum = UrunDurum.KismiGeldi;
+            // Durum hesaplama (State Diagram) — string karşılaştırma
+            if (urun.UcKDurumu == "TamGeldi" || icerik.KonulanAdet >= urun.IstenenAdet)
+                urun.Durum = "Tamamlandi";
+            else if (urun.UcKDurumu == "EksikGeldi" || icerik.EksikAdet > 0)
+                urun.Durum = "Eksik";
+            else if (urun.GridDurumu == "Geldi" || (icerik.KonulanAdet > 0 && icerik.KonulanAdet < urun.IstenenAdet))
+                urun.Durum = "KismiGeldi";
 
             cekiSatiriRepo.Update(urun);
 
@@ -70,10 +67,10 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             var sandik = await sandikRepo.GetByIdAsync(request.SandikId);
             if (sandik != null)
             {
-                if (request.UcKDurumu.HasValue && request.UcKDurumu.Value != UcKDurum.Bekliyor)
-                    sandik.DepoLokasyonu = DepoLokasyon.UcK;
-                else if (request.GridDurumu.HasValue && request.GridDurumu.Value != GridDurum.Bekliyor)
-                    sandik.DepoLokasyonu = DepoLokasyon.Grid;
+                if (!string.IsNullOrEmpty(request.UcKDurumu) && request.UcKDurumu != "Bekliyor")
+                    sandik.DepoLokasyonu = "UcK";
+                else if (!string.IsNullOrEmpty(request.GridDurumu) && request.GridDurumu != "Bekliyor")
+                    sandik.DepoLokasyonu = "Grid";
 
                 var tumIcerikler = await sandikIcerikRepo.FindAsync(si => si.SandikId == request.SandikId);
                 var tumUrunIds = tumIcerikler.Select(si => si.CekiSatiriId).ToList();
@@ -85,15 +82,15 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                     var u = await cekiSatiriRepo.GetByIdAsync(urunId);
                     if (u != null)
                     {
-                        if (u.Durum != UrunDurum.Tamamlandi) hepsiTamamlandi = false;
+                        if (u.Durum != "Tamamlandi") hepsiTamamlandi = false;
                         var uIcerik = tumIcerikler.FirstOrDefault(si => si.CekiSatiriId == urunId);
                         if (uIcerik != null && uIcerik.KonulanAdet > 0) enAzBiriKonuldu = true;
                     }
                 }
 
-                if (hepsiTamamlandi && tumUrunIds.Count > 0) sandik.Durum = SandikDurum.Hazir;
-                else if (enAzBiriKonuldu) sandik.Durum = SandikDurum.Hazirlaniyor;
-                else sandik.Durum = SandikDurum.Bos;
+                if (hepsiTamamlandi && tumUrunIds.Count > 0) sandik.Durum = "Hazir";
+                else if (enAzBiriKonuldu) sandik.Durum = "Hazirlaniyor";
+                else sandik.Durum = "Bos";
 
                 sandikRepo.Update(sandik);
             }

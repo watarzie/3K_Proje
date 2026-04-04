@@ -11,7 +11,7 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
     /// </summary>
     public class CekiYukleCommand : IRequest<Result<CekiYuklemeResultDto>>, ISecuredRequest
     {
-        public string[] RequiredRoles => new[] { nameof(KullaniciRol.Admin) };
+        public string[] RequiredRoles => new[] { "Admin" };
 
         public Stream ExcelDosya { get; set; } = null!;
         public string DosyaAdi { get; set; } = string.Empty;

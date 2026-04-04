@@ -10,7 +10,7 @@ namespace _3K.Application.Features.PdfIslemleri.Commands
     /// </summary>
     public class ExcelOlusturCommand : IRequest<Result<byte[]>>, ISecuredRequest
     {
-        public string[] RequiredRoles => new[] { nameof(KullaniciRol.Admin), nameof(KullaniciRol.Yonetici) };
+        public string[] RequiredRoles => new[] { "Admin", "Yonetici" };
 
         public int ProjeId { get; set; }
         public int KullaniciId { get; set; }

@@ -11,7 +11,7 @@ namespace _3K.Application.Features.FBTransferIslemleri.Commands
     /// </summary>
     public class FBTransferOlusturCommand : IRequest<Result<FBTransferResultDto>>, ISecuredRequest
     {
-        public string[] RequiredRoles => new[] { nameof(KullaniciRol.Admin), nameof(KullaniciRol.Personel3K) };
+        public string[] RequiredRoles => new[] { "Admin", "Personel3K" };
 
         public int CekiSatiriId { get; set; }
         public string AsilFB { get; set; } = string.Empty;

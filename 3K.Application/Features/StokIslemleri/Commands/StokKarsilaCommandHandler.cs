@@ -1,7 +1,7 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Core.Entities;
-using _3K.Core.Enums;
+
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.StokIslemleri.Commands
@@ -42,7 +42,7 @@ namespace _3K.Application.Features.StokIslemleri.Commands
                 sandikIcerikRepo.Update(icerik);
             }
 
-            urun.Durum = UrunDurum.StoktanKarsilandi;
+            urun.Durum = "StoktanKarsilandi";
             urun.Remarks = string.IsNullOrEmpty(urun.Remarks)
                 ? "Kalan stoktan karşılandı"
                 : $"{urun.Remarks}; Kalan stoktan karşılandı";

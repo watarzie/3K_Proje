@@ -11,7 +11,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
     /// </summary>
     public class ProjeOlusturCommand : IRequest<Result<ProjeDto>>, ISecuredRequest
     {
-        public string[] RequiredRoles => new[] { nameof(KullaniciRol.Admin) };
+        public string[] RequiredRoles => new[] { "Admin" };
 
         public string ProjeNo { get; set; } = string.Empty;
         public string Musteri { get; set; } = string.Empty;

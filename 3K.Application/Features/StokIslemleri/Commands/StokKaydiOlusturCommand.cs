@@ -11,7 +11,7 @@ namespace _3K.Application.Features.StokIslemleri.Commands
     /// </summary>
     public class StokKaydiOlusturCommand : IRequest<Result<StokKaydiDto>>, ISecuredRequest
     {
-        public string[] RequiredRoles => new[] { nameof(KullaniciRol.Admin) };
+        public string[] RequiredRoles => new[] { "Admin" };
 
         public string MalzemeKodu { get; set; } = string.Empty;
         public string MalzemeAdi { get; set; } = string.Empty;

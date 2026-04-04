@@ -1,6 +1,5 @@
 using MediatR;
 using _3K.Application.Common;
-using _3K.Core.Enums;
 
 namespace _3K.Application.Features.SandikIslemleri.Commands
 {
@@ -10,14 +9,14 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
     /// </summary>
     public class UrunGuncelleCommand : IRequest<Result>, ISecuredRequest
     {
-        public string[] RequiredRoles => new[] { nameof(KullaniciRol.Admin), nameof(KullaniciRol.Personel3K) };
+        public string[] RequiredRoles => new[] { "Admin", "Personel3K" };
 
         public int CekiSatiriId { get; set; }
         public int SandikId { get; set; }
         public int? KonulanAdet { get; set; }
         public int? EksikAdet { get; set; }
-        public GridDurum? GridDurumu { get; set; }
-        public UcKDurum? UcKDurumu { get; set; }
+        public string? GridDurumu { get; set; }
+        public string? UcKDurumu { get; set; }
         public int? PaketleyenId { get; set; }
         public int? KontrolEdenId { get; set; }
         public string? Aciklama { get; set; }

@@ -1,6 +1,5 @@
 using ClosedXML.Excel;
 using _3K.Core.Entities;
-using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -97,7 +96,7 @@ namespace _3K.Infrastructure.Services
 
                 if (proje == null)
                 {
-                    proje = new Proje { ProjeNo = fbNo, FBNo = fbNo, Durum = ProjeDurum.Hazirlaniyor };
+                    proje = new Proje { ProjeNo = fbNo, FBNo = fbNo, Durum = "Hazirlaniyor" };
                     await projeRepo.AddAsync(proje);
                     await _unitOfWork.SaveChangesAsync();
                 }
@@ -212,7 +211,7 @@ namespace _3K.Infrastructure.Services
                         IstenenAdet = istenenAdet,
                         Birim = birim,
                         Remarks = string.IsNullOrWhiteSpace(remarks) ? null : remarks,
-                        Durum = UrunDurum.Bekliyor,
+                        Durum = "Bekliyor",
                         FiiliSandikNo = koliNo
                     };
                     satirlar.Add(satir);
@@ -234,7 +233,7 @@ namespace _3K.Infrastructure.Services
                     {
                         ProjeId = proje.Id,
                         SandikNo = grup.Key,
-                        Durum = SandikDurum.Hazirlaniyor
+                        Durum = "Hazirlaniyor"
                     };
                     await sandikRepo.AddAsync(sandik);
                     await _unitOfWork.SaveChangesAsync();

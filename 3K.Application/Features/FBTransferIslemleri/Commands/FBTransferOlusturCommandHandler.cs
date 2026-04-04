@@ -2,7 +2,7 @@ using MediatR;
 using _3K.Application.Common;
 using _3K.Application.DTOs;
 using _3K.Core.Entities;
-using _3K.Core.Enums;
+
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.FBTransferIslemleri.Commands
@@ -40,7 +40,7 @@ namespace _3K.Application.Features.FBTransferIslemleri.Commands
             };
             await fbTransferRepo.AddAsync(transfer);
 
-            urun.Durum = UrunDurum.FBdenKarsilandi;
+            urun.Durum = "FBdenKarsilandi";
             var otomatikNot = $"{request.AlinanFB}'den temin edildi";
             urun.Remarks = string.IsNullOrEmpty(urun.Remarks) ? otomatikNot : $"{urun.Remarks}; {otomatikNot}";
             cekiSatiriRepo.Update(urun);

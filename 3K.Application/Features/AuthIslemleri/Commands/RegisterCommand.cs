@@ -10,7 +10,7 @@ namespace _3K.Application.Features.AuthIslemleri.Commands
     /// </summary>
     public class RegisterCommand : IRequest<Result<KullaniciDto>>, ISecuredRequest
     {
-        public string[] RequiredRoles => new[] { nameof(KullaniciRol.Admin) };
+        public string[] RequiredRoles => new[] { "Admin" };
 
         public string AdSoyad { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;

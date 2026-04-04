@@ -1,7 +1,7 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Core.Entities;
-using _3K.Core.Enums;
+
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.SandikIslemleri.Commands
@@ -38,7 +38,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 Tarih = DateTime.UtcNow
             });
 
-            urun.Durum = UrunDurum.FBdenKarsilandi;
+            urun.Durum = "FBdenKarsilandi";
             urun.Remarks = $"FB Transfer ({request.AlinanFB}) - {request.KarsilananAdet} adet";
             urunRepo.Update(urun);
 

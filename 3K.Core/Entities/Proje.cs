@@ -1,12 +1,10 @@
-using _3K.Core.Enums;
-
 namespace _3K.Core.Entities
 {
     public class Proje : BaseEntity
     {
         public string ProjeNo { get; set; } = string.Empty;
         public string Musteri { get; set; } = string.Empty;
-        public ProjeDurum Durum { get; set; } = ProjeDurum.Hazirlaniyor;
+        public string Durum { get; set; } = "Hazirlaniyor";
         public DateTime? PlanlananSevkTarihi { get; set; }
         public string SorumluKisi { get; set; } = string.Empty;
 

@@ -18,7 +18,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 // ======= DbContext =======
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
+           .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning)));
 
 // ======= Repository & UnitOfWork =======
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));

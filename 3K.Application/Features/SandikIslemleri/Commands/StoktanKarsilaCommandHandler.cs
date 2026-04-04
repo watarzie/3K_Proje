@@ -1,7 +1,6 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Core.Entities;
-using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.SandikIslemleri.Commands
@@ -33,10 +32,10 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 return Result.Failure("Yeterli stok miktarı bulunmuyor!", 400);
 
             stok.Miktar -= request.KarsilananAdet;
-            if (stok.Miktar == 0) stok.Durum = StokDurum.Tukendi;
+            if (stok.Miktar == 0) stok.Durum = "Tukendi";
             stokRepo.Update(stok);
 
-            urun.Durum = UrunDurum.StoktanKarsilandi;
+            urun.Durum = "StoktanKarsilandi";
             urun.Remarks = $"Stoktan karşılandı ({request.KarsilananAdet} {urun.Birim})";
             urunRepo.Update(urun);
 

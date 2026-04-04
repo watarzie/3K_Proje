@@ -1,5 +1,4 @@
 using _3K.Core.Entities;
-using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -34,7 +33,6 @@ namespace _3K.Infrastructure.Services
             var urun = await repo.GetByIdAsync(cekiSatiriId);
             if (urun == null) return false;
 
-            // SandikIcerik güncelle
             var siRepo = _unitOfWork.GetRepository<SandikIcerik>();
             var icerikler = await siRepo.FindAsync(si => si.CekiSatiriId == cekiSatiriId);
             var icerik = icerikler.FirstOrDefault();
@@ -45,13 +43,12 @@ namespace _3K.Infrastructure.Services
                 siRepo.Update(icerik);
             }
 
-            // Durum güncelle
             if (konulanAdet >= urun.IstenenAdet)
-                urun.Durum = UrunDurum.Tamamlandi;
+                urun.Durum = "Tamamlandi";
             else if (konulanAdet > 0)
-                urun.Durum = UrunDurum.KismiGeldi;
+                urun.Durum = "KismiGeldi";
             else if (eksikAdet > 0)
-                urun.Durum = UrunDurum.Eksik;
+                urun.Durum = "Eksik";
 
             repo.Update(urun);
             await _unitOfWork.SaveChangesAsync();
@@ -94,7 +91,7 @@ namespace _3K.Infrastructure.Services
             return true;
         }
 
-        public async Task<bool> DurumGuncelleAsync(int cekiSatiriId, UrunDurum yeniDurum)
+        public async Task<bool> DurumGuncelleAsync(int cekiSatiriId, string yeniDurum)
         {
             var repo = _unitOfWork.GetRepository<CekiSatiri>();
             var urun = await repo.GetByIdAsync(cekiSatiriId);

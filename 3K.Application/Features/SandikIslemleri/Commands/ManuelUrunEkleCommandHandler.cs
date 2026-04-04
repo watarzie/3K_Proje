@@ -1,7 +1,7 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Core.Entities;
-using _3K.Core.Enums;
+
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.SandikIslemleri.Commands
@@ -43,11 +43,11 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 Birim = request.Birim,
                 CekideGecenSandikNo = sandik.SandikNo,
                 FiiliSandikNo = sandik.SandikNo,
-                Durum = UrunDurum.Bekliyor,
+                Durum = "Bekliyor",
                 IsManuelEklenen = true,
                 EklemeNedeni = request.EklemeNedeni,
-                GridDurumu = GridDurum.Bekliyor,
-                UcKDurumu = UcKDurum.Bekliyor
+                GridDurumu = "Bekliyor",
+                UcKDurumu = "Bekliyor"
             };
 
             await cekiSatiriRepo.AddAsync(yeniUrun);
