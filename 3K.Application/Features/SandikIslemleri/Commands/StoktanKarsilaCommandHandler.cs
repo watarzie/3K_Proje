@@ -1,11 +1,12 @@
 using MediatR;
+using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.SandikIslemleri.Commands
 {
-    public class StoktanKarsilaCommandHandler : IRequestHandler<StoktanKarsilaCommand, bool>
+    public class StoktanKarsilaCommandHandler : IRequestHandler<StoktanKarsilaCommand, Result>
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHareketService _hareketService;
@@ -16,7 +17,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             _hareketService = hareketService;
         }
 
-        public async Task<bool> Handle(StoktanKarsilaCommand request, CancellationToken cancellationToken)
+        public async Task<Result> Handle(StoktanKarsilaCommand request, CancellationToken cancellationToken)
         {
             var urunRepo = _unitOfWork.GetRepository<CekiSatiri>();
             var stokRepo = _unitOfWork.GetRepository<StokKaydi>();
@@ -26,22 +27,19 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             var urun = await urunRepo.GetByIdAsync(request.CekiSatiriId);
             var stok = await stokRepo.GetByIdAsync(request.StokKaydiId);
 
-            if (urun == null || stok == null) return false;
-
+            if (urun == null) return Result.Failure("Ürün bulunamadı.", 404);
+            if (stok == null) return Result.Failure("Stok kaydı bulunamadı.", 404);
             if (stok.Miktar < request.KarsilananAdet)
-                throw new Exception("Yeterli stok miktarı bulunmuyor!");
+                return Result.Failure("Yeterli stok miktarı bulunmuyor!", 400);
 
-            // Stok düşümü yap
             stok.Miktar -= request.KarsilananAdet;
             if (stok.Miktar == 0) stok.Durum = StokDurum.Tukendi;
             stokRepo.Update(stok);
 
-            // Ürün durumunu güncelle
             urun.Durum = UrunDurum.StoktanKarsilandi;
             urun.Remarks = $"Stoktan karşılandı ({request.KarsilananAdet} {urun.Birim})";
             urunRepo.Update(urun);
 
-            // Sandık İçerik kaydındaki eksik adeti kapat/güncelle
             var icerik = (await sandikIcerikRepo.FindAsync(si => si.CekiSatiriId == urun.Id)).FirstOrDefault();
             if (icerik != null)
             {
@@ -50,7 +48,6 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 sandikIcerikRepo.Update(icerik);
             }
 
-            // Stok hareketi kaydet (StokModülü kullanımı)
             await stokHareketRepo.AddAsync(new StokHareketi
             {
                 StokKaydiId = stok.Id,
@@ -65,7 +62,6 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             await _unitOfWork.SaveChangesAsync();
 
-            // Genel sistem tarihçesine (Log) kaydet
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {
                 ProjeId = request.ProjeId,
@@ -76,7 +72,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 Aciklama = $"Zimmetlenen stok id: {stok.Id}, Miktar: {request.KarsilananAdet}"
             });
 
-            return true;
+            return Result.Success();
         }
     }
 }

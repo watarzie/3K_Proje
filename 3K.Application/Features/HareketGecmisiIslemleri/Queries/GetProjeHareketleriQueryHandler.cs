@@ -1,10 +1,11 @@
 using MediatR;
+using _3K.Application.Common;
 using _3K.Application.DTOs;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.HareketGecmisiIslemleri.Queries
 {
-    public class GetProjeHareketleriQueryHandler : IRequestHandler<GetProjeHareketleriQuery, IEnumerable<HareketGecmisiDto>>
+    public class GetProjeHareketleriQueryHandler : IRequestHandler<GetProjeHareketleriQuery, Result<IEnumerable<HareketGecmisiDto>>>
     {
         private readonly IHareketService _hareketService;
 
@@ -13,11 +14,11 @@ namespace _3K.Application.Features.HareketGecmisiIslemleri.Queries
             _hareketService = hareketService;
         }
 
-        public async Task<IEnumerable<HareketGecmisiDto>> Handle(GetProjeHareketleriQuery request, CancellationToken cancellationToken)
+        public async Task<Result<IEnumerable<HareketGecmisiDto>>> Handle(GetProjeHareketleriQuery request, CancellationToken cancellationToken)
         {
             var hareketler = await _hareketService.GetProjeHareketleriAsync(request.ProjeId);
 
-            return hareketler.Select(h => new HareketGecmisiDto
+            var result = hareketler.Select(h => new HareketGecmisiDto
             {
                 Id = h.Id,
                 Islem = h.Islem,
@@ -29,6 +30,8 @@ namespace _3K.Application.Features.HareketGecmisiIslemleri.Queries
                 KullaniciAdi = h.Kullanici?.AdSoyad ?? "",
                 Tarih = h.Tarih
             });
+
+            return Result<IEnumerable<HareketGecmisiDto>>.Success(result);
         }
     }
 }

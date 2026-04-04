@@ -1,10 +1,11 @@
 using MediatR;
+using _3K.Application.Common;
 using _3K.Application.DTOs;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.CekiIslemleri.Queries
 {
-    public class CekiSatirlariQueryHandler : IRequestHandler<CekiSatirlariQuery, IEnumerable<CekiSatiriDto>>
+    public class CekiSatirlariQueryHandler : IRequestHandler<CekiSatirlariQuery, Result<IEnumerable<CekiSatiriDto>>>
     {
         private readonly ICekiService _cekiService;
 
@@ -13,11 +14,11 @@ namespace _3K.Application.Features.CekiIslemleri.Queries
             _cekiService = cekiService;
         }
 
-        public async Task<IEnumerable<CekiSatiriDto>> Handle(CekiSatirlariQuery request, CancellationToken cancellationToken)
+        public async Task<Result<IEnumerable<CekiSatiriDto>>> Handle(CekiSatirlariQuery request, CancellationToken cancellationToken)
         {
             var satirlar = await _cekiService.GetCekiSatirlariAsync(request.CekiId);
 
-            return satirlar.Select(s => new CekiSatiriDto
+            var result = satirlar.Select(s => new CekiSatiriDto
             {
                 Id = s.Id,
                 SiraNo = s.SiraNo,
@@ -33,6 +34,8 @@ namespace _3K.Application.Features.CekiIslemleri.Queries
                 PaketleyenBasHarf = s.Paketleyen?.BasHarf,
                 KontrolEdenBasHarf = s.KontrolEden?.BasHarf
             });
+
+            return Result<IEnumerable<CekiSatiriDto>>.Success(result);
         }
     }
 }

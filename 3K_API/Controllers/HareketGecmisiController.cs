@@ -1,14 +1,12 @@
 using MediatR;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using _3K.Application.DTOs;
 using _3K.Application.Features.HareketGecmisiIslemleri.Queries;
+using _3K_API.Extensions;
 
 namespace _3K_API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize]
     public class HareketGecmisiController : ControllerBase
     {
         private readonly IMediator _mediator;
@@ -18,14 +16,11 @@ namespace _3K_API.Controllers
             _mediator = mediator;
         }
 
-        /// <summary>
-        /// İş akışı 11: Proje hareket geçmişini görüntüle
-        /// </summary>
         [HttpGet("proje/{projeId}")]
-        public async Task<ActionResult<IEnumerable<HareketGecmisiDto>>> GetByProje(int projeId)
+        public async Task<ActionResult> GetByProje(int projeId)
         {
             var result = await _mediator.Send(new GetProjeHareketleriQuery { ProjeId = projeId });
-            return Ok(result);
+            return result.ToActionResult();
         }
     }
 }

@@ -1,4 +1,5 @@
 using MediatR;
+using _3K.Application.Common;
 using _3K.Application.DTOs;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
@@ -6,7 +7,7 @@ using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.ProjeIslemleri.Commands
 {
-    public class ProjeOlusturCommandHandler : IRequestHandler<ProjeOlusturCommand, ProjeDto>
+    public class ProjeOlusturCommandHandler : IRequestHandler<ProjeOlusturCommand, Result<ProjeDto>>
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHareketService _hareketService;
@@ -17,7 +18,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             _hareketService = hareketService;
         }
 
-        public async Task<ProjeDto> Handle(ProjeOlusturCommand request, CancellationToken cancellationToken)
+        public async Task<Result<ProjeDto>> Handle(ProjeOlusturCommand request, CancellationToken cancellationToken)
         {
             var projeRepo = _unitOfWork.GetRepository<Proje>();
 
@@ -33,7 +34,6 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             await projeRepo.AddAsync(proje);
             await _unitOfWork.SaveChangesAsync();
 
-            // Hareket kaydı
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {
                 ProjeId = proje.Id,
@@ -44,7 +44,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 Aciklama = $"Proje {request.ProjeNo} oluşturuldu"
             });
 
-            return new ProjeDto
+            return Result<ProjeDto>.Success(new ProjeDto
             {
                 Id = proje.Id,
                 ProjeNo = proje.ProjeNo,
@@ -52,7 +52,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 Durum = proje.Durum.ToString(),
                 PlanlananSevkTarihi = proje.PlanlananSevkTarihi,
                 SorumluKisi = proje.SorumluKisi
-            };
+            });
         }
     }
 }

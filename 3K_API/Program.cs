@@ -3,7 +3,10 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
+using MediatR;
+using FluentValidation;
 using _3K.Core.Interfaces;
+using _3K.Application.Behaviors;
 using _3K.Infrastructure.Data;
 using _3K.Infrastructure.Repositories;
 using _3K.Infrastructure.Services;
@@ -33,9 +36,22 @@ builder.Services.AddScoped<IPdfService, PdfService>();
 builder.Services.AddScoped<IMailService, MailService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
-// ======= MediatR =======
+// ======= Current User Service (Pipeline Behavior için) =======
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+
+// ======= MediatR + Pipeline Behaviors =======
 builder.Services.AddMediatR(cfg =>
-    cfg.RegisterServicesFromAssembly(typeof(_3K.Application.Features.SandikIslemleri.Commands.FiiliSandikDegistirCommand).Assembly));
+{
+    cfg.RegisterServicesFromAssembly(typeof(_3K.Application.Features.SandikIslemleri.Commands.FiiliSandikDegistirCommand).Assembly);
+    // Pipeline sırası: UnhandledException (en dış) → Authorization → Validation → Handler
+    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(UnhandledExceptionBehavior<,>));
+    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(AuthorizationBehavior<,>));
+    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+});
+
+// ======= FluentValidation =======
+builder.Services.AddValidatorsFromAssembly(typeof(_3K.Application.Features.SandikIslemleri.Commands.FiiliSandikDegistirCommand).Assembly);
 
 // ======= JWT Authentication =======
 var jwtKey = builder.Configuration["JwtSettings:SecretKey"]

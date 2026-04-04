@@ -27,10 +27,10 @@ namespace _3K.Infrastructure.Services
             await excelDosya.CopyToAsync(memoryStream);
             var dosyaBytes = memoryStream.ToArray();
 
-            Proje proje = null;
+            Proje? proje = null;
             var projeRepo = _unitOfWork.GetRepository<Proje>();
             string dosyaYolu = string.Empty;
-            Ceki ceki = null;
+            Ceki? ceki = null;
 
             // Dosyayı hafızaya sadece 1 KERE alıyoruz
             using (var excelStream = new MemoryStream(dosyaBytes))
@@ -43,7 +43,7 @@ namespace _3K.Infrastructure.Services
                         .Replace("Ç", "C").Replace("Ş", "S").Replace("İ", "I").Replace("Ö", "O").Replace("Ü", "U").Replace("Ğ", "G");
                 }
 
-                IXLWorksheet worksheet = null;
+                IXLWorksheet? worksheet = null;
                 var allSheets = workbook.Worksheets.ToList();
 
                 // Çıktı sayfasını bul
@@ -93,7 +93,7 @@ namespace _3K.Infrastructure.Services
                 if (string.IsNullOrWhiteSpace(fbNo))
                     throw new Exception("Excel şablonunda FB NO (Proje Adı) bulunamadı.");
 
-                proje = await _context.Projeler.FirstOrDefaultAsync(p => p.FBNo == fbNo || p.ProjeNo == fbNo);
+                proje = await _context.Projeler.FirstOrDefaultAsync(p => p.FBNo == fbNo || p.ProjeNo == fbNo) as Proje;
 
                 if (proje == null)
                 {

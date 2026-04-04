@@ -82,7 +82,7 @@ namespace _3K.Infrastructure.Services
                     .Replace("Ç", "C").Replace("Ş", "S").Replace("İ", "I").Replace("Ö", "O").Replace("Ü", "U").Replace("Ğ", "G");
             }
 
-            IXLWorksheet worksheet = null;
+            IXLWorksheet? worksheet = null;
             var allSheets = workbook.Worksheets.ToList();
 
             foreach (var ws in allSheets)

@@ -94,8 +94,10 @@ namespace _3K.Infrastructure.Services
                 new Claim(ClaimTypes.NameIdentifier, kullanici.Id.ToString()),
                 new Claim(ClaimTypes.Name, kullanici.AdSoyad ?? ""),
                 new Claim(ClaimTypes.Email, kullanici.Email ?? ""),
+                // AuthorizationBehavior bu claim'i okuyarak rol kontrolü yapar
                 new Claim(ClaimTypes.Role, kullanici.Rol.ToString()),
-                new Claim("BasHarf", kullanici.BasHarf ?? "")
+                new Claim("BasHarf", kullanici.BasHarf ?? ""),
+                new Claim("KullaniciId", kullanici.Id.ToString())
             };
 
             var tokenDescriptor = new JwtSecurityToken(
