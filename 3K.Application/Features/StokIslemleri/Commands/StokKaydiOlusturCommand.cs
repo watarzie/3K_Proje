@@ -1,10 +1,18 @@
 using MediatR;
+using _3K.Application.Common;
 using _3K.Application.DTOs;
+using _3K.Core.Enums;
 
 namespace _3K.Application.Features.StokIslemleri.Commands
 {
-    public class StokKaydiOlusturCommand : IRequest<StokKaydiDto>
+    /// <summary>
+    /// Stok kaydı oluştur.
+    /// Roller: Admin
+    /// </summary>
+    public class StokKaydiOlusturCommand : IRequest<Result<StokKaydiDto>>, ISecuredRequest
     {
+        public string[] RequiredRoles => new[] { "Admin" };
+
         public string MalzemeKodu { get; set; } = string.Empty;
         public string MalzemeAdi { get; set; } = string.Empty;
         public int Miktar { get; set; }

@@ -4,6 +4,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
+#pragma warning disable CA1814 // Prefer jagged arrays over multidimensional
+
 namespace _3K.Infrastructure.Migrations
 {
     /// <inheritdoc />
@@ -12,6 +14,156 @@ namespace _3K.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.CreateTable(
+                name: "LookupDepoLokasyonlari",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Anahtar = table.Column<int>(type: "integer", nullable: false),
+                    Deger = table.Column<string>(type: "text", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_LookupDepoLokasyonlari", x => x.Id);
+                    table.UniqueConstraint("AK_LookupDepoLokasyonlari_Deger", x => x.Deger);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "LookupGridDurumlari",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Anahtar = table.Column<int>(type: "integer", nullable: false),
+                    Deger = table.Column<string>(type: "text", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_LookupGridDurumlari", x => x.Id);
+                    table.UniqueConstraint("AK_LookupGridDurumlari_Deger", x => x.Deger);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "LookupIslemTipleri",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Anahtar = table.Column<int>(type: "integer", nullable: false),
+                    Deger = table.Column<string>(type: "text", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_LookupIslemTipleri", x => x.Id);
+                    table.UniqueConstraint("AK_LookupIslemTipleri_Deger", x => x.Deger);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "LookupKullaniciRolleri",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Anahtar = table.Column<int>(type: "integer", nullable: false),
+                    Deger = table.Column<string>(type: "text", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_LookupKullaniciRolleri", x => x.Id);
+                    table.UniqueConstraint("AK_LookupKullaniciRolleri_Deger", x => x.Deger);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "LookupProjeDurumlari",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Anahtar = table.Column<int>(type: "integer", nullable: false),
+                    Deger = table.Column<string>(type: "text", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_LookupProjeDurumlari", x => x.Id);
+                    table.UniqueConstraint("AK_LookupProjeDurumlari_Deger", x => x.Deger);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "LookupSandikDurumlari",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Anahtar = table.Column<int>(type: "integer", nullable: false),
+                    Deger = table.Column<string>(type: "text", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_LookupSandikDurumlari", x => x.Id);
+                    table.UniqueConstraint("AK_LookupSandikDurumlari_Deger", x => x.Deger);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "LookupSandikTipleri",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Anahtar = table.Column<int>(type: "integer", nullable: false),
+                    Deger = table.Column<string>(type: "text", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_LookupSandikTipleri", x => x.Id);
+                    table.UniqueConstraint("AK_LookupSandikTipleri_Deger", x => x.Deger);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "LookupStokDurumlari",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Anahtar = table.Column<int>(type: "integer", nullable: false),
+                    Deger = table.Column<string>(type: "text", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_LookupStokDurumlari", x => x.Id);
+                    table.UniqueConstraint("AK_LookupStokDurumlari_Deger", x => x.Deger);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "LookupUcKDurumlari",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Anahtar = table.Column<int>(type: "integer", nullable: false),
+                    Deger = table.Column<string>(type: "text", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_LookupUcKDurumlari", x => x.Id);
+                    table.UniqueConstraint("AK_LookupUcKDurumlari_Deger", x => x.Deger);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "LookupUrunDurumlari",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Anahtar = table.Column<int>(type: "integer", nullable: false),
+                    Deger = table.Column<string>(type: "text", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_LookupUrunDurumlari", x => x.Id);
+                    table.UniqueConstraint("AK_LookupUrunDurumlari_Deger", x => x.Deger);
+                });
+
             migrationBuilder.CreateTable(
                 name: "Kullanicilar",
                 columns: table => new
@@ -29,6 +181,12 @@ namespace _3K.Infrastructure.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Kullanicilar", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Kullanicilar_LookupKullaniciRolleri_Rol",
+                        column: x => x.Rol,
+                        principalTable: "LookupKullaniciRolleri",
+                        principalColumn: "Deger",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -56,6 +214,12 @@ namespace _3K.Infrastructure.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Projeler", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Projeler_LookupProjeDurumlari_Durum",
+                        column: x => x.Durum,
+                        principalTable: "LookupProjeDurumlari",
+                        principalColumn: "Deger",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -78,6 +242,12 @@ namespace _3K.Infrastructure.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_StokKayitlari", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_StokKayitlari_LookupStokDurumlari_Durum",
+                        column: x => x.Durum,
+                        principalTable: "LookupStokDurumlari",
+                        principalColumn: "Deger",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -179,15 +349,33 @@ namespace _3K.Infrastructure.Migrations
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     ProjeId = table.Column<int>(type: "integer", nullable: false),
                     SandikNo = table.Column<string>(type: "text", nullable: false),
-                    Tip = table.Column<int>(type: "integer", nullable: false),
+                    Tip = table.Column<string>(type: "text", nullable: false),
                     Durum = table.Column<string>(type: "text", nullable: false),
-                    DepoLokasyonu = table.Column<int>(type: "integer", nullable: false),
+                    DepoLokasyonu = table.Column<string>(type: "text", nullable: false),
                     CreatedDate = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
                     UpdatedDate = table.Column<DateTime>(type: "timestamp without time zone", nullable: true)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Sandiklar", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Sandiklar_LookupDepoLokasyonlari_DepoLokasyonu",
+                        column: x => x.DepoLokasyonu,
+                        principalTable: "LookupDepoLokasyonlari",
+                        principalColumn: "Deger",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Sandiklar_LookupSandikDurumlari_Durum",
+                        column: x => x.Durum,
+                        principalTable: "LookupSandikDurumlari",
+                        principalColumn: "Deger",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Sandiklar_LookupSandikTipleri_Tip",
+                        column: x => x.Tip,
+                        principalTable: "LookupSandikTipleri",
+                        principalColumn: "Deger",
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_Sandiklar_Projeler_ProjeId",
                         column: x => x.ProjeId,
@@ -212,8 +400,8 @@ namespace _3K.Infrastructure.Migrations
                     CekideGecenSandikNo = table.Column<string>(type: "text", nullable: false),
                     FiiliSandikNo = table.Column<string>(type: "text", nullable: true),
                     Remarks = table.Column<string>(type: "text", nullable: true),
-                    GridDurumu = table.Column<int>(type: "integer", nullable: false),
-                    UcKDurumu = table.Column<int>(type: "integer", nullable: false),
+                    GridDurumu = table.Column<string>(type: "text", nullable: false),
+                    UcKDurumu = table.Column<string>(type: "text", nullable: false),
                     IsManuelEklenen = table.Column<bool>(type: "boolean", nullable: false),
                     EklemeNedeni = table.Column<string>(type: "text", nullable: true),
                     Durum = table.Column<string>(type: "text", nullable: false),
@@ -243,6 +431,24 @@ namespace _3K.Infrastructure.Migrations
                         principalTable: "Kullanicilar",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.SetNull);
+                    table.ForeignKey(
+                        name: "FK_CekiSatirlari_LookupGridDurumlari_GridDurumu",
+                        column: x => x.GridDurumu,
+                        principalTable: "LookupGridDurumlari",
+                        principalColumn: "Deger",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_CekiSatirlari_LookupUcKDurumlari_UcKDurumu",
+                        column: x => x.UcKDurumu,
+                        principalTable: "LookupUcKDurumlari",
+                        principalColumn: "Deger",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_CekiSatirlari_LookupUrunDurumlari_Durum",
+                        column: x => x.Durum,
+                        principalTable: "LookupUrunDurumlari",
+                        principalColumn: "Deger",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -343,6 +549,12 @@ namespace _3K.Infrastructure.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
+                        name: "FK_StokHareketleri_LookupIslemTipleri_IslemTipi",
+                        column: x => x.IslemTipi,
+                        principalTable: "LookupIslemTipleri",
+                        principalColumn: "Deger",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
                         name: "FK_StokHareketleri_Projeler_ProjeId",
                         column: x => x.ProjeId,
                         principalTable: "Projeler",
@@ -356,6 +568,132 @@ namespace _3K.Infrastructure.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
+            migrationBuilder.InsertData(
+                table: "LookupDepoLokasyonlari",
+                columns: new[] { "Id", "Anahtar", "Deger" },
+                values: new object[,]
+                {
+                    { 1, 0, "Belirsiz" },
+                    { 2, 1, "Grid" },
+                    { 3, 2, "UcK" },
+                    { 4, 3, "Protest" }
+                });
+
+            migrationBuilder.InsertData(
+                table: "LookupGridDurumlari",
+                columns: new[] { "Id", "Anahtar", "Deger" },
+                values: new object[,]
+                {
+                    { 1, 0, "Bekliyor" },
+                    { 2, 1, "Geldi" },
+                    { 3, 2, "Gelmedi" },
+                    { 4, 3, "SevkEdildi" }
+                });
+
+            migrationBuilder.InsertData(
+                table: "LookupIslemTipleri",
+                columns: new[] { "Id", "Anahtar", "Deger" },
+                values: new object[,]
+                {
+                    { 1, 0, "CekiYuklendi" },
+                    { 2, 1, "SandikOlusturuldu" },
+                    { 3, 2, "SandikBolundu" },
+                    { 4, 3, "SandikDegisti" },
+                    { 5, 4, "UrunTasindi" },
+                    { 6, 5, "FBTransferi" },
+                    { 7, 6, "StokKullanimi" },
+                    { 8, 7, "EksikKapatildi" },
+                    { 9, 8, "PDFAlindi" },
+                    { 10, 9, "MailGonderildi" },
+                    { 11, 10, "UrunGuncellendi" },
+                    { 12, 11, "KullaniciOlusturuldu" },
+                    { 13, 12, "ProjeOlusturuldu" }
+                });
+
+            migrationBuilder.InsertData(
+                table: "LookupKullaniciRolleri",
+                columns: new[] { "Id", "Anahtar", "Deger" },
+                values: new object[,]
+                {
+                    { 1, 0, "Admin" },
+                    { 2, 1, "Personel3K" },
+                    { 3, 2, "PersonelGrid" },
+                    { 4, 3, "Yonetici" }
+                });
+
+            migrationBuilder.InsertData(
+                table: "LookupProjeDurumlari",
+                columns: new[] { "Id", "Anahtar", "Deger" },
+                values: new object[,]
+                {
+                    { 1, 0, "Hazirlaniyor" },
+                    { 2, 1, "Devam" },
+                    { 3, 2, "Tamamlandi" },
+                    { 4, 3, "Beklemede" },
+                    { 5, 4, "SevkEdildi" },
+                    { 6, 5, "EksikSevkEdildi" }
+                });
+
+            migrationBuilder.InsertData(
+                table: "LookupSandikDurumlari",
+                columns: new[] { "Id", "Anahtar", "Deger" },
+                values: new object[,]
+                {
+                    { 1, 0, "Bos" },
+                    { 2, 1, "Hazirlaniyor" },
+                    { 3, 2, "Hazir" },
+                    { 4, 3, "Sevkedildi" }
+                });
+
+            migrationBuilder.InsertData(
+                table: "LookupSandikTipleri",
+                columns: new[] { "Id", "Anahtar", "Deger" },
+                values: new object[,]
+                {
+                    { 1, 1, "Proje" },
+                    { 2, 2, "Yedek" },
+                    { 3, 3, "Saha" }
+                });
+
+            migrationBuilder.InsertData(
+                table: "LookupStokDurumlari",
+                columns: new[] { "Id", "Anahtar", "Deger" },
+                values: new object[,]
+                {
+                    { 1, 0, "Aktif" },
+                    { 2, 1, "Tukendi" },
+                    { 3, 2, "Rezerve" }
+                });
+
+            migrationBuilder.InsertData(
+                table: "LookupUcKDurumlari",
+                columns: new[] { "Id", "Anahtar", "Deger" },
+                values: new object[,]
+                {
+                    { 1, 0, "Bekliyor" },
+                    { 2, 1, "TamGeldi" },
+                    { 3, 2, "EksikGeldi" },
+                    { 4, 3, "Gelmedi" }
+                });
+
+            migrationBuilder.InsertData(
+                table: "LookupUrunDurumlari",
+                columns: new[] { "Id", "Anahtar", "Deger" },
+                values: new object[,]
+                {
+                    { 1, 0, "Bekliyor" },
+                    { 2, 1, "KismiGeldi" },
+                    { 3, 2, "Tamamlandi" },
+                    { 4, 3, "Eksik" },
+                    { 5, 4, "StoktanKarsilandi" },
+                    { 6, 5, "FBdenKarsilandi" },
+                    { 7, 6, "SonraGidecek" },
+                    { 8, 7, "SandikDegisti" },
+                    { 9, 8, "IptalVeyaPasif" },
+                    { 10, 9, "TeslimAlindi" },
+                    { 11, 10, "GeriGonderildi" }
+                });
+
             migrationBuilder.CreateIndex(
                 name: "IX_Cekiler_ProjeId",
                 table: "Cekiler",
@@ -367,6 +705,16 @@ namespace _3K.Infrastructure.Migrations
                 column: "CekiId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_CekiSatirlari_Durum",
+                table: "CekiSatirlari",
+                column: "Durum");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CekiSatirlari_GridDurumu",
+                table: "CekiSatirlari",
+                column: "GridDurumu");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_CekiSatirlari_KontrolEdenId",
                 table: "CekiSatirlari",
                 column: "KontrolEdenId");
@@ -375,6 +723,11 @@ namespace _3K.Infrastructure.Migrations
                 name: "IX_CekiSatirlari_PaketleyenId",
                 table: "CekiSatirlari",
                 column: "PaketleyenId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CekiSatirlari_UcKDurumu",
+                table: "CekiSatirlari",
+                column: "UcKDurumu");
 
             migrationBuilder.CreateIndex(
                 name: "IX_FBTransferleri_CekiSatiriId",
@@ -403,6 +756,16 @@ namespace _3K.Infrastructure.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_Kullanicilar_Rol",
+                table: "Kullanicilar",
+                column: "Rol");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Projeler_Durum",
+                table: "Projeler",
+                column: "Durum");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Revizyonlar_KullaniciId",
                 table: "Revizyonlar",
                 column: "KullaniciId");
@@ -423,15 +786,35 @@ namespace _3K.Infrastructure.Migrations
                 column: "SandikId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Sandiklar_DepoLokasyonu",
+                table: "Sandiklar",
+                column: "DepoLokasyonu");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Sandiklar_Durum",
+                table: "Sandiklar",
+                column: "Durum");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Sandiklar_ProjeId_SandikNo",
                 table: "Sandiklar",
                 columns: new[] { "ProjeId", "SandikNo" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_Sandiklar_Tip",
+                table: "Sandiklar",
+                column: "Tip");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_StokHareketleri_CekiSatiriId",
                 table: "StokHareketleri",
                 column: "CekiSatiriId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StokHareketleri_IslemTipi",
+                table: "StokHareketleri",
+                column: "IslemTipi");
 
             migrationBuilder.CreateIndex(
                 name: "IX_StokHareketleri_KullaniciId",
@@ -447,6 +830,11 @@ namespace _3K.Infrastructure.Migrations
                 name: "IX_StokHareketleri_StokKaydiId",
                 table: "StokHareketleri",
                 column: "StokKaydiId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StokKayitlari_Durum",
+                table: "StokKayitlari",
+                column: "Durum");
         }
 
         /// <inheritdoc />
@@ -474,7 +862,19 @@ namespace _3K.Infrastructure.Migrations
                 name: "CekiSatirlari");
 
             migrationBuilder.DropTable(
+                name: "LookupIslemTipleri");
+
+            migrationBuilder.DropTable(
                 name: "StokKayitlari");
+
+            migrationBuilder.DropTable(
+                name: "LookupDepoLokasyonlari");
+
+            migrationBuilder.DropTable(
+                name: "LookupSandikDurumlari");
+
+            migrationBuilder.DropTable(
+                name: "LookupSandikTipleri");
 
             migrationBuilder.DropTable(
                 name: "Cekiler");
@@ -483,7 +883,25 @@ namespace _3K.Infrastructure.Migrations
                 name: "Kullanicilar");
 
             migrationBuilder.DropTable(
+                name: "LookupGridDurumlari");
+
+            migrationBuilder.DropTable(
+                name: "LookupUcKDurumlari");
+
+            migrationBuilder.DropTable(
+                name: "LookupUrunDurumlari");
+
+            migrationBuilder.DropTable(
+                name: "LookupStokDurumlari");
+
+            migrationBuilder.DropTable(
                 name: "Projeler");
+
+            migrationBuilder.DropTable(
+                name: "LookupKullaniciRolleri");
+
+            migrationBuilder.DropTable(
+                name: "LookupProjeDurumlari");
         }
     }
 }

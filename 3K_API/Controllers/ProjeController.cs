@@ -1,15 +1,13 @@
 using MediatR;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using _3K.Application.DTOs;
 using _3K.Application.Features.ProjeIslemleri.Commands;
 using _3K.Application.Features.ProjeIslemleri.Queries;
+using _3K_API.Extensions;
 
 namespace _3K_API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize]
     public class ProjeController : ControllerBase
     {
         private readonly IMediator _mediator;
@@ -20,18 +18,17 @@ namespace _3K_API.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<ProjeDto>>> GetAll()
+        public async Task<ActionResult> GetAll()
         {
             var result = await _mediator.Send(new ProjeListeleQuery());
-            return Ok(result);
+            return result.ToActionResult();
         }
 
         [HttpPost]
-        [Authorize(Roles = "Admin")]
-        public async Task<ActionResult<ProjeDto>> Create([FromBody] ProjeOlusturCommand command)
+        public async Task<ActionResult> Create([FromBody] ProjeOlusturCommand command)
         {
             var result = await _mediator.Send(command);
-            return CreatedAtAction(nameof(GetAll), new { id = result.Id }, result);
+            return result.ToActionResult();
         }
     }
 }

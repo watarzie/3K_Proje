@@ -1,6 +1,5 @@
 using ClosedXML.Excel;
 using _3K.Core.Entities;
-using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -27,10 +26,10 @@ namespace _3K.Infrastructure.Services
             await excelDosya.CopyToAsync(memoryStream);
             var dosyaBytes = memoryStream.ToArray();
 
-            Proje proje = null;
+            Proje? proje = null;
             var projeRepo = _unitOfWork.GetRepository<Proje>();
             string dosyaYolu = string.Empty;
-            Ceki ceki = null;
+            Ceki? ceki = null;
 
             // Dosyayı hafızaya sadece 1 KERE alıyoruz
             using (var excelStream = new MemoryStream(dosyaBytes))
@@ -43,7 +42,7 @@ namespace _3K.Infrastructure.Services
                         .Replace("Ç", "C").Replace("Ş", "S").Replace("İ", "I").Replace("Ö", "O").Replace("Ü", "U").Replace("Ğ", "G");
                 }
 
-                IXLWorksheet worksheet = null;
+                IXLWorksheet? worksheet = null;
                 var allSheets = workbook.Worksheets.ToList();
 
                 // Çıktı sayfasını bul
@@ -93,11 +92,11 @@ namespace _3K.Infrastructure.Services
                 if (string.IsNullOrWhiteSpace(fbNo))
                     throw new Exception("Excel şablonunda FB NO (Proje Adı) bulunamadı.");
 
-                proje = await _context.Projeler.FirstOrDefaultAsync(p => p.FBNo == fbNo || p.ProjeNo == fbNo);
+                proje = await _context.Projeler.FirstOrDefaultAsync(p => p.FBNo == fbNo || p.ProjeNo == fbNo) as Proje;
 
                 if (proje == null)
                 {
-                    proje = new Proje { ProjeNo = fbNo, FBNo = fbNo, Durum = ProjeDurum.Hazirlaniyor };
+                    proje = new Proje { ProjeNo = fbNo, FBNo = fbNo, Durum = "Hazirlaniyor" };
                     await projeRepo.AddAsync(proje);
                     await _unitOfWork.SaveChangesAsync();
                 }
@@ -212,7 +211,7 @@ namespace _3K.Infrastructure.Services
                         IstenenAdet = istenenAdet,
                         Birim = birim,
                         Remarks = string.IsNullOrWhiteSpace(remarks) ? null : remarks,
-                        Durum = UrunDurum.Bekliyor,
+                        Durum = "Bekliyor",
                         FiiliSandikNo = koliNo
                     };
                     satirlar.Add(satir);
@@ -234,7 +233,7 @@ namespace _3K.Infrastructure.Services
                     {
                         ProjeId = proje.Id,
                         SandikNo = grup.Key,
-                        Durum = SandikDurum.Hazirlaniyor
+                        Durum = "Hazirlaniyor"
                     };
                     await sandikRepo.AddAsync(sandik);
                     await _unitOfWork.SaveChangesAsync();

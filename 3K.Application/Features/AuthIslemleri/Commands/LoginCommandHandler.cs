@@ -1,10 +1,11 @@
 using MediatR;
+using _3K.Application.Common;
 using _3K.Application.DTOs;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.AuthIslemleri.Commands
 {
-    public class LoginCommandHandler : IRequestHandler<LoginCommand, LoginResultDto>
+    public class LoginCommandHandler : IRequestHandler<LoginCommand, Result<LoginResultDto>>
     {
         private readonly IAuthService _authService;
 
@@ -13,15 +14,15 @@ namespace _3K.Application.Features.AuthIslemleri.Commands
             _authService = authService;
         }
 
-        public async Task<LoginResultDto> Handle(LoginCommand request, CancellationToken cancellationToken)
+        public async Task<Result<LoginResultDto>> Handle(LoginCommand request, CancellationToken cancellationToken)
         {
-            var token = await _authService.LoginAsync(request.Email, request.Sifre);
             var kullanici = await _authService.GetKullaniciByEmailAsync(request.Email);
-
             if (kullanici == null)
-                throw new UnauthorizedAccessException("Geçersiz email veya şifre.");
+                return Result<LoginResultDto>.Failure("Geçersiz email veya şifre.", 401);
 
-            return new LoginResultDto
+            var token = await _authService.LoginAsync(request.Email, request.Sifre);
+
+            return Result<LoginResultDto>.Success(new LoginResultDto
             {
                 Token = token,
                 Kullanici = new KullaniciDto
@@ -32,7 +33,7 @@ namespace _3K.Application.Features.AuthIslemleri.Commands
                     Rol = kullanici.Rol.ToString(),
                     Email = kullanici.Email
                 }
-            };
+            });
         }
     }
 }

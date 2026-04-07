@@ -1,11 +1,12 @@
 using MediatR;
+using _3K.Application.Common;
 using _3K.Application.DTOs;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.ProjeIslemleri.Queries
 {
-    public class ProjeListeleQueryHandler : IRequestHandler<ProjeListeleQuery, IEnumerable<ProjeDto>>
+    public class ProjeListeleQueryHandler : IRequestHandler<ProjeListeleQuery, Result<IEnumerable<ProjeDto>>>
     {
         private readonly IUnitOfWork _unitOfWork;
 
@@ -14,12 +15,12 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
             _unitOfWork = unitOfWork;
         }
 
-        public async Task<IEnumerable<ProjeDto>> Handle(ProjeListeleQuery request, CancellationToken cancellationToken)
+        public async Task<Result<IEnumerable<ProjeDto>>> Handle(ProjeListeleQuery request, CancellationToken cancellationToken)
         {
             var projeRepo = _unitOfWork.GetRepository<Proje>();
             var projeler = await projeRepo.GetAllAsync();
 
-            return projeler.Select(p => new ProjeDto
+            var result = projeler.Select(p => new ProjeDto
             {
                 Id = p.Id,
                 ProjeNo = p.ProjeNo,
@@ -37,6 +38,8 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                 SonMontajResmiNo = p.SonMontajResmiNo,
                 ProjeMuduru = p.ProjeMuduru
             });
+
+            return Result<IEnumerable<ProjeDto>>.Success(result);
         }
     }
 }

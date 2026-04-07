@@ -1,5 +1,4 @@
 using _3K.Core.Entities;
-using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -53,7 +52,7 @@ namespace _3K.Infrastructure.Services
                 BasHarf = GenerateBasHarf(adSoyad),
                 Email = email,
                 SifreHash = BCrypt.Net.BCrypt.HashPassword(sifre),
-                Rol = Enum.Parse<KullaniciRol>(rol, ignoreCase: true)
+                Rol = rol
             };
 
             await kullaniciRepo.AddAsync(kullanici);
@@ -94,8 +93,10 @@ namespace _3K.Infrastructure.Services
                 new Claim(ClaimTypes.NameIdentifier, kullanici.Id.ToString()),
                 new Claim(ClaimTypes.Name, kullanici.AdSoyad ?? ""),
                 new Claim(ClaimTypes.Email, kullanici.Email ?? ""),
+                // AuthorizationBehavior bu claim'i okuyarak rol kontrolü yapar
                 new Claim(ClaimTypes.Role, kullanici.Rol.ToString()),
-                new Claim("BasHarf", kullanici.BasHarf ?? "")
+                new Claim("BasHarf", kullanici.BasHarf ?? ""),
+                new Claim("KullaniciId", kullanici.Id.ToString())
             };
 
             var tokenDescriptor = new JwtSecurityToken(

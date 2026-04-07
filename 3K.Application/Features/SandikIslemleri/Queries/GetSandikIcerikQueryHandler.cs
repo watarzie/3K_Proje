@@ -1,10 +1,11 @@
 using MediatR;
+using _3K.Application.Common;
 using _3K.Application.DTOs;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.SandikIslemleri.Queries
 {
-    public class GetSandikIcerikQueryHandler : IRequestHandler<GetSandikIcerikQuery, SandikDetayDto>
+    public class GetSandikIcerikQueryHandler : IRequestHandler<GetSandikIcerikQuery, Result<SandikDetayDto>>
     {
         private readonly ISandikService _sandikService;
 
@@ -13,15 +14,15 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
             _sandikService = sandikService;
         }
 
-        public async Task<SandikDetayDto> Handle(GetSandikIcerikQuery request, CancellationToken cancellationToken)
+        public async Task<Result<SandikDetayDto>> Handle(GetSandikIcerikQuery request, CancellationToken cancellationToken)
         {
             var sandik = await _sandikService.GetSandikDetayAsync(request.SandikId);
             if (sandik == null)
-                throw new KeyNotFoundException($"Sandık bulunamadı: {request.SandikId}");
+                return Result<SandikDetayDto>.Failure($"Sandık bulunamadı: {request.SandikId}", 404);
 
             var icerikler = await _sandikService.GetSandikIcerikAsync(request.SandikId);
 
-            return new SandikDetayDto
+            var dto = new SandikDetayDto
             {
                 Id = sandik.Id,
                 SandikNo = sandik.SandikNo,
@@ -43,6 +44,8 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                     Remarks = i.CekiSatiri?.Remarks
                 }).ToList()
             };
+
+            return Result<SandikDetayDto>.Success(dto);
         }
     }
 }

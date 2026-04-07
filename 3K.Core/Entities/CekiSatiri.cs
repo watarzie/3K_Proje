@@ -1,5 +1,3 @@
-using _3K.Core.Enums;
-
 namespace _3K.Core.Entities
 {
     public class CekiSatiri : BaseEntity
@@ -15,13 +13,13 @@ namespace _3K.Core.Entities
         public string? FiiliSandikNo { get; set; }
         public string? Remarks { get; set; }
 
-        public GridDurum GridDurumu { get; set; } = GridDurum.Bekliyor;
-        public UcKDurum UcKDurumu { get; set; } = UcKDurum.Bekliyor;
+        public string GridDurumu { get; set; } = "Bekliyor";
+        public string UcKDurumu { get; set; } = "Bekliyor";
         public bool IsManuelEklenen { get; set; } = false;
         public string? EklemeNedeni { get; set; }
 
         // İş akışı 3: Ürün durumu (State Diagram)
-        public UrunDurum Durum { get; set; } = UrunDurum.Bekliyor;
+        public string Durum { get; set; } = "Bekliyor";
 
         // İş akışı 7: Paketleyen / Kontrol Eden
         public int? PaketleyenId { get; set; }

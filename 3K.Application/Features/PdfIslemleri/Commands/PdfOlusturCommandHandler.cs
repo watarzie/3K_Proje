@@ -1,10 +1,11 @@
 using MediatR;
+using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.PdfIslemleri.Commands
 {
-    public class PdfOlusturCommandHandler : IRequestHandler<PdfOlusturCommand, byte[]>
+    public class PdfOlusturCommandHandler : IRequestHandler<PdfOlusturCommand, Result<byte[]>>
     {
         private readonly IPdfService _pdfService;
         private readonly IHareketService _hareketService;
@@ -15,11 +16,10 @@ namespace _3K.Application.Features.PdfIslemleri.Commands
             _hareketService = hareketService;
         }
 
-        public async Task<byte[]> Handle(PdfOlusturCommand request, CancellationToken cancellationToken)
+        public async Task<Result<byte[]>> Handle(PdfOlusturCommand request, CancellationToken cancellationToken)
         {
             var pdfBytes = await _pdfService.PdfOlusturAsync(request.ProjeId);
 
-            // Log kaydı
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {
                 ProjeId = request.ProjeId,
@@ -30,7 +30,7 @@ namespace _3K.Application.Features.PdfIslemleri.Commands
                 Aciklama = "Proje çeki PDF'i oluşturuldu"
             });
 
-            return pdfBytes;
+            return Result<byte[]>.Success(pdfBytes);
         }
     }
 }

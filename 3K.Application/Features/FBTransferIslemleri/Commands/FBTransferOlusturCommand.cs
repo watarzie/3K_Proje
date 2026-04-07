@@ -1,13 +1,18 @@
 using MediatR;
+using _3K.Application.Common;
 using _3K.Application.DTOs;
+using _3K.Core.Enums;
 
 namespace _3K.Application.Features.FBTransferIslemleri.Commands
 {
     /// <summary>
-    /// İş akışı 5: FB arası malzeme transfer
+    /// İş akışı 5: FB arası malzeme transfer.
+    /// Roller: Admin, Personel3K
     /// </summary>
-    public class FBTransferOlusturCommand : IRequest<FBTransferResultDto>
+    public class FBTransferOlusturCommand : IRequest<Result<FBTransferResultDto>>, ISecuredRequest
     {
+        public string[] RequiredRoles => new[] { "Admin", "Personel3K" };
+
         public int CekiSatiriId { get; set; }
         public string AsilFB { get; set; } = string.Empty;
         public string AlinanFB { get; set; } = string.Empty;

@@ -1,5 +1,4 @@
 using _3K.Core.Entities;
-using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -44,14 +43,14 @@ namespace _3K.Infrastructure.Services
                 .FirstOrDefaultAsync(s => s.ProjeId == projeId && s.SandikNo == sandikNo);
         }
 
-        public async Task<Sandik> SandikOlusturAsync(int projeId, string sandikNo, DepoLokasyon depoLokasyonu = DepoLokasyon.Belirsiz)
+        public async Task<Sandik> SandikOlusturAsync(int projeId, string sandikNo, string depoLokasyonu = "Belirsiz")
         {
             var sandikRepo = _unitOfWork.GetRepository<Sandik>();
             var sandik = new Sandik
             {
                 ProjeId = projeId,
                 SandikNo = sandikNo,
-                Durum = SandikDurum.Hazirlaniyor,
+                Durum = "Hazirlaniyor",
                 DepoLokasyonu = depoLokasyonu
             };
             await sandikRepo.AddAsync(sandik);
@@ -68,9 +67,7 @@ namespace _3K.Infrastructure.Services
             var eskiIcerik = eskiIcerikler.FirstOrDefault();
 
             if (eskiIcerik != null)
-            {
                 sandikIcerikRepo.Remove(eskiIcerik);
-            }
 
             var yeniIcerik = new SandikIcerik
             {
@@ -80,7 +77,6 @@ namespace _3K.Infrastructure.Services
                 EksikAdet = eskiIcerik?.EksikAdet ?? 0
             };
             await sandikIcerikRepo.AddAsync(yeniIcerik);
-
             await _unitOfWork.SaveChangesAsync();
             return true;
         }

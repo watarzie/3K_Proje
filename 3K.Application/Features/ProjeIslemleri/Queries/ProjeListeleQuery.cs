@@ -1,9 +1,14 @@
 using MediatR;
+using _3K.Application.Common;
 using _3K.Application.DTOs;
 
 namespace _3K.Application.Features.ProjeIslemleri.Queries
 {
-    public class ProjeListeleQuery : IRequest<IEnumerable<ProjeDto>>
+    /// <summary>
+    /// Tüm projeleri listeler — giriş yapmış herkes erişebilir.
+    /// </summary>
+    public class ProjeListeleQuery : IRequest<Result<IEnumerable<ProjeDto>>>, ISecuredRequest
     {
+        public string[] RequiredRoles => Array.Empty<string>();
     }
 }

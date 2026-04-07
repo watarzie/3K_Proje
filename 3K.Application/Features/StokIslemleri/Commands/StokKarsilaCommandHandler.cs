@@ -1,15 +1,12 @@
 using MediatR;
+using _3K.Application.Common;
 using _3K.Core.Entities;
-using _3K.Core.Enums;
+
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.StokIslemleri.Commands
 {
-    /// <summary>
-    /// İş akışı 6: Stoktan eksik karşılama handler
-    /// Sequence: StokYeterliMi → StokDüş → EksikMiktarAzalt → HareketKaydet
-    /// </summary>
-    public class StokKarsilaCommandHandler : IRequestHandler<StokKarsilaCommand, bool>
+    public class StokKarsilaCommandHandler : IRequestHandler<StokKarsilaCommand, Result>
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IStokService _stokService;
@@ -22,24 +19,20 @@ namespace _3K.Application.Features.StokIslemleri.Commands
             _hareketService = hareketService;
         }
 
-        public async Task<bool> Handle(StokKarsilaCommand request, CancellationToken cancellationToken)
+        public async Task<Result> Handle(StokKarsilaCommand request, CancellationToken cancellationToken)
         {
-            // 1. Stok yeterli mi kontrol et
             var yeterli = await _stokService.StokYeterliMi(request.StokKaydiId, request.Miktar);
             if (!yeterli)
-                throw new InvalidOperationException("Stok miktarı yetersiz.");
+                return Result.Failure("Stok miktarı yetersiz.", 400);
 
-            // 2. Stok düş
             await _stokService.StokDusAsync(request.StokKaydiId, request.Miktar);
 
-            // 3. Ürünün eksik miktarını azalt
             var cekiSatiriRepo = _unitOfWork.GetRepository<CekiSatiri>();
             var sandikIcerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
 
             var urun = await cekiSatiriRepo.GetByIdAsync(request.CekiSatiriId);
-            if (urun == null) return false;
+            if (urun == null) return Result.Failure("Ürün bulunamadı.", 404);
 
-            // SandikIcerik'teki eksik adetini azalt
             var icerikler = await sandikIcerikRepo.FindAsync(si => si.CekiSatiriId == request.CekiSatiriId);
             var icerik = icerikler.FirstOrDefault();
             if (icerik != null)
@@ -49,14 +42,12 @@ namespace _3K.Application.Features.StokIslemleri.Commands
                 sandikIcerikRepo.Update(icerik);
             }
 
-            // Durum güncelle
-            urun.Durum = UrunDurum.StoktanKarsilandi;
+            urun.Durum = "StoktanKarsilandi";
             urun.Remarks = string.IsNullOrEmpty(urun.Remarks)
                 ? "Kalan stoktan karşılandı"
                 : $"{urun.Remarks}; Kalan stoktan karşılandı";
             cekiSatiriRepo.Update(urun);
 
-            // 4. Stok kullanım hareketi oluştur
             var stokHareketRepo = _unitOfWork.GetRepository<StokHareketi>();
             var stokHareketi = new StokHareketi
             {
@@ -69,10 +60,8 @@ namespace _3K.Application.Features.StokIslemleri.Commands
                 Aciklama = $"Proje {request.ProjeId} için stoktan {request.Miktar} adet kullanıldı"
             };
             await stokHareketRepo.AddAsync(stokHareketi);
-
             await _unitOfWork.SaveChangesAsync();
 
-            // 5. Hareket geçmişi kaydı
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {
                 ProjeId = request.ProjeId,
@@ -83,7 +72,7 @@ namespace _3K.Application.Features.StokIslemleri.Commands
                 Aciklama = $"StokKaydı: {request.StokKaydiId}, Miktar: {request.Miktar}"
             });
 
-            return true;
+            return Result.Success();
         }
     }
 }

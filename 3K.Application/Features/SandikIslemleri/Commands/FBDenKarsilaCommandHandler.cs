@@ -1,11 +1,12 @@
 using MediatR;
+using _3K.Application.Common;
 using _3K.Core.Entities;
-using _3K.Core.Enums;
+
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.SandikIslemleri.Commands
 {
-    public class FBDenKarsilaCommandHandler : IRequestHandler<FBDenKarsilaCommand, bool>
+    public class FBDenKarsilaCommandHandler : IRequestHandler<FBDenKarsilaCommand, Result>
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHareketService _hareketService;
@@ -16,17 +17,16 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             _hareketService = hareketService;
         }
 
-        public async Task<bool> Handle(FBDenKarsilaCommand request, CancellationToken cancellationToken)
+        public async Task<Result> Handle(FBDenKarsilaCommand request, CancellationToken cancellationToken)
         {
             var urunRepo = _unitOfWork.GetRepository<CekiSatiri>();
             var fbTransferRepo = _unitOfWork.GetRepository<FBTransfer>();
             var sandikIcerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
 
             var urun = await urunRepo.GetByIdAsync(request.CekiSatiriId);
-            if (urun == null) return false;
+            if (urun == null) return Result.Failure("Ürün bulunamadı.", 404);
 
-            // FB Transfer kaydını at
-            var fbTransfer = new FBTransfer
+            await fbTransferRepo.AddAsync(new FBTransfer
             {
                 CekiSatiriId = urun.Id,
                 KullaniciId = request.KullaniciId,
@@ -36,15 +36,12 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 Aciklama = request.Aciklama,
                 IadeDurumu = request.IadeDurumu,
                 Tarih = DateTime.UtcNow
-            };
-            await fbTransferRepo.AddAsync(fbTransfer);
+            });
 
-            // Ürünü güncelle
-            urun.Durum = UrunDurum.FBdenKarsilandi;
+            urun.Durum = "FBdenKarsilandi";
             urun.Remarks = $"FB Transfer ({request.AlinanFB}) - {request.KarsilananAdet} adet";
             urunRepo.Update(urun);
 
-            // Sandık İçerik eksik miktarını kapat
             var icerik = (await sandikIcerikRepo.FindAsync(si => si.CekiSatiriId == urun.Id)).FirstOrDefault();
             if (icerik != null)
             {
@@ -55,7 +52,6 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             await _unitOfWork.SaveChangesAsync();
 
-            // Sektör/Sistem loğu
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {
                 ProjeId = request.ProjeId,
@@ -66,7 +62,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 Aciklama = $"Asıl: {request.AsilFB}, Alınan: {request.AlinanFB}, Adet: {request.KarsilananAdet}"
             });
 
-            return true;
+            return Result.Success();
         }
     }
 }

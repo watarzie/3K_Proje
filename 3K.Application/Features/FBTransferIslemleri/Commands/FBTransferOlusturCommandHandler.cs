@@ -1,12 +1,13 @@
 using MediatR;
+using _3K.Application.Common;
 using _3K.Application.DTOs;
 using _3K.Core.Entities;
-using _3K.Core.Enums;
+
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.FBTransferIslemleri.Commands
 {
-    public class FBTransferOlusturCommandHandler : IRequestHandler<FBTransferOlusturCommand, FBTransferResultDto>
+    public class FBTransferOlusturCommandHandler : IRequestHandler<FBTransferOlusturCommand, Result<FBTransferResultDto>>
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHareketService _hareketService;
@@ -17,17 +18,15 @@ namespace _3K.Application.Features.FBTransferIslemleri.Commands
             _hareketService = hareketService;
         }
 
-        public async Task<FBTransferResultDto> Handle(FBTransferOlusturCommand request, CancellationToken cancellationToken)
+        public async Task<Result<FBTransferResultDto>> Handle(FBTransferOlusturCommand request, CancellationToken cancellationToken)
         {
             var fbTransferRepo = _unitOfWork.GetRepository<FBTransfer>();
             var cekiSatiriRepo = _unitOfWork.GetRepository<CekiSatiri>();
 
-            // Ürünü getir
             var urun = await cekiSatiriRepo.GetByIdAsync(request.CekiSatiriId);
             if (urun == null)
-                throw new KeyNotFoundException($"Çeki satırı bulunamadı: {request.CekiSatiriId}");
+                return Result<FBTransferResultDto>.Failure($"Çeki satırı bulunamadı: {request.CekiSatiriId}", 404);
 
-            // FB Transfer kaydı oluştur
             var transfer = new FBTransfer
             {
                 CekiSatiriId = request.CekiSatiriId,
@@ -39,19 +38,15 @@ namespace _3K.Application.Features.FBTransferIslemleri.Commands
                 IadeDurumu = request.IadeDurumu,
                 Aciklama = request.Aciklama
             };
-
             await fbTransferRepo.AddAsync(transfer);
 
-            // Ürün durumunu güncelle
-            urun.Durum = UrunDurum.FBdenKarsilandi;
-            // Opsiyonel: Açıklama alanına otomatik not
+            urun.Durum = "FBdenKarsilandi";
             var otomatikNot = $"{request.AlinanFB}'den temin edildi";
             urun.Remarks = string.IsNullOrEmpty(urun.Remarks) ? otomatikNot : $"{urun.Remarks}; {otomatikNot}";
             cekiSatiriRepo.Update(urun);
 
             await _unitOfWork.SaveChangesAsync();
 
-            // Hareket kaydı
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {
                 ProjeId = request.ProjeId,
@@ -62,7 +57,7 @@ namespace _3K.Application.Features.FBTransferIslemleri.Commands
                 Aciklama = $"{request.AsilFB} → {request.AlinanFB}, Miktar: {request.Miktar}"
             });
 
-            return new FBTransferResultDto
+            return Result<FBTransferResultDto>.Success(new FBTransferResultDto
             {
                 Id = transfer.Id,
                 AsilFB = transfer.AsilFB,
@@ -72,7 +67,7 @@ namespace _3K.Application.Features.FBTransferIslemleri.Commands
                 IadeDurumu = transfer.IadeDurumu,
                 Aciklama = transfer.Aciklama,
                 Tarih = transfer.Tarih
-            };
+            });
         }
     }
 }

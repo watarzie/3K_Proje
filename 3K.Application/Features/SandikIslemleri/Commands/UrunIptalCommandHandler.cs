@@ -1,11 +1,12 @@
 using MediatR;
+using _3K.Application.Common;
 using _3K.Core.Entities;
-using _3K.Core.Enums;
+
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.SandikIslemleri.Commands
 {
-    public class UrunIptalCommandHandler : IRequestHandler<UrunIptalCommand, bool>
+    public class UrunIptalCommandHandler : IRequestHandler<UrunIptalCommand, Result>
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHareketService _hareketService;
@@ -16,17 +17,15 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             _hareketService = hareketService;
         }
 
-        public async Task<bool> Handle(UrunIptalCommand request, CancellationToken cancellationToken)
+        public async Task<Result> Handle(UrunIptalCommand request, CancellationToken cancellationToken)
         {
             var urunRepo = _unitOfWork.GetRepository<CekiSatiri>();
             var urun = await urunRepo.GetByIdAsync(request.CekiSatiriId);
 
-            if (urun == null) return false;
+            if (urun == null) return Result.Failure("Ürün bulunamadı.", 404);
 
-            // Fiziksel olarak silinmez, durumu Iptal/Pasif olarak ayarlanır. (Madde 9)
-            urun.Durum = UrunDurum.IptalVeyaPasif;
+            urun.Durum = "IptalVeyaPasif";
             urun.Remarks = $"İPTAL: {request.Neden}";
-
             urunRepo.Update(urun);
             await _unitOfWork.SaveChangesAsync();
 
@@ -40,7 +39,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 Aciklama = request.Neden
             });
 
-            return true;
+            return Result.Success();
         }
     }
 }

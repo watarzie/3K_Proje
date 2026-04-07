@@ -12,7 +12,7 @@ using _3K.Infrastructure.Data;
 namespace _3K.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260330225611_InitialCreate")]
+    [Migration("20260404201150_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -96,8 +96,9 @@ namespace _3K.Infrastructure.Migrations
                     b.Property<string>("FiiliSandikNo")
                         .HasColumnType("text");
 
-                    b.Property<int>("GridDurumu")
-                        .HasColumnType("integer");
+                    b.Property<string>("GridDurumu")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<bool>("IsManuelEklenen")
                         .HasColumnType("boolean");
@@ -120,8 +121,9 @@ namespace _3K.Infrastructure.Migrations
                     b.Property<int>("SiraNo")
                         .HasColumnType("integer");
 
-                    b.Property<int>("UcKDurumu")
-                        .HasColumnType("integer");
+                    b.Property<string>("UcKDurumu")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("timestamp without time zone");
@@ -130,9 +132,15 @@ namespace _3K.Infrastructure.Migrations
 
                     b.HasIndex("CekiId");
 
+                    b.HasIndex("Durum");
+
+                    b.HasIndex("GridDurumu");
+
                     b.HasIndex("KontrolEdenId");
 
                     b.HasIndex("PaketleyenId");
+
+                    b.HasIndex("UcKDurumu");
 
                     b.ToTable("CekiSatirlari");
                 });
@@ -280,7 +288,565 @@ namespace _3K.Infrastructure.Migrations
                     b.HasIndex("Email")
                         .IsUnique();
 
+                    b.HasIndex("Rol");
+
                     b.ToTable("Kullanicilar");
+                });
+
+            modelBuilder.Entity("_3K.Core.Entities.LookupDepoLokasyon", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Anahtar")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Deger")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("LookupDepoLokasyonlari");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Anahtar = 0,
+                            Deger = "Belirsiz"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Anahtar = 1,
+                            Deger = "Grid"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Anahtar = 2,
+                            Deger = "UcK"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Anahtar = 3,
+                            Deger = "Protest"
+                        });
+                });
+
+            modelBuilder.Entity("_3K.Core.Entities.LookupGridDurum", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Anahtar")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Deger")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("LookupGridDurumlari");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Anahtar = 0,
+                            Deger = "Bekliyor"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Anahtar = 1,
+                            Deger = "Geldi"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Anahtar = 2,
+                            Deger = "Gelmedi"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Anahtar = 3,
+                            Deger = "SevkEdildi"
+                        });
+                });
+
+            modelBuilder.Entity("_3K.Core.Entities.LookupIslemTipi", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Anahtar")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Deger")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("LookupIslemTipleri");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Anahtar = 0,
+                            Deger = "CekiYuklendi"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Anahtar = 1,
+                            Deger = "SandikOlusturuldu"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Anahtar = 2,
+                            Deger = "SandikBolundu"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Anahtar = 3,
+                            Deger = "SandikDegisti"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Anahtar = 4,
+                            Deger = "UrunTasindi"
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Anahtar = 5,
+                            Deger = "FBTransferi"
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Anahtar = 6,
+                            Deger = "StokKullanimi"
+                        },
+                        new
+                        {
+                            Id = 8,
+                            Anahtar = 7,
+                            Deger = "EksikKapatildi"
+                        },
+                        new
+                        {
+                            Id = 9,
+                            Anahtar = 8,
+                            Deger = "PDFAlindi"
+                        },
+                        new
+                        {
+                            Id = 10,
+                            Anahtar = 9,
+                            Deger = "MailGonderildi"
+                        },
+                        new
+                        {
+                            Id = 11,
+                            Anahtar = 10,
+                            Deger = "UrunGuncellendi"
+                        },
+                        new
+                        {
+                            Id = 12,
+                            Anahtar = 11,
+                            Deger = "KullaniciOlusturuldu"
+                        },
+                        new
+                        {
+                            Id = 13,
+                            Anahtar = 12,
+                            Deger = "ProjeOlusturuldu"
+                        });
+                });
+
+            modelBuilder.Entity("_3K.Core.Entities.LookupKullaniciRol", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Anahtar")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Deger")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("LookupKullaniciRolleri");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Anahtar = 0,
+                            Deger = "Admin"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Anahtar = 1,
+                            Deger = "Personel3K"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Anahtar = 2,
+                            Deger = "PersonelGrid"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Anahtar = 3,
+                            Deger = "Yonetici"
+                        });
+                });
+
+            modelBuilder.Entity("_3K.Core.Entities.LookupProjeDurum", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Anahtar")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Deger")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("LookupProjeDurumlari");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Anahtar = 0,
+                            Deger = "Hazirlaniyor"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Anahtar = 1,
+                            Deger = "Devam"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Anahtar = 2,
+                            Deger = "Tamamlandi"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Anahtar = 3,
+                            Deger = "Beklemede"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Anahtar = 4,
+                            Deger = "SevkEdildi"
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Anahtar = 5,
+                            Deger = "EksikSevkEdildi"
+                        });
+                });
+
+            modelBuilder.Entity("_3K.Core.Entities.LookupSandikDurum", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Anahtar")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Deger")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("LookupSandikDurumlari");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Anahtar = 0,
+                            Deger = "Bos"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Anahtar = 1,
+                            Deger = "Hazirlaniyor"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Anahtar = 2,
+                            Deger = "Hazir"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Anahtar = 3,
+                            Deger = "Sevkedildi"
+                        });
+                });
+
+            modelBuilder.Entity("_3K.Core.Entities.LookupSandikTipi", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Anahtar")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Deger")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("LookupSandikTipleri");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Anahtar = 1,
+                            Deger = "Proje"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Anahtar = 2,
+                            Deger = "Yedek"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Anahtar = 3,
+                            Deger = "Saha"
+                        });
+                });
+
+            modelBuilder.Entity("_3K.Core.Entities.LookupStokDurum", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Anahtar")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Deger")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("LookupStokDurumlari");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Anahtar = 0,
+                            Deger = "Aktif"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Anahtar = 1,
+                            Deger = "Tukendi"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Anahtar = 2,
+                            Deger = "Rezerve"
+                        });
+                });
+
+            modelBuilder.Entity("_3K.Core.Entities.LookupUcKDurum", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Anahtar")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Deger")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("LookupUcKDurumlari");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Anahtar = 0,
+                            Deger = "Bekliyor"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Anahtar = 1,
+                            Deger = "TamGeldi"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Anahtar = 2,
+                            Deger = "EksikGeldi"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Anahtar = 3,
+                            Deger = "Gelmedi"
+                        });
+                });
+
+            modelBuilder.Entity("_3K.Core.Entities.LookupUrunDurum", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Anahtar")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Deger")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("LookupUrunDurumlari");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Anahtar = 0,
+                            Deger = "Bekliyor"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Anahtar = 1,
+                            Deger = "KismiGeldi"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Anahtar = 2,
+                            Deger = "Tamamlandi"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Anahtar = 3,
+                            Deger = "Eksik"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Anahtar = 4,
+                            Deger = "StoktanKarsilandi"
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Anahtar = 5,
+                            Deger = "FBdenKarsilandi"
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Anahtar = 6,
+                            Deger = "SonraGidecek"
+                        },
+                        new
+                        {
+                            Id = 8,
+                            Anahtar = 7,
+                            Deger = "SandikDegisti"
+                        },
+                        new
+                        {
+                            Id = 9,
+                            Anahtar = 8,
+                            Deger = "IptalVeyaPasif"
+                        },
+                        new
+                        {
+                            Id = 10,
+                            Anahtar = 9,
+                            Deger = "TeslimAlindi"
+                        },
+                        new
+                        {
+                            Id = 11,
+                            Anahtar = 10,
+                            Deger = "GeriGonderildi"
+                        });
                 });
 
             modelBuilder.Entity("_3K.Core.Entities.Proje", b =>
@@ -342,6 +908,8 @@ namespace _3K.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Durum");
+
                     b.ToTable("Projeler");
                 });
 
@@ -401,8 +969,9 @@ namespace _3K.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("timestamp without time zone");
 
-                    b.Property<int>("DepoLokasyonu")
-                        .HasColumnType("integer");
+                    b.Property<string>("DepoLokasyonu")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<string>("Durum")
                         .IsRequired()
@@ -415,13 +984,20 @@ namespace _3K.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<int>("Tip")
-                        .HasColumnType("integer");
+                    b.Property<string>("Tip")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("timestamp without time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DepoLokasyonu");
+
+                    b.HasIndex("Durum");
+
+                    b.HasIndex("Tip");
 
                     b.HasIndex("ProjeId", "SandikNo")
                         .IsUnique();
@@ -507,6 +1083,8 @@ namespace _3K.Infrastructure.Migrations
 
                     b.HasIndex("CekiSatiriId");
 
+                    b.HasIndex("IslemTipi");
+
                     b.HasIndex("KullaniciId");
 
                     b.HasIndex("ProjeId");
@@ -560,6 +1138,8 @@ namespace _3K.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Durum");
+
                     b.ToTable("StokKayitlari");
                 });
 
@@ -582,6 +1162,20 @@ namespace _3K.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("_3K.Core.Entities.LookupUrunDurum", null)
+                        .WithMany()
+                        .HasForeignKey("Durum")
+                        .HasPrincipalKey("Deger")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("_3K.Core.Entities.LookupGridDurum", null)
+                        .WithMany()
+                        .HasForeignKey("GridDurumu")
+                        .HasPrincipalKey("Deger")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("_3K.Core.Entities.Kullanici", "KontrolEden")
                         .WithMany()
                         .HasForeignKey("KontrolEdenId")
@@ -591,6 +1185,13 @@ namespace _3K.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("PaketleyenId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("_3K.Core.Entities.LookupUcKDurum", null)
+                        .WithMany()
+                        .HasForeignKey("UcKDurumu")
+                        .HasPrincipalKey("Deger")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.Navigation("Ceki");
 
@@ -637,6 +1238,26 @@ namespace _3K.Infrastructure.Migrations
                     b.Navigation("Proje");
                 });
 
+            modelBuilder.Entity("_3K.Core.Entities.Kullanici", b =>
+                {
+                    b.HasOne("_3K.Core.Entities.LookupKullaniciRol", null)
+                        .WithMany()
+                        .HasForeignKey("Rol")
+                        .HasPrincipalKey("Deger")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("_3K.Core.Entities.Proje", b =>
+                {
+                    b.HasOne("_3K.Core.Entities.LookupProjeDurum", null)
+                        .WithMany()
+                        .HasForeignKey("Durum")
+                        .HasPrincipalKey("Deger")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("_3K.Core.Entities.Revizyon", b =>
                 {
                     b.HasOne("_3K.Core.Entities.Kullanici", "Kullanici")
@@ -658,9 +1279,30 @@ namespace _3K.Infrastructure.Migrations
 
             modelBuilder.Entity("_3K.Core.Entities.Sandik", b =>
                 {
+                    b.HasOne("_3K.Core.Entities.LookupDepoLokasyon", null)
+                        .WithMany()
+                        .HasForeignKey("DepoLokasyonu")
+                        .HasPrincipalKey("Deger")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("_3K.Core.Entities.LookupSandikDurum", null)
+                        .WithMany()
+                        .HasForeignKey("Durum")
+                        .HasPrincipalKey("Deger")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("_3K.Core.Entities.Proje", "Proje")
                         .WithMany("Sandiklar")
                         .HasForeignKey("ProjeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("_3K.Core.Entities.LookupSandikTipi", null)
+                        .WithMany()
+                        .HasForeignKey("Tip")
+                        .HasPrincipalKey("Deger")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -694,6 +1336,13 @@ namespace _3K.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("_3K.Core.Entities.LookupIslemTipi", null)
+                        .WithMany()
+                        .HasForeignKey("IslemTipi")
+                        .HasPrincipalKey("Deger")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("_3K.Core.Entities.Kullanici", "Kullanici")
                         .WithMany()
                         .HasForeignKey("KullaniciId")
@@ -719,6 +1368,16 @@ namespace _3K.Infrastructure.Migrations
                     b.Navigation("Proje");
 
                     b.Navigation("StokKaydi");
+                });
+
+            modelBuilder.Entity("_3K.Core.Entities.StokKaydi", b =>
+                {
+                    b.HasOne("_3K.Core.Entities.LookupStokDurum", null)
+                        .WithMany()
+                        .HasForeignKey("Durum")
+                        .HasPrincipalKey("Deger")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("_3K.Core.Entities.Ceki", b =>

@@ -1,10 +1,9 @@
 using MediatR;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using _3K.Application.Features.AuthIslemleri.Commands;
-using _3K.Application.DTOs;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
+using _3K_API.Extensions;
 
 namespace _3K_API.Controllers
 {
@@ -14,73 +13,100 @@ namespace _3K_API.Controllers
     {
         private readonly IMediator _mediator;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IAuthService _authService;
+        private readonly IWebHostEnvironment _environment;
 
-        public AuthController(IMediator mediator, IUnitOfWork unitOfWork)
+        public AuthController(
+            IMediator mediator,
+            IUnitOfWork unitOfWork,
+            IAuthService authService,
+            IWebHostEnvironment environment)
         {
             _mediator = mediator;
             _unitOfWork = unitOfWork;
+            _authService = authService;
+            _environment = environment;
         }
 
         /// <summary>
-        /// İlk admin kullanıcısını oluşturur — SADECE veritabanında hiç kullanıcı yokken çalışır.
-        /// İlk admin oluşturulduktan sonra bu endpoint devre dışı kalır.
+        /// İlk admin kullanıcısını oluşturur.
+        /// GÜVENLİK: Sadece DB'de hiç kullanıcı yokken çalışır.
+        /// MediatR pipeline'ını bypass eder (yetkilendirme gerekmez).
         /// </summary>
         [HttpPost("seed-admin")]
-        [AllowAnonymous]
-        public async Task<ActionResult<KullaniciDto>> SeedAdmin([FromBody] RegisterCommand command)
+        public async Task<ActionResult> SeedAdmin([FromBody] SeedAdminRequest request)
         {
-            try
-            {
-                var kullaniciRepo = _unitOfWork.GetRepository<Kullanici>();
-                var mevcutKullanicilar = await kullaniciRepo.GetAllAsync();
+            // Güvenlik 1: Sistemde zaten kullanıcı varsa engelle
+            var kullaniciRepo = _unitOfWork.GetRepository<Kullanici>();
+            var mevcutKullanicilar = await kullaniciRepo.GetAllAsync();
 
-                if (mevcutKullanicilar.Any())
+            if (mevcutKullanicilar.Any())
+            {
+                return BadRequest(new
                 {
-                    return BadRequest(new { message = "Sistemde zaten kullanıcı mevcut. Bu endpoint sadece ilk kurulumda kullanılabilir." });
-                }
+                    success = false,
+                    message = "Sistemde zaten kullanıcı mevcut. Bu endpoint sadece ilk kurulumda kullanılabilir."
+                });
+            }
 
-                // İlk kullanıcıyı zorla Admin yap
-                command.Rol = "Admin";
-                var result = await _mediator.Send(command);
-                return CreatedAtAction(nameof(SeedAdmin), new { id = result.Id }, result);
-            }
-            catch (InvalidOperationException ex)
+            // Validasyon
+            if (string.IsNullOrWhiteSpace(request.AdSoyad) ||
+                string.IsNullOrWhiteSpace(request.Email) ||
+                string.IsNullOrWhiteSpace(request.Sifre))
             {
-                return BadRequest(new { message = ex.Message });
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "AdSoyad, Email ve Sifre alanları zorunludur."
+                });
             }
+
+            // MediatR pipeline bypass — doğrudan AuthService kullan
+            // Rol her zaman Admin olarak zorunlu atanır (request'ten alınmaz)
+            var kullanici = await _authService.RegisterAsync(
+                request.AdSoyad,
+                request.Email,
+                request.Sifre,
+                "Admin"
+            );
+
+            return Ok(new
+            {
+                success = true,
+                message = "İlk admin kullanıcısı başarıyla oluşturuldu.",
+                data = new
+                {
+                    kullanici.Id,
+                    kullanici.AdSoyad,
+                    kullanici.Email,
+                    kullanici.Rol,
+                    kullanici.BasHarf
+                }
+            });
         }
 
         [HttpPost("login")]
-        public async Task<ActionResult<LoginResultDto>> Login([FromBody] LoginCommand command)
+        public async Task<ActionResult> Login([FromBody] LoginCommand command)
         {
-            try
-            {
-                var result = await _mediator.Send(command);
-                return Ok(result);
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                return Unauthorized(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "Sunucu hatası: " + ex.Message });
-            }
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
         }
 
         [HttpPost("register")]
-        [Authorize(Roles = "Admin")]
-        public async Task<ActionResult<KullaniciDto>> Register([FromBody] RegisterCommand command)
+        public async Task<ActionResult> Register([FromBody] RegisterCommand command)
         {
-            try
-            {
-                var result = await _mediator.Send(command);
-                return CreatedAtAction(nameof(Register), new { id = result.Id }, result);
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
         }
+    }
+
+    /// <summary>
+    /// Seed Admin için ayrı DTO — RegisterCommand'dan bağımsız (pipeline bypass).
+    /// </summary>
+    public class SeedAdminRequest
+    {
+        public string AdSoyad { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Sifre { get; set; } = string.Empty;
     }
 }

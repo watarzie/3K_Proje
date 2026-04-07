@@ -1,10 +1,17 @@
 using MediatR;
+using _3K.Application.Common;
 using _3K.Application.DTOs;
+using _3K.Core.Enums;
 
 namespace _3K.Application.Features.AuthIslemleri.Commands
 {
-    public class RegisterCommand : IRequest<KullaniciDto>
+    /// <summary>
+    /// Kullanıcı kayıt - sadece Admin.
+    /// </summary>
+    public class RegisterCommand : IRequest<Result<KullaniciDto>>, ISecuredRequest
     {
+        public string[] RequiredRoles => new[] { "Admin" };
+
         public string AdSoyad { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
         public string Sifre { get; set; } = string.Empty;

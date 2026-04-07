@@ -1,11 +1,12 @@
 using MediatR;
+using _3K.Application.Common;
 using _3K.Core.Entities;
-using _3K.Core.Enums;
+
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.SandikIslemleri.Commands
 {
-    public class ManuelUrunEkleCommandHandler : IRequestHandler<ManuelUrunEkleCommand, bool>
+    public class ManuelUrunEkleCommandHandler : IRequestHandler<ManuelUrunEkleCommand, Result>
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHareketService _hareketService;
@@ -16,7 +17,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             _hareketService = hareketService;
         }
 
-        public async Task<bool> Handle(ManuelUrunEkleCommand request, CancellationToken cancellationToken)
+        public async Task<Result> Handle(ManuelUrunEkleCommand request, CancellationToken cancellationToken)
         {
             var sandikRepo = _unitOfWork.GetRepository<Sandik>();
             var cekiRepo = _unitOfWork.GetRepository<Ceki>();
@@ -24,48 +25,43 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             var sandikIcerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
 
             var sandik = await sandikRepo.GetByIdAsync(request.SandikId);
-            if (sandik == null || sandik.ProjeId != request.ProjeId) return false;
+            if (sandik == null || sandik.ProjeId != request.ProjeId)
+                return Result.Failure("Sandık bulunamadı veya projeye ait değil.", 404);
 
-            // En güncel Ceki'yi bul
             var sonCeki = (await cekiRepo.FindAsync(c => c.ProjeId == request.ProjeId))
                           .OrderByDescending(c => c.YuklemeTarihi)
                           .FirstOrDefault();
+            if (sonCeki == null) return Result.Failure("Projeye ait çeki bulunamadı.", 404);
 
-            if (sonCeki == null) return false;
-
-            // CekiSatiri oluştur
             var yeniUrun = new CekiSatiri
             {
                 CekiId = sonCeki.Id,
-                SiraNo = 9999, // Manuel eklenenler için ayırt edici yüksek bir sıra numarası kullanılabilir
+                SiraNo = 9999,
                 BarkodNo = request.BarkodNo,
                 Aciklama = request.Aciklama,
                 IstenenAdet = request.IstenenAdet,
                 Birim = request.Birim,
                 CekideGecenSandikNo = sandik.SandikNo,
                 FiiliSandikNo = sandik.SandikNo,
-                Durum = UrunDurum.Bekliyor,
+                Durum = "Bekliyor",
                 IsManuelEklenen = true,
                 EklemeNedeni = request.EklemeNedeni,
-                GridDurumu = GridDurum.Bekliyor,
-                UcKDurumu = UcKDurum.Bekliyor
+                GridDurumu = "Bekliyor",
+                UcKDurumu = "Bekliyor"
             };
 
             await cekiSatiriRepo.AddAsync(yeniUrun);
-            await _unitOfWork.SaveChangesAsync(); // Id almak için kaydediyoruz
+            await _unitOfWork.SaveChangesAsync();
 
-            // Sandık İçerik kaydı
-            var icerik = new SandikIcerik
+            await sandikIcerikRepo.AddAsync(new SandikIcerik
             {
                 SandikId = sandik.Id,
                 CekiSatiriId = yeniUrun.Id,
-                KonulanAdet = request.IstenenAdet, // Manuel eklendiğine göre doğrudan fiziksel geldi diye farz edilebilir
+                KonulanAdet = request.IstenenAdet,
                 EksikAdet = 0
-            };
-            await sandikIcerikRepo.AddAsync(icerik);
+            });
             await _unitOfWork.SaveChangesAsync();
 
-            // Hareket log
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {
                 ProjeId = request.ProjeId,
@@ -76,7 +72,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 Aciklama = $"Neden: {request.EklemeNedeni}, Miktar: {request.IstenenAdet} {request.Birim}"
             });
 
-            return true;
+            return Result.Success();
         }
     }
 }
