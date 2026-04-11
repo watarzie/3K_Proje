@@ -209,4 +209,44 @@ namespace _3K.Application.DTOs
         public int ProjeId { get; set; }
         public int KullaniciId { get; set; }
     }
+
+    // ===== Grid & 3K Modül DTO'ları =====
+
+    public class GridUrunDto
+    {
+        public int CekiSatiriId { get; set; }
+        public int SiraNo { get; set; }
+        public string BarkodNo { get; set; } = string.Empty;
+        public string Aciklama { get; set; } = string.Empty;
+        public int IstenenAdet { get; set; }
+        public string Birim { get; set; } = string.Empty;
+        public string SandikNo { get; set; } = string.Empty;
+
+        // Grid tarafı
+        public string GridDurumu { get; set; } = string.Empty;
+        public int? GridSevkMiktari { get; set; }
+        public DateTime? GridSevkTarihi { get; set; }
+        public string? GridNotu { get; set; }
+
+        // 3K tarafı (read-only)
+        public string UcKDurumu { get; set; } = string.Empty;
+        public int GelenMiktar { get; set; }
+
+        // Genel
+        public string GenelDurum { get; set; } = string.Empty;
+    }
+
+    public class EksikUrunDto
+    {
+        public int CekiSatiriId { get; set; }
+        public int SiraNo { get; set; }
+        public string BarkodNo { get; set; } = string.Empty;
+        public string Aciklama { get; set; } = string.Empty;
+        public int IstenenAdet { get; set; }
+        public int GelenMiktar { get; set; }
+        public int EksikMiktar { get; set; }
+        public string GridDurumu { get; set; } = string.Empty;
+        public string UcKDurumu { get; set; } = string.Empty;
+        public string SandikNo { get; set; } = string.Empty;
+    }
 }

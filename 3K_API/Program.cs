@@ -36,6 +36,7 @@ builder.Services.AddScoped<IRevizyonService, RevizyonService>();
 builder.Services.AddScoped<IPdfService, PdfService>();
 builder.Services.AddScoped<IMailService, MailService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IDurumHesaplaService, DurumHesaplaService>();
 
 // ======= Current User Service (Pipeline Behavior için) =======
 builder.Services.AddHttpContextAccessor();

@@ -123,6 +123,17 @@ namespace _3K.Infrastructure.Data
                 .HasPrincipalKey(l => l.Deger)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // --- CekiSatiri.GridPersonel → Kullanici ---
+            modelBuilder.Entity<CekiSatiri>()
+                .HasOne(cs => cs.GridPersonel)
+                .WithMany()
+                .HasForeignKey(cs => cs.GridPersonelId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // --- EksikMiktar computed property — DB'de kolon değil ---
+            modelBuilder.Entity<CekiSatiri>()
+                .Ignore(cs => cs.EksikMiktar);
+
             // --- Kullanici.Rol → LookupKullaniciRol.Deger ---
             modelBuilder.Entity<Kullanici>()
                 .HasOne<LookupKullaniciRol>()
@@ -329,15 +340,20 @@ namespace _3K.Infrastructure.Data
                 new LookupUrunDurum { Id = 8, Anahtar = 7, Deger = "SandikDegisti" },
                 new LookupUrunDurum { Id = 9, Anahtar = 8, Deger = "IptalVeyaPasif" },
                 new LookupUrunDurum { Id = 10, Anahtar = 9, Deger = "TeslimAlindi" },
-                new LookupUrunDurum { Id = 11, Anahtar = 10, Deger = "GeriGonderildi" }
+                new LookupUrunDurum { Id = 11, Anahtar = 10, Deger = "GeriGonderildi" },
+                new LookupUrunDurum { Id = 12, Anahtar = 11, Deger = "KismiTamamlandi" },
+                new LookupUrunDurum { Id = 13, Anahtar = 12, Deger = "Kayip" }
             );
 
             // GridDurum
             modelBuilder.Entity<LookupGridDurum>().HasData(
                 new LookupGridDurum { Id = 1, Anahtar = 0, Deger = "Bekliyor" },
-                new LookupGridDurum { Id = 2, Anahtar = 1, Deger = "Geldi" },
-                new LookupGridDurum { Id = 3, Anahtar = 2, Deger = "Gelmedi" },
-                new LookupGridDurum { Id = 4, Anahtar = 3, Deger = "SevkEdildi" }
+                new LookupGridDurum { Id = 2, Anahtar = 1, Deger = "Uretimde" },
+                new LookupGridDurum { Id = 3, Anahtar = 2, Deger = "StokHazir" },
+                new LookupGridDurum { Id = 4, Anahtar = 3, Deger = "SevkEdildi" },
+                new LookupGridDurum { Id = 5, Anahtar = 4, Deger = "KismiSevkEdildi" },
+                new LookupGridDurum { Id = 6, Anahtar = 5, Deger = "Bekletiliyor" },
+                new LookupGridDurum { Id = 7, Anahtar = 6, Deger = "IptalEdildi" }
             );
 
             // UcKDurum
@@ -345,7 +361,10 @@ namespace _3K.Infrastructure.Data
                 new LookupUcKDurum { Id = 1, Anahtar = 0, Deger = "Bekliyor" },
                 new LookupUcKDurum { Id = 2, Anahtar = 1, Deger = "TamGeldi" },
                 new LookupUcKDurum { Id = 3, Anahtar = 2, Deger = "EksikGeldi" },
-                new LookupUcKDurum { Id = 4, Anahtar = 3, Deger = "Gelmedi" }
+                new LookupUcKDurum { Id = 4, Anahtar = 3, Deger = "Gelmedi" },
+                new LookupUcKDurum { Id = 5, Anahtar = 4, Deger = "Paketlendi" },
+                new LookupUcKDurum { Id = 6, Anahtar = 5, Deger = "KontrolEdildi" },
+                new LookupUcKDurum { Id = 7, Anahtar = 6, Deger = "IadeEdildi" }
             );
 
             // KullaniciRol

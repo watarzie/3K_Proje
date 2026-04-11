@@ -400,11 +400,18 @@ namespace _3K.Infrastructure.Migrations
                     CekideGecenSandikNo = table.Column<string>(type: "text", nullable: false),
                     FiiliSandikNo = table.Column<string>(type: "text", nullable: true),
                     Remarks = table.Column<string>(type: "text", nullable: true),
+                    Durum = table.Column<string>(type: "text", nullable: false),
                     GridDurumu = table.Column<string>(type: "text", nullable: false),
+                    GridSevkMiktari = table.Column<int>(type: "integer", nullable: true),
+                    GridSevkTarihi = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    GridNotu = table.Column<string>(type: "text", nullable: true),
+                    GridPersonelId = table.Column<int>(type: "integer", nullable: true),
                     UcKDurumu = table.Column<string>(type: "text", nullable: false),
+                    GelenMiktar = table.Column<int>(type: "integer", nullable: false),
+                    TeslimTarihi = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    UcKNotu = table.Column<string>(type: "text", nullable: true),
                     IsManuelEklenen = table.Column<bool>(type: "boolean", nullable: false),
                     EklemeNedeni = table.Column<string>(type: "text", nullable: true),
-                    Durum = table.Column<string>(type: "text", nullable: false),
                     PaketleyenId = table.Column<int>(type: "integer", nullable: true),
                     KontrolEdenId = table.Column<int>(type: "integer", nullable: true),
                     CreatedDate = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
@@ -419,6 +426,12 @@ namespace _3K.Infrastructure.Migrations
                         principalTable: "Cekiler",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_CekiSatirlari_Kullanicilar_GridPersonelId",
+                        column: x => x.GridPersonelId,
+                        principalTable: "Kullanicilar",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
                     table.ForeignKey(
                         name: "FK_CekiSatirlari_Kullanicilar_KontrolEdenId",
                         column: x => x.KontrolEdenId,
@@ -585,9 +598,12 @@ namespace _3K.Infrastructure.Migrations
                 values: new object[,]
                 {
                     { 1, 0, "Bekliyor" },
-                    { 2, 1, "Geldi" },
-                    { 3, 2, "Gelmedi" },
-                    { 4, 3, "SevkEdildi" }
+                    { 2, 1, "Uretimde" },
+                    { 3, 2, "StokHazir" },
+                    { 4, 3, "SevkEdildi" },
+                    { 5, 4, "KismiSevkEdildi" },
+                    { 6, 5, "Bekletiliyor" },
+                    { 7, 6, "IptalEdildi" }
                 });
 
             migrationBuilder.InsertData(
@@ -673,7 +689,10 @@ namespace _3K.Infrastructure.Migrations
                     { 1, 0, "Bekliyor" },
                     { 2, 1, "TamGeldi" },
                     { 3, 2, "EksikGeldi" },
-                    { 4, 3, "Gelmedi" }
+                    { 4, 3, "Gelmedi" },
+                    { 5, 4, "Paketlendi" },
+                    { 6, 5, "KontrolEdildi" },
+                    { 7, 6, "IadeEdildi" }
                 });
 
             migrationBuilder.InsertData(
@@ -691,7 +710,9 @@ namespace _3K.Infrastructure.Migrations
                     { 8, 7, "SandikDegisti" },
                     { 9, 8, "IptalVeyaPasif" },
                     { 10, 9, "TeslimAlindi" },
-                    { 11, 10, "GeriGonderildi" }
+                    { 11, 10, "GeriGonderildi" },
+                    { 12, 11, "KismiTamamlandi" },
+                    { 13, 12, "Kayip" }
                 });
 
             migrationBuilder.CreateIndex(
@@ -713,6 +734,11 @@ namespace _3K.Infrastructure.Migrations
                 name: "IX_CekiSatirlari_GridDurumu",
                 table: "CekiSatirlari",
                 column: "GridDurumu");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CekiSatirlari_GridPersonelId",
+                table: "CekiSatirlari",
+                column: "GridPersonelId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_CekiSatirlari_KontrolEdenId",

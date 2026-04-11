@@ -93,9 +93,24 @@ namespace _3K.Infrastructure.Migrations
                     b.Property<string>("FiiliSandikNo")
                         .HasColumnType("text");
 
+                    b.Property<int>("GelenMiktar")
+                        .HasColumnType("integer");
+
                     b.Property<string>("GridDurumu")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("GridNotu")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("GridPersonelId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("GridSevkMiktari")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("GridSevkTarihi")
+                        .HasColumnType("timestamp without time zone");
 
                     b.Property<bool>("IsManuelEklenen")
                         .HasColumnType("boolean");
@@ -118,8 +133,14 @@ namespace _3K.Infrastructure.Migrations
                     b.Property<int>("SiraNo")
                         .HasColumnType("integer");
 
+                    b.Property<DateTime?>("TeslimTarihi")
+                        .HasColumnType("timestamp without time zone");
+
                     b.Property<string>("UcKDurumu")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UcKNotu")
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("UpdatedDate")
@@ -132,6 +153,8 @@ namespace _3K.Infrastructure.Migrations
                     b.HasIndex("Durum");
 
                     b.HasIndex("GridDurumu");
+
+                    b.HasIndex("GridPersonelId");
 
                     b.HasIndex("KontrolEdenId");
 
@@ -366,19 +389,37 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 2,
                             Anahtar = 1,
-                            Deger = "Geldi"
+                            Deger = "Uretimde"
                         },
                         new
                         {
                             Id = 3,
                             Anahtar = 2,
-                            Deger = "Gelmedi"
+                            Deger = "StokHazir"
                         },
                         new
                         {
                             Id = 4,
                             Anahtar = 3,
                             Deger = "SevkEdildi"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Anahtar = 4,
+                            Deger = "KismiSevkEdildi"
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Anahtar = 5,
+                            Deger = "Bekletiliyor"
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Anahtar = 6,
+                            Deger = "IptalEdildi"
                         });
                 });
 
@@ -755,6 +796,24 @@ namespace _3K.Infrastructure.Migrations
                             Id = 4,
                             Anahtar = 3,
                             Deger = "Gelmedi"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Anahtar = 4,
+                            Deger = "Paketlendi"
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Anahtar = 5,
+                            Deger = "KontrolEdildi"
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Anahtar = 6,
+                            Deger = "IadeEdildi"
                         });
                 });
 
@@ -843,6 +902,18 @@ namespace _3K.Infrastructure.Migrations
                             Id = 11,
                             Anahtar = 10,
                             Deger = "GeriGonderildi"
+                        },
+                        new
+                        {
+                            Id = 12,
+                            Anahtar = 11,
+                            Deger = "KismiTamamlandi"
+                        },
+                        new
+                        {
+                            Id = 13,
+                            Anahtar = 12,
+                            Deger = "Kayip"
                         });
                 });
 
@@ -1173,6 +1244,11 @@ namespace _3K.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("_3K.Core.Entities.Kullanici", "GridPersonel")
+                        .WithMany()
+                        .HasForeignKey("GridPersonelId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("_3K.Core.Entities.Kullanici", "KontrolEden")
                         .WithMany()
                         .HasForeignKey("KontrolEdenId")
@@ -1191,6 +1267,8 @@ namespace _3K.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Ceki");
+
+                    b.Navigation("GridPersonel");
 
                     b.Navigation("KontrolEden");
 
