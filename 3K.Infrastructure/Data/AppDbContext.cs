@@ -21,6 +21,7 @@ namespace _3K.Infrastructure.Data
         public DbSet<StokHareketi> StokHareketleri { get; set; } = null!;
         public DbSet<Revizyon> Revizyonlar { get; set; } = null!;
         public DbSet<HareketGecmisi> HareketGecmisleri { get; set; } = null!;
+        public DbSet<ProjeTransfer> ProjeTransferleri { get; set; } = null!;
 
         // ======= Lookup (Parametre) Tablo DbSet'leri =======
         public DbSet<LookupProjeDurum> LookupProjeDurumlari { get; set; } = null!;
@@ -121,6 +122,50 @@ namespace _3K.Infrastructure.Data
                 .WithMany()
                 .HasForeignKey(cs => cs.UcKDurumu)
                 .HasPrincipalKey(l => l.Deger)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // --- CekiSatiri.GridPersonel → Kullanici ---
+            modelBuilder.Entity<CekiSatiri>()
+                .HasOne(cs => cs.GridPersonel)
+                .WithMany()
+                .HasForeignKey(cs => cs.GridPersonelId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // --- EksikMiktar, GridEksikMiktar computed properties — DB'de kolon değil ---
+            modelBuilder.Entity<CekiSatiri>()
+                .Ignore(cs => cs.EksikMiktar);
+            modelBuilder.Entity<CekiSatiri>()
+                .Ignore(cs => cs.GridEksikMiktar);
+
+            // --- ProjeTransfer ilişkileri ---
+            modelBuilder.Entity<ProjeTransfer>()
+                .HasOne(pt => pt.KaynakProje)
+                .WithMany()
+                .HasForeignKey(pt => pt.KaynakProjeId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<ProjeTransfer>()
+                .HasOne(pt => pt.HedefProje)
+                .WithMany()
+                .HasForeignKey(pt => pt.HedefProjeId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<ProjeTransfer>()
+                .HasOne(pt => pt.KaynakCekiSatiri)
+                .WithMany()
+                .HasForeignKey(pt => pt.KaynakCekiSatiriId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<ProjeTransfer>()
+                .HasOne(pt => pt.HedefCekiSatiri)
+                .WithMany()
+                .HasForeignKey(pt => pt.HedefCekiSatiriId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<ProjeTransfer>()
+                .HasOne(pt => pt.Kullanici)
+                .WithMany()
+                .HasForeignKey(pt => pt.KullaniciId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             // --- Kullanici.Rol → LookupKullaniciRol.Deger ---
@@ -329,15 +374,33 @@ namespace _3K.Infrastructure.Data
                 new LookupUrunDurum { Id = 8, Anahtar = 7, Deger = "SandikDegisti" },
                 new LookupUrunDurum { Id = 9, Anahtar = 8, Deger = "IptalVeyaPasif" },
                 new LookupUrunDurum { Id = 10, Anahtar = 9, Deger = "TeslimAlindi" },
-                new LookupUrunDurum { Id = 11, Anahtar = 10, Deger = "GeriGonderildi" }
+                new LookupUrunDurum { Id = 11, Anahtar = 10, Deger = "GeriGonderildi" },
+                new LookupUrunDurum { Id = 12, Anahtar = 11, Deger = "KismiTamamlandi" },
+                new LookupUrunDurum { Id = 13, Anahtar = 12, Deger = "Kayip" },
+                new LookupUrunDurum { Id = 14, Anahtar = 13, Deger = "GriddeHazir" },
+                new LookupUrunDurum { Id = 15, Anahtar = 14, Deger = "GriddeEksik" },
+                new LookupUrunDurum { Id = 16, Anahtar = 15, Deger = "Sipariste" },
+                new LookupUrunDurum { Id = 17, Anahtar = 16, Deger = "Gelmedi" },
+                new LookupUrunDurum { Id = 18, Anahtar = 17, Deger = "TrafoSevk" },
+                new LookupUrunDurum { Id = 19, Anahtar = 18, Deger = "BaskaProyeVerildi" },
+                new LookupUrunDurum { Id = 20, Anahtar = 19, Deger = "HataliUrun" }
             );
 
             // GridDurum
             modelBuilder.Entity<LookupGridDurum>().HasData(
                 new LookupGridDurum { Id = 1, Anahtar = 0, Deger = "Bekliyor" },
-                new LookupGridDurum { Id = 2, Anahtar = 1, Deger = "Geldi" },
-                new LookupGridDurum { Id = 3, Anahtar = 2, Deger = "Gelmedi" },
-                new LookupGridDurum { Id = 4, Anahtar = 3, Deger = "SevkEdildi" }
+                new LookupGridDurum { Id = 2, Anahtar = 1, Deger = "Uretimde" },
+                new LookupGridDurum { Id = 3, Anahtar = 2, Deger = "StokHazir" },
+                new LookupGridDurum { Id = 4, Anahtar = 3, Deger = "SevkEdildi" },
+                new LookupGridDurum { Id = 5, Anahtar = 4, Deger = "KismiSevkEdildi" },
+                new LookupGridDurum { Id = 6, Anahtar = 5, Deger = "Bekletiliyor" },
+                new LookupGridDurum { Id = 7, Anahtar = 6, Deger = "IptalEdildi" },
+                new LookupGridDurum { Id = 8, Anahtar = 7, Deger = "TamGeldi" },
+                new LookupGridDurum { Id = 9, Anahtar = 8, Deger = "EksikGeldi" },
+                new LookupGridDurum { Id = 10, Anahtar = 9, Deger = "Gelmedi" },
+                new LookupGridDurum { Id = 11, Anahtar = 10, Deger = "TrafoSevk" },
+                new LookupGridDurum { Id = 12, Anahtar = 11, Deger = "Iptal" },
+                new LookupGridDurum { Id = 13, Anahtar = 12, Deger = "Sipariste" }
             );
 
             // UcKDurum
@@ -345,7 +408,15 @@ namespace _3K.Infrastructure.Data
                 new LookupUcKDurum { Id = 1, Anahtar = 0, Deger = "Bekliyor" },
                 new LookupUcKDurum { Id = 2, Anahtar = 1, Deger = "TamGeldi" },
                 new LookupUcKDurum { Id = 3, Anahtar = 2, Deger = "EksikGeldi" },
-                new LookupUcKDurum { Id = 4, Anahtar = 3, Deger = "Gelmedi" }
+                new LookupUcKDurum { Id = 4, Anahtar = 3, Deger = "Gelmedi" },
+                new LookupUcKDurum { Id = 5, Anahtar = 4, Deger = "Paketlendi" },
+                new LookupUcKDurum { Id = 6, Anahtar = 5, Deger = "KontrolEdildi" },
+                new LookupUcKDurum { Id = 7, Anahtar = 6, Deger = "IadeEdildi" },
+                new LookupUcKDurum { Id = 8, Anahtar = 7, Deger = "ProjedenKarsilandi" },
+                new LookupUcKDurum { Id = 9, Anahtar = 8, Deger = "StoktanKarsilandi" },
+                new LookupUcKDurum { Id = 10, Anahtar = 9, Deger = "TedarikcidenGeldi" },
+                new LookupUcKDurum { Id = 11, Anahtar = 10, Deger = "BaskaProyeVerildi" },
+                new LookupUcKDurum { Id = 12, Anahtar = 11, Deger = "HataliUrun" }
             );
 
             // KullaniciRol

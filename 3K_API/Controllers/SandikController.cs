@@ -82,5 +82,35 @@ namespace _3K_API.Controllers
             var result = await _mediator.Send(command);
             return result.ToActionResult();
         }
+
+        /// <summary>
+        /// 3K personeli ürün teslim alır — kümülatif (parça parça gelebilir).
+        /// </summary>
+        [HttpPut("teslim-al")]
+        public async Task<ActionResult> TeslimAl([FromBody] UcKTeslimAlCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
+        /// <summary>
+        /// Birden fazla ürünü tek seferde teslim alır.
+        /// </summary>
+        [HttpPost("toplu-teslim-al")]
+        public async Task<ActionResult> TopluTeslimAl([FromBody] UcKTopluTeslimAlCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
+        /// <summary>
+        /// Grid sevk etti ama 3K tarafında eksik/gelmemiş ürünler raporu.
+        /// </summary>
+        [HttpGet("eksik-urunler/{projeId}")]
+        public async Task<ActionResult> EksikUrunler(int projeId)
+        {
+            var result = await _mediator.Send(new GetEksikUrunlerQuery { ProjeId = projeId });
+            return result.ToActionResult();
+        }
     }
 }
