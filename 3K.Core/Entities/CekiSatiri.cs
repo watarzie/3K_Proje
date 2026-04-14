@@ -17,7 +17,25 @@ namespace _3K.Core.Entities
         public string Durum { get; set; } = "Bekliyor";
 
         // ===== Grid Modülü Alanları =====
+        /// <summary>
+        /// Grid Durumu: TamGeldi, EksikGeldi, Gelmedi, TrafoSevk, Iptal, Sipariste, Bekliyor
+        /// </summary>
         public string GridDurumu { get; set; } = "Bekliyor";
+        /// <summary>
+        /// Grid'e gelen adet. TAM GELDİ → IstenenAdet, EKSİK GELDİ → kullanıcı girer, diğer → 0
+        /// </summary>
+        public int GridGelenAdet { get; set; } = 0;
+        /// <summary>
+        /// Trafo sevk edilen adet. Sadece TRAFO SEVK durumunda aktif.
+        /// </summary>
+        public int TrafoSevkAdet { get; set; } = 0;
+        /// <summary>
+        /// Grid Sevk Durumu: SevkEdildi, Bekliyor, SevkEdilmedi
+        /// </summary>
+        public string GridSevkDurumu { get; set; } = "SevkEdilmedi";
+        /// <summary>
+        /// Grid'den 3K'ya sevk edilen adet.
+        /// </summary>
         public int? GridSevkMiktari { get; set; }
         public DateTime? GridSevkTarihi { get; set; }
         public string? GridNotu { get; set; }
@@ -25,9 +43,25 @@ namespace _3K.Core.Entities
 
         // ===== 3K Modülü Alanları =====
         public string UcKDurumu { get; set; } = "Bekliyor";
+        /// <summary>
+        /// 3K Karşılama Tipi: Bekliyor, TamGeldi, EksikGeldi, ProjedenKarsilandi, StoktanKarsilandi,
+        /// TedarikcidenGeldi, BaskaProyeVerildi, HataliUrun
+        /// </summary>
+        public string UcKKarsilamaTipi { get; set; } = "Bekliyor";
+        /// <summary>
+        /// 3K'ya gelen / karşılanan adet (tüm kaynaklardan toplam).
+        /// </summary>
         public int GelenMiktar { get; set; } = 0;
         public DateTime? TeslimTarihi { get; set; }
         public string? UcKNotu { get; set; }
+        /// <summary>
+        /// Projeden Karşılandı / Başka Projeye Verildi durumunda referans proje no.
+        /// </summary>
+        public string? KaynakHedefProjeNo { get; set; }
+        /// <summary>
+        /// 3K açıklama / not alanı (karşılama detayı).
+        /// </summary>
+        public string? UcKAciklama { get; set; }
 
         // ===== Diğer =====
         public bool IsManuelEklenen { get; set; } = false;
@@ -36,7 +70,20 @@ namespace _3K.Core.Entities
         public int? KontrolEdenId { get; set; }
 
         /// <summary>
-        /// Hesaplanan alan: IstenenAdet - GelenMiktar
+        /// Grid tarafı eksik hesabı: Miktar - GridGelenAdet - TrafoSevkAdet
+        /// İptal ise 0, Sipariste ise açık eksik kalır.
+        /// </summary>
+        public int GridEksikMiktar
+        {
+            get
+            {
+                if (GridDurumu == "Iptal") return 0;
+                return IstenenAdet - GridGelenAdet - TrafoSevkAdet;
+            }
+        }
+
+        /// <summary>
+        /// 3K tarafı eksik hesabı: IstenenAdet - GelenMiktar
         /// </summary>
         public int EksikMiktar => IstenenAdet - GelenMiktar;
 

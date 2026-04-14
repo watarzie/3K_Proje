@@ -1,0 +1,36 @@
+using MediatR;
+using _3K.Application.Common;
+
+namespace _3K.Application.Features.UcKIslemleri.Commands
+{
+    /// <summary>
+    /// 3K personeli ürün karşılama durumunu günceller.
+    /// Karşılama Tipleri: TamGeldi, EksikGeldi, ProjedenKarsilandi, StoktanKarsilandi,
+    /// TedarikcidenGeldi, BaskaProyeVerildi, HataliUrun
+    /// </summary>
+    public class UcKDurumGuncelleCommand : IRequest<Result>, ISecuredRequest
+    {
+        public string[] RequiredRoles => new[] { "Admin", "Personel3K" };
+
+        public int CekiSatiriId { get; set; }
+        public int ProjeId { get; set; }
+        public string KarsilamaTipi { get; set; } = string.Empty;
+
+        /// <summary>
+        /// TamGeldi hariç, kullanıcının girdiği adet.
+        /// </summary>
+        public int? GelenAdet { get; set; }
+
+        /// <summary>
+        /// ProjedenKarsilandi / BaskaProyeVerildi için referans proje no.
+        /// </summary>
+        public string? KaynakHedefProjeNo { get; set; }
+
+        /// <summary>
+        /// Açıklama (zorunluluk karşılama tipine göre değişir).
+        /// </summary>
+        public string? Aciklama { get; set; }
+
+        public string? Not { get; set; }
+    }
+}

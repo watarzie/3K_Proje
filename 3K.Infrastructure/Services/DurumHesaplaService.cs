@@ -4,6 +4,8 @@ namespace _3K.Infrastructure.Services
 {
     /// <summary>
     /// GridDurumu + UcKDurumu kesişiminden genel UrunDurum hesaplar.
+    /// Grid Durumları: TamGeldi, EksikGeldi, Gelmedi, TrafoSevk, Iptal, Sipariste, Bekliyor
+    /// 3K Durumları: Bekliyor, TamGeldi, EksikGeldi, Gelmedi, KontrolEdildi, Paketlendi, IadeEdildi
     /// Kural: 3K tarafı "Paketlendi" veya "IadeEdildi" ise Grid durumunu ezer.
     /// </summary>
     public class DurumHesaplaService : IDurumHesaplaService
@@ -11,26 +13,41 @@ namespace _3K.Infrastructure.Services
         public string HesaplaGenelDurum(string gridDurumu, string ucKDurumu)
         {
             // ===== 3K Override Kuralları (Grid'i ezer) =====
-            // Paketlendi → iş bitti, ürün sandıkta
             if (ucKDurumu == "Paketlendi")
                 return "Tamamlandi";
 
-            // İade edildi → Grid'e geri gönderildi
             if (ucKDurumu == "IadeEdildi")
                 return "GeriGonderildi";
 
             // ===== Grid Tarafı Kuralları =====
 
             // Grid iptal ettiyse
-            if (gridDurumu == "IptalEdildi")
+            if (gridDurumu == "Iptal")
                 return "IptalVeyaPasif";
 
-            // Grid bekletiyorsa
-            if (gridDurumu == "Bekletiliyor")
-                return "SonraGidecek";
+            // Grid'de sipariş sürecinde
+            if (gridDurumu == "Sipariste")
+                return "Sipariste";
 
-            // ===== Grid SevkEdildi + 3K Durumları =====
-            if (gridDurumu == "SevkEdildi")
+            // Grid'e gelmedi
+            if (gridDurumu == "Gelmedi")
+                return "Gelmedi";
+
+            // Trafo sevk — kısmen veya tamamen trafoya gitti
+            if (gridDurumu == "TrafoSevk")
+            {
+                return ucKDurumu switch
+                {
+                    "TamGeldi" => "Tamamlandi",
+                    "KontrolEdildi" => "Tamamlandi",
+                    "EksikGeldi" => "Eksik",
+                    "Bekliyor" => "TrafoSevk",
+                    _ => "TrafoSevk"
+                };
+            }
+
+            // ===== Grid TamGeldi =====
+            if (gridDurumu == "TamGeldi")
             {
                 return ucKDurumu switch
                 {
@@ -38,13 +55,13 @@ namespace _3K.Infrastructure.Services
                     "KontrolEdildi" => "Tamamlandi",
                     "EksikGeldi" => "Eksik",
                     "Gelmedi" => "Kayip",
-                    "Bekliyor" => "KismiGeldi",   // Sevk edildi ama henüz teslim alınmadı
-                    _ => "KismiGeldi"
+                    "Bekliyor" => "GriddeHazir",   // Grid'de tam, henüz 3K'ya gelmedi
+                    _ => "GriddeHazir"
                 };
             }
 
-            // ===== Grid KismiSevkEdildi + 3K Durumları =====
-            if (gridDurumu == "KismiSevkEdildi")
+            // ===== Grid EksikGeldi =====
+            if (gridDurumu == "EksikGeldi")
             {
                 return ucKDurumu switch
                 {
@@ -52,20 +69,35 @@ namespace _3K.Infrastructure.Services
                     "KontrolEdildi" => "KismiTamamlandi",
                     "EksikGeldi" => "Eksik",
                     "Gelmedi" => "Kayip",
-                    "Bekliyor" => "KismiGeldi",
-                    _ => "KismiGeldi"
+                    "Bekliyor" => "GriddeEksik",   // Grid'de eksik, henüz 3K'ya gelmedi
+                    _ => "GriddeEksik"
                 };
             }
 
-            // ===== 3K teslim aldıysa ama Grid henüz sevk etmemiş (veri tutarsızlığı) =====
+            // ===== 3K teslim aldıysa ama Grid henüz durum seçmemiş =====
             if (ucKDurumu == "TamGeldi" || ucKDurumu == "KontrolEdildi")
                 return "Tamamlandi";
 
             if (ucKDurumu == "EksikGeldi")
                 return "Eksik";
 
-            // ===== Varsayılan: Her iki taraf da bekliyor =====
-            // Grid: Bekliyor, Uretimde, StokHazir → 3K henüz bir şey almamış
+            // 3K karşılama tipleri
+            if (ucKDurumu == "ProjedenKarsilandi")
+                return "Tamamlandi";
+
+            if (ucKDurumu == "StoktanKarsilandi")
+                return "Tamamlandi";
+
+            if (ucKDurumu == "TedarikcidenGeldi")
+                return "Tamamlandi";
+
+            if (ucKDurumu == "BaskaProyeVerildi")
+                return "BaskaProyeVerildi";
+
+            if (ucKDurumu == "HataliUrun")
+                return "HataliUrun";
+
+            // Varsayılan: Her iki taraf da bekliyor
             return "Bekliyor";
         }
     }

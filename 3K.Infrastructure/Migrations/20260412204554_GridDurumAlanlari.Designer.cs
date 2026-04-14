@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using _3K.Infrastructure.Data;
@@ -11,9 +12,11 @@ using _3K.Infrastructure.Data;
 namespace _3K.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260412204554_GridDurumAlanlari")]
+    partial class GridDurumAlanlari
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -125,9 +128,6 @@ namespace _3K.Infrastructure.Migrations
                     b.Property<int>("IstenenAdet")
                         .HasColumnType("integer");
 
-                    b.Property<string>("KaynakHedefProjeNo")
-                        .HasColumnType("text");
-
                     b.Property<int?>("KontrolEdenId")
                         .HasColumnType("integer");
 
@@ -149,14 +149,7 @@ namespace _3K.Infrastructure.Migrations
                     b.Property<int>("TrafoSevkAdet")
                         .HasColumnType("integer");
 
-                    b.Property<string>("UcKAciklama")
-                        .HasColumnType("text");
-
                     b.Property<string>("UcKDurumu")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("UcKKarsilamaTipi")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -440,42 +433,6 @@ namespace _3K.Infrastructure.Migrations
                             Id = 7,
                             Anahtar = 6,
                             Deger = "IptalEdildi"
-                        },
-                        new
-                        {
-                            Id = 8,
-                            Anahtar = 7,
-                            Deger = "TamGeldi"
-                        },
-                        new
-                        {
-                            Id = 9,
-                            Anahtar = 8,
-                            Deger = "EksikGeldi"
-                        },
-                        new
-                        {
-                            Id = 10,
-                            Anahtar = 9,
-                            Deger = "Gelmedi"
-                        },
-                        new
-                        {
-                            Id = 11,
-                            Anahtar = 10,
-                            Deger = "TrafoSevk"
-                        },
-                        new
-                        {
-                            Id = 12,
-                            Anahtar = 11,
-                            Deger = "Iptal"
-                        },
-                        new
-                        {
-                            Id = 13,
-                            Anahtar = 12,
-                            Deger = "Sipariste"
                         });
                 });
 
@@ -870,36 +827,6 @@ namespace _3K.Infrastructure.Migrations
                             Id = 7,
                             Anahtar = 6,
                             Deger = "IadeEdildi"
-                        },
-                        new
-                        {
-                            Id = 8,
-                            Anahtar = 7,
-                            Deger = "ProjedenKarsilandi"
-                        },
-                        new
-                        {
-                            Id = 9,
-                            Anahtar = 8,
-                            Deger = "StoktanKarsilandi"
-                        },
-                        new
-                        {
-                            Id = 10,
-                            Anahtar = 9,
-                            Deger = "TedarikcidenGeldi"
-                        },
-                        new
-                        {
-                            Id = 11,
-                            Anahtar = 10,
-                            Deger = "BaskaProyeVerildi"
-                        },
-                        new
-                        {
-                            Id = 12,
-                            Anahtar = 11,
-                            Deger = "HataliUrun"
                         });
                 });
 
@@ -1000,48 +927,6 @@ namespace _3K.Infrastructure.Migrations
                             Id = 13,
                             Anahtar = 12,
                             Deger = "Kayip"
-                        },
-                        new
-                        {
-                            Id = 14,
-                            Anahtar = 13,
-                            Deger = "GriddeHazir"
-                        },
-                        new
-                        {
-                            Id = 15,
-                            Anahtar = 14,
-                            Deger = "GriddeEksik"
-                        },
-                        new
-                        {
-                            Id = 16,
-                            Anahtar = 15,
-                            Deger = "Sipariste"
-                        },
-                        new
-                        {
-                            Id = 17,
-                            Anahtar = 16,
-                            Deger = "Gelmedi"
-                        },
-                        new
-                        {
-                            Id = 18,
-                            Anahtar = 17,
-                            Deger = "TrafoSevk"
-                        },
-                        new
-                        {
-                            Id = 19,
-                            Anahtar = 18,
-                            Deger = "BaskaProyeVerildi"
-                        },
-                        new
-                        {
-                            Id = 20,
-                            Anahtar = 19,
-                            Deger = "HataliUrun"
                         });
                 });
 
@@ -1107,63 +992,6 @@ namespace _3K.Infrastructure.Migrations
                     b.HasIndex("Durum");
 
                     b.ToTable("Projeler");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.ProjeTransfer", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Aciklama")
-                        .HasColumnType("text");
-
-                    b.Property<string>("BarkodNo")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<int?>("HedefCekiSatiriId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("HedefProjeId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("KaynakCekiSatiriId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("KaynakProjeId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("KullaniciId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Miktar")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("Tarih")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("HedefCekiSatiriId");
-
-                    b.HasIndex("HedefProjeId");
-
-                    b.HasIndex("KaynakCekiSatiriId");
-
-                    b.HasIndex("KaynakProjeId");
-
-                    b.HasIndex("KullaniciId");
-
-                    b.ToTable("ProjeTransferleri");
                 });
 
             modelBuilder.Entity("_3K.Core.Entities.Revizyon", b =>
@@ -1516,48 +1344,6 @@ namespace _3K.Infrastructure.Migrations
                         .HasPrincipalKey("Deger")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.ProjeTransfer", b =>
-                {
-                    b.HasOne("_3K.Core.Entities.CekiSatiri", "HedefCekiSatiri")
-                        .WithMany()
-                        .HasForeignKey("HedefCekiSatiriId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("_3K.Core.Entities.Proje", "HedefProje")
-                        .WithMany()
-                        .HasForeignKey("HedefProjeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("_3K.Core.Entities.CekiSatiri", "KaynakCekiSatiri")
-                        .WithMany()
-                        .HasForeignKey("KaynakCekiSatiriId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("_3K.Core.Entities.Proje", "KaynakProje")
-                        .WithMany()
-                        .HasForeignKey("KaynakProjeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("_3K.Core.Entities.Kullanici", "Kullanici")
-                        .WithMany()
-                        .HasForeignKey("KullaniciId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("HedefCekiSatiri");
-
-                    b.Navigation("HedefProje");
-
-                    b.Navigation("KaynakCekiSatiri");
-
-                    b.Navigation("KaynakProje");
-
-                    b.Navigation("Kullanici");
                 });
 
             modelBuilder.Entity("_3K.Core.Entities.Revizyon", b =>

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using _3K.Infrastructure.Data;
@@ -11,9 +12,11 @@ using _3K.Infrastructure.Data;
 namespace _3K.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260412210633_UcKKarsilamaVeProjeTransfer")]
+    partial class UcKKarsilamaVeProjeTransfer
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1000,48 +1003,6 @@ namespace _3K.Infrastructure.Migrations
                             Id = 13,
                             Anahtar = 12,
                             Deger = "Kayip"
-                        },
-                        new
-                        {
-                            Id = 14,
-                            Anahtar = 13,
-                            Deger = "GriddeHazir"
-                        },
-                        new
-                        {
-                            Id = 15,
-                            Anahtar = 14,
-                            Deger = "GriddeEksik"
-                        },
-                        new
-                        {
-                            Id = 16,
-                            Anahtar = 15,
-                            Deger = "Sipariste"
-                        },
-                        new
-                        {
-                            Id = 17,
-                            Anahtar = 16,
-                            Deger = "Gelmedi"
-                        },
-                        new
-                        {
-                            Id = 18,
-                            Anahtar = 17,
-                            Deger = "TrafoSevk"
-                        },
-                        new
-                        {
-                            Id = 19,
-                            Anahtar = 18,
-                            Deger = "BaskaProyeVerildi"
-                        },
-                        new
-                        {
-                            Id = 20,
-                            Anahtar = 19,
-                            Deger = "HataliUrun"
                         });
                 });
 

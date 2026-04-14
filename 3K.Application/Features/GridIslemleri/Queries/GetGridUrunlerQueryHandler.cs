@@ -40,9 +40,13 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                     Birim = cs.Birim,
                     SandikNo = cs.FiiliSandikNo ?? cs.CekideGecenSandikNo,
                     GridDurumu = cs.GridDurumu,
+                    GridGelenAdet = cs.GridGelenAdet,
+                    TrafoSevkAdet = cs.TrafoSevkAdet,
+                    GridSevkDurumu = cs.GridSevkDurumu,
                     GridSevkMiktari = cs.GridSevkMiktari,
                     GridSevkTarihi = cs.GridSevkTarihi,
                     GridNotu = cs.GridNotu,
+                    GridEksikMiktar = cs.GridEksikMiktar,
                     UcKDurumu = cs.UcKDurumu,
                     GelenMiktar = cs.GelenMiktar,
                     GenelDurum = cs.Durum

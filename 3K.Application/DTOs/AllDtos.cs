@@ -224,9 +224,13 @@ namespace _3K.Application.DTOs
 
         // Grid tarafı
         public string GridDurumu { get; set; } = string.Empty;
+        public int GridGelenAdet { get; set; }
+        public int TrafoSevkAdet { get; set; }
+        public string GridSevkDurumu { get; set; } = string.Empty;
         public int? GridSevkMiktari { get; set; }
         public DateTime? GridSevkTarihi { get; set; }
         public string? GridNotu { get; set; }
+        public int GridEksikMiktar { get; set; }
 
         // 3K tarafı (read-only)
         public string UcKDurumu { get; set; } = string.Empty;
@@ -248,5 +252,47 @@ namespace _3K.Application.DTOs
         public string GridDurumu { get; set; } = string.Empty;
         public string UcKDurumu { get; set; } = string.Empty;
         public string SandikNo { get; set; } = string.Empty;
+    }
+
+    // ===== 3K Modül DTO'ları =====
+
+    public class UcKUrunDto
+    {
+        public int CekiSatiriId { get; set; }
+        public int SiraNo { get; set; }
+        public string BarkodNo { get; set; } = string.Empty;
+        public string Aciklama { get; set; } = string.Empty;
+        public string SandikNo { get; set; } = string.Empty;
+        public int IstenenAdet { get; set; }
+        public string Birim { get; set; } = string.Empty;
+
+        // Grid tarafı (read-only)
+        public string GridDurumu { get; set; } = string.Empty;
+        public int GridGelenAdet { get; set; }
+        public int TrafoSevkAdet { get; set; }
+
+        // 3K tarafı
+        public string UcKKarsilamaTipi { get; set; } = string.Empty;
+        public int GelenMiktar { get; set; }
+        public string? KaynakHedefProjeNo { get; set; }
+        public string? UcKAciklama { get; set; }
+        public string? UcKNotu { get; set; }
+
+        // Hesaplanan
+        public int Kalan { get; set; }
+        public string KontrolUyari { get; set; } = string.Empty;
+        public string GenelDurum { get; set; } = string.Empty;
+    }
+
+    public class ProjeTransferDto
+    {
+        public int Id { get; set; }
+        public string KaynakProjeNo { get; set; } = string.Empty;
+        public string HedefProjeNo { get; set; } = string.Empty;
+        public string BarkodNo { get; set; } = string.Empty;
+        public int Miktar { get; set; }
+        public string KullaniciAdi { get; set; } = string.Empty;
+        public string? Aciklama { get; set; }
+        public DateTime Tarih { get; set; }
     }
 }
