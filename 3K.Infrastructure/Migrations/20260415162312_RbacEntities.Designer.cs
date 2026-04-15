@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using _3K.Infrastructure.Data;
@@ -11,9 +12,11 @@ using _3K.Infrastructure.Data;
 namespace _3K.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260415162312_RbacEntities")]
+    partial class RbacEntities
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -608,6 +611,54 @@ namespace _3K.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("_3K.Core.Entities.LookupKullaniciRol", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Anahtar")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Deger")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("Deger");
+
+                    b.ToTable("LookupKullaniciRolleri");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Anahtar = 0,
+                            Deger = "Admin"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Anahtar = 1,
+                            Deger = "Personel3K"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Anahtar = 2,
+                            Deger = "PersonelGrid"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Anahtar = 3,
+                            Deger = "Yonetici"
+                        });
+                });
+
             modelBuilder.Entity("_3K.Core.Entities.LookupProjeDurum", b =>
                 {
                     b.Property<int>("Id")
@@ -1028,46 +1079,6 @@ namespace _3K.Infrastructure.Migrations
                         });
                 });
 
-            modelBuilder.Entity("_3K.Core.Entities.LookupYetkiTipi", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("Anahtar")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Deger")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("LookupYetkiTipleri");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Anahtar = 0,
-                            Deger = "N"
-                        },
-                        new
-                        {
-                            Id = 2,
-                            Anahtar = 1,
-                            Deger = "R"
-                        },
-                        new
-                        {
-                            Id = 3,
-                            Anahtar = 2,
-                            Deger = "W"
-                        });
-                });
-
             modelBuilder.Entity("_3K.Core.Entities.MenuTanimi", b =>
                 {
                     b.Property<int>("Id")
@@ -1122,7 +1133,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 1,
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(2704),
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(7045),
                             Icon = "ri-dashboard-line",
                             Kod = "dashboard",
                             LabelKey = "MENU.DASHBOARD",
@@ -1132,7 +1143,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 2,
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(3458),
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(7836),
                             Icon = "ri-folder-line",
                             Kod = "projeler",
                             LabelKey = "MENU.PROJELER",
@@ -1141,7 +1152,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 5,
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(3459),
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(7837),
                             Icon = "ri-archive-line",
                             Kod = "sandik-yonetimi",
                             LabelKey = "MENU.SANDIK_YONETIMI",
@@ -1151,7 +1162,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 6,
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(3460),
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(7847),
                             Icon = "ri-error-warning-line",
                             Kod = "eksik-listesi",
                             LabelKey = "MENU.EKSIK_LISTESI",
@@ -1161,7 +1172,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 7,
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(3462),
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(7848),
                             Icon = "ri-building-2-line",
                             Kod = "depo-durumu",
                             LabelKey = "MENU.DEPO_DURUMU",
@@ -1171,7 +1182,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 8,
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(3463),
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(7849),
                             Icon = "ri-arrow-left-right-line",
                             Kod = "fb-transfer",
                             LabelKey = "MENU.FB_TRANSFER",
@@ -1181,7 +1192,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 9,
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(3464),
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(7850),
                             Icon = "ri-stack-line",
                             Kod = "stok",
                             LabelKey = "MENU.STOK_MODULU",
@@ -1191,7 +1202,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 10,
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(3465),
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(7851),
                             Icon = "ri-tools-line",
                             Kod = "saha-malzeme",
                             LabelKey = "MENU.SAHA_MALZEMESI",
@@ -1201,7 +1212,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 11,
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(3466),
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(7852),
                             Icon = "ri-history-line",
                             Kod = "hareket-gecmisi",
                             LabelKey = "MENU.HAREKET_GECMISI",
@@ -1211,7 +1222,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 12,
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(3467),
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(7853),
                             Icon = "ri-user-settings-line",
                             Kod = "kullanicilar",
                             LabelKey = "MENU.KULLANICI_YETKI",
@@ -1221,7 +1232,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 13,
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(3468),
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(7855),
                             Icon = "ri-shield-user-line",
                             Kod = "rol-yonetimi",
                             LabelKey = "MENU.ROL_YONETIMI",
@@ -1231,7 +1242,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 3,
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(3544),
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(7937),
                             Icon = "",
                             Kod = "aktif-projeler",
                             LabelKey = "MENU.AKTIF_PROJELER",
@@ -1242,7 +1253,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 4,
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(3545),
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(7939),
                             Icon = "",
                             Kod = "sevk-edilen",
                             LabelKey = "MENU.SEVK_EDILEN",
@@ -1469,25 +1480,25 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 1,
                             Ad = "Admin",
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(1859)
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(6236)
                         },
                         new
                         {
                             Id = 2,
                             Ad = "Personel3K",
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(2238)
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(6571)
                         },
                         new
                         {
                             Id = 3,
                             Ad = "PersonelGrid",
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(2239)
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(6573)
                         },
                         new
                         {
                             Id = 4,
                             Ad = "Yonetici",
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(2240)
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(6573)
                         });
                 });
 
@@ -1525,8 +1536,6 @@ namespace _3K.Infrastructure.Migrations
 
                     b.HasIndex("MenuTanimiId");
 
-                    b.HasIndex("YetkiTipi");
-
                     b.HasIndex("RolId", "MenuTanimiId")
                         .IsUnique();
 
@@ -1536,7 +1545,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 1,
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(3754),
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(8178),
                             MenuTanimiId = 1,
                             RolId = 1,
                             YetkiTipi = "W"
@@ -1544,7 +1553,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 2,
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(4102),
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(8535),
                             MenuTanimiId = 2,
                             RolId = 1,
                             YetkiTipi = "W"
@@ -1552,7 +1561,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 3,
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(4102),
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(8535),
                             MenuTanimiId = 3,
                             RolId = 1,
                             YetkiTipi = "W"
@@ -1560,7 +1569,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 4,
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(4103),
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(8536),
                             MenuTanimiId = 4,
                             RolId = 1,
                             YetkiTipi = "W"
@@ -1568,7 +1577,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 5,
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(4103),
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(8536),
                             MenuTanimiId = 5,
                             RolId = 1,
                             YetkiTipi = "W"
@@ -1576,7 +1585,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 6,
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(4105),
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(8538),
                             MenuTanimiId = 6,
                             RolId = 1,
                             YetkiTipi = "W"
@@ -1584,7 +1593,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 7,
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(4105),
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(8538),
                             MenuTanimiId = 7,
                             RolId = 1,
                             YetkiTipi = "W"
@@ -1592,7 +1601,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 8,
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(4105),
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(8539),
                             MenuTanimiId = 8,
                             RolId = 1,
                             YetkiTipi = "W"
@@ -1600,7 +1609,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 9,
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(4106),
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(8539),
                             MenuTanimiId = 9,
                             RolId = 1,
                             YetkiTipi = "W"
@@ -1608,7 +1617,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 10,
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(4107),
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(8540),
                             MenuTanimiId = 10,
                             RolId = 1,
                             YetkiTipi = "W"
@@ -1616,7 +1625,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 11,
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(4107),
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(8540),
                             MenuTanimiId = 11,
                             RolId = 1,
                             YetkiTipi = "W"
@@ -1624,7 +1633,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 12,
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(4107),
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(8540),
                             MenuTanimiId = 12,
                             RolId = 1,
                             YetkiTipi = "W"
@@ -1632,7 +1641,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 13,
-                            CreatedDate = new DateTime(2026, 4, 15, 16, 37, 4, 445, DateTimeKind.Utc).AddTicks(4108),
+                            CreatedDate = new DateTime(2026, 4, 15, 16, 23, 12, 175, DateTimeKind.Utc).AddTicks(8541),
                             MenuTanimiId = 13,
                             RolId = 1,
                             YetkiTipi = "W"
@@ -2054,13 +2063,6 @@ namespace _3K.Infrastructure.Migrations
                         .WithMany("Yetkiler")
                         .HasForeignKey("RolId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("_3K.Core.Entities.LookupYetkiTipi", null)
-                        .WithMany()
-                        .HasForeignKey("YetkiTipi")
-                        .HasPrincipalKey("Deger")
-                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("MenuTanimi");

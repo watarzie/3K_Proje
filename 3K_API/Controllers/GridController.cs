@@ -20,7 +20,7 @@ namespace _3K_API.Controllers
         /// <summary>
         /// Grid ürün listesi — proje bazında tüm ürünler ve durumları.
         /// </summary>
-        [HttpGet("urunler/{projeId}")]
+        [HttpGet("{projeId}/urunler")]
         public async Task<ActionResult> GetGridUrunler(int projeId)
         {
             var result = await _mediator.Send(new GetGridUrunlerQuery { ProjeId = projeId });

@@ -20,7 +20,7 @@ namespace _3K_API.Controllers
         /// <summary>
         /// 3K ürün listesi — proje bazında tüm ürünler ve 3K durumları.
         /// </summary>
-        [HttpGet("urunler/{projeId}")]
+        [HttpGet("{projeId}/urunler")]
         public async Task<ActionResult> GetUcKUrunler(int projeId)
         {
             var result = await _mediator.Send(new GetUcKUrunlerQuery { ProjeId = projeId });

@@ -26,6 +26,7 @@ namespace _3K.Infrastructure.Services
         public async Task<string> LoginAsync(string email, string sifre)
         {
             var kullanici = await _context.Kullanicilar
+                .Include(k => k.Rol)
                 .FirstOrDefaultAsync(k => k.Email == email);
 
             if (kullanici == null)
@@ -37,7 +38,7 @@ namespace _3K.Infrastructure.Services
             return GenerateJwtToken(kullanici);
         }
 
-        public async Task<Kullanici> RegisterAsync(string adSoyad, string email, string sifre, string rol)
+        public async Task<Kullanici> RegisterAsync(string adSoyad, string email, string sifre, int rolId)
         {
             // Email benzersizlik kontrolü
             var mevcut = await _context.Kullanicilar.AnyAsync(k => k.Email == email);
@@ -52,18 +53,21 @@ namespace _3K.Infrastructure.Services
                 BasHarf = GenerateBasHarf(adSoyad),
                 Email = email,
                 SifreHash = BCrypt.Net.BCrypt.HashPassword(sifre),
-                Rol = rol
+                RolId = rolId
             };
 
             await kullaniciRepo.AddAsync(kullanici);
             await _unitOfWork.SaveChangesAsync();
 
+            // Rol navigation'ı yükle (JWT claim için)
+            await _context.Entry(kullanici).Reference(k => k.Rol).LoadAsync();
             return kullanici;
         }
 
         public async Task<Kullanici?> GetKullaniciByEmailAsync(string email)
         {
             return await _context.Kullanicilar
+                .Include(k => k.Rol)
                 .FirstOrDefaultAsync(k => k.Email == email);
         }
 
@@ -94,7 +98,8 @@ namespace _3K.Infrastructure.Services
                 new Claim(ClaimTypes.Name, kullanici.AdSoyad ?? ""),
                 new Claim(ClaimTypes.Email, kullanici.Email ?? ""),
                 // AuthorizationBehavior bu claim'i okuyarak rol kontrolü yapar
-                new Claim(ClaimTypes.Role, kullanici.Rol.ToString()),
+                new Claim(ClaimTypes.Role, kullanici.Rol?.Ad ?? "Unknown"),
+                new Claim("RolId", kullanici.RolId.ToString()),
                 new Claim("BasHarf", kullanici.BasHarf ?? ""),
                 new Claim("KullaniciId", kullanici.Id.ToString())
             };

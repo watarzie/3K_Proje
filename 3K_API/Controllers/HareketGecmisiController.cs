@@ -16,7 +16,7 @@ namespace _3K_API.Controllers
             _mediator = mediator;
         }
 
-        [HttpGet("proje/{projeId}")]
+        [HttpGet("{projeId}/gecmis")]
         public async Task<ActionResult> GetByProje(int projeId)
         {
             var result = await _mediator.Send(new GetProjeHareketleriQuery { ProjeId = projeId });

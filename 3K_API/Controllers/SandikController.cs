@@ -17,7 +17,7 @@ namespace _3K_API.Controllers
             _mediator = mediator;
         }
 
-        [HttpGet("proje/{projeId}")]
+        [HttpGet("{projeId}/sandiklar")]
         public async Task<ActionResult> GetProjeSandiklari(int projeId)
         {
             var result = await _mediator.Send(new GetProjeSandiklariQuery { ProjeId = projeId });
@@ -106,7 +106,7 @@ namespace _3K_API.Controllers
         /// <summary>
         /// Grid sevk etti ama 3K tarafında eksik/gelmemiş ürünler raporu.
         /// </summary>
-        [HttpGet("eksik-urunler/{projeId}")]
+        [HttpGet("{projeId}/eksik-urunler")]
         public async Task<ActionResult> EksikUrunler(int projeId)
         {
             var result = await _mediator.Send(new GetEksikUrunlerQuery { ProjeId = projeId });

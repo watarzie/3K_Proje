@@ -30,7 +30,7 @@ namespace _3K.Application.Features.AuthIslemleri.Commands
                     Id = kullanici.Id,
                     AdSoyad = kullanici.AdSoyad,
                     BasHarf = kullanici.BasHarf,
-                    Rol = kullanici.Rol.ToString(),
+                    Rol = kullanici.Rol?.Ad ?? "Unknown",
                     Email = kullanici.Email
                 }
             });

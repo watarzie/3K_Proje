@@ -16,14 +16,14 @@ namespace _3K.Application.Features.AuthIslemleri.Commands
 
         public async Task<Result<KullaniciDto>> Handle(RegisterCommand request, CancellationToken cancellationToken)
         {
-            var kullanici = await _authService.RegisterAsync(request.AdSoyad, request.Email, request.Sifre, request.Rol);
+            var kullanici = await _authService.RegisterAsync(request.AdSoyad, request.Email, request.Sifre, request.RolId);
 
             return Result<KullaniciDto>.Success(new KullaniciDto
             {
                 Id = kullanici.Id,
                 AdSoyad = kullanici.AdSoyad,
                 BasHarf = kullanici.BasHarf,
-                Rol = kullanici.Rol.ToString(),
+                Rol = kullanici.Rol?.Ad ?? "Unknown",
                 Email = kullanici.Email
             });
         }

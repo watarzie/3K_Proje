@@ -18,7 +18,7 @@ namespace _3K.Core.Entities
     public class LookupUrunDurum : LookupBase { }
     public class LookupGridDurum : LookupBase { }
     public class LookupUcKDurum : LookupBase { }
-    public class LookupKullaniciRol : LookupBase { }
+    public class LookupYetkiTipi : LookupBase { }
     public class LookupStokDurum : LookupBase { }
     public class LookupIslemTipi : LookupBase { }
 }

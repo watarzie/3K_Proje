@@ -27,6 +27,11 @@ namespace _3K.Infrastructure.Data
         public DbSet<HareketGecmisi> HareketGecmisleri { get; set; } = null!;
         public DbSet<ProjeTransfer> ProjeTransferleri { get; set; } = null!;
 
+        // ======= RBAC (Rol Tabanlı Erişim Kontrolü) DbSet'leri =======
+        public DbSet<Rol> Roller { get; set; } = null!;
+        public DbSet<MenuTanimi> MenuTanimlari { get; set; } = null!;
+        public DbSet<RolYetki> RolYetkileri { get; set; } = null!;
+
         // ======= Lookup (Parametre) Tablo DbSet'leri =======
         public DbSet<LookupProjeDurum> LookupProjeDurumlari { get; set; } = null!;
         public DbSet<LookupSandikDurum> LookupSandikDurumlari { get; set; } = null!;
@@ -35,7 +40,7 @@ namespace _3K.Infrastructure.Data
         public DbSet<LookupUrunDurum> LookupUrunDurumlari { get; set; } = null!;
         public DbSet<LookupGridDurum> LookupGridDurumlari { get; set; } = null!;
         public DbSet<LookupUcKDurum> LookupUcKDurumlari { get; set; } = null!;
-        public DbSet<LookupKullaniciRol> LookupKullaniciRolleri { get; set; } = null!;
+        public DbSet<LookupYetkiTipi> LookupYetkiTipleri { get; set; } = null!;
         public DbSet<LookupStokDurum> LookupStokDurumlari { get; set; } = null!;
         public DbSet<LookupIslemTipi> LookupIslemTipleri { get; set; } = null!;
 
@@ -53,7 +58,7 @@ namespace _3K.Infrastructure.Data
             ConfigureLookupTable<LookupUrunDurum>(modelBuilder);
             ConfigureLookupTable<LookupGridDurum>(modelBuilder);
             ConfigureLookupTable<LookupUcKDurum>(modelBuilder);
-            ConfigureLookupTable<LookupKullaniciRol>(modelBuilder);
+            ConfigureLookupTable<LookupYetkiTipi>(modelBuilder);
             ConfigureLookupTable<LookupStokDurum>(modelBuilder);
             ConfigureLookupTable<LookupIslemTipi>(modelBuilder);
 
@@ -172,11 +177,50 @@ namespace _3K.Infrastructure.Data
                 .HasForeignKey(pt => pt.KullaniciId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // --- Kullanici.Rol → LookupKullaniciRol.Deger ---
+            // --- Kullanici.RolId → Rol ---
             modelBuilder.Entity<Kullanici>()
-                .HasOne<LookupKullaniciRol>()
+                .HasOne(k => k.Rol)
+                .WithMany(r => r.Kullanicilar)
+                .HasForeignKey(k => k.RolId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ===============================================================
+            // 4b. RBAC İLİŞKİLERİ — Rol ↔ MenuTanimi ↔ RolYetki
+            // ===============================================================
+
+            // --- MenuTanimi self-referencing tree (Parent ↔ Children) ---
+            modelBuilder.Entity<MenuTanimi>()
+                .HasOne(m => m.Parent)
+                .WithMany(m => m.Children)
+                .HasForeignKey(m => m.ParentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<MenuTanimi>()
+                .HasIndex(m => m.Kod)
+                .IsUnique();
+
+            // --- RolYetki bridge: Rol ↔ MenuTanimi (composite unique) ---
+            modelBuilder.Entity<RolYetki>()
+                .HasOne(ry => ry.Rol)
+                .WithMany(r => r.Yetkiler)
+                .HasForeignKey(ry => ry.RolId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<RolYetki>()
+                .HasOne(ry => ry.MenuTanimi)
+                .WithMany(m => m.Yetkiler)
+                .HasForeignKey(ry => ry.MenuTanimiId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<RolYetki>()
+                .HasIndex(ry => new { ry.RolId, ry.MenuTanimiId })
+                .IsUnique();
+
+            // --- RolYetki.YetkiTipi → LookupYetkiTipi.Deger ---
+            modelBuilder.Entity<RolYetki>()
+                .HasOne<LookupYetkiTipi>()
                 .WithMany()
-                .HasForeignKey(k => k.Rol)
+                .HasForeignKey(ry => ry.YetkiTipi)
                 .HasPrincipalKey(l => l.Deger)
                 .OnDelete(DeleteBehavior.Restrict);
 
@@ -321,6 +365,11 @@ namespace _3K.Infrastructure.Data
             // 5. SEED DATA — Lookup Tabloları
             // ===============================================================
             SeedLookupData(modelBuilder);
+
+            // ===============================================================
+            // 6. SEED DATA — RBAC (Roller, Menüler, Yetkiler)
+            // ===============================================================
+            SeedRbacData(modelBuilder);
         }
 
         /// <summary>
@@ -423,12 +472,11 @@ namespace _3K.Infrastructure.Data
                 new LookupUcKDurum { Id = 12, Anahtar = 11, Deger = "HataliUrun" }
             );
 
-            // KullaniciRol
-            modelBuilder.Entity<LookupKullaniciRol>().HasData(
-                new LookupKullaniciRol { Id = 1, Anahtar = 0, Deger = "Admin" },
-                new LookupKullaniciRol { Id = 2, Anahtar = 1, Deger = "Personel3K" },
-                new LookupKullaniciRol { Id = 3, Anahtar = 2, Deger = "PersonelGrid" },
-                new LookupKullaniciRol { Id = 4, Anahtar = 3, Deger = "Yonetici" }
+            // YetkiTipi
+            modelBuilder.Entity<LookupYetkiTipi>().HasData(
+                new LookupYetkiTipi { Id = 1, Anahtar = 0, Deger = "N" },
+                new LookupYetkiTipi { Id = 2, Anahtar = 1, Deger = "R" },
+                new LookupYetkiTipi { Id = 3, Anahtar = 2, Deger = "W" }
             );
 
             // StokDurum
@@ -454,6 +502,50 @@ namespace _3K.Infrastructure.Data
                 new LookupIslemTipi { Id = 12, Anahtar = 11, Deger = "KullaniciOlusturuldu" },
                 new LookupIslemTipi { Id = 13, Anahtar = 12, Deger = "ProjeOlusturuldu" }
             );
+        }
+
+        /// <summary>
+        /// RBAC seed data: Roller, MenuTanimi ağacı, ve Admin yetkilerini oluşturur.
+        /// </summary>
+        private static void SeedRbacData(ModelBuilder modelBuilder)
+        {
+            // ======= ROLLER =======
+            modelBuilder.Entity<Rol>().HasData(
+                new Rol { Id = 1, Ad = "Admin" },
+                new Rol { Id = 2, Ad = "Personel3K" },
+                new Rol { Id = 3, Ad = "PersonelGrid" },
+                new Rol { Id = 4, Ad = "Yonetici" }
+            );
+
+            // ======= MENÜ TANIMLARI (ağaç yapısı) =======
+            // Root menüler
+            modelBuilder.Entity<MenuTanimi>().HasData(
+                new MenuTanimi { Id = 1, Kod = "dashboard", LabelKey = "MENU.DASHBOARD", Icon = "ri-dashboard-line", Route = "/dashboard", Sira = 1, ParentId = null },
+                new MenuTanimi { Id = 2, Kod = "projeler", LabelKey = "MENU.PROJELER", Icon = "ri-folder-line", Route = null, Sira = 2, ParentId = null },
+                new MenuTanimi { Id = 5, Kod = "sandik-yonetimi", LabelKey = "MENU.SANDIK_YONETIMI", Icon = "ri-archive-line", Route = "/sandik-yonetimi", Sira = 3, ParentId = null },
+                new MenuTanimi { Id = 6, Kod = "eksik-listesi", LabelKey = "MENU.EKSIK_LISTESI", Icon = "ri-error-warning-line", Route = "/eksik-listesi", Sira = 4, ParentId = null },
+                new MenuTanimi { Id = 7, Kod = "depo-durumu", LabelKey = "MENU.DEPO_DURUMU", Icon = "ri-building-2-line", Route = "/depo-durumu", Sira = 5, ParentId = null },
+                new MenuTanimi { Id = 8, Kod = "fb-transfer", LabelKey = "MENU.FB_TRANSFER", Icon = "ri-arrow-left-right-line", Route = "/fb-transfer", Sira = 6, ParentId = null },
+                new MenuTanimi { Id = 9, Kod = "stok", LabelKey = "MENU.STOK_MODULU", Icon = "ri-stack-line", Route = "/stok", Sira = 7, ParentId = null },
+                new MenuTanimi { Id = 10, Kod = "saha-malzeme", LabelKey = "MENU.SAHA_MALZEMESI", Icon = "ri-tools-line", Route = "/saha-malzeme", Sira = 8, ParentId = null },
+                new MenuTanimi { Id = 11, Kod = "hareket-gecmisi", LabelKey = "MENU.HAREKET_GECMISI", Icon = "ri-history-line", Route = "/hareket-gecmisi", Sira = 9, ParentId = null },
+                new MenuTanimi { Id = 12, Kod = "kullanicilar", LabelKey = "MENU.KULLANICI_YETKI", Icon = "ri-user-settings-line", Route = "/kullanicilar", Sira = 10, ParentId = null },
+                new MenuTanimi { Id = 13, Kod = "rol-yonetimi", LabelKey = "MENU.ROL_YONETIMI", Icon = "ri-shield-user-line", Route = "/rol-yonetimi", Sira = 11, ParentId = null }
+            );
+
+            // Alt menüler (Projeler children)
+            modelBuilder.Entity<MenuTanimi>().HasData(
+                new MenuTanimi { Id = 3, Kod = "aktif-projeler", LabelKey = "MENU.AKTIF_PROJELER", Icon = "", Route = "/projeler", Sira = 1, ParentId = 2 },
+                new MenuTanimi { Id = 4, Kod = "sevk-edilen", LabelKey = "MENU.SEVK_EDILEN", Icon = "", Route = "/projeler/sevk-edilen", Sira = 2, ParentId = 2 }
+            );
+
+            // ======= ADMIN ROL YETKİLERİ (tüm menülere W) =======
+            var adminYetkiler = new List<RolYetki>();
+            for (int menuId = 1; menuId <= 13; menuId++)
+            {
+                adminYetkiler.Add(new RolYetki { Id = menuId, RolId = 1, MenuTanimiId = menuId, YetkiTipi = "W" });
+            }
+            modelBuilder.Entity<RolYetki>().HasData(adminYetkiler);
         }
 
         public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

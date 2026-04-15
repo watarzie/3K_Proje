@@ -16,7 +16,7 @@ namespace _3K_API.Controllers
             _mediator = mediator;
         }
 
-        [HttpGet("indir/{projeId}")]
+        [HttpGet("{projeId}/indir")]
         public async Task<IActionResult> Indir(int projeId)
         {
             var kullaniciId = GetKullaniciId();
@@ -32,7 +32,7 @@ namespace _3K_API.Controllers
             return File(result.Value!, "application/pdf", $"Ceki_Proje_{projeId}.pdf");
         }
 
-        [HttpGet("excel/{projeId}")]
+        [HttpGet("{projeId}/excel")]
         public async Task<IActionResult> ExcelIndir(int projeId)
         {
             var kullaniciId = GetKullaniciId();

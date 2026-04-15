@@ -25,7 +25,8 @@ namespace _3K.Application.Features.KullaniciIslemleri.Queries
                 Id = k.Id,
                 AdSoyad = k.AdSoyad,
                 BasHarf = k.BasHarf,
-                Rol = k.Rol.ToString(),
+                RolId = k.RolId,
+                Rol = k.Rol?.Ad ?? "Unknown",
                 Email = k.Email
             });
 

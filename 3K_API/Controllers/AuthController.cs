@@ -62,12 +62,12 @@ namespace _3K_API.Controllers
             }
 
             // MediatR pipeline bypass — doğrudan AuthService kullan
-            // Rol her zaman Admin olarak zorunlu atanır (request'ten alınmaz)
+            // Rol her zaman Admin olarak zorunlu atanır (RolId=1)
             var kullanici = await _authService.RegisterAsync(
                 request.AdSoyad,
                 request.Email,
                 request.Sifre,
-                "Admin"
+                1 // Admin RolId (seed data'da Id=1)
             );
 
             return Ok(new
@@ -79,7 +79,7 @@ namespace _3K_API.Controllers
                     kullanici.Id,
                     kullanici.AdSoyad,
                     kullanici.Email,
-                    kullanici.Rol,
+                    Rol = kullanici.Rol?.Ad ?? "Admin",
                     kullanici.BasHarf
                 }
             });
@@ -87,13 +87,6 @@ namespace _3K_API.Controllers
 
         [HttpPost("login")]
         public async Task<ActionResult> Login([FromBody] LoginCommand command)
-        {
-            var result = await _mediator.Send(command);
-            return result.ToActionResult();
-        }
-
-        [HttpPost("register")]
-        public async Task<ActionResult> Register([FromBody] RegisterCommand command)
         {
             var result = await _mediator.Send(command);
             return result.ToActionResult();

@@ -38,6 +38,7 @@ builder.Services.AddScoped<IMailService, MailService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IDurumHesaplaService, DurumHesaplaService>();
 builder.Services.AddScoped<ILookupService, _3K.Infrastructure.Services.LookupService>();
+builder.Services.AddScoped<IRolService, _3K.Infrastructure.Services.RolService>();
 
 // ======= Current User Service (Pipeline Behavior için) =======
 builder.Services.AddHttpContextAccessor();
