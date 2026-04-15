@@ -13,8 +13,8 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
         private readonly IHareketService _hareketService;
 
         private static readonly string[] GecerliTipler =
-            { "TamGeldi", "EksikGeldi", "ProjedenKarsilandi", "StoktanKarsilandi",
-              "TedarikcidenGeldi", "BaskaProyeVerildi", "HataliUrun" };
+            { StatusConstants.UcKDurum.TamGeldi, StatusConstants.UcKDurum.EksikGeldi, StatusConstants.UcKDurum.ProjedenKarsilandi, StatusConstants.UrunDurum.StoktanKarsilandi,
+              StatusConstants.UcKDurum.TedarikcidenGeldi, StatusConstants.UcKDurum.BaskaProyeVerildi, StatusConstants.UcKDurum.HataliUrun };
 
         public UcKDurumGuncelleCommandHandler(
             IUnitOfWork unitOfWork,
@@ -43,32 +43,32 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             // ===== Validasyon =====
             switch (request.KarsilamaTipi)
             {
-                case "EksikGeldi":
+                case StatusConstants.UcKDurum.EksikGeldi:
                     if (request.GelenAdet == null || request.GelenAdet <= 0)
                         return Result.Failure("Eksik geldi durumunda gelen adet girilmelidir.");
                     if (request.GelenAdet >= satir.IstenenAdet)
                         return Result.Failure("Gelen adet miktardan küçük olmalıdır.");
                     break;
 
-                case "ProjedenKarsilandi":
+                case StatusConstants.UcKDurum.ProjedenKarsilandi:
                     if (request.GelenAdet == null || request.GelenAdet <= 0)
                         return Result.Failure("Projeden karşılama adeti girilmelidir.");
                     if (string.IsNullOrWhiteSpace(request.KaynakHedefProjeNo))
                         return Result.Failure("Kaynak proje girilmelidir.");
                     break;
 
-                case "StoktanKarsilandi":
-                case "TedarikcidenGeldi":
+                case StatusConstants.UrunDurum.StoktanKarsilandi:
+                case StatusConstants.UcKDurum.TedarikcidenGeldi:
                     if (request.GelenAdet == null || request.GelenAdet <= 0)
                         return Result.Failure("Gelen adet girilmelidir.");
                     break;
 
-                case "BaskaProyeVerildi":
+                case StatusConstants.UcKDurum.BaskaProyeVerildi:
                     if (string.IsNullOrWhiteSpace(request.KaynakHedefProjeNo))
                         return Result.Failure("Hangi projeye verildiği yazılmalıdır.");
                     break;
 
-                case "HataliUrun":
+                case StatusConstants.UcKDurum.HataliUrun:
                     if (request.GelenAdet == null || request.GelenAdet <= 0)
                         return Result.Failure("Gelen adet girilmelidir.");
                     if (string.IsNullOrWhiteSpace(request.Aciklama))
@@ -84,48 +84,48 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
             switch (request.KarsilamaTipi)
             {
-                case "TamGeldi":
+                case StatusConstants.UcKDurum.TamGeldi:
                     satir.GelenMiktar = satir.IstenenAdet;
-                    satir.UcKDurumu = "TamGeldi";
+                    satir.UcKDurumu = StatusConstants.UcKDurum.TamGeldi;
                     satir.TeslimTarihi = DateTime.UtcNow;
                     break;
 
-                case "EksikGeldi":
+                case StatusConstants.UcKDurum.EksikGeldi:
                     satir.GelenMiktar = request.GelenAdet!.Value;
-                    satir.UcKDurumu = "EksikGeldi";
+                    satir.UcKDurumu = StatusConstants.UcKDurum.EksikGeldi;
                     satir.TeslimTarihi = DateTime.UtcNow;
                     break;
 
-                case "ProjedenKarsilandi":
+                case StatusConstants.UcKDurum.ProjedenKarsilandi:
                     satir.GelenMiktar = request.GelenAdet!.Value;
-                    satir.UcKDurumu = "ProjedenKarsilandi";
+                    satir.UcKDurumu = StatusConstants.UcKDurum.ProjedenKarsilandi;
                     satir.TeslimTarihi = DateTime.UtcNow;
                     // Cross-project transfer
                     await HandleProjedenKarsilandi(satir, request);
                     break;
 
-                case "StoktanKarsilandi":
+                case StatusConstants.UrunDurum.StoktanKarsilandi:
                     satir.GelenMiktar = request.GelenAdet!.Value;
-                    satir.UcKDurumu = "StoktanKarsilandi";
+                    satir.UcKDurumu = StatusConstants.UrunDurum.StoktanKarsilandi;
                     satir.TeslimTarihi = DateTime.UtcNow;
                     break;
 
-                case "TedarikcidenGeldi":
+                case StatusConstants.UcKDurum.TedarikcidenGeldi:
                     satir.GelenMiktar = request.GelenAdet!.Value;
-                    satir.UcKDurumu = "TedarikcidenGeldi";
+                    satir.UcKDurumu = StatusConstants.UcKDurum.TedarikcidenGeldi;
                     satir.TeslimTarihi = DateTime.UtcNow;
                     break;
 
-                case "BaskaProyeVerildi":
+                case StatusConstants.UcKDurum.BaskaProyeVerildi:
                     satir.GelenMiktar = 0;
-                    satir.UcKDurumu = "BaskaProyeVerildi";
+                    satir.UcKDurumu = StatusConstants.UcKDurum.BaskaProyeVerildi;
                     // Cross-project transfer
                     await HandleBaskaProyeVerildi(satir, request);
                     break;
 
-                case "HataliUrun":
+                case StatusConstants.UcKDurum.HataliUrun:
                     satir.GelenMiktar = request.GelenAdet!.Value;
-                    satir.UcKDurumu = "HataliUrun";
+                    satir.UcKDurumu = StatusConstants.UcKDurum.HataliUrun;
                     satir.TeslimTarihi = DateTime.UtcNow;
                     break;
             }
@@ -143,7 +143,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
             // ===== Sandık Tamamlanma Kontrolü =====
             // Tamamlanan 3K durumları
-            var tamamlananTipler = new[] { "TamGeldi", "ProjedenKarsilandi", "StoktanKarsilandi", "TedarikcidenGeldi" };
+            var tamamlananTipler = new[] { StatusConstants.UcKDurum.TamGeldi, StatusConstants.UcKDurum.ProjedenKarsilandi, StatusConstants.UrunDurum.StoktanKarsilandi, StatusConstants.UcKDurum.TedarikcidenGeldi };
 
             if (tamamlananTipler.Contains(request.KarsilamaTipi))
             {
@@ -236,8 +236,8 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             if (hedefSatir != null)
             {
                 hedefSatir.GelenMiktar += request.GelenAdet ?? 0;
-                hedefSatir.UcKKarsilamaTipi = "ProjedenKarsilandi";
-                hedefSatir.UcKDurumu = "ProjedenKarsilandi";
+                hedefSatir.UcKKarsilamaTipi = StatusConstants.UcKDurum.ProjedenKarsilandi;
+                hedefSatir.UcKDurumu = StatusConstants.UcKDurum.ProjedenKarsilandi;
                 hedefSatir.KaynakHedefProjeNo = request.KaynakHedefProjeNo;
                 hedefSatir.Durum = _durumHesaplaService.HesaplaGenelDurum(hedefSatir.GridDurumu, hedefSatir.UcKDurumu);
                 cekiSatiriRepo.Update(hedefSatir);
@@ -270,7 +270,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
         /// <summary>
         /// Sandıktaki tüm ürünler tamamlanmış mı kontrol et.
         /// Tamamlanan durumlar: TamGeldi, ProjedenKarsilandi, StoktanKarsilandi, TedarikcidenGeldi
-        /// Hepsi tamamsa → Sandık.Durum = "Hazir"
+        /// Hepsi tamamsa → Sandık.Durum = StatusConstants.SandikDurum.Hazir
         /// </summary>
         private async Task SandikTamamlanmaKontrol(CekiSatiri guncellenenSatir)
         {
@@ -294,10 +294,10 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             if (!sandiktakiUrunler.Any()) return;
 
             // Tamamlanan durumlar
-            var tamamlananTipler = new[] { "TamGeldi", "ProjedenKarsilandi", "StoktanKarsilandi", "TedarikcidenGeldi" };
+            var tamamlananTipler = new[] { StatusConstants.UcKDurum.TamGeldi, StatusConstants.UcKDurum.ProjedenKarsilandi, StatusConstants.UrunDurum.StoktanKarsilandi, StatusConstants.UcKDurum.TedarikcidenGeldi };
 
             var hepsiTamam = sandiktakiUrunler.All(u =>
-                tamamlananTipler.Contains(u.UcKKarsilamaTipi) || u.GridDurumu == "TrafoSevk");
+                tamamlananTipler.Contains(u.UcKKarsilamaTipi) || u.GridDurumu == StatusConstants.GridDurum.TrafoSevk);
 
             if (hepsiTamam)
             {
@@ -307,9 +307,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     s.ProjeId == ceki.ProjeId && s.SandikNo == sandikNo);
                 var sandik = sandiklar.FirstOrDefault();
 
-                if (sandik != null && sandik.Durum != "Hazir")
+                if (sandik != null && sandik.Durum != StatusConstants.SandikDurum.Hazir)
                 {
-                    sandik.Durum = "Hazir";
+                    sandik.Durum = StatusConstants.SandikDurum.Hazir;
                     sandikRepo.Update(sandik);
                     await _unitOfWork.SaveChangesAsync();
 
@@ -321,8 +321,8 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                         ReferansTipi = "Sandik",
                         ReferansId = sandik.Id.ToString(),
                         Islem = "Sandık Otomatik Hazır",
-                        EskiDeger = "Hazirlaniyor",
-                        YeniDeger = "Hazir",
+                        EskiDeger = StatusConstants.ProjeDurum.Hazirlaniyor,
+                        YeniDeger = StatusConstants.SandikDurum.Hazir,
                         Aciklama = $"Sandık {sandikNo} içindeki tüm ürünler tamamlandı."
                     });
                 }

@@ -42,7 +42,7 @@ namespace _3K.Application.Features.StokIslemleri.Commands
                 sandikIcerikRepo.Update(icerik);
             }
 
-            urun.Durum = "StoktanKarsilandi";
+            urun.Durum = StatusConstants.UrunDurum.StoktanKarsilandi;
             urun.Remarks = string.IsNullOrEmpty(urun.Remarks)
                 ? "Kalan stoktan karşılandı"
                 : $"{urun.Remarks}; Kalan stoktan karşılandı";

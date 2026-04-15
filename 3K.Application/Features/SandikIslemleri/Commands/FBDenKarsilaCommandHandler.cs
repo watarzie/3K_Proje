@@ -38,7 +38,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 Tarih = DateTime.UtcNow
             });
 
-            urun.Durum = "FBdenKarsilandi";
+            urun.Durum = StatusConstants.UrunDurum.FBdenKarsilandi;
             urun.Remarks = $"FB Transfer ({request.AlinanFB}) - {request.KarsilananAdet} adet";
             urunRepo.Update(urun);
 

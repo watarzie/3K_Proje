@@ -1,6 +1,6 @@
 using MediatR;
 using _3K.Application.Common;
-using _3K.Application.DTOs;
+using _3K.Application.Features.SandikIslemleri.DTOs;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
 
@@ -31,10 +31,10 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
             var tumSatirlar = await cekiSatiriRepo.FindAsync(cs => cekiIdler.Contains(cs.CekiId));
             var eksikler = tumSatirlar
                 .Where(cs =>
-                    (cs.GridDurumu == "SevkEdildi" || cs.GridDurumu == "KismiSevkEdildi")
-                    && cs.UcKDurumu != "TamGeldi"
-                    && cs.UcKDurumu != "Paketlendi"
-                    && cs.UcKDurumu != "KontrolEdildi")
+                    (cs.GridDurumu == StatusConstants.GridDurum.SevkEdildi || cs.GridDurumu == StatusConstants.GridDurum.KismiSevkEdildi)
+                    && cs.UcKDurumu != StatusConstants.UcKDurum.TamGeldi
+                    && cs.UcKDurumu != StatusConstants.UcKDurum.Paketlendi
+                    && cs.UcKDurumu != StatusConstants.UcKDurum.KontrolEdildi)
                 .OrderBy(cs => cs.SiraNo)
                 .Select(cs => new EksikUrunDto
                 {

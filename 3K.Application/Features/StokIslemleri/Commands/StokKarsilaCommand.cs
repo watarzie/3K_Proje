@@ -10,7 +10,7 @@ namespace _3K.Application.Features.StokIslemleri.Commands
     /// </summary>
     public class StokKarsilaCommand : IRequest<Result>, ISecuredRequest
     {
-        public string[] RequiredRoles => new[] { "Admin", "Personel3K" };
+        public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin, StatusConstants.KullaniciRol.Personel3K };
 
         public int CekiSatiriId { get; set; }
         public int StokKaydiId { get; set; }

@@ -35,7 +35,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (stok.Miktar == 0) stok.Durum = "Tukendi";
             stokRepo.Update(stok);
 
-            urun.Durum = "StoktanKarsilandi";
+            urun.Durum = StatusConstants.UrunDurum.StoktanKarsilandi;
             urun.Remarks = $"Stoktan karşılandı ({request.KarsilananAdet} {urun.Birim})";
             urunRepo.Update(urun);
 

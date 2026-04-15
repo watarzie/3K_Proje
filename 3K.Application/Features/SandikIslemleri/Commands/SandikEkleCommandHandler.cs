@@ -1,6 +1,6 @@
 using MediatR;
 using _3K.Application.Common;
-using _3K.Application.DTOs;
+using _3K.Application.Features.SandikIslemleri.DTOs;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
 
@@ -41,7 +41,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 ProjeId = request.ProjeId,
                 SandikNo = request.SandikNo,
                 Tip = request.Tip,
-                Durum = "Bos",
+                Durum = StatusConstants.SandikDurum.Bos,
                 DepoLokasyonu = request.DepoLokasyonu
             };
             await sandikRepo.AddAsync(sandik);

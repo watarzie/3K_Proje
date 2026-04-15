@@ -1,6 +1,6 @@
 using MediatR;
 using _3K.Application.Common;
-using _3K.Application.DTOs;
+using _3K.Application.Features.AuthIslemleri.DTOs;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
 

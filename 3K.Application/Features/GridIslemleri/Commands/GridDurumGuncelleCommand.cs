@@ -9,7 +9,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
     /// </summary>
     public class GridDurumGuncelleCommand : IRequest<Result>, ISecuredRequest
     {
-        public string[] RequiredRoles => new[] { "Admin", "PersonelGrid" };
+        public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin, StatusConstants.KullaniciRol.PersonelGrid };
 
         public int CekiSatiriId { get; set; }
         public int ProjeId { get; set; }

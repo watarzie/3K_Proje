@@ -24,7 +24,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             if (urun == null) return Result.Failure("Ürün bulunamadı.", 404);
 
-            urun.Durum = "IptalVeyaPasif";
+            urun.Durum = StatusConstants.UrunDurum.IptalVeyaPasif;
             urun.Remarks = $"İPTAL: {request.Neden}";
             urunRepo.Update(urun);
             await _unitOfWork.SaveChangesAsync();
