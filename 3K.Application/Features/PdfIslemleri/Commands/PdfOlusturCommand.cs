@@ -10,7 +10,7 @@ namespace _3K.Application.Features.PdfIslemleri.Commands
     /// </summary>
     public class PdfOlusturCommand : IRequest<Result<byte[]>>, ISecuredRequest
     {
-        public string[] RequiredRoles => new[] { "Admin", "Yonetici" };
+        public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin, StatusConstants.KullaniciRol.Yonetici };
 
         public int ProjeId { get; set; }
         public int KullaniciId { get; set; }

@@ -30,6 +30,9 @@ namespace _3K.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("timestamp without time zone");
 
@@ -39,6 +42,9 @@ namespace _3K.Infrastructure.Migrations
 
                     b.Property<int>("ProjeId")
                         .HasColumnType("integer");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("timestamp without time zone");
@@ -78,6 +84,9 @@ namespace _3K.Infrastructure.Migrations
 
                     b.Property<string>("CekideGecenSandikNo")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("CreatedBy")
                         .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedDate")
@@ -163,6 +172,9 @@ namespace _3K.Infrastructure.Migrations
                     b.Property<string>("UcKNotu")
                         .HasColumnType("text");
 
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("timestamp without time zone");
 
@@ -207,6 +219,9 @@ namespace _3K.Infrastructure.Migrations
                     b.Property<int>("CekiSatiriId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("timestamp without time zone");
 
@@ -224,6 +239,9 @@ namespace _3K.Infrastructure.Migrations
 
                     b.Property<DateTime>("Tarih")
                         .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("timestamp without time zone");
@@ -246,6 +264,9 @@ namespace _3K.Infrastructure.Migrations
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<string>("Aciklama")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CreatedBy")
                         .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedDate")
@@ -273,6 +294,9 @@ namespace _3K.Infrastructure.Migrations
 
                     b.Property<DateTime>("Tarih")
                         .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("timestamp without time zone");
@@ -305,6 +329,9 @@ namespace _3K.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("timestamp without time zone");
 
@@ -318,6 +345,9 @@ namespace _3K.Infrastructure.Migrations
 
                     b.Property<string>("SifreHash")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UpdatedBy")
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("UpdatedDate")
@@ -1053,6 +1083,9 @@ namespace _3K.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("timestamp without time zone");
 
@@ -1099,6 +1132,9 @@ namespace _3K.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("timestamp without time zone");
 
@@ -1124,6 +1160,9 @@ namespace _3K.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("timestamp without time zone");
 
@@ -1147,6 +1186,9 @@ namespace _3K.Infrastructure.Migrations
 
                     b.Property<DateTime>("Tarih")
                         .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("timestamp without time zone");
@@ -1177,6 +1219,9 @@ namespace _3K.Infrastructure.Migrations
                     b.Property<string>("Aciklama")
                         .HasColumnType("text");
 
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("timestamp without time zone");
 
@@ -1194,6 +1239,9 @@ namespace _3K.Infrastructure.Migrations
 
                     b.Property<string>("Tip")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UpdatedBy")
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("UpdatedDate")
@@ -1219,6 +1267,9 @@ namespace _3K.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("timestamp without time zone");
 
@@ -1239,6 +1290,9 @@ namespace _3K.Infrastructure.Migrations
 
                     b.Property<string>("Tip")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UpdatedBy")
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("UpdatedDate")
@@ -1269,6 +1323,9 @@ namespace _3K.Infrastructure.Migrations
                     b.Property<int>("CekiSatiriId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("timestamp without time zone");
 
@@ -1280,6 +1337,9 @@ namespace _3K.Infrastructure.Migrations
 
                     b.Property<int>("SandikId")
                         .HasColumnType("integer");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("timestamp without time zone");
@@ -1307,6 +1367,9 @@ namespace _3K.Infrastructure.Migrations
                     b.Property<int>("CekiSatiriId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("timestamp without time zone");
 
@@ -1328,6 +1391,9 @@ namespace _3K.Infrastructure.Migrations
 
                     b.Property<DateTime>("Tarih")
                         .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("timestamp without time zone");
@@ -1359,6 +1425,9 @@ namespace _3K.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("timestamp without time zone");
 
@@ -1384,6 +1453,9 @@ namespace _3K.Infrastructure.Migrations
                         .HasColumnType("integer");
 
                     b.Property<string>("StokGirisNedeni")
+                        .HasColumnType("text");
+
+                    b.Property<string>("UpdatedBy")
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("UpdatedDate")

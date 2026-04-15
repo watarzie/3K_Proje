@@ -42,7 +42,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
             foreach (var satir in satirlar)
             {
-                satir.GridDurumu = "SevkEdildi";
+                satir.GridDurumu = StatusConstants.GridDurum.SevkEdildi;
                 satir.GridSevkMiktari = satir.IstenenAdet;
                 satir.GridSevkTarihi = now;
                 satir.GridPersonelId = kullaniciId;
@@ -65,7 +65,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 ReferansTipi = "TopluSevk",
                 ReferansId = string.Join(",", request.CekiSatiriIdler),
                 Islem = "Grid Toplu Sevk",
-                YeniDeger = "SevkEdildi",
+                YeniDeger = StatusConstants.GridDurum.SevkEdildi,
                 Aciklama = $"{guncellenen} ürün toplu sevk edildi. {request.Not}"
             });
 

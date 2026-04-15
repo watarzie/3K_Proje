@@ -39,7 +39,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 {
                     ProjeId = request.ProjeId,
                     SandikNo = request.YeniFiiliSandikNo,
-                    Durum = "Hazirlaniyor"
+                    Durum = StatusConstants.ProjeDurum.Hazirlaniyor
                 };
                 await sandikRepo.AddAsync(hedefSandik);
                 await _unitOfWork.SaveChangesAsync();

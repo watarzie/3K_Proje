@@ -1,7 +1,7 @@
 using FluentValidation;
 using _3K.Application.Features.SandikIslemleri.Commands;
 
-namespace _3K.Application.Validators
+namespace _3K.Application.Features.SandikIslemleri.Validators
 {
     public class UrunGuncelleCommandValidator : AbstractValidator<UrunGuncelleCommand>
     {
@@ -79,6 +79,17 @@ namespace _3K.Application.Validators
             RuleFor(x => x.AsilFB).NotEmpty().WithMessage("Asıl FB belirtilmeli.");
             RuleFor(x => x.AlinanFB).NotEmpty().WithMessage("Alınan FB belirtilmeli.");
             RuleFor(x => x.KarsilananAdet).GreaterThan(0).WithMessage("Karşılanan adet 0'dan büyük olmalı.");
+        }
+    }
+
+    // === YENİ VALIDATOR ===
+    public class SandikEkleCommandValidator : AbstractValidator<SandikEkleCommand>
+    {
+        public SandikEkleCommandValidator()
+        {
+            RuleFor(x => x.ProjeId).GreaterThan(0).WithMessage("Geçerli bir proje ID belirtilmeli.");
+            RuleFor(x => x.SandikNo).NotEmpty().WithMessage("Sandık numarası boş olamaz.");
+            RuleFor(x => x.Tip).NotEmpty().WithMessage("Sandık tipi belirtilmeli.");
         }
     }
 }

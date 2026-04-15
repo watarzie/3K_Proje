@@ -1,6 +1,6 @@
 using MediatR;
 using _3K.Application.Common;
-using _3K.Application.DTOs;
+using _3K.Application.Features.SandikIslemleri.DTOs;
 
 namespace _3K.Application.Features.SandikIslemleri.Commands
 {
@@ -9,7 +9,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
     /// </summary>
     public class SandikEkleCommand : IRequest<Result<SandikDto>>, ISecuredRequest
     {
-        public string[] RequiredRoles => new[] { "Admin", "Personel3K" };
+        public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin, StatusConstants.KullaniciRol.Personel3K };
 
         public int ProjeId { get; set; }
         public string SandikNo { get; set; } = string.Empty;

@@ -1,6 +1,6 @@
 using MediatR;
 using _3K.Application.Common;
-using _3K.Application.DTOs;
+using _3K.Application.Features.StokIslemleri.DTOs;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.StokIslemleri.Queries

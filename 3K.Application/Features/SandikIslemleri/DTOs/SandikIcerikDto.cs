@@ -1,0 +1,18 @@
+namespace _3K.Application.Features.SandikIslemleri.DTOs
+{
+    public class SandikIcerikDto
+    {
+        public int Id { get; set; }
+        public int CekiSatiriId { get; set; }
+        public string? OlcuResmiPozNo { get; set; }
+        public string BarkodNo { get; set; } = string.Empty;
+        public string Aciklama { get; set; } = string.Empty;
+        public int IstenenAdet { get; set; }
+        public int KonulanAdet { get; set; }
+        public int EksikAdet { get; set; }
+        public string Durum { get; set; } = string.Empty;
+        public string? PaketleyenBasHarf { get; set; }
+        public string? KontrolEdenBasHarf { get; set; }
+        public string? Remarks { get; set; }
+    }
+}

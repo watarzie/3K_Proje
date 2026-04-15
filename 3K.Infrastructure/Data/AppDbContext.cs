@@ -1,12 +1,16 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Http;
 using _3K.Core.Entities;
 
 namespace _3K.Infrastructure.Data
 {
     public class AppDbContext : DbContext
     {
-        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
+        private readonly IHttpContextAccessor? _httpContextAccessor;
+
+        public AppDbContext(DbContextOptions<AppDbContext> options, IHttpContextAccessor? httpContextAccessor = null) : base(options)
         {
+            _httpContextAccessor = httpContextAccessor;
         }
 
         // ======= Ana Tablo DbSet'leri =======
@@ -454,13 +458,20 @@ namespace _3K.Infrastructure.Data
 
         public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
+            var currentUser = _httpContextAccessor?.HttpContext?.User?.Identity?.Name;
             var entries = ChangeTracker.Entries<BaseEntity>();
             foreach (var entry in entries)
             {
                 if (entry.State == EntityState.Modified)
+                {
                     entry.Entity.UpdatedDate = DateTime.UtcNow;
+                    entry.Entity.UpdatedBy = currentUser;
+                }
                 else if (entry.State == EntityState.Added)
+                {
                     entry.Entity.CreatedDate = DateTime.UtcNow;
+                    entry.Entity.CreatedBy = currentUser;
+                }
             }
             return base.SaveChangesAsync(cancellationToken);
         }

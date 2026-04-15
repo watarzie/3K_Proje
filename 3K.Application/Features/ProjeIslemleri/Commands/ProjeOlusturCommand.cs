@@ -1,6 +1,6 @@
 using MediatR;
 using _3K.Application.Common;
-using _3K.Application.DTOs;
+using _3K.Application.Features.ProjeIslemleri.DTOs;
 using _3K.Core.Enums;
 
 namespace _3K.Application.Features.ProjeIslemleri.Commands
@@ -11,7 +11,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
     /// </summary>
     public class ProjeOlusturCommand : IRequest<Result<ProjeDto>>, ISecuredRequest
     {
-        public string[] RequiredRoles => new[] { "Admin" };
+        public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin };
 
         public string ProjeNo { get; set; } = string.Empty;
         public string Musteri { get; set; } = string.Empty;

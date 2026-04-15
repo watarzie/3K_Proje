@@ -13,10 +13,10 @@ namespace _3K.Application.Features.GridIslemleri.Commands
         private readonly IHareketService _hareketService;
 
         private static readonly string[] GecerliDurumlar =
-            { "TamGeldi", "EksikGeldi", "Gelmedi", "TrafoSevk", "Iptal", "Sipariste", "Bekliyor" };
+            { StatusConstants.UcKDurum.TamGeldi, StatusConstants.UcKDurum.EksikGeldi, StatusConstants.UcKDurum.Gelmedi, StatusConstants.GridDurum.TrafoSevk, StatusConstants.GridDurum.Iptal, StatusConstants.GridDurum.Sipariste, "Bekliyor" };
 
         private static readonly string[] GecerliSevkDurumlari =
-            { "SevkEdildi", "Bekliyor", "SevkEdilmedi" };
+            { StatusConstants.GridDurum.SevkEdildi, "Bekliyor", "SevkEdilmedi" };
 
         public GridDurumGuncelleCommandHandler(
             IUnitOfWork unitOfWork,
@@ -52,12 +52,12 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             // ===== Durum bazlı alan yönetimi =====
             switch (request.YeniDurum)
             {
-                case "TamGeldi":
+                case StatusConstants.UcKDurum.TamGeldi:
                     satir.GridGelenAdet = satir.IstenenAdet; // otomatik
                     satir.TrafoSevkAdet = 0;
                     break;
 
-                case "EksikGeldi":
+                case StatusConstants.UcKDurum.EksikGeldi:
                     if (request.GridGelenAdet == null || request.GridGelenAdet <= 0)
                         return Result.Failure("Eksik geldi durumunda gelen adet girilmelidir.");
                     if (request.GridGelenAdet >= satir.IstenenAdet)
@@ -66,14 +66,14 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                     satir.TrafoSevkAdet = 0;
                     break;
 
-                case "Gelmedi":
+                case StatusConstants.UcKDurum.Gelmedi:
                     satir.GridGelenAdet = 0;
                     satir.TrafoSevkAdet = 0;
                     satir.GridSevkDurumu = "SevkEdilmedi";
                     satir.GridSevkMiktari = null;
                     break;
 
-                case "TrafoSevk":
+                case StatusConstants.GridDurum.TrafoSevk:
                     if (request.TrafoSevkAdet == null || request.TrafoSevkAdet <= 0)
                         return Result.Failure("Trafo sevk durumunda trafo sevk adeti girilmelidir.");
                     if (request.TrafoSevkAdet > satir.IstenenAdet)
@@ -85,14 +85,14 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                         return Result.Failure("Toplam adet, çeki miktarını aşamaz.");
                     break;
 
-                case "Iptal":
+                case StatusConstants.GridDurum.Iptal:
                     satir.GridGelenAdet = 0;
                     satir.TrafoSevkAdet = 0;
                     satir.GridSevkDurumu = "SevkEdilmedi";
                     satir.GridSevkMiktari = null;
                     break;
 
-                case "Sipariste":
+                case StatusConstants.GridDurum.Sipariste:
                     satir.GridGelenAdet = 0;
                     satir.TrafoSevkAdet = 0;
                     satir.GridSevkDurumu = "SevkEdilmedi";
@@ -104,9 +104,9 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             if (request.GridSevkDurumu != null && GecerliSevkDurumlari.Contains(request.GridSevkDurumu))
             {
                 // Sevk edilebilmesi kontrolü
-                if (request.GridSevkDurumu == "SevkEdildi")
+                if (request.GridSevkDurumu == StatusConstants.GridDurum.SevkEdildi)
                 {
-                    if (request.YeniDurum != "TamGeldi" && request.YeniDurum != "EksikGeldi")
+                    if (request.YeniDurum != StatusConstants.UcKDurum.TamGeldi && request.YeniDurum != StatusConstants.UcKDurum.EksikGeldi)
                         return Result.Failure("Sevk edilmesi için durum TamGeldi veya EksikGeldi olmalıdır.");
                     if (request.SevkMiktari == null || request.SevkMiktari <= 0)
                         return Result.Failure("Sevk miktarı girilmelidir.");
@@ -127,7 +127,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             await _unitOfWork.SaveChangesAsync();
 
             // ===== Sandık Tamamlanma Kontrolü (TrafoSevk ise) =====
-            if (request.YeniDurum == "TrafoSevk")
+            if (request.YeniDurum == StatusConstants.GridDurum.TrafoSevk)
             {
                 await SandikTamamlanmaKontrol(satir);
             }
@@ -171,9 +171,9 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
             if (!sandiktakiUrunler.Any()) return;
 
-            var tamamlananTipler = new[] { "TamGeldi", "ProjedenKarsilandi", "StoktanKarsilandi", "TedarikcidenGeldi" };
+            var tamamlananTipler = new[] { StatusConstants.UcKDurum.TamGeldi, StatusConstants.UcKDurum.ProjedenKarsilandi, StatusConstants.UrunDurum.StoktanKarsilandi, StatusConstants.UcKDurum.TedarikcidenGeldi };
             var hepsiTamam = sandiktakiUrunler.All(u =>
-                tamamlananTipler.Contains(u.UcKKarsilamaTipi) || u.GridDurumu == "TrafoSevk");
+                tamamlananTipler.Contains(u.UcKKarsilamaTipi) || u.GridDurumu == StatusConstants.GridDurum.TrafoSevk);
 
             if (hepsiTamam)
             {
@@ -182,9 +182,9 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                     s.ProjeId == ceki.ProjeId && s.SandikNo == sandikNo);
                 var sandik = sandiklar.FirstOrDefault();
 
-                if (sandik != null && sandik.Durum != "Hazir")
+                if (sandik != null && sandik.Durum != StatusConstants.SandikDurum.Hazir)
                 {
-                    sandik.Durum = "Hazir";
+                    sandik.Durum = StatusConstants.SandikDurum.Hazir;
                     sandikRepo.Update(sandik);
                     await _unitOfWork.SaveChangesAsync();
 
@@ -195,8 +195,8 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                         ReferansTipi = "Sandik",
                         ReferansId = sandik.Id.ToString(),
                         Islem = "Sandık Otomatik Hazır",
-                        EskiDeger = "Hazirlaniyor",
-                        YeniDeger = "Hazir",
+                        EskiDeger = StatusConstants.ProjeDurum.Hazirlaniyor,
+                        YeniDeger = StatusConstants.SandikDurum.Hazir,
                         Aciklama = $"Sandık {sandikNo} içindeki tüm ürünler tamamlandı."
                     });
                 }

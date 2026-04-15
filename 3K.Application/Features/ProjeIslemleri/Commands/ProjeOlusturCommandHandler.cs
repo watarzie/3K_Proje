@@ -1,6 +1,6 @@
 using MediatR;
 using _3K.Application.Common;
-using _3K.Application.DTOs;
+using _3K.Application.Features.ProjeIslemleri.DTOs;
 using _3K.Core.Entities;
 
 using _3K.Core.Interfaces;
@@ -26,7 +26,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             {
                 ProjeNo = request.ProjeNo,
                 Musteri = request.Musteri,
-                Durum = "Hazirlaniyor",
+                Durum = StatusConstants.ProjeDurum.Hazirlaniyor,
                 PlanlananSevkTarihi = request.PlanlananSevkTarihi,
                 SorumluKisi = request.SorumluKisi
             };

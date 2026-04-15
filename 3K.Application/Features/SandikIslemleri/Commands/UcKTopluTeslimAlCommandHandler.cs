@@ -54,9 +54,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
                 // 3K durumunu otomatik belirle
                 if (satir.GelenMiktar >= satir.IstenenAdet)
-                    satir.UcKDurumu = "TamGeldi";
+                    satir.UcKDurumu = StatusConstants.UcKDurum.TamGeldi;
                 else
-                    satir.UcKDurumu = "EksikGeldi";
+                    satir.UcKDurumu = StatusConstants.UcKDurum.EksikGeldi;
 
                 // Genel durumu otomatik hesapla
                 satir.Durum = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumu, satir.UcKDurumu);

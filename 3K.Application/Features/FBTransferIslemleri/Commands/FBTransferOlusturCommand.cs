@@ -1,6 +1,6 @@
 using MediatR;
 using _3K.Application.Common;
-using _3K.Application.DTOs;
+using _3K.Application.Features.FBTransferIslemleri.DTOs;
 using _3K.Core.Enums;
 
 namespace _3K.Application.Features.FBTransferIslemleri.Commands
@@ -11,7 +11,7 @@ namespace _3K.Application.Features.FBTransferIslemleri.Commands
     /// </summary>
     public class FBTransferOlusturCommand : IRequest<Result<FBTransferResultDto>>, ISecuredRequest
     {
-        public string[] RequiredRoles => new[] { "Admin", "Personel3K" };
+        public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin, StatusConstants.KullaniciRol.Personel3K };
 
         public int CekiSatiriId { get; set; }
         public string AsilFB { get; set; } = string.Empty;
