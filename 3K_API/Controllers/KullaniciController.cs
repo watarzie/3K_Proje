@@ -59,5 +59,13 @@ namespace _3K_API.Controllers
             var result = await _mediator.Send(new KullaniciSilCommand { Id = id });
             return result.ToActionResult();
         }
+
+        /// <summary>Kullanıcı şifresini değiştirir (Admin yetkisi).</summary>
+        [HttpPut("sifre-degistir")]
+        public async Task<ActionResult> SifreDegistir([FromBody] KullaniciSifreDegistirCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
     }
 }

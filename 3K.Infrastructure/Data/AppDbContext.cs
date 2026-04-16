@@ -536,12 +536,16 @@ namespace _3K.Infrastructure.Data
             // Alt menüler (Projeler children)
             modelBuilder.Entity<MenuTanimi>().HasData(
                 new MenuTanimi { Id = 3, Kod = "aktif-projeler", LabelKey = "MENU.AKTIF_PROJELER", Icon = "", Route = "/projeler", Sira = 1, ParentId = 2 },
-                new MenuTanimi { Id = 4, Kod = "sevk-edilen", LabelKey = "MENU.SEVK_EDILEN", Icon = "", Route = "/projeler/sevk-edilen", Sira = 2, ParentId = 2 }
+                new MenuTanimi { Id = 4, Kod = "sevk-edilen", LabelKey = "MENU.SEVK_EDILEN", Icon = "", Route = "/projeler/sevk-edilen", Sira = 2, ParentId = 2 },
+                // Yetki kontrollü butonlar — sidebar'da GÖRÜNMEZler (Route=null).
+                // Rol yetki ekranında "Projeler" altında görünür → admin W/R/N ayarlar.
+                new MenuTanimi { Id = 14, Kod = "grid-modulu", LabelKey = "MENU.GRID_MODULU", Icon = "", Route = null, Sira = 3, ParentId = 2 },
+                new MenuTanimi { Id = 15, Kod = "3k-modulu", LabelKey = "MENU.3K_MODULU", Icon = "", Route = null, Sira = 4, ParentId = 2 }
             );
 
             // ======= ADMIN ROL YETKİLERİ (tüm menülere W) =======
             var adminYetkiler = new List<RolYetki>();
-            for (int menuId = 1; menuId <= 13; menuId++)
+            for (int menuId = 1; menuId <= 15; menuId++)
             {
                 adminYetkiler.Add(new RolYetki { Id = menuId, RolId = 1, MenuTanimiId = menuId, YetkiTipi = "W" });
             }

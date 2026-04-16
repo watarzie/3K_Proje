@@ -83,6 +83,11 @@ namespace _3K.Infrastructure.Services
             return string.Join("", parcalar.Select(p => char.ToUpper(p[0])));
         }
 
+        public string HashPassword(string plainPassword)
+        {
+            return BCrypt.Net.BCrypt.HashPassword(plainPassword);
+        }
+
         private string GenerateJwtToken(Kullanici kullanici)
         {
             var jwtKey = _configuration["JwtSettings:SecretKey"]

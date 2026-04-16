@@ -9,6 +9,7 @@ namespace _3K.Application.Features.ProjeIslemleri.DTOs
         public DateTime? PlanlananSevkTarihi { get; set; }
         public string SorumluKisi { get; set; } = string.Empty;
         public int SandikSayisi { get; set; }
+        public int HazirSandikSayisi { get; set; }
         public int ToplamUrunSayisi { get; set; }
         public int TamamlananUrunSayisi { get; set; }
 

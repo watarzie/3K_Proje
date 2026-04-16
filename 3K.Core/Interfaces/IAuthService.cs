@@ -11,5 +11,7 @@ namespace _3K.Core.Interfaces
         Task<Kullanici> RegisterAsync(string adSoyad, string email, string sifre, int rolId);
         Task<Kullanici?> GetKullaniciByEmailAsync(string email);
         string GenerateBasHarf(string adSoyad);
+        /// <summary>Şifreyi hash'ler (BCrypt).</summary>
+        string HashPassword(string plainPassword);
     }
 }

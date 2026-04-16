@@ -30,5 +30,15 @@ namespace _3K_API.Controllers
             var result = await _mediator.Send(command);
             return result.ToActionResult();
         }
+
+        /// <summary>
+        /// Sandık Kapat/Aç — Sadece Admin
+        /// </summary>
+        [HttpPut("sandik-kapat")]
+        public async Task<ActionResult> SandikKapat([FromBody] SandikKapatCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
     }
 }

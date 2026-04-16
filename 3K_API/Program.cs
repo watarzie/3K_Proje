@@ -24,6 +24,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // ======= Repository & UnitOfWork =======
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+builder.Services.AddScoped<IProjeRepository, ProjeRepository>();
 
 // ======= Services =======
 builder.Services.AddScoped<ICekiService, CekiService>();
