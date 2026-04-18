@@ -18,9 +18,9 @@ namespace _3K_API.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult> GetAll([FromQuery] string? malzemeKodu = null)
+        public async Task<ActionResult> GetAll([FromQuery] string? searchTerm = null, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
         {
-            var result = await _mediator.Send(new StokListeleQuery { MalzemeKodu = malzemeKodu });
+            var result = await _mediator.Send(new StokListeleQuery { SearchTerm = searchTerm, PageNumber = pageNumber, PageSize = pageSize });
             return result.ToActionResult();
         }
 
@@ -34,6 +34,17 @@ namespace _3K_API.Controllers
         [HttpPost("karsila")]
         public async Task<ActionResult> Karsila([FromBody] StokKarsilaCommand command)
         {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
+        [HttpPut("{id}")]
+        public async Task<ActionResult> Update(int id, [FromBody] StokKaydiGuncelleCommand command)
+        {
+            if (id != command.Id)
+            {
+                return BadRequest("ID uyuşmazlığı.");
+            }
             var result = await _mediator.Send(command);
             return result.ToActionResult();
         }

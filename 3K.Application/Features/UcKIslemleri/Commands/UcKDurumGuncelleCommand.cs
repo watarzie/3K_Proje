@@ -42,5 +42,10 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
         public string? GeriGonderilmeSebebi { get; set; }
 
         public string? Not { get; set; }
+
+        /// <summary>
+        /// StoktanKarsilandi durumunda zorunlu: Kullanılan stoğun ID'si.
+        /// </summary>
+        public int? StokKaydiId { get; set; }
     }
 }

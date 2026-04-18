@@ -24,7 +24,8 @@ namespace _3K.Application.Features.StokIslemleri.Commands
                 Miktar = request.Miktar,
                 Birim = request.Birim,
                 Lokasyon = request.Lokasyon,
-                KaynakProje = request.KaynakProje
+                KaynakProje = request.KaynakProje,
+                StokGirisNedeni = request.StokGirisNedeni
             });
 
             return Result<StokKaydiDto>.Success(new StokKaydiDto
@@ -36,6 +37,7 @@ namespace _3K.Application.Features.StokIslemleri.Commands
                 Birim = stok.Birim,
                 Lokasyon = stok.Lokasyon,
                 KaynakProje = stok.KaynakProje,
+                StokGirisNedeni = stok.StokGirisNedeni,
                 Durum = stok.Durum.ToString()
             });
         }

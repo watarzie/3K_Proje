@@ -8,11 +8,13 @@ namespace _3K.Core.Interfaces
     /// </summary>
     public interface IStokService
     {
-        Task<IEnumerable<StokKaydi>> GetUygunStoklarAsync(string? malzemeKodu = null);
+        Task<IEnumerable<StokKaydi>> GetUygunStoklarAsync(string? searchTerm = null);
         Task<StokKaydi?> GetStokByIdAsync(int stokKaydiId);
         Task<bool> StokYeterliMi(int stokKaydiId, int miktar);
         Task<bool> StokDusAsync(int stokKaydiId, int miktar);
         Task<StokKaydi> StokKaydiOlusturAsync(StokKaydi stokKaydi);
         Task<IEnumerable<StokKaydi>> GetTumStoklarAsync();
+        
+        Task<(IEnumerable<StokKaydi> Items, int TotalCount)> GetPaginatedStoklarAsync(string? searchTerm, int pageNumber, int pageSize);
     }
 }

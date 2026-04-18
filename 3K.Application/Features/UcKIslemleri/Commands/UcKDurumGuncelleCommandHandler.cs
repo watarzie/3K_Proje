@@ -11,6 +11,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
         private readonly ICurrentUserService _currentUserService;
         private readonly IDurumHesaplaService _durumHesaplaService;
         private readonly IHareketService _hareketService;
+        private readonly IStokService _stokService;
 
         private static readonly string[] GecerliTipler =
             { StatusConstants.UcKDurum.TamGeldi, StatusConstants.UcKDurum.EksikGeldi, StatusConstants.UcKDurum.Gelmedi, StatusConstants.UcKDurum.ProjedenKarsilandi, StatusConstants.UrunDurum.StoktanKarsilandi,
@@ -20,12 +21,14 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUserService,
             IDurumHesaplaService durumHesaplaService,
-            IHareketService hareketService)
+            IHareketService hareketService,
+            IStokService stokService)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _durumHesaplaService = durumHesaplaService;
             _hareketService = hareketService;
+            _stokService = stokService;
         }
 
         public async Task<Result> Handle(UcKDurumGuncelleCommand request, CancellationToken cancellationToken)
@@ -66,6 +69,32 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     break;
 
                 case StatusConstants.UrunDurum.StoktanKarsilandi:
+                    if (request.GelenAdet == null || request.GelenAdet <= 0)
+                        return Result.Failure("Gelen adet girilmelidir.");
+                    if (request.StokKaydiId == null || request.StokKaydiId <= 0)
+                        return Result.Failure("Stoktan karşılanan ürünler için stok kaydı (barkod/ürün) seçilmelidir.");
+                    
+                    var stokRepo = _unitOfWork.GetRepository<StokKaydi>();
+                    var secilenStok = await stokRepo.GetByIdAsync(request.StokKaydiId.Value);
+                    if (secilenStok != null)
+                    {
+                        var tStokAd = System.Text.RegularExpressions.Regex.Replace(secilenStok.MalzemeAdi ?? "", @"[^\p{L}0-9\s]", "");
+                        tStokAd = System.Text.RegularExpressions.Regex.Replace(tStokAd, @"\s+", " ").Trim().ToLower(new System.Globalization.CultureInfo("tr-TR"));
+
+                        var tUrunAd = System.Text.RegularExpressions.Regex.Replace(satir.Aciklama ?? "", @"[^\p{L}0-9\s]", "");
+                        tUrunAd = System.Text.RegularExpressions.Regex.Replace(tUrunAd, @"\s+", " ").Trim().ToLower(new System.Globalization.CultureInfo("tr-TR"));
+                        
+                        if (tStokAd != tUrunAd)
+                        {
+                            return Result.Failure($"Seçilen stok adı ({secilenStok.MalzemeAdi}) ile proje ürün adı ({satir.Aciklama}) eşleşmelidir!");
+                        }
+                    }
+
+                    var yeterli = await _stokService.StokYeterliMi(request.StokKaydiId.Value, request.GelenAdet.Value);
+                    if (!yeterli)
+                        return Result.Failure("Seçilen stokta yeterli miktar bulunmuyor.");
+                    break;
+
                 case StatusConstants.UcKDurum.TedarikcidenGeldi:
                     if (request.GelenAdet == null || request.GelenAdet <= 0)
                         return Result.Failure("Gelen adet girilmelidir.");
@@ -121,6 +150,22 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     satir.KarsilananMiktar += request.GelenAdet!.Value;
                     satir.UcKDurumu = StatusConstants.UrunDurum.StoktanKarsilandi;
                     satir.TeslimTarihi = DateTime.UtcNow;
+
+                    // Stoktan Düşme ve StokHareketi Loglama İşlemi
+                    await _stokService.StokDusAsync(request.StokKaydiId!.Value, request.GelenAdet.Value);
+
+                    var stokHareketRepo = _unitOfWork.GetRepository<StokHareketi>();
+                    await stokHareketRepo.AddAsync(new StokHareketi
+                    {
+                        StokKaydiId = request.StokKaydiId.Value,
+                        CekiSatiriId = request.CekiSatiriId,
+                        ProjeId = request.ProjeId,
+                        KullaniciId = _currentUserService.UserId ?? 0,
+                        Miktar = request.GelenAdet.Value,
+                        IslemTipi = "StokKullanimi",
+                        Aciklama = $"Proje {request.ProjeId} için 3K aşamasında stoktan {request.GelenAdet.Value} adet karşılandı.",
+                        Tarih = DateTime.UtcNow
+                    });
                     break;
 
                 case StatusConstants.UcKDurum.TedarikcidenGeldi:

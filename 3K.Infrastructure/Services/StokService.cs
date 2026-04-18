@@ -16,13 +16,37 @@ namespace _3K.Infrastructure.Services
             _context = context;
         }
 
-        public async Task<IEnumerable<StokKaydi>> GetUygunStoklarAsync(string? malzemeKodu = null)
+        public async Task<(IEnumerable<StokKaydi> Items, int TotalCount)> GetPaginatedStoklarAsync(string? searchTerm, int pageNumber, int pageSize)
+        {
+            var query = _context.StokKayitlari.AsQueryable();
+
+            if (!string.IsNullOrEmpty(searchTerm))
+            {
+                var lowerSearch = searchTerm.ToLower();
+                query = query.Where(s => s.MalzemeKodu.ToLower().Contains(lowerSearch) || 
+                                         s.MalzemeAdi.ToLower().Contains(lowerSearch) ||
+                                         s.KaynakProje.ToLower().Contains(lowerSearch));
+            }
+
+            query = query.OrderByDescending(x => x.Id);
+
+            var count = await query.CountAsync();
+            var items = await query.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToListAsync();
+
+            return (items, count);
+        }
+
+        public async Task<IEnumerable<StokKaydi>> GetUygunStoklarAsync(string? searchTerm = null)
         {
             var query = _context.StokKayitlari
                 .Where(s => s.Durum == "Aktif" && s.Miktar > 0);
 
-            if (!string.IsNullOrEmpty(malzemeKodu))
-                query = query.Where(s => s.MalzemeKodu.Contains(malzemeKodu));
+            if (!string.IsNullOrEmpty(searchTerm))
+            {
+                var lowerSearch = searchTerm.ToLower();
+                query = query.Where(s => s.MalzemeKodu.ToLower().Contains(lowerSearch) || 
+                                         s.MalzemeAdi.ToLower().Contains(lowerSearch));
+            }
 
             return await query.OrderBy(s => s.MalzemeKodu).ToListAsync();
         }

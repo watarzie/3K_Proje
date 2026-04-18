@@ -5,7 +5,7 @@ using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.StokIslemleri.Queries
 {
-    public class StokListeleQueryHandler : IRequestHandler<StokListeleQuery, Result<IEnumerable<StokKaydiDto>>>
+    public class StokListeleQueryHandler : IRequestHandler<StokListeleQuery, Result<PaginatedList<StokKaydiDto>>>
     {
         private readonly IStokService _stokService;
 
@@ -14,13 +14,11 @@ namespace _3K.Application.Features.StokIslemleri.Queries
             _stokService = stokService;
         }
 
-        public async Task<Result<IEnumerable<StokKaydiDto>>> Handle(StokListeleQuery request, CancellationToken cancellationToken)
+        public async Task<Result<PaginatedList<StokKaydiDto>>> Handle(StokListeleQuery request, CancellationToken cancellationToken)
         {
-            var stoklar = string.IsNullOrEmpty(request.MalzemeKodu)
-                ? await _stokService.GetTumStoklarAsync()
-                : await _stokService.GetUygunStoklarAsync(request.MalzemeKodu);
+            var pagedData = await _stokService.GetPaginatedStoklarAsync(request.SearchTerm, request.PageNumber, request.PageSize);
 
-            var result = stoklar.Select(s => new StokKaydiDto
+            var dtos = pagedData.Items.Select(s => new StokKaydiDto
             {
                 Id = s.Id,
                 MalzemeKodu = s.MalzemeKodu,
@@ -29,10 +27,12 @@ namespace _3K.Application.Features.StokIslemleri.Queries
                 Birim = s.Birim,
                 Lokasyon = s.Lokasyon,
                 KaynakProje = s.KaynakProje,
+                StokGirisNedeni = s.StokGirisNedeni,
                 Durum = s.Durum.ToString()
-            });
+            }).ToList();
 
-            return Result<IEnumerable<StokKaydiDto>>.Success(result);
+            var paginatedList = new PaginatedList<StokKaydiDto>(dtos, pagedData.TotalCount, request.PageNumber, request.PageSize);
+            return Result<PaginatedList<StokKaydiDto>>.Success(paginatedList);
         }
     }
 }
