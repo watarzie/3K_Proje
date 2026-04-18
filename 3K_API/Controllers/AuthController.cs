@@ -62,12 +62,12 @@ namespace _3K_API.Controllers
             }
 
             // MediatR pipeline bypass — doğrudan AuthService kullan
-            // Rol her zaman Admin olarak zorunlu atanır (request'ten alınmaz)
+            // Rol her zaman Admin olarak zorunlu atanır (RolId=1)
             var kullanici = await _authService.RegisterAsync(
                 request.AdSoyad,
                 request.Email,
                 request.Sifre,
-                "Admin"
+                1 // Admin RolId (seed data'da Id=1)
             );
 
             return Ok(new
@@ -79,7 +79,7 @@ namespace _3K_API.Controllers
                     kullanici.Id,
                     kullanici.AdSoyad,
                     kullanici.Email,
-                    kullanici.Rol,
+                    Rol = kullanici.Rol?.Ad ?? "Admin",
                     kullanici.BasHarf
                 }
             });
@@ -92,11 +92,27 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
 
-        [HttpPost("register")]
-        public async Task<ActionResult> Register([FromBody] RegisterCommand command)
+        /// <summary>
+        /// Mevcut geçerli token ile yeni token üretir (silent refresh).
+        /// Frontend 401 aldığında bu endpoint'i çağırır.
+        /// </summary>
+        [HttpPost("refresh-token")]
+        [Microsoft.AspNetCore.Authorization.Authorize]
+        public async Task<ActionResult> RefreshToken()
         {
-            var result = await _mediator.Send(command);
-            return result.ToActionResult();
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+                return Unauthorized(new { isSuccess = false, error = "Geçersiz token." });
+
+            try
+            {
+                var newToken = await _authService.RefreshTokenAsync(userId);
+                return Ok(new { isSuccess = true, value = new { token = newToken } });
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(new { isSuccess = false, error = "Kullanıcı bulunamadı." });
+            }
         }
     }
 

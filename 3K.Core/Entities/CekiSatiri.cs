@@ -63,6 +63,30 @@ namespace _3K.Core.Entities
         /// </summary>
         public string? UcKAciklama { get; set; }
 
+        // ===== Kümülatif Takip Alanları =====
+        /// <summary>
+        /// FB, stok veya tedarikçiden karşılanan toplam adet.
+        /// GelenMiktar + KarsilananMiktar = toplam tamamlanan.
+        /// </summary>
+        public int KarsilananMiktar { get; set; } = 0;
+
+        /// <summary>
+        /// Hatalı gelen ürün adedi.
+        /// İŞ KURALI: HataliMiktar varken KalanMiktar ASLA 0 yapılamaz.
+        /// </summary>
+        public int HataliMiktar { get; set; } = 0;
+
+        /// <summary>
+        /// GeriGonderildi durumunda zorunlu sebep: "Tadilat" veya "Iptal"
+        /// </summary>
+        public string? GeriGonderilmeSebebi { get; set; }
+
+        /// <summary>
+        /// FB'den (Projeden) karşılandığında kaynak proje ID'si.
+        /// Grid personeli hangi projeden geldiğini görmek için kullanır.
+        /// </summary>
+        public int? KaynakProjeId { get; set; }
+
         // ===== Diğer =====
         public bool IsManuelEklenen { get; set; } = false;
         public string? EklemeNedeni { get; set; }
@@ -83,15 +107,37 @@ namespace _3K.Core.Entities
         }
 
         /// <summary>
-        /// 3K tarafı eksik hesabı: IstenenAdet - GelenMiktar
+        /// 3K tarafı kümülatif eksik hesabı:
+        /// IstenenAdet - GelenMiktar - KarsilananMiktar
+        /// NOT: HataliMiktar düşülmez — hatalı varken kalan ASLA 0 olamaz.
         /// </summary>
-        public int EksikMiktar => IstenenAdet - GelenMiktar;
+        public int EksikMiktar => IstenenAdet - GelenMiktar - KarsilananMiktar;
+
+        /// <summary>
+        /// Kümülatif toplam tamamlanan adet (tüm kaynaklardan).
+        /// </summary>
+        public int KumulatifToplam => GelenMiktar + KarsilananMiktar;
+
+        /// <summary>
+        /// Kalan miktar — Hatalı ürün varsa kalan ASLA 0 olmaz.
+        /// </summary>
+        public int KalanMiktar
+        {
+            get
+            {
+                var kalan = IstenenAdet - GelenMiktar - KarsilananMiktar;
+                // İŞ KURALI: Hatalı ürün varsa kalan en az 1 (eksik giderilmemiş)
+                if (HataliMiktar > 0 && kalan <= 0) return 1;
+                return Math.Max(kalan, 0);
+            }
+        }
 
         // Navigation Properties
         public virtual Ceki Ceki { get; set; } = null!;
         public virtual Kullanici? Paketleyen { get; set; }
         public virtual Kullanici? KontrolEden { get; set; }
         public virtual Kullanici? GridPersonel { get; set; }
+        public virtual Proje? KaynakProje { get; set; }
         public virtual ICollection<SandikIcerik> SandikIcerikleri { get; set; } = new List<SandikIcerik>();
         public virtual ICollection<FBTransfer> FBTransferleri { get; set; } = new List<FBTransfer>();
         public virtual ICollection<StokHareketi> StokHareketleri { get; set; } = new List<StokHareketi>();

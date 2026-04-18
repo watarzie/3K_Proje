@@ -105,6 +105,9 @@ namespace _3K.Infrastructure.Migrations
                     b.Property<int>("GelenMiktar")
                         .HasColumnType("integer");
 
+                    b.Property<string>("GeriGonderilmeSebebi")
+                        .HasColumnType("text");
+
                     b.Property<string>("GridDurumu")
                         .IsRequired()
                         .HasColumnType("text");
@@ -128,14 +131,23 @@ namespace _3K.Infrastructure.Migrations
                     b.Property<DateTime?>("GridSevkTarihi")
                         .HasColumnType("timestamp without time zone");
 
+                    b.Property<int>("HataliMiktar")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("IsManuelEklenen")
                         .HasColumnType("boolean");
 
                     b.Property<int>("IstenenAdet")
                         .HasColumnType("integer");
 
+                    b.Property<int>("KarsilananMiktar")
+                        .HasColumnType("integer");
+
                     b.Property<string>("KaynakHedefProjeNo")
                         .HasColumnType("text");
+
+                    b.Property<int?>("KaynakProjeId")
+                        .HasColumnType("integer");
 
                     b.Property<int?>("KontrolEdenId")
                         .HasColumnType("integer");
@@ -184,9 +196,13 @@ namespace _3K.Infrastructure.Migrations
 
                     b.HasIndex("Durum");
 
+                    b.HasIndex("GeriGonderilmeSebebi");
+
                     b.HasIndex("GridDurumu");
 
                     b.HasIndex("GridPersonelId");
+
+                    b.HasIndex("KaynakProjeId");
 
                     b.HasIndex("KontrolEdenId");
 
@@ -339,9 +355,8 @@ namespace _3K.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("Rol")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<int>("RolId")
+                        .HasColumnType("integer");
 
                     b.Property<string>("SifreHash")
                         .IsRequired()
@@ -358,7 +373,7 @@ namespace _3K.Infrastructure.Migrations
                     b.HasIndex("Email")
                         .IsUnique();
 
-                    b.HasIndex("Rol");
+                    b.HasIndex("RolId");
 
                     b.ToTable("Kullanicilar");
                 });
@@ -393,19 +408,53 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 2,
                             Anahtar = 1,
-                            Deger = "Grid"
-                        },
-                        new
-                        {
-                            Id = 3,
-                            Anahtar = 2,
-                            Deger = "UcK"
+                            Deger = "3K"
                         },
                         new
                         {
                             Id = 4,
                             Anahtar = 3,
-                            Deger = "Protest"
+                            Deger = "Seymen"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Anahtar = 4,
+                            Deger = "Grid"
+                        });
+                });
+
+            modelBuilder.Entity("_3K.Core.Entities.LookupGeriGonderilmeSebebi", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Anahtar")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Deger")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("LookupGeriGonderilmeSebepleri");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Anahtar = 0,
+                            Deger = "Tadilat"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Anahtar = 1,
+                            Deger = "Iptal"
                         });
                 });
 
@@ -439,25 +488,25 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 2,
                             Anahtar = 1,
-                            Deger = "Uretimde"
+                            Deger = "Üretimde"
                         },
                         new
                         {
                             Id = 3,
                             Anahtar = 2,
-                            Deger = "StokHazir"
+                            Deger = "Stok Hazır"
                         },
                         new
                         {
                             Id = 4,
                             Anahtar = 3,
-                            Deger = "SevkEdildi"
+                            Deger = "Sevk Edildi"
                         },
                         new
                         {
                             Id = 5,
                             Anahtar = 4,
-                            Deger = "KismiSevkEdildi"
+                            Deger = "Kısmi Sevk Edildi"
                         },
                         new
                         {
@@ -469,19 +518,19 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 7,
                             Anahtar = 6,
-                            Deger = "IptalEdildi"
+                            Deger = "İptal Edildi"
                         },
                         new
                         {
                             Id = 8,
                             Anahtar = 7,
-                            Deger = "TamGeldi"
+                            Deger = "Tam Geldi"
                         },
                         new
                         {
                             Id = 9,
                             Anahtar = 8,
-                            Deger = "EksikGeldi"
+                            Deger = "Eksik Geldi"
                         },
                         new
                         {
@@ -493,19 +542,19 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 11,
                             Anahtar = 10,
-                            Deger = "TrafoSevk"
+                            Deger = "Trafo Sevk"
                         },
                         new
                         {
                             Id = 12,
                             Anahtar = 11,
-                            Deger = "Iptal"
+                            Deger = "İptal"
                         },
                         new
                         {
                             Id = 13,
                             Anahtar = 12,
-                            Deger = "Sipariste"
+                            Deger = "Siparişte"
                         });
                 });
 
@@ -609,52 +658,6 @@ namespace _3K.Infrastructure.Migrations
                         });
                 });
 
-            modelBuilder.Entity("_3K.Core.Entities.LookupKullaniciRol", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("Anahtar")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Deger")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("LookupKullaniciRolleri");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Anahtar = 0,
-                            Deger = "Admin"
-                        },
-                        new
-                        {
-                            Id = 2,
-                            Anahtar = 1,
-                            Deger = "Personel3K"
-                        },
-                        new
-                        {
-                            Id = 3,
-                            Anahtar = 2,
-                            Deger = "PersonelGrid"
-                        },
-                        new
-                        {
-                            Id = 4,
-                            Anahtar = 3,
-                            Deger = "Yonetici"
-                        });
-                });
-
             modelBuilder.Entity("_3K.Core.Entities.LookupProjeDurum", b =>
                 {
                     b.Property<int>("Id")
@@ -679,7 +682,7 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 1,
                             Anahtar = 0,
-                            Deger = "Hazirlaniyor"
+                            Deger = "Hazırlanıyor"
                         },
                         new
                         {
@@ -691,7 +694,7 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 3,
                             Anahtar = 2,
-                            Deger = "Tamamlandi"
+                            Deger = "Tamamlandı"
                         },
                         new
                         {
@@ -703,13 +706,13 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 5,
                             Anahtar = 4,
-                            Deger = "SevkEdildi"
+                            Deger = "Sevk Edildi"
                         },
                         new
                         {
                             Id = 6,
                             Anahtar = 5,
-                            Deger = "EksikSevkEdildi"
+                            Deger = "Eksik Sevk Edildi"
                         });
                 });
 
@@ -737,25 +740,25 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 1,
                             Anahtar = 0,
-                            Deger = "Bos"
+                            Deger = "Boş"
                         },
                         new
                         {
                             Id = 2,
                             Anahtar = 1,
-                            Deger = "Hazirlaniyor"
+                            Deger = "Hazırlanıyor"
                         },
                         new
                         {
                             Id = 3,
                             Anahtar = 2,
-                            Deger = "Hazir"
+                            Deger = "Hazır"
                         },
                         new
                         {
                             Id = 4,
                             Anahtar = 3,
-                            Deger = "Sevkedildi"
+                            Deger = "Sevk Edildi"
                         });
                 });
 
@@ -869,13 +872,13 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 2,
                             Anahtar = 1,
-                            Deger = "TamGeldi"
+                            Deger = "Tam Geldi"
                         },
                         new
                         {
                             Id = 3,
                             Anahtar = 2,
-                            Deger = "EksikGeldi"
+                            Deger = "Eksik Geldi"
                         },
                         new
                         {
@@ -893,43 +896,49 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 6,
                             Anahtar = 5,
-                            Deger = "KontrolEdildi"
+                            Deger = "Kontrol Edildi"
                         },
                         new
                         {
                             Id = 7,
                             Anahtar = 6,
-                            Deger = "IadeEdildi"
+                            Deger = "İade Edildi"
                         },
                         new
                         {
                             Id = 8,
                             Anahtar = 7,
-                            Deger = "ProjedenKarsilandi"
+                            Deger = "Projeden Karşılandı"
                         },
                         new
                         {
                             Id = 9,
                             Anahtar = 8,
-                            Deger = "StoktanKarsilandi"
+                            Deger = "Stoktan Karşılandı"
                         },
                         new
                         {
                             Id = 10,
                             Anahtar = 9,
-                            Deger = "TedarikcidenGeldi"
+                            Deger = "Tedarikçiden Geldi"
                         },
                         new
                         {
                             Id = 11,
                             Anahtar = 10,
-                            Deger = "BaskaProyeVerildi"
+                            Deger = "Başka Projeye Verildi"
                         },
                         new
                         {
                             Id = 12,
                             Anahtar = 11,
-                            Deger = "HataliUrun"
+                            Deger = "Geri Gönderildi"
+                        },
+                        new
+                        {
+                            Id = 13,
+                            Anahtar = 12,
+                            Deger = "Hatalı Ürün"
                         });
                 });
 
@@ -963,13 +972,13 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 2,
                             Anahtar = 1,
-                            Deger = "KismiGeldi"
+                            Deger = "Kısmi Geldi"
                         },
                         new
                         {
                             Id = 3,
                             Anahtar = 2,
-                            Deger = "Tamamlandi"
+                            Deger = "Tamamlandı"
                         },
                         new
                         {
@@ -981,73 +990,73 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 5,
                             Anahtar = 4,
-                            Deger = "StoktanKarsilandi"
+                            Deger = "Stoktan Karşılandı"
                         },
                         new
                         {
                             Id = 6,
                             Anahtar = 5,
-                            Deger = "FBdenKarsilandi"
+                            Deger = "FB'den Karşılandı"
                         },
                         new
                         {
                             Id = 7,
                             Anahtar = 6,
-                            Deger = "SonraGidecek"
+                            Deger = "Sonra Gidecek"
                         },
                         new
                         {
                             Id = 8,
                             Anahtar = 7,
-                            Deger = "SandikDegisti"
+                            Deger = "Sandık Değişti"
                         },
                         new
                         {
                             Id = 9,
                             Anahtar = 8,
-                            Deger = "IptalVeyaPasif"
+                            Deger = "İptal/Pasif"
                         },
                         new
                         {
                             Id = 10,
                             Anahtar = 9,
-                            Deger = "TeslimAlindi"
+                            Deger = "Teslim Alındı"
                         },
                         new
                         {
                             Id = 11,
                             Anahtar = 10,
-                            Deger = "GeriGonderildi"
+                            Deger = "Geri Gönderildi"
                         },
                         new
                         {
                             Id = 12,
                             Anahtar = 11,
-                            Deger = "KismiTamamlandi"
+                            Deger = "Kısmi Tamamlandı"
                         },
                         new
                         {
                             Id = 13,
                             Anahtar = 12,
-                            Deger = "Kayip"
+                            Deger = "Kayıp"
                         },
                         new
                         {
                             Id = 14,
                             Anahtar = 13,
-                            Deger = "GriddeHazir"
+                            Deger = "Grid'de Hazır"
                         },
                         new
                         {
                             Id = 15,
                             Anahtar = 14,
-                            Deger = "GriddeEksik"
+                            Deger = "Grid'de Eksik"
                         },
                         new
                         {
                             Id = 16,
                             Anahtar = 15,
-                            Deger = "Sipariste"
+                            Deger = "Siparişte"
                         },
                         new
                         {
@@ -1059,19 +1068,263 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 18,
                             Anahtar = 17,
-                            Deger = "TrafoSevk"
+                            Deger = "Trafo Sevk"
                         },
                         new
                         {
                             Id = 19,
                             Anahtar = 18,
-                            Deger = "BaskaProyeVerildi"
+                            Deger = "Başka Projeye Verildi"
                         },
                         new
                         {
                             Id = 20,
                             Anahtar = 19,
-                            Deger = "HataliUrun"
+                            Deger = "Hatalı Ürün"
+                        });
+                });
+
+            modelBuilder.Entity("_3K.Core.Entities.LookupYetkiTipi", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Anahtar")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Deger")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("LookupYetkiTipleri");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Anahtar = 0,
+                            Deger = "N"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Anahtar = 1,
+                            Deger = "R"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Anahtar = 2,
+                            Deger = "W"
+                        });
+                });
+
+            modelBuilder.Entity("_3K.Core.Entities.MenuTanimi", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Icon")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Kod")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("LabelKey")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int?>("ParentId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Route")
+                        .HasColumnType("text");
+
+                    b.Property<int>("Sira")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UpdatedDate")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Kod")
+                        .IsUnique();
+
+                    b.HasIndex("ParentId");
+
+                    b.ToTable("MenuTanimlari");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(4628),
+                            Icon = "ri-dashboard-line",
+                            Kod = "dashboard",
+                            LabelKey = "MENU.DASHBOARD",
+                            Route = "/dashboard",
+                            Sira = 1
+                        },
+                        new
+                        {
+                            Id = 2,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5424),
+                            Icon = "ri-folder-line",
+                            Kod = "projeler",
+                            LabelKey = "MENU.PROJELER",
+                            Sira = 2
+                        },
+                        new
+                        {
+                            Id = 5,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5434),
+                            Icon = "ri-archive-line",
+                            Kod = "sandik-yonetimi",
+                            LabelKey = "MENU.SANDIK_YONETIMI",
+                            Route = "/sandik-yonetimi",
+                            Sira = 3
+                        },
+                        new
+                        {
+                            Id = 6,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5437),
+                            Icon = "ri-error-warning-line",
+                            Kod = "eksik-listesi",
+                            LabelKey = "MENU.EKSIK_LISTESI",
+                            Route = "/eksik-listesi",
+                            Sira = 4
+                        },
+                        new
+                        {
+                            Id = 7,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5438),
+                            Icon = "ri-building-2-line",
+                            Kod = "depo-durumu",
+                            LabelKey = "MENU.DEPO_DURUMU",
+                            Route = "/depo-durumu",
+                            Sira = 5
+                        },
+                        new
+                        {
+                            Id = 8,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5439),
+                            Icon = "ri-arrow-left-right-line",
+                            Kod = "fb-transfer",
+                            LabelKey = "MENU.FB_TRANSFER",
+                            Route = "/fb-transfer",
+                            Sira = 6
+                        },
+                        new
+                        {
+                            Id = 9,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5440),
+                            Icon = "ri-stack-line",
+                            Kod = "stok",
+                            LabelKey = "MENU.STOK_MODULU",
+                            Route = "/stok",
+                            Sira = 7
+                        },
+                        new
+                        {
+                            Id = 10,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5442),
+                            Icon = "ri-tools-line",
+                            Kod = "saha-malzeme",
+                            LabelKey = "MENU.SAHA_MALZEMESI",
+                            Route = "/saha-malzeme",
+                            Sira = 8
+                        },
+                        new
+                        {
+                            Id = 11,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5443),
+                            Icon = "ri-history-line",
+                            Kod = "hareket-gecmisi",
+                            LabelKey = "MENU.HAREKET_GECMISI",
+                            Route = "/hareket-gecmisi",
+                            Sira = 9
+                        },
+                        new
+                        {
+                            Id = 12,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5444),
+                            Icon = "ri-user-settings-line",
+                            Kod = "kullanicilar",
+                            LabelKey = "MENU.KULLANICI_YETKI",
+                            Route = "/kullanicilar",
+                            Sira = 10
+                        },
+                        new
+                        {
+                            Id = 13,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5445),
+                            Icon = "ri-shield-user-line",
+                            Kod = "rol-yonetimi",
+                            LabelKey = "MENU.ROL_YONETIMI",
+                            Route = "/rol-yonetimi",
+                            Sira = 11
+                        },
+                        new
+                        {
+                            Id = 3,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5535),
+                            Icon = "",
+                            Kod = "aktif-projeler",
+                            LabelKey = "MENU.AKTIF_PROJELER",
+                            ParentId = 2,
+                            Route = "/projeler",
+                            Sira = 1
+                        },
+                        new
+                        {
+                            Id = 4,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5536),
+                            Icon = "",
+                            Kod = "sevk-edilen",
+                            LabelKey = "MENU.SEVK_EDILEN",
+                            ParentId = 2,
+                            Route = "/projeler/sevk-edilen",
+                            Sira = 2
+                        },
+                        new
+                        {
+                            Id = 14,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5537),
+                            Icon = "",
+                            Kod = "grid-modulu",
+                            LabelKey = "MENU.GRID_MODULU",
+                            ParentId = 2,
+                            Sira = 3
+                        },
+                        new
+                        {
+                            Id = 15,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5539),
+                            Icon = "",
+                            Kod = "3k-modulu",
+                            LabelKey = "MENU.3K_MODULU",
+                            ParentId = 2,
+                            Sira = 4
                         });
                 });
 
@@ -1257,6 +1510,225 @@ namespace _3K.Infrastructure.Migrations
                     b.HasIndex("ProjeId");
 
                     b.ToTable("Revizyonlar");
+                });
+
+            modelBuilder.Entity("_3K.Core.Entities.Rol", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Ad")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UpdatedDate")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Roller");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Ad = "Admin",
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(3789)
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Ad = "Personel3K",
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(4153)
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Ad = "PersonelGrid",
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(4154)
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Ad = "Yonetici",
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(4155)
+                        });
+                });
+
+            modelBuilder.Entity("_3K.Core.Entities.RolYetki", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int>("MenuTanimiId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RolId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UpdatedDate")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("YetkiTipi")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MenuTanimiId");
+
+                    b.HasIndex("YetkiTipi");
+
+                    b.HasIndex("RolId", "MenuTanimiId")
+                        .IsUnique();
+
+                    b.ToTable("RolYetkileri");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5744),
+                            MenuTanimiId = 1,
+                            RolId = 1,
+                            YetkiTipi = "W"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6077),
+                            MenuTanimiId = 2,
+                            RolId = 1,
+                            YetkiTipi = "W"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6078),
+                            MenuTanimiId = 3,
+                            RolId = 1,
+                            YetkiTipi = "W"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6079),
+                            MenuTanimiId = 4,
+                            RolId = 1,
+                            YetkiTipi = "W"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6079),
+                            MenuTanimiId = 5,
+                            RolId = 1,
+                            YetkiTipi = "W"
+                        },
+                        new
+                        {
+                            Id = 6,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6080),
+                            MenuTanimiId = 6,
+                            RolId = 1,
+                            YetkiTipi = "W"
+                        },
+                        new
+                        {
+                            Id = 7,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6081),
+                            MenuTanimiId = 7,
+                            RolId = 1,
+                            YetkiTipi = "W"
+                        },
+                        new
+                        {
+                            Id = 8,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6081),
+                            MenuTanimiId = 8,
+                            RolId = 1,
+                            YetkiTipi = "W"
+                        },
+                        new
+                        {
+                            Id = 9,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6081),
+                            MenuTanimiId = 9,
+                            RolId = 1,
+                            YetkiTipi = "W"
+                        },
+                        new
+                        {
+                            Id = 10,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6082),
+                            MenuTanimiId = 10,
+                            RolId = 1,
+                            YetkiTipi = "W"
+                        },
+                        new
+                        {
+                            Id = 11,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6083),
+                            MenuTanimiId = 11,
+                            RolId = 1,
+                            YetkiTipi = "W"
+                        },
+                        new
+                        {
+                            Id = 12,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6083),
+                            MenuTanimiId = 12,
+                            RolId = 1,
+                            YetkiTipi = "W"
+                        },
+                        new
+                        {
+                            Id = 13,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6084),
+                            MenuTanimiId = 13,
+                            RolId = 1,
+                            YetkiTipi = "W"
+                        },
+                        new
+                        {
+                            Id = 14,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6084),
+                            MenuTanimiId = 14,
+                            RolId = 1,
+                            YetkiTipi = "W"
+                        },
+                        new
+                        {
+                            Id = 15,
+                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6084),
+                            MenuTanimiId = 15,
+                            RolId = 1,
+                            YetkiTipi = "W"
+                        });
                 });
 
             modelBuilder.Entity("_3K.Core.Entities.Sandik", b =>
@@ -1494,6 +1966,12 @@ namespace _3K.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("_3K.Core.Entities.LookupGeriGonderilmeSebebi", null)
+                        .WithMany()
+                        .HasForeignKey("GeriGonderilmeSebebi")
+                        .HasPrincipalKey("Deger")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("_3K.Core.Entities.LookupGridDurum", null)
                         .WithMany()
                         .HasForeignKey("GridDurumu")
@@ -1504,6 +1982,11 @@ namespace _3K.Infrastructure.Migrations
                     b.HasOne("_3K.Core.Entities.Kullanici", "GridPersonel")
                         .WithMany()
                         .HasForeignKey("GridPersonelId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("_3K.Core.Entities.Proje", "KaynakProje")
+                        .WithMany()
+                        .HasForeignKey("KaynakProjeId")
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("_3K.Core.Entities.Kullanici", "KontrolEden")
@@ -1526,6 +2009,8 @@ namespace _3K.Infrastructure.Migrations
                     b.Navigation("Ceki");
 
                     b.Navigation("GridPersonel");
+
+                    b.Navigation("KaynakProje");
 
                     b.Navigation("KontrolEden");
 
@@ -1572,12 +2057,23 @@ namespace _3K.Infrastructure.Migrations
 
             modelBuilder.Entity("_3K.Core.Entities.Kullanici", b =>
                 {
-                    b.HasOne("_3K.Core.Entities.LookupKullaniciRol", null)
-                        .WithMany()
-                        .HasForeignKey("Rol")
-                        .HasPrincipalKey("Deger")
+                    b.HasOne("_3K.Core.Entities.Rol", "Rol")
+                        .WithMany("Kullanicilar")
+                        .HasForeignKey("RolId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Rol");
+                });
+
+            modelBuilder.Entity("_3K.Core.Entities.MenuTanimi", b =>
+                {
+                    b.HasOne("_3K.Core.Entities.MenuTanimi", "Parent")
+                        .WithMany("Children")
+                        .HasForeignKey("ParentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Parent");
                 });
 
             modelBuilder.Entity("_3K.Core.Entities.Proje", b =>
@@ -1649,6 +2145,32 @@ namespace _3K.Infrastructure.Migrations
                     b.Navigation("Kullanici");
 
                     b.Navigation("Proje");
+                });
+
+            modelBuilder.Entity("_3K.Core.Entities.RolYetki", b =>
+                {
+                    b.HasOne("_3K.Core.Entities.MenuTanimi", "MenuTanimi")
+                        .WithMany("Yetkiler")
+                        .HasForeignKey("MenuTanimiId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("_3K.Core.Entities.Rol", "Rol")
+                        .WithMany("Yetkiler")
+                        .HasForeignKey("RolId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("_3K.Core.Entities.LookupYetkiTipi", null)
+                        .WithMany()
+                        .HasForeignKey("YetkiTipi")
+                        .HasPrincipalKey("Deger")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("MenuTanimi");
+
+                    b.Navigation("Rol");
                 });
 
             modelBuilder.Entity("_3K.Core.Entities.Sandik", b =>
@@ -1775,6 +2297,13 @@ namespace _3K.Infrastructure.Migrations
                     b.Navigation("Revizyonlar");
                 });
 
+            modelBuilder.Entity("_3K.Core.Entities.MenuTanimi", b =>
+                {
+                    b.Navigation("Children");
+
+                    b.Navigation("Yetkiler");
+                });
+
             modelBuilder.Entity("_3K.Core.Entities.Proje", b =>
                 {
                     b.Navigation("Cekiler");
@@ -1786,6 +2315,13 @@ namespace _3K.Infrastructure.Migrations
                     b.Navigation("Sandiklar");
 
                     b.Navigation("StokHareketleri");
+                });
+
+            modelBuilder.Entity("_3K.Core.Entities.Rol", b =>
+                {
+                    b.Navigation("Kullanicilar");
+
+                    b.Navigation("Yetkiler");
                 });
 
             modelBuilder.Entity("_3K.Core.Entities.Sandik", b =>

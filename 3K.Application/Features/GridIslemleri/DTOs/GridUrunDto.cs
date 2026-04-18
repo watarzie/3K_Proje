@@ -23,6 +23,7 @@ namespace _3K.Application.Features.GridIslemleri.DTOs
         // 3K tarafı (read-only)
         public string UcKDurumu { get; set; } = string.Empty;
         public int GelenMiktar { get; set; }
+        public string? KaynakHedefProjeNo { get; set; }
 
         // Genel
         public string GenelDurum { get; set; } = string.Empty;

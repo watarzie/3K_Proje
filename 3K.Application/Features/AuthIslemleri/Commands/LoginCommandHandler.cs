@@ -20,7 +20,15 @@ namespace _3K.Application.Features.AuthIslemleri.Commands
             if (kullanici == null)
                 return Result<LoginResultDto>.Failure("Geçersiz email veya şifre.", 401);
 
-            var token = await _authService.LoginAsync(request.Email, request.Sifre);
+            string token;
+            try
+            {
+                token = await _authService.LoginAsync(request.Email, request.Sifre);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Result<LoginResultDto>.Failure("Geçersiz email veya şifre.", 401);
+            }
 
             return Result<LoginResultDto>.Success(new LoginResultDto
             {
@@ -30,7 +38,7 @@ namespace _3K.Application.Features.AuthIslemleri.Commands
                     Id = kullanici.Id,
                     AdSoyad = kullanici.AdSoyad,
                     BasHarf = kullanici.BasHarf,
-                    Rol = kullanici.Rol.ToString(),
+                    Rol = kullanici.Rol?.Ad ?? "Unknown",
                     Email = kullanici.Email
                 }
             });

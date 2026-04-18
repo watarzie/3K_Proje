@@ -18,14 +18,15 @@ namespace _3K.Application.Features.KullaniciIslemleri.Queries
         public async Task<Result<IEnumerable<KullaniciDto>>> Handle(KullaniciListeleQuery request, CancellationToken cancellationToken)
         {
             var kullaniciRepo = _unitOfWork.GetRepository<Kullanici>();
-            var kullanicilar = await kullaniciRepo.GetAllAsync();
+            var kullanicilar = await kullaniciRepo.GetAllWithIncludeAsync(k => k.Rol);
 
             var result = kullanicilar.Select(k => new KullaniciDto
             {
                 Id = k.Id,
                 AdSoyad = k.AdSoyad,
                 BasHarf = k.BasHarf,
-                Rol = k.Rol.ToString(),
+                RolId = k.RolId,
+                Rol = k.Rol?.Ad ?? "Belirtilmemiş",
                 Email = k.Email
             });
 

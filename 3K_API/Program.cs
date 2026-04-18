@@ -16,14 +16,17 @@ AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ======= DbContext =======
-builder.Services.AddDbContext<AppDbContext>(options =>
+// ======= DbContext + AuditInterceptor =======
+builder.Services.AddScoped<AuditInterceptor>();
+builder.Services.AddDbContext<AppDbContext>((sp, options) =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
-           .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning)));
+           .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning))
+           .AddInterceptors(sp.GetRequiredService<AuditInterceptor>()));
 
 // ======= Repository & UnitOfWork =======
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+builder.Services.AddScoped<IProjeRepository, ProjeRepository>();
 
 // ======= Services =======
 builder.Services.AddScoped<ICekiService, CekiService>();
@@ -38,19 +41,28 @@ builder.Services.AddScoped<IMailService, MailService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IDurumHesaplaService, DurumHesaplaService>();
 builder.Services.AddScoped<ILookupService, _3K.Infrastructure.Services.LookupService>();
+builder.Services.AddScoped<IRolService, _3K.Infrastructure.Services.RolService>();
 
 // ======= Current User Service (Pipeline Behavior için) =======
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
+// ======= Background Task Queue =======
+builder.Services.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
+builder.Services.AddHostedService<BackgroundTaskProcessor>();
+
+// ======= In-Memory Cache =======
+builder.Services.AddMemoryCache();
+
 // ======= MediatR + Pipeline Behaviors =======
 builder.Services.AddMediatR(cfg =>
 {
     cfg.RegisterServicesFromAssembly(typeof(_3K.Application.Features.SandikIslemleri.Commands.FiiliSandikDegistirCommand).Assembly);
-    // Pipeline sırası: UnhandledException (en dış) → Authorization → Validation → Handler
+    // Pipeline sırası: UnhandledException (en dış) → Authorization → Validation → Caching → Handler
     cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(UnhandledExceptionBehavior<,>));
     cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(AuthorizationBehavior<,>));
     cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(CachingBehavior<,>));
 });
 
 // ======= FluentValidation =======
@@ -91,6 +103,7 @@ builder.WebHost.ConfigureKestrel(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
+    c.CustomSchemaIds(type => type.FullName); // Conflict resolution via full namespace
     c.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "3K Sevkiyat / Çeki Takip API",

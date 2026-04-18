@@ -1,16 +1,12 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Http;
 using _3K.Core.Entities;
 
 namespace _3K.Infrastructure.Data
 {
     public class AppDbContext : DbContext
     {
-        private readonly IHttpContextAccessor? _httpContextAccessor;
-
-        public AppDbContext(DbContextOptions<AppDbContext> options, IHttpContextAccessor? httpContextAccessor = null) : base(options)
+        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
         {
-            _httpContextAccessor = httpContextAccessor;
         }
 
         // ======= Ana Tablo DbSet'leri =======
@@ -27,6 +23,11 @@ namespace _3K.Infrastructure.Data
         public DbSet<HareketGecmisi> HareketGecmisleri { get; set; } = null!;
         public DbSet<ProjeTransfer> ProjeTransferleri { get; set; } = null!;
 
+        // ======= RBAC (Rol Tabanlı Erişim Kontrolü) DbSet'leri =======
+        public DbSet<Rol> Roller { get; set; } = null!;
+        public DbSet<MenuTanimi> MenuTanimlari { get; set; } = null!;
+        public DbSet<RolYetki> RolYetkileri { get; set; } = null!;
+
         // ======= Lookup (Parametre) Tablo DbSet'leri =======
         public DbSet<LookupProjeDurum> LookupProjeDurumlari { get; set; } = null!;
         public DbSet<LookupSandikDurum> LookupSandikDurumlari { get; set; } = null!;
@@ -35,9 +36,10 @@ namespace _3K.Infrastructure.Data
         public DbSet<LookupUrunDurum> LookupUrunDurumlari { get; set; } = null!;
         public DbSet<LookupGridDurum> LookupGridDurumlari { get; set; } = null!;
         public DbSet<LookupUcKDurum> LookupUcKDurumlari { get; set; } = null!;
-        public DbSet<LookupKullaniciRol> LookupKullaniciRolleri { get; set; } = null!;
+        public DbSet<LookupYetkiTipi> LookupYetkiTipleri { get; set; } = null!;
         public DbSet<LookupStokDurum> LookupStokDurumlari { get; set; } = null!;
         public DbSet<LookupIslemTipi> LookupIslemTipleri { get; set; } = null!;
+        public DbSet<LookupGeriGonderilmeSebebi> LookupGeriGonderilmeSebepleri { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -53,9 +55,10 @@ namespace _3K.Infrastructure.Data
             ConfigureLookupTable<LookupUrunDurum>(modelBuilder);
             ConfigureLookupTable<LookupGridDurum>(modelBuilder);
             ConfigureLookupTable<LookupUcKDurum>(modelBuilder);
-            ConfigureLookupTable<LookupKullaniciRol>(modelBuilder);
+            ConfigureLookupTable<LookupYetkiTipi>(modelBuilder);
             ConfigureLookupTable<LookupStokDurum>(modelBuilder);
             ConfigureLookupTable<LookupIslemTipi>(modelBuilder);
+            ConfigureLookupTable<LookupGeriGonderilmeSebebi>(modelBuilder);
 
             // ===============================================================
             // 2. UNIQUE CONSTRAINTS
@@ -135,11 +138,31 @@ namespace _3K.Infrastructure.Data
                 .HasForeignKey(cs => cs.GridPersonelId)
                 .OnDelete(DeleteBehavior.SetNull);
 
-            // --- EksikMiktar, GridEksikMiktar computed properties — DB'de kolon değil ---
+            // --- Computed properties — DB'de kolon değil ---
             modelBuilder.Entity<CekiSatiri>()
                 .Ignore(cs => cs.EksikMiktar);
             modelBuilder.Entity<CekiSatiri>()
                 .Ignore(cs => cs.GridEksikMiktar);
+            modelBuilder.Entity<CekiSatiri>()
+                .Ignore(cs => cs.KumulatifToplam);
+            modelBuilder.Entity<CekiSatiri>()
+                .Ignore(cs => cs.KalanMiktar);
+
+            // --- CekiSatiri.KaynakProjeId → Proje (FB kaynak takibi) ---
+            modelBuilder.Entity<CekiSatiri>()
+                .HasOne(cs => cs.KaynakProje)
+                .WithMany()
+                .HasForeignKey(cs => cs.KaynakProjeId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // --- CekiSatiri.GeriGonderilmeSebebi → LookupGeriGonderilmeSebebi ---
+            modelBuilder.Entity<CekiSatiri>()
+                .HasOne<LookupGeriGonderilmeSebebi>()
+                .WithMany()
+                .HasForeignKey(cs => cs.GeriGonderilmeSebebi)
+                .HasPrincipalKey(l => l.Deger)
+                .OnDelete(DeleteBehavior.Restrict)
+                .IsRequired(false);
 
             // --- ProjeTransfer ilişkileri ---
             modelBuilder.Entity<ProjeTransfer>()
@@ -172,11 +195,50 @@ namespace _3K.Infrastructure.Data
                 .HasForeignKey(pt => pt.KullaniciId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // --- Kullanici.Rol → LookupKullaniciRol.Deger ---
+            // --- Kullanici.RolId → Rol ---
             modelBuilder.Entity<Kullanici>()
-                .HasOne<LookupKullaniciRol>()
+                .HasOne(k => k.Rol)
+                .WithMany(r => r.Kullanicilar)
+                .HasForeignKey(k => k.RolId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ===============================================================
+            // 4b. RBAC İLİŞKİLERİ — Rol ↔ MenuTanimi ↔ RolYetki
+            // ===============================================================
+
+            // --- MenuTanimi self-referencing tree (Parent ↔ Children) ---
+            modelBuilder.Entity<MenuTanimi>()
+                .HasOne(m => m.Parent)
+                .WithMany(m => m.Children)
+                .HasForeignKey(m => m.ParentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<MenuTanimi>()
+                .HasIndex(m => m.Kod)
+                .IsUnique();
+
+            // --- RolYetki bridge: Rol ↔ MenuTanimi (composite unique) ---
+            modelBuilder.Entity<RolYetki>()
+                .HasOne(ry => ry.Rol)
+                .WithMany(r => r.Yetkiler)
+                .HasForeignKey(ry => ry.RolId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<RolYetki>()
+                .HasOne(ry => ry.MenuTanimi)
+                .WithMany(m => m.Yetkiler)
+                .HasForeignKey(ry => ry.MenuTanimiId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<RolYetki>()
+                .HasIndex(ry => new { ry.RolId, ry.MenuTanimiId })
+                .IsUnique();
+
+            // --- RolYetki.YetkiTipi → LookupYetkiTipi.Deger ---
+            modelBuilder.Entity<RolYetki>()
+                .HasOne<LookupYetkiTipi>()
                 .WithMany()
-                .HasForeignKey(k => k.Rol)
+                .HasForeignKey(ry => ry.YetkiTipi)
                 .HasPrincipalKey(l => l.Deger)
                 .OnDelete(DeleteBehavior.Restrict);
 
@@ -321,6 +383,11 @@ namespace _3K.Infrastructure.Data
             // 5. SEED DATA — Lookup Tabloları
             // ===============================================================
             SeedLookupData(modelBuilder);
+
+            // ===============================================================
+            // 6. SEED DATA — RBAC (Roller, Menüler, Yetkiler)
+            // ===============================================================
+            SeedRbacData(modelBuilder);
         }
 
         /// <summary>
@@ -335,20 +402,20 @@ namespace _3K.Infrastructure.Data
         {
             // ProjeDurum
             modelBuilder.Entity<LookupProjeDurum>().HasData(
-                new LookupProjeDurum { Id = 1, Anahtar = 0, Deger = "Hazirlaniyor" },
+                new LookupProjeDurum { Id = 1, Anahtar = 0, Deger = "Hazırlanıyor" },
                 new LookupProjeDurum { Id = 2, Anahtar = 1, Deger = "Devam" },
-                new LookupProjeDurum { Id = 3, Anahtar = 2, Deger = "Tamamlandi" },
+                new LookupProjeDurum { Id = 3, Anahtar = 2, Deger = "Tamamlandı" },
                 new LookupProjeDurum { Id = 4, Anahtar = 3, Deger = "Beklemede" },
-                new LookupProjeDurum { Id = 5, Anahtar = 4, Deger = "SevkEdildi" },
-                new LookupProjeDurum { Id = 6, Anahtar = 5, Deger = "EksikSevkEdildi" }
+                new LookupProjeDurum { Id = 5, Anahtar = 4, Deger = "Sevk Edildi" },
+                new LookupProjeDurum { Id = 6, Anahtar = 5, Deger = "Eksik Sevk Edildi" }
             );
 
             // SandikDurum
             modelBuilder.Entity<LookupSandikDurum>().HasData(
-                new LookupSandikDurum { Id = 1, Anahtar = 0, Deger = "Bos" },
-                new LookupSandikDurum { Id = 2, Anahtar = 1, Deger = "Hazirlaniyor" },
-                new LookupSandikDurum { Id = 3, Anahtar = 2, Deger = "Hazir" },
-                new LookupSandikDurum { Id = 4, Anahtar = 3, Deger = "Sevkedildi" }
+                new LookupSandikDurum { Id = 1, Anahtar = 0, Deger = "Boş" },
+                new LookupSandikDurum { Id = 2, Anahtar = 1, Deger = "Hazırlanıyor" },
+                new LookupSandikDurum { Id = 3, Anahtar = 2, Deger = "Hazır" },
+                new LookupSandikDurum { Id = 4, Anahtar = 3, Deger = "Sevk Edildi" }
             );
 
             // SandikTipi
@@ -361,74 +428,80 @@ namespace _3K.Infrastructure.Data
             // DepoLokasyon
             modelBuilder.Entity<LookupDepoLokasyon>().HasData(
                 new LookupDepoLokasyon { Id = 1, Anahtar = 0, Deger = "Belirsiz" },
-                new LookupDepoLokasyon { Id = 2, Anahtar = 1, Deger = "Grid" },
-                new LookupDepoLokasyon { Id = 3, Anahtar = 2, Deger = "UcK" },
-                new LookupDepoLokasyon { Id = 4, Anahtar = 3, Deger = "Protest" }
+                new LookupDepoLokasyon { Id = 2, Anahtar = 1, Deger = "3K" },
+                new LookupDepoLokasyon { Id = 4, Anahtar = 3, Deger = "Seymen" },
+                new LookupDepoLokasyon { Id = 5, Anahtar = 4, Deger = "Grid" }
             );
 
             // UrunDurum
             modelBuilder.Entity<LookupUrunDurum>().HasData(
                 new LookupUrunDurum { Id = 1, Anahtar = 0, Deger = "Bekliyor" },
-                new LookupUrunDurum { Id = 2, Anahtar = 1, Deger = "KismiGeldi" },
-                new LookupUrunDurum { Id = 3, Anahtar = 2, Deger = "Tamamlandi" },
+                new LookupUrunDurum { Id = 2, Anahtar = 1, Deger = "Kısmi Geldi" },
+                new LookupUrunDurum { Id = 3, Anahtar = 2, Deger = "Tamamlandı" },
                 new LookupUrunDurum { Id = 4, Anahtar = 3, Deger = "Eksik" },
-                new LookupUrunDurum { Id = 5, Anahtar = 4, Deger = "StoktanKarsilandi" },
-                new LookupUrunDurum { Id = 6, Anahtar = 5, Deger = "FBdenKarsilandi" },
-                new LookupUrunDurum { Id = 7, Anahtar = 6, Deger = "SonraGidecek" },
-                new LookupUrunDurum { Id = 8, Anahtar = 7, Deger = "SandikDegisti" },
-                new LookupUrunDurum { Id = 9, Anahtar = 8, Deger = "IptalVeyaPasif" },
-                new LookupUrunDurum { Id = 10, Anahtar = 9, Deger = "TeslimAlindi" },
-                new LookupUrunDurum { Id = 11, Anahtar = 10, Deger = "GeriGonderildi" },
-                new LookupUrunDurum { Id = 12, Anahtar = 11, Deger = "KismiTamamlandi" },
-                new LookupUrunDurum { Id = 13, Anahtar = 12, Deger = "Kayip" },
-                new LookupUrunDurum { Id = 14, Anahtar = 13, Deger = "GriddeHazir" },
-                new LookupUrunDurum { Id = 15, Anahtar = 14, Deger = "GriddeEksik" },
-                new LookupUrunDurum { Id = 16, Anahtar = 15, Deger = "Sipariste" },
+                new LookupUrunDurum { Id = 5, Anahtar = 4, Deger = "Stoktan Karşılandı" },
+                new LookupUrunDurum { Id = 6, Anahtar = 5, Deger = "FB'den Karşılandı" },
+                new LookupUrunDurum { Id = 7, Anahtar = 6, Deger = "Sonra Gidecek" },
+                new LookupUrunDurum { Id = 8, Anahtar = 7, Deger = "Sandık Değişti" },
+                new LookupUrunDurum { Id = 9, Anahtar = 8, Deger = "İptal/Pasif" },
+                new LookupUrunDurum { Id = 10, Anahtar = 9, Deger = "Teslim Alındı" },
+                new LookupUrunDurum { Id = 11, Anahtar = 10, Deger = "Geri Gönderildi" },
+                new LookupUrunDurum { Id = 12, Anahtar = 11, Deger = "Kısmi Tamamlandı" },
+                new LookupUrunDurum { Id = 13, Anahtar = 12, Deger = "Kayıp" },
+                new LookupUrunDurum { Id = 14, Anahtar = 13, Deger = "Grid'de Hazır" },
+                new LookupUrunDurum { Id = 15, Anahtar = 14, Deger = "Grid'de Eksik" },
+                new LookupUrunDurum { Id = 16, Anahtar = 15, Deger = "Siparişte" },
                 new LookupUrunDurum { Id = 17, Anahtar = 16, Deger = "Gelmedi" },
-                new LookupUrunDurum { Id = 18, Anahtar = 17, Deger = "TrafoSevk" },
-                new LookupUrunDurum { Id = 19, Anahtar = 18, Deger = "BaskaProyeVerildi" },
-                new LookupUrunDurum { Id = 20, Anahtar = 19, Deger = "HataliUrun" }
+                new LookupUrunDurum { Id = 18, Anahtar = 17, Deger = "Trafo Sevk" },
+                new LookupUrunDurum { Id = 19, Anahtar = 18, Deger = "Başka Projeye Verildi" },
+                new LookupUrunDurum { Id = 20, Anahtar = 19, Deger = "Hatalı Ürün" }
             );
 
             // GridDurum
             modelBuilder.Entity<LookupGridDurum>().HasData(
                 new LookupGridDurum { Id = 1, Anahtar = 0, Deger = "Bekliyor" },
-                new LookupGridDurum { Id = 2, Anahtar = 1, Deger = "Uretimde" },
-                new LookupGridDurum { Id = 3, Anahtar = 2, Deger = "StokHazir" },
-                new LookupGridDurum { Id = 4, Anahtar = 3, Deger = "SevkEdildi" },
-                new LookupGridDurum { Id = 5, Anahtar = 4, Deger = "KismiSevkEdildi" },
+                new LookupGridDurum { Id = 2, Anahtar = 1, Deger = "Üretimde" },
+                new LookupGridDurum { Id = 3, Anahtar = 2, Deger = "Stok Hazır" },
+                new LookupGridDurum { Id = 4, Anahtar = 3, Deger = "Sevk Edildi" },
+                new LookupGridDurum { Id = 5, Anahtar = 4, Deger = "Kısmi Sevk Edildi" },
                 new LookupGridDurum { Id = 6, Anahtar = 5, Deger = "Bekletiliyor" },
-                new LookupGridDurum { Id = 7, Anahtar = 6, Deger = "IptalEdildi" },
-                new LookupGridDurum { Id = 8, Anahtar = 7, Deger = "TamGeldi" },
-                new LookupGridDurum { Id = 9, Anahtar = 8, Deger = "EksikGeldi" },
+                new LookupGridDurum { Id = 7, Anahtar = 6, Deger = "İptal Edildi" },
+                new LookupGridDurum { Id = 8, Anahtar = 7, Deger = "Tam Geldi" },
+                new LookupGridDurum { Id = 9, Anahtar = 8, Deger = "Eksik Geldi" },
                 new LookupGridDurum { Id = 10, Anahtar = 9, Deger = "Gelmedi" },
-                new LookupGridDurum { Id = 11, Anahtar = 10, Deger = "TrafoSevk" },
-                new LookupGridDurum { Id = 12, Anahtar = 11, Deger = "Iptal" },
-                new LookupGridDurum { Id = 13, Anahtar = 12, Deger = "Sipariste" }
+                new LookupGridDurum { Id = 11, Anahtar = 10, Deger = "Trafo Sevk" },
+                new LookupGridDurum { Id = 12, Anahtar = 11, Deger = "İptal" },
+                new LookupGridDurum { Id = 13, Anahtar = 12, Deger = "Siparişte" }
             );
 
             // UcKDurum
             modelBuilder.Entity<LookupUcKDurum>().HasData(
                 new LookupUcKDurum { Id = 1, Anahtar = 0, Deger = "Bekliyor" },
-                new LookupUcKDurum { Id = 2, Anahtar = 1, Deger = "TamGeldi" },
-                new LookupUcKDurum { Id = 3, Anahtar = 2, Deger = "EksikGeldi" },
+                new LookupUcKDurum { Id = 2, Anahtar = 1, Deger = "Tam Geldi" },
+                new LookupUcKDurum { Id = 3, Anahtar = 2, Deger = "Eksik Geldi" },
                 new LookupUcKDurum { Id = 4, Anahtar = 3, Deger = "Gelmedi" },
                 new LookupUcKDurum { Id = 5, Anahtar = 4, Deger = "Paketlendi" },
-                new LookupUcKDurum { Id = 6, Anahtar = 5, Deger = "KontrolEdildi" },
-                new LookupUcKDurum { Id = 7, Anahtar = 6, Deger = "IadeEdildi" },
-                new LookupUcKDurum { Id = 8, Anahtar = 7, Deger = "ProjedenKarsilandi" },
-                new LookupUcKDurum { Id = 9, Anahtar = 8, Deger = "StoktanKarsilandi" },
-                new LookupUcKDurum { Id = 10, Anahtar = 9, Deger = "TedarikcidenGeldi" },
-                new LookupUcKDurum { Id = 11, Anahtar = 10, Deger = "BaskaProyeVerildi" },
-                new LookupUcKDurum { Id = 12, Anahtar = 11, Deger = "HataliUrun" }
+                new LookupUcKDurum { Id = 6, Anahtar = 5, Deger = "Kontrol Edildi" },
+                new LookupUcKDurum { Id = 7, Anahtar = 6, Deger = "İade Edildi" },
+                new LookupUcKDurum { Id = 8, Anahtar = 7, Deger = "Projeden Karşılandı" },
+                new LookupUcKDurum { Id = 9, Anahtar = 8, Deger = "Stoktan Karşılandı" },
+                new LookupUcKDurum { Id = 10, Anahtar = 9, Deger = "Tedarikçiden Geldi" },
+                new LookupUcKDurum { Id = 11, Anahtar = 10, Deger = "Başka Projeye Verildi" },
+                new LookupUcKDurum { Id = 12, Anahtar = 11, Deger = "Geri Gönderildi" },
+                new LookupUcKDurum { Id = 13, Anahtar = 12, Deger = "Hatalı Ürün" }
             );
 
-            // KullaniciRol
-            modelBuilder.Entity<LookupKullaniciRol>().HasData(
-                new LookupKullaniciRol { Id = 1, Anahtar = 0, Deger = "Admin" },
-                new LookupKullaniciRol { Id = 2, Anahtar = 1, Deger = "Personel3K" },
-                new LookupKullaniciRol { Id = 3, Anahtar = 2, Deger = "PersonelGrid" },
-                new LookupKullaniciRol { Id = 4, Anahtar = 3, Deger = "Yonetici" }
+            // GeriGonderilmeSebebi
+            modelBuilder.Entity<LookupGeriGonderilmeSebebi>().HasData(
+                new LookupGeriGonderilmeSebebi { Id = 1, Anahtar = 0, Deger = "Tadilat" },
+                new LookupGeriGonderilmeSebebi { Id = 2, Anahtar = 1, Deger = "Iptal" }
+            );
+
+            // YetkiTipi
+            modelBuilder.Entity<LookupYetkiTipi>().HasData(
+                new LookupYetkiTipi { Id = 1, Anahtar = 0, Deger = "N" },
+                new LookupYetkiTipi { Id = 2, Anahtar = 1, Deger = "R" },
+                new LookupYetkiTipi { Id = 3, Anahtar = 2, Deger = "W" }
             );
 
             // StokDurum
@@ -456,24 +529,55 @@ namespace _3K.Infrastructure.Data
             );
         }
 
-        public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        /// <summary>
+        /// RBAC seed data: Roller, MenuTanimi ağacı, ve Admin yetkilerini oluşturur.
+        /// </summary>
+        private static void SeedRbacData(ModelBuilder modelBuilder)
         {
-            var currentUser = _httpContextAccessor?.HttpContext?.User?.Identity?.Name;
-            var entries = ChangeTracker.Entries<BaseEntity>();
-            foreach (var entry in entries)
+            // ======= ROLLER =======
+            modelBuilder.Entity<Rol>().HasData(
+                new Rol { Id = 1, Ad = "Admin" },
+                new Rol { Id = 2, Ad = "Personel3K" },
+                new Rol { Id = 3, Ad = "PersonelGrid" },
+                new Rol { Id = 4, Ad = "Yonetici" }
+            );
+
+            // ======= MENÜ TANIMLARI (ağaç yapısı) =======
+            // Root menüler
+            modelBuilder.Entity<MenuTanimi>().HasData(
+                new MenuTanimi { Id = 1, Kod = "dashboard", LabelKey = "MENU.DASHBOARD", Icon = "ri-dashboard-line", Route = "/dashboard", Sira = 1, ParentId = null },
+                new MenuTanimi { Id = 2, Kod = "projeler", LabelKey = "MENU.PROJELER", Icon = "ri-folder-line", Route = null, Sira = 2, ParentId = null },
+                new MenuTanimi { Id = 5, Kod = "sandik-yonetimi", LabelKey = "MENU.SANDIK_YONETIMI", Icon = "ri-archive-line", Route = "/sandik-yonetimi", Sira = 3, ParentId = null },
+                new MenuTanimi { Id = 6, Kod = "eksik-listesi", LabelKey = "MENU.EKSIK_LISTESI", Icon = "ri-error-warning-line", Route = "/eksik-listesi", Sira = 4, ParentId = null },
+                new MenuTanimi { Id = 7, Kod = "depo-durumu", LabelKey = "MENU.DEPO_DURUMU", Icon = "ri-building-2-line", Route = "/depo-durumu", Sira = 5, ParentId = null },
+                new MenuTanimi { Id = 8, Kod = "fb-transfer", LabelKey = "MENU.FB_TRANSFER", Icon = "ri-arrow-left-right-line", Route = "/fb-transfer", Sira = 6, ParentId = null },
+                new MenuTanimi { Id = 9, Kod = "stok", LabelKey = "MENU.STOK_MODULU", Icon = "ri-stack-line", Route = "/stok", Sira = 7, ParentId = null },
+                new MenuTanimi { Id = 10, Kod = "saha-malzeme", LabelKey = "MENU.SAHA_MALZEMESI", Icon = "ri-tools-line", Route = "/saha-malzeme", Sira = 8, ParentId = null },
+                new MenuTanimi { Id = 11, Kod = "hareket-gecmisi", LabelKey = "MENU.HAREKET_GECMISI", Icon = "ri-history-line", Route = "/hareket-gecmisi", Sira = 9, ParentId = null },
+                new MenuTanimi { Id = 12, Kod = "kullanicilar", LabelKey = "MENU.KULLANICI_YETKI", Icon = "ri-user-settings-line", Route = "/kullanicilar", Sira = 10, ParentId = null },
+                new MenuTanimi { Id = 13, Kod = "rol-yonetimi", LabelKey = "MENU.ROL_YONETIMI", Icon = "ri-shield-user-line", Route = "/rol-yonetimi", Sira = 11, ParentId = null }
+            );
+
+            // Alt menüler (Projeler children)
+            modelBuilder.Entity<MenuTanimi>().HasData(
+                new MenuTanimi { Id = 3, Kod = "aktif-projeler", LabelKey = "MENU.AKTIF_PROJELER", Icon = "", Route = "/projeler", Sira = 1, ParentId = 2 },
+                new MenuTanimi { Id = 4, Kod = "sevk-edilen", LabelKey = "MENU.SEVK_EDILEN", Icon = "", Route = "/projeler/sevk-edilen", Sira = 2, ParentId = 2 },
+                // Yetki kontrollü butonlar — sidebar'da GÖRÜNMEZler (Route=null).
+                // Rol yetki ekranında "Projeler" altında görünür → admin W/R/N ayarlar.
+                new MenuTanimi { Id = 14, Kod = "grid-modulu", LabelKey = "MENU.GRID_MODULU", Icon = "", Route = null, Sira = 3, ParentId = 2 },
+                new MenuTanimi { Id = 15, Kod = "3k-modulu", LabelKey = "MENU.3K_MODULU", Icon = "", Route = null, Sira = 4, ParentId = 2 }
+            );
+
+            // ======= ADMIN ROL YETKİLERİ (tüm menülere W) =======
+            var adminYetkiler = new List<RolYetki>();
+            for (int menuId = 1; menuId <= 15; menuId++)
             {
-                if (entry.State == EntityState.Modified)
-                {
-                    entry.Entity.UpdatedDate = DateTime.UtcNow;
-                    entry.Entity.UpdatedBy = currentUser;
-                }
-                else if (entry.State == EntityState.Added)
-                {
-                    entry.Entity.CreatedDate = DateTime.UtcNow;
-                    entry.Entity.CreatedBy = currentUser;
-                }
+                adminYetkiler.Add(new RolYetki { Id = menuId, RolId = 1, MenuTanimiId = menuId, YetkiTipi = "W" });
             }
-            return base.SaveChangesAsync(cancellationToken);
+            modelBuilder.Entity<RolYetki>().HasData(adminYetkiler);
         }
+
+        // Audit alanları (CreatedDate/By, UpdatedDate/By) artık
+        // AuditInterceptor tarafından otomatik doldurulur.
     }
 }

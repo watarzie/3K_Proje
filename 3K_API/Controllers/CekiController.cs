@@ -35,7 +35,7 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
 
-        [HttpGet("satirlar/{cekiId}")]
+        [HttpGet("{cekiId}/satirlar")]
         public async Task<ActionResult> GetSatirlari(int cekiId)
         {
             var result = await _mediator.Send(new CekiSatirlariQuery { CekiId = cekiId });
