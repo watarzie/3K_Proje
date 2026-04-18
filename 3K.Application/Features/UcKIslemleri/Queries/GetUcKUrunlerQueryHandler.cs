@@ -32,11 +32,6 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                 .OrderBy(cs => cs.SiraNo)
                 .Select(cs =>
                 {
-                    var kalan = cs.UcKKarsilamaTipi == StatusConstants.UcKDurum.BaskaProyeVerildi
-                        ? 0
-                        : cs.IstenenAdet - cs.GelenMiktar - cs.TrafoSevkAdet;
-                    if (kalan < 0) kalan = 0;
-
                     return new UcKUrunDto
                     {
                         CekiSatiriId = cs.Id,
@@ -51,10 +46,13 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                         TrafoSevkAdet = cs.TrafoSevkAdet,
                         UcKKarsilamaTipi = cs.UcKKarsilamaTipi,
                         GelenMiktar = cs.GelenMiktar,
+                        KarsilananMiktar = cs.KarsilananMiktar,
+                        HataliMiktar = cs.HataliMiktar,
                         KaynakHedefProjeNo = cs.KaynakHedefProjeNo,
+                        GeriGonderilmeSebebi = cs.GeriGonderilmeSebebi,
                         UcKAciklama = cs.UcKAciklama,
                         UcKNotu = cs.UcKNotu,
-                        Kalan = kalan,
+                        Kalan = cs.KalanMiktar,
                         KontrolUyari = HesaplaKontrolUyari(cs),
                         GenelDurum = cs.Durum
                     };
@@ -67,18 +65,20 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
         private static string HesaplaKontrolUyari(CekiSatiri cs)
         {
             var tip = cs.UcKKarsilamaTipi;
-            var kalan = cs.IstenenAdet - cs.GelenMiktar - cs.TrafoSevkAdet;
 
             return tip switch
             {
-                StatusConstants.UcKDurum.TamGeldi when kalan <= 0 => "TAMAMLANDI",
+                StatusConstants.UcKDurum.TamGeldi when cs.KalanMiktar <= 0 => "TAMAMLANDI",
                 StatusConstants.UcKDurum.TamGeldi => "TAM GELDİ",
                 StatusConstants.UcKDurum.EksikGeldi => "EKSİK GELDİ",
+                StatusConstants.UcKDurum.Gelmedi => "GELMEDİ",
+                StatusConstants.UcKDurum.GeriGonderildi => $"GERİ GÖNDERİLDİ – {cs.GeriGonderilmeSebebi ?? ""}",
                 StatusConstants.UcKDurum.ProjedenKarsilandi => $"PROJEDEN KARŞILANDI – {cs.KaynakHedefProjeNo ?? ""}",
                 StatusConstants.UrunDurum.StoktanKarsilandi => "STOKTAN KARŞILANDI",
                 StatusConstants.UcKDurum.TedarikcidenGeldi => "TEDARİKÇİDEN GELDİ",
                 StatusConstants.UcKDurum.BaskaProyeVerildi => $"BAŞKA PROJEYE VERİLDİ – {cs.KaynakHedefProjeNo ?? ""}",
-                StatusConstants.UcKDurum.HataliUrun => "HATALI ÜRÜN GELDİ",
+                StatusConstants.UcKDurum.HataliUrun => $"HATALI ÜRÜN – {cs.HataliMiktar} adet",
+                _ when cs.GridDurumu == StatusConstants.GridDurum.Iptal => "GRİD İPTAL – İŞLEM YAPILAMAZ",
                 _ when cs.GridDurumu == StatusConstants.UcKDurum.TamGeldi && cs.GelenMiktar < cs.IstenenAdet =>
                     "UYARI: GRİD TAM SEVK, 3K EKSİK GELİŞ",
                 _ => "BEKLİYOR"

@@ -55,5 +55,28 @@ namespace _3K.Infrastructure.Services
             await _context.RolYetkileri.AddRangeAsync(kaydedilecek, ct);
             await _context.SaveChangesAsync(ct);
         }
+
+        public async Task<bool> HasPermissionAsync(string[] userRoles, string menuKod, string yetkiTipi = "W", CancellationToken ct = default)
+        {
+            if (userRoles == null || userRoles.Length == 0) return false;
+
+            if (userRoles.Contains("Admin", StringComparer.OrdinalIgnoreCase)) return true;
+
+            var roles = await _context.Roller
+                .Where(r => userRoles.Contains(r.Ad))
+                .ToListAsync(ct);
+
+            if (!roles.Any()) return false;
+
+            var roleIds = roles.Select(r => r.Id).ToList();
+
+            var hasPermission = await _context.RolYetkileri
+                .Include(ry => ry.MenuTanimi)
+                .AnyAsync(ry => roleIds.Contains(ry.RolId) &&
+                                ry.MenuTanimi.Kod == menuKod &&
+                                ry.YetkiTipi == yetkiTipi, ct);
+
+            return hasPermission;
+        }
     }
 }

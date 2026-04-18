@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using _3K.Infrastructure.Data;
@@ -11,9 +12,11 @@ using _3K.Infrastructure.Data;
 namespace _3K.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260416215951_RevertKurumsalLokasyonSeeds")]
+    partial class RevertKurumsalLokasyonSeeds
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -412,6 +415,12 @@ namespace _3K.Infrastructure.Migrations
                         },
                         new
                         {
+                            Id = 3,
+                            Anahtar = 2,
+                            Deger = "Üçk"
+                        },
+                        new
+                        {
                             Id = 4,
                             Anahtar = 3,
                             Deger = "Seymen"
@@ -488,25 +497,25 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 2,
                             Anahtar = 1,
-                            Deger = "Üretimde"
+                            Deger = "Uretimde"
                         },
                         new
                         {
                             Id = 3,
                             Anahtar = 2,
-                            Deger = "Stok Hazır"
+                            Deger = "StokHazir"
                         },
                         new
                         {
                             Id = 4,
                             Anahtar = 3,
-                            Deger = "Sevk Edildi"
+                            Deger = "SevkEdildi"
                         },
                         new
                         {
                             Id = 5,
                             Anahtar = 4,
-                            Deger = "Kısmi Sevk Edildi"
+                            Deger = "KismiSevkEdildi"
                         },
                         new
                         {
@@ -518,19 +527,19 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 7,
                             Anahtar = 6,
-                            Deger = "İptal Edildi"
+                            Deger = "IptalEdildi"
                         },
                         new
                         {
                             Id = 8,
                             Anahtar = 7,
-                            Deger = "Tam Geldi"
+                            Deger = "TamGeldi"
                         },
                         new
                         {
                             Id = 9,
                             Anahtar = 8,
-                            Deger = "Eksik Geldi"
+                            Deger = "EksikGeldi"
                         },
                         new
                         {
@@ -542,19 +551,19 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 11,
                             Anahtar = 10,
-                            Deger = "Trafo Sevk"
+                            Deger = "TrafoSevk"
                         },
                         new
                         {
                             Id = 12,
                             Anahtar = 11,
-                            Deger = "İptal"
+                            Deger = "Iptal"
                         },
                         new
                         {
                             Id = 13,
                             Anahtar = 12,
-                            Deger = "Siparişte"
+                            Deger = "Sipariste"
                         });
                 });
 
@@ -682,7 +691,7 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 1,
                             Anahtar = 0,
-                            Deger = "Hazırlanıyor"
+                            Deger = "Hazirlaniyor"
                         },
                         new
                         {
@@ -694,7 +703,7 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 3,
                             Anahtar = 2,
-                            Deger = "Tamamlandı"
+                            Deger = "Tamamlandi"
                         },
                         new
                         {
@@ -706,13 +715,13 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 5,
                             Anahtar = 4,
-                            Deger = "Sevk Edildi"
+                            Deger = "SevkEdildi"
                         },
                         new
                         {
                             Id = 6,
                             Anahtar = 5,
-                            Deger = "Eksik Sevk Edildi"
+                            Deger = "EksikSevkEdildi"
                         });
                 });
 
@@ -740,25 +749,25 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 1,
                             Anahtar = 0,
-                            Deger = "Boş"
+                            Deger = "Bos"
                         },
                         new
                         {
                             Id = 2,
                             Anahtar = 1,
-                            Deger = "Hazırlanıyor"
+                            Deger = "Hazirlaniyor"
                         },
                         new
                         {
                             Id = 3,
                             Anahtar = 2,
-                            Deger = "Hazır"
+                            Deger = "Hazir"
                         },
                         new
                         {
                             Id = 4,
                             Anahtar = 3,
-                            Deger = "Sevk Edildi"
+                            Deger = "Sevkedildi"
                         });
                 });
 
@@ -872,13 +881,13 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 2,
                             Anahtar = 1,
-                            Deger = "Tam Geldi"
+                            Deger = "TamGeldi"
                         },
                         new
                         {
                             Id = 3,
                             Anahtar = 2,
-                            Deger = "Eksik Geldi"
+                            Deger = "EksikGeldi"
                         },
                         new
                         {
@@ -896,49 +905,49 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 6,
                             Anahtar = 5,
-                            Deger = "Kontrol Edildi"
+                            Deger = "KontrolEdildi"
                         },
                         new
                         {
                             Id = 7,
                             Anahtar = 6,
-                            Deger = "İade Edildi"
+                            Deger = "IadeEdildi"
                         },
                         new
                         {
                             Id = 8,
                             Anahtar = 7,
-                            Deger = "Projeden Karşılandı"
+                            Deger = "ProjedenKarsilandi"
                         },
                         new
                         {
                             Id = 9,
                             Anahtar = 8,
-                            Deger = "Stoktan Karşılandı"
+                            Deger = "StoktanKarsilandi"
                         },
                         new
                         {
                             Id = 10,
                             Anahtar = 9,
-                            Deger = "Tedarikçiden Geldi"
+                            Deger = "TedarikcidenGeldi"
                         },
                         new
                         {
                             Id = 11,
                             Anahtar = 10,
-                            Deger = "Başka Projeye Verildi"
+                            Deger = "BaskaProyeVerildi"
                         },
                         new
                         {
                             Id = 12,
                             Anahtar = 11,
-                            Deger = "Geri Gönderildi"
+                            Deger = "HataliUrun"
                         },
                         new
                         {
                             Id = 13,
                             Anahtar = 12,
-                            Deger = "Hatalı Ürün"
+                            Deger = "GeriGonderildi"
                         });
                 });
 
@@ -972,13 +981,13 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 2,
                             Anahtar = 1,
-                            Deger = "Kısmi Geldi"
+                            Deger = "KismiGeldi"
                         },
                         new
                         {
                             Id = 3,
                             Anahtar = 2,
-                            Deger = "Tamamlandı"
+                            Deger = "Tamamlandi"
                         },
                         new
                         {
@@ -990,73 +999,73 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 5,
                             Anahtar = 4,
-                            Deger = "Stoktan Karşılandı"
+                            Deger = "StoktanKarsilandi"
                         },
                         new
                         {
                             Id = 6,
                             Anahtar = 5,
-                            Deger = "FB'den Karşılandı"
+                            Deger = "FBdenKarsilandi"
                         },
                         new
                         {
                             Id = 7,
                             Anahtar = 6,
-                            Deger = "Sonra Gidecek"
+                            Deger = "SonraGidecek"
                         },
                         new
                         {
                             Id = 8,
                             Anahtar = 7,
-                            Deger = "Sandık Değişti"
+                            Deger = "SandikDegisti"
                         },
                         new
                         {
                             Id = 9,
                             Anahtar = 8,
-                            Deger = "İptal/Pasif"
+                            Deger = "IptalVeyaPasif"
                         },
                         new
                         {
                             Id = 10,
                             Anahtar = 9,
-                            Deger = "Teslim Alındı"
+                            Deger = "TeslimAlindi"
                         },
                         new
                         {
                             Id = 11,
                             Anahtar = 10,
-                            Deger = "Geri Gönderildi"
+                            Deger = "GeriGonderildi"
                         },
                         new
                         {
                             Id = 12,
                             Anahtar = 11,
-                            Deger = "Kısmi Tamamlandı"
+                            Deger = "KismiTamamlandi"
                         },
                         new
                         {
                             Id = 13,
                             Anahtar = 12,
-                            Deger = "Kayıp"
+                            Deger = "Kayip"
                         },
                         new
                         {
                             Id = 14,
                             Anahtar = 13,
-                            Deger = "Grid'de Hazır"
+                            Deger = "GriddeHazir"
                         },
                         new
                         {
                             Id = 15,
                             Anahtar = 14,
-                            Deger = "Grid'de Eksik"
+                            Deger = "GriddeEksik"
                         },
                         new
                         {
                             Id = 16,
                             Anahtar = 15,
-                            Deger = "Siparişte"
+                            Deger = "Sipariste"
                         },
                         new
                         {
@@ -1068,19 +1077,19 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 18,
                             Anahtar = 17,
-                            Deger = "Trafo Sevk"
+                            Deger = "TrafoSevk"
                         },
                         new
                         {
                             Id = 19,
                             Anahtar = 18,
-                            Deger = "Başka Projeye Verildi"
+                            Deger = "BaskaProyeVerildi"
                         },
                         new
                         {
                             Id = 20,
                             Anahtar = 19,
-                            Deger = "Hatalı Ürün"
+                            Deger = "HataliUrun"
                         });
                 });
 
@@ -1178,7 +1187,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 1,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(4628),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(1351),
                             Icon = "ri-dashboard-line",
                             Kod = "dashboard",
                             LabelKey = "MENU.DASHBOARD",
@@ -1188,7 +1197,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 2,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5424),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2064),
                             Icon = "ri-folder-line",
                             Kod = "projeler",
                             LabelKey = "MENU.PROJELER",
@@ -1197,7 +1206,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 5,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5434),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2066),
                             Icon = "ri-archive-line",
                             Kod = "sandik-yonetimi",
                             LabelKey = "MENU.SANDIK_YONETIMI",
@@ -1207,7 +1216,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 6,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5437),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2067),
                             Icon = "ri-error-warning-line",
                             Kod = "eksik-listesi",
                             LabelKey = "MENU.EKSIK_LISTESI",
@@ -1217,7 +1226,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 7,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5438),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2068),
                             Icon = "ri-building-2-line",
                             Kod = "depo-durumu",
                             LabelKey = "MENU.DEPO_DURUMU",
@@ -1227,7 +1236,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 8,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5439),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2069),
                             Icon = "ri-arrow-left-right-line",
                             Kod = "fb-transfer",
                             LabelKey = "MENU.FB_TRANSFER",
@@ -1237,7 +1246,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 9,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5440),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2070),
                             Icon = "ri-stack-line",
                             Kod = "stok",
                             LabelKey = "MENU.STOK_MODULU",
@@ -1247,7 +1256,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 10,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5442),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2071),
                             Icon = "ri-tools-line",
                             Kod = "saha-malzeme",
                             LabelKey = "MENU.SAHA_MALZEMESI",
@@ -1257,7 +1266,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 11,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5443),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2072),
                             Icon = "ri-history-line",
                             Kod = "hareket-gecmisi",
                             LabelKey = "MENU.HAREKET_GECMISI",
@@ -1267,7 +1276,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 12,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5444),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2073),
                             Icon = "ri-user-settings-line",
                             Kod = "kullanicilar",
                             LabelKey = "MENU.KULLANICI_YETKI",
@@ -1277,7 +1286,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 13,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5445),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2075),
                             Icon = "ri-shield-user-line",
                             Kod = "rol-yonetimi",
                             LabelKey = "MENU.ROL_YONETIMI",
@@ -1287,7 +1296,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 3,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5535),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2162),
                             Icon = "",
                             Kod = "aktif-projeler",
                             LabelKey = "MENU.AKTIF_PROJELER",
@@ -1298,7 +1307,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 4,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5536),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2164),
                             Icon = "",
                             Kod = "sevk-edilen",
                             LabelKey = "MENU.SEVK_EDILEN",
@@ -1309,7 +1318,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 14,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5537),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2173),
                             Icon = "",
                             Kod = "grid-modulu",
                             LabelKey = "MENU.GRID_MODULU",
@@ -1319,7 +1328,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 15,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5539),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2174),
                             Icon = "",
                             Kod = "3k-modulu",
                             LabelKey = "MENU.3K_MODULU",
@@ -1545,25 +1554,25 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 1,
                             Ad = "Admin",
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(3789)
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(533)
                         },
                         new
                         {
                             Id = 2,
                             Ad = "Personel3K",
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(4153)
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(867)
                         },
                         new
                         {
                             Id = 3,
                             Ad = "PersonelGrid",
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(4154)
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(868)
                         },
                         new
                         {
                             Id = 4,
                             Ad = "Yonetici",
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(4155)
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(869)
                         });
                 });
 
@@ -1612,7 +1621,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 1,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(5744),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2376),
                             MenuTanimiId = 1,
                             RolId = 1,
                             YetkiTipi = "W"
@@ -1620,7 +1629,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 2,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6077),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2716),
                             MenuTanimiId = 2,
                             RolId = 1,
                             YetkiTipi = "W"
@@ -1628,7 +1637,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 3,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6078),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2716),
                             MenuTanimiId = 3,
                             RolId = 1,
                             YetkiTipi = "W"
@@ -1636,7 +1645,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 4,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6079),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2717),
                             MenuTanimiId = 4,
                             RolId = 1,
                             YetkiTipi = "W"
@@ -1644,7 +1653,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 5,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6079),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2717),
                             MenuTanimiId = 5,
                             RolId = 1,
                             YetkiTipi = "W"
@@ -1652,7 +1661,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 6,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6080),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2718),
                             MenuTanimiId = 6,
                             RolId = 1,
                             YetkiTipi = "W"
@@ -1660,7 +1669,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 7,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6081),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2718),
                             MenuTanimiId = 7,
                             RolId = 1,
                             YetkiTipi = "W"
@@ -1668,7 +1677,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 8,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6081),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2719),
                             MenuTanimiId = 8,
                             RolId = 1,
                             YetkiTipi = "W"
@@ -1676,7 +1685,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 9,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6081),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2719),
                             MenuTanimiId = 9,
                             RolId = 1,
                             YetkiTipi = "W"
@@ -1684,7 +1693,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 10,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6082),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2720),
                             MenuTanimiId = 10,
                             RolId = 1,
                             YetkiTipi = "W"
@@ -1692,7 +1701,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 11,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6083),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2721),
                             MenuTanimiId = 11,
                             RolId = 1,
                             YetkiTipi = "W"
@@ -1700,7 +1709,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 12,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6083),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2721),
                             MenuTanimiId = 12,
                             RolId = 1,
                             YetkiTipi = "W"
@@ -1708,7 +1717,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 13,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6084),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2722),
                             MenuTanimiId = 13,
                             RolId = 1,
                             YetkiTipi = "W"
@@ -1716,7 +1725,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 14,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6084),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2722),
                             MenuTanimiId = 14,
                             RolId = 1,
                             YetkiTipi = "W"
@@ -1724,7 +1733,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 15,
-                            CreatedDate = new DateTime(2026, 4, 16, 23, 46, 23, 852, DateTimeKind.Utc).AddTicks(6084),
+                            CreatedDate = new DateTime(2026, 4, 16, 21, 59, 50, 775, DateTimeKind.Utc).AddTicks(2722),
                             MenuTanimiId = 15,
                             RolId = 1,
                             YetkiTipi = "W"

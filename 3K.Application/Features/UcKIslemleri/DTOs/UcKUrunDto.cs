@@ -18,7 +18,10 @@ namespace _3K.Application.Features.UcKIslemleri.DTOs
         // 3K tarafı
         public string UcKKarsilamaTipi { get; set; } = string.Empty;
         public int GelenMiktar { get; set; }
+        public int KarsilananMiktar { get; set; }
+        public int HataliMiktar { get; set; }
         public string? KaynakHedefProjeNo { get; set; }
+        public string? GeriGonderilmeSebebi { get; set; }
         public string? UcKAciklama { get; set; }
         public string? UcKNotu { get; set; }
 

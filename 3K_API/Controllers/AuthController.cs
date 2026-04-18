@@ -91,6 +91,29 @@ namespace _3K_API.Controllers
             var result = await _mediator.Send(command);
             return result.ToActionResult();
         }
+
+        /// <summary>
+        /// Mevcut geçerli token ile yeni token üretir (silent refresh).
+        /// Frontend 401 aldığında bu endpoint'i çağırır.
+        /// </summary>
+        [HttpPost("refresh-token")]
+        [Microsoft.AspNetCore.Authorization.Authorize]
+        public async Task<ActionResult> RefreshToken()
+        {
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+                return Unauthorized(new { isSuccess = false, error = "Geçersiz token." });
+
+            try
+            {
+                var newToken = await _authService.RefreshTokenAsync(userId);
+                return Ok(new { isSuccess = true, value = new { token = newToken } });
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(new { isSuccess = false, error = "Kullanıcı bulunamadı." });
+            }
+        }
     }
 
     /// <summary>

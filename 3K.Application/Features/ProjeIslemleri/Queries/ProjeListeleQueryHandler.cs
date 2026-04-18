@@ -26,20 +26,20 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                                     ?? new List<CekiSatiri>();
 
                 var toplamSandik = sandiklar.Count;
-                var hazirSandik = sandiklar.Count(s => s.Durum == "Hazir");
+                var hazirSandik = sandiklar.Count(s => s.Durum == StatusConstants.SandikDurum.Hazir);
                 var toplamUrun = cekiSatirlari.Count;
                 // Tamamlanan ürün: Grid veya 3K'da işlem görmüş
                 var tamamlananUrun = cekiSatirlari.Count(cs =>
-                    cs.GridDurumu != "Bekliyor" || cs.UcKKarsilamaTipi != "Bekliyor");
+                    cs.GridDurumu != StatusConstants.UrunDurum.Bekliyor || cs.UcKKarsilamaTipi != StatusConstants.UrunDurum.Bekliyor);
 
                 // Durum hesaplama
                 string durum;
                 if (toplamUrun == 0)
-                    durum = "Hazirlaniyor";
+                    durum = StatusConstants.ProjeDurum.Hazirlaniyor;
                 else if (hazirSandik == toplamSandik && toplamSandik > 0)
-                    durum = "Tamamlandi";
+                    durum = StatusConstants.ProjeDurum.Tamamlandi;
                 else if (tamamlananUrun > 0)
-                    durum = "DevamEdiyor";
+                    durum = StatusConstants.ProjeDurum.Devam;
                 else
                     durum = p.Durum;
 

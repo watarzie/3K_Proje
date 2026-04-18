@@ -96,9 +96,16 @@ namespace _3K.Infrastructure.Services
 
                 if (proje == null)
                 {
-                    proje = new Proje { ProjeNo = fbNo, FBNo = fbNo, Durum = "Hazirlaniyor" };
+                    proje = new Proje { ProjeNo = fbNo, FBNo = fbNo, Durum = "Hazırlanıyor" };
                     await projeRepo.AddAsync(proje);
                     await _unitOfWork.SaveChangesAsync();
+                }
+                else
+                {
+                    // Proje bulundu, çeki tekrar yüklemeyi engelle
+                    var cekiVarMi = await _context.Cekiler.AnyAsync(c => c.ProjeId == proje.Id);
+                    if (cekiVarMi)
+                        throw new Exception($"Bu projeye ({proje.ProjeNo}) ait çeki listesi daha önce yüklenmiş! Aynı proje iki kez yüklenemez.");
                 }
 
                 var musteri = worksheet.Cell(2, 6).GetString().Trim();
@@ -233,7 +240,7 @@ namespace _3K.Infrastructure.Services
                     {
                         ProjeId = proje.Id,
                         SandikNo = grup.Key,
-                        Durum = "Hazirlaniyor"
+                        Durum = "Hazırlanıyor"
                     };
                     await sandikRepo.AddAsync(sandik);
                     await _unitOfWork.SaveChangesAsync();

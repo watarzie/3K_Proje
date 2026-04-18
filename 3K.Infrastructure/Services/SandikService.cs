@@ -50,7 +50,7 @@ namespace _3K.Infrastructure.Services
             {
                 ProjeId = projeId,
                 SandikNo = sandikNo,
-                Durum = "Hazirlaniyor",
+                Durum = "Hazırlanıyor",
                 DepoLokasyonu = depoLokasyonu
             };
             await sandikRepo.AddAsync(sandik);

@@ -13,5 +13,11 @@ namespace _3K.Core.Interfaces
         string GenerateBasHarf(string adSoyad);
         /// <summary>Şifreyi hash'ler (BCrypt).</summary>
         string HashPassword(string plainPassword);
+
+        /// <summary>
+        /// Mevcut geçerli JWT'den yeni bir token üretir (silent refresh).
+        /// Token süresi dolmamışsa kullanıcı bilgilerini koruyarak yeni token döner.
+        /// </summary>
+        Task<string> RefreshTokenAsync(int userId);
     }
 }

@@ -94,6 +94,9 @@ namespace _3K.Infrastructure.Services
             if (ucKDurumu == "BaskaProyeVerildi")
                 return "BaskaProyeVerildi";
 
+            if (ucKDurumu == "GeriGonderildi")
+                return "GeriGonderildi";
+
             if (ucKDurumu == "HataliUrun")
                 return "HataliUrun";
 

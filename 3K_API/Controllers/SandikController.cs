@@ -112,5 +112,43 @@ namespace _3K_API.Controllers
             var result = await _mediator.Send(new GetEksikUrunlerQuery { ProjeId = projeId });
             return result.ToActionResult();
         }
+        /// <summary>
+        /// Sandık Bölme/Taşıma: Bir sandıktaki ürünlerin bir kısmını başka sandığa taşır.
+        /// Örn: 2 nolu sandıktaki 4 ürünün 2'si, 67 nolu sandığa aktarılır.
+        /// </summary>
+        [HttpPost("urun-tasi")]
+        public async Task<ActionResult> SandikUrunTasi([FromBody] SandikUrunTasiCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+        /// <summary>
+        /// Sandığı manuel kapatır. Eksik veya hatalı ürün varsa forceClose=false durumunda uyarı döner.
+        /// Ayrıca sadece Admin kapatabilir (Command tarafında rolü belirtilir).
+        /// </summary>
+        [HttpPost("kapat")]
+        public async Task<ActionResult> SandikKapat([FromBody] SandikKapatCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// Seçilen birden çok sandığı toplu olarak Hazır (Kapandı) durumuna getirir.
+        /// Eksik/hatalı ürün vb. detaylı log döner.
+        /// </summary>
+        [HttpPost("toplu-kapat")]
+        public async Task<ActionResult> TopluSandikKapat([FromBody] TopluSandikKapatCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return Ok(result);
+        }
+
+        [HttpPut("lokasyon-guncelle")]
+        public async Task<ActionResult> LokasyonGuncelle([FromBody] SandikLokasyonGuncelleCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
     }
 }

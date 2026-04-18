@@ -49,6 +49,7 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                     GridEksikMiktar = cs.GridEksikMiktar,
                     UcKDurumu = cs.UcKDurumu,
                     GelenMiktar = cs.GelenMiktar,
+                    KaynakHedefProjeNo = cs.KaynakHedefProjeNo,
                     GenelDurum = cs.Durum
                 })
                 .ToList();

@@ -9,77 +9,78 @@ namespace _3K.Application.Common
     {
         public static class ProjeDurum
         {
-            public const string Hazirlaniyor = "Hazirlaniyor";
+            public const string Hazirlaniyor = "Hazırlanıyor";
             public const string Devam = "Devam";
-            public const string Tamamlandi = "Tamamlandi";
+            public const string Tamamlandi = "Tamamlandı";
             public const string Beklemede = "Beklemede";
-            public const string SevkEdildi = "SevkEdildi";
-            public const string EksikSevkEdildi = "EksikSevkEdildi";
+            public const string SevkEdildi = "Sevk Edildi";
+            public const string EksikSevkEdildi = "Eksik Sevk Edildi";
         }
 
         public static class SandikDurum
         {
-            public const string Bos = "Bos";
-            public const string Hazirlaniyor = "Hazirlaniyor";
-            public const string Hazir = "Hazir";
-            public const string Sevkedildi = "Sevkedildi";
+            public const string Bos = "Boş";
+            public const string Hazirlaniyor = "Hazırlanıyor";
+            public const string Hazir = "Hazır";
+            public const string Sevkedildi = "Sevk Edildi";
         }
 
         public static class UrunDurum
         {
             public const string Bekliyor = "Bekliyor";
-            public const string KismiGeldi = "KismiGeldi";
-            public const string Tamamlandi = "Tamamlandi";
+            public const string KismiGeldi = "Kısmi Geldi";
+            public const string Tamamlandi = "Tamamlandı";
             public const string Eksik = "Eksik";
-            public const string StoktanKarsilandi = "StoktanKarsilandi";
-            public const string FBdenKarsilandi = "FBdenKarsilandi";
-            public const string SonraGidecek = "SonraGidecek";
-            public const string SandikDegisti = "SandikDegisti";
-            public const string IptalVeyaPasif = "IptalVeyaPasif";
-            public const string TeslimAlindi = "TeslimAlindi";
-            public const string GeriGonderildi = "GeriGonderildi";
-            public const string KismiTamamlandi = "KismiTamamlandi";
-            public const string Kayip = "Kayip";
-            public const string GriddeHazir = "GriddeHazir";
-            public const string GriddeEksik = "GriddeEksik";
-            public const string Sipariste = "Sipariste";
+            public const string StoktanKarsilandi = "Stoktan Karşılandı";
+            public const string FBdenKarsilandi = "FB'den Karşılandı";
+            public const string SonraGidecek = "Sonra Gidecek";
+            public const string SandikDegisti = "Sandık Değişti";
+            public const string IptalVeyaPasif = "İptal/Pasif";
+            public const string TeslimAlindi = "Teslim Alındı";
+            public const string GeriGonderildi = "Geri Gönderildi";
+            public const string KismiTamamlandi = "Kısmi Tamamlandı";
+            public const string Kayip = "Kayıp";
+            public const string GriddeHazir = "Grid'de Hazır";
+            public const string GriddeEksik = "Grid'de Eksik";
+            public const string Sipariste = "Siparişte";
             public const string Gelmedi = "Gelmedi";
-            public const string TrafoSevk = "TrafoSevk";
-            public const string BaskaProyeVerildi = "BaskaProyeVerildi";
-            public const string HataliUrun = "HataliUrun";
+            public const string TrafoSevk = "Trafo Sevk";
+            public const string BaskaProyeVerildi = "Başka Projeye Verildi";
+            public const string HataliUrun = "Hatalı Ürün";
         }
 
         public static class GridDurum
         {
             public const string Bekliyor = "Bekliyor";
-            public const string Uretimde = "Uretimde";
-            public const string StokHazir = "StokHazir";
-            public const string SevkEdildi = "SevkEdildi";
-            public const string KismiSevkEdildi = "KismiSevkEdildi";
+            public const string Uretimde = "Üretimde";
+            public const string StokHazir = "Stok Hazır";
+            public const string SevkEdildi = "Sevk Edildi";
+            public const string KismiSevkEdildi = "Kısmi Sevk Edildi";
             public const string Bekletiliyor = "Bekletiliyor";
-            public const string IptalEdildi = "IptalEdildi";
-            public const string TamGeldi = "TamGeldi";
-            public const string EksikGeldi = "EksikGeldi";
+            public const string IptalEdildi = "İptal Edildi";
+            public const string TamGeldi = "Tam Geldi";
+            public const string EksikGeldi = "Eksik Geldi";
             public const string Gelmedi = "Gelmedi";
-            public const string TrafoSevk = "TrafoSevk";
-            public const string Iptal = "Iptal";
-            public const string Sipariste = "Sipariste";
+            public const string TrafoSevk = "Trafo Sevk";
+            public const string Iptal = "İptal";
+            public const string Sipariste = "Siparişte";
         }
 
         public static class UcKDurum
         {
             public const string Bekliyor = "Bekliyor";
-            public const string TamGeldi = "TamGeldi";
-            public const string EksikGeldi = "EksikGeldi";
+            public const string TamGeldi = "Tam Geldi";
+            public const string EksikGeldi = "Eksik Geldi";
             public const string Gelmedi = "Gelmedi";
             public const string Paketlendi = "Paketlendi";
-            public const string KontrolEdildi = "KontrolEdildi";
-            public const string IadeEdildi = "IadeEdildi";
-            public const string ProjedenKarsilandi = "ProjedenKarsilandi";
-            public const string StoktanKarsilandi = "StoktanKarsilandi";
-            public const string TedarikcidenGeldi = "TedarikcidenGeldi";
-            public const string BaskaProyeVerildi = "BaskaProyeVerildi";
-            public const string HataliUrun = "HataliUrun";
+            public const string KontrolEdildi = "Kontrol Edildi";
+            public const string IadeEdildi = "İade Edildi";
+            public const string ProjedenKarsilandi = "Projeden Karşılandı";
+            public const string StoktanKarsilandi = "Stoktan Karşılandı";
+            public const string TedarikcidenGeldi = "Tedarikçiden Geldi";
+            public const string BaskaProyeVerildi = "Başka Projeye Verildi";
+            public const string GeriGonderildi = "Geri Gönderildi";
+            public const string HataliUrun = "Hatalı Ürün";
         }
 
         public static class DepoLokasyon
@@ -100,9 +101,9 @@ namespace _3K.Application.Common
 
         public static class GridSevkDurum
         {
-            public const string SevkEdildi = "SevkEdildi";
+            public const string SevkEdildi = "Sevk Edildi";
             public const string Bekliyor = "Bekliyor";
-            public const string SevkEdilmedi = "SevkEdilmedi";
+            public const string SevkEdilmedi = "Sevk Edilmedi";
         }
 
         public static class IslemTipi

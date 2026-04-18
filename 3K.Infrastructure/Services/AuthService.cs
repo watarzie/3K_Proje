@@ -88,6 +88,16 @@ namespace _3K.Infrastructure.Services
             return BCrypt.Net.BCrypt.HashPassword(plainPassword);
         }
 
+        public async Task<string> RefreshTokenAsync(int userId)
+        {
+            var kullaniciRepo = _unitOfWork.GetRepository<Kullanici>();
+            var kullanicilar = await kullaniciRepo.GetAllWithIncludeAsync(k => k.Rol);
+            var kullanici = kullanicilar.FirstOrDefault(k => k.Id == userId)
+                ?? throw new UnauthorizedAccessException("Kullanıcı bulunamadı.");
+
+            return GenerateJwtToken(kullanici);
+        }
+
         private string GenerateJwtToken(Kullanici kullanici)
         {
             var jwtKey = _configuration["JwtSettings:SecretKey"]

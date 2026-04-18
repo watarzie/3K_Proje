@@ -21,8 +21,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
 
             if (sandik == null)
                 return Result<bool>.Failure("Sandık bulunamadı.", 404);
-
-            sandik.Durum = request.Kapali ? "Hazir" : "Hazirlaniyor";
+            sandik.Durum = request.Kapali ? StatusConstants.SandikDurum.Hazir : StatusConstants.SandikDurum.Hazirlaniyor;
 
             repo.Update(sandik);
             await _unitOfWork.SaveChangesAsync();
