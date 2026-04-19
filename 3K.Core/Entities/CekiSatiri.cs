@@ -139,7 +139,6 @@ namespace _3K.Core.Entities
         public virtual Kullanici? GridPersonel { get; set; }
         public virtual Proje? KaynakProje { get; set; }
         public virtual ICollection<SandikIcerik> SandikIcerikleri { get; set; } = new List<SandikIcerik>();
-        public virtual ICollection<FBTransfer> FBTransferleri { get; set; } = new List<FBTransfer>();
         public virtual ICollection<StokHareketi> StokHareketleri { get; set; } = new List<StokHareketi>();
     }
 }

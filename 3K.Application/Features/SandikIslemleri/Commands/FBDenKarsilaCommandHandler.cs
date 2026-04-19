@@ -27,7 +27,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         public async Task<Result> Handle(FBDenKarsilaCommand request, CancellationToken cancellationToken)
         {
             var urunRepo = _unitOfWork.GetRepository<CekiSatiri>();
-            var fbTransferRepo = _unitOfWork.GetRepository<FBTransfer>();
+
             var sandikIcerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
 
             // ===== 1. Hedef ürünü bul =====
@@ -81,18 +81,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 });
             }
 
-            // ===== 3. FB Transfer kaydı =====
-            await fbTransferRepo.AddAsync(new FBTransfer
-            {
-                CekiSatiriId = urun.Id,
-                KullaniciId = _currentUserService.UserId ?? 0,
-                AsilFB = request.AsilFB,
-                AlinanFB = request.AlinanFB,
-                Miktar = request.KarsilananAdet,
-                Aciklama = request.Aciklama,
-                IadeDurumu = request.IadeDurumu,
-                Tarih = DateTime.UtcNow
-            });
+            // Transfer kaydı, hedefe referanslar kaydedildi...
 
             // ===== 4. Hedef ürün kümülatif güncelle =====
             urun.KarsilananMiktar += request.KarsilananAdet;

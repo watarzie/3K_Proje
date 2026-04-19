@@ -4,9 +4,8 @@ namespace _3K.Core.Entities
     /// Tüm lookup entity'leri için temel sınıf.
     /// Her grup kendi tablosunu alır, FK ilişkileri Deger üzerinden kurulur.
     /// </summary>
-    public abstract class LookupBase
+    public abstract class LookupBase : BaseEntity
     {
-        public int Id { get; set; }
         public int Anahtar { get; set; }
         public string Deger { get; set; } = string.Empty;
     }

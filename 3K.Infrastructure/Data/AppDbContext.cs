@@ -16,12 +16,13 @@ namespace _3K.Infrastructure.Data
         public DbSet<Sandik> Sandiklar { get; set; } = null!;
         public DbSet<SandikIcerik> SandikIcerikleri { get; set; } = null!;
         public DbSet<Kullanici> Kullanicilar { get; set; } = null!;
-        public DbSet<FBTransfer> FBTransferleri { get; set; } = null!;
+        public DbSet<IslemOnayKurali> IslemOnayKurallari { get; set; } = null!;
         public DbSet<StokKaydi> StokKayitlari { get; set; } = null!;
         public DbSet<StokHareketi> StokHareketleri { get; set; } = null!;
         public DbSet<Revizyon> Revizyonlar { get; set; } = null!;
         public DbSet<HareketGecmisi> HareketGecmisleri { get; set; } = null!;
         public DbSet<ProjeTransfer> ProjeTransferleri { get; set; } = null!;
+        public DbSet<OnayBekleyenIslem> OnayBekleyenIslemler { get; set; } = null!;
 
         // ======= RBAC (Rol Tabanlı Erişim Kontrolü) DbSet'leri =======
         public DbSet<Rol> Roller { get; set; } = null!;
@@ -203,6 +204,26 @@ namespace _3K.Infrastructure.Data
                 .OnDelete(DeleteBehavior.Restrict);
 
             // ===============================================================
+            // ONAY BEKLEYEN ISLEMLER KONFIGURASYONU
+            // ===============================================================
+            modelBuilder.Entity<OnayBekleyenIslem>()
+                .Property(o => o.PayloadJson)
+                .HasColumnType("text")
+                .IsRequired();
+
+            modelBuilder.Entity<OnayBekleyenIslem>()
+                .HasOne(o => o.TalepEdenKullanici)
+                .WithMany()
+                .HasForeignKey(o => o.TalepEdenKullaniciId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OnayBekleyenIslem>()
+                .HasOne(o => o.OnaylayanKullanici)
+                .WithMany()
+                .HasForeignKey(o => o.OnaylayanKullaniciId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ===============================================================
             // 4b. RBAC İLİŞKİLERİ — Rol ↔ MenuTanimi ↔ RolYetki
             // ===============================================================
 
@@ -310,20 +331,6 @@ namespace _3K.Infrastructure.Data
                 .WithMany()
                 .HasForeignKey(cs => cs.KontrolEdenId)
                 .OnDelete(DeleteBehavior.SetNull);
-
-            // CekiSatiri (1) - FBTransfer (0..*)
-            modelBuilder.Entity<CekiSatiri>()
-                .HasMany(cs => cs.FBTransferleri)
-                .WithOne(fb => fb.CekiSatiri)
-                .HasForeignKey(fb => fb.CekiSatiriId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            // FBTransfer - Kullanici
-            modelBuilder.Entity<FBTransfer>()
-                .HasOne(fb => fb.Kullanici)
-                .WithMany()
-                .HasForeignKey(fb => fb.KullaniciId)
-                .OnDelete(DeleteBehavior.Restrict);
 
             // CekiSatiri (1) - StokHareketi (0..*)
             modelBuilder.Entity<CekiSatiri>()
@@ -494,7 +501,8 @@ namespace _3K.Infrastructure.Data
             // GeriGonderilmeSebebi
             modelBuilder.Entity<LookupGeriGonderilmeSebebi>().HasData(
                 new LookupGeriGonderilmeSebebi { Id = 1, Anahtar = 0, Deger = "Tadilat" },
-                new LookupGeriGonderilmeSebebi { Id = 2, Anahtar = 1, Deger = "Iptal" }
+                new LookupGeriGonderilmeSebebi { Id = 2, Anahtar = 1, Deger = "Iptal" },
+                new LookupGeriGonderilmeSebebi { Id = 3, Anahtar = 2, Deger = "Projeye Geri Dönüş" }
             );
 
             // YetkiTipi
@@ -526,6 +534,24 @@ namespace _3K.Infrastructure.Data
                 new LookupIslemTipi { Id = 11, Anahtar = 10, Deger = "UrunGuncellendi" },
                 new LookupIslemTipi { Id = 12, Anahtar = 11, Deger = "KullaniciOlusturuldu" },
                 new LookupIslemTipi { Id = 13, Anahtar = 12, Deger = "ProjeOlusturuldu" }
+            );
+
+            SeedApprovalRules(modelBuilder);
+        }
+
+        private static void SeedApprovalRules(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<IslemOnayKurali>().HasData(
+                new IslemOnayKurali { Id = 1, LookupUcKDurumId = 8, OnayGerektirirMi = true }, // ProjedenKarşılandı
+                new IslemOnayKurali { Id = 2, LookupUcKDurumId = 9, OnayGerektirirMi = true }, // StoktanKarşılandı
+                new IslemOnayKurali { Id = 3, LookupUcKDurumId = 10, OnayGerektirirMi = true }, // TedarikçidenGeldi
+                
+                new IslemOnayKurali { Id = 4, LookupUcKDurumId = 2, OnayGerektirirMi = false }, // TamGeldi
+                new IslemOnayKurali { Id = 5, LookupUcKDurumId = 3, OnayGerektirirMi = false }, // EksikGeldi
+                new IslemOnayKurali { Id = 6, LookupUcKDurumId = 4, OnayGerektirirMi = false }, // Gelmedi
+                new IslemOnayKurali { Id = 7, LookupUcKDurumId = 11, OnayGerektirirMi = false }, // BaşkaProjeyeVerildi
+                new IslemOnayKurali { Id = 8, LookupUcKDurumId = 12, OnayGerektirirMi = false }, // GeriGönderildi
+                new IslemOnayKurali { Id = 9, LookupUcKDurumId = 13, OnayGerektirirMi = false } // HatalıÜrün
             );
         }
 
@@ -565,7 +591,9 @@ namespace _3K.Infrastructure.Data
                 // Yetki kontrollü butonlar — sidebar'da GÖRÜNMEZler (Route=null).
                 // Rol yetki ekranında "Projeler" altında görünür → admin W/R/N ayarlar.
                 new MenuTanimi { Id = 14, Kod = "grid-modulu", LabelKey = "MENU.GRID_MODULU", Icon = "", Route = null, Sira = 3, ParentId = 2 },
-                new MenuTanimi { Id = 15, Kod = "3k-modulu", LabelKey = "MENU.3K_MODULU", Icon = "", Route = null, Sira = 4, ParentId = 2 }
+                new MenuTanimi { Id = 15, Kod = "3k-modulu", LabelKey = "MENU.3K_MODULU", Icon = "", Route = null, Sira = 4, ParentId = 2 },
+                // Onay Merkezi (Header bildirimi için yetki aracı)
+                new MenuTanimi { Id = 99, Kod = "islem-onay-merkezi", LabelKey = "MENU.ISLEM_ONAY", Icon = "ri-check-double-line", Route = "/onay-merkezi", Sira = 12, ParentId = null }
             );
 
             // ======= ADMIN ROL YETKİLERİ (tüm menülere W) =======
@@ -574,6 +602,7 @@ namespace _3K.Infrastructure.Data
             {
                 adminYetkiler.Add(new RolYetki { Id = menuId, RolId = 1, MenuTanimiId = menuId, YetkiTipi = "W" });
             }
+            adminYetkiler.Add(new RolYetki { Id = 99, RolId = 1, MenuTanimiId = 99, YetkiTipi = "W" });
             modelBuilder.Entity<RolYetki>().HasData(adminYetkiler);
         }
 

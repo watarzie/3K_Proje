@@ -15,7 +15,10 @@ namespace _3K_API.Extensions
         public static ActionResult ToActionResult(this Result result)
         {
             if (result.IsSuccess)
+            {
+                if (result.StatusCode == 202) return new AcceptedResult("", new { message = "İşleminiz yetkili onayına sunulmuştur.", statusCode = 202 });
                 return new OkObjectResult(new { message = "İşlem başarılı." });
+            }
 
             return result.Error!.Code switch
             {
@@ -32,7 +35,10 @@ namespace _3K_API.Extensions
         public static ActionResult ToActionResult<T>(this Result<T> result)
         {
             if (result.IsSuccess)
+            {
+                if (result.StatusCode == 202) return new AcceptedResult("", new { message = "İşleminiz yetkili onayına sunulmuştur.", statusCode = 202, value = result.Value });
                 return new OkObjectResult(result.Value);
+            }
 
             return result.Error!.Code switch
             {

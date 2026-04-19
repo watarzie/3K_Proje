@@ -33,7 +33,6 @@ builder.Services.AddScoped<ICekiService, CekiService>();
 builder.Services.AddScoped<ISandikService, SandikService>();
 builder.Services.AddScoped<IUrunService, UrunService>();
 builder.Services.AddScoped<IStokService, StokService>();
-builder.Services.AddScoped<IFBTransferService, FBTransferService>();
 builder.Services.AddScoped<IHareketService, HareketService>();
 builder.Services.AddScoped<IRevizyonService, RevizyonService>();
 builder.Services.AddScoped<IPdfService, PdfService>();
@@ -61,6 +60,7 @@ builder.Services.AddMediatR(cfg =>
     // Pipeline sırası: UnhandledException (en dış) → Authorization → Validation → Caching → Handler
     cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(UnhandledExceptionBehavior<,>));
     cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(AuthorizationBehavior<,>));
+    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ApprovalBehavior<,>));
     cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
     cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(CachingBehavior<,>));
 });
@@ -86,8 +86,22 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = builder.Configuration["JwtSettings:Audience"] ?? "3K_Client",
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
         };
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/api/onay/sse-stream"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
     });
 
+builder.Services.AddSingleton<ISseNotifier, SseNotifier>();
 builder.Services.AddAuthorization();
 
 // ======= Controllers =======

@@ -22,7 +22,6 @@ namespace _3K.Infrastructure.Services
                 .Include(cs => cs.Paketleyen)
                 .Include(cs => cs.KontrolEden)
                 .Include(cs => cs.SandikIcerikleri)
-                .Include(cs => cs.FBTransferleri)
                 .Include(cs => cs.StokHareketleri)
                 .FirstOrDefaultAsync(cs => cs.Id == cekiSatiriId);
         }

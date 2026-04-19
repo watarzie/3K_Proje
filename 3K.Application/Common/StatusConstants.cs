@@ -7,6 +7,8 @@ namespace _3K.Application.Common
     /// </summary>
     public static class StatusConstants
     {
+        public const int ActionQueuedForApproval = 202;
+
         public static class ProjeDurum
         {
             public const string Hazirlaniyor = "Hazırlanıyor";

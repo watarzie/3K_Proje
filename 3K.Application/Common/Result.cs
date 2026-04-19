@@ -13,15 +13,17 @@ namespace _3K.Application.Common
     {
         public bool IsSuccess { get; }
         public Error? Error { get; }
+        public int StatusCode { get; }
 
-        protected Result(bool isSuccess, Error? error)
+        protected Result(bool isSuccess, Error? error, int statusCode = 200)
         {
             IsSuccess = isSuccess;
             Error = error;
+            StatusCode = statusCode;
         }
 
-        public static Result Success() => new(true, null);
-        public static Result Failure(string message, int code = 400) => new(false, new Error(message, code));
+        public static Result Success(int statusCode = 200) => new(true, null, statusCode);
+        public static Result Failure(string message, int code = 400) => new(false, new Error(message, code), code);
     }
 
     /// <summary>
@@ -32,12 +34,12 @@ namespace _3K.Application.Common
     {
         public T? Value { get; }
 
-        private Result(bool isSuccess, T? value, Error? error) : base(isSuccess, error)
+        private Result(bool isSuccess, T? value, Error? error, int statusCode = 200) : base(isSuccess, error, statusCode)
         {
             Value = value;
         }
 
-        public static Result<T> Success(T value) => new(true, value, null);
-        public new static Result<T> Failure(string message, int code = 400) => new(false, default, new Error(message, code));
+        public static Result<T> Success(T value, int statusCode = 200) => new(true, value, null, statusCode);
+        public new static Result<T> Failure(string message, int code = 400) => new(false, default, new Error(message, code), code);
     }
 }
