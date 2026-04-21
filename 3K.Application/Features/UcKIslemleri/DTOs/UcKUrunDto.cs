@@ -11,23 +11,29 @@ namespace _3K.Application.Features.UcKIslemleri.DTOs
         public string Birim { get; set; } = string.Empty;
 
         // Grid tarafı (read-only)
-        public string GridDurumu { get; set; } = string.Empty;
+        public int GridDurumuId { get; set; }
+        public string GridDurumuMetni { get; set; } = string.Empty;
         public int GridGelenAdet { get; set; }
         public int TrafoSevkAdet { get; set; }
+        public int GridSevkDurumuId { get; set; }
+        public string GridSevkDurumuMetni { get; set; } = string.Empty;
 
         // 3K tarafı
-        public string UcKKarsilamaTipi { get; set; } = string.Empty;
+        public int UcKKarsilamaTipiId { get; set; }
+        public string UcKKarsilamaTipiMetni { get; set; } = string.Empty;
         public int GelenMiktar { get; set; }
         public int KarsilananMiktar { get; set; }
         public int HataliMiktar { get; set; }
         public string? KaynakHedefProjeNo { get; set; }
-        public string? GeriGonderilmeSebebi { get; set; }
+        public int? GeriGonderilmeSebebiId { get; set; }
+        public string? GeriGonderilmeSebebiMetni { get; set; }
         public string? UcKAciklama { get; set; }
         public string? UcKNotu { get; set; }
 
         // Hesaplanan
         public int Kalan { get; set; }
         public string KontrolUyari { get; set; } = string.Empty;
-        public string GenelDurum { get; set; } = string.Empty;
+        public int GenelDurumId { get; set; }
+        public string GenelDurumMetni { get; set; } = string.Empty;
     }
 }

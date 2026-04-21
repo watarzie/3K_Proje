@@ -32,8 +32,10 @@ namespace _3K.Application.Features.RolIslemleri.DTOs
         public string? Route { get; set; }
         public int Sira { get; set; }
 
+        /// <summary>YetkiTipi Id: 1=N, 2=R, 3=W</summary>
+        public int YetkiTipiId { get; set; } = 1;
         /// <summary>W = Tam yetki, R = Sadece okuma, N = Yetkisiz</summary>
-        public string YetkiTipi { get; set; } = "N";
+        public string YetkiTipiMetni { get; set; } = "N";
 
         public List<MenuTreeDto> Children { get; set; } = new();
     }
@@ -44,6 +46,7 @@ namespace _3K.Application.Features.RolIslemleri.DTOs
     public class RolYetkiItemDto
     {
         public int MenuTanimiId { get; set; }
-        public string YetkiTipi { get; set; } = "N";
+        /// <summary>YetkiTipi Id: 1=N, 2=R, 3=W</summary>
+        public int YetkiTipiId { get; set; } = 1;
     }
 }

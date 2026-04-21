@@ -1,4 +1,5 @@
 using MediatR;
+using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
@@ -13,9 +14,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
         private readonly IHareketService _hareketService;
         private readonly IStokService _stokService;
 
-        private static readonly string[] GecerliTipler =
-            { StatusConstants.UcKDurum.TamGeldi, StatusConstants.UcKDurum.EksikGeldi, StatusConstants.UcKDurum.Gelmedi, StatusConstants.UcKDurum.ProjedenKarsilandi, StatusConstants.UrunDurum.StoktanKarsilandi,
-              StatusConstants.UcKDurum.TedarikcidenGeldi, StatusConstants.UcKDurum.GeriGonderildi, StatusConstants.UcKDurum.HataliUrun };
+        private static readonly int[] GecerliTipler =
+            { (int)UcKDurum.TamGeldi, (int)UcKDurum.EksikGeldi, (int)UcKDurum.Gelmedi, (int)UcKDurum.ProjedenKarsilandi, (int)UcKDurum.StoktanKarsilandi,
+              (int)UcKDurum.TedarikcidenGeldi, (int)UcKDurum.GeriGonderildi, (int)UcKDurum.HataliUrun };
 
         public UcKDurumGuncelleCommandHandler(
             IUnitOfWork unitOfWork,
@@ -33,42 +34,68 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
         public async Task<Result> Handle(UcKDurumGuncelleCommand request, CancellationToken cancellationToken)
         {
-            if (!GecerliTipler.Contains(request.KarsilamaTipi))
-                return Result.Failure($"Geçersiz karşılama tipi: {request.KarsilamaTipi}");
+            if (!GecerliTipler.Contains(request.KarsilamaTipiId))
+                return Result.Failure($"Geçersiz karşılama tipi: {request.KarsilamaTipiId}");
 
             var repo = _unitOfWork.GetRepository<CekiSatiri>();
             var satir = await repo.GetByIdAsync(request.CekiSatiriId);
             if (satir == null)
                 return Result.Failure("Ürün bulunamadı.", 404);
 
-            var eskiDurum = satir.UcKKarsilamaTipi;
+            var eskiDurum = satir.UcKKarsilamaTipiId;
 
             // ===== Grid İptal Blokajı =====
-            if (satir.GridDurumu == StatusConstants.GridDurum.Iptal)
+            if (satir.GridDurumuId == (int)GridDurum.Iptal)
                 return Result.Failure("Bu ürün Grid tarafından iptal edildiği için üzerinde hiçbir işlem yapılamaz.");
 
+            // ===== Grid Trafo Sevk Blokajı =====
+            if (satir.GridDurumuId == (int)GridDurum.TrafoSevk)
+                return Result.Failure("Bu ürün Grid tarafından 'Trafo Sevk' olarak işaretlendiğinden 3K işlemi yapılamaz.");
+
+            // ===== Grid Gelmedi → Sadece Projeden/Stoktan/Tedarikçiden =====
+            if (satir.GridDurumuId == (int)GridDurum.Gelmedi)
+            {
+                var izinliTipler = new[] { (int)UcKDurum.ProjedenKarsilandi, (int)UcKDurum.StoktanKarsilandi, (int)UcKDurum.TedarikcidenGeldi };
+                if (!izinliTipler.Contains(request.KarsilamaTipiId))
+                    return Result.Failure("Grid 'Gelmedi' durumunda yalnızca Projeden, Stoktan veya Tedarikçiden karşılama yapılabilir.");
+            }
+
             // ===== Eksiksiz (Tam) Geldi Validasyonu =====
-            if (request.KarsilamaTipi == StatusConstants.UcKDurum.TamGeldi && satir.GridDurumu != StatusConstants.GridDurum.SevkEdildi)
+            if (request.KarsilamaTipiId == (int)UcKDurum.TamGeldi && satir.GridSevkDurumuId != (int)GridSevkDurum.SevkEdildi)
                 return Result.Failure("Grid tarafından eksiksiz sevk edilmeden ürün 'Tam Geldi' olarak işaretlenemez.");
 
+            // ===== Hatalı Ürün → Grid sevk edilmiş olmalı =====
+            if (request.KarsilamaTipiId == (int)UcKDurum.HataliUrun && satir.GridSevkDurumuId != (int)GridSevkDurum.SevkEdildi)
+                return Result.Failure("Grid tarafından sevk edilmeden 'Hatalı Ürün' işaretlenemez.");
+
             // ===== Validasyon =====
-            switch (request.KarsilamaTipi)
+            switch (request.KarsilamaTipiId)
             {
-                case StatusConstants.UcKDurum.EksikGeldi:
+                case (int)UcKDurum.EksikGeldi:
                     if (request.GelenAdet == null || request.GelenAdet <= 0)
                         return Result.Failure("Eksik geldi durumunda gelen adet girilmelidir.");
                     if (request.GelenAdet >= satir.IstenenAdet)
                         return Result.Failure("Gelen adet miktardan küçük olmalıdır.");
                     break;
 
-                case StatusConstants.UcKDurum.ProjedenKarsilandi:
+                case (int)UcKDurum.ProjedenKarsilandi:
                     if (request.GelenAdet == null || request.GelenAdet <= 0)
                         return Result.Failure("Projeden karşılama adeti girilmelidir.");
                     if (string.IsNullOrWhiteSpace(request.KaynakHedefProjeNo))
                         return Result.Failure("Kaynak proje girilmelidir.");
+                    // Kendi projesinden karşılama yapılamaz
+                    var cekiRepo = _unitOfWork.GetRepository<Ceki>();
+                    var ceki = await cekiRepo.GetByIdAsync(satir.CekiId);
+                    if (ceki != null)
+                    {
+                        var projeRepo = _unitOfWork.GetRepository<Proje>();
+                        var mevcutProje = await projeRepo.GetByIdAsync(ceki.ProjeId);
+                        if (mevcutProje != null && mevcutProje.ProjeNo == request.KaynakHedefProjeNo)
+                            return Result.Failure("Bir proje kendi ürünlerinden karşılama yapamaz.");
+                    }
                     break;
 
-                case StatusConstants.UrunDurum.StoktanKarsilandi:
+                case (int)UcKDurum.StoktanKarsilandi:
                     if (request.GelenAdet == null || request.GelenAdet <= 0)
                         return Result.Failure("Gelen adet girilmelidir.");
                     if (request.StokKaydiId == null || request.StokKaydiId <= 0)
@@ -95,17 +122,17 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                         return Result.Failure("Seçilen stokta yeterli miktar bulunmuyor.");
                     break;
 
-                case StatusConstants.UcKDurum.TedarikcidenGeldi:
+                case (int)UcKDurum.TedarikcidenGeldi:
                     if (request.GelenAdet == null || request.GelenAdet <= 0)
                         return Result.Failure("Gelen adet girilmelidir.");
                     break;
 
-                case StatusConstants.UcKDurum.GeriGonderildi:
+                case (int)UcKDurum.GeriGonderildi:
                     if (string.IsNullOrWhiteSpace(request.Aciklama))
                         return Result.Failure("Geri gönderilme sebebi girilmelidir.");
                     break;
 
-                case StatusConstants.UcKDurum.HataliUrun:
+                case (int)UcKDurum.HataliUrun:
                     if (request.GelenAdet == null || request.GelenAdet <= 0)
                         return Result.Failure("Gelen adet girilmelidir.");
                     if (string.IsNullOrWhiteSpace(request.Aciklama))
@@ -114,41 +141,41 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             }
 
             // ===== Alanları güncelle =====
-            satir.UcKKarsilamaTipi = request.KarsilamaTipi;
+            satir.UcKKarsilamaTipiId = request.KarsilamaTipiId;
             satir.UcKAciklama = request.Aciklama;
             satir.UcKNotu = request.Not;
             satir.KaynakHedefProjeNo = request.KaynakHedefProjeNo;
 
-            switch (request.KarsilamaTipi)
+            switch (request.KarsilamaTipiId)
             {
-                case StatusConstants.UcKDurum.TamGeldi:
+                case (int)UcKDurum.TamGeldi:
                     satir.GelenMiktar = satir.IstenenAdet - satir.KarsilananMiktar;
-                    satir.UcKDurumu = StatusConstants.UcKDurum.TamGeldi;
+                    satir.UcKDurumuId = (int)UcKDurum.TamGeldi;
                     satir.TeslimTarihi = DateTime.UtcNow;
                     break;
 
-                case StatusConstants.UcKDurum.EksikGeldi:
+                case (int)UcKDurum.EksikGeldi:
                     satir.GelenMiktar += request.GelenAdet!.Value;
-                    satir.UcKDurumu = StatusConstants.UcKDurum.EksikGeldi;
+                    satir.UcKDurumuId = (int)UcKDurum.EksikGeldi;
                     satir.TeslimTarihi = DateTime.UtcNow;
                     break;
 
-                case StatusConstants.UcKDurum.Gelmedi:
-                    satir.UcKDurumu = StatusConstants.UcKDurum.Gelmedi;
+                case (int)UcKDurum.Gelmedi:
+                    satir.UcKDurumuId = (int)UcKDurum.Gelmedi;
                     satir.TeslimTarihi = DateTime.UtcNow;
                     break;
 
-                case StatusConstants.UcKDurum.ProjedenKarsilandi:
+                case (int)UcKDurum.ProjedenKarsilandi:
                     satir.KarsilananMiktar += request.GelenAdet!.Value;
-                    satir.UcKDurumu = StatusConstants.UcKDurum.ProjedenKarsilandi;
+                    satir.UcKDurumuId = (int)UcKDurum.ProjedenKarsilandi;
                     satir.TeslimTarihi = DateTime.UtcNow;
                     // Cross-project transfer
                     await HandleProjedenKarsilandi(satir, request);
                     break;
 
-                case StatusConstants.UrunDurum.StoktanKarsilandi:
+                case (int)UcKDurum.StoktanKarsilandi:
                     satir.KarsilananMiktar += request.GelenAdet!.Value;
-                    satir.UcKDurumu = StatusConstants.UrunDurum.StoktanKarsilandi;
+                    satir.UcKDurumuId = (int)UcKDurum.StoktanKarsilandi;
                     satir.TeslimTarihi = DateTime.UtcNow;
 
                     // Stoktan Düşme ve StokHareketi Loglama İşlemi
@@ -162,26 +189,26 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                         ProjeId = request.ProjeId,
                         KullaniciId = _currentUserService.UserId ?? 0,
                         Miktar = request.GelenAdet.Value,
-                        IslemTipi = "StokKullanimi",
+                        IslemTipiId = (int)IslemTipi.StokKullanimi,
                         Aciklama = $"Proje {request.ProjeId} için 3K aşamasında stoktan {request.GelenAdet.Value} adet karşılandı.",
                         Tarih = DateTime.UtcNow
                     });
                     break;
 
-                case StatusConstants.UcKDurum.TedarikcidenGeldi:
+                case (int)UcKDurum.TedarikcidenGeldi:
                     satir.KarsilananMiktar += request.GelenAdet!.Value;
-                    satir.UcKDurumu = StatusConstants.UcKDurum.TedarikcidenGeldi;
+                    satir.UcKDurumuId = (int)UcKDurum.TedarikcidenGeldi;
                     satir.TeslimTarihi = DateTime.UtcNow;
                     break;
 
-                case StatusConstants.UcKDurum.GeriGonderildi:
-                    satir.UcKDurumu = StatusConstants.UcKDurum.GeriGonderildi;
-                    satir.GeriGonderilmeSebebi = request.Aciklama;
+                case (int)UcKDurum.GeriGonderildi:
+                    satir.UcKDurumuId = (int)UcKDurum.GeriGonderildi;
+                    satir.GeriGonderilmeSebebiId = request.GeriGonderilmeSebebiId;
                     break;
 
-                case StatusConstants.UcKDurum.HataliUrun:
+                case (int)UcKDurum.HataliUrun:
                     satir.HataliMiktar += request.GelenAdet!.Value;
-                    satir.UcKDurumu = StatusConstants.UcKDurum.HataliUrun;
+                    satir.UcKDurumuId = (int)UcKDurum.HataliUrun;
                     satir.TeslimTarihi = DateTime.UtcNow;
                     break;
             }
@@ -192,13 +219,23 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 return Result.Failure($"Toplam tamamlanan adet ({toplam}), çeki miktarını ({satir.IstenenAdet}) aşamaz.");
 
             // Genel durumu hesapla
-            satir.Durum = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumu, satir.UcKDurumu);
+            satir.DurumId = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumuId, satir.UcKDurumuId);
 
             repo.Update(satir);
-            await _unitOfWork.SaveChangesAsync();
 
-            // NOT: Sandık otomatik kapanma KALDIRILDI (İş Kuralı 7).
-            // Sandık sadece Admin onayıyla SandikKapatCommand ile kapatılır.
+            // ===== SANDIK İÇERİK SENKRONİZASYONU =====
+            // 3K'da "Tam Geldi" veya karşılandı olarak işaretlenen ürünler doğrudan sandığa konmuş sayılır.
+            var sandikIcerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
+            var ilgiliIcerikler = await sandikIcerikRepo.FindAsync(x => x.CekiSatiriId == satir.Id);
+            
+            if (ilgiliIcerikler.Any())
+            {
+                var anaIcerik = ilgiliIcerikler.First();
+                anaIcerik.KonulanAdet = toplam; // Kümülatif toplamı konulan adete eşitle
+                sandikIcerikRepo.Update(anaIcerik);
+            }
+
+            await _unitOfWork.SaveChangesAsync();
 
             // Hareket kaydı
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
@@ -208,8 +245,8 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 ReferansTipi = "CekiSatiri",
                 ReferansId = satir.Id.ToString(),
                 Islem = "3K Durum Güncellendi",
-                EskiDeger = eskiDurum,
-                YeniDeger = request.KarsilamaTipi,
+                EskiDeger = eskiDurum.ToString(),
+                YeniDeger = request.KarsilamaTipiId.ToString(),
                 Aciklama = request.Aciklama
             });
 

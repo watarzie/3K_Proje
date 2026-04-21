@@ -1,4 +1,5 @@
 using MediatR;
+using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Application.Features.UcKIslemleri.DTOs;
 using _3K.Core.Entities;
@@ -9,10 +10,12 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
     public class GetUcKUrunlerQueryHandler : IRequestHandler<GetUcKUrunlerQuery, Result<List<UcKUrunDto>>>
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly ILookupCacheService _lookupCache;
 
-        public GetUcKUrunlerQueryHandler(IUnitOfWork unitOfWork)
+        public GetUcKUrunlerQueryHandler(IUnitOfWork unitOfWork, ILookupCacheService lookupCache)
         {
             _unitOfWork = unitOfWork;
+            _lookupCache = lookupCache;
         }
 
         public async Task<Result<List<UcKUrunDto>>> Handle(GetUcKUrunlerQuery request, CancellationToken cancellationToken)
@@ -41,20 +44,28 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                         SandikNo = cs.FiiliSandikNo ?? cs.CekideGecenSandikNo,
                         IstenenAdet = cs.IstenenAdet,
                         Birim = cs.Birim,
-                        GridDurumu = cs.GridDurumu,
+                        GridDurumuId = cs.GridDurumuId,
+                        GridDurumuMetni = _lookupCache.GetDeger<LookupGridDurum>(cs.GridDurumuId),
                         GridGelenAdet = cs.GridGelenAdet,
                         TrafoSevkAdet = cs.TrafoSevkAdet,
-                        UcKKarsilamaTipi = cs.UcKKarsilamaTipi,
+                        GridSevkDurumuId = cs.GridSevkDurumuId,
+                        GridSevkDurumuMetni = _lookupCache.GetDeger<LookupGridSevkDurum>(cs.GridSevkDurumuId),
+                        UcKKarsilamaTipiId = cs.UcKKarsilamaTipiId,
+                        UcKKarsilamaTipiMetni = _lookupCache.GetDeger<LookupUcKDurum>(cs.UcKKarsilamaTipiId),
                         GelenMiktar = cs.GelenMiktar,
                         KarsilananMiktar = cs.KarsilananMiktar,
                         HataliMiktar = cs.HataliMiktar,
                         KaynakHedefProjeNo = cs.KaynakHedefProjeNo,
-                        GeriGonderilmeSebebi = cs.GeriGonderilmeSebebi,
+                        GeriGonderilmeSebebiId = cs.GeriGonderilmeSebebiId,
+                        GeriGonderilmeSebebiMetni = cs.GeriGonderilmeSebebiId.HasValue
+                            ? _lookupCache.GetDeger<LookupGeriGonderilmeSebebi>(cs.GeriGonderilmeSebebiId.Value)
+                            : null,
                         UcKAciklama = cs.UcKAciklama,
                         UcKNotu = cs.UcKNotu,
                         Kalan = cs.KalanMiktar,
                         KontrolUyari = HesaplaKontrolUyari(cs),
-                        GenelDurum = cs.Durum
+                        GenelDurumId = cs.DurumId,
+                        GenelDurumMetni = _lookupCache.GetDeger<LookupUrunDurum>(cs.DurumId)
                     };
                 })
                 .ToList();
@@ -62,24 +73,24 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
             return Result<List<UcKUrunDto>>.Success(result);
         }
 
-        private static string HesaplaKontrolUyari(CekiSatiri cs)
+        private string HesaplaKontrolUyari(CekiSatiri cs)
         {
-            var tip = cs.UcKKarsilamaTipi;
+            var tip = cs.UcKKarsilamaTipiId;
 
             return tip switch
             {
-                StatusConstants.UcKDurum.TamGeldi when cs.KalanMiktar <= 0 => "TAMAMLANDI",
-                StatusConstants.UcKDurum.TamGeldi => "TAM GELDİ",
-                StatusConstants.UcKDurum.EksikGeldi => "EKSİK GELDİ",
-                StatusConstants.UcKDurum.Gelmedi => "GELMEDİ",
-                StatusConstants.UcKDurum.GeriGonderildi => $"GERİ GÖNDERİLDİ – {cs.GeriGonderilmeSebebi ?? ""}",
-                StatusConstants.UcKDurum.ProjedenKarsilandi => $"PROJEDEN KARŞILANDI – {cs.KaynakHedefProjeNo ?? ""}",
-                StatusConstants.UrunDurum.StoktanKarsilandi => "STOKTAN KARŞILANDI",
-                StatusConstants.UcKDurum.TedarikcidenGeldi => "TEDARİKÇİDEN GELDİ",
-                StatusConstants.UcKDurum.BaskaProyeVerildi => $"BAŞKA PROJEYE VERİLDİ – {cs.KaynakHedefProjeNo ?? ""}",
-                StatusConstants.UcKDurum.HataliUrun => $"HATALI ÜRÜN – {cs.HataliMiktar} adet",
-                _ when cs.GridDurumu == StatusConstants.GridDurum.Iptal => "GRİD İPTAL – İŞLEM YAPILAMAZ",
-                _ when cs.GridDurumu == StatusConstants.UcKDurum.TamGeldi && cs.GelenMiktar < cs.IstenenAdet =>
+                (int)UcKDurum.TamGeldi when cs.KalanMiktar <= 0 => "TAMAMLANDI",
+                (int)UcKDurum.TamGeldi => "TAM GELDİ",
+                (int)UcKDurum.EksikGeldi => "EKSİK GELDİ",
+                (int)UcKDurum.Gelmedi => "GELMEDİ",
+                (int)UcKDurum.GeriGonderildi => $"GERİ GÖNDERİLDİ – {(cs.GeriGonderilmeSebebiId.HasValue ? _lookupCache.GetDeger<LookupGeriGonderilmeSebebi>(cs.GeriGonderilmeSebebiId.Value) : "Belirtilmemiş")}",
+                (int)UcKDurum.ProjedenKarsilandi => $"PROJEDEN KARŞILANDI – {cs.KaynakHedefProjeNo ?? ""}",
+                (int)UcKDurum.StoktanKarsilandi => "STOKTAN KARŞILANDI",
+                (int)UcKDurum.TedarikcidenGeldi => "TEDARİKÇİDEN GELDİ",
+                (int)UcKDurum.HataliUrun => $"HATALI ÜRÜN – {cs.HataliMiktar} adet",
+                _ when cs.GridDurumuId == (int)GridDurum.Iptal => "GRİD İPTAL – İŞLEM YAPILAMAZ",
+                _ when cs.GridDurumuId == (int)GridDurum.TrafoSevk => "TRAFO SEVK – İŞLEM YAPILAMAZ",
+                _ when cs.GridDurumuId == (int)GridDurum.TamGeldi && cs.GelenMiktar < cs.IstenenAdet =>
                     "UYARI: GRİD TAM SEVK, 3K EKSİK GELİŞ",
                 _ => "BEKLİYOR"
             };

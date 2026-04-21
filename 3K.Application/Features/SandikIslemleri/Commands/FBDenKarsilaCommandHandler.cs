@@ -1,4 +1,5 @@
 using MediatR;
+using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
@@ -55,10 +56,10 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 {
                     // ===== İŞ KURALI 6: Kaynak projenin stoğunu düş =====
                     kaynakSatir.GelenMiktar = Math.Max(0, kaynakSatir.GelenMiktar - request.KarsilananAdet);
-                    kaynakSatir.UcKDurumu = StatusConstants.UcKDurum.EksikGeldi;
-                    kaynakSatir.UcKKarsilamaTipi = StatusConstants.UcKDurum.BaskaProyeVerildi;
+                    kaynakSatir.UcKDurumuId = (int)UcKDurum.EksikGeldi;
+                    kaynakSatir.UcKKarsilamaTipiId = 11; // BaskaProyeVerildi (kaldırıldı, FB transfer eski veriler için)
                     kaynakSatir.KaynakHedefProjeNo = request.AsilFB;
-                    kaynakSatir.Durum = _durumHesaplaService.HesaplaGenelDurum(kaynakSatir.GridDurumu, kaynakSatir.UcKDurumu);
+                    kaynakSatir.DurumId = _durumHesaplaService.HesaplaGenelDurum(kaynakSatir.GridDurumuId, kaynakSatir.UcKDurumuId);
                     urunRepo.Update(kaynakSatir);
                 }
 
@@ -85,7 +86,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             // ===== 4. Hedef ürün kümülatif güncelle =====
             urun.KarsilananMiktar += request.KarsilananAdet;
-            urun.Durum = StatusConstants.UrunDurum.FBdenKarsilandi;
+            urun.DurumId = (int)UrunDurum.FBdenKarsilandi;
             urun.Remarks = $"FB Transfer ({request.AlinanFB}) - {request.KarsilananAdet} adet";
             urunRepo.Update(urun);
 

@@ -1,3 +1,5 @@
+using _3K.Core.Enums;
+
 namespace _3K.Core.Entities
 {
     public class StokKaydi : BaseEntity
@@ -9,9 +11,10 @@ namespace _3K.Core.Entities
         public string? Lokasyon { get; set; }
         public string? KaynakProje { get; set; }
         public string? StokGirisNedeni { get; set; }
-        public string Durum { get; set; } = "Aktif";
+        public int DurumId { get; set; } = (int)StokDurum.Aktif;
 
         // Navigation Properties
+        public virtual LookupStokDurum? DurumLookup { get; set; }
         public virtual ICollection<StokHareketi> StokHareketleri { get; set; } = new List<StokHareketi>();
     }
 }

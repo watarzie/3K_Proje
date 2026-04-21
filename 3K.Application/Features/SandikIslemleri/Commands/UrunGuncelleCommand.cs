@@ -15,8 +15,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         public int SandikId { get; set; }
         public int? KonulanAdet { get; set; }
         public int? EksikAdet { get; set; }
-        public string? GridDurumu { get; set; }
-        public string? UcKDurumu { get; set; }
+        public int? GridDurumuId { get; set; }
+        public int? UcKDurumuId { get; set; }
         public int? PaketleyenId { get; set; }
         public int? KontrolEdenId { get; set; }
         public string? Aciklama { get; set; }

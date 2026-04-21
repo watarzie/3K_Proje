@@ -1,4 +1,5 @@
-using MediatR;
+﻿using MediatR;
+using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
@@ -42,14 +43,14 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
             foreach (var satir in satirlar)
             {
-                satir.GridDurumu = StatusConstants.GridDurum.SevkEdildi;
+                satir.GridDurumuId = (int)GridDurum.SevkEdildi;
                 satir.GridSevkMiktari = satir.IstenenAdet;
                 satir.GridSevkTarihi = now;
                 satir.GridPersonelId = kullaniciId;
                 satir.GridNotu = request.Not;
 
                 // Genel durumu otomatik hesapla
-                satir.Durum = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumu, satir.UcKDurumu);
+                satir.DurumId = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumuId, satir.UcKDurumuId);
 
                 repo.Update(satir);
                 guncellenen++;
@@ -65,7 +66,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 ReferansTipi = "TopluSevk",
                 ReferansId = string.Join(",", request.CekiSatiriIdler),
                 Islem = "Grid Toplu Sevk",
-                YeniDeger = StatusConstants.GridDurum.SevkEdildi,
+                YeniDeger = ((int)GridDurum.SevkEdildi).ToString(),
                 Aciklama = $"{guncellenen} ürün toplu sevk edildi. {request.Not}"
             });
 

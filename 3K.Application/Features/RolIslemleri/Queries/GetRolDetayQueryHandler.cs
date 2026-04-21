@@ -1,4 +1,5 @@
 using MediatR;
+using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Application.Features.RolIslemleri.DTOs;
 using _3K.Core.Entities;
@@ -30,7 +31,7 @@ namespace _3K.Application.Features.RolIslemleri.Queries
 
             // Rolün mevcut yetkilerini getir
             var yetkiler = await _rolService.GetRolYetkileriAsync(request.RolId, cancellationToken);
-            var yetkiMap = yetkiler.ToDictionary(y => y.MenuTanimiId, y => y.YetkiTipi);
+            var yetkiMap = yetkiler.ToDictionary(y => y.MenuTanimiId, y => y.YetkiTipiId);
 
             // Menü ağacını DTO'ya dönüştür (recursive)
             var menuTree = menuAgaci
@@ -50,7 +51,7 @@ namespace _3K.Application.Features.RolIslemleri.Queries
         /// MenuTanimi → MenuTreeDto recursive dönüşümü.
         /// Her node'a rolün yetkisini ekler (W/R/N).
         /// </summary>
-        private MenuTreeDto MapToMenuTreeDto(MenuTanimi menu, Dictionary<int, string> yetkiMap)
+        private MenuTreeDto MapToMenuTreeDto(MenuTanimi menu, Dictionary<int, int> yetkiMap)
         {
             return new MenuTreeDto
             {
@@ -60,7 +61,8 @@ namespace _3K.Application.Features.RolIslemleri.Queries
                 Icon = menu.Icon,
                 Route = menu.Route,
                 Sira = menu.Sira,
-                YetkiTipi = yetkiMap.TryGetValue(menu.Id, out var yetki) ? yetki : "N",
+                YetkiTipiId = yetkiMap.TryGetValue(menu.Id, out var yetkiId) ? yetkiId : 1,
+                YetkiTipiMetni = yetkiMap.TryGetValue(menu.Id, out var yt) ? ((YetkiTipi)yt).ToString() : "N",
                 Children = menu.Children?
                     .OrderBy(c => c.Sira)
                     .Select(c => MapToMenuTreeDto(c, yetkiMap))

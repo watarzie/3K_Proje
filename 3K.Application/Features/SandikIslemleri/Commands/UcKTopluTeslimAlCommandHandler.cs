@@ -1,4 +1,5 @@
-using MediatR;
+﻿using MediatR;
+using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
@@ -54,12 +55,12 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
                 // 3K durumunu otomatik belirle
                 if (satir.GelenMiktar >= satir.IstenenAdet)
-                    satir.UcKDurumu = StatusConstants.UcKDurum.TamGeldi;
+                    satir.UcKDurumuId = (int)UcKDurum.TamGeldi;
                 else
-                    satir.UcKDurumu = StatusConstants.UcKDurum.EksikGeldi;
+                    satir.UcKDurumuId = (int)UcKDurum.EksikGeldi;
 
                 // Genel durumu otomatik hesapla
-                satir.Durum = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumu, satir.UcKDurumu);
+                satir.DurumId = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumuId, satir.UcKDurumuId);
 
                 repo.Update(satir);
                 teslimAlinan++;

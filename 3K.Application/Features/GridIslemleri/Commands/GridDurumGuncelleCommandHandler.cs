@@ -1,4 +1,5 @@
 using MediatR;
+using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
@@ -12,11 +13,8 @@ namespace _3K.Application.Features.GridIslemleri.Commands
         private readonly IDurumHesaplaService _durumHesaplaService;
         private readonly IHareketService _hareketService;
 
-        private static readonly string[] GecerliDurumlar =
-            { StatusConstants.UcKDurum.TamGeldi, StatusConstants.UcKDurum.EksikGeldi, StatusConstants.UcKDurum.Gelmedi, StatusConstants.GridDurum.TrafoSevk, StatusConstants.GridDurum.Iptal, StatusConstants.GridDurum.Sipariste, "Bekliyor" };
-
-        private static readonly string[] GecerliSevkDurumlari =
-            { StatusConstants.GridDurum.SevkEdildi, "Bekliyor", "SevkEdilmedi" };
+        private static readonly int[] GecerliDurumlar =
+            { (int)GridDurum.TamGeldi, (int)GridDurum.EksikGeldi, (int)GridDurum.Gelmedi, (int)GridDurum.TrafoSevk, (int)GridDurum.Iptal, (int)GridDurum.Sipariste, (int)GridDurum.Bekliyor };
 
         public GridDurumGuncelleCommandHandler(
             IUnitOfWork unitOfWork,
@@ -33,8 +31,8 @@ namespace _3K.Application.Features.GridIslemleri.Commands
         public async Task<Result> Handle(GridDurumGuncelleCommand request, CancellationToken cancellationToken)
         {
             // Validate durum
-            if (!GecerliDurumlar.Contains(request.YeniDurum))
-                return Result.Failure($"Geçersiz durum: {request.YeniDurum}");
+            if (!GecerliDurumlar.Contains(request.YeniDurumId))
+                return Result.Failure($"Geçersiz durum: {request.YeniDurumId}");
 
             var repo = _unitOfWork.GetRepository<CekiSatiri>();
             var satir = await repo.GetByIdAsync(request.CekiSatiriId);
@@ -42,22 +40,22 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             if (satir == null)
                 return Result.Failure("Ürün bulunamadı.", 404);
 
-            var eskiDurum = satir.GridDurumu;
+            var eskiDurum = satir.GridDurumuId;
 
             // Grid alanlarını güncelle
-            satir.GridDurumu = request.YeniDurum;
+            satir.GridDurumuId = request.YeniDurumId;
             satir.GridPersonelId = _currentUserService.UserId;
             satir.GridNotu = request.Not;
 
             // ===== Durum bazlı alan yönetimi =====
-            switch (request.YeniDurum)
+            switch (request.YeniDurumId)
             {
-                case StatusConstants.UcKDurum.TamGeldi:
+                case (int)GridDurum.TamGeldi:
                     satir.GridGelenAdet = satir.IstenenAdet; // otomatik
                     satir.TrafoSevkAdet = 0;
                     break;
 
-                case StatusConstants.UcKDurum.EksikGeldi:
+                case (int)GridDurum.EksikGeldi:
                     if (request.GridGelenAdet == null || request.GridGelenAdet <= 0)
                         return Result.Failure("Eksik geldi durumunda gelen adet girilmelidir.");
                     if (request.GridGelenAdet >= satir.IstenenAdet)
@@ -66,14 +64,14 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                     satir.TrafoSevkAdet = 0;
                     break;
 
-                case StatusConstants.UcKDurum.Gelmedi:
+                case (int)GridDurum.Gelmedi:
                     satir.GridGelenAdet = 0;
                     satir.TrafoSevkAdet = 0;
-                    satir.GridSevkDurumu = "SevkEdilmedi";
+                    satir.GridSevkDurumuId = 3; // SevkEdilmedi
                     satir.GridSevkMiktari = null;
                     break;
 
-                case StatusConstants.GridDurum.TrafoSevk:
+                case (int)GridDurum.TrafoSevk:
                     if (request.TrafoSevkAdet == null || request.TrafoSevkAdet <= 0)
                         return Result.Failure("Trafo sevk durumunda trafo sevk adeti girilmelidir.");
                     if (request.TrafoSevkAdet > satir.IstenenAdet)
@@ -85,34 +83,34 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                         return Result.Failure("Toplam adet, çeki miktarını aşamaz.");
                     break;
 
-                case StatusConstants.GridDurum.Iptal:
+                case (int)GridDurum.Iptal:
                     satir.GridGelenAdet = 0;
                     satir.TrafoSevkAdet = 0;
-                    satir.GridSevkDurumu = "SevkEdilmedi";
+                    satir.GridSevkDurumuId = 3; // SevkEdilmedi
                     satir.GridSevkMiktari = null;
                     break;
 
-                case StatusConstants.GridDurum.Sipariste:
+                case (int)GridDurum.Sipariste:
                     satir.GridGelenAdet = 0;
                     satir.TrafoSevkAdet = 0;
-                    satir.GridSevkDurumu = "SevkEdilmedi";
+                    satir.GridSevkDurumuId = 3; // SevkEdilmedi
                     satir.GridSevkMiktari = null;
                     break;
             }
 
             // ===== Grid Sevk Durumu =====
-            if (request.GridSevkDurumu != null && GecerliSevkDurumlari.Contains(request.GridSevkDurumu))
+            if (request.GridSevkDurumuId.HasValue)
             {
-                // Sevk edilebilmesi kontrolü
-                if (request.GridSevkDurumu == StatusConstants.GridDurum.SevkEdildi)
+                // Sevk edilebilmesi kontrolü 
+                if (request.GridSevkDurumuId.Value == (int)GridSevkDurum.SevkEdildi)
                 {
-                    if (request.YeniDurum != StatusConstants.UcKDurum.TamGeldi && request.YeniDurum != StatusConstants.UcKDurum.EksikGeldi)
+                    if (request.YeniDurumId != (int)GridDurum.TamGeldi && request.YeniDurumId != (int)GridDurum.EksikGeldi)
                         return Result.Failure("Sevk edilmesi için durum TamGeldi veya EksikGeldi olmalıdır.");
                     if (request.SevkMiktari == null || request.SevkMiktari <= 0)
                         return Result.Failure("Sevk miktarı girilmelidir.");
                 }
 
-                satir.GridSevkDurumu = request.GridSevkDurumu;
+                satir.GridSevkDurumuId = request.GridSevkDurumuId.Value;
                 if (request.SevkMiktari.HasValue)
                 {
                     satir.GridSevkMiktari = request.SevkMiktari.Value;
@@ -121,13 +119,13 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             }
 
             // Genel durumu otomatik hesapla
-            satir.Durum = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumu, satir.UcKDurumu);
+            satir.DurumId = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumuId, satir.UcKDurumuId);
 
             repo.Update(satir);
             await _unitOfWork.SaveChangesAsync();
 
             // ===== Sandık Tamamlanma Kontrolü (TrafoSevk ise) =====
-            if (request.YeniDurum == StatusConstants.GridDurum.TrafoSevk)
+            if (request.YeniDurumId == (int)GridDurum.TrafoSevk)
             {
                 await SandikTamamlanmaKontrol(satir);
             }
@@ -140,8 +138,8 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 ReferansTipi = "CekiSatiri",
                 ReferansId = satir.Id.ToString(),
                 Islem = "Grid Durum Güncellendi",
-                EskiDeger = eskiDurum,
-                YeniDeger = request.YeniDurum,
+                EskiDeger = eskiDurum.ToString(),
+                YeniDeger = request.YeniDurumId.ToString(),
                 Aciklama = request.Not
             });
 
@@ -171,9 +169,9 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
             if (!sandiktakiUrunler.Any()) return;
 
-            var tamamlananTipler = new[] { StatusConstants.UcKDurum.TamGeldi, StatusConstants.UcKDurum.ProjedenKarsilandi, StatusConstants.UrunDurum.StoktanKarsilandi, StatusConstants.UcKDurum.TedarikcidenGeldi };
+            var tamamlananTipler = new[] { (int)UcKDurum.TamGeldi, (int)UcKDurum.ProjedenKarsilandi, (int)UcKDurum.StoktanKarsilandi, (int)UcKDurum.TedarikcidenGeldi };
             var hepsiTamam = sandiktakiUrunler.All(u =>
-                tamamlananTipler.Contains(u.UcKKarsilamaTipi) || u.GridDurumu == StatusConstants.GridDurum.TrafoSevk);
+                tamamlananTipler.Contains(u.UcKKarsilamaTipiId) || u.GridDurumuId == (int)GridDurum.TrafoSevk);
 
             if (hepsiTamam)
             {
@@ -182,9 +180,9 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                     s.ProjeId == ceki.ProjeId && s.SandikNo == sandikNo);
                 var sandik = sandiklar.FirstOrDefault();
 
-                if (sandik != null && sandik.Durum != StatusConstants.SandikDurum.Hazir)
+                if (sandik != null && sandik.DurumId != (int)SandikDurum.Hazir)
                 {
-                    sandik.Durum = StatusConstants.SandikDurum.Hazir;
+                    sandik.DurumId = (int)SandikDurum.Hazir;
                     sandikRepo.Update(sandik);
                     await _unitOfWork.SaveChangesAsync();
 
@@ -195,8 +193,8 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                         ReferansTipi = "Sandik",
                         ReferansId = sandik.Id.ToString(),
                         Islem = "Sandık Otomatik Hazır",
-                        EskiDeger = StatusConstants.ProjeDurum.Hazirlaniyor,
-                        YeniDeger = StatusConstants.SandikDurum.Hazir,
+                        EskiDeger = ((int)SandikDurum.Hazirlaniyor).ToString(),
+                        YeniDeger = ((int)SandikDurum.Hazir).ToString(),
                         Aciklama = $"Sandık {sandikNo} içindeki tüm ürünler tamamlandı."
                     });
                 }

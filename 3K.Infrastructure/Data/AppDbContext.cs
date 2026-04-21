@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using _3K.Core.Entities;
+using _3K.Core.Enums;
 
 namespace _3K.Infrastructure.Data
 {
@@ -19,7 +20,6 @@ namespace _3K.Infrastructure.Data
         public DbSet<IslemOnayKurali> IslemOnayKurallari { get; set; } = null!;
         public DbSet<StokKaydi> StokKayitlari { get; set; } = null!;
         public DbSet<StokHareketi> StokHareketleri { get; set; } = null!;
-        public DbSet<Revizyon> Revizyonlar { get; set; } = null!;
         public DbSet<HareketGecmisi> HareketGecmisleri { get; set; } = null!;
         public DbSet<ProjeTransfer> ProjeTransferleri { get; set; } = null!;
         public DbSet<OnayBekleyenIslem> OnayBekleyenIslemler { get; set; } = null!;
@@ -36,6 +36,7 @@ namespace _3K.Infrastructure.Data
         public DbSet<LookupDepoLokasyon> LookupDepoLokasyonlari { get; set; } = null!;
         public DbSet<LookupUrunDurum> LookupUrunDurumlari { get; set; } = null!;
         public DbSet<LookupGridDurum> LookupGridDurumlari { get; set; } = null!;
+        public DbSet<LookupGridSevkDurum> LookupGridSevkDurumlari { get; set; } = null!;
         public DbSet<LookupUcKDurum> LookupUcKDurumlari { get; set; } = null!;
         public DbSet<LookupYetkiTipi> LookupYetkiTipleri { get; set; } = null!;
         public DbSet<LookupStokDurum> LookupStokDurumlari { get; set; } = null!;
@@ -47,7 +48,7 @@ namespace _3K.Infrastructure.Data
             base.OnModelCreating(modelBuilder);
 
             // ===============================================================
-            // 1. LOOKUP TABLOLARI — AlternateKey (Deger üzerinden FK sağlar)
+            // 1. LOOKUP TABLOLARI — Deger unique index (AlternateKey kaldırıldı)
             // ===============================================================
             ConfigureLookupTable<LookupProjeDurum>(modelBuilder);
             ConfigureLookupTable<LookupSandikDurum>(modelBuilder);
@@ -55,6 +56,7 @@ namespace _3K.Infrastructure.Data
             ConfigureLookupTable<LookupDepoLokasyon>(modelBuilder);
             ConfigureLookupTable<LookupUrunDurum>(modelBuilder);
             ConfigureLookupTable<LookupGridDurum>(modelBuilder);
+            ConfigureLookupTable<LookupGridSevkDurum>(modelBuilder);
             ConfigureLookupTable<LookupUcKDurum>(modelBuilder);
             ConfigureLookupTable<LookupYetkiTipi>(modelBuilder);
             ConfigureLookupTable<LookupStokDurum>(modelBuilder);
@@ -73,63 +75,63 @@ namespace _3K.Infrastructure.Data
                 .IsUnique();
 
             // ===============================================================
-            // 3. FK İLİŞKİLERİ — Entity ↔ Lookup Tabloları
+            // 3. FK İLİŞKİLERİ — Entity ↔ Lookup Tabloları (ID bazlı)
             // ===============================================================
 
-            // --- Proje.Durum → LookupProjeDurum.Deger ---
+            // --- Proje.DurumId → LookupProjeDurum.Id ---
             modelBuilder.Entity<Proje>()
-                .HasOne<LookupProjeDurum>()
+                .HasOne(p => p.DurumLookup)
                 .WithMany()
-                .HasForeignKey(p => p.Durum)
-                .HasPrincipalKey(l => l.Deger)
+                .HasForeignKey(p => p.DurumId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // --- Sandik.Durum → LookupSandikDurum.Deger ---
+            // --- Sandik.DurumId → LookupSandikDurum.Id ---
             modelBuilder.Entity<Sandik>()
-                .HasOne<LookupSandikDurum>()
+                .HasOne(s => s.DurumLookup)
                 .WithMany()
-                .HasForeignKey(s => s.Durum)
-                .HasPrincipalKey(l => l.Deger)
+                .HasForeignKey(s => s.DurumId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // --- Sandik.Tip → LookupSandikTipi.Deger ---
+            // --- Sandik.TipId → LookupSandikTipi.Id ---
             modelBuilder.Entity<Sandik>()
-                .HasOne<LookupSandikTipi>()
+                .HasOne(s => s.TipLookup)
                 .WithMany()
-                .HasForeignKey(s => s.Tip)
-                .HasPrincipalKey(l => l.Deger)
+                .HasForeignKey(s => s.TipId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // --- Sandik.DepoLokasyonu → LookupDepoLokasyon.Deger ---
+            // --- Sandik.DepoLokasyonId → LookupDepoLokasyon.Id ---
             modelBuilder.Entity<Sandik>()
-                .HasOne<LookupDepoLokasyon>()
+                .HasOne(s => s.DepoLokasyonLookup)
                 .WithMany()
-                .HasForeignKey(s => s.DepoLokasyonu)
-                .HasPrincipalKey(l => l.Deger)
+                .HasForeignKey(s => s.DepoLokasyonId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // --- CekiSatiri.Durum → LookupUrunDurum.Deger ---
+            // --- CekiSatiri.DurumId → LookupUrunDurum.Id ---
             modelBuilder.Entity<CekiSatiri>()
-                .HasOne<LookupUrunDurum>()
+                .HasOne(cs => cs.DurumLookup)
                 .WithMany()
-                .HasForeignKey(cs => cs.Durum)
-                .HasPrincipalKey(l => l.Deger)
+                .HasForeignKey(cs => cs.DurumId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // --- CekiSatiri.GridDurumu → LookupGridDurum.Deger ---
+            // --- CekiSatiri.GridDurumuId → LookupGridDurum.Id ---
             modelBuilder.Entity<CekiSatiri>()
-                .HasOne<LookupGridDurum>()
+                .HasOne(cs => cs.GridDurumLookup)
                 .WithMany()
-                .HasForeignKey(cs => cs.GridDurumu)
-                .HasPrincipalKey(l => l.Deger)
+                .HasForeignKey(cs => cs.GridDurumuId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // --- CekiSatiri.UcKDurumu → LookupUcKDurum.Deger ---
+            // --- CekiSatiri.GridSevkDurumuId → LookupGridSevkDurum.Id ---
             modelBuilder.Entity<CekiSatiri>()
-                .HasOne<LookupUcKDurum>()
+                .HasOne<LookupGridSevkDurum>()
                 .WithMany()
-                .HasForeignKey(cs => cs.UcKDurumu)
-                .HasPrincipalKey(l => l.Deger)
+                .HasForeignKey(cs => cs.GridSevkDurumuId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // --- CekiSatiri.UcKDurumuId → LookupUcKDurum.Id ---
+            modelBuilder.Entity<CekiSatiri>()
+                .HasOne(cs => cs.UcKDurumLookup)
+                .WithMany()
+                .HasForeignKey(cs => cs.UcKDurumuId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             // --- CekiSatiri.GridPersonel → Kullanici ---
@@ -156,12 +158,11 @@ namespace _3K.Infrastructure.Data
                 .HasForeignKey(cs => cs.KaynakProjeId)
                 .OnDelete(DeleteBehavior.SetNull);
 
-            // --- CekiSatiri.GeriGonderilmeSebebi → LookupGeriGonderilmeSebebi ---
+            // --- CekiSatiri.GeriGonderilmeSebebiId → LookupGeriGonderilmeSebebi ---
             modelBuilder.Entity<CekiSatiri>()
-                .HasOne<LookupGeriGonderilmeSebebi>()
+                .HasOne(cs => cs.GeriGonderilmeSebebiLookup)
                 .WithMany()
-                .HasForeignKey(cs => cs.GeriGonderilmeSebebi)
-                .HasPrincipalKey(l => l.Deger)
+                .HasForeignKey(cs => cs.GeriGonderilmeSebebiId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .IsRequired(false);
 
@@ -255,28 +256,25 @@ namespace _3K.Infrastructure.Data
                 .HasIndex(ry => new { ry.RolId, ry.MenuTanimiId })
                 .IsUnique();
 
-            // --- RolYetki.YetkiTipi → LookupYetkiTipi.Deger ---
+            // --- RolYetki.YetkiTipiId → LookupYetkiTipi.Id ---
             modelBuilder.Entity<RolYetki>()
-                .HasOne<LookupYetkiTipi>()
+                .HasOne(ry => ry.YetkiTipiLookup)
                 .WithMany()
-                .HasForeignKey(ry => ry.YetkiTipi)
-                .HasPrincipalKey(l => l.Deger)
+                .HasForeignKey(ry => ry.YetkiTipiId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // --- StokKaydi.Durum → LookupStokDurum.Deger ---
+            // --- StokKaydi.DurumId → LookupStokDurum.Id ---
             modelBuilder.Entity<StokKaydi>()
-                .HasOne<LookupStokDurum>()
+                .HasOne(sk => sk.DurumLookup)
                 .WithMany()
-                .HasForeignKey(sk => sk.Durum)
-                .HasPrincipalKey(l => l.Deger)
+                .HasForeignKey(sk => sk.DurumId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // --- StokHareketi.IslemTipi → LookupIslemTipi.Deger ---
+            // --- StokHareketi.IslemTipiId → LookupIslemTipi.Id ---
             modelBuilder.Entity<StokHareketi>()
-                .HasOne<LookupIslemTipi>()
+                .HasOne(sh => sh.IslemTipiLookup)
                 .WithMany()
-                .HasForeignKey(sh => sh.IslemTipi)
-                .HasPrincipalKey(l => l.Deger)
+                .HasForeignKey(sh => sh.IslemTipiId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             // ===============================================================
@@ -373,19 +371,6 @@ namespace _3K.Infrastructure.Data
                 .HasForeignKey(hg => hg.KullaniciId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Revizyon İlişkileri
-            modelBuilder.Entity<Revizyon>()
-                .HasOne(r => r.Proje)
-                .WithMany(p => p.Revizyonlar)
-                .HasForeignKey(r => r.ProjeId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            modelBuilder.Entity<Revizyon>()
-                .HasOne(r => r.Kullanici)
-                .WithMany(k => k.Revizyonlar)
-                .HasForeignKey(r => r.KullaniciId)
-                .OnDelete(DeleteBehavior.Restrict);
-
             // ===============================================================
             // 5. SEED DATA — Lookup Tabloları
             // ===============================================================
@@ -398,11 +383,12 @@ namespace _3K.Infrastructure.Data
         }
 
         /// <summary>
-        /// Lookup tablosu konfigürasyonu: Deger alanı AlternateKey olarak tanımlanır.
+        /// Lookup tablosu konfigürasyonu: Deger alanı unique index olarak tanımlanır.
+        /// AlternateKey KALDIRILDI — FK ilişkileri artık Id (PK) üzerinden kurulur.
         /// </summary>
         private static void ConfigureLookupTable<T>(ModelBuilder modelBuilder) where T : LookupBase
         {
-            modelBuilder.Entity<T>().HasAlternateKey(l => l.Deger);
+            modelBuilder.Entity<T>().HasIndex(l => l.Deger).IsUnique();
         }
 
         private static void SeedLookupData(ModelBuilder modelBuilder)
@@ -479,6 +465,13 @@ namespace _3K.Infrastructure.Data
                 new LookupGridDurum { Id = 11, Anahtar = 10, Deger = "Trafo Sevk" },
                 new LookupGridDurum { Id = 12, Anahtar = 11, Deger = "İptal" },
                 new LookupGridDurum { Id = 13, Anahtar = 12, Deger = "Siparişte" }
+            );
+
+            // GridSevkDurum
+            modelBuilder.Entity<LookupGridSevkDurum>().HasData(
+                new LookupGridSevkDurum { Id = 1, Anahtar = 1, Deger = "Sevk Edildi" },
+                new LookupGridSevkDurum { Id = 2, Anahtar = 2, Deger = "Bekliyor" },
+                new LookupGridSevkDurum { Id = 3, Anahtar = 3, Deger = "Sevk Edilmedi" }
             );
 
             // UcKDurum
@@ -589,20 +582,19 @@ namespace _3K.Infrastructure.Data
                 new MenuTanimi { Id = 3, Kod = "aktif-projeler", LabelKey = "MENU.AKTIF_PROJELER", Icon = "", Route = "/projeler", Sira = 1, ParentId = 2 },
                 new MenuTanimi { Id = 4, Kod = "sevk-edilen", LabelKey = "MENU.SEVK_EDILEN", Icon = "", Route = "/projeler/sevk-edilen", Sira = 2, ParentId = 2 },
                 // Yetki kontrollü butonlar — sidebar'da GÖRÜNMEZler (Route=null).
-                // Rol yetki ekranında "Projeler" altında görünür → admin W/R/N ayarlar.
                 new MenuTanimi { Id = 14, Kod = "grid-modulu", LabelKey = "MENU.GRID_MODULU", Icon = "", Route = null, Sira = 3, ParentId = 2 },
                 new MenuTanimi { Id = 15, Kod = "3k-modulu", LabelKey = "MENU.3K_MODULU", Icon = "", Route = null, Sira = 4, ParentId = 2 },
                 // Onay Merkezi (Header bildirimi için yetki aracı)
                 new MenuTanimi { Id = 99, Kod = "islem-onay-merkezi", LabelKey = "MENU.ISLEM_ONAY", Icon = "ri-check-double-line", Route = "/onay-merkezi", Sira = 12, ParentId = null }
             );
 
-            // ======= ADMIN ROL YETKİLERİ (tüm menülere W) =======
+            // ======= ADMIN ROL YETKİLERİ (tüm menülere W=3) =======
             var adminYetkiler = new List<RolYetki>();
             for (int menuId = 1; menuId <= 15; menuId++)
             {
-                adminYetkiler.Add(new RolYetki { Id = menuId, RolId = 1, MenuTanimiId = menuId, YetkiTipi = "W" });
+                adminYetkiler.Add(new RolYetki { Id = menuId, RolId = 1, MenuTanimiId = menuId, YetkiTipiId = (int)_3K.Core.Enums.YetkiTipi.W });
             }
-            adminYetkiler.Add(new RolYetki { Id = 99, RolId = 1, MenuTanimiId = 99, YetkiTipi = "W" });
+            adminYetkiler.Add(new RolYetki { Id = 99, RolId = 1, MenuTanimiId = 99, YetkiTipiId = (int)_3K.Core.Enums.YetkiTipi.W });
             modelBuilder.Entity<RolYetki>().HasData(adminYetkiler);
         }
 

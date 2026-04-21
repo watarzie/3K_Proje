@@ -15,6 +15,5 @@ namespace _3K.Core.Entities
         // Navigation Properties
         public virtual Rol Rol { get; set; } = null!;
         public virtual ICollection<HareketGecmisi> HareketGecmisleri { get; set; } = new List<HareketGecmisi>();
-        public virtual ICollection<Revizyon> Revizyonlar { get; set; } = new List<Revizyon>();
     }
 }

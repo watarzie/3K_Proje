@@ -51,7 +51,7 @@ namespace _3K_API.Controllers
         private List<MenuTreeDto> FilterTree(List<MenuTreeDto> nodes)
         {
             return nodes
-                .Where(n => n.YetkiTipi is "W" or "R")
+                .Where(n => n.YetkiTipiId >= 2) // 2=R, 3=W — exclude 1=N
                 .Select(n => new MenuTreeDto
                 {
                     Id = n.Id,
@@ -60,7 +60,8 @@ namespace _3K_API.Controllers
                     Icon = n.Icon,
                     Route = n.Route,
                     Sira = n.Sira,
-                    YetkiTipi = n.YetkiTipi,
+                    YetkiTipiId = n.YetkiTipiId,
+                    YetkiTipiMetni = n.YetkiTipiMetni,
                     Children = n.Children != null ? FilterTree(n.Children) : new()
                 })
                 .ToList();

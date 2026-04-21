@@ -1,4 +1,5 @@
 using _3K.Core.Entities;
+using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -39,7 +40,7 @@ namespace _3K.Infrastructure.Services
         public async Task<IEnumerable<StokKaydi>> GetUygunStoklarAsync(string? searchTerm = null)
         {
             var query = _context.StokKayitlari
-                .Where(s => s.Durum == "Aktif" && s.Miktar > 0);
+                .Where(s => s.DurumId == (int)StokDurum.Aktif && s.Miktar > 0);
 
             if (!string.IsNullOrEmpty(searchTerm))
             {
@@ -70,7 +71,7 @@ namespace _3K.Infrastructure.Services
 
             stok.Miktar -= miktar;
             if (stok.Miktar == 0)
-                stok.Durum = "Tukendi";
+                stok.DurumId = (int)StokDurum.Tukendi;
 
             repo.Update(stok);
             await _unitOfWork.SaveChangesAsync();
@@ -80,7 +81,7 @@ namespace _3K.Infrastructure.Services
         public async Task<StokKaydi> StokKaydiOlusturAsync(StokKaydi stokKaydi)
         {
             var repo = _unitOfWork.GetRepository<StokKaydi>();
-            stokKaydi.Durum = "Aktif";
+            stokKaydi.DurumId = (int)StokDurum.Aktif;
             await repo.AddAsync(stokKaydi);
             await _unitOfWork.SaveChangesAsync();
             return stokKaydi;

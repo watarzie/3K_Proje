@@ -1,4 +1,5 @@
 using MediatR;
+using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Application.Features.ProjeIslemleri.DTOs;
 using _3K.Core.Entities;
@@ -9,10 +10,12 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
     public class ProjeListeleQueryHandler : IRequestHandler<ProjeListeleQuery, Result<IEnumerable<ProjeDto>>>
     {
         private readonly IProjeRepository _projeRepository;
+        private readonly ILookupCacheService _lookupCache;
 
-        public ProjeListeleQueryHandler(IProjeRepository projeRepository)
+        public ProjeListeleQueryHandler(IProjeRepository projeRepository, ILookupCacheService lookupCache)
         {
             _projeRepository = projeRepository;
+            _lookupCache = lookupCache;
         }
 
         public async Task<Result<IEnumerable<ProjeDto>>> Handle(ProjeListeleQuery request, CancellationToken cancellationToken)
@@ -26,29 +29,29 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                                     ?? new List<CekiSatiri>();
 
                 var toplamSandik = sandiklar.Count;
-                var hazirSandik = sandiklar.Count(s => s.Durum == StatusConstants.SandikDurum.Hazir);
+                var hazirSandik = sandiklar.Count(s => s.DurumId == (int)SandikDurum.Hazir);
                 var toplamUrun = cekiSatirlari.Count;
-                // Tamamlanan ürün: Grid veya 3K'da işlem görmüş
                 var tamamlananUrun = cekiSatirlari.Count(cs =>
-                    cs.GridDurumu != StatusConstants.UrunDurum.Bekliyor || cs.UcKKarsilamaTipi != StatusConstants.UrunDurum.Bekliyor);
+                    cs.GridDurumuId != (int)GridDurum.Bekliyor || cs.UcKKarsilamaTipiId != (int)UcKDurum.Bekliyor);
 
                 // Durum hesaplama
-                string durum;
+                int durumId;
                 if (toplamUrun == 0)
-                    durum = StatusConstants.ProjeDurum.Hazirlaniyor;
+                    durumId = (int)ProjeDurum.Hazirlaniyor;
                 else if (hazirSandik == toplamSandik && toplamSandik > 0)
-                    durum = StatusConstants.ProjeDurum.Tamamlandi;
+                    durumId = (int)ProjeDurum.Tamamlandi;
                 else if (tamamlananUrun > 0)
-                    durum = StatusConstants.ProjeDurum.Devam;
+                    durumId = (int)ProjeDurum.Devam;
                 else
-                    durum = p.Durum;
+                    durumId = p.DurumId;
 
                 return new ProjeDto
                 {
                     Id = p.Id,
                     ProjeNo = p.ProjeNo,
                     Musteri = p.Musteri,
-                    Durum = durum,
+                    DurumId = durumId,
+                    DurumMetni = _lookupCache.GetDeger<LookupProjeDurum>(durumId),
                     PlanlananSevkTarihi = p.PlanlananSevkTarihi,
                     SorumluKisi = p.SorumluKisi,
                     SandikSayisi = toplamSandik,

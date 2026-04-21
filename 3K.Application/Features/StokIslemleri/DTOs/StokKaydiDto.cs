@@ -10,6 +10,7 @@ namespace _3K.Application.Features.StokIslemleri.DTOs
         public string? Lokasyon { get; set; }
         public string? KaynakProje { get; set; }
         public string? StokGirisNedeni { get; set; }
-        public string Durum { get; set; } = string.Empty;
+        public int DurumId { get; set; }
+        public string DurumMetni { get; set; } = string.Empty;
     }
 }

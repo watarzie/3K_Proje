@@ -1,107 +1,105 @@
+using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 
 namespace _3K.Infrastructure.Services
 {
     /// <summary>
-    /// GridDurumu + UcKDurumu kesişiminden genel UrunDurum hesaplar.
-    /// Grid Durumları: TamGeldi, EksikGeldi, Gelmedi, TrafoSevk, Iptal, Sipariste, Bekliyor
-    /// 3K Durumları: Bekliyor, TamGeldi, EksikGeldi, Gelmedi, KontrolEdildi, Paketlendi, IadeEdildi
-    /// Kural: 3K tarafı "Paketlendi" veya "IadeEdildi" ise Grid durumunu ezer.
+    /// GridDurumu + UcKDurumu kesişiminden genel UrunDurum hesaplar. ID bazlı.
     /// </summary>
     public class DurumHesaplaService : IDurumHesaplaService
     {
-        public string HesaplaGenelDurum(string gridDurumu, string ucKDurumu)
+        public int HesaplaGenelDurum(int gridDurumuId, int ucKDurumuId)
         {
             // ===== 3K Override Kuralları (Grid'i ezer) =====
-            if (ucKDurumu == "Paketlendi")
-                return "Tamamlandi";
+            if (ucKDurumuId == (int)UcKDurum.Paketlendi)
+                return (int)UrunDurum.Tamamlandi;
 
-            if (ucKDurumu == "IadeEdildi")
-                return "GeriGonderildi";
+            if (ucKDurumuId == (int)UcKDurum.IadeEdildi)
+                return (int)UrunDurum.GeriGonderildi;
 
             // ===== Grid Tarafı Kuralları =====
 
             // Grid iptal ettiyse
-            if (gridDurumu == "Iptal")
-                return "IptalVeyaPasif";
+            if (gridDurumuId == (int)GridDurum.Iptal)
+                return (int)UrunDurum.IptalVeyaPasif;
 
             // Grid'de sipariş sürecinde
-            if (gridDurumu == "Sipariste")
-                return "Sipariste";
+            if (gridDurumuId == (int)GridDurum.Sipariste)
+                return (int)UrunDurum.Sipariste;
 
             // Grid'e gelmedi
-            if (gridDurumu == "Gelmedi")
-                return "Gelmedi";
+            if (gridDurumuId == (int)GridDurum.Gelmedi)
+                return (int)UrunDurum.Gelmedi;
 
             // Trafo sevk — kısmen veya tamamen trafoya gitti
-            if (gridDurumu == "TrafoSevk")
+            if (gridDurumuId == (int)GridDurum.TrafoSevk)
             {
-                return ucKDurumu switch
+                return ucKDurumuId switch
                 {
-                    "TamGeldi" => "Tamamlandi",
-                    "KontrolEdildi" => "Tamamlandi",
-                    "EksikGeldi" => "Eksik",
-                    "Bekliyor" => "TrafoSevk",
-                    _ => "TrafoSevk"
+                    (int)UcKDurum.TamGeldi => (int)UrunDurum.Tamamlandi,
+                    (int)UcKDurum.KontrolEdildi => (int)UrunDurum.Tamamlandi,
+                    (int)UcKDurum.EksikGeldi => (int)UrunDurum.Eksik,
+                    (int)UcKDurum.Bekliyor => (int)UrunDurum.TrafoSevk,
+                    _ => (int)UrunDurum.TrafoSevk
                 };
             }
 
             // ===== Grid TamGeldi =====
-            if (gridDurumu == "TamGeldi")
+            if (gridDurumuId == (int)GridDurum.TamGeldi)
             {
-                return ucKDurumu switch
+                return ucKDurumuId switch
                 {
-                    "TamGeldi" => "Tamamlandi",
-                    "KontrolEdildi" => "Tamamlandi",
-                    "EksikGeldi" => "Eksik",
-                    "Gelmedi" => "Kayip",
-                    "Bekliyor" => "GriddeHazir",   // Grid'de tam, henüz 3K'ya gelmedi
-                    _ => "GriddeHazir"
+                    (int)UcKDurum.TamGeldi => (int)UrunDurum.Tamamlandi,
+                    (int)UcKDurum.KontrolEdildi => (int)UrunDurum.Tamamlandi,
+                    (int)UcKDurum.EksikGeldi => (int)UrunDurum.Eksik,
+                    (int)UcKDurum.Gelmedi => (int)UrunDurum.Kayip,
+                    (int)UcKDurum.Bekliyor => (int)UrunDurum.GriddeHazir,
+                    _ => (int)UrunDurum.GriddeHazir
                 };
             }
 
             // ===== Grid EksikGeldi =====
-            if (gridDurumu == "EksikGeldi")
+            if (gridDurumuId == (int)GridDurum.EksikGeldi)
             {
-                return ucKDurumu switch
+                return ucKDurumuId switch
                 {
-                    "TamGeldi" => "KismiTamamlandi",
-                    "KontrolEdildi" => "KismiTamamlandi",
-                    "EksikGeldi" => "Eksik",
-                    "Gelmedi" => "Kayip",
-                    "Bekliyor" => "GriddeEksik",   // Grid'de eksik, henüz 3K'ya gelmedi
-                    _ => "GriddeEksik"
+                    (int)UcKDurum.TamGeldi => (int)UrunDurum.KismiTamamlandi,
+                    (int)UcKDurum.KontrolEdildi => (int)UrunDurum.KismiTamamlandi,
+                    (int)UcKDurum.EksikGeldi => (int)UrunDurum.Eksik,
+                    (int)UcKDurum.Gelmedi => (int)UrunDurum.Kayip,
+                    (int)UcKDurum.Bekliyor => (int)UrunDurum.GriddeEksik,
+                    _ => (int)UrunDurum.GriddeEksik
                 };
             }
 
             // ===== 3K teslim aldıysa ama Grid henüz durum seçmemiş =====
-            if (ucKDurumu == "TamGeldi" || ucKDurumu == "KontrolEdildi")
-                return "Tamamlandi";
+            if (ucKDurumuId == (int)UcKDurum.TamGeldi || ucKDurumuId == (int)UcKDurum.KontrolEdildi)
+                return (int)UrunDurum.Tamamlandi;
 
-            if (ucKDurumu == "EksikGeldi")
-                return "Eksik";
+            if (ucKDurumuId == (int)UcKDurum.EksikGeldi)
+                return (int)UrunDurum.Eksik;
 
             // 3K karşılama tipleri
-            if (ucKDurumu == "ProjedenKarsilandi")
-                return "Tamamlandi";
+            if (ucKDurumuId == (int)UcKDurum.ProjedenKarsilandi)
+                return (int)UrunDurum.Tamamlandi;
 
-            if (ucKDurumu == "StoktanKarsilandi")
-                return "Tamamlandi";
+            if (ucKDurumuId == (int)UcKDurum.StoktanKarsilandi)
+                return (int)UrunDurum.Tamamlandi;
 
-            if (ucKDurumu == "TedarikcidenGeldi")
-                return "Tamamlandi";
+            if (ucKDurumuId == (int)UcKDurum.TedarikcidenGeldi)
+                return (int)UrunDurum.Tamamlandi;
 
-            if (ucKDurumu == "BaskaProyeVerildi")
-                return "BaskaProyeVerildi";
+            if (ucKDurumuId == 11) // BaskaProyeVerildi (kaldırıldı, eski veriler için)
+                return (int)UrunDurum.BaskaProyeVerildi;
 
-            if (ucKDurumu == "GeriGonderildi")
-                return "GeriGonderildi";
+            if (ucKDurumuId == (int)UcKDurum.GeriGonderildi)
+                return (int)UrunDurum.GeriGonderildi;
 
-            if (ucKDurumu == "HataliUrun")
-                return "HataliUrun";
+            if (ucKDurumuId == (int)UcKDurum.HataliUrun)
+                return (int)UrunDurum.HataliUrun;
 
             // Varsayılan: Her iki taraf da bekliyor
-            return "Bekliyor";
+            return (int)UrunDurum.Bekliyor;
         }
     }
 }

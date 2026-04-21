@@ -5,7 +5,8 @@ namespace _3K.Application.Features.ProjeIslemleri.DTOs
         public int Id { get; set; }
         public string ProjeNo { get; set; } = string.Empty;
         public string Musteri { get; set; } = string.Empty;
-        public string Durum { get; set; } = string.Empty;
+        public int DurumId { get; set; }
+        public string DurumMetni { get; set; } = string.Empty;
         public DateTime? PlanlananSevkTarihi { get; set; }
         public string SorumluKisi { get; set; } = string.Empty;
         public int SandikSayisi { get; set; }

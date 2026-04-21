@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 using _3K.Application.Features.SandikIslemleri.Commands;
 
 namespace _3K.Application.Features.SandikIslemleri.Validators
@@ -89,7 +89,7 @@ namespace _3K.Application.Features.SandikIslemleri.Validators
         {
             RuleFor(x => x.ProjeId).GreaterThan(0).WithMessage("Geçerli bir proje ID belirtilmeli.");
             RuleFor(x => x.SandikNo).NotEmpty().WithMessage("Sandık numarası boş olamaz.");
-            RuleFor(x => x.Tip).NotEmpty().WithMessage("Sandık tipi belirtilmeli.");
+            RuleFor(x => x.TipId).NotEmpty().WithMessage("Sandık tipi belirtilmeli.");
         }
     }
 }

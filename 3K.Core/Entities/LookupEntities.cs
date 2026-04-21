@@ -2,7 +2,7 @@ namespace _3K.Core.Entities
 {
     /// <summary>
     /// Tüm lookup entity'leri için temel sınıf.
-    /// Her grup kendi tablosunu alır, FK ilişkileri Deger üzerinden kurulur.
+    /// Her grup kendi tablosunu alır, FK ilişkileri Id (PK) üzerinden kurulur.
     /// </summary>
     public abstract class LookupBase : BaseEntity
     {
@@ -16,8 +16,10 @@ namespace _3K.Core.Entities
     public class LookupDepoLokasyon : LookupBase { }
     public class LookupUrunDurum : LookupBase { }
     public class LookupGridDurum : LookupBase { }
+    public class LookupGridSevkDurum : LookupBase { }
     public class LookupUcKDurum : LookupBase { }
     public class LookupYetkiTipi : LookupBase { }
     public class LookupStokDurum : LookupBase { }
     public class LookupIslemTipi : LookupBase { }
+    public class LookupGeriGonderilmeSebebi : LookupBase { }
 }

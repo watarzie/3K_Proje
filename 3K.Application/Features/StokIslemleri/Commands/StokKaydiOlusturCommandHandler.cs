@@ -1,4 +1,5 @@
 using MediatR;
+using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Application.Features.StokIslemleri.DTOs;
 using _3K.Core.Entities;
@@ -38,7 +39,8 @@ namespace _3K.Application.Features.StokIslemleri.Commands
                 Lokasyon = stok.Lokasyon,
                 KaynakProje = stok.KaynakProje,
                 StokGirisNedeni = stok.StokGirisNedeni,
-                Durum = stok.Durum.ToString()
+                DurumId = stok.DurumId,
+                DurumMetni = ((StokDurum)stok.DurumId).ToString()
             });
         }
     }

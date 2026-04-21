@@ -1,4 +1,5 @@
 using MediatR;
+using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Application.Features.RolIslemleri.DTOs;
 using _3K.Core.Entities;
@@ -40,7 +41,7 @@ namespace _3K.Application.Features.RolIslemleri.Commands
                 {
                     RolId = request.Id,
                     MenuTanimiId = y.MenuTanimiId,
-                    YetkiTipi = y.YetkiTipi
+                    YetkiTipiId = y.YetkiTipiId
                 }).ToList();
 
                 await _rolService.YetkileriGuncelleAsync(request.Id, yetkiEntities, cancellationToken);
@@ -49,7 +50,7 @@ namespace _3K.Application.Features.RolIslemleri.Commands
             // Güncel menü ağacını döndür
             var menuAgaci = await _rolService.GetMenuAgaciAsync(cancellationToken);
             var guncelYetkiler = await _rolService.GetRolYetkileriAsync(request.Id, cancellationToken);
-            var yetkiMap = guncelYetkiler.ToDictionary(y => y.MenuTanimiId, y => y.YetkiTipi);
+            var yetkiMap = guncelYetkiler.ToDictionary(y => y.MenuTanimiId, y => y.YetkiTipiId);
 
             return Result<RolDetayDto>.Success(new RolDetayDto
             {
@@ -62,7 +63,7 @@ namespace _3K.Application.Features.RolIslemleri.Commands
             });
         }
 
-        private MenuTreeDto MapToDto(MenuTanimi menu, Dictionary<int, string> yetkiMap)
+        private MenuTreeDto MapToDto(MenuTanimi menu, Dictionary<int, int> yetkiMap)
         {
             return new MenuTreeDto
             {
@@ -72,7 +73,8 @@ namespace _3K.Application.Features.RolIslemleri.Commands
                 Icon = menu.Icon,
                 Route = menu.Route,
                 Sira = menu.Sira,
-                YetkiTipi = yetkiMap.TryGetValue(menu.Id, out var y) ? y : "N",
+                YetkiTipiId = yetkiMap.TryGetValue(menu.Id, out var yetkiId) ? yetkiId : 1,
+                YetkiTipiMetni = yetkiMap.TryGetValue(menu.Id, out var yt) ? ((YetkiTipi)yt).ToString() : "N",
                 Children = menu.Children?
                     .OrderBy(c => c.Sira)
                     .Select(c => MapToDto(c, yetkiMap))

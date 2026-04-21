@@ -1,10 +1,14 @@
 namespace _3K.Core.Enums
 {
+    /// <summary>
+    /// LookupDepoLokasyon Id'leriyle birebir eşleşir.
+    /// Seed: Belirsiz=1, 3K=2, Seymen=4, Grid=5
+    /// </summary>
     public enum DepoLokasyon
     {
-        Belirsiz = 0,
-        Grid = 1,
+        Belirsiz = 1,
         UcK = 2,
-        Protest = 3
+        Seymen = 4,
+        Grid = 5
     }
 }

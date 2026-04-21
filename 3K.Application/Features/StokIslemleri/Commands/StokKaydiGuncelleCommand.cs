@@ -10,7 +10,7 @@ namespace _3K.Application.Features.StokIslemleri.Commands
         public string MalzemeAdi { get; set; } = null!;
         public int Miktar { get; set; }
         public string? Birim { get; set; }
-        public string? DepoLokasyonu { get; set; }
+        public string? Lokasyon { get; set; }
         public string KaynakProje { get; set; } = null!;
         public string? StokGirisNedeni { get; set; }
     }

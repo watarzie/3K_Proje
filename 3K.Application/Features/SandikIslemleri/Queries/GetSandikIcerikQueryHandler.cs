@@ -1,6 +1,7 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Application.Features.SandikIslemleri.DTOs;
+using _3K.Core.Entities;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.SandikIslemleri.Queries
@@ -8,10 +9,12 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
     public class GetSandikIcerikQueryHandler : IRequestHandler<GetSandikIcerikQuery, Result<SandikDetayDto>>
     {
         private readonly ISandikService _sandikService;
+        private readonly ILookupCacheService _lookupCache;
 
-        public GetSandikIcerikQueryHandler(ISandikService sandikService)
+        public GetSandikIcerikQueryHandler(ISandikService sandikService, ILookupCacheService lookupCache)
         {
             _sandikService = sandikService;
+            _lookupCache = lookupCache;
         }
 
         public async Task<Result<SandikDetayDto>> Handle(GetSandikIcerikQuery request, CancellationToken cancellationToken)
@@ -26,8 +29,10 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
             {
                 Id = sandik.Id,
                 SandikNo = sandik.SandikNo,
-                Durum = sandik.Durum.ToString(),
-                DepoLokasyonu = sandik.DepoLokasyonu.ToString(),
+                DurumId = sandik.DurumId,
+                DurumMetni = _lookupCache.GetDeger<LookupSandikDurum>(sandik.DurumId),
+                DepoLokasyonId = sandik.DepoLokasyonId,
+                DepoLokasyonMetni = _lookupCache.GetDeger<LookupDepoLokasyon>(sandik.DepoLokasyonId),
                 Icerikler = icerikler.Select(i => new SandikIcerikDto
                 {
                     Id = i.Id,
@@ -38,7 +43,8 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                     IstenenAdet = i.CekiSatiri?.IstenenAdet ?? 0,
                     KonulanAdet = i.KonulanAdet,
                     EksikAdet = i.EksikAdet,
-                    Durum = i.CekiSatiri?.Durum.ToString() ?? "",
+                    DurumId = i.CekiSatiri?.DurumId ?? 0,
+                    DurumMetni = i.CekiSatiri != null ? _lookupCache.GetDeger<LookupUrunDurum>(i.CekiSatiri.DurumId) : "",
                     PaketleyenBasHarf = i.CekiSatiri?.Paketleyen?.BasHarf,
                     KontrolEdenBasHarf = i.CekiSatiri?.KontrolEden?.BasHarf,
                     Remarks = i.CekiSatiri?.Remarks

@@ -1,3 +1,5 @@
+using _3K.Core.Enums;
+
 namespace _3K.Core.Entities
 {
     public class StokHareketi : BaseEntity
@@ -7,7 +9,7 @@ namespace _3K.Core.Entities
         public int ProjeId { get; set; }
         public int KullaniciId { get; set; }
         public int Miktar { get; set; }
-        public string IslemTipi { get; set; } = string.Empty;
+        public int IslemTipiId { get; set; }
         public string? Aciklama { get; set; }
         public DateTime Tarih { get; set; } = DateTime.UtcNow;
 
@@ -16,5 +18,6 @@ namespace _3K.Core.Entities
         public virtual CekiSatiri CekiSatiri { get; set; } = null!;
         public virtual Proje Proje { get; set; } = null!;
         public virtual Kullanici Kullanici { get; set; } = null!;
+        public virtual LookupIslemTipi? IslemTipiLookup { get; set; }
     }
 }

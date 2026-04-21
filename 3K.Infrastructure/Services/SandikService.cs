@@ -1,4 +1,5 @@
 using _3K.Core.Entities;
+using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -50,8 +51,8 @@ namespace _3K.Infrastructure.Services
             {
                 ProjeId = projeId,
                 SandikNo = sandikNo,
-                Durum = "Hazırlanıyor",
-                DepoLokasyonu = depoLokasyonu
+                DurumId = (int)SandikDurum.Hazirlaniyor,
+                DepoLokasyonId = (int)DepoLokasyon.Belirsiz
             };
             await sandikRepo.AddAsync(sandik);
             await _unitOfWork.SaveChangesAsync();

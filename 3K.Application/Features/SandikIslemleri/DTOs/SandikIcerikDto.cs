@@ -10,7 +10,8 @@ namespace _3K.Application.Features.SandikIslemleri.DTOs
         public int IstenenAdet { get; set; }
         public int KonulanAdet { get; set; }
         public int EksikAdet { get; set; }
-        public string Durum { get; set; } = string.Empty;
+        public int DurumId { get; set; }
+        public string DurumMetni { get; set; } = string.Empty;
         public string? PaketleyenBasHarf { get; set; }
         public string? KontrolEdenBasHarf { get; set; }
         public string? Remarks { get; set; }

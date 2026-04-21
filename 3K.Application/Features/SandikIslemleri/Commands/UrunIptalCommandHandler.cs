@@ -1,4 +1,5 @@
-using MediatR;
+﻿using MediatR;
+using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 
@@ -24,7 +25,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             if (urun == null) return Result.Failure("Ürün bulunamadı.", 404);
 
-            urun.Durum = StatusConstants.UrunDurum.IptalVeyaPasif;
+            urun.DurumId = (int)UrunDurum.IptalVeyaPasif;
             urun.Remarks = $"İPTAL: {request.Neden}";
             urunRepo.Update(urun);
             await _unitOfWork.SaveChangesAsync();

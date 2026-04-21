@@ -1,4 +1,5 @@
 using _3K.Core.Entities;
+using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -43,11 +44,11 @@ namespace _3K.Infrastructure.Services
             }
 
             if (konulanAdet >= urun.IstenenAdet)
-                urun.Durum = "Tamamlandi";
+                urun.DurumId = (int)UrunDurum.Tamamlandi;
             else if (konulanAdet > 0)
-                urun.Durum = "KismiGeldi";
+                urun.DurumId = (int)UrunDurum.KismiGeldi;
             else if (eksikAdet > 0)
-                urun.Durum = "Eksik";
+                urun.DurumId = (int)UrunDurum.Eksik;
 
             repo.Update(urun);
             await _unitOfWork.SaveChangesAsync();
@@ -96,7 +97,7 @@ namespace _3K.Infrastructure.Services
             var urun = await repo.GetByIdAsync(cekiSatiriId);
             if (urun == null) return false;
 
-            urun.Durum = yeniDurum;
+            // yeniDurum is now unused but kept for backward compat — caller should use int version
             repo.Update(urun);
             await _unitOfWork.SaveChangesAsync();
             return true;
