@@ -1,4 +1,5 @@
 using MediatR;
+using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 
@@ -39,7 +40,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 {
                     ProjeId = request.ProjeId,
                     SandikNo = request.YeniFiiliSandikNo,
-                    Durum = StatusConstants.ProjeDurum.Hazirlaniyor
+                    DurumId = (int)SandikDurum.Hazirlaniyor
                 };
                 await sandikRepo.AddAsync(hedefSandik);
                 await _unitOfWork.SaveChangesAsync();

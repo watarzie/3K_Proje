@@ -1,4 +1,5 @@
-using MediatR;
+﻿using MediatR;
+using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
@@ -36,7 +37,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 return Result.Failure("Ürün bulunamadı.", 404);
 
             var eskiGelenMiktar = satir.GelenMiktar;
-            var eskiUcKDurum = satir.UcKDurumu;
+            var eskiUcKDurum = satir.UcKDurumuId;
 
             // Kümülatif toplama — parça parça gelebilir
             satir.GelenMiktar += request.GelenMiktar;
@@ -45,12 +46,12 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             // 3K durumunu otomatik belirle
             if (satir.GelenMiktar >= satir.IstenenAdet)
-                satir.UcKDurumu = StatusConstants.UcKDurum.TamGeldi;
+                satir.UcKDurumuId = (int)UcKDurum.TamGeldi;
             else
-                satir.UcKDurumu = StatusConstants.UcKDurum.EksikGeldi;
+                satir.UcKDurumuId = (int)UcKDurum.EksikGeldi;
 
             // Genel durumu otomatik hesapla
-            satir.Durum = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumu, satir.UcKDurumu);
+            satir.DurumId = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumuId, satir.UcKDurumuId);
 
             repo.Update(satir);
             await _unitOfWork.SaveChangesAsync();
@@ -64,7 +65,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 ReferansId = satir.Id.ToString(),
                 Islem = "3K Teslim Alma",
                 EskiDeger = $"GelenMiktar:{eskiGelenMiktar}, UcKDurum:{eskiUcKDurum}",
-                YeniDeger = $"GelenMiktar:{satir.GelenMiktar}, UcKDurum:{satir.UcKDurumu}",
+                YeniDeger = $"GelenMiktar:{satir.GelenMiktar}, UcKDurum:{satir.UcKDurumuId}",
                 Aciklama = $"+{request.GelenMiktar} adet teslim alındı. {request.Not}"
             });
 

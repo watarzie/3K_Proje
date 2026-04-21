@@ -13,7 +13,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
         public int CekiSatiriId { get; set; }
         public int ProjeId { get; set; }
-        public string YeniDurum { get; set; } = string.Empty;
+        public int YeniDurumId { get; set; }
 
         /// <summary>
         /// EksikGeldi durumunda zorunlu. TamGeldi'de otomatik miktar kadar.
@@ -28,7 +28,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
         /// <summary>
         /// Grid Sevk Durumu: SevkEdildi, Bekliyor, SevkEdilmedi
         /// </summary>
-        public string? GridSevkDurumu { get; set; }
+        public int? GridSevkDurumuId { get; set; }
 
         /// <summary>
         /// Grid'den 3K'ya sevk edilen adet.

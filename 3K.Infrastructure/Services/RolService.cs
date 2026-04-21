@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using _3K.Core.Entities;
+using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Infrastructure.Data;
 
@@ -43,12 +44,12 @@ namespace _3K.Infrastructure.Services
 
             // Yeni yetkileri ekle (sadece W ve R olanlar — N olanlar kayıt edilmez)
             var kaydedilecek = yeniYetkiler
-                .Where(y => y.YetkiTipi is "W" or "R")
+                .Where(y => y.YetkiTipiId == (int)YetkiTipi.W || y.YetkiTipiId == (int)YetkiTipi.R)
                 .Select(y => new RolYetki
                 {
                     RolId = rolId,
                     MenuTanimiId = y.MenuTanimiId,
-                    YetkiTipi = y.YetkiTipi
+                    YetkiTipiId = y.YetkiTipiId
                 })
                 .ToList();
 
@@ -70,11 +71,19 @@ namespace _3K.Infrastructure.Services
 
             var roleIds = roles.Select(r => r.Id).ToList();
 
+            // Map string yetkiTipi to int for backward compatibility
+            int yetkiTipiId = yetkiTipi switch
+            {
+                "W" => (int)YetkiTipi.W,
+                "R" => (int)YetkiTipi.R,
+                _ => (int)YetkiTipi.N
+            };
+
             var hasPermission = await _context.RolYetkileri
                 .Include(ry => ry.MenuTanimi)
                 .AnyAsync(ry => roleIds.Contains(ry.RolId) &&
                                 ry.MenuTanimi.Kod == menuKod &&
-                                ry.YetkiTipi == yetkiTipi, ct);
+                                ry.YetkiTipiId >= yetkiTipiId, ct);
 
             return hasPermission;
         }

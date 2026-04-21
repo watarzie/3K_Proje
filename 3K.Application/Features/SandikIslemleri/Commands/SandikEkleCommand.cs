@@ -1,4 +1,5 @@
 using MediatR;
+using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Application.Features.SandikIslemleri.DTOs;
 
@@ -13,7 +14,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
         public int ProjeId { get; set; }
         public string SandikNo { get; set; } = string.Empty;
-        public string Tip { get; set; } = "Proje";
-        public string DepoLokasyonu { get; set; } = "Belirsiz";
+        public int TipId { get; set; } = (int)SandikTipi.Proje;
+        public int DepoLokasyonId { get; set; } = (int)DepoLokasyon.Belirsiz;
     }
 }

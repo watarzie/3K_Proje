@@ -11,21 +11,25 @@ namespace _3K.Application.Features.GridIslemleri.DTOs
         public string SandikNo { get; set; } = string.Empty;
 
         // Grid tarafı
-        public string GridDurumu { get; set; } = string.Empty;
+        public int GridDurumuId { get; set; }
+        public string GridDurumuMetni { get; set; } = string.Empty;
         public int GridGelenAdet { get; set; }
         public int TrafoSevkAdet { get; set; }
-        public string GridSevkDurumu { get; set; } = string.Empty;
+        public int GridSevkDurumuId { get; set; }
+        public string GridSevkDurumuMetni { get; set; } = string.Empty;
         public int? GridSevkMiktari { get; set; }
         public DateTime? GridSevkTarihi { get; set; }
         public string? GridNotu { get; set; }
         public int GridEksikMiktar { get; set; }
 
         // 3K tarafı (read-only)
-        public string UcKDurumu { get; set; } = string.Empty;
+        public int UcKDurumuId { get; set; }
+        public string UcKDurumuMetni { get; set; } = string.Empty;
         public int GelenMiktar { get; set; }
         public string? KaynakHedefProjeNo { get; set; }
 
         // Genel
-        public string GenelDurum { get; set; } = string.Empty;
+        public int GenelDurumId { get; set; }
+        public string GenelDurumMetni { get; set; } = string.Empty;
     }
 }

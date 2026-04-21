@@ -1,4 +1,5 @@
-using MediatR;
+﻿using MediatR;
+using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
@@ -46,7 +47,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 return new SandikKapatResult { IsSuccess = false, Message = "Sandık bulunamadı." };
             }
 
-            if (sandik.Durum == StatusConstants.SandikDurum.Hazir)
+            if (sandik.DurumId == (int)SandikDurum.Hazir)
             {
                 return new SandikKapatResult { IsSuccess = false, Message = "Sandık zaten kapalı (Hazır) durumdadır." };
             }
@@ -72,8 +73,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                         Barkod = urun.BarkodNo,
                         Aciklama = urun.Aciklama,
                         Kalan = urun.KalanMiktar,
-                        Durum = urun.UcKDurumu,
-                        GridDurum = urun.GridDurumu
+                        Durum = urun.UcKDurumuId,
+                        GridDurum = urun.GridDurumuId
                     });
                 }
             }
@@ -91,7 +92,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             }
 
             // Kapat (Eksik yok, ya da ForceClose = true)
-            sandik.Durum = StatusConstants.SandikDurum.Hazir;
+            sandik.DurumId = (int)SandikDurum.Hazir;
             sandikRepo.Update(sandik);
             await _unitOfWork.SaveChangesAsync();
 
@@ -103,7 +104,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 ReferansId = sandik.Id.ToString(),
                 Islem = "Sandık Manuel Kapatma",
                 EskiDeger = "",
-                YeniDeger = StatusConstants.SandikDurum.Hazir,
+                YeniDeger = ((int)SandikDurum.Hazir).ToString(),
                 Aciklama = request.ForceClose 
                     ? $"Sandık {sandik.SandikNo} (eksik ürün loguna rağmen zorunlu onayla) manuel olarak kapatıldı." 
                     : $"Sandık {sandik.SandikNo} başarıyla kapatıldı."

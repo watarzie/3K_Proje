@@ -1,4 +1,4 @@
-using MediatR;
+﻿using MediatR;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;

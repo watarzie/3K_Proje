@@ -1,4 +1,5 @@
-using MediatR;
+﻿using MediatR;
+using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 
@@ -42,7 +43,7 @@ namespace _3K.Application.Features.StokIslemleri.Commands
                 sandikIcerikRepo.Update(icerik);
             }
 
-            urun.Durum = StatusConstants.UrunDurum.StoktanKarsilandi;
+            urun.DurumId = (int)UrunDurum.StoktanKarsilandi;
             urun.Remarks = string.IsNullOrEmpty(urun.Remarks)
                 ? "Kalan stoktan karşılandı"
                 : $"{urun.Remarks}; Kalan stoktan karşılandı";
@@ -56,7 +57,7 @@ namespace _3K.Application.Features.StokIslemleri.Commands
                 ProjeId = request.ProjeId,
                 KullaniciId = request.KullaniciId,
                 Miktar = request.Miktar,
-                IslemTipi = "StokKullanimi",
+                IslemTipiId = (int)IslemTipi.StokKullanimi,
                 Aciklama = $"Proje {request.ProjeId} için stoktan {request.Miktar} adet kullanıldı"
             };
             await stokHareketRepo.AddAsync(stokHareketi);

@@ -1,4 +1,5 @@
-using MediatR;
+﻿using MediatR;
+using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
@@ -54,7 +55,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 var sandik = await sandikRepo.GetByIdAsync(sandikId);
                 if (sandik == null) continue;
 
-                if (sandik.Durum == StatusConstants.SandikDurum.Hazir)
+                if (sandik.DurumId == (int)SandikDurum.Hazir)
                 {
                     continue; // Zaten kapalı
                 }
@@ -75,8 +76,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                             Barkod = urun.BarkodNo,
                             Aciklama = urun.Aciklama,
                             Kalan = urun.KalanMiktar,
-                            Durum = urun.UcKDurumu,
-                            GridDurum = urun.GridDurumu
+                            Durum = urun.UcKDurumuId,
+                            GridDurum = urun.GridDurumuId
                         });
                     }
                 }
@@ -117,9 +118,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             foreach (var s in islenecekler)
             {
-                if (s.Durum != StatusConstants.SandikDurum.Hazir)
+                if (s.DurumId != (int)SandikDurum.Hazir)
                 {
-                    s.Durum = StatusConstants.SandikDurum.Hazir;
+                    s.DurumId = (int)SandikDurum.Hazir;
                     sandikRepo.Update(s);
 
                     await _hareketService.HareketKaydetAsync(new HareketGecmisi
@@ -130,7 +131,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                         ReferansId = s.Id.ToString(),
                         Islem = "Toplu Sandık Kapatma",
                         EskiDeger = "",
-                        YeniDeger = StatusConstants.SandikDurum.Hazir,
+                        YeniDeger = ((int)SandikDurum.Hazir).ToString(),
                         Aciklama = request.ForceClose
                             ? $"Sandık {s.SandikNo} (eksik ürün loguna rağmen zorunlu onayla) toplu işlemle kapatıldı."
                             : $"Sandık {s.SandikNo} toplu işlemle başarıyla kapatıldı."

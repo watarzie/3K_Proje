@@ -1,11 +1,12 @@
 using MediatR;
+using _3K.Core.Enums;
 using _3K.Application.Common;
 
 namespace _3K.Application.Features.UcKIslemleri.Commands
 {
     /// <summary>
     /// 3K personeli ürün karşılama durumunu günceller.
-    /// Karşılama Tipleri: TamGeldi, EksikGeldi, Gelmedi, ProjedenKarsilandi, StoktanKarsilandi,
+    /// Karşılama Tipleri (UcKDurum enum Id): TamGeldi, EksikGeldi, Gelmedi, ProjedenKarsilandi, StoktanKarsilandi,
     /// TedarikcidenGeldi, BaskaProyeVerildi, GeriGonderildi, HataliUrun
     /// </summary>
     public class UcKDurumGuncelleCommand : IRequest<Result>, ISecuredRequest, IRequireApproval
@@ -14,7 +15,8 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
         public string GetApprovalKarsilamaTipi()
         {
-            return KarsilamaTipi ?? "";
+            // ApprovalBehavior uses string to match lookup Deger — convert Id to readable name
+            return ((UcKDurum)KarsilamaTipiId).ToString();
         }
 
         public string GetApprovalDescription()
@@ -24,19 +26,19 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             var m_sandik = !string.IsNullOrEmpty(MevcutSandikNo) ? $"{MevcutSandikNo} numaralı sandıktaki" : "";
             var m_urun = !string.IsNullOrEmpty(UrunAdi) ? UrunAdi : $"Ürün(ID:{CekiSatiriId})";
 
-            if (KarsilamaTipi == StatusConstants.UcKDurum.ProjedenKarsilandi)
+            if (KarsilamaTipiId == (int)UcKDurum.ProjedenKarsilandi)
             {
                 var k_urun = !string.IsNullOrEmpty(KaynakUrunAdi) ? KaynakUrunAdi : "ürünü";
                 return $"{m_proje} projesi {m_sandik} {m_urun} ürünü için, {KaynakHedefProjeNo} projesinden {k_urun} {asGelenAdet} çekilecek.";
             }
             
-            if (KarsilamaTipi == StatusConstants.UcKDurum.StoktanKarsilandi)
+            if (KarsilamaTipiId == (int)UcKDurum.StoktanKarsilandi)
                 return $"{m_proje} projesi {m_sandik} {m_urun} ürünü için, stok deposundan (Kayıt No: {StokKaydiId}) {asGelenAdet} kullanılacak.";
 
-            if (KarsilamaTipi == StatusConstants.UcKDurum.TedarikcidenGeldi)
+            if (KarsilamaTipiId == (int)UcKDurum.TedarikcidenGeldi)
                 return $"{m_proje} projesi {m_sandik} {m_urun} ürünü için, harici tedarikçiden {asGelenAdet} teslim alınacak.";
 
-            return $"3K Kritik Durum Güncellemesi: {m_proje} / {m_urun} -> {KarsilamaTipi}";
+            return $"3K Kritik Durum Güncellemesi: {m_proje} / {m_urun} -> {(UcKDurum)KarsilamaTipiId}";
         }
 
         public string? UrunAdi { get; set; }
@@ -46,7 +48,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
         public int CekiSatiriId { get; set; }
         public int ProjeId { get; set; }
-        public string KarsilamaTipi { get; set; } = string.Empty;
+        public int KarsilamaTipiId { get; set; }
 
         /// <summary>
         /// TamGeldi hariç, kullanıcının girdiği adet.
@@ -69,9 +71,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
         public string? Aciklama { get; set; }
 
         /// <summary>
-        /// GeriGonderildi durumunda zorunlu: "Tadilat" veya "Iptal"
+        /// GeriGonderildi durumunda zorunlu: GeriGonderilmeSebebi enum Id
         /// </summary>
-        public string? GeriGonderilmeSebebi { get; set; }
+        public int? GeriGonderilmeSebebiId { get; set; }
 
         public string? Not { get; set; }
 

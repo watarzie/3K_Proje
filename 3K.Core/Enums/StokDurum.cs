@@ -1,9 +1,12 @@
 namespace _3K.Core.Enums
 {
+    /// <summary>
+    /// LookupStokDurum Id'leriyle birebir eşleşir.
+    /// </summary>
     public enum StokDurum
     {
-        Aktif = 0,
-        Tukendi = 1,
-        Rezerve = 2
+        Aktif = 1,
+        Tukendi = 2,
+        Rezerve = 3
     }
 }

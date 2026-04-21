@@ -9,10 +9,12 @@ namespace _3K.Application.Features.GridIslemleri.Queries
     public class GetGridUrunlerQueryHandler : IRequestHandler<GetGridUrunlerQuery, Result<List<GridUrunDto>>>
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly ILookupCacheService _lookupCache;
 
-        public GetGridUrunlerQueryHandler(IUnitOfWork unitOfWork)
+        public GetGridUrunlerQueryHandler(IUnitOfWork unitOfWork, ILookupCacheService lookupCache)
         {
             _unitOfWork = unitOfWork;
+            _lookupCache = lookupCache;
         }
 
         public async Task<Result<List<GridUrunDto>>> Handle(GetGridUrunlerQuery request, CancellationToken cancellationToken)
@@ -39,18 +41,22 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                     IstenenAdet = cs.IstenenAdet,
                     Birim = cs.Birim,
                     SandikNo = cs.FiiliSandikNo ?? cs.CekideGecenSandikNo,
-                    GridDurumu = cs.GridDurumu,
+                    GridDurumuId = cs.GridDurumuId,
+                    GridDurumuMetni = _lookupCache.GetDeger<LookupGridDurum>(cs.GridDurumuId),
                     GridGelenAdet = cs.GridGelenAdet,
                     TrafoSevkAdet = cs.TrafoSevkAdet,
-                    GridSevkDurumu = cs.GridSevkDurumu,
+                    GridSevkDurumuId = cs.GridSevkDurumuId,
+                    GridSevkDurumuMetni = _lookupCache.GetDeger<LookupGridSevkDurum>(cs.GridSevkDurumuId),
                     GridSevkMiktari = cs.GridSevkMiktari,
                     GridSevkTarihi = cs.GridSevkTarihi,
                     GridNotu = cs.GridNotu,
                     GridEksikMiktar = cs.GridEksikMiktar,
-                    UcKDurumu = cs.UcKDurumu,
+                    UcKDurumuId = cs.UcKDurumuId,
+                    UcKDurumuMetni = _lookupCache.GetDeger<LookupUcKDurum>(cs.UcKDurumuId),
                     GelenMiktar = cs.GelenMiktar,
                     KaynakHedefProjeNo = cs.KaynakHedefProjeNo,
-                    GenelDurum = cs.Durum
+                    GenelDurumId = cs.DurumId,
+                    GenelDurumMetni = _lookupCache.GetDeger<LookupUrunDurum>(cs.DurumId)
                 })
                 .ToList();
 

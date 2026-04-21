@@ -1,10 +1,11 @@
-using MediatR;
+﻿using MediatR;
+using _3K.Core.Enums;
 using _3K.Application.Common;
 
 namespace _3K.Application.Features.GridIslemleri.Commands
 {
     /// <summary>
-    /// Birden fazla ürünü tek seferde StatusConstants.GridDurum.SevkEdildi yapar.
+    /// Birden fazla ürünü tek seferde (int)GridDurum.SevkEdildi yapar.
     /// </summary>
     public class GridTopluSevkCommand : IRequest<Result>, ISecuredRequest
     {

@@ -245,7 +245,7 @@ namespace _3K.Infrastructure.Services
                             {
                                 sandikCol.Item().Background(Colors.Grey.Lighten3)
                                     .Padding(5)
-                                    .Text($"Sandık: {sandik.SandikNo} | Durum: {sandik.Durum}")
+                                    .Text($"Sandık: {sandik.SandikNo} | Durum: {sandik.DurumId}")
                                     .Bold().FontSize(10);
 
                                 sandikCol.Item().Table(table =>

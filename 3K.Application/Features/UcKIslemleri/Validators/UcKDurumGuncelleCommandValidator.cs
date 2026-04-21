@@ -9,7 +9,7 @@ namespace _3K.Application.Features.UcKIslemleri.Validators
         {
             RuleFor(x => x.CekiSatiriId).GreaterThan(0).WithMessage("Geçerli bir ürün ID belirtilmeli.");
             RuleFor(x => x.ProjeId).GreaterThan(0).WithMessage("Geçerli bir proje ID belirtilmeli.");
-            RuleFor(x => x.KarsilamaTipi).NotEmpty().WithMessage("Karşılama tipi belirtilmeli.");
+            RuleFor(x => x.KarsilamaTipiId).GreaterThan(0).WithMessage("Karşılama tipi belirtilmeli.");
         }
     }
 }

@@ -2,9 +2,10 @@ namespace _3K.Core.Interfaces
 {
     /// <summary>
     /// GridDurumu + UcKDurumu kombinasyonundan genel Durum (UrunDurum) otomatik hesaplar.
+    /// ID bazlı çalışır.
     /// </summary>
     public interface IDurumHesaplaService
     {
-        string HesaplaGenelDurum(string gridDurumu, string ucKDurumu);
+        int HesaplaGenelDurum(int gridDurumuId, int ucKDurumuId);
     }
 }

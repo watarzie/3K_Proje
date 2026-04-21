@@ -42,8 +42,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             foreach (var sandik in sandiklar)
             {
-                var eskiLokasyon = sandik.DepoLokasyonu;
-                sandik.DepoLokasyonu = request.DepoLokasyonu;
+                var eskiLokasyon = sandik.DepoLokasyonId;
+                sandik.DepoLokasyonId = request.DepoLokasyonId;
                 repo.Update(sandik);
 
                 await _hareketService.HareketKaydetAsync(new HareketGecmisi
@@ -53,9 +53,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                     ReferansTipi = "Sandik",
                     ReferansId = sandik.Id.ToString(),
                     Islem = "Lokasyon Güncelleme",
-                    EskiDeger = eskiLokasyon,
-                    YeniDeger = sandik.DepoLokasyonu,
-                    Aciklama = $"Sandık lokasyonu '{eskiLokasyon}' değerinden '{sandik.DepoLokasyonu}' olarak değiştirildi."
+                    EskiDeger = eskiLokasyon.ToString(),
+                    YeniDeger = sandik.DepoLokasyonId.ToString(),
+                    Aciklama = $"Sandık lokasyonu '{eskiLokasyon}' değerinden '{sandik.DepoLokasyonId}' olarak değiştirildi."
                 });
             }
 

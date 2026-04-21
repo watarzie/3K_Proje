@@ -34,7 +34,6 @@ builder.Services.AddScoped<ISandikService, SandikService>();
 builder.Services.AddScoped<IUrunService, UrunService>();
 builder.Services.AddScoped<IStokService, StokService>();
 builder.Services.AddScoped<IHareketService, HareketService>();
-builder.Services.AddScoped<IRevizyonService, RevizyonService>();
 builder.Services.AddScoped<IPdfService, PdfService>();
 builder.Services.AddScoped<IMailService, MailService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -50,8 +49,9 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
 builder.Services.AddHostedService<BackgroundTaskProcessor>();
 
-// ======= In-Memory Cache =======
+// ======= In-Memory Cache + Lookup Cache =======
 builder.Services.AddMemoryCache();
+builder.Services.AddScoped<ILookupCacheService, LookupCacheService>();
 
 // ======= MediatR + Pipeline Behaviors =======
 builder.Services.AddMediatR(cfg =>
@@ -174,5 +174,12 @@ app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+// ======= Lookup Cache Warmup =======
+using (var scope = app.Services.CreateScope())
+{
+    var lookupCache = scope.ServiceProvider.GetRequiredService<ILookupCacheService>();
+    await lookupCache.WarmupAsync();
+}
 
 app.Run();

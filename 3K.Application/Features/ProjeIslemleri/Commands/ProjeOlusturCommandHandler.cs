@@ -1,8 +1,8 @@
 using MediatR;
+using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Application.Features.ProjeIslemleri.DTOs;
 using _3K.Core.Entities;
-
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.ProjeIslemleri.Commands
@@ -11,11 +11,13 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHareketService _hareketService;
+        private readonly ILookupCacheService _lookupCache;
 
-        public ProjeOlusturCommandHandler(IUnitOfWork unitOfWork, IHareketService hareketService)
+        public ProjeOlusturCommandHandler(IUnitOfWork unitOfWork, IHareketService hareketService, ILookupCacheService lookupCache)
         {
             _unitOfWork = unitOfWork;
             _hareketService = hareketService;
+            _lookupCache = lookupCache;
         }
 
         public async Task<Result<ProjeDto>> Handle(ProjeOlusturCommand request, CancellationToken cancellationToken)
@@ -26,7 +28,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             {
                 ProjeNo = request.ProjeNo,
                 Musteri = request.Musteri,
-                Durum = StatusConstants.ProjeDurum.Hazirlaniyor,
+                DurumId = (int)ProjeDurum.Hazirlaniyor,
                 PlanlananSevkTarihi = request.PlanlananSevkTarihi,
                 SorumluKisi = request.SorumluKisi
             };
@@ -49,7 +51,8 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 Id = proje.Id,
                 ProjeNo = proje.ProjeNo,
                 Musteri = proje.Musteri,
-                Durum = proje.Durum.ToString(),
+                DurumId = proje.DurumId,
+                DurumMetni = _lookupCache.GetDeger<LookupProjeDurum>(proje.DurumId),
                 PlanlananSevkTarihi = proje.PlanlananSevkTarihi,
                 SorumluKisi = proje.SorumluKisi
             });

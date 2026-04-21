@@ -1,4 +1,5 @@
 using MediatR;
+using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
@@ -28,13 +29,13 @@ namespace _3K.Application.Features.StokIslemleri.Commands
             stok.MalzemeAdi = request.MalzemeAdi;
             stok.Miktar = request.Miktar;
             stok.Birim = request.Birim ?? string.Empty;
-            stok.Lokasyon = request.DepoLokasyonu;
+            stok.Lokasyon = request.Lokasyon;
             stok.KaynakProje = request.KaynakProje;
             stok.StokGirisNedeni = request.StokGirisNedeni;
 
             // Eğer miktar 0 yapıldıysa durumu güncelle, isteğe bağlı
-            if (stok.Miktar == 0) stok.Durum = "Ölü Kayıt";
-            else stok.Durum = "Aktif";
+            if (stok.Miktar == 0) stok.DurumId = (int)StokDurum.Tukendi;
+            else stok.DurumId = (int)StokDurum.Aktif;
 
             await _unitOfWork.SaveChangesAsync();
             return Result.Success();

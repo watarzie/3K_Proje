@@ -1,3 +1,5 @@
+using _3K.Core.Enums;
+
 namespace _3K.Core.Entities
 {
     public class CekiSatiri : BaseEntity
@@ -14,13 +16,13 @@ namespace _3K.Core.Entities
         public string? Remarks { get; set; }
 
         // ===== Genel Durum (Otomatik hesaplanır) =====
-        public string Durum { get; set; } = "Bekliyor";
+        public int DurumId { get; set; } = (int)UrunDurum.Bekliyor;
 
         // ===== Grid Modülü Alanları =====
         /// <summary>
-        /// Grid Durumu: TamGeldi, EksikGeldi, Gelmedi, TrafoSevk, Iptal, Sipariste, Bekliyor
+        /// Grid Durumu: Lookup Id
         /// </summary>
-        public string GridDurumu { get; set; } = "Bekliyor";
+        public int GridDurumuId { get; set; } = (int)GridDurum.Bekliyor;
         /// <summary>
         /// Grid'e gelen adet. TAM GELDİ → IstenenAdet, EKSİK GELDİ → kullanıcı girer, diğer → 0
         /// </summary>
@@ -30,9 +32,10 @@ namespace _3K.Core.Entities
         /// </summary>
         public int TrafoSevkAdet { get; set; } = 0;
         /// <summary>
-        /// Grid Sevk Durumu: SevkEdildi, Bekliyor, SevkEdilmedi
+        /// Grid Sevk Durumu: SevkEdildi=1, Bekliyor=2, SevkEdilmedi=3
+        /// Lookup tablosuna bağlı değil, enum ile yönetilir.
         /// </summary>
-        public string GridSevkDurumu { get; set; } = "SevkEdilmedi";
+        public int GridSevkDurumuId { get; set; } = 3; // SevkEdilmedi
         /// <summary>
         /// Grid'den 3K'ya sevk edilen adet.
         /// </summary>
@@ -42,12 +45,11 @@ namespace _3K.Core.Entities
         public int? GridPersonelId { get; set; }
 
         // ===== 3K Modülü Alanları =====
-        public string UcKDurumu { get; set; } = "Bekliyor";
+        public int UcKDurumuId { get; set; } = (int)UcKDurum.Bekliyor;
         /// <summary>
-        /// 3K Karşılama Tipi: Bekliyor, TamGeldi, EksikGeldi, ProjedenKarsilandi, StoktanKarsilandi,
-        /// TedarikcidenGeldi, BaskaProyeVerildi, HataliUrun
+        /// 3K Karşılama Tipi: UcKDurum enum Id'si
         /// </summary>
-        public string UcKKarsilamaTipi { get; set; } = "Bekliyor";
+        public int UcKKarsilamaTipiId { get; set; } = (int)UcKDurum.Bekliyor;
         /// <summary>
         /// 3K'ya gelen / karşılanan adet (tüm kaynaklardan toplam).
         /// </summary>
@@ -66,24 +68,21 @@ namespace _3K.Core.Entities
         // ===== Kümülatif Takip Alanları =====
         /// <summary>
         /// FB, stok veya tedarikçiden karşılanan toplam adet.
-        /// GelenMiktar + KarsilananMiktar = toplam tamamlanan.
         /// </summary>
         public int KarsilananMiktar { get; set; } = 0;
 
         /// <summary>
         /// Hatalı gelen ürün adedi.
-        /// İŞ KURALI: HataliMiktar varken KalanMiktar ASLA 0 yapılamaz.
         /// </summary>
         public int HataliMiktar { get; set; } = 0;
 
         /// <summary>
-        /// GeriGonderildi durumunda zorunlu sebep: "Tadilat" veya "Iptal"
+        /// GeriGonderildi durumunda zorunlu sebep: LookupGeriGonderilmeSebebi Id
         /// </summary>
-        public string? GeriGonderilmeSebebi { get; set; }
+        public int? GeriGonderilmeSebebiId { get; set; }
 
         /// <summary>
         /// FB'den (Projeden) karşılandığında kaynak proje ID'si.
-        /// Grid personeli hangi projeden geldiğini görmek için kullanır.
         /// </summary>
         public int? KaynakProjeId { get; set; }
 
@@ -101,15 +100,13 @@ namespace _3K.Core.Entities
         {
             get
             {
-                if (GridDurumu == "Iptal") return 0;
+                if (GridDurumuId == (int)GridDurum.Iptal) return 0;
                 return IstenenAdet - GridGelenAdet - TrafoSevkAdet;
             }
         }
 
         /// <summary>
-        /// 3K tarafı kümülatif eksik hesabı:
-        /// IstenenAdet - GelenMiktar - KarsilananMiktar
-        /// NOT: HataliMiktar düşülmez — hatalı varken kalan ASLA 0 olamaz.
+        /// 3K tarafı kümülatif eksik hesabı
         /// </summary>
         public int EksikMiktar => IstenenAdet - GelenMiktar - KarsilananMiktar;
 
@@ -119,13 +116,13 @@ namespace _3K.Core.Entities
         public int KumulatifToplam => GelenMiktar + KarsilananMiktar;
 
         /// <summary>
-        /// Kalan miktar — Hatalı ürün varsa kalan ASLA 0 olmaz.
+        /// Kalan miktar — TrafoSevk adedi de düşülür. Hatalı ürün varsa kalan ASLA 0 olmaz.
         /// </summary>
         public int KalanMiktar
         {
             get
             {
-                var kalan = IstenenAdet - GelenMiktar - KarsilananMiktar;
+                var kalan = IstenenAdet - GelenMiktar - KarsilananMiktar - TrafoSevkAdet;
                 // İŞ KURALI: Hatalı ürün varsa kalan en az 1 (eksik giderilmemiş)
                 if (HataliMiktar > 0 && kalan <= 0) return 1;
                 return Math.Max(kalan, 0);
@@ -138,6 +135,10 @@ namespace _3K.Core.Entities
         public virtual Kullanici? KontrolEden { get; set; }
         public virtual Kullanici? GridPersonel { get; set; }
         public virtual Proje? KaynakProje { get; set; }
+        public virtual LookupUrunDurum? DurumLookup { get; set; }
+        public virtual LookupGridDurum? GridDurumLookup { get; set; }
+        public virtual LookupUcKDurum? UcKDurumLookup { get; set; }
+        public virtual LookupGeriGonderilmeSebebi? GeriGonderilmeSebebiLookup { get; set; }
         public virtual ICollection<SandikIcerik> SandikIcerikleri { get; set; } = new List<SandikIcerik>();
         public virtual ICollection<StokHareketi> StokHareketleri { get; set; } = new List<StokHareketi>();
     }

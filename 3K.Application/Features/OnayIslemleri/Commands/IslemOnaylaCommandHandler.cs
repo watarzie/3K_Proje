@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using MediatR;
 using _3K.Application.Common;
 using _3K.Core.Entities;
