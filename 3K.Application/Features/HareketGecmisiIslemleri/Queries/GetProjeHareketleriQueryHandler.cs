@@ -134,7 +134,6 @@ namespace _3K.Application.Features.HareketGecmisiIslemleri.Queries
             }
             else if (!string.IsNullOrWhiteSpace(islemMetni))
             {
-                // Legacy records fallback
                 if (islemMetni.Contains("Grid", StringComparison.OrdinalIgnoreCase))
                     return Enum.GetName(typeof(GridDurum), intVal) ?? deger;
                 if (islemMetni.Contains("3K", StringComparison.OrdinalIgnoreCase))
@@ -145,6 +144,8 @@ namespace _3K.Application.Features.HareketGecmisiIslemleri.Queries
                     return Enum.GetName(typeof(DepoLokasyon), intVal) ?? deger;
                 if (islemMetni.Contains("Taşıma", StringComparison.OrdinalIgnoreCase) || islemMetni.Contains("Fiili", StringComparison.OrdinalIgnoreCase))
                     return $"Sandık {deger}";
+                if (islemMetni.Contains("Proje", StringComparison.OrdinalIgnoreCase) && (islemMetni.Contains("Kilit", StringComparison.OrdinalIgnoreCase) || islemMetni.Contains("Sevk", StringComparison.OrdinalIgnoreCase)))
+                    return Enum.GetName(typeof(ProjeDurum), intVal) ?? deger;
             }
 
             return deger;

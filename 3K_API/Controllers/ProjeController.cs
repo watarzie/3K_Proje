@@ -40,5 +40,24 @@ namespace _3K_API.Controllers
             var result = await _mediator.Send(command);
             return result.ToActionResult();
         }
+        /// <summary>
+        /// Projeyi kilitler (Sevk Edildi durumuna çeker) — Sadece yetkililer
+        /// </summary>
+        [HttpPost("{id}/sevk-et")]
+        public async Task<ActionResult> SevkEt(int id)
+        {
+            var result = await _mediator.Send(new ProjeSevkEtCommand { ProjeId = id });
+            return result.ToActionResult();
+        }
+
+        /// <summary>
+        /// Proje kilidini açar (Devam durumuna çeker) — Sadece Admin
+        /// </summary>
+        [HttpPost("{id}/kilidi-ac")]
+        public async Task<ActionResult> KilidiAc(int id)
+        {
+            var result = await _mediator.Send(new ProjeKilidiAcCommand { ProjeId = id });
+            return result.ToActionResult();
+        }
     }
 }

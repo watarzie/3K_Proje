@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.Extensions.Logging;
 using _3K.Application.Common;
+using _3K.Core.Exceptions;
 
 namespace _3K.Application.Behaviors
 {
@@ -24,6 +25,11 @@ namespace _3K.Application.Behaviors
             try
             {
                 return await next();
+            }
+            catch (ProjectLockedException ex)
+            {
+                // İş kuralı hatası olarak yakala ve 400 ile dön
+                return CreateFailureResult(ex.Message, 400);
             }
             catch (Exception ex)
             {
@@ -59,6 +65,18 @@ namespace _3K.Application.Behaviors
                 {
                     return (TResponse)failureMethod.Invoke(null, new object[] { message, code })!;
                 }
+            }
+
+            // TResponse için IsSuccess ve Message property'leri olan sınıfları destekle (SandikKapatResult gibi)
+            var isSuccessProp = responseType.GetProperty("IsSuccess");
+            var messageProp = responseType.GetProperty("Message");
+
+            if (isSuccessProp != null && messageProp != null && responseType.GetConstructor(Type.EmptyTypes) != null)
+            {
+                var instance = Activator.CreateInstance(responseType);
+                isSuccessProp.SetValue(instance, false);
+                messageProp.SetValue(instance, message);
+                return (TResponse)instance!;
             }
 
             // Result pattern kullanmayan eski tipte komutlar — burada yeniden fırlatmak zorundayız

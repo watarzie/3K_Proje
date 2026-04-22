@@ -599,13 +599,14 @@ namespace _3K.Infrastructure.Data
                 // Yetki kontrollü butonlar — sidebar'da GÖRÜNMEZler (Route=null).
                 new MenuTanimi { Id = 14, Kod = "grid-modulu", LabelKey = "MENU.GRID_MODULU", Icon = "", Route = null, Sira = 3, ParentId = 2 },
                 new MenuTanimi { Id = 15, Kod = "3k-modulu", LabelKey = "MENU.3K_MODULU", Icon = "", Route = null, Sira = 4, ParentId = 2 },
+                new MenuTanimi { Id = 16, Kod = "proje-sevk-et", LabelKey = "MENU.PROJE_SEVK_ET", Icon = "", Route = null, Sira = 5, ParentId = 2 },
                 // Onay Merkezi (Header bildirimi için yetki aracı)
                 new MenuTanimi { Id = 99, Kod = "islem-onay-merkezi", LabelKey = "MENU.ISLEM_ONAY", Icon = "ri-check-double-line", Route = "/onay-merkezi", Sira = 12, ParentId = null }
             );
 
             // ======= ADMIN ROL YETKİLERİ (tüm menülere W=3) =======
             var adminYetkiler = new List<RolYetki>();
-            for (int menuId = 1; menuId <= 15; menuId++)
+            for (int menuId = 1; menuId <= 16; menuId++)
             {
                 adminYetkiler.Add(new RolYetki { Id = menuId, RolId = 1, MenuTanimiId = menuId, YetkiTipiId = (int)_3K.Core.Enums.YetkiTipi.W });
             }

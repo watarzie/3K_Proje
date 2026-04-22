@@ -56,7 +56,7 @@ namespace _3K.Infrastructure.Migrations
 
                     b.HasIndex("ProjeId");
 
-                    b.ToTable("Cekiler");
+                    b.ToTable("Cekiler", (string)null);
                 });
 
             modelBuilder.Entity("_3K.Core.Entities.CekiSatiri", b =>
@@ -207,7 +207,7 @@ namespace _3K.Infrastructure.Migrations
 
                     b.HasIndex("UcKDurumuId");
 
-                    b.ToTable("CekiSatirlari");
+                    b.ToTable("CekiSatirlari", (string)null);
                 });
 
             modelBuilder.Entity("_3K.Core.Entities.HareketGecmisi", b =>
@@ -270,7 +270,7 @@ namespace _3K.Infrastructure.Migrations
 
                     b.HasIndex("ProjeId");
 
-                    b.ToTable("HareketGecmisleri");
+                    b.ToTable("HareketGecmisleri", (string)null);
                 });
 
             modelBuilder.Entity("_3K.Core.Entities.IslemOnayKurali", b =>
@@ -303,7 +303,7 @@ namespace _3K.Infrastructure.Migrations
 
                     b.HasIndex("LookupUcKDurumId");
 
-                    b.ToTable("IslemOnayKurallari");
+                    b.ToTable("IslemOnayKurallari", (string)null);
 
                     b.HasData(
                         new
@@ -417,7 +417,7 @@ namespace _3K.Infrastructure.Migrations
 
                     b.HasIndex("RolId");
 
-                    b.ToTable("Kullanicilar");
+                    b.ToTable("Kullanicilar", (string)null);
                 });
 
             modelBuilder.Entity("_3K.Core.Entities.LookupDepoLokasyon", b =>
@@ -452,7 +452,7 @@ namespace _3K.Infrastructure.Migrations
                     b.HasIndex("Deger")
                         .IsUnique();
 
-                    b.ToTable("LookupDepoLokasyonlari");
+                    b.ToTable("LookupDepoLokasyonlari", (string)null);
 
                     b.HasData(
                         new
@@ -517,7 +517,7 @@ namespace _3K.Infrastructure.Migrations
                     b.HasIndex("Deger")
                         .IsUnique();
 
-                    b.ToTable("LookupGeriGonderilmeSebepleri");
+                    b.ToTable("LookupGeriGonderilmeSebepleri", (string)null);
 
                     b.HasData(
                         new
@@ -575,7 +575,7 @@ namespace _3K.Infrastructure.Migrations
                     b.HasIndex("Deger")
                         .IsUnique();
 
-                    b.ToTable("LookupGridDurumlari");
+                    b.ToTable("LookupGridDurumlari", (string)null);
 
                     b.HasData(
                         new
@@ -703,7 +703,7 @@ namespace _3K.Infrastructure.Migrations
                     b.HasIndex("Deger")
                         .IsUnique();
 
-                    b.ToTable("LookupGridSevkDurumlari");
+                    b.ToTable("LookupGridSevkDurumlari", (string)null);
 
                     b.HasData(
                         new
@@ -761,7 +761,7 @@ namespace _3K.Infrastructure.Migrations
                     b.HasIndex("Deger")
                         .IsUnique();
 
-                    b.ToTable("LookupIslemTipleri");
+                    b.ToTable("LookupIslemTipleri", (string)null);
 
                     b.HasData(
                         new
@@ -952,7 +952,7 @@ namespace _3K.Infrastructure.Migrations
                     b.HasIndex("Deger")
                         .IsUnique();
 
-                    b.ToTable("LookupProjeDurumlari");
+                    b.ToTable("LookupProjeDurumlari", (string)null);
 
                     b.HasData(
                         new
@@ -1031,7 +1031,7 @@ namespace _3K.Infrastructure.Migrations
                     b.HasIndex("Deger")
                         .IsUnique();
 
-                    b.ToTable("LookupSandikDurumlari");
+                    b.ToTable("LookupSandikDurumlari", (string)null);
 
                     b.HasData(
                         new
@@ -1096,7 +1096,7 @@ namespace _3K.Infrastructure.Migrations
                     b.HasIndex("Deger")
                         .IsUnique();
 
-                    b.ToTable("LookupSandikTipleri");
+                    b.ToTable("LookupSandikTipleri", (string)null);
 
                     b.HasData(
                         new
@@ -1154,7 +1154,7 @@ namespace _3K.Infrastructure.Migrations
                     b.HasIndex("Deger")
                         .IsUnique();
 
-                    b.ToTable("LookupStokDurumlari");
+                    b.ToTable("LookupStokDurumlari", (string)null);
 
                     b.HasData(
                         new
@@ -1212,7 +1212,7 @@ namespace _3K.Infrastructure.Migrations
                     b.HasIndex("Deger")
                         .IsUnique();
 
-                    b.ToTable("LookupUcKDurumlari");
+                    b.ToTable("LookupUcKDurumlari", (string)null);
 
                     b.HasData(
                         new
@@ -1340,7 +1340,7 @@ namespace _3K.Infrastructure.Migrations
                     b.HasIndex("Deger")
                         .IsUnique();
 
-                    b.ToTable("LookupUrunDurumlari");
+                    b.ToTable("LookupUrunDurumlari", (string)null);
 
                     b.HasData(
                         new
@@ -1517,7 +1517,7 @@ namespace _3K.Infrastructure.Migrations
                     b.HasIndex("Deger")
                         .IsUnique();
 
-                    b.ToTable("LookupYetkiTipleri");
+                    b.ToTable("LookupYetkiTipleri", (string)null);
 
                     b.HasData(
                         new
@@ -1591,7 +1591,7 @@ namespace _3K.Infrastructure.Migrations
 
                     b.HasIndex("ParentId");
 
-                    b.ToTable("MenuTanimlari");
+                    b.ToTable("MenuTanimlari", (string)null);
 
                     b.HasData(
                         new
@@ -1807,7 +1807,7 @@ namespace _3K.Infrastructure.Migrations
 
                     b.HasIndex("TalepEdenKullaniciId");
 
-                    b.ToTable("OnayBekleyenIslemler");
+                    b.ToTable("OnayBekleyenIslemler", (string)null);
                 });
 
             modelBuilder.Entity("_3K.Core.Entities.Proje", b =>
@@ -1876,7 +1876,7 @@ namespace _3K.Infrastructure.Migrations
 
                     b.HasIndex("DurumId");
 
-                    b.ToTable("Projeler");
+                    b.ToTable("Projeler", (string)null);
                 });
 
             modelBuilder.Entity("_3K.Core.Entities.ProjeTransfer", b =>
@@ -1939,7 +1939,7 @@ namespace _3K.Infrastructure.Migrations
 
                     b.HasIndex("KullaniciId");
 
-                    b.ToTable("ProjeTransferleri");
+                    b.ToTable("ProjeTransferleri", (string)null);
                 });
 
             modelBuilder.Entity("_3K.Core.Entities.Rol", b =>
@@ -1968,7 +1968,7 @@ namespace _3K.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Roller");
+                    b.ToTable("Roller", (string)null);
 
                     b.HasData(
                         new
@@ -2035,7 +2035,7 @@ namespace _3K.Infrastructure.Migrations
                     b.HasIndex("RolId", "MenuTanimiId")
                         .IsUnique();
 
-                    b.ToTable("RolYetkileri");
+                    b.ToTable("RolYetkileri", (string)null);
 
                     b.HasData(
                         new
@@ -2215,7 +2215,7 @@ namespace _3K.Infrastructure.Migrations
                     b.HasIndex("ProjeId", "SandikNo")
                         .IsUnique();
 
-                    b.ToTable("Sandiklar");
+                    b.ToTable("Sandiklar", (string)null);
                 });
 
             modelBuilder.Entity("_3K.Core.Entities.SandikIcerik", b =>
@@ -2256,7 +2256,7 @@ namespace _3K.Infrastructure.Migrations
 
                     b.HasIndex("SandikId");
 
-                    b.ToTable("SandikIcerikleri");
+                    b.ToTable("SandikIcerikleri", (string)null);
                 });
 
             modelBuilder.Entity("_3K.Core.Entities.StokHareketi", b =>
@@ -2315,7 +2315,7 @@ namespace _3K.Infrastructure.Migrations
 
                     b.HasIndex("StokKaydiId");
 
-                    b.ToTable("StokHareketleri");
+                    b.ToTable("StokHareketleri", (string)null);
                 });
 
             modelBuilder.Entity("_3K.Core.Entities.StokKaydi", b =>
@@ -2369,7 +2369,7 @@ namespace _3K.Infrastructure.Migrations
 
                     b.HasIndex("DurumId");
 
-                    b.ToTable("StokKayitlari");
+                    b.ToTable("StokKayitlari", (string)null);
                 });
 
             modelBuilder.Entity("_3K.Core.Entities.Ceki", b =>

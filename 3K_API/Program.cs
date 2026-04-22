@@ -16,12 +16,17 @@ AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ======= DbContext + AuditInterceptor =======
+// ======= DbContext + AuditInterceptor & ProjectLockInterceptor =======
 builder.Services.AddScoped<AuditInterceptor>();
+builder.Services.AddScoped<_3K.Infrastructure.Data.Interceptors.ProjectLockInterceptor>();
+
 builder.Services.AddDbContext<AppDbContext>((sp, options) =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning))
-           .AddInterceptors(sp.GetRequiredService<AuditInterceptor>()));
+           .AddInterceptors(
+               sp.GetRequiredService<AuditInterceptor>(),
+               sp.GetRequiredService<_3K.Infrastructure.Data.Interceptors.ProjectLockInterceptor>()
+           ));
 
 // ======= Repository & UnitOfWork =======
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
@@ -40,6 +45,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IDurumHesaplaService, DurumHesaplaService>();
 builder.Services.AddScoped<ILookupService, _3K.Infrastructure.Services.LookupService>();
 builder.Services.AddScoped<IRolService, _3K.Infrastructure.Services.RolService>();
+builder.Services.AddScoped<IProjectLockService, ProjectLockService>();
 
 // ======= Current User Service (Pipeline Behavior için) =======
 builder.Services.AddHttpContextAccessor();

@@ -36,7 +36,9 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
 
                 // Durum hesaplama
                 int durumId;
-                if (toplamUrun == 0)
+                if (p.DurumId == (int)ProjeDurum.SevkEdildi)
+                    durumId = (int)ProjeDurum.SevkEdildi; // Kilitli/Sevk Edilmiş proje statüsü ezilemez
+                else if (toplamUrun == 0)
                     durumId = (int)ProjeDurum.Hazirlaniyor;
                 else if (hazirSandik == toplamSandik && toplamSandik > 0)
                     durumId = (int)ProjeDurum.Tamamlandi;
