@@ -22,6 +22,12 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
         {
             var projeler = await _projeRepository.GetAllWithDetailsAsync(cancellationToken);
 
+            // ProjeTipiId filtresi
+            if (request.ProjeTipiId.HasValue)
+            {
+                projeler = projeler.Where(p => p.ProjeTipiId == request.ProjeTipiId.Value);
+            }
+
             var result = projeler.Select(p =>
             {
                 var sandiklar = p.Sandiklar ?? new List<Sandik>();
@@ -54,6 +60,8 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                     Musteri = p.Musteri,
                     DurumId = durumId,
                     DurumMetni = _lookupCache.GetDeger<LookupProjeDurum>(durumId),
+                    ProjeTipiId = p.ProjeTipiId,
+                    ProjeTipiMetni = _lookupCache.GetDeger<LookupProjeTipi>(p.ProjeTipiId),
                     PlanlananSevkTarihi = p.PlanlananSevkTarihi,
                     SorumluKisi = p.SorumluKisi,
                     SandikSayisi = toplamSandik,

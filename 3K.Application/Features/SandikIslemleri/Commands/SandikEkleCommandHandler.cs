@@ -41,7 +41,12 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 SandikNo = request.SandikNo,
                 TipId = request.TipId,
                 DurumId = (int)SandikDurum.Bos,
-                DepoLokasyonId = request.DepoLokasyonId
+                DepoLokasyonId = request.DepoLokasyonId,
+                En = request.En,
+                Boy = request.Boy,
+                Yukseklik = request.Yukseklik,
+                NetKg = request.NetKg,
+                GrossKg = request.GrossKg
             };
             await sandikRepo.AddAsync(sandik);
             await _unitOfWork.SaveChangesAsync();

@@ -45,6 +45,13 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
 
+        [HttpPut("ozellik-guncelle")]
+        public async Task<ActionResult> OzellikGuncelle([FromBody] SandikOzellikGuncelleCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
         [HttpPost("manuel-ekle")]
         public async Task<ActionResult> ManuelUrunEkle([FromBody] ManuelUrunEkleCommand command)
         {
@@ -146,6 +153,26 @@ namespace _3K_API.Controllers
 
         [HttpPut("lokasyon-guncelle")]
         public async Task<ActionResult> LokasyonGuncelle([FromBody] SandikLokasyonGuncelleCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
+        /// <summary>
+        /// Saha/Yedek projelerinde çeki olmadan doğrudan sandığa malzeme ekler.
+        /// </summary>
+        [HttpPost("saha-yedek-malzeme-ekle")]
+        public async Task<ActionResult> SahaYedekMalzemeEkle([FromBody] SahaYedekMalzemeEkleCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
+        /// <summary>
+        /// Tekil sandık sevk eder.
+        /// </summary>
+        [HttpPost("sevk-et")]
+        public async Task<ActionResult> SandikSevkEt([FromBody] SandikSevkEtCommand command)
         {
             var result = await _mediator.Send(command);
             return result.ToActionResult();

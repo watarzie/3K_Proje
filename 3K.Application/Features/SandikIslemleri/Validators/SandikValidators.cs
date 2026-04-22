@@ -1,4 +1,4 @@
-﻿using FluentValidation;
+using FluentValidation;
 using _3K.Application.Features.SandikIslemleri.Commands;
 
 namespace _3K.Application.Features.SandikIslemleri.Validators
@@ -89,7 +89,26 @@ namespace _3K.Application.Features.SandikIslemleri.Validators
         {
             RuleFor(x => x.ProjeId).GreaterThan(0).WithMessage("Geçerli bir proje ID belirtilmeli.");
             RuleFor(x => x.SandikNo).NotEmpty().WithMessage("Sandık numarası boş olamaz.");
-            RuleFor(x => x.TipId).NotEmpty().WithMessage("Sandık tipi belirtilmeli.");
+        }
+    }
+
+    public class SahaYedekMalzemeEkleCommandValidator : AbstractValidator<SahaYedekMalzemeEkleCommand>
+    {
+        public SahaYedekMalzemeEkleCommandValidator()
+        {
+            RuleFor(x => x.ProjeId).GreaterThan(0).WithMessage("Geçerli bir proje ID belirtilmeli.");
+            RuleFor(x => x.SandikId).GreaterThan(0).WithMessage("Geçerli bir sandık ID belirtilmeli.");
+            RuleFor(x => x.Isim).NotEmpty().WithMessage("Malzeme ismi zorunludur.");
+            RuleFor(x => x.Miktar).GreaterThan(0).WithMessage("Miktar 0'dan büyük olmalı.");
+        }
+    }
+
+    public class SandikSevkEtCommandValidator : AbstractValidator<SandikSevkEtCommand>
+    {
+        public SandikSevkEtCommandValidator()
+        {
+            RuleFor(x => x.ProjeId).GreaterThan(0).WithMessage("Geçerli bir proje ID belirtilmeli.");
+            RuleFor(x => x.SandikId).GreaterThan(0).WithMessage("Geçerli bir sandık ID belirtilmeli.");
         }
     }
 }

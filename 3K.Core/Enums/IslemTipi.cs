@@ -26,6 +26,9 @@ namespace _3K.Core.Enums
         ExcelIndirildi = 19,
         PDFIndirildi = 20,
         SandikOlusturuldu = 21,
-        KullaniciOlusturuldu = 22
+        KullaniciOlusturuldu = 22,
+        ProjeSevkEdildi = 23,
+        SandikSevkEdildi = 24,
+        SahaYedekMalzemeEklendi = 25
     }
 }

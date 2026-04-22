@@ -9,5 +9,12 @@ namespace _3K.Application.Features.SandikIslemleri.DTOs
         public int DepoLokasyonId { get; set; }
         public string DepoLokasyonMetni { get; set; } = string.Empty;
         public int UrunSayisi { get; set; }
+        
+        // Fiziksel Özellikler
+        public decimal? En { get; set; }
+        public decimal? Boy { get; set; }
+        public decimal? Yukseklik { get; set; }
+        public decimal? NetKg { get; set; }
+        public decimal? GrossKg { get; set; }
     }
 }

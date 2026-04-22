@@ -74,7 +74,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                     sandik.DepoLokasyonId = (int)DepoLokasyon.Grid;
 
                 var tumIcerikler = await sandikIcerikRepo.FindAsync(si => si.SandikId == request.SandikId);
-                var tumUrunIds = tumIcerikler.Select(si => si.CekiSatiriId).ToList();
+                var tumUrunIds = tumIcerikler.Where(si => si.CekiSatiriId.HasValue).Select(si => si.CekiSatiriId!.Value).ToList();
 
                 bool hepsiTamamlandi = true;
                 bool enAzBiriKonuldu = false;

@@ -15,6 +15,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
 
         public string ProjeNo { get; set; } = string.Empty;
         public string Musteri { get; set; } = string.Empty;
+        public int ProjeTipiId { get; set; } = (int)ProjeTipi.Normal;
         public DateTime? PlanlananSevkTarihi { get; set; }
         public string SorumluKisi { get; set; } = string.Empty;
         public int KullaniciId { get; set; }

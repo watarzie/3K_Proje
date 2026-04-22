@@ -42,6 +42,7 @@ namespace _3K.Infrastructure.Data
         public DbSet<LookupStokDurum> LookupStokDurumlari { get; set; } = null!;
         public DbSet<LookupIslemTipi> LookupIslemTipleri { get; set; } = null!;
         public DbSet<LookupGeriGonderilmeSebebi> LookupGeriGonderilmeSebepleri { get; set; } = null!;
+        public DbSet<LookupProjeTipi> LookupProjeTipleri { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -62,6 +63,7 @@ namespace _3K.Infrastructure.Data
             ConfigureLookupTable<LookupStokDurum>(modelBuilder);
             ConfigureLookupTable<LookupIslemTipi>(modelBuilder);
             ConfigureLookupTable<LookupGeriGonderilmeSebebi>(modelBuilder);
+            ConfigureLookupTable<LookupProjeTipi>(modelBuilder);
 
             // ===============================================================
             // 2. UNIQUE CONSTRAINTS
@@ -83,6 +85,13 @@ namespace _3K.Infrastructure.Data
                 .HasOne(p => p.DurumLookup)
                 .WithMany()
                 .HasForeignKey(p => p.DurumId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // --- Proje.ProjeTipiId → LookupProjeTipi.Id ---
+            modelBuilder.Entity<Proje>()
+                .HasOne(p => p.ProjeTipiLookup)
+                .WithMany()
+                .HasForeignKey(p => p.ProjeTipiId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             // --- Sandik.DurumId → LookupSandikDurum.Id ---
@@ -316,12 +325,13 @@ namespace _3K.Infrastructure.Data
                 .HasForeignKey(si => si.SandikId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // CekiSatiri (1) - SandikIcerik (0..*)
+            // CekiSatiri (1) - SandikIcerik (0..*) — nullable FK (Saha/Yedek projelerde CekiSatiriId null olabilir)
             modelBuilder.Entity<CekiSatiri>()
                 .HasMany(cs => cs.SandikIcerikleri)
                 .WithOne(si => si.CekiSatiri)
                 .HasForeignKey(si => si.CekiSatiriId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.Restrict)
+                .IsRequired(false);
 
             // CekiSatiri - Paketleyen
             modelBuilder.Entity<CekiSatiri>()
@@ -418,11 +428,10 @@ namespace _3K.Infrastructure.Data
                 new LookupSandikDurum { Id = 4, Anahtar = 3, Deger = "Sevk Edildi" }
             );
 
-            // SandikTipi
+            // SandikTipi (fiziksel sandık cinsi)
             modelBuilder.Entity<LookupSandikTipi>().HasData(
-                new LookupSandikTipi { Id = 1, Anahtar = 1, Deger = "Proje" },
-                new LookupSandikTipi { Id = 2, Anahtar = 2, Deger = "Yedek" },
-                new LookupSandikTipi { Id = 3, Anahtar = 3, Deger = "Saha" }
+                new LookupSandikTipi { Id = 1, Anahtar = 1, Deger = "Ahşap Kapalı" },
+                new LookupSandikTipi { Id = 2, Anahtar = 2, Deger = "Katlanır Sandık" }
             );
 
             // DepoLokasyon
@@ -542,7 +551,17 @@ namespace _3K.Infrastructure.Data
                 new LookupIslemTipi { Id = 19, Anahtar = 19, Deger = "Excel İndirildi" },
                 new LookupIslemTipi { Id = 20, Anahtar = 20, Deger = "PDF İndirildi" },
                 new LookupIslemTipi { Id = 21, Anahtar = 21, Deger = "Sandık Oluşturuldu" },
-                new LookupIslemTipi { Id = 22, Anahtar = 22, Deger = "Kullanıcı Oluşturuldu" }
+                new LookupIslemTipi { Id = 22, Anahtar = 22, Deger = "Kullanıcı Oluşturuldu" },
+                new LookupIslemTipi { Id = 23, Anahtar = 23, Deger = "Proje Sevk Edildi" },
+                new LookupIslemTipi { Id = 24, Anahtar = 24, Deger = "Sandık Sevk Edildi" },
+                new LookupIslemTipi { Id = 25, Anahtar = 25, Deger = "Saha/Yedek Malzeme Eklendi" }
+            );
+
+            // ProjeTipi
+            modelBuilder.Entity<LookupProjeTipi>().HasData(
+                new LookupProjeTipi { Id = 1, Anahtar = 1, Deger = "Normal" },
+                new LookupProjeTipi { Id = 2, Anahtar = 2, Deger = "Saha" },
+                new LookupProjeTipi { Id = 3, Anahtar = 3, Deger = "Yedek" }
             );
 
             SeedApprovalRules(modelBuilder);
@@ -583,10 +602,8 @@ namespace _3K.Infrastructure.Data
                 new MenuTanimi { Id = 1, Kod = "dashboard", LabelKey = "MENU.DASHBOARD", Icon = "ri-dashboard-line", Route = "/dashboard", Sira = 1, ParentId = null },
                 new MenuTanimi { Id = 2, Kod = "projeler", LabelKey = "MENU.PROJELER", Icon = "ri-folder-line", Route = null, Sira = 2, ParentId = null },
                 new MenuTanimi { Id = 5, Kod = "sandik-yonetimi", LabelKey = "MENU.SANDIK_YONETIMI", Icon = "ri-archive-line", Route = "/sandik-yonetimi", Sira = 3, ParentId = null },
-                new MenuTanimi { Id = 6, Kod = "eksik-listesi", LabelKey = "MENU.EKSIK_LISTESI", Icon = "ri-error-warning-line", Route = "/eksik-listesi", Sira = 4, ParentId = null },
-                new MenuTanimi { Id = 7, Kod = "depo-durumu", LabelKey = "MENU.DEPO_DURUMU", Icon = "ri-building-2-line", Route = "/depo-durumu", Sira = 5, ParentId = null },
-                new MenuTanimi { Id = 8, Kod = "stok", LabelKey = "MENU.STOK_MODULU", Icon = "ri-stack-line", Route = "/stok", Sira = 6, ParentId = null },
-                new MenuTanimi { Id = 9, Kod = "saha-malzeme", LabelKey = "MENU.SAHA_MALZEMESI", Icon = "ri-tools-line", Route = "/saha-malzeme", Sira = 7, ParentId = null },
+                new MenuTanimi { Id = 7, Kod = "depo-durumu", LabelKey = "MENU.DEPO_DURUMU", Icon = "ri-building-2-line", Route = "/depo-durumu", Sira = 4, ParentId = null },
+                new MenuTanimi { Id = 8, Kod = "stok", LabelKey = "MENU.STOK_MODULU", Icon = "ri-stack-line", Route = "/stok", Sira = 5, ParentId = null },
                 new MenuTanimi { Id = 10, Kod = "hareket-gecmisi", LabelKey = "MENU.HAREKET_GECMISI", Icon = "ri-history-line", Route = "/hareket-gecmisi", Sira = 8, ParentId = null },
                 new MenuTanimi { Id = 11, Kod = "kullanicilar", LabelKey = "MENU.KULLANICI_YETKI", Icon = "ri-user-settings-line", Route = "/kullanicilar", Sira = 9, ParentId = null },
                 new MenuTanimi { Id = 12, Kod = "rol-yonetimi", LabelKey = "MENU.ROL_YONETIMI", Icon = "ri-shield-user-line", Route = "/rol-yonetimi", Sira = 10, ParentId = null }
@@ -600,15 +617,20 @@ namespace _3K.Infrastructure.Data
                 new MenuTanimi { Id = 14, Kod = "grid-modulu", LabelKey = "MENU.GRID_MODULU", Icon = "", Route = null, Sira = 3, ParentId = 2 },
                 new MenuTanimi { Id = 15, Kod = "3k-modulu", LabelKey = "MENU.3K_MODULU", Icon = "", Route = null, Sira = 4, ParentId = 2 },
                 new MenuTanimi { Id = 16, Kod = "proje-sevk-et", LabelKey = "MENU.PROJE_SEVK_ET", Icon = "", Route = null, Sira = 5, ParentId = 2 },
-                // Onay Merkezi (Header bildirimi için yetki aracı)
-                new MenuTanimi { Id = 99, Kod = "islem-onay-merkezi", LabelKey = "MENU.ISLEM_ONAY", Icon = "ri-check-double-line", Route = "/onay-merkezi", Sira = 12, ParentId = null }
+                // Saha ve Yedek Menüleri
+                new MenuTanimi { Id = 17, Kod = "saha-yonetimi", LabelKey = "MENU.SAHA_YONETIMI", Icon = "ri-tools-line", Route = "/saha-yonetimi", Sira = 6, ParentId = null },
+                new MenuTanimi { Id = 18, Kod = "yedek-yonetimi", LabelKey = "MENU.YEDEK_YONETIMI", Icon = "ri-box-3-line", Route = "/yedek-yonetimi", Sira = 7, ParentId = null },
+                // Onay Merkezi
+                new MenuTanimi { Id = 99, Kod = "islem-onay-merkezi", LabelKey = "MENU.ISLEM_ONAY", Icon = "ri-check-double-line", Route = "/onay-merkezi", Sira = 11, ParentId = null }
             );
 
             // ======= ADMIN ROL YETKİLERİ (tüm menülere W=3) =======
+            // Not: MenuTanimi Id'leri: 1,2,3,4,5,7,8,10,11,12,14,15,16,17,18,99
+            var menuIds = new[] { 1, 2, 3, 4, 5, 7, 8, 10, 11, 12, 14, 15, 16, 17, 18 };
             var adminYetkiler = new List<RolYetki>();
-            for (int menuId = 1; menuId <= 16; menuId++)
+            for (int i = 0; i < menuIds.Length; i++)
             {
-                adminYetkiler.Add(new RolYetki { Id = menuId, RolId = 1, MenuTanimiId = menuId, YetkiTipiId = (int)_3K.Core.Enums.YetkiTipi.W });
+                adminYetkiler.Add(new RolYetki { Id = i + 1, RolId = 1, MenuTanimiId = menuIds[i], YetkiTipiId = (int)_3K.Core.Enums.YetkiTipi.W });
             }
             adminYetkiler.Add(new RolYetki { Id = 99, RolId = 1, MenuTanimiId = 99, YetkiTipiId = (int)_3K.Core.Enums.YetkiTipi.W });
             modelBuilder.Entity<RolYetki>().HasData(adminYetkiler);

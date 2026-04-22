@@ -29,7 +29,12 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 DurumMetni = _lookupCache.GetDeger<LookupSandikDurum>(s.DurumId),
                 DepoLokasyonId = s.DepoLokasyonId,
                 DepoLokasyonMetni = _lookupCache.GetDeger<LookupDepoLokasyon>(s.DepoLokasyonId),
-                UrunSayisi = s.SandikIcerikleri?.Count ?? 0
+                UrunSayisi = s.SandikIcerikleri?.Count ?? 0,
+                En = s.En,
+                Boy = s.Boy,
+                Yukseklik = s.Yukseklik,
+                NetKg = s.NetKg,
+                GrossKg = s.GrossKg
             });
 
             return Result<IEnumerable<SandikDto>>.Success(result);

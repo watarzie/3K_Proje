@@ -22,4 +22,5 @@ namespace _3K.Core.Entities
     public class LookupStokDurum : LookupBase { }
     public class LookupIslemTipi : LookupBase { }
     public class LookupGeriGonderilmeSebebi : LookupBase { }
+    public class LookupProjeTipi : LookupBase { }
 }

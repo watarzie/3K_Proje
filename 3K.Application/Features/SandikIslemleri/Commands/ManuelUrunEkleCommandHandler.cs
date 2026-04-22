@@ -10,11 +10,13 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHareketService _hareketService;
+        private readonly ICurrentUserService _currentUserService;
 
-        public ManuelUrunEkleCommandHandler(IUnitOfWork unitOfWork, IHareketService hareketService)
+        public ManuelUrunEkleCommandHandler(IUnitOfWork unitOfWork, IHareketService hareketService, ICurrentUserService currentUserService)
         {
             _unitOfWork = unitOfWork;
             _hareketService = hareketService;
+            _currentUserService = currentUserService;
         }
 
         public async Task<Result> Handle(ManuelUrunEkleCommand request, CancellationToken cancellationToken)
@@ -69,7 +71,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 ReferansId = yeniUrun.Id.ToString(),
                 Islem = "Manuel Ürün Eklendi",
                 IslemTipiId = (int)IslemTipi.ManuelUrunEklendi,
-                KullaniciId = request.KullaniciId,
+                KullaniciId = _currentUserService.UserId ?? 0,
                 Aciklama = $"Neden: {request.EklemeNedeni}, Miktar: {request.IstenenAdet} {request.Birim}"
             });
 

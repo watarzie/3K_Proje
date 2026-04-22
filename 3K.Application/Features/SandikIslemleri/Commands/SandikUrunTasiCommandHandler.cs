@@ -92,11 +92,14 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             }
 
             // CekiSatiri.FiiliSandikNo güncelle (son taşındığı sandığa)
-            var cekiSatiri = await cekiSatiriRepo.GetByIdAsync(kaynakIcerik.CekiSatiriId);
-            if (cekiSatiri != null)
+            if (kaynakIcerik.CekiSatiriId.HasValue)
             {
-                cekiSatiri.FiiliSandikNo = hedefSandik.SandikNo;
-                cekiSatiriRepo.Update(cekiSatiri);
+                var cekiSatiri = await cekiSatiriRepo.GetByIdAsync(kaynakIcerik.CekiSatiriId.Value);
+                if (cekiSatiri != null)
+                {
+                    cekiSatiri.FiiliSandikNo = hedefSandik.SandikNo;
+                    cekiSatiriRepo.Update(cekiSatiri);
+                }
             }
 
             // Hedef sandık durumunu güncelle
@@ -135,14 +138,23 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             // ===== 4. Hareket kaydı =====
             var kaynakSandik = await sandikRepo.GetByIdAsync(kaynakIcerik.SandikId);
-            var cekiSatiriText = cekiSatiri?.Aciklama ?? "ürün";
+            string cekiSatiriText;
+            if (kaynakIcerik.CekiSatiriId.HasValue)
+            {
+                var cs = await cekiSatiriRepo.GetByIdAsync(kaynakIcerik.CekiSatiriId.Value);
+                cekiSatiriText = cs?.Aciklama ?? "ürün";
+            }
+            else
+            {
+                cekiSatiriText = kaynakIcerik.Isim ?? "malzeme";
+            }
             
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {
                 ProjeId = request.ProjeId,
                 KullaniciId = _currentUserService.UserId ?? 0,
                 ReferansTipi = "CekiSatiri",
-                ReferansId = kaynakIcerik.CekiSatiriId.ToString(),
+                ReferansId = (kaynakIcerik.CekiSatiriId?.ToString() ?? kaynakIcerik.Id.ToString()),
                 Islem = "Sandık Ürün Taşıma",
                 IslemTipiId = (int)IslemTipi.UrunTasindi,
                 EskiDeger = kaynakSandik?.SandikNo ?? "?",

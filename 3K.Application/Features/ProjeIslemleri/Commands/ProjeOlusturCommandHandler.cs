@@ -12,12 +12,14 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHareketService _hareketService;
         private readonly ILookupCacheService _lookupCache;
+        private readonly ICurrentUserService _currentUserService;
 
-        public ProjeOlusturCommandHandler(IUnitOfWork unitOfWork, IHareketService hareketService, ILookupCacheService lookupCache)
+        public ProjeOlusturCommandHandler(IUnitOfWork unitOfWork, IHareketService hareketService, ILookupCacheService lookupCache, ICurrentUserService currentUserService)
         {
             _unitOfWork = unitOfWork;
             _hareketService = hareketService;
             _lookupCache = lookupCache;
+            _currentUserService = currentUserService;
         }
 
         public async Task<Result<ProjeDto>> Handle(ProjeOlusturCommand request, CancellationToken cancellationToken)
@@ -29,6 +31,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 ProjeNo = request.ProjeNo,
                 Musteri = request.Musteri,
                 DurumId = (int)ProjeDurum.Hazirlaniyor,
+                ProjeTipiId = request.ProjeTipiId,
                 PlanlananSevkTarihi = request.PlanlananSevkTarihi,
                 SorumluKisi = request.SorumluKisi
             };
@@ -43,8 +46,8 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 ReferansId = proje.Id.ToString(),
                 Islem = "Proje Oluşturuldu",
                 IslemTipiId = (int)IslemTipi.ProjeOlusturuldu,
-                KullaniciId = request.KullaniciId,
-                Aciklama = $"Proje {request.ProjeNo} oluşturuldu"
+                KullaniciId = _currentUserService.UserId ?? 0,
+                Aciklama = $"Proje {request.ProjeNo} oluşturuldu (Tip: {_lookupCache.GetDeger<LookupProjeTipi>(request.ProjeTipiId)})"
             });
 
             return Result<ProjeDto>.Success(new ProjeDto
@@ -54,6 +57,8 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 Musteri = proje.Musteri,
                 DurumId = proje.DurumId,
                 DurumMetni = _lookupCache.GetDeger<LookupProjeDurum>(proje.DurumId),
+                ProjeTipiId = proje.ProjeTipiId,
+                ProjeTipiMetni = _lookupCache.GetDeger<LookupProjeTipi>(proje.ProjeTipiId),
                 PlanlananSevkTarihi = proje.PlanlananSevkTarihi,
                 SorumluKisi = proje.SorumluKisi
             });

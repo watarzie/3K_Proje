@@ -29,8 +29,10 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
 
         public async Task<Result> Handle(ProjeSevkEtCommand request, CancellationToken cancellationToken)
         {
-            var repo = _unitOfWork.GetRepository<Proje>();
-            var proje = await repo.GetByIdAsync(request.ProjeId);
+            var projeRepo = _unitOfWork.GetRepository<Proje>();
+            var sandikRepo = _unitOfWork.GetRepository<Sandik>();
+
+            var proje = await projeRepo.GetByIdAsync(request.ProjeId);
 
             if (proje == null)
                 return Result.Failure("Proje bulunamadı.");
@@ -40,8 +42,21 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
 
             int eskiDurum = proje.DurumId;
             proje.DurumId = (int)ProjeDurum.SevkEdildi;
+            projeRepo.Update(proje);
 
-            repo.Update(proje);
+            // ===== Tüm sandıkları "Sevk Edildi" durumuna geçir =====
+            var sandiklar = await sandikRepo.FindAsync(s => s.ProjeId == request.ProjeId);
+            int sevkEdilenSandikSayisi = 0;
+            foreach (var sandik in sandiklar)
+            {
+                if (sandik.DurumId != (int)SandikDurum.Sevkedildi)
+                {
+                    sandik.DurumId = (int)SandikDurum.Sevkedildi;
+                    sandikRepo.Update(sandik);
+                    sevkEdilenSandikSayisi++;
+                }
+            }
+
             await _unitOfWork.SaveChangesAsync();
 
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
@@ -50,14 +65,15 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 KullaniciId = _currentUserService.UserId ?? 0,
                 ReferansTipi = "Proje",
                 ReferansId = proje.Id.ToString(),
-                Islem = "Proje Kilitlendi / Sevk Edildi",
-                IslemTipiId = null, // Özel işlem tipi yok, ismi görünsün
+                Islem = "Proje Sevk Edildi",
+                IslemTipiId = (int)IslemTipi.ProjeSevkEdildi,
                 EskiDeger = eskiDurum.ToString(),
                 YeniDeger = proje.DurumId.ToString(),
-                Aciklama = "Proje sevk edildi ve kilitlendi. Üzerinde hiçbir işlem yapılamaz."
+                Aciklama = $"Proje sevk edildi ve kilitlendi. {sevkEdilenSandikSayisi} sandık sevk edildi."
             });
 
             return Result.Success();
         }
     }
 }
+

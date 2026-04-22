@@ -18,9 +18,9 @@ namespace _3K_API.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult> GetAll()
+        public async Task<ActionResult> GetAll([FromQuery] int? projeTipiId = null)
         {
-            var result = await _mediator.Send(new ProjeListeleQuery());
+            var result = await _mediator.Send(new ProjeListeleQuery { ProjeTipiId = projeTipiId });
             return result.ToActionResult();
         }
 

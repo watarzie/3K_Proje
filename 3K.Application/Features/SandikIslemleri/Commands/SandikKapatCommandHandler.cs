@@ -61,7 +61,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             foreach (var icerik in icerikler)
             {
-                var urun = await cekiSatiriRepo.GetByIdAsync(icerik.CekiSatiriId);
+                if (!icerik.CekiSatiriId.HasValue) continue;
+                var urun = await cekiSatiriRepo.GetByIdAsync(icerik.CekiSatiriId.Value);
                 if (urun == null) continue;
 
                 // Ürün hala eksikse veya hatalı geldiyse

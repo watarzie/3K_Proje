@@ -3,7 +3,7 @@ namespace _3K.Application.Features.SandikIslemleri.DTOs
     public class SandikIcerikDto
     {
         public int Id { get; set; }
-        public int CekiSatiriId { get; set; }
+        public int? CekiSatiriId { get; set; }
         public string? OlcuResmiPozNo { get; set; }
         public string BarkodNo { get; set; } = string.Empty;
         public string Aciklama { get; set; } = string.Empty;
@@ -15,5 +15,11 @@ namespace _3K.Application.Features.SandikIslemleri.DTOs
         public string? PaketleyenBasHarf { get; set; }
         public string? KontrolEdenBasHarf { get; set; }
         public string? Remarks { get; set; }
+
+        // Saha/Yedek manuel malzeme alanları
+        public string? Isim { get; set; }
+        public decimal Miktar { get; set; }
+        public string? Birim { get; set; }
     }
 }
+
