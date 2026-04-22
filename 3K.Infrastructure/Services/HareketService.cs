@@ -28,6 +28,7 @@ namespace _3K.Infrastructure.Services
         {
             return await _context.HareketGecmisleri
                 .Include(h => h.Kullanici)
+                .Include(h => h.IslemTipiLookup)
                 .Where(h => h.ProjeId == projeId)
                 .OrderByDescending(h => h.Tarih)
                 .ToListAsync();
@@ -37,6 +38,7 @@ namespace _3K.Infrastructure.Services
         {
             return await _context.HareketGecmisleri
                 .Include(h => h.Kullanici)
+                .Include(h => h.IslemTipiLookup)
                 .Where(h => h.ReferansTipi == referansTipi && h.ReferansId == referansId)
                 .OrderByDescending(h => h.Tarih)
                 .ToListAsync();

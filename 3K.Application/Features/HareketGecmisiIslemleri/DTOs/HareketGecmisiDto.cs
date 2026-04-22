@@ -4,6 +4,7 @@ namespace _3K.Application.Features.HareketGecmisiIslemleri.DTOs
     {
         public int Id { get; set; }
         public string Islem { get; set; } = string.Empty;
+        public string IslemTipiMetni { get; set; } = string.Empty;
         public string ReferansTipi { get; set; } = string.Empty;
         public string? ReferansId { get; set; }
         public string? EskiDeger { get; set; }

@@ -108,6 +108,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 ReferansTipi = "CekiSatiri",
                 ReferansId = urun.Id.ToString(),
                 Islem = "FB'den Karşılandı",
+                IslemTipiId = (int)IslemTipi.FBDenKarsilandi,
+                EskiDeger = "",
                 KullaniciId = _currentUserService.UserId ?? 0,
                 Aciklama = $"Asıl: {request.AsilFB}, Alınan: {request.AlinanFB}, Adet: {request.KarsilananAdet}"
             });

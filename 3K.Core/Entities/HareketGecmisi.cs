@@ -6,6 +6,7 @@ namespace _3K.Core.Entities
         public string ReferansTipi { get; set; } = string.Empty;
         public string? ReferansId { get; set; }
         public string Islem { get; set; } = string.Empty;
+        public int? IslemTipiId { get; set; } // Added for relation
         public int KullaniciId { get; set; }
         public DateTime Tarih { get; set; } = DateTime.UtcNow;
 
@@ -17,5 +18,6 @@ namespace _3K.Core.Entities
         // Navigation Properties
         public virtual Proje Proje { get; set; } = null!;
         public virtual Kullanici Kullanici { get; set; } = null!;
+        public virtual LookupIslemTipi? IslemTipiLookup { get; set; }
     }
 }

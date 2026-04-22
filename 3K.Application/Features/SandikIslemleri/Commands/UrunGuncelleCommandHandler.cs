@@ -89,14 +89,40 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                     }
                 }
 
+                var eskiDurumId = sandik.DurumId;
+
                 if (hepsiTamamlandi && tumUrunIds.Count > 0) sandik.DurumId = (int)SandikDurum.Hazir;
                 else if (enAzBiriKonuldu) sandik.DurumId = (int)SandikDurum.Hazirlaniyor;
                 else sandik.DurumId = (int)SandikDurum.Bos;
 
                 sandikRepo.Update(sandik);
+
+                // Eğer sandık "Hazır" iken geri açıldıysa, hareket kaydı oluştur.
+                if (eskiDurumId == (int)SandikDurum.Hazir && sandik.DurumId != (int)SandikDurum.Hazir)
+                {
+                    var eskiDurumMetni = Enum.GetName(typeof(SandikDurum), eskiDurumId) ?? "Hazir";
+                    var yeniDurumMetni = Enum.GetName(typeof(SandikDurum), sandik.DurumId) ?? "Hazirlaniyor";
+
+                    await _hareketService.HareketKaydetAsync(new HareketGecmisi
+                    {
+                        ProjeId = request.ProjeId,
+                        ReferansTipi = "Sandik",
+                        ReferansId = sandik.Id.ToString(),
+                        Islem = "Sandık Geri Açıldı",
+                        IslemTipiId = null,
+                        EskiDeger = eskiDurumMetni,
+                        YeniDeger = yeniDurumMetni,
+                        Aciklama = $"Ürün durumundaki değişiklik nedeniyle sandık tekrar '{yeniDurumMetni}' konumuna getirildi.",
+                        KullaniciId = request.KullaniciId
+                    });
+                }
             }
 
             await _unitOfWork.SaveChangesAsync();
+
+            var durumMetni = Enum.GetName(typeof(UrunDurum), urun.DurumId) ?? urun.DurumId.ToString();
+            var gridMetni = Enum.GetName(typeof(GridDurum), urun.GridDurumuId) ?? urun.GridDurumuId.ToString();
+            var uckMetni = Enum.GetName(typeof(UcKDurum), urun.UcKDurumuId) ?? urun.UcKDurumuId.ToString();
 
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {
@@ -104,8 +130,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 ReferansTipi = "CekiSatiri",
                 ReferansId = urun.Id.ToString(),
                 Islem = "Ürün Güncellendi",
+                IslemTipiId = (int)IslemTipi.UrunGuncellendi,
                 KullaniciId = request.KullaniciId,
-                Aciklama = $"Durum: {urun.DurumId}, Grid: {urun.GridDurumuId}, 3K: {urun.UcKDurumuId}, Konulan: {icerik.KonulanAdet}, Eksik: {icerik.EksikAdet}"
+                Aciklama = $"Durum: {durumMetni}, Grid: {gridMetni}, 3K: {uckMetni}, Konulan: {icerik.KonulanAdet}, Eksik: {icerik.EksikAdet}"
             });
 
             return Result.Success();

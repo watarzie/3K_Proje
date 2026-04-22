@@ -1,6 +1,7 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Core.Entities;
+using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.PdfIslemleri.Commands
@@ -26,6 +27,7 @@ namespace _3K.Application.Features.PdfIslemleri.Commands
                 ReferansTipi = "Proje",
                 ReferansId = request.ProjeId.ToString(),
                 Islem = "Excel Oluşturuldu",
+                IslemTipiId = (int)IslemTipi.ExcelIndirildi,
                 KullaniciId = request.KullaniciId,
                 Aciklama = "Orijinal çeki şablonu operasyon verileriyle doldurularak Excel indirildi"
             });

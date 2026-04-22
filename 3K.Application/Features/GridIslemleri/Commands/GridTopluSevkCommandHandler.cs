@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
@@ -43,7 +43,11 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
             foreach (var satir in satirlar)
             {
-                satir.GridDurumuId = (int)GridDurum.SevkEdildi;
+                satir.GridDurumuId = (int)GridDurum.TamGeldi;
+                satir.GridGelenAdet = satir.IstenenAdet;
+                satir.TrafoSevkAdet = 0;
+
+                satir.GridSevkDurumuId = (int)GridSevkDurum.SevkEdildi;
                 satir.GridSevkMiktari = satir.IstenenAdet;
                 satir.GridSevkTarihi = now;
                 satir.GridPersonelId = kullaniciId;
@@ -58,6 +62,27 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
             await _unitOfWork.SaveChangesAsync();
 
+            var sandikGruplari = satirlar.GroupBy(s => s.FiiliSandikNo ?? s.CekideGecenSandikNo ?? "Belirsiz");
+            
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("Sevk Durumu: Sevk Edildi");
+            sb.AppendLine($"{guncellenen} adet ürün toplu sevk edildi.\n");
+            
+            foreach (var grup in sandikGruplari)
+            {
+                sb.AppendLine($"📦 Sandık: {grup.Key}");
+                foreach (var s in grup)
+                {
+                    sb.AppendLine($"  • {s.OlcuResmiPozNo ?? s.SiraNo.ToString()} - {s.Aciklama}");
+                }
+                sb.AppendLine(); // Boşluk
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.Not))
+            {
+                sb.AppendLine($"Not: {request.Not}");
+            }
+
             // Toplu hareket kaydı
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {
@@ -66,8 +91,10 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 ReferansTipi = "TopluSevk",
                 ReferansId = string.Join(",", request.CekiSatiriIdler),
                 Islem = "Grid Toplu Sevk",
-                YeniDeger = ((int)GridDurum.SevkEdildi).ToString(),
-                Aciklama = $"{guncellenen} ürün toplu sevk edildi. {request.Not}"
+                IslemTipiId = (int)IslemTipi.GridTopluSevkEdildi,
+                EskiDeger = ((int)GridDurum.Bekliyor).ToString(),
+                YeniDeger = ((int)GridDurum.TamGeldi).ToString(),
+                Aciklama = sb.ToString().TrimEnd()
             });
 
             return Result.Success();

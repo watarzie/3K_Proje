@@ -277,6 +277,13 @@ namespace _3K.Infrastructure.Data
                 .HasForeignKey(sh => sh.IslemTipiId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // --- HareketGecmisi.IslemTipiId → LookupIslemTipi.Id ---
+            modelBuilder.Entity<HareketGecmisi>()
+                .HasOne(hg => hg.IslemTipiLookup)
+                .WithMany()
+                .HasForeignKey(hg => hg.IslemTipiId)
+                .OnDelete(DeleteBehavior.SetNull);
+
             // ===============================================================
             // 4. ANA TABLO İLİŞKİLERİ
             // ===============================================================
@@ -514,19 +521,28 @@ namespace _3K.Infrastructure.Data
 
             // IslemTipi
             modelBuilder.Entity<LookupIslemTipi>().HasData(
-                new LookupIslemTipi { Id = 1, Anahtar = 0, Deger = "CekiYuklendi" },
-                new LookupIslemTipi { Id = 2, Anahtar = 1, Deger = "SandikOlusturuldu" },
-                new LookupIslemTipi { Id = 3, Anahtar = 2, Deger = "SandikBolundu" },
-                new LookupIslemTipi { Id = 4, Anahtar = 3, Deger = "SandikDegisti" },
-                new LookupIslemTipi { Id = 5, Anahtar = 4, Deger = "UrunTasindi" },
-                new LookupIslemTipi { Id = 6, Anahtar = 5, Deger = "FBTransferi" },
-                new LookupIslemTipi { Id = 7, Anahtar = 6, Deger = "StokKullanimi" },
-                new LookupIslemTipi { Id = 8, Anahtar = 7, Deger = "EksikKapatildi" },
-                new LookupIslemTipi { Id = 9, Anahtar = 8, Deger = "PDFAlindi" },
-                new LookupIslemTipi { Id = 10, Anahtar = 9, Deger = "MailGonderildi" },
-                new LookupIslemTipi { Id = 11, Anahtar = 10, Deger = "UrunGuncellendi" },
-                new LookupIslemTipi { Id = 12, Anahtar = 11, Deger = "KullaniciOlusturuldu" },
-                new LookupIslemTipi { Id = 13, Anahtar = 12, Deger = "ProjeOlusturuldu" }
+                new LookupIslemTipi { Id = 1, Anahtar = 1, Deger = "Çeki Yüklendi" },
+                new LookupIslemTipi { Id = 2, Anahtar = 2, Deger = "Proje Oluşturuldu" },
+                new LookupIslemTipi { Id = 3, Anahtar = 3, Deger = "Grid Durum Güncellendi" },
+                new LookupIslemTipi { Id = 4, Anahtar = 4, Deger = "Grid Toplu Sevk Edildi" },
+                new LookupIslemTipi { Id = 5, Anahtar = 5, Deger = "3K Durum Güncellendi" },
+                new LookupIslemTipi { Id = 6, Anahtar = 6, Deger = "3K Teslim Alındı" },
+                new LookupIslemTipi { Id = 7, Anahtar = 7, Deger = "3K Toplu Teslim Alındı" },
+                new LookupIslemTipi { Id = 8, Anahtar = 8, Deger = "Manuel Ürün Eklendi" },
+                new LookupIslemTipi { Id = 9, Anahtar = 9, Deger = "Sandık Ürün Taşıma" },
+                new LookupIslemTipi { Id = 10, Anahtar = 10, Deger = "Ürün Güncellendi" },
+                new LookupIslemTipi { Id = 11, Anahtar = 11, Deger = "Ürün İptal Edildi" },
+                new LookupIslemTipi { Id = 12, Anahtar = 12, Deger = "Stoktan Karşılandı" },
+                new LookupIslemTipi { Id = 13, Anahtar = 13, Deger = "F.B.'den Karşılandı" },
+                new LookupIslemTipi { Id = 14, Anahtar = 14, Deger = "Sandık Manuel Kapatma" },
+                new LookupIslemTipi { Id = 15, Anahtar = 15, Deger = "Toplu Sandık Kapatıldı" },
+                new LookupIslemTipi { Id = 16, Anahtar = 16, Deger = "Fiili Sandık Değiştirildi" },
+                new LookupIslemTipi { Id = 17, Anahtar = 17, Deger = "Lokasyon Güncelleme" },
+                new LookupIslemTipi { Id = 18, Anahtar = 18, Deger = "Sandık Otomatik Hazırlandı" },
+                new LookupIslemTipi { Id = 19, Anahtar = 19, Deger = "Excel İndirildi" },
+                new LookupIslemTipi { Id = 20, Anahtar = 20, Deger = "PDF İndirildi" },
+                new LookupIslemTipi { Id = 21, Anahtar = 21, Deger = "Sandık Oluşturuldu" },
+                new LookupIslemTipi { Id = 22, Anahtar = 22, Deger = "Kullanıcı Oluşturuldu" }
             );
 
             SeedApprovalRules(modelBuilder);
@@ -569,12 +585,11 @@ namespace _3K.Infrastructure.Data
                 new MenuTanimi { Id = 5, Kod = "sandik-yonetimi", LabelKey = "MENU.SANDIK_YONETIMI", Icon = "ri-archive-line", Route = "/sandik-yonetimi", Sira = 3, ParentId = null },
                 new MenuTanimi { Id = 6, Kod = "eksik-listesi", LabelKey = "MENU.EKSIK_LISTESI", Icon = "ri-error-warning-line", Route = "/eksik-listesi", Sira = 4, ParentId = null },
                 new MenuTanimi { Id = 7, Kod = "depo-durumu", LabelKey = "MENU.DEPO_DURUMU", Icon = "ri-building-2-line", Route = "/depo-durumu", Sira = 5, ParentId = null },
-                new MenuTanimi { Id = 8, Kod = "fb-transfer", LabelKey = "MENU.FB_TRANSFER", Icon = "ri-arrow-left-right-line", Route = "/fb-transfer", Sira = 6, ParentId = null },
-                new MenuTanimi { Id = 9, Kod = "stok", LabelKey = "MENU.STOK_MODULU", Icon = "ri-stack-line", Route = "/stok", Sira = 7, ParentId = null },
-                new MenuTanimi { Id = 10, Kod = "saha-malzeme", LabelKey = "MENU.SAHA_MALZEMESI", Icon = "ri-tools-line", Route = "/saha-malzeme", Sira = 8, ParentId = null },
-                new MenuTanimi { Id = 11, Kod = "hareket-gecmisi", LabelKey = "MENU.HAREKET_GECMISI", Icon = "ri-history-line", Route = "/hareket-gecmisi", Sira = 9, ParentId = null },
-                new MenuTanimi { Id = 12, Kod = "kullanicilar", LabelKey = "MENU.KULLANICI_YETKI", Icon = "ri-user-settings-line", Route = "/kullanicilar", Sira = 10, ParentId = null },
-                new MenuTanimi { Id = 13, Kod = "rol-yonetimi", LabelKey = "MENU.ROL_YONETIMI", Icon = "ri-shield-user-line", Route = "/rol-yonetimi", Sira = 11, ParentId = null }
+                new MenuTanimi { Id = 8, Kod = "stok", LabelKey = "MENU.STOK_MODULU", Icon = "ri-stack-line", Route = "/stok", Sira = 6, ParentId = null },
+                new MenuTanimi { Id = 9, Kod = "saha-malzeme", LabelKey = "MENU.SAHA_MALZEMESI", Icon = "ri-tools-line", Route = "/saha-malzeme", Sira = 7, ParentId = null },
+                new MenuTanimi { Id = 10, Kod = "hareket-gecmisi", LabelKey = "MENU.HAREKET_GECMISI", Icon = "ri-history-line", Route = "/hareket-gecmisi", Sira = 8, ParentId = null },
+                new MenuTanimi { Id = 11, Kod = "kullanicilar", LabelKey = "MENU.KULLANICI_YETKI", Icon = "ri-user-settings-line", Route = "/kullanicilar", Sira = 9, ParentId = null },
+                new MenuTanimi { Id = 12, Kod = "rol-yonetimi", LabelKey = "MENU.ROL_YONETIMI", Icon = "ri-shield-user-line", Route = "/rol-yonetimi", Sira = 10, ParentId = null }
             );
 
             // Alt menüler (Projeler children)

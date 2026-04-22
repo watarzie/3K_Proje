@@ -130,6 +130,20 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 await SandikTamamlanmaKontrol(satir);
             }
 
+            var sevkMetni = "";
+            var sevkDurumAdi = Enum.GetName(typeof(GridSevkDurum), satir.GridSevkDurumuId) ?? "Belirsiz";
+            sevkMetni = $" | Sevk Durumu: {sevkDurumAdi}";
+            if (satir.GridSevkMiktari.HasValue)
+            {
+                sevkMetni += $" ({satir.GridSevkMiktari.Value} Adet)";
+            }
+
+            var aciklamaMetni = $"Durum: {Enum.GetName(typeof(GridDurum), request.YeniDurumId) ?? request.YeniDurumId.ToString()}{sevkMetni}";
+            if (!string.IsNullOrWhiteSpace(request.Not))
+            {
+                aciklamaMetni += $" | Not: {request.Not}";
+            }
+
             // Hareket kaydı
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {
@@ -138,9 +152,10 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 ReferansTipi = "CekiSatiri",
                 ReferansId = satir.Id.ToString(),
                 Islem = "Grid Durum Güncellendi",
+                IslemTipiId = (int)IslemTipi.GridDurumGuncellendi,
                 EskiDeger = eskiDurum.ToString(),
                 YeniDeger = request.YeniDurumId.ToString(),
-                Aciklama = request.Not
+                Aciklama = aciklamaMetni
             });
 
             return Result.Success();
@@ -193,6 +208,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                         ReferansTipi = "Sandik",
                         ReferansId = sandik.Id.ToString(),
                         Islem = "Sandık Otomatik Hazır",
+                        IslemTipiId = (int)IslemTipi.SandikOtomatikHazirlandi,
                         EskiDeger = ((int)SandikDurum.Hazirlaniyor).ToString(),
                         YeniDeger = ((int)SandikDurum.Hazir).ToString(),
                         Aciklama = $"Sandık {sandikNo} içindeki tüm ürünler tamamlandı."

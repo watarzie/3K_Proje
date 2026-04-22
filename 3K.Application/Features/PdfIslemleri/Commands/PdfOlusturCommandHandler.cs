@@ -1,6 +1,7 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Core.Entities;
+using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.PdfIslemleri.Commands
@@ -26,6 +27,7 @@ namespace _3K.Application.Features.PdfIslemleri.Commands
                 ReferansTipi = "Proje",
                 ReferansId = request.ProjeId.ToString(),
                 Islem = "PDF Oluşturuldu",
+                IslemTipiId = (int)IslemTipi.PDFIndirildi,
                 KullaniciId = request.KullaniciId,
                 Aciklama = "Proje çeki PDF'i oluşturuldu"
             });

@@ -53,7 +53,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 StokKaydiId = stok.Id,
                 KullaniciId = request.KullaniciId,
                 Miktar = request.KarsilananAdet * -1,
-                IslemTipiId = (int)IslemTipi.StokKullanimi,
+                IslemTipiId = (int)IslemTipi.StoktanKarsilandi,
                 CekiSatiriId = urun.Id,
                 ProjeId = request.ProjeId,
                 Tarih = DateTime.UtcNow,

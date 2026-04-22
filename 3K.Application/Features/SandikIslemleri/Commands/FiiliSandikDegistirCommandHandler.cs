@@ -85,6 +85,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 ReferansTipi = "CekiSatiri",
                 ReferansId = urun.Id.ToString(),
                 Islem = "Fiili Sandık Değiştirildi",
+                IslemTipiId = (int)IslemTipi.FiiliSandikDegistirildi,
                 KullaniciId = request.KullaniciId,
                 EskiDeger = eskiSandikNo,
                 YeniDeger = request.YeniFiiliSandikNo,

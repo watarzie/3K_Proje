@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
@@ -64,6 +64,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 ReferansTipi = "CekiSatiri",
                 ReferansId = satir.Id.ToString(),
                 Islem = "3K Teslim Alma",
+                IslemTipiId = (int)IslemTipi.UcKTeslimAlindi,
                 EskiDeger = $"GelenMiktar:{eskiGelenMiktar}, UcKDurum:{eskiUcKDurum}",
                 YeniDeger = $"GelenMiktar:{satir.GelenMiktar}, UcKDurum:{satir.UcKDurumuId}",
                 Aciklama = $"+{request.GelenMiktar} adet teslim alındı. {request.Not}"

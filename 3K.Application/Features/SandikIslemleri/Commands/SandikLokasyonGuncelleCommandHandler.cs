@@ -1,6 +1,8 @@
 using MediatR;
 using _3K.Application.Common;
+using _3K.Application.Features.SandikIslemleri.DTOs;
 using _3K.Core.Entities;
+using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.SandikIslemleri.Commands
@@ -46,6 +48,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 sandik.DepoLokasyonId = request.DepoLokasyonId;
                 repo.Update(sandik);
 
+                var eskiLokasyonMetni = Enum.GetName(typeof(DepoLokasyon), eskiLokasyon) ?? eskiLokasyon.ToString();
+                var yeniLokasyonMetni = Enum.GetName(typeof(DepoLokasyon), sandik.DepoLokasyonId) ?? sandik.DepoLokasyonId.ToString();
+
                 await _hareketService.HareketKaydetAsync(new HareketGecmisi
                 {
                     ProjeId = sandik.ProjeId,
@@ -53,9 +58,10 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                     ReferansTipi = "Sandik",
                     ReferansId = sandik.Id.ToString(),
                     Islem = "Lokasyon Güncelleme",
-                    EskiDeger = eskiLokasyon.ToString(),
-                    YeniDeger = sandik.DepoLokasyonId.ToString(),
-                    Aciklama = $"Sandık lokasyonu '{eskiLokasyon}' değerinden '{sandik.DepoLokasyonId}' olarak değiştirildi."
+                    IslemTipiId = (int)IslemTipi.SandikLokasyonGuncellendi,
+                    EskiDeger = eskiLokasyonMetni,
+                    YeniDeger = yeniLokasyonMetni,
+                    Aciklama = $"Sandık lokasyonu '{eskiLokasyonMetni}' değerinden '{yeniLokasyonMetni}' olarak değiştirildi."
                 });
             }
 

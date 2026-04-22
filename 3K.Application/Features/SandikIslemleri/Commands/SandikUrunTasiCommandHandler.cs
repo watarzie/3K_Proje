@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
@@ -100,26 +100,54 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             }
 
             // Hedef sandık durumunu güncelle
-            if (hedefSandik.DurumId == (int)SandikDurum.Bos)
+            var hedefEskiDurumId = hedefSandik.DurumId;
+
+            if (hedefSandik.DurumId == (int)SandikDurum.Bos || hedefSandik.DurumId == (int)SandikDurum.Hazir)
             {
                 hedefSandik.DurumId = (int)SandikDurum.Hazirlaniyor;
                 sandikRepo.Update(hedefSandik);
+            }
+
+
+
+            await _unitOfWork.SaveChangesAsync();
+
+            if (hedefEskiDurumId == (int)SandikDurum.Hazir && hedefSandik.DurumId == (int)SandikDurum.Hazirlaniyor)
+            {
+                var eskiDurumMetni = Enum.GetName(typeof(SandikDurum), hedefEskiDurumId) ?? "Hazir";
+                var yeniDurumMetni = Enum.GetName(typeof(SandikDurum), hedefSandik.DurumId) ?? "Hazirlaniyor";
+
+                await _hareketService.HareketKaydetAsync(new HareketGecmisi
+                {
+                    ProjeId = request.ProjeId,
+                    KullaniciId = _currentUserService.UserId ?? 0,
+                    ReferansTipi = "Sandik",
+                    ReferansId = hedefSandik.Id.ToString(),
+                    Islem = "Sandık Geri Açıldı",
+                    IslemTipiId = null,
+                    EskiDeger = eskiDurumMetni,
+                    YeniDeger = yeniDurumMetni,
+                    Aciklama = $"İçine yeni ürün/içerik taşınması nedeniyle sandık tekrar '{yeniDurumMetni}' konumuna getirildi."
+                });
             }
 
             await _unitOfWork.SaveChangesAsync();
 
             // ===== 4. Hareket kaydı =====
             var kaynakSandik = await sandikRepo.GetByIdAsync(kaynakIcerik.SandikId);
+            var cekiSatiriText = cekiSatiri?.Aciklama ?? "ürün";
+            
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {
                 ProjeId = request.ProjeId,
                 KullaniciId = _currentUserService.UserId ?? 0,
-                ReferansTipi = "SandikIcerik",
-                ReferansId = kaynakIcerik.Id.ToString(),
+                ReferansTipi = "CekiSatiri",
+                ReferansId = kaynakIcerik.CekiSatiriId.ToString(),
                 Islem = "Sandık Ürün Taşıma",
+                IslemTipiId = (int)IslemTipi.UrunTasindi,
                 EskiDeger = kaynakSandik?.SandikNo ?? "?",
                 YeniDeger = hedefSandik.SandikNo,
-                Aciklama = $"{request.TasinanAdet} adet ürün {kaynakSandik?.SandikNo} → {hedefSandik.SandikNo} sandığına taşındı."
+                Aciklama = $"{request.TasinanAdet} adet '{cekiSatiriText}', Sandık {kaynakSandik?.SandikNo}'den Sandık {hedefSandik.SandikNo}'e taşındı."
             });
 
             return Result.Success();

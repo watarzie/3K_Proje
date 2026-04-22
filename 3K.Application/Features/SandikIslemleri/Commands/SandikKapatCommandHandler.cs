@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
@@ -91,10 +91,15 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 };
             }
 
+            var eskiDurumId = sandik.DurumId;
+            var eskiDurumMetni = Enum.GetName(typeof(SandikDurum), eskiDurumId) ?? eskiDurumId.ToString();
+
             // Kapat (Eksik yok, ya da ForceClose = true)
             sandik.DurumId = (int)SandikDurum.Hazir;
             sandikRepo.Update(sandik);
             await _unitOfWork.SaveChangesAsync();
+
+            var yeniDurumMetni = Enum.GetName(typeof(SandikDurum), SandikDurum.Hazir) ?? "Hazir";
 
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {
@@ -103,8 +108,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 ReferansTipi = "Sandik",
                 ReferansId = sandik.Id.ToString(),
                 Islem = "Sandık Manuel Kapatma",
-                EskiDeger = "",
-                YeniDeger = ((int)SandikDurum.Hazir).ToString(),
+                IslemTipiId = (int)IslemTipi.SandikKapatildi,
+                EskiDeger = eskiDurumMetni,
+                YeniDeger = yeniDurumMetni,
                 Aciklama = request.ForceClose 
                     ? $"Sandık {sandik.SandikNo} (eksik ürün loguna rağmen zorunlu onayla) manuel olarak kapatıldı." 
                     : $"Sandık {sandik.SandikNo} başarıyla kapatıldı."

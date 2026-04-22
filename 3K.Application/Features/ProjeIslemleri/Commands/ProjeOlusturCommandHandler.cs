@@ -42,6 +42,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 ReferansTipi = "Proje",
                 ReferansId = proje.Id.ToString(),
                 Islem = "Proje Oluşturuldu",
+                IslemTipiId = (int)IslemTipi.ProjeOlusturuldu,
                 KullaniciId = request.KullaniciId,
                 Aciklama = $"Proje {request.ProjeNo} oluşturuldu"
             });

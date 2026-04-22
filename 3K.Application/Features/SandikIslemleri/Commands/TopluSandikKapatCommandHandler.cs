@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
@@ -120,6 +120,10 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             {
                 if (s.DurumId != (int)SandikDurum.Hazir)
                 {
+                    var eskiDurumId = s.DurumId;
+                    var eskiDurumMetni = Enum.GetName(typeof(SandikDurum), eskiDurumId) ?? eskiDurumId.ToString();
+                    var yeniDurumMetni = Enum.GetName(typeof(SandikDurum), SandikDurum.Hazir) ?? "Hazir";
+
                     s.DurumId = (int)SandikDurum.Hazir;
                     sandikRepo.Update(s);
 
@@ -130,8 +134,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                         ReferansTipi = "Sandik",
                         ReferansId = s.Id.ToString(),
                         Islem = "Toplu Sandık Kapatma",
-                        EskiDeger = "",
-                        YeniDeger = ((int)SandikDurum.Hazir).ToString(),
+                        IslemTipiId = (int)IslemTipi.TopluSandikKapatildi,
+                        EskiDeger = eskiDurumMetni,
+                        YeniDeger = yeniDurumMetni,
                         Aciklama = request.ForceClose
                             ? $"Sandık {s.SandikNo} (eksik ürün loguna rağmen zorunlu onayla) toplu işlemle kapatıldı."
                             : $"Sandık {s.SandikNo} toplu işlemle başarıyla kapatıldı."

@@ -189,7 +189,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                         ProjeId = request.ProjeId,
                         KullaniciId = _currentUserService.UserId ?? 0,
                         Miktar = request.GelenAdet.Value,
-                        IslemTipiId = (int)IslemTipi.StokKullanimi,
+                        IslemTipiId = (int)IslemTipi.StoktanKarsilandi,
                         Aciklama = $"Proje {request.ProjeId} için 3K aşamasında stoktan {request.GelenAdet.Value} adet karşılandı.",
                         Tarih = DateTime.UtcNow
                     });
@@ -245,6 +245,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 ReferansTipi = "CekiSatiri",
                 ReferansId = satir.Id.ToString(),
                 Islem = "3K Durum Güncellendi",
+                IslemTipiId = (int)IslemTipi.UcKDurumGuncellendi,
                 EskiDeger = eskiDurum.ToString(),
                 YeniDeger = request.KarsilamaTipiId.ToString(),
                 Aciklama = request.Aciklama

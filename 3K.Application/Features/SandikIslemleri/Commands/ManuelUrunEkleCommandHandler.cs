@@ -68,6 +68,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 ReferansTipi = "CekiSatiri",
                 ReferansId = yeniUrun.Id.ToString(),
                 Islem = "Manuel Ürün Eklendi",
+                IslemTipiId = (int)IslemTipi.ManuelUrunEklendi,
                 KullaniciId = request.KullaniciId,
                 Aciklama = $"Neden: {request.EklemeNedeni}, Miktar: {request.IstenenAdet} {request.Birim}"
             });

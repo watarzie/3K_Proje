@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
@@ -36,6 +36,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 ReferansTipi = "CekiSatiri",
                 ReferansId = urun.Id.ToString(),
                 Islem = "Ürün İptal Edildi",
+                IslemTipiId = (int)IslemTipi.UrunIptalEdildi,
                 KullaniciId = request.KullaniciId,
                 Aciklama = request.Neden
             });

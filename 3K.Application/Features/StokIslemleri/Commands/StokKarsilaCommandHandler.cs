@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
@@ -57,7 +57,7 @@ namespace _3K.Application.Features.StokIslemleri.Commands
                 ProjeId = request.ProjeId,
                 KullaniciId = request.KullaniciId,
                 Miktar = request.Miktar,
-                IslemTipiId = (int)IslemTipi.StokKullanimi,
+                IslemTipiId = (int)IslemTipi.StoktanKarsilandi,
                 Aciklama = $"Proje {request.ProjeId} için stoktan {request.Miktar} adet kullanıldı"
             };
             await stokHareketRepo.AddAsync(stokHareketi);
@@ -66,11 +66,12 @@ namespace _3K.Application.Features.StokIslemleri.Commands
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {
                 ProjeId = request.ProjeId,
-                ReferansTipi = "StokHareketi",
-                ReferansId = stokHareketi.Id.ToString(),
+                ReferansTipi = "CekiSatiri",
+                ReferansId = urun.Id.ToString(),
                 Islem = "Stoktan Karşılandı",
+                IslemTipiId = (int)IslemTipi.StoktanKarsilandi,
                 KullaniciId = request.KullaniciId,
-                Aciklama = $"StokKaydı: {request.StokKaydiId}, Miktar: {request.Miktar}"
+                Aciklama = $"{request.Miktar} adet '{urun.Aciklama}' stoktan karşılandı."
             });
 
             return Result.Success();

@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
@@ -76,6 +76,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 ReferansTipi = "TopluTeslim",
                 ReferansId = string.Join(",", idler),
                 Islem = "3K Toplu Teslim Alma",
+                IslemTipiId = (int)IslemTipi.UcKTopluTeslimAlindi,
                 YeniDeger = $"{teslimAlinan} ürün teslim alındı",
                 Aciklama = request.Not
             });
