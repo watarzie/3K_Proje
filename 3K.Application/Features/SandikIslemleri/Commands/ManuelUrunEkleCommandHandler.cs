@@ -42,7 +42,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 BarkodNo = request.BarkodNo,
                 Aciklama = request.Aciklama,
                 IstenenAdet = request.IstenenAdet,
-                Birim = request.Birim,
+                BirimId = request.BirimId,
                 CekideGecenSandikNo = sandik.SandikNo,
                 FiiliSandikNo = sandik.SandikNo,
                 DurumId = (int)UrunDurum.Bekliyor,
@@ -72,7 +72,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 Islem = "Manuel Ürün Eklendi",
                 IslemTipiId = (int)IslemTipi.ManuelUrunEklendi,
                 KullaniciId = _currentUserService.UserId ?? 0,
-                Aciklama = $"Neden: {request.EklemeNedeni}, Miktar: {request.IstenenAdet} {request.Birim}"
+                Aciklama = $"Neden: {request.EklemeNedeni}, Miktar: {request.IstenenAdet} {((Birim)request.BirimId).ToString()}"
             });
 
             return Result.Success();

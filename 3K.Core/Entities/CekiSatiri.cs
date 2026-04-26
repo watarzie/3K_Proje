@@ -10,7 +10,10 @@ namespace _3K.Core.Entities
         public string BarkodNo { get; set; } = string.Empty;
         public string Aciklama { get; set; } = string.Empty;
         public int IstenenAdet { get; set; }
-        public string Birim { get; set; } = string.Empty;
+        /// <summary>
+        /// Madde 7: Birim artık serbest metin değil, Enum tabanlı dropdown.
+        /// </summary>
+        public int BirimId { get; set; } = (int)Birim.Adet;
         public string CekideGecenSandikNo { get; set; } = string.Empty;
         public string? FiiliSandikNo { get; set; }
         public string? Remarks { get; set; }
@@ -67,9 +70,25 @@ namespace _3K.Core.Entities
 
         // ===== Kümülatif Takip Alanları =====
         /// <summary>
-        /// FB, stok veya tedarikçiden karşılanan toplam adet.
+        /// FB, stok veya tedarikçiden karşılanan toplam adet (legacy, geriye dönük uyumluluk).
         /// </summary>
         public int KarsilananMiktar { get; set; } = 0;
+
+        // ===== Madde 2: Parçalı Karşılama Detay Kolonları =====
+        /// <summary>
+        /// Stoktan karşılanan adet.
+        /// </summary>
+        public int StokKarsilanan { get; set; } = 0;
+
+        /// <summary>
+        /// Başka projeden (FB) karşılanan adet.
+        /// </summary>
+        public int ProjeKarsilanan { get; set; } = 0;
+
+        /// <summary>
+        /// Tedarikçiden karşılanan adet.
+        /// </summary>
+        public int TedarikciKarsilanan { get; set; } = 0;
 
         /// <summary>
         /// Hatalı gelen ürün adedi.
@@ -106,25 +125,46 @@ namespace _3K.Core.Entities
         }
 
         /// <summary>
-        /// 3K tarafı kümülatif eksik hesabı
+        /// Madde 3 + 10: 3K tarafı kümülatif eksik hesabı.
+        /// Grid'in sevk adedini baz alır (Madde 10).
+        /// Eksik = IstenenAdet - (GridSevkMiktari + StokKarsilanan + ProjeKarsilanan + TedarikciKarsilanan)
+        /// Toplam == IstenenAdet ise ürün eksik sayılmaz, rapordan düşer (Madde 3).
         /// </summary>
-        public int EksikMiktar => IstenenAdet - GelenMiktar - KarsilananMiktar;
+        public int EksikMiktar
+        {
+            get
+            {
+                var sevk = GridSevkMiktari ?? 0;
+                var toplam = sevk + StokKarsilanan + ProjeKarsilanan + TedarikciKarsilanan;
+                return Math.Max(IstenenAdet - toplam, 0);
+            }
+        }
 
         /// <summary>
         /// Kümülatif toplam tamamlanan adet (tüm kaynaklardan).
+        /// GridSevkMiktarı + Stok + Proje + Tedarikçi
         /// </summary>
-        public int KumulatifToplam => GelenMiktar + KarsilananMiktar;
+        public int KumulatifToplam
+        {
+            get
+            {
+                var sevk = GridSevkMiktari ?? 0;
+                return sevk + StokKarsilanan + ProjeKarsilanan + TedarikciKarsilanan;
+            }
+        }
 
         /// <summary>
-        /// Kalan miktar — TrafoSevk adedi de düşülür. Hatalı ürün varsa kalan ASLA 0 olmaz.
+        /// Kalan miktar — tüm karşılama kaynakları düşülür. Hatalı ürün varsa kalan ASLA 0 olmaz.
+        /// Madde 11: HataliUyumsuzGonderim durumunda da kalan 0 olmaz.
         /// </summary>
         public int KalanMiktar
         {
             get
             {
-                var kalan = IstenenAdet - GelenMiktar - KarsilananMiktar - TrafoSevkAdet;
-                // İŞ KURALI: Hatalı ürün varsa kalan en az 1 (eksik giderilmemiş)
-                if (HataliMiktar > 0 && kalan <= 0) return 1;
+                var sevk = GridSevkMiktari ?? 0;
+                var kalan = IstenenAdet - sevk - StokKarsilanan - ProjeKarsilanan - TedarikciKarsilanan - TrafoSevkAdet;
+                // İŞ KURALI: Hatalı ürün veya Hatalı/Uyumsuz Gönderim varsa kalan en az 1
+                if ((HataliMiktar > 0 || DurumId == (int)UrunDurum.HataliUyumsuzGonderim) && kalan <= 0) return 1;
                 return Math.Max(kalan, 0);
             }
         }
@@ -139,7 +179,9 @@ namespace _3K.Core.Entities
         public virtual LookupGridDurum? GridDurumLookup { get; set; }
         public virtual LookupUcKDurum? UcKDurumLookup { get; set; }
         public virtual LookupGeriGonderilmeSebebi? GeriGonderilmeSebebiLookup { get; set; }
+        public virtual LookupBirim? BirimLookup { get; set; }
         public virtual ICollection<SandikIcerik> SandikIcerikleri { get; set; } = new List<SandikIcerik>();
         public virtual ICollection<StokHareketi> StokHareketleri { get; set; } = new List<StokHareketi>();
+        public virtual ICollection<Not> Notlar { get; set; } = new List<Not>();
     }
 }

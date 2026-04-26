@@ -52,7 +52,16 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                     DurumMetni = i.CekiSatiri != null ? _lookupCache.GetDeger<LookupUrunDurum>(i.CekiSatiri.DurumId) : "Paketlendi",
                     PaketleyenBasHarf = i.CekiSatiri?.Paketleyen?.BasHarf,
                     KontrolEdenBasHarf = i.CekiSatiri?.KontrolEden?.BasHarf,
-                    Remarks = i.CekiSatiri?.Remarks
+                    Remarks = i.CekiSatiri?.Remarks,
+                    // Saha/Yedek + Birim
+                    Isim = i.Isim,
+                    Miktar = i.Miktar,
+                    BirimId = i.BirimId,
+                    BirimMetni = i.BirimId.HasValue ? _lookupCache.GetDeger<LookupBirim>(i.BirimId.Value) : null,
+                    // Madde 2: Parçalı karşılama
+                    StokKarsilanan = i.StokKarsilanan,
+                    ProjeKarsilanan = i.ProjeKarsilanan,
+                    TedarikciKarsilanan = i.TedarikciKarsilanan
                 }).ToList()
             };
 

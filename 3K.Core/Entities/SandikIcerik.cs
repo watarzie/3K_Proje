@@ -11,6 +11,22 @@ namespace _3K.Core.Entities
         public int KonulanAdet { get; set; }
         public int EksikAdet { get; set; }
 
+        // ===== Madde 2: Parçalı Karşılama Detay Kolonları =====
+        /// <summary>
+        /// Stoktan karşılanan adet.
+        /// </summary>
+        public int StokKarsilanan { get; set; } = 0;
+
+        /// <summary>
+        /// Başka projeden (FB) karşılanan adet.
+        /// </summary>
+        public int ProjeKarsilanan { get; set; } = 0;
+
+        /// <summary>
+        /// Tedarikçiden karşılanan adet.
+        /// </summary>
+        public int TedarikciKarsilanan { get; set; } = 0;
+
         // ===== Manuel Malzeme Alanları (Saha/Yedek projeleri için) =====
         /// <summary>
         /// Barkod numarası (opsiyonel).
@@ -26,13 +42,15 @@ namespace _3K.Core.Entities
         /// </summary>
         public decimal Miktar { get; set; }
         /// <summary>
-        /// Birim (ör: Adet, Kg, Metre). Opsiyonel.
+        /// Madde 7: Birim artık Enum tabanlı. Opsiyonel (çeki satırına bağlı ise CekiSatiri.BirimId kullanılır).
         /// </summary>
-        public string? Birim { get; set; }
+        public int? BirimId { get; set; }
 
         // Navigation Properties
         public virtual Sandik Sandik { get; set; } = null!;
         public virtual CekiSatiri? CekiSatiri { get; set; }
+        public virtual LookupBirim? BirimLookup { get; set; }
     }
 }
+
 

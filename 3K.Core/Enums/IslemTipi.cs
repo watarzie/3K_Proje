@@ -29,6 +29,14 @@ namespace _3K.Core.Enums
         KullaniciOlusturuldu = 22,
         ProjeSevkEdildi = 23,
         SandikSevkEdildi = 24,
-        SahaYedekMalzemeEklendi = 25
+        SahaYedekMalzemeEklendi = 25,
+        /// <summary>Madde 5: Toplu durum güncelleme işlemi.</summary>
+        TopluDurumGuncellendi = 26,
+        /// <summary>Madde 9: Not ekleme işlemi.</summary>
+        NotEklendi = 27,
+        /// <summary>Madde 8: Sandık içine manuel ürün ekleme.</summary>
+        ManuelUrunSandikEklendi = 28,
+        /// <summary>Madde 6: Sandık otomatik/manuel kapatma.</summary>
+        SandikKapandi = 29
     }
 }

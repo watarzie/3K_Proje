@@ -43,7 +43,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                         Aciklama = cs.Aciklama,
                         SandikNo = cs.FiiliSandikNo ?? cs.CekideGecenSandikNo,
                         IstenenAdet = cs.IstenenAdet,
-                        Birim = cs.Birim,
+                        Birim = ((Birim)cs.BirimId).ToString(),
                         GridDurumuId = cs.GridDurumuId,
                         GridDurumuMetni = _lookupCache.GetDeger<LookupGridDurum>(cs.GridDurumuId),
                         GridGelenAdet = cs.GridGelenAdet,
@@ -65,7 +65,12 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                         Kalan = cs.KalanMiktar,
                         KontrolUyari = HesaplaKontrolUyari(cs),
                         GenelDurumId = cs.DurumId,
-                        GenelDurumMetni = _lookupCache.GetDeger<LookupUrunDurum>(cs.DurumId)
+                        GenelDurumMetni = _lookupCache.GetDeger<LookupUrunDurum>(cs.DurumId),
+                        // Madde 2: Parçalı karşılama
+                        StokKarsilanan = cs.StokKarsilanan,
+                        ProjeKarsilanan = cs.ProjeKarsilanan,
+                        TedarikciKarsilanan = cs.TedarikciKarsilanan,
+                        EksikMiktar = cs.EksikMiktar
                     };
                 })
                 .ToList();

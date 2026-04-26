@@ -24,6 +24,10 @@ namespace _3K.Core.Enums
         Gelmedi = 17,
         TrafoSevk = 18,
         BaskaProyeVerildi = 19,
-        HataliUrun = 20
+        HataliUrun = 20,
+        /// <summary>
+        /// Madde 11: Hatalı/Uyumsuz Gönderim — Tamamlandı sayılmaz, zorunlu not gerektirir.
+        /// </summary>
+        HataliUyumsuzGonderim = 21
     }
 }

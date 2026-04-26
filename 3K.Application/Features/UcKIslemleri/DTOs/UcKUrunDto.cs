@@ -30,6 +30,12 @@ namespace _3K.Application.Features.UcKIslemleri.DTOs
         public string? UcKAciklama { get; set; }
         public string? UcKNotu { get; set; }
 
+        // Parçalı karşılama (Madde 2)
+        public int StokKarsilanan { get; set; }
+        public int ProjeKarsilanan { get; set; }
+        public int TedarikciKarsilanan { get; set; }
+        public int EksikMiktar { get; set; }
+
         // Hesaplanan
         public int Kalan { get; set; }
         public string KontrolUyari { get; set; } = string.Empty;

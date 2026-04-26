@@ -1,4 +1,5 @@
 using MediatR;
+using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Application.Features.GridIslemleri.DTOs;
 using _3K.Core.Entities;
@@ -39,7 +40,7 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                     BarkodNo = cs.BarkodNo,
                     Aciklama = cs.Aciklama,
                     IstenenAdet = cs.IstenenAdet,
-                    Birim = cs.Birim,
+                    Birim = ((Birim)cs.BirimId).ToString(),
                     SandikNo = cs.FiiliSandikNo ?? cs.CekideGecenSandikNo,
                     GridDurumuId = cs.GridDurumuId,
                     GridDurumuMetni = _lookupCache.GetDeger<LookupGridDurum>(cs.GridDurumuId),
@@ -56,7 +57,13 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                     GelenMiktar = cs.GelenMiktar,
                     KaynakHedefProjeNo = cs.KaynakHedefProjeNo,
                     GenelDurumId = cs.DurumId,
-                    GenelDurumMetni = _lookupCache.GetDeger<LookupUrunDurum>(cs.DurumId)
+                    GenelDurumMetni = _lookupCache.GetDeger<LookupUrunDurum>(cs.DurumId),
+                    // Madde 2: Parçalı karşılama
+                    StokKarsilanan = cs.StokKarsilanan,
+                    ProjeKarsilanan = cs.ProjeKarsilanan,
+                    TedarikciKarsilanan = cs.TedarikciKarsilanan,
+                    EksikMiktar = cs.EksikMiktar,
+                    KalanMiktar = cs.KalanMiktar
                 })
                 .ToList();
 

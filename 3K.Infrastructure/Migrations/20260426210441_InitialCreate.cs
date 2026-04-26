@@ -15,6 +15,24 @@ namespace _3K.Infrastructure.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.CreateTable(
+                name: "LookupBirimler",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    CreatedDate = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    UpdatedDate = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    CreatedBy = table.Column<string>(type: "text", nullable: true),
+                    UpdatedBy = table.Column<string>(type: "text", nullable: true),
+                    Anahtar = table.Column<int>(type: "integer", nullable: false),
+                    Deger = table.Column<string>(type: "text", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_LookupBirimler", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "LookupDepoLokasyonlari",
                 columns: table => new
                 {
@@ -102,6 +120,24 @@ namespace _3K.Infrastructure.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_LookupIslemTipleri", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "LookupNotYazanTaraflar",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    CreatedDate = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    UpdatedDate = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    CreatedBy = table.Column<string>(type: "text", nullable: true),
+                    UpdatedBy = table.Column<string>(type: "text", nullable: true),
+                    Anahtar = table.Column<int>(type: "integer", nullable: false),
+                    Deger = table.Column<string>(type: "text", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_LookupNotYazanTaraflar", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -486,6 +522,7 @@ namespace _3K.Infrastructure.Migrations
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     ProjeId = table.Column<int>(type: "integer", nullable: false),
                     SandikNo = table.Column<string>(type: "text", nullable: false),
+                    Ad = table.Column<string>(type: "text", nullable: true),
                     TipId = table.Column<int>(type: "integer", nullable: false),
                     DurumId = table.Column<int>(type: "integer", nullable: false),
                     DepoLokasyonId = table.Column<int>(type: "integer", nullable: false),
@@ -619,7 +656,7 @@ namespace _3K.Infrastructure.Migrations
                     BarkodNo = table.Column<string>(type: "text", nullable: false),
                     Aciklama = table.Column<string>(type: "text", nullable: false),
                     IstenenAdet = table.Column<int>(type: "integer", nullable: false),
-                    Birim = table.Column<string>(type: "text", nullable: false),
+                    BirimId = table.Column<int>(type: "integer", nullable: false),
                     CekideGecenSandikNo = table.Column<string>(type: "text", nullable: false),
                     FiiliSandikNo = table.Column<string>(type: "text", nullable: true),
                     Remarks = table.Column<string>(type: "text", nullable: true),
@@ -640,6 +677,9 @@ namespace _3K.Infrastructure.Migrations
                     KaynakHedefProjeNo = table.Column<string>(type: "text", nullable: true),
                     UcKAciklama = table.Column<string>(type: "text", nullable: true),
                     KarsilananMiktar = table.Column<int>(type: "integer", nullable: false),
+                    StokKarsilanan = table.Column<int>(type: "integer", nullable: false),
+                    ProjeKarsilanan = table.Column<int>(type: "integer", nullable: false),
+                    TedarikciKarsilanan = table.Column<int>(type: "integer", nullable: false),
                     HataliMiktar = table.Column<int>(type: "integer", nullable: false),
                     GeriGonderilmeSebebiId = table.Column<int>(type: "integer", nullable: true),
                     KaynakProjeId = table.Column<int>(type: "integer", nullable: true),
@@ -680,6 +720,12 @@ namespace _3K.Infrastructure.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.SetNull);
                     table.ForeignKey(
+                        name: "FK_CekiSatirlari_LookupBirimler_BirimId",
+                        column: x => x.BirimId,
+                        principalTable: "LookupBirimler",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
                         name: "FK_CekiSatirlari_LookupGeriGonderilmeSebepleri_GeriGonderilmeS~",
                         column: x => x.GeriGonderilmeSebebiId,
                         principalTable: "LookupGeriGonderilmeSebepleri",
@@ -715,6 +761,41 @@ namespace _3K.Infrastructure.Migrations
                         principalTable: "Projeler",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.SetNull);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Notlar",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    YazanTarafId = table.Column<int>(type: "integer", nullable: false),
+                    Icerik = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: false),
+                    Tarih = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    KullaniciId = table.Column<int>(type: "integer", nullable: false),
+                    BagliReferansTipi = table.Column<string>(type: "text", nullable: false),
+                    BagliReferansId = table.Column<int>(type: "integer", nullable: false),
+                    CekiSatiriId = table.Column<int>(type: "integer", nullable: true),
+                    CreatedDate = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    UpdatedDate = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    CreatedBy = table.Column<string>(type: "text", nullable: true),
+                    UpdatedBy = table.Column<string>(type: "text", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Notlar", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Notlar_CekiSatirlari_CekiSatiriId",
+                        column: x => x.CekiSatiriId,
+                        principalTable: "CekiSatirlari",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_Notlar_Kullanicilar_KullaniciId",
+                        column: x => x.KullaniciId,
+                        principalTable: "Kullanicilar",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -782,10 +863,13 @@ namespace _3K.Infrastructure.Migrations
                     CekiSatiriId = table.Column<int>(type: "integer", nullable: true),
                     KonulanAdet = table.Column<int>(type: "integer", nullable: false),
                     EksikAdet = table.Column<int>(type: "integer", nullable: false),
+                    StokKarsilanan = table.Column<int>(type: "integer", nullable: false),
+                    ProjeKarsilanan = table.Column<int>(type: "integer", nullable: false),
+                    TedarikciKarsilanan = table.Column<int>(type: "integer", nullable: false),
                     BarkodNo = table.Column<string>(type: "text", nullable: true),
                     Isim = table.Column<string>(type: "text", nullable: true),
                     Miktar = table.Column<decimal>(type: "numeric", nullable: false),
-                    Birim = table.Column<string>(type: "text", nullable: true),
+                    BirimId = table.Column<int>(type: "integer", nullable: true),
                     CreatedDate = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
                     UpdatedDate = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
                     CreatedBy = table.Column<string>(type: "text", nullable: true),
@@ -798,6 +882,12 @@ namespace _3K.Infrastructure.Migrations
                         name: "FK_SandikIcerikleri_CekiSatirlari_CekiSatiriId",
                         column: x => x.CekiSatiriId,
                         principalTable: "CekiSatirlari",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_SandikIcerikleri_LookupBirimler_BirimId",
+                        column: x => x.BirimId,
+                        principalTable: "LookupBirimler",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
@@ -863,14 +953,31 @@ namespace _3K.Infrastructure.Migrations
                 });
 
             migrationBuilder.InsertData(
+                table: "LookupBirimler",
+                columns: new[] { "Id", "Anahtar", "CreatedBy", "CreatedDate", "Deger", "UpdatedBy", "UpdatedDate" },
+                values: new object[,]
+                {
+                    { 1, 1, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7894), "Adet", null, null },
+                    { 2, 2, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7895), "Set", null, null },
+                    { 3, 3, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7896), "Metre", null, null },
+                    { 4, 4, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7896), "Kg", null, null },
+                    { 5, 5, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7897), "Litre", null, null },
+                    { 6, 6, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7898), "Takım", null, null },
+                    { 7, 7, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7898), "Paket", null, null },
+                    { 8, 8, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7899), "Ton", null, null },
+                    { 9, 9, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7899), "Metrekare", null, null },
+                    { 10, 10, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7900), "Metreküp", null, null }
+                });
+
+            migrationBuilder.InsertData(
                 table: "LookupDepoLokasyonlari",
                 columns: new[] { "Id", "Anahtar", "CreatedBy", "CreatedDate", "Deger", "UpdatedBy", "UpdatedDate" },
                 values: new object[,]
                 {
-                    { 1, 0, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(1961), "Belirsiz", null, null },
-                    { 2, 1, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(1963), "3K", null, null },
-                    { 4, 3, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(1963), "Seymen", null, null },
-                    { 5, 4, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(1964), "Grid", null, null }
+                    { 1, 0, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6186), "Belirsiz", null, null },
+                    { 2, 1, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6187), "3K", null, null },
+                    { 4, 3, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6200), "Seymen", null, null },
+                    { 5, 4, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6200), "Grid", null, null }
                 });
 
             migrationBuilder.InsertData(
@@ -878,9 +985,9 @@ namespace _3K.Infrastructure.Migrations
                 columns: new[] { "Id", "Anahtar", "CreatedBy", "CreatedDate", "Deger", "UpdatedBy", "UpdatedDate" },
                 values: new object[,]
                 {
-                    { 1, 0, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2963), "Tadilat", null, null },
-                    { 2, 1, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2964), "Iptal", null, null },
-                    { 3, 2, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2965), "Projeye Geri Dönüş", null, null }
+                    { 1, 0, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7068), "Tadilat", null, null },
+                    { 2, 1, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7078), "Iptal", null, null },
+                    { 3, 2, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7079), "Projeye Geri Dönüş", null, null }
                 });
 
             migrationBuilder.InsertData(
@@ -888,19 +995,19 @@ namespace _3K.Infrastructure.Migrations
                 columns: new[] { "Id", "Anahtar", "CreatedBy", "CreatedDate", "Deger", "UpdatedBy", "UpdatedDate" },
                 values: new object[,]
                 {
-                    { 1, 0, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2406), "Bekliyor", null, null },
-                    { 2, 1, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2407), "Üretimde", null, null },
-                    { 3, 2, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2408), "Stok Hazır", null, null },
-                    { 4, 3, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2409), "Sevk Edildi", null, null },
-                    { 5, 4, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2410), "Kısmi Sevk Edildi", null, null },
-                    { 6, 5, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2410), "Bekletiliyor", null, null },
-                    { 7, 6, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2411), "İptal Edildi", null, null },
-                    { 8, 7, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2412), "Tam Geldi", null, null },
-                    { 9, 8, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2412), "Eksik Geldi", null, null },
-                    { 10, 9, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2413), "Gelmedi", null, null },
-                    { 11, 10, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2414), "Trafo Sevk", null, null },
-                    { 12, 11, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2414), "İptal", null, null },
-                    { 13, 12, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2415), "Siparişte", null, null }
+                    { 1, 0, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6561), "Bekliyor", null, null },
+                    { 2, 1, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6562), "Üretimde", null, null },
+                    { 3, 2, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6563), "Stok Hazır", null, null },
+                    { 4, 3, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6563), "Sevk Edildi", null, null },
+                    { 5, 4, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6573), "Kısmi Sevk Edildi", null, null },
+                    { 6, 5, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6574), "Bekletiliyor", null, null },
+                    { 7, 6, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6574), "İptal Edildi", null, null },
+                    { 8, 7, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6575), "Tam Geldi", null, null },
+                    { 9, 8, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6576), "Eksik Geldi", null, null },
+                    { 10, 9, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6576), "Gelmedi", null, null },
+                    { 11, 10, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6577), "Trafo Sevk", null, null },
+                    { 12, 11, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6577), "İptal", null, null },
+                    { 13, 12, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6578), "Siparişte", null, null }
                 });
 
             migrationBuilder.InsertData(
@@ -908,9 +1015,9 @@ namespace _3K.Infrastructure.Migrations
                 columns: new[] { "Id", "Anahtar", "CreatedBy", "CreatedDate", "Deger", "UpdatedBy", "UpdatedDate" },
                 values: new object[,]
                 {
-                    { 1, 1, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2591), "Sevk Edildi", null, null },
-                    { 2, 2, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2593), "Bekliyor", null, null },
-                    { 3, 3, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2604), "Sevk Edilmedi", null, null }
+                    { 1, 1, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6744), "Sevk Edildi", null, null },
+                    { 2, 2, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6745), "Bekliyor", null, null },
+                    { 3, 3, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6746), "Sevk Edilmedi", null, null }
                 });
 
             migrationBuilder.InsertData(
@@ -918,31 +1025,44 @@ namespace _3K.Infrastructure.Migrations
                 columns: new[] { "Id", "Anahtar", "CreatedBy", "CreatedDate", "Deger", "UpdatedBy", "UpdatedDate" },
                 values: new object[,]
                 {
-                    { 1, 1, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3538), "Çeki Yüklendi", null, null },
-                    { 2, 2, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3540), "Proje Oluşturuldu", null, null },
-                    { 3, 3, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3540), "Grid Durum Güncellendi", null, null },
-                    { 4, 4, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3541), "Grid Toplu Sevk Edildi", null, null },
-                    { 5, 5, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3542), "3K Durum Güncellendi", null, null },
-                    { 6, 6, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3543), "3K Teslim Alındı", null, null },
-                    { 7, 7, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3543), "3K Toplu Teslim Alındı", null, null },
-                    { 8, 8, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3544), "Manuel Ürün Eklendi", null, null },
-                    { 9, 9, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3545), "Sandık Ürün Taşıma", null, null },
-                    { 10, 10, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3545), "Ürün Güncellendi", null, null },
-                    { 11, 11, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3546), "Ürün İptal Edildi", null, null },
-                    { 12, 12, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3547), "Stoktan Karşılandı", null, null },
-                    { 13, 13, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3548), "F.B.'den Karşılandı", null, null },
-                    { 14, 14, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3548), "Sandık Manuel Kapatma", null, null },
-                    { 15, 15, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3549), "Toplu Sandık Kapatıldı", null, null },
-                    { 16, 16, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3550), "Fiili Sandık Değiştirildi", null, null },
-                    { 17, 17, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3550), "Lokasyon Güncelleme", null, null },
-                    { 18, 18, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3551), "Sandık Otomatik Hazırlandı", null, null },
-                    { 19, 19, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3552), "Excel İndirildi", null, null },
-                    { 20, 20, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3552), "PDF İndirildi", null, null },
-                    { 21, 21, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3553), "Sandık Oluşturuldu", null, null },
-                    { 22, 22, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3554), "Kullanıcı Oluşturuldu", null, null },
-                    { 23, 23, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3555), "Proje Sevk Edildi", null, null },
-                    { 24, 24, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3555), "Sandık Sevk Edildi", null, null },
-                    { 25, 25, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3556), "Saha/Yedek Malzeme Eklendi", null, null }
+                    { 1, 1, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7558), "Çeki Yüklendi", null, null },
+                    { 2, 2, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7559), "Proje Oluşturuldu", null, null },
+                    { 3, 3, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7560), "Grid Durum Güncellendi", null, null },
+                    { 4, 4, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7561), "Grid Toplu Sevk Edildi", null, null },
+                    { 5, 5, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7561), "3K Durum Güncellendi", null, null },
+                    { 6, 6, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7562), "3K Teslim Alındı", null, null },
+                    { 7, 7, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7563), "3K Toplu Teslim Alındı", null, null },
+                    { 8, 8, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7563), "Manuel Ürün Eklendi", null, null },
+                    { 9, 9, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7564), "Sandık Ürün Taşıma", null, null },
+                    { 10, 10, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7570), "Ürün Güncellendi", null, null },
+                    { 11, 11, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7571), "Ürün İptal Edildi", null, null },
+                    { 12, 12, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7571), "Stoktan Karşılandı", null, null },
+                    { 13, 13, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7572), "F.B.'den Karşılandı", null, null },
+                    { 14, 14, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7573), "Sandık Manuel Kapatma", null, null },
+                    { 15, 15, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7573), "Toplu Sandık Kapatıldı", null, null },
+                    { 16, 16, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7574), "Fiili Sandık Değiştirildi", null, null },
+                    { 17, 17, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7575), "Lokasyon Güncelleme", null, null },
+                    { 18, 18, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7575), "Sandık Otomatik Hazırlandı", null, null },
+                    { 19, 19, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7576), "Excel İndirildi", null, null },
+                    { 20, 20, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7576), "PDF İndirildi", null, null },
+                    { 21, 21, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7577), "Sandık Oluşturuldu", null, null },
+                    { 22, 22, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7578), "Kullanıcı Oluşturuldu", null, null },
+                    { 23, 23, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7578), "Proje Sevk Edildi", null, null },
+                    { 24, 24, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7579), "Sandık Sevk Edildi", null, null },
+                    { 25, 25, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7580), "Saha/Yedek Malzeme Eklendi", null, null },
+                    { 26, 26, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7580), "Toplu Durum Güncellendi", null, null },
+                    { 27, 27, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7581), "Not Eklendi", null, null },
+                    { 28, 28, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7581), "Manuel Ürün Sandığa Eklendi", null, null },
+                    { 29, 29, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7582), "Sandık Kapandı", null, null }
+                });
+
+            migrationBuilder.InsertData(
+                table: "LookupNotYazanTaraflar",
+                columns: new[] { "Id", "Anahtar", "CreatedBy", "CreatedDate", "Deger", "UpdatedBy", "UpdatedDate" },
+                values: new object[,]
+                {
+                    { 1, 1, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(8047), "Grid", null, null },
+                    { 2, 2, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(8048), "3K", null, null }
                 });
 
             migrationBuilder.InsertData(
@@ -950,12 +1070,12 @@ namespace _3K.Infrastructure.Migrations
                 columns: new[] { "Id", "Anahtar", "CreatedBy", "CreatedDate", "Deger", "UpdatedBy", "UpdatedDate" },
                 values: new object[,]
                 {
-                    { 1, 0, null, new DateTime(2026, 4, 22, 19, 12, 55, 18, DateTimeKind.Utc).AddTicks(7454), "Hazırlanıyor", null, null },
-                    { 2, 1, null, new DateTime(2026, 4, 22, 19, 12, 55, 18, DateTimeKind.Utc).AddTicks(7900), "Devam", null, null },
-                    { 3, 2, null, new DateTime(2026, 4, 22, 19, 12, 55, 18, DateTimeKind.Utc).AddTicks(7900), "Tamamlandı", null, null },
-                    { 4, 3, null, new DateTime(2026, 4, 22, 19, 12, 55, 18, DateTimeKind.Utc).AddTicks(7901), "Beklemede", null, null },
-                    { 5, 4, null, new DateTime(2026, 4, 22, 19, 12, 55, 18, DateTimeKind.Utc).AddTicks(7902), "Sevk Edildi", null, null },
-                    { 6, 5, null, new DateTime(2026, 4, 22, 19, 12, 55, 18, DateTimeKind.Utc).AddTicks(7903), "Eksik Sevk Edildi", null, null }
+                    { 1, 0, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(1756), "Hazırlanıyor", null, null },
+                    { 2, 1, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(2186), "Devam", null, null },
+                    { 3, 2, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(2187), "Tamamlandı", null, null },
+                    { 4, 3, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(2188), "Beklemede", null, null },
+                    { 5, 4, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(2189), "Sevk Edildi", null, null },
+                    { 6, 5, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(2189), "Eksik Sevk Edildi", null, null }
                 });
 
             migrationBuilder.InsertData(
@@ -963,9 +1083,9 @@ namespace _3K.Infrastructure.Migrations
                 columns: new[] { "Id", "Anahtar", "CreatedBy", "CreatedDate", "Deger", "UpdatedBy", "UpdatedDate" },
                 values: new object[,]
                 {
-                    { 1, 1, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3712), "Normal", null, null },
-                    { 2, 2, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3713), "Saha", null, null },
-                    { 3, 3, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3714), "Yedek", null, null }
+                    { 1, 1, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7744), "Normal", null, null },
+                    { 2, 2, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7745), "Saha", null, null },
+                    { 3, 3, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7746), "Yedek", null, null }
                 });
 
             migrationBuilder.InsertData(
@@ -973,10 +1093,11 @@ namespace _3K.Infrastructure.Migrations
                 columns: new[] { "Id", "Anahtar", "CreatedBy", "CreatedDate", "Deger", "UpdatedBy", "UpdatedDate" },
                 values: new object[,]
                 {
-                    { 1, 0, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(1529), "Boş", null, null },
-                    { 2, 1, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(1531), "Hazırlanıyor", null, null },
-                    { 3, 2, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(1532), "Hazır", null, null },
-                    { 4, 3, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(1532), "Sevk Edildi", null, null }
+                    { 1, 0, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(5755), "Boş", null, null },
+                    { 2, 1, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(5758), "Hazırlanıyor", null, null },
+                    { 3, 2, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(5758), "Hazır", null, null },
+                    { 4, 3, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(5759), "Sevk Edildi", null, null },
+                    { 5, 4, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(5760), "Kapandı", null, null }
                 });
 
             migrationBuilder.InsertData(
@@ -984,8 +1105,8 @@ namespace _3K.Infrastructure.Migrations
                 columns: new[] { "Id", "Anahtar", "CreatedBy", "CreatedDate", "Deger", "UpdatedBy", "UpdatedDate" },
                 values: new object[,]
                 {
-                    { 1, 1, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(1766), "Ahşap Kapalı", null, null },
-                    { 2, 2, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(1767), "Katlanır Sandık", null, null }
+                    { 1, 1, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(5988), "Ahşap Kapalı", null, null },
+                    { 2, 2, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(5989), "Katlanır Sandık", null, null }
                 });
 
             migrationBuilder.InsertData(
@@ -993,9 +1114,9 @@ namespace _3K.Infrastructure.Migrations
                 columns: new[] { "Id", "Anahtar", "CreatedBy", "CreatedDate", "Deger", "UpdatedBy", "UpdatedDate" },
                 values: new object[,]
                 {
-                    { 1, 0, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3307), "Aktif", null, null },
-                    { 2, 1, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3308), "Tukendi", null, null },
-                    { 3, 2, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3309), "Rezerve", null, null }
+                    { 1, 0, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7396), "Aktif", null, null },
+                    { 2, 1, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7397), "Tukendi", null, null },
+                    { 3, 2, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7398), "Rezerve", null, null }
                 });
 
             migrationBuilder.InsertData(
@@ -1003,19 +1124,19 @@ namespace _3K.Infrastructure.Migrations
                 columns: new[] { "Id", "Anahtar", "CreatedBy", "CreatedDate", "Deger", "UpdatedBy", "UpdatedDate" },
                 values: new object[,]
                 {
-                    { 1, 0, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2777), "Bekliyor", null, null },
-                    { 2, 1, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2779), "Tam Geldi", null, null },
-                    { 3, 2, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2780), "Eksik Geldi", null, null },
-                    { 4, 3, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2780), "Gelmedi", null, null },
-                    { 5, 4, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2781), "Paketlendi", null, null },
-                    { 6, 5, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2782), "Kontrol Edildi", null, null },
-                    { 7, 6, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2783), "İade Edildi", null, null },
-                    { 8, 7, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2784), "Projeden Karşılandı", null, null },
-                    { 9, 8, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2784), "Stoktan Karşılandı", null, null },
-                    { 10, 9, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2785), "Tedarikçiden Geldi", null, null },
-                    { 11, 10, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2786), "Başka Projeye Verildi", null, null },
-                    { 12, 11, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2786), "Geri Gönderildi", null, null },
-                    { 13, 12, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2787), "Hatalı Ürün", null, null }
+                    { 1, 0, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6903), "Bekliyor", null, null },
+                    { 2, 1, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6904), "Tam Geldi", null, null },
+                    { 3, 2, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6905), "Eksik Geldi", null, null },
+                    { 4, 3, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6905), "Gelmedi", null, null },
+                    { 5, 4, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6906), "Paketlendi", null, null },
+                    { 6, 5, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6906), "Kontrol Edildi", null, null },
+                    { 7, 6, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6907), "İade Edildi", null, null },
+                    { 8, 7, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6908), "Projeden Karşılandı", null, null },
+                    { 9, 8, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6909), "Stoktan Karşılandı", null, null },
+                    { 10, 9, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6909), "Tedarikçiden Geldi", null, null },
+                    { 11, 10, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6910), "Başka Projeye Verildi", null, null },
+                    { 12, 11, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6910), "Geri Gönderildi", null, null },
+                    { 13, 12, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6911), "Hatalı Ürün", null, null }
                 });
 
             migrationBuilder.InsertData(
@@ -1023,26 +1144,27 @@ namespace _3K.Infrastructure.Migrations
                 columns: new[] { "Id", "Anahtar", "CreatedBy", "CreatedDate", "Deger", "UpdatedBy", "UpdatedDate" },
                 values: new object[,]
                 {
-                    { 1, 0, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2194), "Bekliyor", null, null },
-                    { 2, 1, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2195), "Kısmi Geldi", null, null },
-                    { 3, 2, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2196), "Tamamlandı", null, null },
-                    { 4, 3, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2197), "Eksik", null, null },
-                    { 5, 4, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2198), "Stoktan Karşılandı", null, null },
-                    { 6, 5, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2199), "FB'den Karşılandı", null, null },
-                    { 7, 6, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2199), "Sonra Gidecek", null, null },
-                    { 8, 7, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2200), "Sandık Değişti", null, null },
-                    { 9, 8, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2213), "İptal/Pasif", null, null },
-                    { 10, 9, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2214), "Teslim Alındı", null, null },
-                    { 11, 10, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2215), "Geri Gönderildi", null, null },
-                    { 12, 11, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2216), "Kısmi Tamamlandı", null, null },
-                    { 13, 12, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2216), "Kayıp", null, null },
-                    { 14, 13, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2217), "Grid'de Hazır", null, null },
-                    { 15, 14, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2218), "Grid'de Eksik", null, null },
-                    { 16, 15, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2218), "Siparişte", null, null },
-                    { 17, 16, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2219), "Gelmedi", null, null },
-                    { 18, 17, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2220), "Trafo Sevk", null, null },
-                    { 19, 18, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2221), "Başka Projeye Verildi", null, null },
-                    { 20, 19, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(2221), "Hatalı Ürün", null, null }
+                    { 1, 0, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6368), "Bekliyor", null, null },
+                    { 2, 1, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6369), "Kısmi Geldi", null, null },
+                    { 3, 2, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6370), "Tamamlandı", null, null },
+                    { 4, 3, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6371), "Eksik", null, null },
+                    { 5, 4, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6371), "Stoktan Karşılandı", null, null },
+                    { 6, 5, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6372), "FB'den Karşılandı", null, null },
+                    { 7, 6, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6373), "Sonra Gidecek", null, null },
+                    { 8, 7, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6373), "Sandık Değişti", null, null },
+                    { 9, 8, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6374), "İptal/Pasif", null, null },
+                    { 10, 9, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6375), "Teslim Alındı", null, null },
+                    { 11, 10, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6375), "Geri Gönderildi", null, null },
+                    { 12, 11, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6385), "Kısmi Tamamlandı", null, null },
+                    { 13, 12, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6387), "Kayıp", null, null },
+                    { 14, 13, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6387), "Grid'de Hazır", null, null },
+                    { 15, 14, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6388), "Grid'de Eksik", null, null },
+                    { 16, 15, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6389), "Siparişte", null, null },
+                    { 17, 16, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6389), "Gelmedi", null, null },
+                    { 18, 17, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6390), "Trafo Sevk", null, null },
+                    { 19, 18, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6390), "Başka Projeye Verildi", null, null },
+                    { 20, 19, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6391), "Hatalı Ürün", null, null },
+                    { 21, 20, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(6392), "Hatalı/Uyumsuz Gönderim", null, null }
                 });
 
             migrationBuilder.InsertData(
@@ -1050,9 +1172,9 @@ namespace _3K.Infrastructure.Migrations
                 columns: new[] { "Id", "Anahtar", "CreatedBy", "CreatedDate", "Deger", "UpdatedBy", "UpdatedDate" },
                 values: new object[,]
                 {
-                    { 1, 0, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3140), "N", null, null },
-                    { 2, 1, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3142), "R", null, null },
-                    { 3, 2, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(3142), "W", null, null }
+                    { 1, 0, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7237), "N", null, null },
+                    { 2, 1, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7238), "R", null, null },
+                    { 3, 2, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(7239), "W", null, null }
                 });
 
             migrationBuilder.InsertData(
@@ -1060,19 +1182,17 @@ namespace _3K.Infrastructure.Migrations
                 columns: new[] { "Id", "CreatedBy", "CreatedDate", "Icon", "Kod", "LabelKey", "ParentId", "Route", "Sira", "UpdatedBy", "UpdatedDate" },
                 values: new object[,]
                 {
-                    { 1, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(1902), "ri-dashboard-line", "dashboard", "MENU.DASHBOARD", null, "/dashboard", 1, null, null },
-                    { 2, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(2641), "ri-folder-line", "projeler", "MENU.PROJELER", null, null, 2, null, null },
-                    { 5, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(2643), "ri-archive-line", "sandik-yonetimi", "MENU.SANDIK_YONETIMI", null, "/sandik-yonetimi", 3, null, null },
-                    { 6, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(2644), "ri-error-warning-line", "eksik-listesi", "MENU.EKSIK_LISTESI", null, "/eksik-listesi", 4, null, null },
-                    { 7, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(2645), "ri-building-2-line", "depo-durumu", "MENU.DEPO_DURUMU", null, "/depo-durumu", 5, null, null },
-                    { 8, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(2646), "ri-stack-line", "stok", "MENU.STOK_MODULU", null, "/stok", 6, null, null },
-                    { 9, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(2648), "ri-tools-line", "saha-malzeme", "MENU.SAHA_MALZEMESI", null, "/saha-yonetimi", 7, null, null },
-                    { 10, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(2649), "ri-history-line", "hareket-gecmisi", "MENU.HAREKET_GECMISI", null, "/hareket-gecmisi", 9, null, null },
-                    { 11, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(2650), "ri-user-settings-line", "kullanicilar", "MENU.KULLANICI_YETKI", null, "/kullanicilar", 10, null, null },
-                    { 12, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(2651), "ri-shield-user-line", "rol-yonetimi", "MENU.ROL_YONETIMI", null, "/rol-yonetimi", 11, null, null },
-                    { 17, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(2792), "ri-tools-line", "saha-yonetimi", "MENU.SAHA_YONETIMI", null, "/saha-yonetimi", 11, null, null },
-                    { 18, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(2793), "ri-box-3-line", "yedek-yonetimi", "MENU.YEDEK_YONETIMI", null, "/yedek-yonetimi", 12, null, null },
-                    { 99, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(2794), "ri-check-double-line", "islem-onay-merkezi", "MENU.ISLEM_ONAY", null, "/onay-merkezi", 13, null, null }
+                    { 1, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(6058), "ri-dashboard-line", "dashboard", "MENU.DASHBOARD", null, "/dashboard", 1, null, null },
+                    { 2, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(6795), "ri-folder-line", "projeler", "MENU.PROJELER", null, null, 2, null, null },
+                    { 5, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(6797), "ri-archive-line", "sandik-yonetimi", "MENU.SANDIK_YONETIMI", null, "/sandik-yonetimi", 3, null, null },
+                    { 7, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(6798), "ri-building-2-line", "depo-durumu", "MENU.DEPO_DURUMU", null, "/depo-durumu", 4, null, null },
+                    { 8, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(6806), "ri-stack-line", "stok", "MENU.STOK_MODULU", null, "/stok", 5, null, null },
+                    { 10, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(6807), "ri-history-line", "hareket-gecmisi", "MENU.HAREKET_GECMISI", null, "/hareket-gecmisi", 8, null, null },
+                    { 11, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(6809), "ri-user-settings-line", "kullanicilar", "MENU.KULLANICI_YETKI", null, "/kullanicilar", 9, null, null },
+                    { 12, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(6810), "ri-shield-user-line", "rol-yonetimi", "MENU.ROL_YONETIMI", null, "/rol-yonetimi", 10, null, null },
+                    { 17, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(6906), "ri-tools-line", "saha-yonetimi", "MENU.SAHA_YONETIMI", null, "/saha-yonetimi", 6, null, null },
+                    { 18, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(6908), "ri-box-3-line", "yedek-yonetimi", "MENU.YEDEK_YONETIMI", null, "/yedek-yonetimi", 7, null, null },
+                    { 99, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(6909), "ri-check-double-line", "islem-onay-merkezi", "MENU.ISLEM_ONAY", null, "/onay-merkezi", 11, null, null }
                 });
 
             migrationBuilder.InsertData(
@@ -1080,10 +1200,10 @@ namespace _3K.Infrastructure.Migrations
                 columns: new[] { "Id", "Ad", "CreatedBy", "CreatedDate", "UpdatedBy", "UpdatedDate" },
                 values: new object[,]
                 {
-                    { 1, "Admin", null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(1202), null, null },
-                    { 2, "Personel3K", null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(1414), null, null },
-                    { 3, "PersonelGrid", null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(1415), null, null },
-                    { 4, "Yonetici", null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(1416), null, null }
+                    { 1, "Admin", null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(5360), null, null },
+                    { 2, "Personel3K", null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(5570), null, null },
+                    { 3, "PersonelGrid", null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(5571), null, null },
+                    { 4, "Yonetici", null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(5572), null, null }
                 });
 
             migrationBuilder.InsertData(
@@ -1091,15 +1211,15 @@ namespace _3K.Infrastructure.Migrations
                 columns: new[] { "Id", "CreatedBy", "CreatedDate", "LookupUcKDurumId", "OnayGerektirirMi", "UpdatedBy", "UpdatedDate" },
                 values: new object[,]
                 {
-                    { 1, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(5464), 8, true, null, null },
-                    { 2, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(5740), 9, true, null, null },
-                    { 3, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(5741), 10, true, null, null },
-                    { 4, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(5742), 2, false, null, null },
-                    { 5, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(5742), 3, false, null, null },
-                    { 6, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(5743), 4, false, null, null },
-                    { 7, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(5744), 11, false, null, null },
-                    { 8, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(5744), 12, false, null, null },
-                    { 9, null, new DateTime(2026, 4, 22, 19, 12, 55, 19, DateTimeKind.Utc).AddTicks(5745), 13, false, null, null }
+                    { 1, null, new DateTime(2026, 4, 26, 21, 4, 40, 928, DateTimeKind.Utc).AddTicks(9641), 8, true, null, null },
+                    { 2, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(5), 9, true, null, null },
+                    { 3, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(6), 10, true, null, null },
+                    { 4, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(6), 2, false, null, null },
+                    { 5, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(7), 3, false, null, null },
+                    { 6, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(8), 4, false, null, null },
+                    { 7, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(8), 11, false, null, null },
+                    { 8, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(9), 12, false, null, null },
+                    { 9, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(10), 13, false, null, null }
                 });
 
             migrationBuilder.InsertData(
@@ -1107,11 +1227,11 @@ namespace _3K.Infrastructure.Migrations
                 columns: new[] { "Id", "CreatedBy", "CreatedDate", "Icon", "Kod", "LabelKey", "ParentId", "Route", "Sira", "UpdatedBy", "UpdatedDate" },
                 values: new object[,]
                 {
-                    { 3, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(2786), "", "aktif-projeler", "MENU.AKTIF_PROJELER", 2, "/projeler", 1, null, null },
-                    { 4, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(2788), "", "sevk-edilen", "MENU.SEVK_EDILEN", 2, "/projeler/sevk-edilen", 2, null, null },
-                    { 14, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(2789), "", "grid-modulu", "MENU.GRID_MODULU", 2, null, 3, null, null },
-                    { 15, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(2790), "", "3k-modulu", "MENU.3K_MODULU", 2, null, 4, null, null },
-                    { 16, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(2791), "", "proje-sevk-et", "MENU.PROJE_SEVK_ET", 2, null, 5, null, null }
+                    { 3, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(6900), "", "aktif-projeler", "MENU.AKTIF_PROJELER", 2, "/projeler", 1, null, null },
+                    { 4, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(6902), "", "sevk-edilen", "MENU.SEVK_EDILEN", 2, "/projeler/sevk-edilen", 2, null, null },
+                    { 14, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(6903), "", "grid-modulu", "MENU.GRID_MODULU", 2, null, 3, null, null },
+                    { 15, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(6904), "", "3k-modulu", "MENU.3K_MODULU", 2, null, 4, null, null },
+                    { 16, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(6905), "", "proje-sevk-et", "MENU.PROJE_SEVK_ET", 2, null, 5, null, null }
                 });
 
             migrationBuilder.InsertData(
@@ -1119,30 +1239,33 @@ namespace _3K.Infrastructure.Migrations
                 columns: new[] { "Id", "CreatedBy", "CreatedDate", "MenuTanimiId", "RolId", "UpdatedBy", "UpdatedDate", "YetkiTipiId" },
                 values: new object[,]
                 {
-                    { 1, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(3342), 1, 1, null, null, 3 },
-                    { 2, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(3673), 2, 1, null, null, 3 },
-                    { 5, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(3674), 5, 1, null, null, 3 },
-                    { 6, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(3676), 6, 1, null, null, 3 },
-                    { 7, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(3676), 7, 1, null, null, 3 },
-                    { 8, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(3677), 8, 1, null, null, 3 },
-                    { 9, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(3677), 9, 1, null, null, 3 },
-                    { 10, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(3678), 10, 1, null, null, 3 },
-                    { 11, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(3678), 11, 1, null, null, 3 },
-                    { 12, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(3679), 12, 1, null, null, 3 },
-                    { 16, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(3680), 17, 1, null, null, 3 },
-                    { 17, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(3680), 18, 1, null, null, 3 },
-                    { 99, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(3682), 99, 1, null, null, 3 },
-                    { 3, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(3674), 3, 1, null, null, 3 },
-                    { 4, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(3674), 4, 1, null, null, 3 },
-                    { 13, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(3679), 14, 1, null, null, 3 },
-                    { 14, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(3679), 15, 1, null, null, 3 },
-                    { 15, null, new DateTime(2026, 4, 22, 19, 12, 55, 20, DateTimeKind.Utc).AddTicks(3680), 16, 1, null, null, 3 }
+                    { 1, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(7248), 1, 1, null, null, 3 },
+                    { 2, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(7589), 2, 1, null, null, 3 },
+                    { 5, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(7591), 5, 1, null, null, 3 },
+                    { 6, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(7592), 7, 1, null, null, 3 },
+                    { 7, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(7593), 8, 1, null, null, 3 },
+                    { 8, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(7593), 10, 1, null, null, 3 },
+                    { 9, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(7594), 11, 1, null, null, 3 },
+                    { 10, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(7595), 12, 1, null, null, 3 },
+                    { 14, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(7596), 17, 1, null, null, 3 },
+                    { 15, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(7596), 18, 1, null, null, 3 },
+                    { 99, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(7597), 99, 1, null, null, 3 },
+                    { 3, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(7590), 3, 1, null, null, 3 },
+                    { 4, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(7590), 4, 1, null, null, 3 },
+                    { 11, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(7595), 14, 1, null, null, 3 },
+                    { 12, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(7595), 15, 1, null, null, 3 },
+                    { 13, null, new DateTime(2026, 4, 26, 21, 4, 40, 929, DateTimeKind.Utc).AddTicks(7596), 16, 1, null, null, 3 }
                 });
 
             migrationBuilder.CreateIndex(
                 name: "IX_Cekiler_ProjeId",
                 table: "Cekiler",
                 column: "ProjeId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CekiSatirlari_BirimId",
+                table: "CekiSatirlari",
+                column: "BirimId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_CekiSatirlari_CekiId",
@@ -1226,6 +1349,12 @@ namespace _3K.Infrastructure.Migrations
                 column: "RolId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_LookupBirimler_Deger",
+                table: "LookupBirimler",
+                column: "Deger",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_LookupDepoLokasyonlari_Deger",
                 table: "LookupDepoLokasyonlari",
                 column: "Deger",
@@ -1252,6 +1381,12 @@ namespace _3K.Infrastructure.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_LookupIslemTipleri_Deger",
                 table: "LookupIslemTipleri",
+                column: "Deger",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_LookupNotYazanTaraflar_Deger",
+                table: "LookupNotYazanTaraflar",
                 column: "Deger",
                 unique: true);
 
@@ -1315,6 +1450,21 @@ namespace _3K.Infrastructure.Migrations
                 column: "ParentId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Notlar_BagliReferansTipi_BagliReferansId",
+                table: "Notlar",
+                columns: new[] { "BagliReferansTipi", "BagliReferansId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Notlar_CekiSatiriId",
+                table: "Notlar",
+                column: "CekiSatiriId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Notlar_KullaniciId",
+                table: "Notlar",
+                column: "KullaniciId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_OnayBekleyenIslemler_OnaylayanKullaniciId",
                 table: "OnayBekleyenIslemler",
                 column: "OnaylayanKullaniciId");
@@ -1374,6 +1524,11 @@ namespace _3K.Infrastructure.Migrations
                 name: "IX_RolYetkileri_YetkiTipiId",
                 table: "RolYetkileri",
                 column: "YetkiTipiId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SandikIcerikleri_BirimId",
+                table: "SandikIcerikleri",
+                column: "BirimId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_SandikIcerikleri_CekiSatiriId",
@@ -1447,6 +1602,12 @@ namespace _3K.Infrastructure.Migrations
                 name: "IslemOnayKurallari");
 
             migrationBuilder.DropTable(
+                name: "LookupNotYazanTaraflar");
+
+            migrationBuilder.DropTable(
+                name: "Notlar");
+
+            migrationBuilder.DropTable(
                 name: "OnayBekleyenIslemler");
 
             migrationBuilder.DropTable(
@@ -1493,6 +1654,9 @@ namespace _3K.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "Kullanicilar");
+
+            migrationBuilder.DropTable(
+                name: "LookupBirimler");
 
             migrationBuilder.DropTable(
                 name: "LookupGeriGonderilmeSebepleri");

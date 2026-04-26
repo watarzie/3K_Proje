@@ -12,6 +12,16 @@ namespace _3K.Infrastructure.Data.Interceptors
 {
     public class ProjectLockInterceptor : SaveChangesInterceptor
     {
+        /// <summary>
+        /// Audit log entity'leri — proje kilitli olsa bile her zaman yazılabilir.
+        /// </summary>
+        private static readonly HashSet<Type> AuditBypassTypes = new()
+        {
+            typeof(HareketGecmisi),
+            typeof(Not),
+            typeof(OnayBekleyenIslem)
+        };
+
         public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
             DbContextEventData eventData,
             InterceptionResult<int> result,
@@ -26,9 +36,16 @@ namespace _3K.Infrastructure.Data.Interceptors
 
             if (!entries.Any()) return await base.SavingChangesAsync(eventData, result, cancellationToken);
 
+            // Kilit kontrolüne tabi olmayan entry'leri ayır
+            var lockableEntries = entries
+                .Where(e => !AuditBypassTypes.Contains(e.Entity.GetType()))
+                .ToList();
+
+            if (!lockableEntries.Any()) return await base.SavingChangesAsync(eventData, result, cancellationToken);
+
             var projeIdsToCheck = new HashSet<int>();
 
-            foreach (var entry in entries)
+            foreach (var entry in lockableEntries)
             {
                 if (entry.Entity is CekiSatiri cs)
                 {
@@ -60,22 +77,29 @@ namespace _3K.Infrastructure.Data.Interceptors
                 }
                 else if (entry.Entity is Proje p)
                 {
-                    // Sadece Proje güncelleniyorsa, ve "Sevk Edildi" durumundaysa ama DurumId değiştiriliyorsa izin ver.
-                    // Çünkü kilit açma komutu çalışıyor olabilir.
                     projeIdsToCheck.Add(p.Id);
                 }
             }
 
             foreach (var pid in projeIdsToCheck.Where(p => p > 0))
             {
-                // Veritabanındaki güncel (transaction öncesi) durumunu kontrol et
-                var durumId = await context.Set<Proje>().Where(p => p.Id == pid).Select(p => p.DurumId).FirstOrDefaultAsync(cancellationToken);
-                
-                // Eğer veritabanında zaten "SevkEdildi" durumundaysa ve kullanıcı projeyi "KilidiAç" komutuyla "Devam" durumuna çekmiyorsa!
-                if (durumId == (int)ProjeDurum.SevkEdildi)
+                // Proje durumu ve tipini birlikte çek
+                var projeInfo = await context.Set<Proje>()
+                    .Where(p => p.Id == pid)
+                    .Select(p => new { p.DurumId, p.ProjeTipiId })
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (projeInfo == null) continue;
+
+                // Saha veya Yedek projeler → kilit UYGULANMAZ
+                if (projeInfo.ProjeTipiId == (int)ProjeTipi.Saha || projeInfo.ProjeTipiId == (int)ProjeTipi.Yedek)
+                    continue;
+
+                // Normal proje — SevkEdildi kontrolü
+                if (projeInfo.DurumId == (int)ProjeDurum.SevkEdildi)
                 {
-                    // Proje zaten kilitli. Ancak ChangeTracker içindeki Proje nesnesi "Devam" durumuna geçiriliyorsa buna izin ver!
-                    var projeEntry = entries.FirstOrDefault(e => e.Entity is Proje pEntry && pEntry.Id == pid);
+                    // ProjeKilidiAcCommand çalışıyorsa izin ver
+                    var projeEntry = lockableEntries.FirstOrDefault(e => e.Entity is Proje pEntry && pEntry.Id == pid);
                     if (projeEntry != null && projeEntry.Entity is Proje pEntity)
                     {
                         if (pEntity.DurumId != (int)ProjeDurum.SevkEdildi)

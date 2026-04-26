@@ -19,7 +19,13 @@ namespace _3K.Application.Features.SandikIslemleri.DTOs
         // Saha/Yedek manuel malzeme alanları
         public string? Isim { get; set; }
         public decimal Miktar { get; set; }
-        public string? Birim { get; set; }
+        public int? BirimId { get; set; }
+        public string? BirimMetni { get; set; }
+
+        // Parçalı karşılama (Madde 2)
+        public int StokKarsilanan { get; set; }
+        public int ProjeKarsilanan { get; set; }
+        public int TedarikciKarsilanan { get; set; }
     }
 }
 

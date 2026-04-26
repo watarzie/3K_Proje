@@ -6,6 +6,10 @@ namespace _3K.Core.Entities
     {
         public int ProjeId { get; set; }
         public string SandikNo { get; set; } = string.Empty;
+        /// <summary>
+        /// Madde 6: Sandık adı (Örn: Mekanik, Elektrik).
+        /// </summary>
+        public string? Ad { get; set; }
         public int TipId { get; set; } = (int)SandikTipi.AhsapKapali;
         public int DurumId { get; set; } = (int)SandikDurum.Bos;
         public int DepoLokasyonId { get; set; } = (int)DepoLokasyon.Belirsiz;

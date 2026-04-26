@@ -23,4 +23,6 @@ namespace _3K.Core.Entities
     public class LookupIslemTipi : LookupBase { }
     public class LookupGeriGonderilmeSebebi : LookupBase { }
     public class LookupProjeTipi : LookupBase { }
+    public class LookupBirim : LookupBase { }
+    public class LookupNotYazanTaraf : LookupBase { }
 }

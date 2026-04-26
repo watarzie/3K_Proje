@@ -22,6 +22,13 @@ namespace _3K.Application.Features.GridIslemleri.DTOs
         public string? GridNotu { get; set; }
         public int GridEksikMiktar { get; set; }
 
+        // Parçalı karşılama (Madde 2)
+        public int StokKarsilanan { get; set; }
+        public int ProjeKarsilanan { get; set; }
+        public int TedarikciKarsilanan { get; set; }
+        public int EksikMiktar { get; set; }
+        public int KalanMiktar { get; set; }
+
         // 3K tarafı (read-only)
         public int UcKDurumuId { get; set; }
         public string UcKDurumuMetni { get; set; } = string.Empty;

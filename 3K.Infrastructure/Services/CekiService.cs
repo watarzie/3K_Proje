@@ -205,7 +205,7 @@ namespace _3K.Infrastructure.Services
                     catch { }
 
                     var birim = row.Cell(7).GetString().Trim();
-                    if (string.IsNullOrWhiteSpace(birim)) birim = "ADET";
+                    int birimId = ParseBirimToId(birim);
 
                     var remarks = row.Cell(13).GetString().Trim();
 
@@ -217,9 +217,11 @@ namespace _3K.Infrastructure.Services
                         Aciklama = tanim,
                         CekideGecenSandikNo = koliNo,
                         IstenenAdet = istenenAdet,
-                        Birim = birim,
+                        BirimId = birimId,
                         Remarks = string.IsNullOrWhiteSpace(remarks) ? null : remarks,
                         DurumId = (int)UrunDurum.Bekliyor,
+                        // Madde 4: İlk yükleme durumu — Grid durumu "Gelmedi" olarak başlar
+                        GridDurumuId = (int)GridDurum.Gelmedi,
                         FiiliSandikNo = koliNo
                     };
                     satirlar.Add(satir);
@@ -288,6 +290,31 @@ namespace _3K.Infrastructure.Services
                 .Where(c => c.ProjeId == projeId)
                 .OrderByDescending(c => c.YuklemeTarihi)
                 .ToListAsync();
+        }
+
+        /// <summary>
+        /// Excel'deki serbest metin birim değerini Birim Enum Id'sine çevirir.
+        /// </summary>
+        private static int ParseBirimToId(string birimText)
+        {
+            if (string.IsNullOrWhiteSpace(birimText))
+                return (int)Birim.Adet;
+
+            var normalized = birimText.Trim().ToUpper(new System.Globalization.CultureInfo("tr-TR"));
+            return normalized switch
+            {
+                "ADET" or "AD" or "PCS" or "PÇ" or "PC" => (int)Birim.Adet,
+                "SET" or "ST" => (int)Birim.Set,
+                "METRE" or "MT" or "M" => (int)Birim.Metre,
+                "KG" or "KILOGRAM" => (int)Birim.Kg,
+                "LT" or "LITRE" or "LİTRE" => (int)Birim.Litre,
+                "TAKIM" or "TK" or "TKM" => (int)Birim.Takim,
+                "PAKET" or "PKT" or "PK" => (int)Birim.Paket,
+                "TON" or "TN" => (int)Birim.Ton,
+                "M2" or "METREKARE" or "M²" => (int)Birim.Metrekare,
+                "M3" or "METREKÜP" or "METREKUP" or "M³" => (int)Birim.Metrekup,
+                _ => (int)Birim.Adet
+            };
         }
     }
 }

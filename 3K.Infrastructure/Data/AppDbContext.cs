@@ -23,6 +23,7 @@ namespace _3K.Infrastructure.Data
         public DbSet<HareketGecmisi> HareketGecmisleri { get; set; } = null!;
         public DbSet<ProjeTransfer> ProjeTransferleri { get; set; } = null!;
         public DbSet<OnayBekleyenIslem> OnayBekleyenIslemler { get; set; } = null!;
+        public DbSet<Not> Notlar { get; set; } = null!;
 
         // ======= RBAC (Rol Tabanlı Erişim Kontrolü) DbSet'leri =======
         public DbSet<Rol> Roller { get; set; } = null!;
@@ -43,6 +44,8 @@ namespace _3K.Infrastructure.Data
         public DbSet<LookupIslemTipi> LookupIslemTipleri { get; set; } = null!;
         public DbSet<LookupGeriGonderilmeSebebi> LookupGeriGonderilmeSebepleri { get; set; } = null!;
         public DbSet<LookupProjeTipi> LookupProjeTipleri { get; set; } = null!;
+        public DbSet<LookupBirim> LookupBirimler { get; set; } = null!;
+        public DbSet<LookupNotYazanTaraf> LookupNotYazanTaraflar { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -64,6 +67,8 @@ namespace _3K.Infrastructure.Data
             ConfigureLookupTable<LookupIslemTipi>(modelBuilder);
             ConfigureLookupTable<LookupGeriGonderilmeSebebi>(modelBuilder);
             ConfigureLookupTable<LookupProjeTipi>(modelBuilder);
+            ConfigureLookupTable<LookupBirim>(modelBuilder);
+            ConfigureLookupTable<LookupNotYazanTaraf>(modelBuilder);
 
             // ===============================================================
             // 2. UNIQUE CONSTRAINTS
@@ -159,6 +164,13 @@ namespace _3K.Infrastructure.Data
                 .Ignore(cs => cs.KumulatifToplam);
             modelBuilder.Entity<CekiSatiri>()
                 .Ignore(cs => cs.KalanMiktar);
+
+            // --- CekiSatiri.BirimId → LookupBirim.Id (Madde 7) ---
+            modelBuilder.Entity<CekiSatiri>()
+                .HasOne(cs => cs.BirimLookup)
+                .WithMany()
+                .HasForeignKey(cs => cs.BirimId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             // --- CekiSatiri.KaynakProjeId → Proje (FB kaynak takibi) ---
             modelBuilder.Entity<CekiSatiri>()
@@ -325,6 +337,14 @@ namespace _3K.Infrastructure.Data
                 .HasForeignKey(si => si.SandikId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            // --- SandikIcerik.BirimId → LookupBirim.Id (Madde 7) ---
+            modelBuilder.Entity<SandikIcerik>()
+                .HasOne(si => si.BirimLookup)
+                .WithMany()
+                .HasForeignKey(si => si.BirimId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .IsRequired(false);
+
             // CekiSatiri (1) - SandikIcerik (0..*) — nullable FK (Saha/Yedek projelerde CekiSatiriId null olabilir)
             modelBuilder.Entity<CekiSatiri>()
                 .HasMany(cs => cs.SandikIcerikleri)
@@ -389,6 +409,30 @@ namespace _3K.Infrastructure.Data
                 .OnDelete(DeleteBehavior.Restrict);
 
             // ===============================================================
+            // NOT ENTITY KONFİGÜRASYONU (Madde 9)
+            // ===============================================================
+            modelBuilder.Entity<Not>()
+                .HasOne(n => n.Kullanici)
+                .WithMany()
+                .HasForeignKey(n => n.KullaniciId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Not>()
+                .HasOne(n => n.CekiSatiri)
+                .WithMany(n => n.Notlar)
+                .HasForeignKey(n => n.CekiSatiriId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .IsRequired(false);
+
+            modelBuilder.Entity<Not>()
+                .HasIndex(n => new { n.BagliReferansTipi, n.BagliReferansId });
+
+            modelBuilder.Entity<Not>()
+                .Property(n => n.Icerik)
+                .HasMaxLength(2000)
+                .IsRequired();
+
+            // ===============================================================
             // 5. SEED DATA — Lookup Tabloları
             // ===============================================================
             SeedLookupData(modelBuilder);
@@ -420,12 +464,13 @@ namespace _3K.Infrastructure.Data
                 new LookupProjeDurum { Id = 6, Anahtar = 5, Deger = "Eksik Sevk Edildi" }
             );
 
-            // SandikDurum
+            // SandikDurum (Madde 6: Kapandı eklendi)
             modelBuilder.Entity<LookupSandikDurum>().HasData(
                 new LookupSandikDurum { Id = 1, Anahtar = 0, Deger = "Boş" },
                 new LookupSandikDurum { Id = 2, Anahtar = 1, Deger = "Hazırlanıyor" },
                 new LookupSandikDurum { Id = 3, Anahtar = 2, Deger = "Hazır" },
-                new LookupSandikDurum { Id = 4, Anahtar = 3, Deger = "Sevk Edildi" }
+                new LookupSandikDurum { Id = 4, Anahtar = 3, Deger = "Sevk Edildi" },
+                new LookupSandikDurum { Id = 5, Anahtar = 4, Deger = "Kapandı" }
             );
 
             // SandikTipi (fiziksel sandık cinsi)
@@ -463,7 +508,8 @@ namespace _3K.Infrastructure.Data
                 new LookupUrunDurum { Id = 17, Anahtar = 16, Deger = "Gelmedi" },
                 new LookupUrunDurum { Id = 18, Anahtar = 17, Deger = "Trafo Sevk" },
                 new LookupUrunDurum { Id = 19, Anahtar = 18, Deger = "Başka Projeye Verildi" },
-                new LookupUrunDurum { Id = 20, Anahtar = 19, Deger = "Hatalı Ürün" }
+                new LookupUrunDurum { Id = 20, Anahtar = 19, Deger = "Hatalı Ürün" },
+                new LookupUrunDurum { Id = 21, Anahtar = 20, Deger = "Hatalı/Uyumsuz Gönderim" }
             );
 
             // GridDurum
@@ -554,7 +600,11 @@ namespace _3K.Infrastructure.Data
                 new LookupIslemTipi { Id = 22, Anahtar = 22, Deger = "Kullanıcı Oluşturuldu" },
                 new LookupIslemTipi { Id = 23, Anahtar = 23, Deger = "Proje Sevk Edildi" },
                 new LookupIslemTipi { Id = 24, Anahtar = 24, Deger = "Sandık Sevk Edildi" },
-                new LookupIslemTipi { Id = 25, Anahtar = 25, Deger = "Saha/Yedek Malzeme Eklendi" }
+                new LookupIslemTipi { Id = 25, Anahtar = 25, Deger = "Saha/Yedek Malzeme Eklendi" },
+                new LookupIslemTipi { Id = 26, Anahtar = 26, Deger = "Toplu Durum Güncellendi" },
+                new LookupIslemTipi { Id = 27, Anahtar = 27, Deger = "Not Eklendi" },
+                new LookupIslemTipi { Id = 28, Anahtar = 28, Deger = "Manuel Ürün Sandığa Eklendi" },
+                new LookupIslemTipi { Id = 29, Anahtar = 29, Deger = "Sandık Kapandı" }
             );
 
             // ProjeTipi
@@ -562,6 +612,26 @@ namespace _3K.Infrastructure.Data
                 new LookupProjeTipi { Id = 1, Anahtar = 1, Deger = "Normal" },
                 new LookupProjeTipi { Id = 2, Anahtar = 2, Deger = "Saha" },
                 new LookupProjeTipi { Id = 3, Anahtar = 3, Deger = "Yedek" }
+            );
+
+            // Birim (Madde 7)
+            modelBuilder.Entity<LookupBirim>().HasData(
+                new LookupBirim { Id = 1, Anahtar = 1, Deger = "Adet" },
+                new LookupBirim { Id = 2, Anahtar = 2, Deger = "Set" },
+                new LookupBirim { Id = 3, Anahtar = 3, Deger = "Metre" },
+                new LookupBirim { Id = 4, Anahtar = 4, Deger = "Kg" },
+                new LookupBirim { Id = 5, Anahtar = 5, Deger = "Litre" },
+                new LookupBirim { Id = 6, Anahtar = 6, Deger = "Takım" },
+                new LookupBirim { Id = 7, Anahtar = 7, Deger = "Paket" },
+                new LookupBirim { Id = 8, Anahtar = 8, Deger = "Ton" },
+                new LookupBirim { Id = 9, Anahtar = 9, Deger = "Metrekare" },
+                new LookupBirim { Id = 10, Anahtar = 10, Deger = "Metreküp" }
+            );
+
+            // NotYazanTaraf (Madde 9)
+            modelBuilder.Entity<LookupNotYazanTaraf>().HasData(
+                new LookupNotYazanTaraf { Id = 1, Anahtar = 1, Deger = "Grid" },
+                new LookupNotYazanTaraf { Id = 2, Anahtar = 2, Deger = "3K" }
             );
 
             SeedApprovalRules(modelBuilder);

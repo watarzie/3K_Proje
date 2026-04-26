@@ -204,6 +204,9 @@ namespace _3K.Infrastructure.Services
                 .Include(s => s.SandikIcerikleri)
                     .ThenInclude(si => si.CekiSatiri)
                         .ThenInclude(cs => cs.KontrolEden)
+                .Include(s => s.SandikIcerikleri)
+                    .ThenInclude(si => si.CekiSatiri)
+                        .ThenInclude(cs => cs.BirimLookup)
                 .Where(s => s.ProjeId == projeId)
                 .OrderBy(s => s.SandikNo)
                 .ToListAsync();
@@ -294,7 +297,7 @@ namespace _3K.Infrastructure.Services
                                         table.Cell().Border(1).Padding(2).Text(cs.IstenenAdet.ToString());
                                         table.Cell().Border(1).Padding(2).Text(icerik.KonulanAdet.ToString());
                                         table.Cell().Border(1).Padding(2).Text(icerik.EksikAdet.ToString());
-                                        table.Cell().Border(1).Padding(2).Text(cs.Birim);
+                                        table.Cell().Border(1).Padding(2).Text(cs.BirimLookup?.Deger ?? "Adet");
                                         table.Cell().Border(1).Padding(2).Text(cs.Paketleyen?.BasHarf ?? "");
                                         table.Cell().Border(1).Padding(2).Text(cs.KontrolEden?.BasHarf ?? "");
                                         table.Cell().Border(1).Padding(2).Text(cs.Remarks ?? "");

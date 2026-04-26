@@ -37,7 +37,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             stokRepo.Update(stok);
 
             urun.DurumId = (int)UrunDurum.StoktanKarsilandi;
-            urun.Remarks = $"Stoktan karşılandı ({request.KarsilananAdet} {urun.Birim})";
+            urun.Remarks = $"Stoktan karşılandı ({request.KarsilananAdet} {((Birim)urun.BirimId).ToString()})";
             urunRepo.Update(urun);
 
             var icerik = (await sandikIcerikRepo.FindAsync(si => si.CekiSatiriId == urun.Id)).FirstOrDefault();

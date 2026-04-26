@@ -42,7 +42,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 BarkodNo = request.BarkodNo,
                 Isim = request.Isim,
                 Miktar = request.Miktar,
-                Birim = request.Birim,
+                BirimId = request.BirimId,
                 KonulanAdet = (int)request.Miktar,
                 EksikAdet = 0
             };
@@ -66,7 +66,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 ReferansId = icerik.Id.ToString(),
                 Islem = "Saha/Yedek Malzeme Eklendi",
                 IslemTipiId = (int)IslemTipi.SahaYedekMalzemeEklendi,
-                Aciklama = $"'{request.Isim}' — {request.Miktar} {request.Birim ?? "ADET"} — Sandık {sandik.SandikNo}"
+                Aciklama = $"'{request.Isim}' — {request.Miktar} {(request.BirimId.HasValue ? ((Birim)request.BirimId.Value).ToString() : "Adet")} — Sandık {sandik.SandikNo}"
             });
 
             return Result.Success();

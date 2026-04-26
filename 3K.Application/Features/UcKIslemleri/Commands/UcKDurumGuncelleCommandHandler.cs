@@ -167,6 +167,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
                 case (int)UcKDurum.ProjedenKarsilandi:
                     satir.KarsilananMiktar += request.GelenAdet!.Value;
+                    satir.ProjeKarsilanan += request.GelenAdet!.Value; // Madde 2: Parçalı tracking
                     satir.UcKDurumuId = (int)UcKDurum.ProjedenKarsilandi;
                     satir.TeslimTarihi = DateTime.UtcNow;
                     // Cross-project transfer
@@ -175,6 +176,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
                 case (int)UcKDurum.StoktanKarsilandi:
                     satir.KarsilananMiktar += request.GelenAdet!.Value;
+                    satir.StokKarsilanan += request.GelenAdet!.Value; // Madde 2: Parçalı tracking
                     satir.UcKDurumuId = (int)UcKDurum.StoktanKarsilandi;
                     satir.TeslimTarihi = DateTime.UtcNow;
 
@@ -197,6 +199,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
                 case (int)UcKDurum.TedarikcidenGeldi:
                     satir.KarsilananMiktar += request.GelenAdet!.Value;
+                    satir.TedarikciKarsilanan += request.GelenAdet!.Value; // Madde 2: Parçalı tracking
                     satir.UcKDurumuId = (int)UcKDurum.TedarikcidenGeldi;
                     satir.TeslimTarihi = DateTime.UtcNow;
                     break;
@@ -209,6 +212,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 case (int)UcKDurum.HataliUrun:
                     satir.HataliMiktar += request.GelenAdet!.Value;
                     satir.UcKDurumuId = (int)UcKDurum.HataliUrun;
+                    satir.DurumId = (int)UrunDurum.HataliUyumsuzGonderim; // Madde 11
                     satir.TeslimTarihi = DateTime.UtcNow;
                     break;
             }
@@ -232,6 +236,10 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             {
                 var anaIcerik = ilgiliIcerikler.First();
                 anaIcerik.KonulanAdet = toplam; // Kümülatif toplamı konulan adete eşitle
+                // Madde 2: Parçalı karşılama SandikIcerik senkronizasyonu
+                anaIcerik.StokKarsilanan = satir.StokKarsilanan;
+                anaIcerik.ProjeKarsilanan = satir.ProjeKarsilanan;
+                anaIcerik.TedarikciKarsilanan = satir.TedarikciKarsilanan;
                 sandikIcerikRepo.Update(anaIcerik);
             }
 

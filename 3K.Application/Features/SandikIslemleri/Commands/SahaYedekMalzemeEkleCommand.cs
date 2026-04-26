@@ -16,6 +16,6 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         public string? BarkodNo { get; set; }
         public string Isim { get; set; } = string.Empty;
         public decimal Miktar { get; set; }
-        public string? Birim { get; set; }
+        public int? BirimId { get; set; }
     }
 }
