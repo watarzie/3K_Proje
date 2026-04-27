@@ -44,7 +44,7 @@ namespace _3K.Core.Entities
         /// </summary>
         public int? GridSevkMiktari { get; set; }
         public DateTime? GridSevkTarihi { get; set; }
-        public string? GridNotu { get; set; }
+        public string? GridAciklama { get; set; }
         public int? GridPersonelId { get; set; }
 
         // ===== 3K Modülü Alanları =====
@@ -58,7 +58,6 @@ namespace _3K.Core.Entities
         /// </summary>
         public int GelenMiktar { get; set; } = 0;
         public DateTime? TeslimTarihi { get; set; }
-        public string? UcKNotu { get; set; }
         /// <summary>
         /// Projeden Karşılandı / Başka Projeye Verildi durumunda referans proje no.
         /// </summary>
@@ -126,43 +125,40 @@ namespace _3K.Core.Entities
 
         /// <summary>
         /// Madde 3 + 10: 3K tarafı kümülatif eksik hesabı.
-        /// Grid'in sevk adedini baz alır (Madde 10).
-        /// Eksik = IstenenAdet - (GridSevkMiktari + StokKarsilanan + ProjeKarsilanan + TedarikciKarsilanan)
+        /// Grid'in sevk adedini değil, 3K'nın teslim aldığı miktarı baz alır.
+        /// Eksik = IstenenAdet - (GelenMiktar + StokKarsilanan + ProjeKarsilanan + TedarikciKarsilanan)
         /// Toplam == IstenenAdet ise ürün eksik sayılmaz, rapordan düşer (Madde 3).
         /// </summary>
         public int EksikMiktar
         {
             get
             {
-                var sevk = GridSevkMiktari ?? 0;
-                var toplam = sevk + StokKarsilanan + ProjeKarsilanan + TedarikciKarsilanan;
+                var toplam = GelenMiktar + StokKarsilanan + ProjeKarsilanan + TedarikciKarsilanan;
                 return Math.Max(IstenenAdet - toplam, 0);
             }
         }
 
         /// <summary>
         /// Kümülatif toplam tamamlanan adet (tüm kaynaklardan).
-        /// GridSevkMiktarı + Stok + Proje + Tedarikçi
+        /// GelenMiktar + Stok + Proje + Tedarikçi
         /// </summary>
         public int KumulatifToplam
         {
             get
             {
-                var sevk = GridSevkMiktari ?? 0;
-                return sevk + StokKarsilanan + ProjeKarsilanan + TedarikciKarsilanan;
+                return GelenMiktar + StokKarsilanan + ProjeKarsilanan + TedarikciKarsilanan;
             }
         }
 
         /// <summary>
-        /// Kalan miktar — tüm karşılama kaynakları düşülür. Hatalı ürün varsa kalan ASLA 0 olmaz.
+        /// Kalan miktar — tüm karşılama kaynakları ve Trafo sevk düşülür. Hatalı ürün varsa kalan ASLA 0 olmaz.
         /// Madde 11: HataliUyumsuzGonderim durumunda da kalan 0 olmaz.
         /// </summary>
         public int KalanMiktar
         {
             get
             {
-                var sevk = GridSevkMiktari ?? 0;
-                var kalan = IstenenAdet - sevk - StokKarsilanan - ProjeKarsilanan - TedarikciKarsilanan - TrafoSevkAdet;
+                var kalan = IstenenAdet - GelenMiktar - StokKarsilanan - ProjeKarsilanan - TedarikciKarsilanan - TrafoSevkAdet;
                 // İŞ KURALI: Hatalı ürün veya Hatalı/Uyumsuz Gönderim varsa kalan en az 1
                 if ((HataliMiktar > 0 || DurumId == (int)UrunDurum.HataliUyumsuzGonderim) && kalan <= 0) return 1;
                 return Math.Max(kalan, 0);
@@ -182,6 +178,5 @@ namespace _3K.Core.Entities
         public virtual LookupBirim? BirimLookup { get; set; }
         public virtual ICollection<SandikIcerik> SandikIcerikleri { get; set; } = new List<SandikIcerik>();
         public virtual ICollection<StokHareketi> StokHareketleri { get; set; } = new List<StokHareketi>();
-        public virtual ICollection<Not> Notlar { get; set; } = new List<Not>();
     }
 }

@@ -35,6 +35,6 @@ namespace _3K.Application.Features.GridIslemleri.Commands
         /// </summary>
         public int? SevkMiktari { get; set; }
 
-        public string? Not { get; set; }
+        public string? Aciklama { get; set; }
     }
 }

@@ -45,7 +45,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             // Grid alanlarını güncelle
             satir.GridDurumuId = request.YeniDurumId;
             satir.GridPersonelId = _currentUserService.UserId;
-            satir.GridNotu = request.Not;
+            satir.GridAciklama = request.Aciklama;
 
             // ===== Durum bazlı alan yönetimi =====
             switch (request.YeniDurumId)
@@ -139,9 +139,9 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             }
 
             var aciklamaMetni = $"Durum: {Enum.GetName(typeof(GridDurum), request.YeniDurumId) ?? request.YeniDurumId.ToString()}{sevkMetni}";
-            if (!string.IsNullOrWhiteSpace(request.Not))
+            if (!string.IsNullOrWhiteSpace(request.Aciklama))
             {
-                aciklamaMetni += $" | Not: {request.Not}";
+                aciklamaMetni += $" | Not: {request.Aciklama}";
             }
 
             // Hareket kaydı

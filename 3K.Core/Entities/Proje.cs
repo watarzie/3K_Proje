@@ -9,6 +9,7 @@ namespace _3K.Core.Entities
         public int DurumId { get; set; } = (int)ProjeDurum.Hazirlaniyor;
         public int ProjeTipiId { get; set; } = (int)ProjeTipi.Normal;
         public DateTime? PlanlananSevkTarihi { get; set; }
+        public DateTime? GerceklesenSevkTarihi { get; set; }
         public string SorumluKisi { get; set; } = string.Empty;
 
         // Excel header'dan gelen teknik bilgiler

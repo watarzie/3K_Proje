@@ -143,7 +143,6 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             // ===== Alanları güncelle =====
             satir.UcKKarsilamaTipiId = request.KarsilamaTipiId;
             satir.UcKAciklama = request.Aciklama;
-            satir.UcKNotu = request.Not;
             satir.KaynakHedefProjeNo = request.KaynakHedefProjeNo;
 
             switch (request.KarsilamaTipiId)

@@ -33,7 +33,8 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 DurumId = (int)ProjeDurum.Hazirlaniyor,
                 ProjeTipiId = request.ProjeTipiId,
                 PlanlananSevkTarihi = request.PlanlananSevkTarihi,
-                SorumluKisi = request.SorumluKisi
+                SorumluKisi = request.SorumluKisi,
+                Lokasyon = request.Lokasyon
             };
 
             await projeRepo.AddAsync(proje);

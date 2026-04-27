@@ -51,7 +51,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 satir.GridSevkMiktari = satir.IstenenAdet;
                 satir.GridSevkTarihi = now;
                 satir.GridPersonelId = kullaniciId;
-                satir.GridNotu = request.Not;
+                satir.GridAciklama = request.Aciklama;
 
                 // Genel durumu otomatik hesapla
                 satir.DurumId = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumuId, satir.UcKDurumuId);
@@ -78,9 +78,9 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 sb.AppendLine(); // Boşluk
             }
 
-            if (!string.IsNullOrWhiteSpace(request.Not))
+            if (!string.IsNullOrWhiteSpace(request.Aciklama))
             {
-                sb.AppendLine($"Not: {request.Not}");
+                sb.AppendLine($"Not: {request.Aciklama}");
             }
 
             // Toplu hareket kaydı

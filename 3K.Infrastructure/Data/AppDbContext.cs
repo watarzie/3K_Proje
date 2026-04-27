@@ -23,7 +23,6 @@ namespace _3K.Infrastructure.Data
         public DbSet<HareketGecmisi> HareketGecmisleri { get; set; } = null!;
         public DbSet<ProjeTransfer> ProjeTransferleri { get; set; } = null!;
         public DbSet<OnayBekleyenIslem> OnayBekleyenIslemler { get; set; } = null!;
-        public DbSet<Not> Notlar { get; set; } = null!;
 
         // ======= RBAC (Rol Tabanlı Erişim Kontrolü) DbSet'leri =======
         public DbSet<Rol> Roller { get; set; } = null!;
@@ -45,7 +44,6 @@ namespace _3K.Infrastructure.Data
         public DbSet<LookupGeriGonderilmeSebebi> LookupGeriGonderilmeSebepleri { get; set; } = null!;
         public DbSet<LookupProjeTipi> LookupProjeTipleri { get; set; } = null!;
         public DbSet<LookupBirim> LookupBirimler { get; set; } = null!;
-        public DbSet<LookupNotYazanTaraf> LookupNotYazanTaraflar { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -68,7 +66,6 @@ namespace _3K.Infrastructure.Data
             ConfigureLookupTable<LookupGeriGonderilmeSebebi>(modelBuilder);
             ConfigureLookupTable<LookupProjeTipi>(modelBuilder);
             ConfigureLookupTable<LookupBirim>(modelBuilder);
-            ConfigureLookupTable<LookupNotYazanTaraf>(modelBuilder);
 
             // ===============================================================
             // 2. UNIQUE CONSTRAINTS
@@ -408,29 +405,6 @@ namespace _3K.Infrastructure.Data
                 .HasForeignKey(hg => hg.KullaniciId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // ===============================================================
-            // NOT ENTITY KONFİGÜRASYONU (Madde 9)
-            // ===============================================================
-            modelBuilder.Entity<Not>()
-                .HasOne(n => n.Kullanici)
-                .WithMany()
-                .HasForeignKey(n => n.KullaniciId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            modelBuilder.Entity<Not>()
-                .HasOne(n => n.CekiSatiri)
-                .WithMany(n => n.Notlar)
-                .HasForeignKey(n => n.CekiSatiriId)
-                .OnDelete(DeleteBehavior.Cascade)
-                .IsRequired(false);
-
-            modelBuilder.Entity<Not>()
-                .HasIndex(n => new { n.BagliReferansTipi, n.BagliReferansId });
-
-            modelBuilder.Entity<Not>()
-                .Property(n => n.Icerik)
-                .HasMaxLength(2000)
-                .IsRequired();
 
             // ===============================================================
             // 5. SEED DATA — Lookup Tabloları
@@ -628,11 +602,6 @@ namespace _3K.Infrastructure.Data
                 new LookupBirim { Id = 10, Anahtar = 10, Deger = "Metreküp" }
             );
 
-            // NotYazanTaraf (Madde 9)
-            modelBuilder.Entity<LookupNotYazanTaraf>().HasData(
-                new LookupNotYazanTaraf { Id = 1, Anahtar = 1, Deger = "Grid" },
-                new LookupNotYazanTaraf { Id = 2, Anahtar = 2, Deger = "3K" }
-            );
 
             SeedApprovalRules(modelBuilder);
         }

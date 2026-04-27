@@ -75,7 +75,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
         /// </summary>
         public int? GeriGonderilmeSebebiId { get; set; }
 
-        public string? Not { get; set; }
+
 
         /// <summary>
         /// StoktanKarsilandi durumunda zorunlu: Kullanılan stoğun ID'si.

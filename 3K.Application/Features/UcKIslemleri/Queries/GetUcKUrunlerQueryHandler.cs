@@ -61,7 +61,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                             ? _lookupCache.GetDeger<LookupGeriGonderilmeSebebi>(cs.GeriGonderilmeSebebiId.Value)
                             : null,
                         UcKAciklama = cs.UcKAciklama,
-                        UcKNotu = cs.UcKNotu,
+                        GridAciklama = cs.GridAciklama,
                         Kalan = cs.KalanMiktar,
                         KontrolUyari = HesaplaKontrolUyari(cs),
                         GenelDurumId = cs.DurumId,

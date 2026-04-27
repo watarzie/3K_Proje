@@ -10,6 +10,7 @@ namespace _3K.Application.Features.ProjeIslemleri.DTOs
         public int ProjeTipiId { get; set; }
         public string ProjeTipiMetni { get; set; } = string.Empty;
         public DateTime? PlanlananSevkTarihi { get; set; }
+        public DateTime? GerceklesenSevkTarihi { get; set; }
         public string SorumluKisi { get; set; } = string.Empty;
         public int SandikSayisi { get; set; }
         public int HazirSandikSayisi { get; set; }

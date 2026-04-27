@@ -12,7 +12,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
         public int ProjeId { get; set; }
         public List<TopluTeslimItem> Urunler { get; set; } = new();
-        public string? Not { get; set; }
+        public string? Aciklama { get; set; }
     }
 
     public class TopluTeslimItem

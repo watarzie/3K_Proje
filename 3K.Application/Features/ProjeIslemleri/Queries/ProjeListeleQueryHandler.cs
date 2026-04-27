@@ -35,10 +35,19 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                                     ?? new List<CekiSatiri>();
 
                 var toplamSandik = sandiklar.Count;
-                var hazirSandik = sandiklar.Count(s => s.DurumId == (int)SandikDurum.Hazir);
-                var toplamUrun = cekiSatirlari.Count;
-                var tamamlananUrun = cekiSatirlari.Count(cs =>
-                    cs.GridDurumuId != (int)GridDurum.Bekliyor || cs.UcKKarsilamaTipiId != (int)UcKDurum.Bekliyor);
+                var hazirSandik = sandiklar.Count(s => 
+                    s.DurumId == (int)SandikDurum.Hazir || 
+                    s.DurumId == (int)SandikDurum.Kapandi || 
+                    s.DurumId == (int)SandikDurum.Sevkedildi);
+                var isSahaYedek = p.ProjeTipiId == (int)ProjeTipi.Saha || p.ProjeTipiId == (int)ProjeTipi.Yedek;
+                
+                var toplamUrun = isSahaYedek 
+                    ? sandiklar.SelectMany(s => s.SandikIcerikleri).Count() 
+                    : cekiSatirlari.Count;
+                
+                var tamamlananUrun = isSahaYedek 
+                    ? sandiklar.SelectMany(s => s.SandikIcerikleri).Count() // Saha projelerinde kutuya giren ürün tamamlanmış sayılır (veya şimdilik hepsi)
+                    : cekiSatirlari.Count(cs => cs.GridDurumuId != (int)GridDurum.Bekliyor || cs.UcKKarsilamaTipiId != (int)UcKDurum.Bekliyor);
 
                 // Durum hesaplama
                 int durumId;
@@ -63,6 +72,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                     ProjeTipiId = p.ProjeTipiId,
                     ProjeTipiMetni = _lookupCache.GetDeger<LookupProjeTipi>(p.ProjeTipiId),
                     PlanlananSevkTarihi = p.PlanlananSevkTarihi,
+                    GerceklesenSevkTarihi = p.GerceklesenSevkTarihi,
                     SorumluKisi = p.SorumluKisi,
                     SandikSayisi = toplamSandik,
                     HazirSandikSayisi = hazirSandik,

@@ -28,7 +28,9 @@ namespace _3K.Application.Features.UcKIslemleri.DTOs
         public int? GeriGonderilmeSebebiId { get; set; }
         public string? GeriGonderilmeSebebiMetni { get; set; }
         public string? UcKAciklama { get; set; }
-        public string? UcKNotu { get; set; }
+
+        // Çapraz açıklama: Grid tarafının bu ürüne yazdığı açıklama (3K tarafı görür)
+        public string? GridAciklama { get; set; }
 
         // Parçalı karşılama (Madde 2)
         public int StokKarsilanan { get; set; }

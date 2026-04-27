@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using _3K.Core.Enums;
 using _3K.Application.Common;
 
@@ -13,6 +13,6 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
         public int ProjeId { get; set; }
         public List<int> CekiSatiriIdler { get; set; } = new();
-        public string? Not { get; set; }
+        public string? Aciklama { get; set; }
     }
 }

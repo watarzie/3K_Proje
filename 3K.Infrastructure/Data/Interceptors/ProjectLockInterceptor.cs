@@ -18,7 +18,6 @@ namespace _3K.Infrastructure.Data.Interceptors
         private static readonly HashSet<Type> AuditBypassTypes = new()
         {
             typeof(HareketGecmisi),
-            typeof(Not),
             typeof(OnayBekleyenIslem)
         };
 
@@ -91,9 +90,7 @@ namespace _3K.Infrastructure.Data.Interceptors
 
                 if (projeInfo == null) continue;
 
-                // Saha veya Yedek projeler → kilit UYGULANMAZ
-                if (projeInfo.ProjeTipiId == (int)ProjeTipi.Saha || projeInfo.ProjeTipiId == (int)ProjeTipi.Yedek)
-                    continue;
+                // Normal proje, Saha, Yedek hepsi için SevkEdildi kontrolü geçerlidir.
 
                 // Normal proje — SevkEdildi kontrolü
                 if (projeInfo.DurumId == (int)ProjeDurum.SevkEdildi)

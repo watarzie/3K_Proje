@@ -59,5 +59,15 @@ namespace _3K_API.Controllers
             var result = await _mediator.Send(new ProjeKilidiAcCommand { ProjeId = id });
             return result.ToActionResult();
         }
+
+        /// <summary>
+        /// Projenin Planlanan Sevk Tarihini günceller — Sadece Admin
+        /// </summary>
+        [HttpPut("sevk-tarihi-guncelle")]
+        public async Task<ActionResult> SevkTarihiGuncelle([FromBody] ProjeSevkTarihiGuncelleCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
     }
 }

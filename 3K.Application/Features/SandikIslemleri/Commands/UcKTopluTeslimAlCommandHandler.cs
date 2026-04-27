@@ -51,7 +51,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
                 satir.GelenMiktar += item.GelenMiktar;
                 satir.TeslimTarihi = now;
-                satir.UcKNotu = request.Not;
+                satir.UcKAciklama = request.Aciklama;
 
                 // 3K durumunu otomatik belirle
                 if (satir.GelenMiktar >= satir.IstenenAdet)
@@ -78,7 +78,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 Islem = "3K Toplu Teslim Alma",
                 IslemTipiId = (int)IslemTipi.UcKTopluTeslimAlindi,
                 YeniDeger = $"{teslimAlinan} ürün teslim alındı",
-                Aciklama = request.Not
+                Aciklama = request.Aciklama
             });
 
             return Result.Success();

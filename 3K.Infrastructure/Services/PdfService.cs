@@ -321,5 +321,282 @@ namespace _3K.Infrastructure.Services
             document.GeneratePdf(pdfStream);
             return pdfStream.ToArray();
         }
+
+        /// <summary>
+        /// QuestPDF ile belirli bir saha sandığına ait PDF raporu oluşturur.
+        /// </summary>
+        public async Task<byte[]> SahaSandikPdfOlusturAsync(int sandikId)
+        {
+            var sandik = await _context.Sandiklar
+                .Include(s => s.Proje)
+                .Include(s => s.DurumLookup)
+                .Include(s => s.TipLookup)
+                .Include(s => s.DepoLokasyonLookup)
+                .Include(s => s.SandikIcerikleri)
+                    .ThenInclude(si => si.CekiSatiri)
+                        .ThenInclude(cs => cs.Ceki)
+                            .ThenInclude(c => c.Proje)
+                .Include(s => s.SandikIcerikleri)
+                    .ThenInclude(si => si.CekiSatiri)
+                        .ThenInclude(cs => cs.BirimLookup)
+                .Include(s => s.SandikIcerikleri)
+                    .ThenInclude(si => si.BirimLookup)
+                .FirstOrDefaultAsync(s => s.Id == sandikId);
+
+            if (sandik == null)
+                throw new KeyNotFoundException($"Sandık bulunamadı: {sandikId}");
+
+            var kullaniciDict = await _context.Kullanicilar.ToDictionaryAsync(k => k.Id.ToString(), k => k.AdSoyad);
+
+            QuestPDF.Settings.License = LicenseType.Community;
+
+            var document = Document.Create(container =>
+            {
+                container.Page(page =>
+                {
+                    page.Size(PageSizes.A4.Landscape());
+                    page.Margin(20);
+                    page.DefaultTextStyle(x => x.FontSize(10));
+
+                    // Header
+                    page.Header().Column(headerCol =>
+                    {
+                        var projeTipiStr = sandik.Proje?.ProjeTipiId == 3 ? "Yedek" : "Saha";
+                        headerCol.Item().Text($"{projeTipiStr} Sandığı İçerik Raporu")
+                            .Bold().FontSize(16).AlignCenter().FontColor(Colors.Blue.Darken2);
+                        
+                        headerCol.Item().PaddingTop(10).Row(row =>
+                        {
+                            row.RelativeItem().Column(col =>
+                            {
+                                col.Item().Text($"Sandık No: {sandik.SandikNo}").Bold();
+                                col.Item().Text($"Ait Olduğu Proje: {sandik.Proje?.ProjeNo ?? "-"}");
+                            });
+                            row.RelativeItem().Column(col =>
+                            {
+                                col.Item().Text($"Sevk Durumu: {sandik.DurumLookup?.Deger ?? "-"}");
+                                var sevkTarihi = sandik.Proje?.GerceklesenSevkTarihi ?? sandik.Proje?.PlanlananSevkTarihi;
+                                col.Item().Text($"Sevk Tarihi: {sevkTarihi?.ToString("dd.MM.yyyy HH:mm") ?? "-"}");
+                            });
+                            row.RelativeItem().Column(col =>
+                            {
+                                col.Item().Text($"Ölçüler (E/B/Y): {sandik.En ?? 0} x {sandik.Boy ?? 0} x {sandik.Yukseklik ?? 0} cm");
+                                col.Item().Text($"Ağırlık (Net/Gross): {sandik.NetKg ?? 0} kg / {sandik.GrossKg ?? 0} kg");
+                            });
+                        });
+                        
+                        headerCol.Item().PaddingTop(10).LineHorizontal(1).LineColor(Colors.Grey.Lighten2);
+                    });
+
+                    // Content - Table
+                    page.Content().PaddingVertical(10).Table(table =>
+                    {
+                        table.ColumnsDefinition(columns =>
+                        {
+                            columns.RelativeColumn(1.5f); // Proje No
+                            columns.RelativeColumn(3); // Ürün Adı
+                            columns.RelativeColumn(1); // Miktar
+                            columns.RelativeColumn(1); // Birim
+                            columns.RelativeColumn(2); // Açıklama
+                            columns.RelativeColumn(1.5f); // Ekleyen
+                            columns.RelativeColumn(1.5f); // Tarih
+                        });
+
+                        // Header Row
+                        table.Header(header =>
+                        {
+                            header.Cell().BorderBottom(1).Padding(2).Text("Proje No").Bold();
+                            header.Cell().BorderBottom(1).Padding(2).Text("Ürün Adı / Tanımı").Bold();
+                            header.Cell().BorderBottom(1).Padding(2).Text("Miktar").Bold();
+                            header.Cell().BorderBottom(1).Padding(2).Text("Birim").Bold();
+                            header.Cell().BorderBottom(1).Padding(2).Text("Açıklama").Bold();
+                            header.Cell().BorderBottom(1).Padding(2).Text("Ekleyen").Bold();
+                            header.Cell().BorderBottom(1).Padding(2).Text("Tarih").Bold();
+                        });
+
+                        // Data Rows
+                        foreach (var icerik in sandik.SandikIcerikleri)
+                        {
+                            string projeNo = icerik.CekiSatiri?.Ceki?.Proje?.ProjeNo ?? sandik.Proje?.ProjeNo ?? "-";
+                            string urunAdi = icerik.Isim ?? icerik.CekiSatiri?.Aciklama ?? "-";
+                            string miktar = (icerik.CekiSatiriId == null ? icerik.Miktar : icerik.KonulanAdet).ToString();
+                            string birim = icerik.BirimLookup?.Deger ?? icerik.CekiSatiri?.BirimLookup?.Deger ?? "Adet";
+                            string aciklama = icerik.CekiSatiri?.GridAciklama ?? "-";
+                            
+                            string ekleyenId = icerik.CreatedBy ?? "";
+                            string ekleyen = kullaniciDict.TryGetValue(ekleyenId, out var isim) ? isim : ekleyenId;
+                            
+                            string tarih = icerik.CreatedDate.ToString("dd.MM.yyyy HH:mm");
+
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(2).Text(projeNo);
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(2).Text(urunAdi);
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(2).Text(miktar);
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(2).Text(birim);
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(2).Text(aciklama);
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(2).Text(ekleyen);
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(2).Text(tarih);
+                        }
+                    });
+
+                    // Footer
+                    page.Footer().AlignCenter().Text(x =>
+                    {
+                        x.Span("Sayfa ");
+                        x.CurrentPageNumber();
+                        x.Span(" / ");
+                        x.TotalPages();
+                    });
+                });
+            });
+
+            using var pdfStream = new MemoryStream();
+            document.GeneratePdf(pdfStream);
+            return pdfStream.ToArray();
+        }
+
+        /// <summary>
+        /// QuestPDF ile bir saha projesine ait tüm sandıkların PDF raporunu (toplu) oluşturur.
+        /// </summary>
+        public async Task<byte[]> SahaProjeSandiklariPdfOlusturAsync(int projeId)
+        {
+            var proje = await _context.Projeler
+                .Include(p => p.Sandiklar)
+                    .ThenInclude(s => s.DurumLookup)
+                .Include(p => p.Sandiklar)
+                    .ThenInclude(s => s.TipLookup)
+                .Include(p => p.Sandiklar)
+                    .ThenInclude(s => s.DepoLokasyonLookup)
+                .Include(p => p.Sandiklar)
+                    .ThenInclude(s => s.SandikIcerikleri)
+                        .ThenInclude(si => si.CekiSatiri)
+                            .ThenInclude(cs => cs.Ceki)
+                                .ThenInclude(c => c.Proje)
+                .Include(p => p.Sandiklar)
+                    .ThenInclude(s => s.SandikIcerikleri)
+                        .ThenInclude(si => si.CekiSatiri)
+                            .ThenInclude(cs => cs.BirimLookup)
+                .Include(p => p.Sandiklar)
+                    .ThenInclude(s => s.SandikIcerikleri)
+                        .ThenInclude(si => si.BirimLookup)
+                .FirstOrDefaultAsync(p => p.Id == projeId);
+
+            if (proje == null)
+                throw new KeyNotFoundException($"Proje bulunamadı: {projeId}");
+
+            var sandiklar = proje.Sandiklar.OrderBy(s => s.SandikNo).ToList();
+
+            if (!sandiklar.Any())
+                throw new InvalidOperationException("Bu projeye ait sandık bulunamadı.");
+
+            var kullaniciDict = await _context.Kullanicilar.ToDictionaryAsync(k => k.Id.ToString(), k => k.AdSoyad);
+
+            QuestPDF.Settings.License = LicenseType.Community;
+
+            var document = Document.Create(container =>
+            {
+                foreach (var sandik in sandiklar)
+                {
+                    container.Page(page =>
+                    {
+                        page.Size(PageSizes.A4.Landscape());
+                        page.Margin(20);
+                        page.DefaultTextStyle(x => x.FontSize(10));
+
+                        // Header
+                        page.Header().Column(headerCol =>
+                        {
+                            var projeTipiStr = proje.ProjeTipiId == 3 ? "Yedek" : "Saha";
+                            headerCol.Item().Text($"{projeTipiStr} Sandığı İçerik Raporu")
+                                .Bold().FontSize(16).AlignCenter().FontColor(Colors.Blue.Darken2);
+                            
+                            headerCol.Item().PaddingTop(10).Row(row =>
+                            {
+                                row.RelativeItem().Column(col =>
+                                {
+                                    col.Item().Text($"Sandık No: {sandik.SandikNo}").Bold();
+                                    col.Item().Text($"Ait Olduğu Proje: {proje.ProjeNo}");
+                                });
+                                row.RelativeItem().Column(col =>
+                                {
+                                    col.Item().Text($"Sevk Durumu: {sandik.DurumLookup?.Deger ?? "-"}");
+                                    var sevkTarihi = proje.GerceklesenSevkTarihi ?? proje.PlanlananSevkTarihi;
+                                    col.Item().Text($"Sevk Tarihi: {sevkTarihi?.ToString("dd.MM.yyyy HH:mm") ?? "-"}");
+                                });
+                                row.RelativeItem().Column(col =>
+                                {
+                                    col.Item().Text($"Ölçüler (E/B/Y): {sandik.En ?? 0} x {sandik.Boy ?? 0} x {sandik.Yukseklik ?? 0} cm");
+                                    col.Item().Text($"Ağırlık (Net/Gross): {sandik.NetKg ?? 0} kg / {sandik.GrossKg ?? 0} kg");
+                                });
+                            });
+                            
+                            headerCol.Item().PaddingTop(10).LineHorizontal(1).LineColor(Colors.Grey.Lighten2);
+                        });
+
+                        // Content - Table
+                        page.Content().PaddingVertical(10).Table(table =>
+                        {
+                            table.ColumnsDefinition(columns =>
+                            {
+                                columns.RelativeColumn(1.5f); // Proje No
+                                columns.RelativeColumn(3); // Ürün Adı
+                                columns.RelativeColumn(1); // Miktar
+                                columns.RelativeColumn(1); // Birim
+                                columns.RelativeColumn(2); // Açıklama
+                                columns.RelativeColumn(1.5f); // Ekleyen
+                                columns.RelativeColumn(1.5f); // Tarih
+                            });
+
+                            // Header Row
+                            table.Header(header =>
+                            {
+                                header.Cell().BorderBottom(1).Padding(2).Text("Proje No").Bold();
+                                header.Cell().BorderBottom(1).Padding(2).Text("Ürün Adı / Tanımı").Bold();
+                                header.Cell().BorderBottom(1).Padding(2).Text("Miktar").Bold();
+                                header.Cell().BorderBottom(1).Padding(2).Text("Birim").Bold();
+                                header.Cell().BorderBottom(1).Padding(2).Text("Açıklama").Bold();
+                                header.Cell().BorderBottom(1).Padding(2).Text("Ekleyen").Bold();
+                                header.Cell().BorderBottom(1).Padding(2).Text("Tarih").Bold();
+                            });
+
+                            // Data Rows
+                            foreach (var icerik in sandik.SandikIcerikleri)
+                            {
+                                string projeNo = icerik.CekiSatiri?.Ceki?.Proje?.ProjeNo ?? proje.ProjeNo;
+                                string urunAdi = icerik.Isim ?? icerik.CekiSatiri?.Aciklama ?? "-";
+                                string miktar = (icerik.CekiSatiriId == null ? icerik.Miktar : icerik.KonulanAdet).ToString();
+                                string birim = icerik.BirimLookup?.Deger ?? icerik.CekiSatiri?.BirimLookup?.Deger ?? "Adet";
+                                string aciklama = icerik.CekiSatiri?.GridAciklama ?? "-";
+                                
+                                string ekleyenId = icerik.CreatedBy ?? "";
+                                string ekleyen = kullaniciDict.TryGetValue(ekleyenId, out var isim) ? isim : ekleyenId;
+                                
+                                string tarih = icerik.CreatedDate.ToString("dd.MM.yyyy HH:mm");
+
+                                table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(2).Text(projeNo);
+                                table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(2).Text(urunAdi);
+                                table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(2).Text(miktar);
+                                table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(2).Text(birim);
+                                table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(2).Text(aciklama);
+                                table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(2).Text(ekleyen);
+                                table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(2).Text(tarih);
+                            }
+                        });
+
+                        // Footer
+                        page.Footer().AlignCenter().Text(x =>
+                        {
+                            x.Span("Sayfa ");
+                            x.CurrentPageNumber();
+                            x.Span(" / ");
+                            x.TotalPages();
+                        });
+                    });
+                }
+            });
+
+            using var pdfStream = new MemoryStream();
+            document.GeneratePdf(pdfStream);
+            return pdfStream.ToArray();
+        }
     }
 }

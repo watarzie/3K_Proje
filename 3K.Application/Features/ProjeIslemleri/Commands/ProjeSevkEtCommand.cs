@@ -42,6 +42,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
 
             int eskiDurum = proje.DurumId;
             proje.DurumId = (int)ProjeDurum.SevkEdildi;
+            proje.GerceklesenSevkTarihi = DateTime.UtcNow.AddHours(3); // Türkiye saati
             projeRepo.Update(proje);
 
             // ===== Tüm sandıkları "Sevk Edildi" durumuna geçir =====

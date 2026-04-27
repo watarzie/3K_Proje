@@ -42,7 +42,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             // Kümülatif toplama — parça parça gelebilir
             satir.GelenMiktar += request.GelenMiktar;
             satir.TeslimTarihi = DateTime.UtcNow;
-            satir.UcKNotu = request.Not;
+            satir.UcKAciklama = request.Aciklama;
 
             // 3K durumunu otomatik belirle
             if (satir.GelenMiktar >= satir.IstenenAdet)
@@ -67,7 +67,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 IslemTipiId = (int)IslemTipi.UcKTeslimAlindi,
                 EskiDeger = $"GelenMiktar:{eskiGelenMiktar}, UcKDurum:{eskiUcKDurum}",
                 YeniDeger = $"GelenMiktar:{satir.GelenMiktar}, UcKDurum:{satir.UcKDurumuId}",
-                Aciklama = $"+{request.GelenMiktar} adet teslim alındı. {request.Not}"
+                Aciklama = $"+{request.GelenMiktar} adet teslim alındı. {request.Aciklama}"
             });
 
             return Result.Success();

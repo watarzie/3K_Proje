@@ -18,6 +18,7 @@ namespace _3K.Infrastructure.Repositories
         {
             return await _context.Projeler
                 .Include(p => p.Sandiklar)
+                    .ThenInclude(s => s.SandikIcerikleri)
                 .Include(p => p.Cekiler)
                     .ThenInclude(c => c.CekiSatirlari)
                 .AsNoTracking()

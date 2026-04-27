@@ -19,7 +19,7 @@ namespace _3K.Application.Features.GridIslemleri.DTOs
         public string GridSevkDurumuMetni { get; set; } = string.Empty;
         public int? GridSevkMiktari { get; set; }
         public DateTime? GridSevkTarihi { get; set; }
-        public string? GridNotu { get; set; }
+        public string? GridAciklama { get; set; }
         public int GridEksikMiktar { get; set; }
 
         // Parçalı karşılama (Madde 2)
@@ -34,6 +34,9 @@ namespace _3K.Application.Features.GridIslemleri.DTOs
         public string UcKDurumuMetni { get; set; } = string.Empty;
         public int GelenMiktar { get; set; }
         public string? KaynakHedefProjeNo { get; set; }
+
+        // Çapraz açıklama: 3K tarafının bu ürüne yazdığı açıklama (Grid tarafı görür)
+        public string? UcKAciklama { get; set; }
 
         // Genel
         public int GenelDurumId { get; set; }
