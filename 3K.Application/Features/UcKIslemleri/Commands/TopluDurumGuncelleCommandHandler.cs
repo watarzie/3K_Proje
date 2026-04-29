@@ -69,15 +69,18 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     continue;
                 }
 
-                // TamGeldi işareti
+                // TamGeldi işareti — KURAL 1: Grid'in sevk ettiği miktar kadar teslim al
                 satir.UcKKarsilamaTipiId = (int)UcKDurum.TamGeldi;
                 satir.UcKDurumuId = (int)UcKDurum.TamGeldi;
-                satir.GelenMiktar = satir.IstenenAdet - satir.KarsilananMiktar;
+                var sevkMiktari = satir.GridSevkMiktari ?? (satir.IstenenAdet - satir.GelenMiktar - satir.StokKarsilanan - satir.ProjeKarsilanan - satir.TedarikciKarsilanan);
+                satir.GelenMiktar += Math.Max(sevkMiktari, 0);
                 satir.TeslimTarihi = now;
                 satir.UcKAciklama = request.Aciklama;
 
                 // Genel durumu hesapla
                 satir.DurumId = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumuId, satir.UcKDurumuId);
+                // KURAL 2: Merkezi kalan hesaplaması ve durum override
+                _durumHesaplaService.HesaplaKalanVeDurum(satir);
 
                 repo.Update(satir);
 

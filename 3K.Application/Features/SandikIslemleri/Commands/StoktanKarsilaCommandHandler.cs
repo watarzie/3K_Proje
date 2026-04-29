@@ -10,11 +10,16 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHareketService _hareketService;
+        private readonly IDurumHesaplaService _durumHesaplaService;
 
-        public StoktanKarsilaCommandHandler(IUnitOfWork unitOfWork, IHareketService hareketService)
+        public StoktanKarsilaCommandHandler(
+            IUnitOfWork unitOfWork,
+            IHareketService hareketService,
+            IDurumHesaplaService durumHesaplaService)
         {
             _unitOfWork = unitOfWork;
             _hareketService = hareketService;
+            _durumHesaplaService = durumHesaplaService;
         }
 
         public async Task<Result> Handle(StoktanKarsilaCommand request, CancellationToken cancellationToken)
@@ -36,8 +41,17 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (stok.Miktar == 0) stok.DurumId = (int)StokDurum.Tukendi;
             stokRepo.Update(stok);
 
-            urun.DurumId = (int)UrunDurum.StoktanKarsilandi;
+            // Parçalı karşılama tracking
+            urun.StokKarsilanan += request.KarsilananAdet;
+            urun.KarsilananMiktar += request.KarsilananAdet;
+            urun.UcKDurumuId = (int)UcKDurum.StoktanKarsilandi;
+            urun.UcKKarsilamaTipiId = (int)UcKDurum.StoktanKarsilandi;
             urun.Remarks = $"Stoktan karşılandı ({request.KarsilananAdet} {((Birim)urun.BirimId).ToString()})";
+
+            // KURAL 2: Merkezi durum hesaplaması
+            urun.DurumId = _durumHesaplaService.HesaplaGenelDurum(urun.GridDurumuId, urun.UcKDurumuId);
+            _durumHesaplaService.HesaplaKalanVeDurum(urun);
+
             urunRepo.Update(urun);
 
             var icerik = (await sandikIcerikRepo.FindAsync(si => si.CekiSatiriId == urun.Id)).FirstOrDefault();
@@ -45,6 +59,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             {
                 icerik.EksikAdet = Math.Max(0, icerik.EksikAdet - request.KarsilananAdet);
                 icerik.KonulanAdet += request.KarsilananAdet;
+                icerik.StokKarsilanan = urun.StokKarsilanan;
                 sandikIcerikRepo.Update(icerik);
             }
 
@@ -76,3 +91,4 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         }
     }
 }
+

@@ -148,7 +148,10 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             switch (request.KarsilamaTipiId)
             {
                 case (int)UcKDurum.TamGeldi:
-                    satir.GelenMiktar = satir.IstenenAdet - satir.KarsilananMiktar;
+                    // KURAL 1: Tam Geldi → Grid'in sevk ettiği miktar kadar teslim al (sandık bütünlüğü)
+                    // Çeki hedefinin tamamını DEĞİL, o sevkiyattaki fiziksel miktarı alır
+                    var sevkMiktari = satir.GridSevkMiktari ?? (satir.IstenenAdet - satir.GelenMiktar - satir.StokKarsilanan - satir.ProjeKarsilanan - satir.TedarikciKarsilanan);
+                    satir.GelenMiktar += Math.Max(sevkMiktari, 0);
                     satir.UcKDurumuId = (int)UcKDurum.TamGeldi;
                     satir.TeslimTarihi = DateTime.UtcNow;
                     break;
@@ -223,6 +226,8 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
             // Genel durumu hesapla
             satir.DurumId = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumuId, satir.UcKDurumuId);
+            // KURAL 2: Merkezi kalan hesaplaması ve durum override
+            _durumHesaplaService.HesaplaKalanVeDurum(satir);
 
             repo.Update(satir);
 

@@ -578,7 +578,9 @@ namespace _3K.Infrastructure.Data
                 new LookupIslemTipi { Id = 26, Anahtar = 26, Deger = "Toplu Durum Güncellendi" },
                 new LookupIslemTipi { Id = 27, Anahtar = 27, Deger = "Not Eklendi" },
                 new LookupIslemTipi { Id = 28, Anahtar = 28, Deger = "Manuel Ürün Sandığa Eklendi" },
-                new LookupIslemTipi { Id = 29, Anahtar = 29, Deger = "Sandık Kapandı" }
+                new LookupIslemTipi { Id = 29, Anahtar = 29, Deger = "Sandık Kapandı" },
+                new LookupIslemTipi { Id = 30, Anahtar = 30, Deger = "3K Durum Sıfırlandı" },
+                new LookupIslemTipi { Id = 31, Anahtar = 31, Deger = "Grid Durum Sıfırlandı" }
             );
 
             // ProjeTipi

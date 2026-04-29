@@ -61,7 +61,13 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                     // Madde 2: Parçalı karşılama
                     StokKarsilanan = i.StokKarsilanan,
                     ProjeKarsilanan = i.ProjeKarsilanan,
-                    TedarikciKarsilanan = i.TedarikciKarsilanan
+                    TedarikciKarsilanan = i.TedarikciKarsilanan,
+                    // KURAL 3: Backend-hesaplanan alanlar (Dumb UI)
+                    KalanMiktar = i.CekiSatiri?.KalanMiktar ?? 0,
+                    GenelDurumId = i.CekiSatiri?.DurumId ?? 0,
+                    GenelDurumMetni = i.CekiSatiri != null
+                        ? _lookupCache.GetDeger<LookupUrunDurum>(i.CekiSatiri.DurumId)
+                        : ""
                 }).ToList()
             };
 

@@ -22,6 +22,17 @@ namespace _3K.Infrastructure.Repositories
                 .Include(p => p.Cekiler)
                     .ThenInclude(c => c.CekiSatirlari)
                 .AsNoTracking()
+                .AsSplitQuery()
+                .ToListAsync(cancellationToken);
+        }
+
+        /// <summary>
+        /// Dropdown'lar için hafif proje listesi — Include yok, sadece Proje tablosu.
+        /// </summary>
+        public async Task<IEnumerable<Proje>> GetAllLightAsync(CancellationToken cancellationToken = default)
+        {
+            return await _context.Projeler
+                .AsNoTracking()
                 .ToListAsync(cancellationToken);
         }
     }

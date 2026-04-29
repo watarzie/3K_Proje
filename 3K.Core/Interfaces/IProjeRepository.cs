@@ -10,5 +10,10 @@ namespace _3K.Core.Interfaces
     public interface IProjeRepository
     {
         Task<IEnumerable<Proje>> GetAllWithDetailsAsync(CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Dropdown'lar için hafif proje listesi — Include yok, sadece Proje tablosu.
+        /// </summary>
+        Task<IEnumerable<Proje>> GetAllLightAsync(CancellationToken cancellationToken = default);
     }
 }

@@ -20,19 +20,16 @@ namespace _3K.Application.Features.GridIslemleri.Queries
 
         public async Task<Result<List<GridUrunDto>>> Handle(GetGridUrunlerQuery request, CancellationToken cancellationToken)
         {
-            var cekiRepo = _unitOfWork.GetRepository<Ceki>();
-            var cekiler = await cekiRepo.FindAsync(c => c.ProjeId == request.ProjeId);
+            // Tek sorgu: CekiSatirlari → Ceki.ProjeId filtresi ile direkt erişim (AsNoTracking GenericRepository'de)
+            var satirlar = (await _unitOfWork.GetRepository<CekiSatiri>()
+                .FindAsync(cs => cs.Ceki.ProjeId == request.ProjeId))
+                .OrderBy(cs => cs.SiraNo)
+                .ToList();
 
-            if (!cekiler.Any())
+            if (!satirlar.Any())
                 return Result<List<GridUrunDto>>.Failure("Bu projeye ait çeki bulunamadı.", 404);
 
-            var cekiIdler = cekiler.Select(c => c.Id).ToList();
-
-            var cekiSatiriRepo = _unitOfWork.GetRepository<CekiSatiri>();
-            var satirlar = await cekiSatiriRepo.FindAsync(cs => cekiIdler.Contains(cs.CekiId));
-
             var result = satirlar
-                .OrderBy(cs => cs.SiraNo)
                 .Select(cs => new GridUrunDto
                 {
                     CekiSatiriId = cs.Id,
@@ -72,3 +69,4 @@ namespace _3K.Application.Features.GridIslemleri.Queries
         }
     }
 }
+

@@ -38,6 +38,16 @@ namespace _3K_API.Controllers
         }
 
         /// <summary>
+        /// Grid durumunu sıfırlar — ürünü çeki yüklendiğindeki ham durumuna döndürür.
+        /// </summary>
+        [HttpPut("durum-sifirla")]
+        public async Task<ActionResult> DurumSifirla([FromBody] GridDurumSifirlaCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
+        /// <summary>
         /// Birden fazla ürünü tek seferde SevkEdildi yapar.
         /// </summary>
         [HttpPost("toplu-sevk")]

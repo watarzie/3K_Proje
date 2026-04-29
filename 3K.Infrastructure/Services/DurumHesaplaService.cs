@@ -1,10 +1,12 @@
 using _3K.Core.Enums;
+using _3K.Core.Entities;
 using _3K.Core.Interfaces;
 
 namespace _3K.Infrastructure.Services
 {
     /// <summary>
     /// GridDurumu + UcKDurumu kesişiminden genel UrunDurum hesaplar. ID bazlı.
+    /// Ayrıca merkezi KalanMiktar tabanlı GenelDurum override'ı yapar.
     /// </summary>
     public class DurumHesaplaService : IDurumHesaplaService
     {
@@ -101,5 +103,30 @@ namespace _3K.Infrastructure.Services
             // Varsayılan: Her iki taraf da bekliyor
             return (int)UrunDurum.Bekliyor;
         }
+
+        /// <summary>
+        /// KURAL 2: Merkezi kalan miktar hesaplaması ve GenelDurum override'ı.
+        /// Entity'deki computed KalanMiktar property'sini okur.
+        /// KalanMiktar <= 0 ve HataliMiktar == 0 ise DurumId = Tamamlandi yapılır.
+        /// KalanMiktar > 0 ise fiziksel sandık "Tam Geldi" olsa bile GenelDurum değiştirilmez.
+        /// </summary>
+        public void HesaplaKalanVeDurum(CekiSatiri satir)
+        {
+            // Entity'deki computed KalanMiktar zaten doğru formülü kullanıyor:
+            // IstenenAdet - GelenMiktar - StokKarsilanan - ProjeKarsilanan - TedarikciKarsilanan - TrafoSevkAdet
+            // HataliMiktar > 0 ise kalan en az 1 (entity'de korunan iş kuralı)
+            var kalan = satir.KalanMiktar;
+
+            if (kalan <= 0)
+            {
+                // Tüm kaynaklar toplamı hedefi karşıladı — Tamamlandı
+                // HataliUyumsuzGonderim durumunda entity zaten kalan=1 döndürüyor, buraya düşmez
+                satir.DurumId = (int)UrunDurum.Tamamlandi;
+            }
+            // kalan > 0 ise mevcut DurumId (HesaplaGenelDurum sonucu) korunur
+            // Yani fiziksel sandık "Tam Geldi" olsa bile çeki satırı henüz tamamlanmamışsa
+            // Eksik/KismiTamamlandi/Bekliyor gibi durumlar aktif kalır
+        }
     }
 }
+

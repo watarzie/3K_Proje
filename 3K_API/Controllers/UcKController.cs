@@ -36,5 +36,15 @@ namespace _3K_API.Controllers
             var result = await _mediator.Send(command);
             return result.ToActionResult();
         }
+
+        /// <summary>
+        /// 3K karşılama durumunu sıfırlar — ürünü başlangıç (Bekliyor) durumuna döndürür.
+        /// </summary>
+        [HttpPut("durum-sifirla")]
+        public async Task<ActionResult> DurumSifirla([FromBody] UcKDurumSifirlaCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
     }
 }

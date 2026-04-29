@@ -24,6 +24,16 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
 
+        /// <summary>
+        /// Dropdown'lar için hafif proje listesi — Include yok, sadece Id/ProjeNo/Musteri.
+        /// </summary>
+        [HttpGet("dropdown")]
+        public async Task<ActionResult> GetDropdown()
+        {
+            var result = await _mediator.Send(new ProjeDropdownQuery());
+            return result.ToActionResult();
+        }
+
         [HttpPost]
         public async Task<ActionResult> Create([FromBody] ProjeOlusturCommand command)
         {

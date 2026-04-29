@@ -26,6 +26,11 @@ namespace _3K.Application.Features.SandikIslemleri.DTOs
         public int StokKarsilanan { get; set; }
         public int ProjeKarsilanan { get; set; }
         public int TedarikciKarsilanan { get; set; }
+
+        // Backend-hesaplanan alanlar (Dumb UI — KURAL 3)
+        public int KalanMiktar { get; set; }
+        public int GenelDurumId { get; set; }
+        public string GenelDurumMetni { get; set; } = string.Empty;
     }
 }
 

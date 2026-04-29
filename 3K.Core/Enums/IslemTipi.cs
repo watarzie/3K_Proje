@@ -37,6 +37,10 @@ namespace _3K.Core.Enums
         /// <summary>Madde 8: Sandık içine manuel ürün ekleme.</summary>
         ManuelUrunSandikEklendi = 28,
         /// <summary>Madde 6: Sandık otomatik/manuel kapatma.</summary>
-        SandikKapandi = 29
+        SandikKapandi = 29,
+        /// <summary>3K durum sıfırlama (geri alma) işlemi.</summary>
+        UcKDurumSifirlandi = 30,
+        /// <summary>Grid durum sıfırlama (geri alma) işlemi.</summary>
+        GridDurumSifirlandi = 31
     }
 }

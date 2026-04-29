@@ -61,6 +61,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
                 // Genel durumu otomatik hesapla
                 satir.DurumId = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumuId, satir.UcKDurumuId);
+                // KURAL 2: Merkezi kalan hesaplaması ve durum override
+                _durumHesaplaService.HesaplaKalanVeDurum(satir);
 
                 repo.Update(satir);
                 teslimAlinan++;
