@@ -38,13 +38,14 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             var icerik = new SandikIcerik
             {
                 SandikId = sandik.Id,
-                CekiSatiriId = null, // Çeki bağlantısı yok — Saha/Yedek projesi
+                CekiSatiriId = request.CekiSatiriId, // Projeden seçildi ise dolu, elle girildi ise null
                 BarkodNo = request.BarkodNo,
                 Isim = request.Isim,
                 Miktar = request.Miktar,
                 BirimId = request.BirimId,
                 KonulanAdet = (int)request.Miktar,
-                EksikAdet = 0
+                EksikAdet = 0,
+                KaynakProjeNo = request.KaynakProjeNo
             };
 
             await icerikRepo.AddAsync(icerik);

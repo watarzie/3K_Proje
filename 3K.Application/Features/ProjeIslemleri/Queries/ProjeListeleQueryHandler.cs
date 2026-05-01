@@ -37,7 +37,6 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                 var toplamSandik = sandiklar.Count;
                 var hazirSandik = sandiklar.Count(s => 
                     s.DurumId == (int)SandikDurum.Hazir || 
-                    s.DurumId == (int)SandikDurum.Kapandi || 
                     s.DurumId == (int)SandikDurum.Sevkedildi);
                 var isSahaYedek = p.ProjeTipiId == (int)ProjeTipi.Saha || p.ProjeTipiId == (int)ProjeTipi.Yedek;
                 
@@ -45,22 +44,26 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                     ? sandiklar.SelectMany(s => s.SandikIcerikleri).Count() 
                     : cekiSatirlari.Count;
                 
+                // Gerçek tamamlanan: 3K durumu TamGeldi olanlar (veya GridDurumuId TamGeldi)
                 var tamamlananUrun = isSahaYedek 
-                    ? sandiklar.SelectMany(s => s.SandikIcerikleri).Count() // Saha projelerinde kutuya giren ürün tamamlanmış sayılır (veya şimdilik hepsi)
-                    : cekiSatirlari.Count(cs => cs.GridDurumuId != (int)GridDurum.Bekliyor || cs.UcKKarsilamaTipiId != (int)UcKDurum.Bekliyor);
+                    ? sandiklar.SelectMany(s => s.SandikIcerikleri)
+                        .Count(si => si.CekiSatiri != null && 
+                            (si.CekiSatiri.UcKKarsilamaTipiId == (int)UcKDurum.TamGeldi
+                            || si.CekiSatiri.UcKKarsilamaTipiId == (int)UcKDurum.KontrolEdildi
+                            || si.CekiSatiri.UcKKarsilamaTipiId == (int)UcKDurum.ProjedenKarsilandi
+                            || si.CekiSatiri.UcKKarsilamaTipiId == (int)UcKDurum.StoktanKarsilandi
+                            || si.CekiSatiri.UcKKarsilamaTipiId == (int)UcKDurum.TedarikcidenGeldi))
+                    : cekiSatirlari.Count(cs => 
+                        cs.GelenMiktar + cs.StokKarsilanan + cs.ProjeKarsilanan + cs.TedarikciKarsilanan >= cs.IstenenAdet);
 
                 // Durum hesaplama
                 int durumId;
                 if (p.DurumId == (int)ProjeDurum.SevkEdildi)
                     durumId = (int)ProjeDurum.SevkEdildi; // Kilitli/Sevk Edilmiş proje statüsü ezilemez
-                else if (toplamUrun == 0)
-                    durumId = (int)ProjeDurum.Hazirlaniyor;
                 else if (hazirSandik == toplamSandik && toplamSandik > 0)
                     durumId = (int)ProjeDurum.Tamamlandi;
-                else if (tamamlananUrun > 0)
-                    durumId = (int)ProjeDurum.Devam;
                 else
-                    durumId = p.DurumId;
+                    durumId = (int)ProjeDurum.Hazirlaniyor; // Proje üzerinde çalışılıyor veya henüz başlanmadı
 
                 return new ProjeDto
                 {

@@ -52,6 +52,7 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                     UcKDurumuId = cs.UcKDurumuId,
                     UcKDurumuMetni = _lookupCache.GetDeger<LookupUcKDurum>(cs.UcKDurumuId),
                     GelenMiktar = cs.GelenMiktar,
+                    GeriGonderilenMiktar = cs.GeriGonderilenMiktar,
                     KaynakHedefProjeNo = cs.KaynakHedefProjeNo,
                     UcKAciklama = cs.UcKAciklama,
                     GenelDurumId = cs.DurumId,
@@ -59,6 +60,7 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                     // Madde 2: Parçalı karşılama
                     StokKarsilanan = cs.StokKarsilanan,
                     ProjeKarsilanan = cs.ProjeKarsilanan,
+                    ProjeGonderilen = cs.ProjeGonderilen,
                     TedarikciKarsilanan = cs.TedarikciKarsilanan,
                     EksikMiktar = cs.EksikMiktar,
                     KalanMiktar = cs.KalanMiktar

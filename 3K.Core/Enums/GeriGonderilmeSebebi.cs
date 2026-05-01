@@ -7,6 +7,7 @@ namespace _3K.Core.Enums
     {
         Tadilat = 1,
         Iptal = 2,
-        ProyeGeriDonus = 3
+        ProyeGeriDonus = 3,
+        HataliUrun = 4
     }
 }

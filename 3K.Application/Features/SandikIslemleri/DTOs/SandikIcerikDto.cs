@@ -15,6 +15,7 @@ namespace _3K.Application.Features.SandikIslemleri.DTOs
         public string? PaketleyenBasHarf { get; set; }
         public string? KontrolEdenBasHarf { get; set; }
         public string? Remarks { get; set; }
+        public bool IsManuelEklenen { get; set; }
 
         // Saha/Yedek manuel malzeme alanları
         public string? Isim { get; set; }
@@ -26,6 +27,9 @@ namespace _3K.Application.Features.SandikIslemleri.DTOs
         public int StokKarsilanan { get; set; }
         public int ProjeKarsilanan { get; set; }
         public int TedarikciKarsilanan { get; set; }
+
+        // Kaynak proje bilgisi (Saha/Yedek sandıklara projeden eklenen ürünler için)
+        public string? KaynakProjeNo { get; set; }
 
         // Backend-hesaplanan alanlar (Dumb UI — KURAL 3)
         public int KalanMiktar { get; set; }

@@ -430,21 +430,20 @@ namespace _3K.Infrastructure.Data
         {
             // ProjeDurum
             modelBuilder.Entity<LookupProjeDurum>().HasData(
-                new LookupProjeDurum { Id = 1, Anahtar = 0, Deger = "Hazırlanıyor" },
-                new LookupProjeDurum { Id = 2, Anahtar = 1, Deger = "Devam" },
-                new LookupProjeDurum { Id = 3, Anahtar = 2, Deger = "Tamamlandı" },
-                new LookupProjeDurum { Id = 4, Anahtar = 3, Deger = "Beklemede" },
-                new LookupProjeDurum { Id = 5, Anahtar = 4, Deger = "Sevk Edildi" },
-                new LookupProjeDurum { Id = 6, Anahtar = 5, Deger = "Eksik Sevk Edildi" }
+                new LookupProjeDurum { Id = 1, Anahtar = 1, Deger = "Hazırlanıyor" },
+                new LookupProjeDurum { Id = 2, Anahtar = 2, Deger = "Devam" },
+                new LookupProjeDurum { Id = 3, Anahtar = 3, Deger = "Tamamlandı" },
+                new LookupProjeDurum { Id = 4, Anahtar = 4, Deger = "Beklemede" },
+                new LookupProjeDurum { Id = 5, Anahtar = 5, Deger = "Sevk Edildi" },
+                new LookupProjeDurum { Id = 6, Anahtar = 6, Deger = "Eksik Sevk Edildi" }
             );
 
             // SandikDurum (Madde 6: Kapandı eklendi)
             modelBuilder.Entity<LookupSandikDurum>().HasData(
-                new LookupSandikDurum { Id = 1, Anahtar = 0, Deger = "Boş" },
-                new LookupSandikDurum { Id = 2, Anahtar = 1, Deger = "Hazırlanıyor" },
-                new LookupSandikDurum { Id = 3, Anahtar = 2, Deger = "Hazır" },
-                new LookupSandikDurum { Id = 4, Anahtar = 3, Deger = "Sevk Edildi" },
-                new LookupSandikDurum { Id = 5, Anahtar = 4, Deger = "Kapandı" }
+                new LookupSandikDurum { Id = 1, Anahtar = 1, Deger = "Boş" },
+                new LookupSandikDurum { Id = 2, Anahtar = 2, Deger = "Hazırlanıyor" },
+                new LookupSandikDurum { Id = 3, Anahtar = 3, Deger = "Hazır" },
+                new LookupSandikDurum { Id = 4, Anahtar = 4, Deger = "Sevk Edildi" }
             );
 
             // SandikTipi (fiziksel sandık cinsi)
@@ -455,52 +454,53 @@ namespace _3K.Infrastructure.Data
 
             // DepoLokasyon
             modelBuilder.Entity<LookupDepoLokasyon>().HasData(
-                new LookupDepoLokasyon { Id = 1, Anahtar = 0, Deger = "Belirsiz" },
-                new LookupDepoLokasyon { Id = 2, Anahtar = 1, Deger = "3K" },
-                new LookupDepoLokasyon { Id = 4, Anahtar = 3, Deger = "Seymen" },
-                new LookupDepoLokasyon { Id = 5, Anahtar = 4, Deger = "Grid" }
+                new LookupDepoLokasyon { Id = 1, Anahtar = 1, Deger = "Belirsiz" },
+                new LookupDepoLokasyon { Id = 2, Anahtar = 2, Deger = "3K" },
+                new LookupDepoLokasyon { Id = 4, Anahtar = 4, Deger = "Seymen" },
+                new LookupDepoLokasyon { Id = 5, Anahtar = 5, Deger = "Grid" }
             );
 
             // UrunDurum
             modelBuilder.Entity<LookupUrunDurum>().HasData(
-                new LookupUrunDurum { Id = 1, Anahtar = 0, Deger = "Bekliyor" },
-                new LookupUrunDurum { Id = 2, Anahtar = 1, Deger = "Kısmi Geldi" },
-                new LookupUrunDurum { Id = 3, Anahtar = 2, Deger = "Tamamlandı" },
-                new LookupUrunDurum { Id = 4, Anahtar = 3, Deger = "Eksik" },
-                new LookupUrunDurum { Id = 5, Anahtar = 4, Deger = "Stoktan Karşılandı" },
-                new LookupUrunDurum { Id = 6, Anahtar = 5, Deger = "FB'den Karşılandı" },
-                new LookupUrunDurum { Id = 7, Anahtar = 6, Deger = "Sonra Gidecek" },
-                new LookupUrunDurum { Id = 8, Anahtar = 7, Deger = "Sandık Değişti" },
-                new LookupUrunDurum { Id = 9, Anahtar = 8, Deger = "İptal/Pasif" },
-                new LookupUrunDurum { Id = 10, Anahtar = 9, Deger = "Teslim Alındı" },
-                new LookupUrunDurum { Id = 11, Anahtar = 10, Deger = "Geri Gönderildi" },
-                new LookupUrunDurum { Id = 12, Anahtar = 11, Deger = "Kısmi Tamamlandı" },
-                new LookupUrunDurum { Id = 13, Anahtar = 12, Deger = "Kayıp" },
-                new LookupUrunDurum { Id = 14, Anahtar = 13, Deger = "Grid'de Hazır" },
-                new LookupUrunDurum { Id = 15, Anahtar = 14, Deger = "Grid'de Eksik" },
-                new LookupUrunDurum { Id = 16, Anahtar = 15, Deger = "Siparişte" },
-                new LookupUrunDurum { Id = 17, Anahtar = 16, Deger = "Gelmedi" },
-                new LookupUrunDurum { Id = 18, Anahtar = 17, Deger = "Trafo Sevk" },
-                new LookupUrunDurum { Id = 19, Anahtar = 18, Deger = "Başka Projeye Verildi" },
-                new LookupUrunDurum { Id = 20, Anahtar = 19, Deger = "Hatalı Ürün" },
-                new LookupUrunDurum { Id = 21, Anahtar = 20, Deger = "Hatalı/Uyumsuz Gönderim" }
+                new LookupUrunDurum { Id = 1, Anahtar = 1, Deger = "Bekliyor" },
+                new LookupUrunDurum { Id = 2, Anahtar = 2, Deger = "Kısmi Geldi" },
+                new LookupUrunDurum { Id = 3, Anahtar = 3, Deger = "Tamamlandı" },
+                new LookupUrunDurum { Id = 4, Anahtar = 4, Deger = "Eksik" },
+                new LookupUrunDurum { Id = 5, Anahtar = 5, Deger = "Stoktan Karşılandı" },
+                new LookupUrunDurum { Id = 6, Anahtar = 6, Deger = "FB'den Karşılandı" },
+                new LookupUrunDurum { Id = 7, Anahtar = 7, Deger = "Sonra Gidecek" },
+                new LookupUrunDurum { Id = 8, Anahtar = 8, Deger = "Sandık Değişti" },
+                new LookupUrunDurum { Id = 9, Anahtar = 9, Deger = "İptal/Pasif" },
+                new LookupUrunDurum { Id = 10, Anahtar = 10, Deger = "Teslim Alındı" },
+                new LookupUrunDurum { Id = 11, Anahtar = 11, Deger = "Geri Gönderildi" },
+                new LookupUrunDurum { Id = 12, Anahtar = 12, Deger = "Kısmi Tamamlandı" },
+                new LookupUrunDurum { Id = 13, Anahtar = 13, Deger = "Kayıp" },
+                new LookupUrunDurum { Id = 14, Anahtar = 14, Deger = "Grid'de Hazır" },
+                new LookupUrunDurum { Id = 15, Anahtar = 15, Deger = "Grid'de Eksik" },
+                new LookupUrunDurum { Id = 16, Anahtar = 16, Deger = "Siparişte" },
+                new LookupUrunDurum { Id = 17, Anahtar = 17, Deger = "Gelmedi" },
+                new LookupUrunDurum { Id = 18, Anahtar = 18, Deger = "Trafo Sevk" },
+                new LookupUrunDurum { Id = 19, Anahtar = 19, Deger = "Başka Projeye Verildi" },
+                new LookupUrunDurum { Id = 20, Anahtar = 20, Deger = "Hatalı Ürün" },
+                new LookupUrunDurum { Id = 21, Anahtar = 21, Deger = "Hatalı/Uyumsuz Gönderim" }
             );
 
             // GridDurum
             modelBuilder.Entity<LookupGridDurum>().HasData(
-                new LookupGridDurum { Id = 1, Anahtar = 0, Deger = "Bekliyor" },
-                new LookupGridDurum { Id = 2, Anahtar = 1, Deger = "Üretimde" },
-                new LookupGridDurum { Id = 3, Anahtar = 2, Deger = "Stok Hazır" },
-                new LookupGridDurum { Id = 4, Anahtar = 3, Deger = "Sevk Edildi" },
-                new LookupGridDurum { Id = 5, Anahtar = 4, Deger = "Kısmi Sevk Edildi" },
-                new LookupGridDurum { Id = 6, Anahtar = 5, Deger = "Bekletiliyor" },
-                new LookupGridDurum { Id = 7, Anahtar = 6, Deger = "İptal Edildi" },
-                new LookupGridDurum { Id = 8, Anahtar = 7, Deger = "Tam Geldi" },
-                new LookupGridDurum { Id = 9, Anahtar = 8, Deger = "Eksik Geldi" },
-                new LookupGridDurum { Id = 10, Anahtar = 9, Deger = "Gelmedi" },
-                new LookupGridDurum { Id = 11, Anahtar = 10, Deger = "Trafo Sevk" },
-                new LookupGridDurum { Id = 12, Anahtar = 11, Deger = "İptal" },
-                new LookupGridDurum { Id = 13, Anahtar = 12, Deger = "Siparişte" }
+                new LookupGridDurum { Id = 1, Anahtar = 1, Deger = "Bekliyor" },
+                new LookupGridDurum { Id = 2, Anahtar = 2, Deger = "Üretimde" },
+                new LookupGridDurum { Id = 3, Anahtar = 3, Deger = "Stok Hazır" },
+                new LookupGridDurum { Id = 4, Anahtar = 4, Deger = "Sevk Edildi" },
+                new LookupGridDurum { Id = 5, Anahtar = 5, Deger = "Kısmi Sevk Edildi" },
+                new LookupGridDurum { Id = 6, Anahtar = 6, Deger = "Bekletiliyor" },
+                new LookupGridDurum { Id = 7, Anahtar = 7, Deger = "İptal Edildi" },
+                new LookupGridDurum { Id = 8, Anahtar = 8, Deger = "Tam Geldi" },
+                new LookupGridDurum { Id = 9, Anahtar = 9, Deger = "Eksik Geldi" },
+                new LookupGridDurum { Id = 10, Anahtar = 10, Deger = "Gelmedi" },
+                new LookupGridDurum { Id = 11, Anahtar = 11, Deger = "Trafo Sevk" },
+                new LookupGridDurum { Id = 12, Anahtar = 12, Deger = "İptal" },
+                new LookupGridDurum { Id = 13, Anahtar = 13, Deger = "Siparişte" },
+                new LookupGridDurum { Id = 14, Anahtar = 14, Deger = "Grid Kapandı" }
             );
 
             // GridSevkDurum
@@ -512,40 +512,41 @@ namespace _3K.Infrastructure.Data
 
             // UcKDurum
             modelBuilder.Entity<LookupUcKDurum>().HasData(
-                new LookupUcKDurum { Id = 1, Anahtar = 0, Deger = "Bekliyor" },
-                new LookupUcKDurum { Id = 2, Anahtar = 1, Deger = "Tam Geldi" },
-                new LookupUcKDurum { Id = 3, Anahtar = 2, Deger = "Eksik Geldi" },
-                new LookupUcKDurum { Id = 4, Anahtar = 3, Deger = "Gelmedi" },
-                new LookupUcKDurum { Id = 5, Anahtar = 4, Deger = "Paketlendi" },
-                new LookupUcKDurum { Id = 6, Anahtar = 5, Deger = "Kontrol Edildi" },
-                new LookupUcKDurum { Id = 7, Anahtar = 6, Deger = "İade Edildi" },
-                new LookupUcKDurum { Id = 8, Anahtar = 7, Deger = "Projeden Karşılandı" },
-                new LookupUcKDurum { Id = 9, Anahtar = 8, Deger = "Stoktan Karşılandı" },
-                new LookupUcKDurum { Id = 10, Anahtar = 9, Deger = "Tedarikçiden Geldi" },
-                new LookupUcKDurum { Id = 11, Anahtar = 10, Deger = "Başka Projeye Verildi" },
-                new LookupUcKDurum { Id = 12, Anahtar = 11, Deger = "Geri Gönderildi" },
-                new LookupUcKDurum { Id = 13, Anahtar = 12, Deger = "Hatalı Ürün" }
+                new LookupUcKDurum { Id = 1, Anahtar = 1, Deger = "Bekliyor" },
+                new LookupUcKDurum { Id = 2, Anahtar = 2, Deger = "Sevk Adeti Tam Geldi" },
+                new LookupUcKDurum { Id = 3, Anahtar = 3, Deger = "Sevk Adeti Eksik Geldi" },
+                new LookupUcKDurum { Id = 4, Anahtar = 4, Deger = "Gelmedi" },
+                new LookupUcKDurum { Id = 5, Anahtar = 5, Deger = "Tamamlandı" },
+                new LookupUcKDurum { Id = 6, Anahtar = 6, Deger = "Kontrol Edildi" },
+                new LookupUcKDurum { Id = 7, Anahtar = 7, Deger = "İade Edildi" },
+                new LookupUcKDurum { Id = 8, Anahtar = 8, Deger = "Projeden Karşılandı" },
+                new LookupUcKDurum { Id = 9, Anahtar = 9, Deger = "Stoktan Karşılandı" },
+                new LookupUcKDurum { Id = 10, Anahtar = 10, Deger = "Tedarikçiden Geldi" },
+                new LookupUcKDurum { Id = 11, Anahtar = 11, Deger = "Başka Projeye Verildi" },
+                new LookupUcKDurum { Id = 12, Anahtar = 12, Deger = "Geri Gönderildi" },
+                new LookupUcKDurum { Id = 13, Anahtar = 13, Deger = "Hatalı Ürün" }
             );
 
             // GeriGonderilmeSebebi
             modelBuilder.Entity<LookupGeriGonderilmeSebebi>().HasData(
-                new LookupGeriGonderilmeSebebi { Id = 1, Anahtar = 0, Deger = "Tadilat" },
-                new LookupGeriGonderilmeSebebi { Id = 2, Anahtar = 1, Deger = "Iptal" },
-                new LookupGeriGonderilmeSebebi { Id = 3, Anahtar = 2, Deger = "Projeye Geri Dönüş" }
+                new LookupGeriGonderilmeSebebi { Id = 1, Anahtar = 1, Deger = "Tadilat" },
+                new LookupGeriGonderilmeSebebi { Id = 2, Anahtar = 2, Deger = "Iptal" },
+                new LookupGeriGonderilmeSebebi { Id = 3, Anahtar = 3, Deger = "Projeye Geri Dönüş" },
+                new LookupGeriGonderilmeSebebi { Id = 4, Anahtar = 4, Deger = "Hatalı Ürün" }
             );
 
             // YetkiTipi
             modelBuilder.Entity<LookupYetkiTipi>().HasData(
-                new LookupYetkiTipi { Id = 1, Anahtar = 0, Deger = "N" },
-                new LookupYetkiTipi { Id = 2, Anahtar = 1, Deger = "R" },
-                new LookupYetkiTipi { Id = 3, Anahtar = 2, Deger = "W" }
+                new LookupYetkiTipi { Id = 1, Anahtar = 1, Deger = "N" },
+                new LookupYetkiTipi { Id = 2, Anahtar = 2, Deger = "R" },
+                new LookupYetkiTipi { Id = 3, Anahtar = 3, Deger = "W" }
             );
 
             // StokDurum
             modelBuilder.Entity<LookupStokDurum>().HasData(
-                new LookupStokDurum { Id = 1, Anahtar = 0, Deger = "Aktif" },
-                new LookupStokDurum { Id = 2, Anahtar = 1, Deger = "Tukendi" },
-                new LookupStokDurum { Id = 3, Anahtar = 2, Deger = "Rezerve" }
+                new LookupStokDurum { Id = 1, Anahtar = 1, Deger = "Aktif" },
+                new LookupStokDurum { Id = 2, Anahtar = 2, Deger = "Tukendi" },
+                new LookupStokDurum { Id = 3, Anahtar = 3, Deger = "Rezerve" }
             );
 
             // IslemTipi
@@ -580,7 +581,9 @@ namespace _3K.Infrastructure.Data
                 new LookupIslemTipi { Id = 28, Anahtar = 28, Deger = "Manuel Ürün Sandığa Eklendi" },
                 new LookupIslemTipi { Id = 29, Anahtar = 29, Deger = "Sandık Kapandı" },
                 new LookupIslemTipi { Id = 30, Anahtar = 30, Deger = "3K Durum Sıfırlandı" },
-                new LookupIslemTipi { Id = 31, Anahtar = 31, Deger = "Grid Durum Sıfırlandı" }
+                new LookupIslemTipi { Id = 31, Anahtar = 31, Deger = "Grid Durum Sıfırlandı" },
+                new LookupIslemTipi { Id = 32, Anahtar = 32, Deger = "Manuel Ürün Silindi" },
+                new LookupIslemTipi { Id = 33, Anahtar = 33, Deger = "Sandık Silindi" }
             );
 
             // ProjeTipi

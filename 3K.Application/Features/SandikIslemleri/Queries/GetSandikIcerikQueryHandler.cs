@@ -38,36 +38,53 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 Yukseklik = sandik.Yukseklik,
                 NetKg = sandik.NetKg,
                 GrossKg = sandik.GrossKg,
-                Icerikler = icerikler.Select(i => new SandikIcerikDto
+                Icerikler = icerikler.Select(i =>
                 {
-                    Id = i.Id,
-                    CekiSatiriId = i.CekiSatiriId,
-                    OlcuResmiPozNo = i.CekiSatiri?.OlcuResmiPozNo,
-                    BarkodNo = i.CekiSatiri?.BarkodNo ?? i.BarkodNo ?? "",
-                    Aciklama = i.CekiSatiri?.Aciklama ?? i.Isim ?? "",
-                    IstenenAdet = i.CekiSatiri?.IstenenAdet ?? (int)i.Miktar,
-                    KonulanAdet = i.KonulanAdet,
-                    EksikAdet = i.EksikAdet,
-                    DurumId = i.CekiSatiri?.DurumId ?? 0,
-                    DurumMetni = i.CekiSatiri != null ? _lookupCache.GetDeger<LookupUrunDurum>(i.CekiSatiri.DurumId) : "Paketlendi",
-                    PaketleyenBasHarf = i.CekiSatiri?.Paketleyen?.BasHarf,
-                    KontrolEdenBasHarf = i.CekiSatiri?.KontrolEden?.BasHarf,
-                    Remarks = i.CekiSatiri?.Remarks,
-                    // Saha/Yedek + Birim
-                    Isim = i.Isim,
-                    Miktar = i.Miktar,
-                    BirimId = i.BirimId,
-                    BirimMetni = i.BirimId.HasValue ? _lookupCache.GetDeger<LookupBirim>(i.BirimId.Value) : null,
-                    // Madde 2: Parçalı karşılama
-                    StokKarsilanan = i.StokKarsilanan,
-                    ProjeKarsilanan = i.ProjeKarsilanan,
-                    TedarikciKarsilanan = i.TedarikciKarsilanan,
-                    // KURAL 3: Backend-hesaplanan alanlar (Dumb UI)
-                    KalanMiktar = i.CekiSatiri?.KalanMiktar ?? 0,
-                    GenelDurumId = i.CekiSatiri?.DurumId ?? 0,
-                    GenelDurumMetni = i.CekiSatiri != null
-                        ? _lookupCache.GetDeger<LookupUrunDurum>(i.CekiSatiri.DurumId)
-                        : ""
+                    var istenen = i.CekiSatiri?.IstenenAdet ?? (int)i.Miktar;
+                    var konulan = i.KonulanAdet;
+
+                    // Durum: konulana göre hesapla
+                    string durumMetni;
+                    if (konulan <= 0)
+                        durumMetni = "Gelmedi";
+                    else if (konulan >= istenen)
+                        durumMetni = "Tamamlandı";
+                    else
+                        durumMetni = "Kısmi Geldi";
+
+                    return new SandikIcerikDto
+                    {
+                        Id = i.Id,
+                        CekiSatiriId = i.CekiSatiriId,
+                        OlcuResmiPozNo = i.CekiSatiri?.OlcuResmiPozNo,
+                        BarkodNo = i.CekiSatiri?.BarkodNo ?? i.BarkodNo ?? "",
+                        Aciklama = i.CekiSatiri?.Aciklama ?? i.Isim ?? "",
+                        IstenenAdet = istenen,
+                        KonulanAdet = konulan,
+                        EksikAdet = i.EksikAdet,
+                        DurumId = i.CekiSatiri?.DurumId ?? 0,
+                        DurumMetni = durumMetni,
+                        PaketleyenBasHarf = i.CekiSatiri?.Paketleyen?.BasHarf,
+                        KontrolEdenBasHarf = i.CekiSatiri?.KontrolEden?.BasHarf,
+                        Remarks = i.CekiSatiri?.Remarks,
+                        IsManuelEklenen = i.CekiSatiri == null || (i.CekiSatiri?.IsManuelEklenen ?? false),
+                        // Saha/Yedek + Birim
+                        Isim = i.Isim,
+                        Miktar = i.Miktar,
+                        BirimId = i.BirimId,
+                        BirimMetni = i.BirimId.HasValue ? _lookupCache.GetDeger<LookupBirim>(i.BirimId.Value) : null,
+                        // Madde 2: Parçalı karşılama
+                        StokKarsilanan = i.StokKarsilanan,
+                        ProjeKarsilanan = i.ProjeKarsilanan,
+                        TedarikciKarsilanan = i.TedarikciKarsilanan,
+                        KaynakProjeNo = i.KaynakProjeNo,
+                        // KURAL 3: Backend-hesaplanan alanlar (Dumb UI)
+                        KalanMiktar = i.CekiSatiri?.KalanMiktar ?? 0,
+                        GenelDurumId = i.CekiSatiri?.DurumId ?? 0,
+                        GenelDurumMetni = i.CekiSatiri != null
+                            ? _lookupCache.GetDeger<LookupUrunDurum>(i.CekiSatiri.DurumId)
+                            : ""
+                    };
                 }).ToList()
             };
 

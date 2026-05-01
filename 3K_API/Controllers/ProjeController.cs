@@ -54,9 +54,9 @@ namespace _3K_API.Controllers
         /// Projeyi kilitler (Sevk Edildi durumuna çeker) — Sadece yetkililer
         /// </summary>
         [HttpPost("{id}/sevk-et")]
-        public async Task<ActionResult> SevkEt(int id)
+        public async Task<ActionResult> SevkEt(int id, [FromBody] SevkEtRequest? request = null)
         {
-            var result = await _mediator.Send(new ProjeSevkEtCommand { ProjeId = id });
+            var result = await _mediator.Send(new ProjeSevkEtCommand { ProjeId = id, SevkTarihi = request?.SevkTarihi });
             return result.ToActionResult();
         }
 
@@ -79,5 +79,10 @@ namespace _3K_API.Controllers
             var result = await _mediator.Send(command);
             return result.ToActionResult();
         }
+    }
+
+    public record SevkEtRequest
+    {
+        public DateTime? SevkTarihi { get; init; }
     }
 }

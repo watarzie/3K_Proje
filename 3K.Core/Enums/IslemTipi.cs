@@ -41,6 +41,10 @@ namespace _3K.Core.Enums
         /// <summary>3K durum sıfırlama (geri alma) işlemi.</summary>
         UcKDurumSifirlandi = 30,
         /// <summary>Grid durum sıfırlama (geri alma) işlemi.</summary>
-        GridDurumSifirlandi = 31
+        GridDurumSifirlandi = 31,
+        /// <summary>Manuel eklenen ürün silindi.</summary>
+        ManuelUrunSilindi = 32,
+        /// <summary>Sandık silindi.</summary>
+        SandikSilindi = 33
     }
 }

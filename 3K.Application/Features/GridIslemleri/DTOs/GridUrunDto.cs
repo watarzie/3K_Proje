@@ -25,6 +25,7 @@ namespace _3K.Application.Features.GridIslemleri.DTOs
         // Parçalı karşılama (Madde 2)
         public int StokKarsilanan { get; set; }
         public int ProjeKarsilanan { get; set; }
+        public int ProjeGonderilen { get; set; }
         public int TedarikciKarsilanan { get; set; }
         public int EksikMiktar { get; set; }
         public int KalanMiktar { get; set; }
@@ -33,6 +34,7 @@ namespace _3K.Application.Features.GridIslemleri.DTOs
         public int UcKDurumuId { get; set; }
         public string UcKDurumuMetni { get; set; } = string.Empty;
         public int GelenMiktar { get; set; }
+        public int GeriGonderilenMiktar { get; set; }
         public string? KaynakHedefProjeNo { get; set; }
 
         // Çapraz açıklama: 3K tarafının bu ürüne yazdığı açıklama (Grid tarafı görür)

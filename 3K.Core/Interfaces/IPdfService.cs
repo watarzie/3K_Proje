@@ -28,5 +28,15 @@ namespace _3K.Core.Interfaces
         /// QuestPDF ile bir saha projesine ait tüm sandıkların PDF raporunu (toplu) oluşturur.
         /// </summary>
         Task<byte[]> SahaProjeSandiklariPdfOlusturAsync(int projeId);
+
+        /// <summary>
+        /// Normal projelerdeki eksik/gelmedi durumlu ve kalan > 0 olan ürünlerin PDF raporunu oluşturur.
+        /// </summary>
+        Task<byte[]> EksikUrunlerRaporuPdfOlusturAsync(int projeId);
+
+        /// <summary>
+        /// Stok modülündeki tüm ürünlerin PDF raporunu oluşturur.
+        /// </summary>
+        Task<byte[]> StokRaporuPdfOlusturAsync();
     }
 }

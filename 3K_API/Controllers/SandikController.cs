@@ -169,12 +169,48 @@ namespace _3K_API.Controllers
         }
 
         /// <summary>
+        /// Normal projelerdeki kalan > 0 olan ürünleri listeler (Saha/Yedek sandığa ekleme için).
+        /// </summary>
+        [HttpGet("eksik-urunler-by-proje/{projeId}")]
+        public async Task<ActionResult> GetEksikUrunlerByProje(int projeId)
+        {
+            var result = await _mediator.Send(new _3K.Application.Features.SandikIslemleri.Queries.GetEksikUrunlerByProjeQuery { ProjeId = projeId });
+            return result.ToActionResult();
+        }
+
+        /// <summary>
         /// Tekil sandık sevk eder.
         /// </summary>
         [HttpPost("sevk-et")]
         public async Task<ActionResult> SandikSevkEt([FromBody] SandikSevkEtCommand command)
         {
             var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
+        /// <summary>
+        /// Manuel eklenen ürünü siler.
+        /// Normal projeler: cekiSatiriId ile, Saha/Yedek: sandikIcerikId ile.
+        /// </summary>
+        [HttpDelete("manuel-urun-sil")]
+        public async Task<ActionResult> ManuelUrunSil([FromQuery] int projeId, [FromQuery] int? cekiSatiriId = null, [FromQuery] int? sandikIcerikId = null)
+        {
+            var result = await _mediator.Send(new ManuelUrunSilCommand
+            {
+                CekiSatiriId = cekiSatiriId,
+                SandikIcerikId = sandikIcerikId,
+                ProjeId = projeId
+            });
+            return result.ToActionResult();
+        }
+
+        /// <summary>
+        /// Boş sandığı siler — içinde ürün olmamalıdır.
+        /// </summary>
+        [HttpDelete("sil")]
+        public async Task<ActionResult> SandikSil([FromQuery] int sandikId, [FromQuery] int projeId)
+        {
+            var result = await _mediator.Send(new SandikSilCommand { SandikId = sandikId, ProjeId = projeId });
             return result.ToActionResult();
         }
     }

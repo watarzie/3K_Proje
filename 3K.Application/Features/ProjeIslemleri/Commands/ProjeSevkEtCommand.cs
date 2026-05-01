@@ -12,6 +12,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
         // UI'da W yetkisi olanlar tetikleyebilecek, backend'de yetki yönetimi Pipeline üzerinden de yapılıyor.
 
         public int ProjeId { get; set; }
+        public DateTime? SevkTarihi { get; set; }
     }
 
     public class ProjeSevkEtCommandHandler : IRequestHandler<ProjeSevkEtCommand, Result>
@@ -42,7 +43,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
 
             int eskiDurum = proje.DurumId;
             proje.DurumId = (int)ProjeDurum.SevkEdildi;
-            proje.GerceklesenSevkTarihi = DateTime.UtcNow.AddHours(3); // Türkiye saati
+            proje.GerceklesenSevkTarihi = request.SevkTarihi ?? DateTime.UtcNow.AddHours(3);
             projeRepo.Update(proje);
 
             // ===== Tüm sandıkları "Sevk Edildi" durumuna geçir =====
@@ -52,6 +53,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             {
                 if (sandik.DurumId != (int)SandikDurum.Sevkedildi)
                 {
+                    sandik.SevkOncesiDurumId = sandik.DurumId; // Eski durumu kaydet
                     sandik.DurumId = (int)SandikDurum.Sevkedildi;
                     sandikRepo.Update(sandik);
                     sevkEdilenSandikSayisi++;

@@ -46,6 +46,12 @@ namespace _3K.Core.Entities
         /// </summary>
         public int? BirimId { get; set; }
 
+        /// <summary>
+        /// Saha/Yedek sandıklara eklenen ürünlerin kaynak proje numarası.
+        /// Projeden seçilerek eklenen ürünlerin hangi projeden geldiğini gösterir.
+        /// </summary>
+        public string? KaynakProjeNo { get; set; }
+
         // Navigation Properties
         public virtual Sandik Sandik { get; set; } = null!;
         public virtual CekiSatiri? CekiSatiri { get; set; }

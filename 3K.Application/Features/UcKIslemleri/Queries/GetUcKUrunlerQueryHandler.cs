@@ -47,6 +47,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                         TrafoSevkAdet = cs.TrafoSevkAdet,
                         GridSevkDurumuId = cs.GridSevkDurumuId,
                         GridSevkDurumuMetni = _lookupCache.GetDeger<LookupGridSevkDurum>(cs.GridSevkDurumuId),
+                        GridSevkMiktari = cs.GridSevkMiktari,
                         UcKKarsilamaTipiId = cs.UcKKarsilamaTipiId,
                         UcKKarsilamaTipiMetni = _lookupCache.GetDeger<LookupUcKDurum>(cs.UcKKarsilamaTipiId),
                         GelenMiktar = cs.GelenMiktar,
@@ -57,6 +58,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                         GeriGonderilmeSebebiMetni = cs.GeriGonderilmeSebebiId.HasValue
                             ? _lookupCache.GetDeger<LookupGeriGonderilmeSebebi>(cs.GeriGonderilmeSebebiId.Value)
                             : null,
+                        GeriGonderilenMiktar = cs.GeriGonderilenMiktar,
                         UcKAciklama = cs.UcKAciklama,
                         GridAciklama = cs.GridAciklama,
                         Kalan = cs.KalanMiktar,
@@ -66,8 +68,10 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                         // Madde 2: Parçalı karşılama
                         StokKarsilanan = cs.StokKarsilanan,
                         ProjeKarsilanan = cs.ProjeKarsilanan,
+                        ProjeGonderilen = cs.ProjeGonderilen,
                         TedarikciKarsilanan = cs.TedarikciKarsilanan,
-                        EksikMiktar = cs.EksikMiktar
+                        EksikMiktar = cs.EksikMiktar,
+                        IsManuelEklenen = cs.IsManuelEklenen
                     };
                 })
                 .ToList();

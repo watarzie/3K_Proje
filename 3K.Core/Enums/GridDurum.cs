@@ -17,6 +17,7 @@ namespace _3K.Core.Enums
         Gelmedi = 10,
         TrafoSevk = 11,
         Iptal = 12,
-        Sipariste = 13
+        Sipariste = 13,
+        GridKapandi = 14
     }
 }

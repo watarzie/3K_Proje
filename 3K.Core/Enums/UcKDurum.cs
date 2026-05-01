@@ -15,7 +15,7 @@ namespace _3K.Core.Enums
         ProjedenKarsilandi = 8,
         StoktanKarsilandi = 9,
         TedarikcidenGeldi = 10,
-        // BaskaProyeVerildi = 11, -- kaldırıldı
+        BaskaProyeVerildi = 11,
         GeriGonderildi = 12,
         HataliUrun = 13
     }

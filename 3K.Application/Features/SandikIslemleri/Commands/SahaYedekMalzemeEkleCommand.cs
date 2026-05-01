@@ -17,5 +17,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         public string Isim { get; set; } = string.Empty;
         public decimal Miktar { get; set; }
         public int? BirimId { get; set; }
+        /// <summary>Projeden seçildi ise kaynak çeki satırı ID'si (opsiyonel)</summary>
+        public int? CekiSatiriId { get; set; }
+        /// <summary>Projeden seçildi ise kaynak proje numarası (opsiyonel)</summary>
+        public string? KaynakProjeNo { get; set; }
     }
 }

@@ -8,10 +8,6 @@ namespace _3K.Core.Enums
         Bos = 1,
         Hazirlaniyor = 2,
         Hazir = 3,
-        Sevkedildi = 4,
-        /// <summary>
-        /// Madde 6: İçindeki tüm ürünler tamamlandığında otomatik veya manuel kapatma.
-        /// </summary>
-        Kapandi = 5
+        Sevkedildi = 4
     }
 }

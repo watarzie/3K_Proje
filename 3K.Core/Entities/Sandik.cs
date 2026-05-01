@@ -12,6 +12,10 @@ namespace _3K.Core.Entities
         public string? Ad { get; set; }
         public int TipId { get; set; } = (int)SandikTipi.AhsapKapali;
         public int DurumId { get; set; } = (int)SandikDurum.Bos;
+        /// <summary>
+        /// Sevk edilmeden önceki durum. Kilidi açıldığında bu duruma geri döner.
+        /// </summary>
+        public int? SevkOncesiDurumId { get; set; }
         public int DepoLokasyonId { get; set; } = (int)DepoLokasyon.Belirsiz;
 
         // Fiziksel Özellikler

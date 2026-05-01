@@ -85,6 +85,11 @@ namespace _3K.Core.Entities
         public int ProjeKarsilanan { get; set; } = 0;
 
         /// <summary>
+        /// Başka projeye gönderilen adet (bu üründen çıkan miktar).
+        /// </summary>
+        public int ProjeGonderilen { get; set; } = 0;
+
+        /// <summary>
         /// Tedarikçiden karşılanan adet.
         /// </summary>
         public int TedarikciKarsilanan { get; set; } = 0;
@@ -93,6 +98,11 @@ namespace _3K.Core.Entities
         /// Hatalı gelen ürün adedi.
         /// </summary>
         public int HataliMiktar { get; set; } = 0;
+
+        /// <summary>
+        /// Geri gönderilen toplam miktar.
+        /// </summary>
+        public int GeriGonderilenMiktar { get; set; } = 0;
 
         /// <summary>
         /// GeriGonderildi durumunda zorunlu sebep: LookupGeriGonderilmeSebebi Id

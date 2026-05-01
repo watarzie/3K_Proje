@@ -29,6 +29,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
         public async Task<Result> Handle(ProjeKilidiAcCommand request, CancellationToken cancellationToken)
         {
             var repo = _unitOfWork.GetRepository<Proje>();
+            var sandikRepo = _unitOfWork.GetRepository<Sandik>();
             var proje = await repo.GetByIdAsync(request.ProjeId);
 
             if (proje == null)
@@ -38,9 +39,25 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 return Result.Failure("Proje sevk edilmediği için kilidi açılamaz.");
 
             int eskiDurum = proje.DurumId;
-            proje.DurumId = (int)ProjeDurum.Devam; // Kilidi açınca Devam durumuna geçsin
+            proje.DurumId = (int)ProjeDurum.Hazirlaniyor; // Kilidi açınca Hazırlanıyor durumuna geçsin
 
             repo.Update(proje);
+
+            // ===== Sandıkları sevk öncesi durumlarına geri döndür =====
+            var sandiklar = await sandikRepo.FindAsync(s => s.ProjeId == request.ProjeId);
+            int geriDondurulenSandik = 0;
+            foreach (var sandik in sandiklar)
+            {
+                if (sandik.DurumId == (int)SandikDurum.Sevkedildi)
+                {
+                    // Sevk öncesi durum varsa ona dön, yoksa Hazır'a dön
+                    sandik.DurumId = sandik.SevkOncesiDurumId ?? (int)SandikDurum.Hazir;
+                    sandik.SevkOncesiDurumId = null; // Temizle
+                    sandikRepo.Update(sandik);
+                    geriDondurulenSandik++;
+                }
+            }
+
             await _unitOfWork.SaveChangesAsync();
 
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
@@ -50,10 +67,10 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 ReferansTipi = "Proje",
                 ReferansId = proje.Id.ToString(),
                 Islem = "Proje Kilidi Açıldı",
-                IslemTipiId = null, // Özel işlem tipi yok, ismi görünsün
+                IslemTipiId = null,
                 EskiDeger = eskiDurum.ToString(),
                 YeniDeger = proje.DurumId.ToString(),
-                Aciklama = "Proje kilidi Admin tarafından açıldı. İşlemlere devam edilebilir."
+                Aciklama = $"Proje kilidi Admin tarafından açıldı. {geriDondurulenSandik} sandık eski durumuna döndürüldü."
             });
 
             return Result.Success();
