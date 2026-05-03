@@ -806,6 +806,7 @@ namespace _3K.Infrastructure.Services
                             columns.ConstantColumn(50);   // 3K Gelen
                             columns.ConstantColumn(50);   // Karşılanan
                             columns.ConstantColumn(50);   // Geri Gönd.
+                            columns.ConstantColumn(55);   // Prj. Verildi
                             columns.ConstantColumn(45);   // Kalan
                             columns.RelativeColumn(1.5f); // 3K Durum
                         });
@@ -825,6 +826,7 @@ namespace _3K.Infrastructure.Services
                             HeaderCell(header.Cell(), "3K GELEN");
                             HeaderCell(header.Cell(), "KARŞI.");
                             HeaderCell(header.Cell(), "GERİ GÖN.");
+                            HeaderCell(header.Cell(), "PRJ. VERİLDİ");
                             HeaderCell(header.Cell(), "KALAN");
                             HeaderCell(header.Cell(), "3K DURUM");
                         });
@@ -856,6 +858,9 @@ namespace _3K.Infrastructure.Services
                             DataCell(table.Cell(), cs.GelenMiktar.ToString());
                             DataCell(table.Cell(), karsilanan > 0 ? karsilanan.ToString() : "-");
                             DataCell(table.Cell(), cs.GeriGonderilenMiktar > 0 ? cs.GeriGonderilenMiktar.ToString() : "-");
+                            // Başka projeye verildi
+                            var projVerildi = cs.ProjeGonderilen > 0 ? $"{cs.ProjeGonderilen} ({cs.KaynakHedefProjeNo ?? "?"})" : "-";
+                            DataCell(table.Cell(), projVerildi, fontColor: cs.ProjeGonderilen > 0 ? "#1565C0" : null);
                             DataCell(table.Cell(), cs.KalanMiktar.ToString(), bold: true, fontColor: dangerColor);
                             DataCell(table.Cell(), ucKDurum, fontColor: cs.UcKKarsilamaTipiId == (int)_3K.Core.Enums.UcKDurum.Bekliyor ? dangerColor : warningColor);
 
