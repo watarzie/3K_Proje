@@ -14,7 +14,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
         private readonly IHareketService _hareketService;
 
         private static readonly int[] GecerliDurumlar =
-            { (int)GridDurum.TamGeldi, (int)GridDurum.EksikGeldi, (int)GridDurum.Gelmedi, (int)GridDurum.TrafoSevk, (int)GridDurum.Iptal, (int)GridDurum.Sipariste, (int)GridDurum.Bekliyor };
+            { (int)GridDurum.TamGeldi, (int)GridDurum.EksikGeldi, (int)GridDurum.Gelmedi, (int)GridDurum.TrafoSevk, (int)GridDurum.Iptal, (int)GridDurum.Sipariste, (int)GridDurum.Bekliyor, (int)GridDurum.GridKapandi };
 
         public GridDurumGuncelleCommandHandler(
             IUnitOfWork unitOfWork,
@@ -95,6 +95,10 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                     satir.TrafoSevkAdet = 0;
                     satir.GridSevkDurumuId = 3; // SevkEdilmedi
                     satir.GridSevkMiktari = null;
+                    break;
+
+                case (int)GridDurum.GridKapandi:
+                    // Grid kapandı — mevcut adetler korunur, sadece durum güncellenir
                     break;
             }
 
