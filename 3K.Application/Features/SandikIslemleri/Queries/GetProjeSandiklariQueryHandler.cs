@@ -21,24 +21,49 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
         {
             var sandiklar = await _sandikService.GetProjeSandiklariAsync(request.ProjeId);
 
-            var result = sandiklar.Select(s => new SandikDto
+            var result = sandiklar.Select(s =>
             {
-                Id = s.Id,
-                SandikNo = s.SandikNo,
-                Ad = s.Ad,
-                DurumId = s.DurumId,
-                DurumMetni = _lookupCache.GetDeger<LookupSandikDurum>(s.DurumId),
-                DepoLokasyonId = s.DepoLokasyonId,
-                DepoLokasyonMetni = _lookupCache.GetDeger<LookupDepoLokasyon>(s.DepoLokasyonId),
-                UrunSayisi = s.SandikIcerikleri?.Count ?? 0,
-                En = s.En,
-                Boy = s.Boy,
-                Yukseklik = s.Yukseklik,
-                NetKg = s.NetKg,
-                GrossKg = s.GrossKg
+                var icerikler = s.SandikIcerikleri?.ToList() ?? new List<SandikIcerik>();
+                var isManuelSandik = IsManuelSandik(icerikler);
+
+                return new SandikDto
+                {
+                    Id = s.Id,
+                    SandikNo = s.SandikNo,
+                    Ad = s.Ad,
+                    DurumId = s.DurumId,
+                    DurumMetni = _lookupCache.GetDeger<LookupSandikDurum>(s.DurumId),
+                    DepoLokasyonId = s.DepoLokasyonId,
+                    DepoLokasyonMetni = _lookupCache.GetDeger<LookupDepoLokasyon>(s.DepoLokasyonId),
+                    UrunSayisi = icerikler.Count,
+                    IsManuelSandik = isManuelSandik,
+                    SilinebilirMi = icerikler.Count == 0 || (isManuelSandik && icerikler.All(i => !ManuelSatirIslemGormus(i.CekiSatiri!))),
+                    En = s.En,
+                    Boy = s.Boy,
+                    Yukseklik = s.Yukseklik,
+                    NetKg = s.NetKg,
+                    GrossKg = s.GrossKg
+                };
             });
 
             return Result<IEnumerable<SandikDto>>.Success(result);
+        }
+
+        private static bool IsManuelSandik(IReadOnlyCollection<SandikIcerik> icerikler)
+        {
+            return icerikler.Count > 0 && icerikler.All(i => i.CekiSatiri?.IsManuelEklenen == true);
+        }
+
+        private static bool ManuelSatirIslemGormus(CekiSatiri satir)
+        {
+            return satir.GelenMiktar > 0
+                || satir.KarsilananMiktar > 0
+                || satir.HataliMiktar > 0
+                || satir.StokKarsilanan > 0
+                || satir.ProjeKarsilanan > 0
+                || satir.ProjeGonderilen > 0
+                || satir.TedarikciKarsilanan > 0
+                || satir.GeriGonderilenMiktar > 0;
         }
     }
 }

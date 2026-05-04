@@ -32,11 +32,57 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             // İçinde ürün var mı kontrol et
             var sandikIcerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
-            var icerikler = await sandikIcerikRepo.FindAsync(x => x.SandikId == sandik.Id);
+            var icerikler = (await sandikIcerikRepo.FindAsync(x => x.SandikId == sandik.Id)).ToList();
+            var manuelSatirlar = new List<CekiSatiri>();
+
             if (icerikler.Any())
-                return Result.Failure($"Bu sandıkta {icerikler.Count()} ürün bulunuyor. Önce ürünleri silin veya taşıyın.");
+            {
+                var cekiSatiriIds = icerikler
+                    .Where(x => x.CekiSatiriId.HasValue)
+                    .Select(x => x.CekiSatiriId!.Value)
+                    .Distinct()
+                    .ToArray();
+
+                var cekiSatiriRepo = _unitOfWork.GetRepository<CekiSatiri>();
+                var cekiSatirlari = (await cekiSatiriRepo.FindAsync(x => cekiSatiriIds.Contains(x.Id)))
+                    .ToDictionary(x => x.Id);
+
+                foreach (var icerik in icerikler)
+                {
+                    if (!icerik.CekiSatiriId.HasValue
+                        || !cekiSatirlari.TryGetValue(icerik.CekiSatiriId.Value, out var satir)
+                        || !satir.IsManuelEklenen)
+                    {
+                        return Result.Failure($"Bu sandıkta {icerikler.Count} ürün bulunuyor. Önce ürünleri silin veya taşıyın.");
+                    }
+
+                    manuelSatirlar.Add(satir);
+                }
+
+                var islemGormusSatir = manuelSatirlar.FirstOrDefault(ManuelSatirIslemGormus);
+                if (islemGormusSatir != null)
+                {
+                    return Result.Failure(
+                        $"Bu manuel sandıktaki {islemGormusSatir.BarkodNo} ürünü üzerinde 3K işlemi var. Silmeden önce işlemleri geri alın.");
+                }
+            }
 
             var sandikNo = sandik.SandikNo;
+            var silinenManuelUrunSayisi = manuelSatirlar.Select(x => x.Id).Distinct().Count();
+
+            if (icerikler.Any())
+            {
+                foreach (var icerik in icerikler)
+                {
+                    sandikIcerikRepo.Remove(icerik);
+                }
+
+                var cekiSatiriRepo = _unitOfWork.GetRepository<CekiSatiri>();
+                foreach (var satir in manuelSatirlar.GroupBy(x => x.Id).Select(x => x.First()))
+                {
+                    cekiSatiriRepo.Remove(satir);
+                }
+            }
 
             sandikRepo.Remove(sandik);
             await _unitOfWork.SaveChangesAsync();
@@ -50,10 +96,24 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 ReferansId = request.SandikId.ToString(),
                 Islem = "Sandık Silindi",
                 IslemTipiId = (int)IslemTipi.SandikSilindi,
-                Aciklama = $"Sandık {sandikNo} silindi."
+                Aciklama = silinenManuelUrunSayisi > 0
+                    ? $"Manuel sandık {sandikNo} ve içindeki {silinenManuelUrunSayisi} manuel ürün silindi."
+                    : $"Sandık {sandikNo} silindi."
             });
 
             return Result.Success();
+        }
+
+        private static bool ManuelSatirIslemGormus(CekiSatiri satir)
+        {
+            return satir.GelenMiktar > 0
+                || satir.KarsilananMiktar > 0
+                || satir.HataliMiktar > 0
+                || satir.StokKarsilanan > 0
+                || satir.ProjeKarsilanan > 0
+                || satir.ProjeGonderilen > 0
+                || satir.TedarikciKarsilanan > 0
+                || satir.GeriGonderilenMiktar > 0;
         }
     }
 }

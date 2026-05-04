@@ -205,7 +205,7 @@ namespace _3K_API.Controllers
         }
 
         /// <summary>
-        /// Boş sandığı siler — içinde ürün olmamalıdır.
+        /// Boş sandığı veya sadece işlem görmemiş manuel ürün içeren manuel sandığı siler.
         /// </summary>
         [HttpDelete("sil")]
         public async Task<ActionResult> SandikSil([FromQuery] int sandikId, [FromQuery] int projeId)

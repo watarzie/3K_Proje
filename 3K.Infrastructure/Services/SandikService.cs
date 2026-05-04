@@ -21,6 +21,7 @@ namespace _3K.Infrastructure.Services
         {
             return await _context.Sandiklar
                 .Include(s => s.SandikIcerikleri)
+                    .ThenInclude(si => si.CekiSatiri)
                 .Where(s => s.ProjeId == projeId)
                 .OrderBy(s => s.SandikNo)
                 .ToListAsync();
