@@ -35,6 +35,11 @@ namespace _3K.Core.Interfaces
         Task<byte[]> EksikUrunlerRaporuPdfOlusturAsync(int projeId);
 
         /// <summary>
+        /// Sevk edilmis normal projeler icin gerceklesen ceki listesi PDF raporunu olusturur.
+        /// </summary>
+        Task<byte[]> GerceklesenCekiListesiRaporuPdfOlusturAsync(int projeId);
+
+        /// <summary>
         /// Stok modülündeki tüm ürünlerin PDF raporunu oluşturur.
         /// </summary>
         Task<byte[]> StokRaporuPdfOlusturAsync();

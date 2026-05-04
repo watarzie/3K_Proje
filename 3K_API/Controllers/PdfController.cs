@@ -106,6 +106,21 @@ namespace _3K_API.Controllers
             return File(result.Value!, "application/pdf", $"{projeNo}_EksikRaporu.pdf");
         }
 
+        [HttpGet("gerceklesen-ceki-listesi/{projeId}")]
+        public async Task<IActionResult> GerceklesenCekiListesiPdfIndir(int projeId)
+        {
+            var result = await _mediator.Send(new _3K.Application.Features.PdfIslemleri.Queries.GetGerceklesenCekiListesiPdfQuery
+            {
+                ProjeId = projeId
+            });
+
+            if (!result.IsSuccess)
+                return result.ToActionResult();
+
+            var projeNo = await GetProjeNo(projeId);
+            return File(result.Value!, "application/pdf", $"{projeNo}_GerceklesenCekiListesi.pdf");
+        }
+
         [HttpGet("stok")]
         public async Task<IActionResult> StokPdfIndir()
         {
