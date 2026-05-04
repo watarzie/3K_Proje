@@ -45,12 +45,14 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 BirimId = request.BirimId,
                 CekideGecenSandikNo = sandik.SandikNo,
                 FiiliSandikNo = sandik.SandikNo,
-                DurumId = (int)UrunDurum.Bekliyor,
+                DurumId = (int)UrunDurum.Tamamlandi,
                 IsManuelEklenen = true,
                 EklemeNedeni = request.EklemeNedeni,
                 GridDurumuId = (int)GridDurum.TamGeldi,
                 GelenMiktar = request.IstenenAdet,
-                UcKDurumuId = (int)UcKDurum.Bekliyor
+                UcKDurumuId = (int)UcKDurum.TamGeldi,
+                UcKKarsilamaTipiId = (int)UcKDurum.TamGeldi,
+                TeslimTarihi = DateTime.UtcNow
             };
 
             await cekiSatiriRepo.AddAsync(yeniUrun);
