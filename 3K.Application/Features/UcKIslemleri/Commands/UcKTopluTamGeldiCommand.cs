@@ -1,20 +1,17 @@
 using MediatR;
 using _3K.Application.Common;
 
-namespace _3K.Application.Features.SandikIslemleri.Commands
+namespace _3K.Application.Features.UcKIslemleri.Commands
 {
     /// <summary>
-    /// 3K personeli ürün teslim alır — kümülatif (parça parça gelebilir).
+    /// Seçilen ürünleri toplu olarak "Sevk Adeti Tam Geldi" olarak işaretler.
     /// </summary>
-    public class UcKTeslimAlCommand : IRequest<Result>, ISecuredRequest
+    public class UcKTopluTamGeldiCommand : IRequest<Result>, ISecuredRequest
     {
         public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin, StatusConstants.KullaniciRol.Personel3K };
 
-        public int CekiSatiriId { get; set; }
         public int ProjeId { get; set; }
-        public int GelenMiktar { get; set; }
+        public List<int> CekiSatiriIdler { get; set; } = new();
         public string? Aciklama { get; set; }
     }
 }
-
-

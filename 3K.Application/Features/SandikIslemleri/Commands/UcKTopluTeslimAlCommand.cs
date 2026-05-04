@@ -21,3 +21,5 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         public int GelenMiktar { get; set; }
     }
 }
+
+

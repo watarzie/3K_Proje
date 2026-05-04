@@ -49,3 +49,5 @@ namespace _3K.Application.Features.UcKIslemleri.DTOs
         public bool IsManuelEklenen { get; set; }
     }
 }
+
+

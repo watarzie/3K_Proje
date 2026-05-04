@@ -11,8 +11,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
     {
         public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin, StatusConstants.KullaniciRol.Personel3K };
 
-        public int CekiSatiriId { get; set; }
+        public int? CekiSatiriId { get; set; }
         public int SandikId { get; set; }
+        public int? SandikIcerikId { get; set; }
         public int? KonulanAdet { get; set; }
         public int? EksikAdet { get; set; }
         public int? GridDurumuId { get; set; }

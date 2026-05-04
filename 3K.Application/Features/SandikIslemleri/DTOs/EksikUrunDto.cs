@@ -16,3 +16,5 @@ namespace _3K.Application.Features.SandikIslemleri.DTOs
         public string SandikNo { get; set; } = string.Empty;
     }
 }
+
+

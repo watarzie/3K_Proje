@@ -19,3 +19,5 @@ namespace _3K.Application.Features.CekiIslemleri.DTOs
         public int EksikAdet { get; set; }
     }
 }
+
+

@@ -51,7 +51,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 if (sandik.DurumId == (int)SandikDurum.Sevkedildi)
                 {
                     // Sevk öncesi durum varsa ona dön, yoksa Hazır'a dön
-                    sandik.DurumId = sandik.SevkOncesiDurumId ?? (int)SandikDurum.Hazir;
+                    sandik.DurumId = sandik.SevkOncesiDurumId ?? (int)SandikDurum.Kapandi;
                     sandik.SevkOncesiDurumId = null; // Temizle
                     sandikRepo.Update(sandik);
                     geriDondurulenSandik++;

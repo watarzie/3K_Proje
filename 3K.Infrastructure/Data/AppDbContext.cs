@@ -442,7 +442,7 @@ namespace _3K.Infrastructure.Data
             modelBuilder.Entity<LookupSandikDurum>().HasData(
                 new LookupSandikDurum { Id = 1, Anahtar = 1, Deger = "Boş" },
                 new LookupSandikDurum { Id = 2, Anahtar = 2, Deger = "Hazırlanıyor" },
-                new LookupSandikDurum { Id = 3, Anahtar = 3, Deger = "Hazır" },
+                new LookupSandikDurum { Id = 3, Anahtar = 3, Deger = "Kapandı" },
                 new LookupSandikDurum { Id = 4, Anahtar = 4, Deger = "Sevk Edildi" }
             );
 

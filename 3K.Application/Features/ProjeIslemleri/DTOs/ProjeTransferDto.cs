@@ -12,3 +12,5 @@ namespace _3K.Application.Features.ProjeIslemleri.DTOs
         public DateTime Tarih { get; set; }
     }
 }
+
+

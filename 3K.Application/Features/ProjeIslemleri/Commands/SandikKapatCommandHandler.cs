@@ -29,7 +29,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             if (sandik == null)
                 return Result<bool>.Failure("Sandık bulunamadı.", 404);
             
-            int yeniDurumId = request.Kapali ? (int)SandikDurum.Hazir : (int)SandikDurum.Hazirlaniyor;
+            int yeniDurumId = request.Kapali ? (int)SandikDurum.Kapandi : (int)SandikDurum.Hazirlaniyor;
             
             if (sandik.DurumId != yeniDurumId)
             {

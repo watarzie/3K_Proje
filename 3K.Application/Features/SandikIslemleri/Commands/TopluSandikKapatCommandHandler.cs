@@ -55,7 +55,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 var sandik = await sandikRepo.GetByIdAsync(sandikId);
                 if (sandik == null) continue;
 
-                if (sandik.DurumId == (int)SandikDurum.Hazir)
+                if (sandik.DurumId == (int)SandikDurum.Kapandi)
                 {
                     continue; // Zaten kapalı
                 }
@@ -119,13 +119,13 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             foreach (var s in islenecekler)
             {
-                if (s.DurumId != (int)SandikDurum.Hazir)
+                if (s.DurumId != (int)SandikDurum.Kapandi)
                 {
                     var eskiDurumId = s.DurumId;
                     var eskiDurumMetni = Enum.GetName(typeof(SandikDurum), eskiDurumId) ?? eskiDurumId.ToString();
-                    var yeniDurumMetni = Enum.GetName(typeof(SandikDurum), SandikDurum.Hazir) ?? "Hazir";
+                    var yeniDurumMetni = Enum.GetName(typeof(SandikDurum), SandikDurum.Kapandi) ?? "Hazir";
 
-                    s.DurumId = (int)SandikDurum.Hazir;
+                    s.DurumId = (int)SandikDurum.Kapandi;
                     sandikRepo.Update(s);
 
                     await _hareketService.HareketKaydetAsync(new HareketGecmisi

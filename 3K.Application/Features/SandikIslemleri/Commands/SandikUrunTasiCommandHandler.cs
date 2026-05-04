@@ -105,7 +105,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             // Hedef sandık durumunu güncelle
             var hedefEskiDurumId = hedefSandik.DurumId;
 
-            if (hedefSandik.DurumId == (int)SandikDurum.Bos || hedefSandik.DurumId == (int)SandikDurum.Hazir)
+            if (hedefSandik.DurumId == (int)SandikDurum.Bos || hedefSandik.DurumId == (int)SandikDurum.Kapandi)
             {
                 hedefSandik.DurumId = (int)SandikDurum.Hazirlaniyor;
                 sandikRepo.Update(hedefSandik);
@@ -115,7 +115,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             await _unitOfWork.SaveChangesAsync();
 
-            if (hedefEskiDurumId == (int)SandikDurum.Hazir && hedefSandik.DurumId == (int)SandikDurum.Hazirlaniyor)
+            if (hedefEskiDurumId == (int)SandikDurum.Kapandi && hedefSandik.DurumId == (int)SandikDurum.Hazirlaniyor)
             {
                 var eskiDurumMetni = Enum.GetName(typeof(SandikDurum), hedefEskiDurumId) ?? "Hazir";
                 var yeniDurumMetni = Enum.GetName(typeof(SandikDurum), hedefSandik.DurumId) ?? "Hazirlaniyor";

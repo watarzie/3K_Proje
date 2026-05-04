@@ -39,6 +39,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             {
                 ProjeId = request.ProjeId,
                 SandikNo = request.SandikNo,
+                Ad = request.SandikIsmi,
                 TipId = request.TipId,
                 DurumId = (int)SandikDurum.Bos,
                 DepoLokasyonId = request.DepoLokasyonId,

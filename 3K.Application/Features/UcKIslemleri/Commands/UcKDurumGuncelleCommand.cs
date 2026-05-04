@@ -83,3 +83,5 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
         public int? StokKaydiId { get; set; }
     }
 }
+
+

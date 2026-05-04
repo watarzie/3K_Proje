@@ -21,7 +21,7 @@ namespace _3K.Application.Features.StokIslemleri.Validators
             RuleFor(x => x.MalzemeAdi).NotEmpty().WithMessage("Malzeme adı boş olamaz.");
             RuleFor(x => x.KaynakProje).NotEmpty().WithMessage("Malzemenin artan/iade olduğu kaynak proje adı zorunludur.");
             RuleFor(x => x.Miktar).GreaterThan(0).WithMessage("Miktar 0'dan büyük olmalı.");
-            RuleFor(x => x.Birim).NotEmpty().WithMessage("Birim boş olamaz.");
+            RuleFor(x => x.BirimId).NotEmpty().WithMessage("Birim boş olamaz.");
             RuleFor(x => x.StokGirisNedeni).NotEmpty().WithMessage("Stok giriş nedeni zorunludur.");
         }
     }
@@ -34,7 +34,7 @@ namespace _3K.Application.Features.StokIslemleri.Validators
             RuleFor(x => x.MalzemeAdi).NotEmpty().WithMessage("Malzeme adı boş olamaz.");
             RuleFor(x => x.KaynakProje).NotEmpty().WithMessage("Kaynak proje adı zorunludur.");
             RuleFor(x => x.Miktar).GreaterThanOrEqualTo(0).WithMessage("Miktar negatif olamaz.");
-            RuleFor(x => x.Birim).NotEmpty().WithMessage("Birim boş olamaz.");
+            RuleFor(x => x.BirimId).NotEmpty().WithMessage("Birim boş olamaz.");
             RuleFor(x => x.StokGirisNedeni).NotEmpty().WithMessage("Stok giriş nedeni zorunludur.");
         }
     }

@@ -56,5 +56,15 @@ namespace _3K_API.Controllers
             var result = await _mediator.Send(command);
             return result.ToActionResult();
         }
+
+        /// <summary>
+        /// Grid tarafında manuel ürün ekler.
+        /// </summary>
+        [HttpPost("manuel-urun-ekle")]
+        public async Task<ActionResult> ManuelUrunEkle([FromBody] GridManuelUrunEkleCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
     }
 }

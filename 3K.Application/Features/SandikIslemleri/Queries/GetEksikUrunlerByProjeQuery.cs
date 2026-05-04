@@ -26,3 +26,5 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
         public string ProjeNo { get; set; } = string.Empty;
     }
 }
+
+

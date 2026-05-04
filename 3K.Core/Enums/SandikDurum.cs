@@ -7,7 +7,7 @@ namespace _3K.Core.Enums
     {
         Bos = 1,
         Hazirlaniyor = 2,
-        Hazir = 3,
+        Kapandi = 3,
         Sevkedildi = 4
     }
 }

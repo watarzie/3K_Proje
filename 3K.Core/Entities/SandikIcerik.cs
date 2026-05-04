@@ -40,7 +40,11 @@ namespace _3K.Core.Entities
         /// <summary>
         /// Miktar (decimal). CekiSatiriId null olan kayıtlarda zorunludur.
         /// </summary>
-        public decimal Miktar { get; set; }
+        public int Miktar { get; set; }
+        /// <summary>
+        /// Malzeme eklerken kullanıcının gireceği ekstra açıklama / neden alanı.
+        /// </summary>
+        public string? Aciklama { get; set; }
         /// <summary>
         /// Madde 7: Birim artık Enum tabanlı. Opsiyonel (çeki satırına bağlı ise CekiSatiri.BirimId kullanılır).
         /// </summary>
@@ -58,5 +62,7 @@ namespace _3K.Core.Entities
         public virtual LookupBirim? BirimLookup { get; set; }
     }
 }
+
+
 
 

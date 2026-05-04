@@ -21,7 +21,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             if (sandik == null)
                 return Result.Failure("Sandık bulunamadı", 404);
-
+            sandik.Ad = request.SandikIsmi;
             sandik.En = request.En;
             sandik.Boy = request.Boy;
             sandik.Yukseklik = request.Yukseklik;

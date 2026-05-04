@@ -22,3 +22,4 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         public int KullaniciId { get; set; }
     }
 }
+

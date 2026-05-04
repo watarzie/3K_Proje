@@ -4,6 +4,8 @@ using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Drawing.Spreadsheet;
 
 namespace _3K.Infrastructure.Services
 {
@@ -33,7 +35,9 @@ namespace _3K.Infrastructure.Services
             Ceki? ceki = null;
 
             // Dosyayı hafızaya sadece 1 KERE alıyoruz
-            using (var excelStream = new MemoryStream(dosyaBytes))
+            // ClosedXML resim adlarında özel karakter kabul etmiyor — önce temizle
+            var cleanedBytes = SanitizePictureNames(dosyaBytes);
+            using (var excelStream = new MemoryStream(cleanedBytes))
             using (var workbook = new XLWorkbook(excelStream))
             {
                 string NormalizeName(string name)
@@ -150,6 +154,9 @@ namespace _3K.Infrastructure.Services
                 var cekiSatiriRepo = _unitOfWork.GetRepository<CekiSatiri>();
                 var satirlar = new List<CekiSatiri>();
 
+                // Sandık ismi eşleştirmesi: koliNo → sandıkIsmi
+                var sandikIsimleri = new Dictionary<string, string>();
+
                 int baslangicSatir = 6;
                 for (int r = 1; r <= 20; r++)
                 {
@@ -209,6 +216,31 @@ namespace _3K.Infrastructure.Services
 
                     var remarks = row.Cell(13).GetString().Trim();
 
+                    // SANDIK İSMİ — son anlamlı sütundan oku (sütun 14+)
+                    var sandikIsmi = string.Empty;
+                    for (int c = 14; c <= 20; c++)
+                    {
+                        var hdr = worksheet.Cell(baslangicSatir - 1, c).GetString().Trim().ToUpper();
+                        if (hdr.Contains("SANDIK") && (hdr.Contains("İSMİ") || hdr.Contains("ISMI") || hdr.Contains("DESCRIPTION")))
+                        {
+                            sandikIsmi = row.Cell(c).GetString().Trim();
+                            break;
+                        }
+                        // Başlığı bulamazsak son sütunu kontrol et
+                        var val = row.Cell(c).GetString().Trim();
+                        if (!string.IsNullOrWhiteSpace(val) && c >= 14)
+                        {
+                            sandikIsmi = val;
+                        }
+                    }
+
+                    // Sandık ismi eşleştirmesi — ilk görülen ismi kaydet
+                    if (!string.IsNullOrWhiteSpace(koliNo) && !string.IsNullOrWhiteSpace(sandikIsmi))
+                    {
+                        if (!sandikIsimleri.ContainsKey(koliNo))
+                            sandikIsimleri[koliNo] = sandikIsmi;
+                    }
+
                     var satir = new CekiSatiri
                     {
                         CekiId = ceki.Id,
@@ -243,6 +275,7 @@ namespace _3K.Infrastructure.Services
                     {
                         ProjeId = proje.Id,
                         SandikNo = grup.Key,
+                        Ad = sandikIsimleri.TryGetValue(grup.Key, out var isim) ? isim : null,
                         DurumId = (int)SandikDurum.Hazirlaniyor
                     };
                     await sandikRepo.AddAsync(sandik);
@@ -290,6 +323,82 @@ namespace _3K.Infrastructure.Services
                 .Where(c => c.ProjeId == projeId)
                 .OrderByDescending(c => c.YuklemeTarihi)
                 .ToListAsync();
+        }
+
+        /// <summary>
+        /// ClosedXML resim adlarında :\/?*[] karakterlerini kabul etmiyor.
+        /// OpenXML ile resim adlarını temizler, sorunsuz yükleme sağlar.
+        /// </summary>
+        private static byte[] SanitizePictureNames(byte[] fileBytes)
+        {
+            var invalidChars = new[] { ':', '\\', '/', '?', '*', '[', ']' };
+
+            using var stream = new MemoryStream();
+            stream.Write(fileBytes, 0, fileBytes.Length);
+            stream.Position = 0;
+
+            try
+            {
+                using var doc = SpreadsheetDocument.Open(stream, true);
+                var workbookPart = doc.WorkbookPart;
+                if (workbookPart == null) return fileBytes;
+
+                foreach (var wsPart in workbookPart.WorksheetParts)
+                {
+                    var drawingsPart = wsPart.DrawingsPart;
+                    if (drawingsPart == null) continue;
+
+                    var wsDr = drawingsPart.WorksheetDrawing;
+                    if (wsDr == null) continue;
+
+                    bool changed = false;
+                    foreach (var anchor in wsDr.Descendants<TwoCellAnchor>())
+                    {
+                        var pic = anchor.Descendants<DocumentFormat.OpenXml.Drawing.Spreadsheet.Picture>().FirstOrDefault();
+                        if (pic?.NonVisualPictureProperties?.NonVisualDrawingProperties != null)
+                        {
+                            var nvProps = pic.NonVisualPictureProperties.NonVisualDrawingProperties;
+                            var name = nvProps.Name?.Value;
+                            if (!string.IsNullOrEmpty(name) && name.IndexOfAny(invalidChars) >= 0)
+                            {
+                                foreach (var ch in invalidChars)
+                                    name = name.Replace(ch, '_');
+                                nvProps.Name = name;
+                                changed = true;
+                            }
+                        }
+                    }
+
+                    // OneCellAnchor'daki resimleri de temizle
+                    foreach (var anchor in wsDr.Descendants<OneCellAnchor>())
+                    {
+                        var pic = anchor.Descendants<DocumentFormat.OpenXml.Drawing.Spreadsheet.Picture>().FirstOrDefault();
+                        if (pic?.NonVisualPictureProperties?.NonVisualDrawingProperties != null)
+                        {
+                            var nvProps = pic.NonVisualPictureProperties.NonVisualDrawingProperties;
+                            var name = nvProps.Name?.Value;
+                            if (!string.IsNullOrEmpty(name) && name.IndexOfAny(invalidChars) >= 0)
+                            {
+                                foreach (var ch in invalidChars)
+                                    name = name.Replace(ch, '_');
+                                nvProps.Name = name;
+                                changed = true;
+                            }
+                        }
+                    }
+
+                    if (changed) wsDr.Save();
+                }
+
+                doc.Save();
+                stream.Position = 0;
+                return stream.ToArray();
+            }
+            catch
+            {
+                // OpenXML ile açılamazsa orijinal byte'ları dön
+                return fileBytes;
+            }
         }
 
         /// <summary>

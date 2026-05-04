@@ -57,13 +57,13 @@ namespace _3K.Infrastructure.Services
             return await _context.StokKayitlari.FindAsync(stokKaydiId);
         }
 
-        public async Task<bool> StokYeterliMi(int stokKaydiId, int miktar)
+        public async Task<bool> StokYeterliMi(int stokKaydiId, decimal miktar)
         {
             var stok = await _context.StokKayitlari.FindAsync(stokKaydiId);
             return stok != null && stok.Miktar >= miktar;
         }
 
-        public async Task<bool> StokDusAsync(int stokKaydiId, int miktar)
+        public async Task<bool> StokDusAsync(int stokKaydiId, decimal miktar)
         {
             var repo = _unitOfWork.GetRepository<StokKaydi>();
             var stok = await repo.GetByIdAsync(stokKaydiId);

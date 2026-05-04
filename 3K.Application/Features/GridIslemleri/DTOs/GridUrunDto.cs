@@ -45,3 +45,5 @@ namespace _3K.Application.Features.GridIslemleri.DTOs
         public string GenelDurumMetni { get; set; } = string.Empty;
     }
 }
+
+

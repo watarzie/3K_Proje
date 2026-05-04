@@ -199,9 +199,9 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                     s.ProjeId == ceki.ProjeId && s.SandikNo == sandikNo);
                 var sandik = sandiklar.FirstOrDefault();
 
-                if (sandik != null && sandik.DurumId != (int)SandikDurum.Hazir)
+                if (sandik != null && sandik.DurumId != (int)SandikDurum.Kapandi)
                 {
-                    sandik.DurumId = (int)SandikDurum.Hazir;
+                    sandik.DurumId = (int)SandikDurum.Kapandi;
                     sandikRepo.Update(sandik);
                     await _unitOfWork.SaveChangesAsync();
 
@@ -214,7 +214,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                         Islem = "Sandık Otomatik Hazır",
                         IslemTipiId = (int)IslemTipi.SandikOtomatikHazirlandi,
                         EskiDeger = ((int)SandikDurum.Hazirlaniyor).ToString(),
-                        YeniDeger = ((int)SandikDurum.Hazir).ToString(),
+                        YeniDeger = ((int)SandikDurum.Kapandi).ToString(),
                         Aciklama = $"Sandık {sandikNo} içindeki tüm ürünler tamamlandı."
                     });
                 }

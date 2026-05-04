@@ -47,7 +47,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 return new SandikKapatResult { IsSuccess = false, Message = "Sandık bulunamadı." };
             }
 
-            if (sandik.DurumId == (int)SandikDurum.Hazir)
+            if (sandik.DurumId == (int)SandikDurum.Kapandi)
             {
                 return new SandikKapatResult { IsSuccess = false, Message = "Sandık zaten kapalı (Hazır) durumdadır." };
             }
@@ -96,11 +96,11 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             var eskiDurumMetni = Enum.GetName(typeof(SandikDurum), eskiDurumId) ?? eskiDurumId.ToString();
 
             // Kapat (Eksik yok, ya da ForceClose = true)
-            sandik.DurumId = (int)SandikDurum.Hazir;
+            sandik.DurumId = (int)SandikDurum.Kapandi;
             sandikRepo.Update(sandik);
             await _unitOfWork.SaveChangesAsync();
 
-            var yeniDurumMetni = Enum.GetName(typeof(SandikDurum), SandikDurum.Hazir) ?? "Hazir";
+            var yeniDurumMetni = Enum.GetName(typeof(SandikDurum), SandikDurum.Kapandi) ?? "Hazir";
 
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {

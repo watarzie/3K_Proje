@@ -8,6 +8,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         public string[] RequiredRoles => Array.Empty<string>();
 
         public int SandikId { get; set; }
+        public string? SandikIsmi { get; set; }
         public decimal? En { get; set; }
         public decimal? Boy { get; set; }
         public decimal? Yukseklik { get; set; }

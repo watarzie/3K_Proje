@@ -1,0 +1,107 @@
+using MediatR;
+using _3K.Core.Enums;
+using _3K.Application.Common;
+using _3K.Core.Entities;
+using _3K.Core.Interfaces;
+
+namespace _3K.Application.Features.UcKIslemleri.Commands
+{
+    public class UcKTopluTedarikciCommandHandler : IRequestHandler<UcKTopluTedarikciCommand, Result>
+    {
+        private readonly IUnitOfWork _unitOfWork;
+        private readonly ICurrentUserService _currentUserService;
+        private readonly IDurumHesaplaService _durumHesaplaService;
+        private readonly IHareketService _hareketService;
+
+        public UcKTopluTedarikciCommandHandler(
+            IUnitOfWork unitOfWork,
+            ICurrentUserService currentUserService,
+            IDurumHesaplaService durumHesaplaService,
+            IHareketService hareketService)
+        {
+            _unitOfWork = unitOfWork;
+            _currentUserService = currentUserService;
+            _durumHesaplaService = durumHesaplaService;
+            _hareketService = hareketService;
+        }
+
+        public async Task<Result> Handle(UcKTopluTedarikciCommand request, CancellationToken cancellationToken)
+        {
+            if (request.CekiSatiriIdler == null || !request.CekiSatiriIdler.Any())
+                return Result.Failure("En az bir ürün seçilmelidir.");
+
+            var repo = _unitOfWork.GetRepository<CekiSatiri>();
+            var sandikIcerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
+            var basarili = 0;
+            var hatalar = new List<string>();
+
+            foreach (var cekiSatiriId in request.CekiSatiriIdler)
+            {
+                var satir = await repo.GetByIdAsync(cekiSatiriId);
+                if (satir == null) { hatalar.Add($"ID {cekiSatiriId}: Ürün bulunamadı."); continue; }
+
+                // Grid blokaj kontrolleri
+                if (satir.GridDurumuId == (int)GridDurum.Iptal ||
+                    satir.GridDurumuId == (int)GridDurum.GridKapandi ||
+                    satir.GridDurumuId == (int)GridDurum.TrafoSevk)
+                { hatalar.Add($"ID {cekiSatiriId}: Grid durumu uygun değil."); continue; }
+
+                // Kalan miktarı hesapla
+                var kalan = satir.KalanMiktar;
+                if (kalan <= 0) continue; // Zaten tamamlanmış, atla
+
+                var eskiDurum = satir.UcKKarsilamaTipiId;
+
+                // Tedarikçiden Geldi mantığı — kalan miktar kadar karşıla
+                satir.KarsilananMiktar += kalan;
+                satir.TedarikciKarsilanan += kalan;
+                satir.UcKKarsilamaTipiId = (int)UcKDurum.TedarikcidenGeldi;
+                satir.UcKDurumuId = (int)UcKDurum.TedarikcidenGeldi;
+                satir.TeslimTarihi = DateTime.UtcNow;
+                satir.UcKAciklama = request.Aciklama;
+
+                // Genel durumu hesapla
+                satir.DurumId = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumuId, satir.UcKDurumuId);
+                _durumHesaplaService.HesaplaKalanVeDurum(satir);
+
+                repo.Update(satir);
+
+                // Sandık İçerik Senkronizasyonu
+                var ilgiliIcerikler = await sandikIcerikRepo.FindAsync(x => x.CekiSatiriId == satir.Id);
+                if (ilgiliIcerikler.Any())
+                {
+                    var anaIcerik = ilgiliIcerikler.First();
+                    var toplam = satir.GelenMiktar + satir.KarsilananMiktar;
+                    anaIcerik.KonulanAdet = toplam;
+                    anaIcerik.StokKarsilanan = satir.StokKarsilanan;
+                    anaIcerik.ProjeKarsilanan = satir.ProjeKarsilanan;
+                    anaIcerik.TedarikciKarsilanan = satir.TedarikciKarsilanan;
+                    sandikIcerikRepo.Update(anaIcerik);
+                }
+
+                basarili++;
+
+                // Hareket kaydı
+                await _hareketService.HareketKaydetAsync(new HareketGecmisi
+                {
+                    ProjeId = request.ProjeId,
+                    KullaniciId = _currentUserService.UserId ?? 0,
+                    ReferansTipi = "CekiSatiri",
+                    ReferansId = satir.Id.ToString(),
+                    Islem = "Toplu Tedarikçiden Karşılandı",
+                    IslemTipiId = (int)IslemTipi.UcKDurumGuncellendi,
+                    EskiDeger = eskiDurum.ToString(),
+                    YeniDeger = ((int)UcKDurum.TedarikcidenGeldi).ToString(),
+                    Aciklama = $"Toplu Tedarikçi — {kalan} adet — {(string.IsNullOrWhiteSpace(request.Aciklama) ? "Açıklama yok" : request.Aciklama)}"
+                });
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+
+            if (hatalar.Any())
+                return Result.Failure($"{basarili} ürün güncellendi, {hatalar.Count} hata: {string.Join("; ", hatalar.Take(3))}");
+
+            return Result.Success();
+        }
+    }
+}

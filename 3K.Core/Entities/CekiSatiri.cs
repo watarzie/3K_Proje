@@ -169,8 +169,8 @@ namespace _3K.Core.Entities
         {
             get
             {
-                // Grid Kapandı → kalan 0
-                if (GridDurumuId == (int)GridDurum.GridKapandi) return 0;
+                // Grid Kapandı veya İptal → kalan 0
+                if (GridDurumuId == (int)GridDurum.GridKapandi || GridDurumuId == (int)GridDurum.Iptal) return 0;
                 var kalan = IstenenAdet - GelenMiktar - StokKarsilanan - ProjeKarsilanan - TedarikciKarsilanan - TrafoSevkAdet;
                 // İŞ KURALI: Hatalı ürün veya Hatalı/Uyumsuz Gönderim varsa kalan en az 1
                 if ((HataliMiktar > 0 || DurumId == (int)UrunDurum.HataliUyumsuzGonderim) && kalan <= 0) return 1;
@@ -193,3 +193,5 @@ namespace _3K.Core.Entities
         public virtual ICollection<StokHareketi> StokHareketleri { get; set; } = new List<StokHareketi>();
     }
 }
+
+

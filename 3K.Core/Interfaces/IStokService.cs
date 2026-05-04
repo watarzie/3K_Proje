@@ -10,8 +10,8 @@ namespace _3K.Core.Interfaces
     {
         Task<IEnumerable<StokKaydi>> GetUygunStoklarAsync(string? searchTerm = null);
         Task<StokKaydi?> GetStokByIdAsync(int stokKaydiId);
-        Task<bool> StokYeterliMi(int stokKaydiId, int miktar);
-        Task<bool> StokDusAsync(int stokKaydiId, int miktar);
+        Task<bool> StokYeterliMi(int stokKaydiId, decimal miktar);
+        Task<bool> StokDusAsync(int stokKaydiId, decimal miktar);
         Task<StokKaydi> StokKaydiOlusturAsync(StokKaydi stokKaydi);
         Task<IEnumerable<StokKaydi>> GetTumStoklarAsync();
         

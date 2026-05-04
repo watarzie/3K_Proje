@@ -14,6 +14,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
         public int ProjeId { get; set; }
         public string SandikNo { get; set; } = string.Empty;
+        public string? SandikIsmi { get; set; }
         public int TipId { get; set; } = (int)SandikTipi.AhsapKapali;
         public int DepoLokasyonId { get; set; } = (int)DepoLokasyon.Belirsiz;
 

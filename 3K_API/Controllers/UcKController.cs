@@ -46,5 +46,25 @@ namespace _3K_API.Controllers
             var result = await _mediator.Send(command);
             return result.ToActionResult();
         }
+
+        /// <summary>
+        /// Seçili ürünleri toplu olarak "Sevk Adeti Tam Geldi" olarak işaretler.
+        /// </summary>
+        [HttpPost("toplu-tam-geldi")]
+        public async Task<ActionResult> TopluTamGeldi([FromBody] UcKTopluTamGeldiCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
+        /// <summary>
+        /// Seçili ürünleri toplu olarak "Tedarikçiden Geldi" olarak işaretler.
+        /// </summary>
+        [HttpPost("toplu-tedarikci")]
+        public async Task<ActionResult> TopluTedarikci([FromBody] UcKTopluTedarikciCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
     }
 }

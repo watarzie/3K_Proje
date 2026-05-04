@@ -28,7 +28,7 @@ namespace _3K.Application.Features.StokIslemleri.Commands
             stok.MalzemeKodu = request.MalzemeKodu ?? string.Empty;
             stok.MalzemeAdi = request.MalzemeAdi;
             stok.Miktar = request.Miktar;
-            stok.Birim = request.Birim ?? string.Empty;
+            stok.BirimId = request.BirimId;
             stok.Lokasyon = request.Lokasyon;
             stok.KaynakProje = request.KaynakProje;
             stok.StokGirisNedeni = request.StokGirisNedeni;

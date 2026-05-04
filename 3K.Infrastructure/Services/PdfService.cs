@@ -685,10 +685,7 @@ namespace _3K.Infrastructure.Services
                 .Include(cs => cs.UcKDurumLookup)
                 .Include(cs => cs.DurumLookup)
                 .Include(cs => cs.GeriGonderilmeSebebiLookup)
-                .Where(cs => cs.Ceki.ProjeId == projeId
-                    && (cs.GridDurumuId == (int)_3K.Core.Enums.GridDurum.EksikGeldi
-                        || cs.GridDurumuId == (int)_3K.Core.Enums.GridDurum.Gelmedi)
-                )
+                .Where(cs => cs.Ceki.ProjeId == projeId)
                 .OrderBy(cs => cs.SiraNo)
                 .ToListAsync();
 
@@ -1014,7 +1011,7 @@ namespace _3K.Infrastructure.Services
                             DataCell(table.Cell(), s.MalzemeKodu ?? "-");
                             DataCell(table.Cell(), s.MalzemeAdi ?? "-");
                             DataCell(table.Cell(), s.Miktar.ToString(), bold: true);
-                            DataCell(table.Cell(), s.Birim ?? "-");
+                            DataCell(table.Cell(), ((_3K.Core.Enums.Birim)s.BirimId).ToString());
                             DataCell(table.Cell(), s.Lokasyon ?? "-");
                             DataCell(table.Cell(), s.KaynakProje ?? "-");
                             DataCell(table.Cell(), s.StokGirisNedeni ?? "-");

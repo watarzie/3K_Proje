@@ -38,8 +38,8 @@ namespace _3K.Application.Features.StokIslemleri.Commands
             var icerik = icerikler.FirstOrDefault();
             if (icerik != null)
             {
-                icerik.EksikAdet = Math.Max(0, icerik.EksikAdet - request.Miktar);
-                icerik.KonulanAdet += request.Miktar;
+                icerik.EksikAdet = Math.Max(0, icerik.EksikAdet - (int)request.Miktar);
+                icerik.KonulanAdet += (int)request.Miktar;
                 sandikIcerikRepo.Update(icerik);
             }
 

@@ -36,7 +36,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
 
                 var toplamSandik = sandiklar.Count;
                 var hazirSandik = sandiklar.Count(s => 
-                    s.DurumId == (int)SandikDurum.Hazir || 
+                    s.DurumId == (int)SandikDurum.Kapandi || 
                     s.DurumId == (int)SandikDurum.Sevkedildi);
                 var isSahaYedek = p.ProjeTipiId == (int)ProjeTipi.Saha || p.ProjeTipiId == (int)ProjeTipi.Yedek;
                 

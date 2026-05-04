@@ -23,7 +23,7 @@ namespace _3K.Application.Features.StokIslemleri.Commands
                 MalzemeKodu = request.MalzemeKodu,
                 MalzemeAdi = request.MalzemeAdi,
                 Miktar = request.Miktar,
-                Birim = request.Birim,
+                BirimId = request.BirimId,
                 Lokasyon = request.Lokasyon,
                 KaynakProje = request.KaynakProje,
                 StokGirisNedeni = request.StokGirisNedeni
@@ -35,7 +35,8 @@ namespace _3K.Application.Features.StokIslemleri.Commands
                 MalzemeKodu = stok.MalzemeKodu,
                 MalzemeAdi = stok.MalzemeAdi,
                 Miktar = stok.Miktar,
-                Birim = stok.Birim,
+                BirimId = stok.BirimId,
+                BirimMetni = ((Birim)stok.BirimId).ToString(),
                 Lokasyon = stok.Lokasyon,
                 KaynakProje = stok.KaynakProje,
                 StokGirisNedeni = stok.StokGirisNedeni,

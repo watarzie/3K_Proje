@@ -24,3 +24,5 @@ namespace _3K.Core.Entities
         public virtual Kullanici Kullanici { get; set; } = null!;
     }
 }
+
+

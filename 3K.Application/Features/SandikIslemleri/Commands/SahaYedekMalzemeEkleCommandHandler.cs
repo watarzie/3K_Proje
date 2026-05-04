@@ -45,7 +45,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 BirimId = request.BirimId,
                 KonulanAdet = (int)request.Miktar,
                 EksikAdet = 0,
-                KaynakProjeNo = request.KaynakProjeNo
+                KaynakProjeNo = request.KaynakProjeNo,
+                Aciklama = request.Aciklama
             };
 
             await icerikRepo.AddAsync(icerik);

@@ -22,19 +22,69 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             var cekiSatiriRepo = _unitOfWork.GetRepository<CekiSatiri>();
             var sandikIcerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
 
-            var urun = await cekiSatiriRepo.GetByIdAsync(request.CekiSatiriId);
+            CekiSatiri? urun = null;
+            SandikIcerik? icerik = null;
+
+            // ===== Saha/Yedek (CekiSatiriId yok) → SandikIcerikId ile bul =====
+            if (!request.CekiSatiriId.HasValue || request.CekiSatiriId.Value == 0)
+            {
+                if (request.SandikIcerikId.HasValue && request.SandikIcerikId.Value > 0)
+                {
+                    icerik = await sandikIcerikRepo.GetByIdAsync(request.SandikIcerikId.Value);
+                }
+                if (icerik == null)
+                    return Result.Failure("Sandık içeriği bulunamadı.", 404);
+
+                // KonulanAdet güncelle
+                if (request.KonulanAdet.HasValue) icerik.KonulanAdet = request.KonulanAdet.Value;
+                if (request.EksikAdet.HasValue) icerik.EksikAdet = request.EksikAdet.Value;
+                sandikIcerikRepo.Update(icerik);
+
+                // Sandık durumu kontrolü (CekiSatiri olmadan basit kontrol)
+                var sandikRepo = _unitOfWork.GetRepository<Sandik>();
+                var sandik = await sandikRepo.GetByIdAsync(request.SandikId);
+                if (sandik != null)
+                {
+                    var tumIcerikler = await sandikIcerikRepo.FindAsync(si => si.SandikId == request.SandikId);
+                    var enAzBiriKonuldu = tumIcerikler.Any(si => si.KonulanAdet > 0);
+
+                    if (enAzBiriKonuldu && sandik.DurumId == (int)SandikDurum.Bos)
+                    {
+                        sandik.DurumId = (int)SandikDurum.Hazirlaniyor;
+                        sandikRepo.Update(sandik);
+                    }
+                }
+
+                await _unitOfWork.SaveChangesAsync();
+
+                await _hareketService.HareketKaydetAsync(new HareketGecmisi
+                {
+                    ProjeId = request.ProjeId,
+                    ReferansTipi = "SandikIcerik",
+                    ReferansId = icerik.Id.ToString(),
+                    Islem = "Ürün Adet Güncellendi",
+                    IslemTipiId = (int)IslemTipi.UrunGuncellendi,
+                    KullaniciId = request.KullaniciId,
+                    Aciklama = $"Konulan: {icerik.KonulanAdet}, Eksik: {icerik.EksikAdet}"
+                });
+
+                return Result.Success();
+            }
+
+            // ===== Normal proje akışı (CekiSatiriId var) =====
+            urun = await cekiSatiriRepo.GetByIdAsync(request.CekiSatiriId.Value);
             if (urun == null) return Result.Failure("Ürün bulunamadı.", 404);
 
             var icerikler = await sandikIcerikRepo.FindAsync(si =>
-                si.CekiSatiriId == request.CekiSatiriId && si.SandikId == request.SandikId);
-            var icerik = icerikler.FirstOrDefault();
+                si.CekiSatiriId == request.CekiSatiriId.Value && si.SandikId == request.SandikId);
+            icerik = icerikler.FirstOrDefault();
 
             if (icerik == null)
             {
                 icerik = new SandikIcerik
                 {
                     SandikId = request.SandikId,
-                    CekiSatiriId = request.CekiSatiriId,
+                    CekiSatiriId = request.CekiSatiriId.Value,
                     KonulanAdet = 0,
                     EksikAdet = 0
                 };
@@ -64,17 +114,17 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             cekiSatiriRepo.Update(urun);
 
             // Sandık durumu ve lokasyon otomasyonu
-            var sandikRepo = _unitOfWork.GetRepository<Sandik>();
-            var sandik = await sandikRepo.GetByIdAsync(request.SandikId);
-            if (sandik != null)
+            var sandikRepo2 = _unitOfWork.GetRepository<Sandik>();
+            var sandik2 = await sandikRepo2.GetByIdAsync(request.SandikId);
+            if (sandik2 != null)
             {
                 if (request.UcKDurumuId.HasValue && request.UcKDurumuId.Value != (int)UcKDurum.Bekliyor)
-                    sandik.DepoLokasyonId = (int)DepoLokasyon.UcK;
+                    sandik2.DepoLokasyonId = (int)DepoLokasyon.UcK;
                 else if (request.GridDurumuId.HasValue && request.GridDurumuId.Value != (int)GridDurum.Bekliyor)
-                    sandik.DepoLokasyonId = (int)DepoLokasyon.Grid;
+                    sandik2.DepoLokasyonId = (int)DepoLokasyon.Grid;
 
-                var tumIcerikler = await sandikIcerikRepo.FindAsync(si => si.SandikId == request.SandikId);
-                var tumUrunIds = tumIcerikler.Where(si => si.CekiSatiriId.HasValue).Select(si => si.CekiSatiriId!.Value).ToList();
+                var tumIcerikler2 = await sandikIcerikRepo.FindAsync(si => si.SandikId == request.SandikId);
+                var tumUrunIds = tumIcerikler2.Where(si => si.CekiSatiriId.HasValue).Select(si => si.CekiSatiriId!.Value).ToList();
 
                 bool hepsiTamamlandi = true;
                 bool enAzBiriKonuldu = false;
@@ -84,30 +134,29 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                     if (u != null)
                     {
                         if (u.DurumId != (int)UrunDurum.Tamamlandi) hepsiTamamlandi = false;
-                        var uIcerik = tumIcerikler.FirstOrDefault(si => si.CekiSatiriId == urunId);
+                        var uIcerik = tumIcerikler2.FirstOrDefault(si => si.CekiSatiriId == urunId);
                         if (uIcerik != null && uIcerik.KonulanAdet > 0) enAzBiriKonuldu = true;
                     }
                 }
 
-                var eskiDurumId = sandik.DurumId;
+                var eskiDurumId = sandik2.DurumId;
 
-                if (hepsiTamamlandi && tumUrunIds.Count > 0) sandik.DurumId = (int)SandikDurum.Hazir;
-                else if (enAzBiriKonuldu) sandik.DurumId = (int)SandikDurum.Hazirlaniyor;
-                else sandik.DurumId = (int)SandikDurum.Bos;
+                if (hepsiTamamlandi && tumUrunIds.Count > 0) sandik2.DurumId = (int)SandikDurum.Kapandi;
+                else if (enAzBiriKonuldu) sandik2.DurumId = (int)SandikDurum.Hazirlaniyor;
+                else sandik2.DurumId = (int)SandikDurum.Bos;
 
-                sandikRepo.Update(sandik);
+                sandikRepo2.Update(sandik2);
 
-                // Eğer sandık "Hazır" iken geri açıldıysa, hareket kaydı oluştur.
-                if (eskiDurumId == (int)SandikDurum.Hazir && sandik.DurumId != (int)SandikDurum.Hazir)
+                if (eskiDurumId == (int)SandikDurum.Kapandi && sandik2.DurumId != (int)SandikDurum.Kapandi)
                 {
                     var eskiDurumMetni = Enum.GetName(typeof(SandikDurum), eskiDurumId) ?? "Hazir";
-                    var yeniDurumMetni = Enum.GetName(typeof(SandikDurum), sandik.DurumId) ?? "Hazirlaniyor";
+                    var yeniDurumMetni = Enum.GetName(typeof(SandikDurum), sandik2.DurumId) ?? "Hazirlaniyor";
 
                     await _hareketService.HareketKaydetAsync(new HareketGecmisi
                     {
                         ProjeId = request.ProjeId,
                         ReferansTipi = "Sandik",
-                        ReferansId = sandik.Id.ToString(),
+                        ReferansId = sandik2.Id.ToString(),
                         Islem = "Sandık Geri Açıldı",
                         IslemTipiId = null,
                         EskiDeger = eskiDurumMetni,

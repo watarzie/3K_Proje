@@ -32,11 +32,7 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
 
             var tumSatirlar = await cekiSatiriRepo.FindAsync(cs => cekiIdler.Contains(cs.CekiId));
             var eksikler = tumSatirlar
-                .Where(cs =>
-                    (cs.GridDurumuId == (int)GridDurum.SevkEdildi || cs.GridDurumuId == (int)GridDurum.KismiSevkEdildi)
-                    && cs.UcKDurumuId != (int)UcKDurum.TamGeldi
-                    && cs.UcKDurumuId != (int)UcKDurum.Paketlendi
-                    && cs.UcKDurumuId != (int)UcKDurum.KontrolEdildi)
+                .Where(cs => cs.KalanMiktar > 0)
                 .OrderBy(cs => cs.SiraNo)
                 .Select(cs => new EksikUrunDto
                 {
