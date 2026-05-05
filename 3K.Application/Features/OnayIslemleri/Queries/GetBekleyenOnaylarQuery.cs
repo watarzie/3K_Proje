@@ -8,5 +8,6 @@ namespace _3K.Application.Features.OnayIslemleri.Queries
     {
         // Only Admin or managers with explicit role should fetch this
         public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin, StatusConstants.KullaniciRol.Yonetici };
+        public string? RequiredMenuKod => "islem-onay-merkezi";
     }
 }

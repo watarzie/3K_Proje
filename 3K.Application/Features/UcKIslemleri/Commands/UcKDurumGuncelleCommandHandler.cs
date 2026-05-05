@@ -13,6 +13,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
         private readonly IDurumHesaplaService _durumHesaplaService;
         private readonly IHareketService _hareketService;
         private readonly IStokService _stokService;
+        private readonly ILookupCacheService _lookupCache;
 
         private static readonly int[] GecerliTipler =
             { (int)UcKDurum.TamGeldi, (int)UcKDurum.EksikGeldi, (int)UcKDurum.Gelmedi, (int)UcKDurum.ProjedenKarsilandi, (int)UcKDurum.StoktanKarsilandi,
@@ -23,13 +24,15 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             ICurrentUserService currentUserService,
             IDurumHesaplaService durumHesaplaService,
             IHareketService hareketService,
-            IStokService stokService)
+            IStokService stokService,
+            ILookupCacheService lookupCache)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _durumHesaplaService = durumHesaplaService;
             _hareketService = hareketService;
             _stokService = stokService;
+            _lookupCache = lookupCache;
         }
 
         public async Task<Result> Handle(UcKDurumGuncelleCommand request, CancellationToken cancellationToken)
@@ -53,6 +56,14 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             // ===== Grid Trafo Sevk Blokajı =====
             if (satir.GridDurumuId == (int)GridDurum.TrafoSevk)
                 return Result.Failure("Bu ürün Grid tarafından 'Trafo Sevk' olarak işaretlendiğinden 3K işlemi yapılamaz.");
+
+            // ===== Kalite Tadilatta Blokajı =====
+            if (satir.KaliteDurumId.HasValue)
+            {
+                var kaliteMetni = _lookupCache.GetDeger<LookupKaliteDurum>(satir.KaliteDurumId.Value);
+                if (kaliteMetni == "Tadilatta")
+                    return Result.Failure("Bu ürün Kalite tarafından 'Tadilatta' olarak işaretlenmiş. 3K işlemi yapılamaz.");
+            }
 
             // ===== Grid Gelmedi → Sadece Projeden/Stoktan/Tedarikçiden =====
             if (satir.GridDurumuId == (int)GridDurum.Gelmedi)

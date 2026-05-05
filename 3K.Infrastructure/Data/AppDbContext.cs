@@ -44,6 +44,8 @@ namespace _3K.Infrastructure.Data
         public DbSet<LookupGeriGonderilmeSebebi> LookupGeriGonderilmeSebepleri { get; set; } = null!;
         public DbSet<LookupProjeTipi> LookupProjeTipleri { get; set; } = null!;
         public DbSet<LookupBirim> LookupBirimler { get; set; } = null!;
+        public DbSet<LookupKaliteDurum> LookupKaliteDurumlari { get; set; } = null!;
+        public DbSet<LookupSurecDurum> LookupSurecDurumlari { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -66,6 +68,8 @@ namespace _3K.Infrastructure.Data
             ConfigureLookupTable<LookupGeriGonderilmeSebebi>(modelBuilder);
             ConfigureLookupTable<LookupProjeTipi>(modelBuilder);
             ConfigureLookupTable<LookupBirim>(modelBuilder);
+            ConfigureLookupTable<LookupKaliteDurum>(modelBuilder);
+            ConfigureLookupTable<LookupSurecDurum>(modelBuilder);
 
             // ===============================================================
             // 2. UNIQUE CONSTRAINTS
@@ -195,6 +199,22 @@ namespace _3K.Infrastructure.Data
                 .WithMany()
                 .HasForeignKey(cs => cs.BirimId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // --- CekiSatiri.KaliteDurumId → LookupKaliteDurum.Id ---
+            modelBuilder.Entity<CekiSatiri>()
+                .HasOne(cs => cs.KaliteDurumLookup)
+                .WithMany()
+                .HasForeignKey(cs => cs.KaliteDurumId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .IsRequired(false);
+
+            // --- CekiSatiri.SurecDurumId → LookupSurecDurum.Id ---
+            modelBuilder.Entity<CekiSatiri>()
+                .HasOne(cs => cs.SurecDurumLookup)
+                .WithMany()
+                .HasForeignKey(cs => cs.SurecDurumId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .IsRequired(false);
 
             // --- CekiSatiri.KaynakProjeId → Proje (FB kaynak takibi) ---
             modelBuilder.Entity<CekiSatiri>()
@@ -637,6 +657,20 @@ namespace _3K.Infrastructure.Data
                 new LookupBirim { Id = 10, Anahtar = 10, Deger = "Metreküp" }
             );
 
+            // KaliteDurum
+            modelBuilder.Entity<LookupKaliteDurum>().HasData(
+                new LookupKaliteDurum { Id = 1, Anahtar = 1, Deger = "Onaylandı" },
+                new LookupKaliteDurum { Id = 2, Anahtar = 2, Deger = "Tadilatta" }
+            );
+
+            // SurecDurum
+            modelBuilder.Entity<LookupSurecDurum>().HasData(
+                new LookupSurecDurum { Id = 1, Anahtar = 1, Deger = "Ambar" },
+                new LookupSurecDurum { Id = 2, Anahtar = 2, Deger = "İmalat" },
+                new LookupSurecDurum { Id = 3, Anahtar = 3, Deger = "Tedarik" },
+                new LookupSurecDurum { Id = 4, Anahtar = 4, Deger = "Tedarik 3K Teslim" }
+            );
+
 
             SeedApprovalRules(modelBuilder);
         }
@@ -667,7 +701,9 @@ namespace _3K.Infrastructure.Data
                 new Rol { Id = 1, Ad = "Admin" },
                 new Rol { Id = 2, Ad = "Personel3K" },
                 new Rol { Id = 3, Ad = "PersonelGrid" },
-                new Rol { Id = 4, Ad = "Yonetici" }
+                new Rol { Id = 4, Ad = "Yonetici" },
+                new Rol { Id = 5, Ad = "Kalite" },
+                new Rol { Id = 6, Ad = "Surec" }
             );
 
             // ======= MENÜ TANIMLARI (ağaç yapısı) =======
@@ -695,12 +731,15 @@ namespace _3K.Infrastructure.Data
                 new MenuTanimi { Id = 17, Kod = "saha-yonetimi", LabelKey = "MENU.SAHA_YONETIMI", Icon = "ri-tools-line", Route = "/saha-yonetimi", Sira = 6, ParentId = null },
                 new MenuTanimi { Id = 18, Kod = "yedek-yonetimi", LabelKey = "MENU.YEDEK_YONETIMI", Icon = "ri-box-3-line", Route = "/yedek-yonetimi", Sira = 7, ParentId = null },
                 // Onay Merkezi
-                new MenuTanimi { Id = 99, Kod = "islem-onay-merkezi", LabelKey = "MENU.ISLEM_ONAY", Icon = "ri-check-double-line", Route = "/onay-merkezi", Sira = 11, ParentId = null }
+                new MenuTanimi { Id = 99, Kod = "islem-onay-merkezi", LabelKey = "MENU.ISLEM_ONAY", Icon = "ri-check-double-line", Route = "/onay-merkezi", Sira = 11, ParentId = null },
+                // Kalite & Süreç — sidebar'da GÖRÜNMEZler (Route=null), yetki kontrollü butonlar.
+                new MenuTanimi { Id = 20, Kod = "kalite-modulu", LabelKey = "MENU.KALITE_MODULU", Icon = "", Route = null, Sira = 6, ParentId = 2 },
+                new MenuTanimi { Id = 21, Kod = "surec-modulu", LabelKey = "MENU.SUREC_MODULU", Icon = "", Route = null, Sira = 7, ParentId = 2 }
             );
 
             // ======= ADMIN ROL YETKİLERİ (tüm menülere W=3) =======
-            // Not: MenuTanimi Id'leri: 1,2,3,4,5,7,8,10,11,12,14,15,16,17,18,99
-            var menuIds = new[] { 1, 2, 3, 4, 5, 7, 8, 10, 11, 12, 14, 15, 16, 17, 18 };
+            // Not: MenuTanimi Id'leri: 1,2,3,4,5,7,8,10,11,12,14,15,16,17,18,20,21,99
+            var menuIds = new[] { 1, 2, 3, 4, 5, 7, 8, 10, 11, 12, 14, 15, 16, 17, 18, 20, 21 };
             var adminYetkiler = new List<RolYetki>();
             for (int i = 0; i < menuIds.Length; i++)
             {

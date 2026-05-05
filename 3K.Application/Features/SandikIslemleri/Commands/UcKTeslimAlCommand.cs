@@ -9,6 +9,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
     public class UcKTeslimAlCommand : IRequest<Result>, ISecuredRequest
     {
         public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin, StatusConstants.KullaniciRol.Personel3K };
+        public string? RequiredMenuKod => "sandik-yonetimi";
 
         public int CekiSatiriId { get; set; }
         public int ProjeId { get; set; }

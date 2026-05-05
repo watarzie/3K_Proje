@@ -9,6 +9,7 @@ namespace _3K.Application.Features.RolIslemleri.Commands
     public class RolOlusturCommand : IRequest<Result<RolDto>>, ISecuredRequest
     {
         public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin };
+        public string? RequiredMenuKod => "rol-yonetimi";
 
         public string Ad { get; set; } = string.Empty;
     }

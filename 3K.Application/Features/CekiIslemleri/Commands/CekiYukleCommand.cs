@@ -12,6 +12,7 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
     public class CekiYukleCommand : IRequest<Result<CekiYuklemeResultDto>>, ISecuredRequest
     {
         public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin };
+        public string? RequiredMenuKod => "aktif-projeler";
 
         public Stream ExcelDosya { get; set; } = null!;
         public string DosyaAdi { get; set; } = string.Empty;

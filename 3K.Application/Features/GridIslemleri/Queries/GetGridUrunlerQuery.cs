@@ -10,6 +10,7 @@ namespace _3K.Application.Features.GridIslemleri.Queries
     public class GetGridUrunlerQuery : IRequest<Result<List<GridUrunDto>>>, ISecuredRequest
     {
         public string[] RequiredRoles => new[] { "Admin", "PersonelGrid", "Personel3K", "Yonetici" };
+        public string? RequiredMenuKod => "grid-modulu";
         public int ProjeId { get; set; }
     }
 }

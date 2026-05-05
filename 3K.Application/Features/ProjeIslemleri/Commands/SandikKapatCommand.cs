@@ -4,12 +4,13 @@ using _3K.Application.Common;
 namespace _3K.Application.Features.ProjeIslemleri.Commands
 {
     /// <summary>
-    /// Sandık Kapat/Aç — Sadece Admin tarafından yapılabilir.
+    /// Sandık Kapat/Aç — Sandık Yönetimi yazma yetkisi olan kullanıcılar tarafından yapılabilir.
     /// </summary>
     public class SandikKapatCommand : IRequest<Result<bool>>, ISecuredRequest
     {
         public int SandikId { get; set; }
         public bool Kapali { get; set; }
-        public string[] RequiredRoles => new[] { "Admin" };
+        public string[] RequiredRoles => Array.Empty<string>();
+        public string? RequiredMenuKod => "sandik-yonetimi";
     }
 }

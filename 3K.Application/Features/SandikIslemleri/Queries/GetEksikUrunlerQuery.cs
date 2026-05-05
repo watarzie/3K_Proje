@@ -10,6 +10,7 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
     public class GetEksikUrunlerQuery : IRequest<Result<List<EksikUrunDto>>>, ISecuredRequest
     {
         public string[] RequiredRoles => new[] { "Admin", "Personel3K", "Yonetici" };
+        public string? RequiredMenuKod => "sandik-yonetimi";
         public int ProjeId { get; set; }
     }
 }

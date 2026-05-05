@@ -19,6 +19,8 @@ namespace _3K.Application.Common
             public const string Personel3K = "Personel3K";
             public const string PersonelGrid = "PersonelGrid";
             public const string Yonetici = "Yonetici";
+            public const string Kalite = "Kalite";
+            public const string Surec = "Surec";
         }
     }
 }

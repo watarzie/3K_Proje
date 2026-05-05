@@ -24,11 +24,11 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             var repo = _unitOfWork.GetRepository<Sandik>();
             var sandik = await repo.GetByIdAsync(request.SandikId);
 
-            var eskiDurumId = sandik.DurumId;
-
             if (sandik == null)
                 return Result<bool>.Failure("Sandık bulunamadı.", 404);
             
+            var eskiDurumId = sandik.DurumId;
+
             int yeniDurumId = request.Kapali ? (int)SandikDurum.Kapandi : (int)SandikDurum.Hazirlaniyor;
             
             if (sandik.DurumId != yeniDurumId)

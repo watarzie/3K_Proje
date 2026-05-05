@@ -114,6 +114,19 @@ namespace _3K.Core.Entities
         /// </summary>
         public int? KaynakProjeId { get; set; }
 
+        // ===== Kalite & Fabrika Modülü Alanları =====
+        /// <summary>
+        /// Kalite durumu: Lookup Id. Nullable — henüz değerlendirilmemiş.
+        /// Tadilatta ise Grid ve 3K işlem yapamaz.
+        /// </summary>
+        public int? KaliteDurumId { get; set; }
+
+        /// <summary>
+        /// Süreç durumu: Lookup Id. Nullable — henüz değerlendirilmemiş.
+        /// Bilgi amaçlı, iş mantığına etkisi yok.
+        /// </summary>
+        public int? SurecDurumId { get; set; }
+
         // ===== Diğer =====
         public bool IsManuelEklenen { get; set; } = false;
         public string? EklemeNedeni { get; set; }
@@ -189,6 +202,8 @@ namespace _3K.Core.Entities
         public virtual LookupUcKDurum? UcKDurumLookup { get; set; }
         public virtual LookupGeriGonderilmeSebebi? GeriGonderilmeSebebiLookup { get; set; }
         public virtual LookupBirim? BirimLookup { get; set; }
+        public virtual LookupKaliteDurum? KaliteDurumLookup { get; set; }
+        public virtual LookupSurecDurum? SurecDurumLookup { get; set; }
         public virtual ICollection<SandikIcerik> SandikIcerikleri { get; set; } = new List<SandikIcerik>();
         public virtual ICollection<StokHareketi> StokHareketleri { get; set; } = new List<StokHareketi>();
     }

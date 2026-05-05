@@ -46,6 +46,13 @@ namespace _3K.Application.Features.UcKIslemleri.DTOs
         public string KontrolUyari { get; set; } = string.Empty;
         public int GenelDurumId { get; set; }
         public string GenelDurumMetni { get; set; } = string.Empty;
+
+        // Kalite & Süreç (read-only)
+        public int? KaliteDurumId { get; set; }
+        public string? KaliteDurumMetni { get; set; }
+        public int? SurecDurumId { get; set; }
+        public string? SurecDurumMetni { get; set; }
+
         public bool IsManuelEklenen { get; set; }
     }
 }

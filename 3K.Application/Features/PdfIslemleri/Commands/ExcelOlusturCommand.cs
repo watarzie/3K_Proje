@@ -11,6 +11,7 @@ namespace _3K.Application.Features.PdfIslemleri.Commands
     public class ExcelOlusturCommand : IRequest<Result<byte[]>>, ISecuredRequest
     {
         public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin, StatusConstants.KullaniciRol.Yonetici };
+        public string? RequiredMenuKod => "aktif-projeler";
 
         public int ProjeId { get; set; }
         public int KullaniciId { get; set; }

@@ -9,6 +9,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
     public class ProjeSevkEtCommand : IRequest<Result>, ISecuredRequest
     {
         public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin };
+        public string? RequiredMenuKod => "proje-sevk-et";
         // UI'da W yetkisi olanlar tetikleyebilecek, backend'de yetki yönetimi Pipeline üzerinden de yapılıyor.
 
         public int ProjeId { get; set; }

@@ -24,4 +24,6 @@ namespace _3K.Core.Entities
     public class LookupGeriGonderilmeSebebi : LookupBase { }
     public class LookupProjeTipi : LookupBase { }
     public class LookupBirim : LookupBase { }
+    public class LookupKaliteDurum : LookupBase { }
+    public class LookupSurecDurum : LookupBase { }
 }

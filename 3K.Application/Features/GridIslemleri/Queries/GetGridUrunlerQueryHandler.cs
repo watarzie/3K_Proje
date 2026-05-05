@@ -63,7 +63,12 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                     ProjeGonderilen = cs.ProjeGonderilen,
                     TedarikciKarsilanan = cs.TedarikciKarsilanan,
                     EksikMiktar = cs.EksikMiktar,
-                    KalanMiktar = cs.KalanMiktar
+                    KalanMiktar = cs.KalanMiktar,
+                    // Kalite & Süreç
+                    KaliteDurumId = cs.KaliteDurumId,
+                    KaliteDurumMetni = cs.KaliteDurumId.HasValue ? _lookupCache.GetDeger<LookupKaliteDurum>(cs.KaliteDurumId.Value) : null,
+                    SurecDurumId = cs.SurecDurumId,
+                    SurecDurumMetni = cs.SurecDurumId.HasValue ? _lookupCache.GetDeger<LookupSurecDurum>(cs.SurecDurumId.Value) : null
                 })
                 .ToList();
 

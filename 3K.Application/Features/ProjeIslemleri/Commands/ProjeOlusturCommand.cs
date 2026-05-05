@@ -12,6 +12,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
     public class ProjeOlusturCommand : IRequest<Result<ProjeDto>>, ISecuredRequest
     {
         public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin };
+        public string? RequiredMenuKod => "aktif-projeler";
 
         public string ProjeNo { get; set; } = string.Empty;
         public string Musteri { get; set; } = string.Empty;

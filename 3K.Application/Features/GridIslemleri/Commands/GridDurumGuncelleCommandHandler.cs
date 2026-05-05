@@ -12,6 +12,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
         private readonly ICurrentUserService _currentUserService;
         private readonly IDurumHesaplaService _durumHesaplaService;
         private readonly IHareketService _hareketService;
+        private readonly ILookupCacheService _lookupCache;
 
         private static readonly int[] GecerliDurumlar =
             { (int)GridDurum.TamGeldi, (int)GridDurum.EksikGeldi, (int)GridDurum.Gelmedi, (int)GridDurum.TrafoSevk, (int)GridDurum.Iptal, (int)GridDurum.Sipariste, (int)GridDurum.Bekliyor, (int)GridDurum.GridKapandi };
@@ -20,12 +21,14 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUserService,
             IDurumHesaplaService durumHesaplaService,
-            IHareketService hareketService)
+            IHareketService hareketService,
+            ILookupCacheService lookupCache)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _durumHesaplaService = durumHesaplaService;
             _hareketService = hareketService;
+            _lookupCache = lookupCache;
         }
 
         public async Task<Result> Handle(GridDurumGuncelleCommand request, CancellationToken cancellationToken)
@@ -48,6 +51,14 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 || satir.KarsilananMiktar > 0)
             {
                 return Result.Failure("Bu ürün için 3K tarafında işlem yapılmış. Grid durumu değiştirilemez. Önce 3K durumunu sıfırlayın.");
+            }
+
+            // ===== Kalite Tadilatta Blokajı =====
+            if (satir.KaliteDurumId.HasValue)
+            {
+                var kaliteMetni = _lookupCache.GetDeger<LookupKaliteDurum>(satir.KaliteDurumId.Value);
+                if (kaliteMetni == "Tadilatta")
+                    return Result.Failure("Bu ürün Kalite tarafından 'Tadilatta' olarak işaretlenmiş. Grid durumu değiştirilemez.");
             }
 
             var eskiDurum = satir.GridDurumuId;

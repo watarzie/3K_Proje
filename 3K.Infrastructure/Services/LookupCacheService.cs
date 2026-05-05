@@ -43,6 +43,8 @@ namespace _3K.Infrastructure.Services
             await LoadLookup<LookupIslemTipi>(ct);
             await LoadLookup<LookupGeriGonderilmeSebebi>(ct);
             await LoadLookup<LookupGridSevkDurum>(ct);
+            await LoadLookup<LookupKaliteDurum>(ct);
+            await LoadLookup<LookupSurecDurum>(ct);
         }
 
         private async Task LoadLookup<T>(CancellationToken ct) where T : LookupBase

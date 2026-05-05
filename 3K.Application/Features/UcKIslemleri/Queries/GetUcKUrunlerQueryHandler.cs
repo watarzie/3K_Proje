@@ -71,6 +71,11 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                         ProjeGonderilen = cs.ProjeGonderilen,
                         TedarikciKarsilanan = cs.TedarikciKarsilanan,
                         EksikMiktar = cs.EksikMiktar,
+                        // Kalite & Süreç
+                        KaliteDurumId = cs.KaliteDurumId,
+                        KaliteDurumMetni = cs.KaliteDurumId.HasValue ? _lookupCache.GetDeger<LookupKaliteDurum>(cs.KaliteDurumId.Value) : null,
+                        SurecDurumId = cs.SurecDurumId,
+                        SurecDurumMetni = cs.SurecDurumId.HasValue ? _lookupCache.GetDeger<LookupSurecDurum>(cs.SurecDurumId.Value) : null,
                         IsManuelEklenen = cs.IsManuelEklenen
                     };
                 })

@@ -43,6 +43,12 @@ namespace _3K.Application.Features.GridIslemleri.DTOs
         // Genel
         public int GenelDurumId { get; set; }
         public string GenelDurumMetni { get; set; } = string.Empty;
+
+        // Kalite & Süreç
+        public int? KaliteDurumId { get; set; }
+        public string? KaliteDurumMetni { get; set; }
+        public int? SurecDurumId { get; set; }
+        public string? SurecDurumMetni { get; set; }
     }
 }
 
