@@ -719,22 +719,22 @@ namespace _3K.Infrastructure.Data
                 new MenuTanimi { Id = 12, Kod = "rol-yonetimi", LabelKey = "MENU.ROL_YONETIMI", Icon = "ri-shield-user-line", Route = "/rol-yonetimi", Sira = 10, ParentId = null }
             );
 
-            // Alt menüler (Projeler children)
+            // Alt menüler ve yetki kontrollü modül düğümleri
             modelBuilder.Entity<MenuTanimi>().HasData(
                 new MenuTanimi { Id = 3, Kod = "aktif-projeler", LabelKey = "MENU.AKTIF_PROJELER", Icon = "", Route = "/projeler", Sira = 1, ParentId = 2 },
                 new MenuTanimi { Id = 4, Kod = "sevk-edilen", LabelKey = "MENU.SEVK_EDILEN", Icon = "", Route = "/projeler/sevk-edilen", Sira = 2, ParentId = 2 },
-                // Yetki kontrollü butonlar — sidebar'da GÖRÜNMEZler (Route=null).
-                new MenuTanimi { Id = 14, Kod = "grid-modulu", LabelKey = "MENU.GRID_MODULU", Icon = "", Route = null, Sira = 3, ParentId = 2 },
-                new MenuTanimi { Id = 15, Kod = "3k-modulu", LabelKey = "MENU.3K_MODULU", Icon = "", Route = null, Sira = 4, ParentId = 2 },
+                // Sandık Yönetimi altında yetki kontrollü modüller — sidebar'da GÖRÜNMEZler (Route=null).
+                new MenuTanimi { Id = 14, Kod = "grid-modulu", LabelKey = "MENU.GRID_MODULU", Icon = "", Route = null, Sira = 1, ParentId = 5 },
+                new MenuTanimi { Id = 15, Kod = "3k-modulu", LabelKey = "MENU.3K_MODULU", Icon = "", Route = null, Sira = 2, ParentId = 5 },
                 new MenuTanimi { Id = 16, Kod = "proje-sevk-et", LabelKey = "MENU.PROJE_SEVK_ET", Icon = "", Route = null, Sira = 5, ParentId = 2 },
                 // Saha ve Yedek Menüleri
                 new MenuTanimi { Id = 17, Kod = "saha-yonetimi", LabelKey = "MENU.SAHA_YONETIMI", Icon = "ri-tools-line", Route = "/saha-yonetimi", Sira = 6, ParentId = null },
                 new MenuTanimi { Id = 18, Kod = "yedek-yonetimi", LabelKey = "MENU.YEDEK_YONETIMI", Icon = "ri-box-3-line", Route = "/yedek-yonetimi", Sira = 7, ParentId = null },
                 // Onay Merkezi
                 new MenuTanimi { Id = 99, Kod = "islem-onay-merkezi", LabelKey = "MENU.ISLEM_ONAY", Icon = "ri-check-double-line", Route = "/onay-merkezi", Sira = 11, ParentId = null },
-                // Kalite & Süreç — sidebar'da GÖRÜNMEZler (Route=null), yetki kontrollü butonlar.
-                new MenuTanimi { Id = 20, Kod = "kalite-modulu", LabelKey = "MENU.KALITE_MODULU", Icon = "", Route = null, Sira = 6, ParentId = 2 },
-                new MenuTanimi { Id = 21, Kod = "surec-modulu", LabelKey = "MENU.SUREC_MODULU", Icon = "", Route = null, Sira = 7, ParentId = 2 }
+                // Kalite & Süreç — Sandık Yönetimi altında yetki kontrollü butonlar.
+                new MenuTanimi { Id = 20, Kod = "kalite-modulu", LabelKey = "MENU.KALITE_MODULU", Icon = "", Route = null, Sira = 3, ParentId = 5 },
+                new MenuTanimi { Id = 21, Kod = "surec-modulu", LabelKey = "MENU.SUREC_MODULU", Icon = "", Route = null, Sira = 4, ParentId = 5 }
             );
 
             // ======= ADMIN ROL YETKİLERİ (tüm menülere W=3) =======
