@@ -43,5 +43,10 @@ namespace _3K.Core.Interfaces
         /// Stok modülündeki tüm ürünlerin PDF raporunu oluşturur.
         /// </summary>
         Task<byte[]> StokRaporuPdfOlusturAsync();
+
+        /// <summary>
+        /// Depoda aktif görünen sandıkların detaylı PDF raporunu oluşturur.
+        /// </summary>
+        Task<byte[]> DepoSandikRaporuPdfOlusturAsync(int? projeTipiId = null);
     }
 }

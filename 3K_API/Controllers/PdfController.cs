@@ -133,6 +133,28 @@ namespace _3K_API.Controllers
             return File(result.Value!, "application/pdf", $"StokRaporu_{tarih}.pdf");
         }
 
+        [HttpGet("depo-sandik")]
+        public async Task<IActionResult> DepoSandikPdfIndir([FromQuery] int? projeTipiId = null)
+        {
+            var result = await _mediator.Send(new _3K.Application.Features.PdfIslemleri.Queries.GetDepoSandikPdfQuery
+            {
+                ProjeTipiId = projeTipiId
+            });
+
+            if (!result.IsSuccess)
+                return result.ToActionResult();
+
+            var tarih = DateTime.Now.ToString("yyyyMMdd");
+            var kapsam = projeTipiId switch
+            {
+                1 => "_Normal",
+                2 => "_Saha",
+                3 => "_Yedek",
+                _ => string.Empty
+            };
+            return File(result.Value!, "application/pdf", $"DepoSandikRaporu{kapsam}_{tarih}.pdf");
+        }
+
         private int GetKullaniciId()
         {
             var claim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);

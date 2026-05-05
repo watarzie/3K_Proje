@@ -31,6 +31,14 @@ namespace _3K.Infrastructure.Services
             _context = context;
         }
 
+        private static string FormatAdet(decimal value)
+        {
+            if (decimal.Truncate(value) == value)
+                return decimal.Truncate(value).ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+            return value.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
         /// <summary>
         /// İş akışı 9: Orijinal Excel şablonunu açar, operasyon verilerini yazar, Excel olarak döner.
         /// Şablon düzeni değiştirilmez. ÇALIŞMA SAYFASI'ndaki ilgili hücrelere:
@@ -782,8 +790,8 @@ namespace _3K.Infrastructure.Services
                             {
                                 col.Item().Text("EKSİK ÖZET").Bold().FontSize(7).FontColor(dangerColor);
                                 col.Item().PaddingTop(3).Text($"{toplamEksikUrun} ürün eksik").Bold().FontSize(13).FontColor(dangerColor);
-                                col.Item().Text($"Toplam Kalan: {toplamKalanAdet} adet").FontSize(8);
-                                col.Item().Text($"Karşılama Oranı: %{(toplamIstenenAdet > 0 ? (toplamGelenAdet * 100 / toplamIstenenAdet) : 0)}").FontSize(8);
+                                col.Item().Text($"Toplam Kalan: {FormatAdet(toplamKalanAdet)} adet").FontSize(8);
+                                col.Item().Text($"Karşılama Oranı: %{FormatAdet(toplamIstenenAdet > 0 ? (toplamGelenAdet * 100 / toplamIstenenAdet) : 0)}").FontSize(8);
                             });
                         });
 
@@ -852,14 +860,14 @@ namespace _3K.Infrastructure.Services
                             DataCell(table.Cell(), cs.BarkodNo);
                             DataCell(table.Cell(), cs.Aciklama);
                             DataCell(table.Cell(), sandikNo);
-                            DataCell(table.Cell(), cs.IstenenAdet.ToString());
-                            DataCell(table.Cell(), cs.GelenMiktar.ToString());
-                            DataCell(table.Cell(), karsilanan > 0 ? karsilanan.ToString() : "-");
-                            DataCell(table.Cell(), cs.GeriGonderilenMiktar > 0 ? cs.GeriGonderilenMiktar.ToString() : "-");
+                            DataCell(table.Cell(), FormatAdet(cs.IstenenAdet));
+                            DataCell(table.Cell(), FormatAdet(cs.GelenMiktar));
+                            DataCell(table.Cell(), karsilanan > 0 ? FormatAdet(karsilanan) : "-");
+                            DataCell(table.Cell(), cs.GeriGonderilenMiktar > 0 ? FormatAdet(cs.GeriGonderilenMiktar) : "-");
                             // Başka projeye verildi
-                            var projVerildi = cs.ProjeGonderilen > 0 ? $"{cs.ProjeGonderilen} ({cs.KaynakHedefProjeNo ?? "?"})" : "-";
+                            var projVerildi = cs.ProjeGonderilen > 0 ? $"{FormatAdet(cs.ProjeGonderilen)} ({cs.KaynakHedefProjeNo ?? "?"})" : "-";
                             DataCell(table.Cell(), projVerildi, fontColor: cs.ProjeGonderilen > 0 ? "#1565C0" : null);
-                            DataCell(table.Cell(), cs.KalanMiktar.ToString(), bold: true, fontColor: dangerColor);
+                            DataCell(table.Cell(), FormatAdet(cs.KalanMiktar), bold: true, fontColor: dangerColor);
                             DataCell(table.Cell(), ucKDurum, fontColor: cs.UcKKarsilamaTipiId == (int)_3K.Core.Enums.UcKDurum.Bekliyor ? dangerColor : warningColor);
 
                             sira++;
@@ -903,7 +911,6 @@ namespace _3K.Infrastructure.Services
             var satirlar = await _context.CekiSatirlari
                 .AsNoTracking()
                 .Include(cs => cs.BirimLookup)
-                .Include(cs => cs.UcKDurumLookup)
                 .Include(cs => cs.SandikIcerikleri)
                     .ThenInclude(si => si.Sandik)
                 .Where(cs => cs.Ceki.ProjeId == projeId)
@@ -911,10 +918,6 @@ namespace _3K.Infrastructure.Services
 
             if (!satirlar.Any())
                 throw new KeyNotFoundException($"Projeye ait ceki satiri bulunamadi: {projeId}");
-
-            var ucKDurumlar = await _context.LookupUcKDurumlari
-                .AsNoTracking()
-                .ToDictionaryAsync(x => x.Id, x => x.Deger);
 
             QuestPDF.Settings.License = LicenseType.Community;
 
@@ -925,7 +928,6 @@ namespace _3K.Infrastructure.Services
             var successColor = "#1B8F3A";
             var warningColor = "#F57C00";
             var dangerColor = "#D32F2F";
-            var infoColor = "#1565C0";
             var raporTarihi = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
             var sevkTarihi = proje.GerceklesenSevkTarihi?.ToString("dd.MM.yyyy") ?? proje.PlanlananSevkTarihi?.ToString("dd.MM.yyyy") ?? "-";
 
@@ -984,12 +986,12 @@ namespace _3K.Infrastructure.Services
                 return (GetSandikSortKey(firstSandikNo), firstSandikNo);
             }
 
-            string GetUcKDurum(CekiSatiri satir)
+            string GetRaporDurum(CekiSatiri satir)
             {
-                if (ucKDurumlar.TryGetValue(satir.UcKKarsilamaTipiId, out var durum) && !string.IsNullOrWhiteSpace(durum))
-                    return durum;
+                if (satir.GridDurumuId == (int)GridDurum.TrafoSevk || satir.TrafoSevkAdet > 0)
+                    return "Trafoda Sevk";
 
-                return satir.UcKDurumLookup?.Deger ?? "-";
+                return satir.KalanMiktar <= 0 ? "Tamamlandı" : "Eksik Sevk";
             }
 
             string GetAciklama(CekiSatiri satir)
@@ -1009,21 +1011,12 @@ namespace _3K.Infrastructure.Services
                 return "";
             }
 
-            string GetDurumColor(int ucKDurumId)
+            string GetDurumColor(CekiSatiri satir)
             {
-                return ucKDurumId switch
-                {
-                    (int)UcKDurum.TamGeldi or
-                    (int)UcKDurum.KontrolEdildi or
-                    (int)UcKDurum.ProjedenKarsilandi or
-                    (int)UcKDurum.StoktanKarsilandi or
-                    (int)UcKDurum.TedarikcidenGeldi => successColor,
-                    (int)UcKDurum.EksikGeldi => warningColor,
-                    (int)UcKDurum.Gelmedi or
-                    (int)UcKDurum.GeriGonderildi or
-                    (int)UcKDurum.HataliUrun => dangerColor,
-                    _ => infoColor
-                };
+                if (satir.GridDurumuId == (int)GridDurum.TrafoSevk || satir.TrafoSevkAdet > 0)
+                    return warningColor;
+
+                return satir.KalanMiktar <= 0 ? successColor : dangerColor;
             }
 
             satirlar = satirlar
@@ -1034,7 +1027,7 @@ namespace _3K.Infrastructure.Services
 
             var toplamSatir = satirlar.Count;
             var toplamAdet = satirlar.Sum(s => s.IstenenAdet);
-            var toplamSandiklanan = satirlar.Sum(s => s.SandikIcerikleri.Sum(si => si.KonulanAdet));
+            var toplamGerceklesen = satirlar.Sum(s => s.SandikIcerikleri.Sum(si => si.KonulanAdet));
 
             var document = Document.Create(container =>
             {
@@ -1080,7 +1073,7 @@ namespace _3K.Infrastructure.Services
                             row.RelativeItem().AlignRight().Text(t =>
                             {
                                 t.Span("Toplam: ").FontSize(10);
-                                t.Span($"{toplamSatir} satır / {toplamAdet} adet / {toplamSandiklanan} sandıklanan").Bold().FontSize(10);
+                                t.Span($"{toplamSatir} satır / {FormatAdet(toplamAdet)} adet / {FormatAdet(toplamGerceklesen)} gerçekleşen").Bold().FontSize(10);
                             });
                         });
                     });
@@ -1090,13 +1083,14 @@ namespace _3K.Infrastructure.Services
                         table.ColumnsDefinition(columns =>
                         {
                             columns.ConstantColumn(24);
-                            columns.ConstantColumn(50);
-                            columns.RelativeColumn(1.2f);
-                            columns.RelativeColumn(2.6f);
-                            columns.ConstantColumn(40);
-                            columns.ConstantColumn(62);
-                            columns.RelativeColumn(1.45f);
+                            columns.ConstantColumn(48);
+                            columns.RelativeColumn(1.1f);
                             columns.RelativeColumn(2.4f);
+                            columns.ConstantColumn(40);
+                            columns.ConstantColumn(38);
+                            columns.ConstantColumn(60);
+                            columns.RelativeColumn(1.25f);
+                            columns.RelativeColumn(2.2f);
                         });
 
                         table.Header(header =>
@@ -1108,8 +1102,9 @@ namespace _3K.Infrastructure.Services
                             HeaderCell(header.Cell(), "SANDIK");
                             HeaderCell(header.Cell(), "BARKOD");
                             HeaderCell(header.Cell(), "İSİM");
-                            HeaderCell(header.Cell(), "ADET");
-                            HeaderCell(header.Cell(), "SANDIKLANAN");
+                            HeaderCell(header.Cell(), "MİKTAR");
+                            HeaderCell(header.Cell(), "BİRİM");
+                            HeaderCell(header.Cell(), "GERÇEKLEŞEN");
                             HeaderCell(header.Cell(), "3K DURUMU");
                             HeaderCell(header.Cell(), "AÇIKLAMA");
                         });
@@ -1118,9 +1113,9 @@ namespace _3K.Infrastructure.Services
                         foreach (var satir in satirlar)
                         {
                             var bg = sira % 2 == 0 ? altRowBg : "#FFFFFF";
-                            var sandiklananAdet = satir.SandikIcerikleri.Sum(si => si.KonulanAdet);
-                            var durumMetni = GetUcKDurum(satir);
-                            var durumColor = GetDurumColor(satir.UcKKarsilamaTipiId);
+                            var gerceklesenAdet = satir.SandikIcerikleri.Sum(si => si.KonulanAdet);
+                            var durumMetni = GetRaporDurum(satir);
+                            var durumColor = GetDurumColor(satir);
                             var aciklama = GetAciklama(satir);
 
                             void DataCell(IContainer c, string text, bool bold = false, string? color = null)
@@ -1155,8 +1150,9 @@ namespace _3K.Infrastructure.Services
                             DataCell(table.Cell(), GetSandikNolari(satir), bold: true, color: headerBg);
                             DataCell(table.Cell(), satir.BarkodNo);
                             DataCell(table.Cell(), satir.Aciklama);
-                            DataCell(table.Cell(), satir.IstenenAdet.ToString(), bold: true);
-                            DataCell(table.Cell(), sandiklananAdet.ToString(), bold: true);
+                            DataCell(table.Cell(), FormatAdet(satir.IstenenAdet), bold: true);
+                            DataCell(table.Cell(), satir.BirimLookup?.Deger ?? "Adet");
+                            DataCell(table.Cell(), FormatAdet(gerceklesenAdet), bold: true);
                             DurumCell(table.Cell(), durumMetni);
                             DataCell(table.Cell(), aciklama);
 
@@ -1167,6 +1163,203 @@ namespace _3K.Infrastructure.Services
                     page.Footer().Row(footer =>
                     {
                         footer.RelativeItem().Text($"3K Ambalaj - Gerçekleşen Çeki Listesi | Proje: {proje.ProjeNo}").FontSize(7).FontColor(Colors.Grey.Medium);
+                        footer.RelativeItem().AlignRight().Text(x =>
+                        {
+                            x.Span("Sayfa ").FontSize(7).FontColor(Colors.Grey.Medium);
+                            x.CurrentPageNumber().FontSize(7).FontColor(Colors.Grey.Medium);
+                            x.Span(" / ").FontSize(7).FontColor(Colors.Grey.Medium);
+                            x.TotalPages().FontSize(7).FontColor(Colors.Grey.Medium);
+                        });
+                    });
+                });
+            });
+
+            using var pdfStream = new MemoryStream();
+            document.GeneratePdf(pdfStream);
+            return pdfStream.ToArray();
+        }
+
+        public async Task<byte[]> DepoSandikRaporuPdfOlusturAsync(int? projeTipiId = null)
+        {
+            if (projeTipiId.HasValue && !Enum.IsDefined(typeof(ProjeTipi), projeTipiId.Value))
+                throw new ArgumentException("Gecersiz proje tipi filtresi.");
+
+            IQueryable<Sandik> sandikQuery = _context.Sandiklar
+                .AsNoTracking()
+                .Include(s => s.Proje)
+                    .ThenInclude(p => p.ProjeTipiLookup)
+                .Include(s => s.DurumLookup)
+                .Include(s => s.TipLookup)
+                .Include(s => s.DepoLokasyonLookup)
+                .Include(s => s.SandikIcerikleri)
+                .Where(s => s.DurumId != (int)SandikDurum.Sevkedildi);
+
+            if (projeTipiId.HasValue)
+                sandikQuery = sandikQuery.Where(s => s.Proje.ProjeTipiId == projeTipiId.Value);
+
+            var sandiklar = await sandikQuery.ToListAsync();
+
+            int GetSandikSortKey(string? sandikNo)
+            {
+                if (string.IsNullOrWhiteSpace(sandikNo)) return int.MaxValue;
+                var digits = new string(sandikNo.TakeWhile(char.IsDigit).ToArray());
+                return int.TryParse(digits, out var number) ? number : int.MaxValue;
+            }
+
+            var siraliSandiklar = sandiklar
+                .OrderBy(s => s.DepoLokasyonLookup?.Deger ?? "Belirsiz")
+                .ThenBy(s => s.Proje.ProjeNo)
+                .ThenBy(s => GetSandikSortKey(s.SandikNo))
+                .ThenBy(s => s.SandikNo)
+                .ToList();
+
+            QuestPDF.Settings.License = LicenseType.Community;
+
+            var headerBg = Colors.Blue.Darken3;
+            var headerText = Colors.White;
+            var tableBorderColor = Colors.Grey.Lighten2;
+            var altRowBg = "#F8FAFE";
+            var raporTarihi = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
+            var raporKapsami = projeTipiId switch
+            {
+                (int)ProjeTipi.Normal => "Normal Projeler",
+                (int)ProjeTipi.Saha => "Saha Projeleri",
+                (int)ProjeTipi.Yedek => "Yedek Projeleri",
+                _ => "Tum Projeler"
+            };
+
+            var projeBazliDagilim = siraliSandiklar
+                .GroupBy(s => new
+                {
+                    s.ProjeId,
+                    s.Proje.ProjeNo,
+                    s.Proje.ProjeTipiId,
+                    ProjeTipi = s.Proje.ProjeTipiLookup != null ? s.Proje.ProjeTipiLookup.Deger : null
+                })
+                .Select(g => new
+                {
+                    g.Key.ProjeId,
+                    g.Key.ProjeNo,
+                    ProjeTipiId = g.Key.ProjeTipiId,
+                    ProjeTipi = g.Key.ProjeTipi ?? (g.Key.ProjeTipiId switch
+                    {
+                        (int)ProjeTipi.Normal => "Normal",
+                        (int)ProjeTipi.Saha => "Saha",
+                        (int)ProjeTipi.Yedek => "Yedek",
+                        _ => "-"
+                    }),
+                    ToplamSandik = g.Count(),
+                    UcK = g.Count(s => s.DepoLokasyonId == (int)DepoLokasyon.UcK),
+                    Seymen = g.Count(s => s.DepoLokasyonId == (int)DepoLokasyon.Seymen),
+                    Grid = g.Count(s => s.DepoLokasyonId == (int)DepoLokasyon.Grid)
+                })
+                .OrderBy(p => p.ProjeNo)
+                .ToList();
+
+            var document = Document.Create(container =>
+            {
+                container.Page(page =>
+                {
+                    page.Size(PageSizes.A4.Landscape());
+                    page.Margin(20);
+                    page.DefaultTextStyle(x => x.FontSize(8));
+
+                    page.Header().Column(headerCol =>
+                    {
+                        headerCol.Item().Background(headerBg).Padding(12).Row(row =>
+                        {
+                            row.RelativeItem().Column(col =>
+                            {
+                                col.Item().Text("3K").Bold().FontSize(22).FontColor(headerText);
+                                col.Item().Text("All Processes. One Flow.").FontSize(7).FontColor(Colors.Grey.Lighten3).Italic();
+                            });
+                            row.RelativeItem(2).AlignCenter().Column(col =>
+                            {
+                                col.Item().Text("Depo Sandık Raporu").Bold().FontSize(16).FontColor(headerText);
+                                col.Item().Text("3K Sevkiyat Yönetim Sistemi - Depo Yönetimi Çıktısı").FontSize(7).FontColor(Colors.Grey.Lighten3);
+                            });
+                            row.RelativeItem().AlignRight().Column(col =>
+                            {
+                                col.Item().Text($"Rapor Tarihi: {raporTarihi}").FontSize(8).FontColor(Colors.Grey.Lighten3);
+                                col.Item().Text($"Kapsam: {raporKapsami}").FontSize(8).FontColor(Colors.Grey.Lighten3);
+                            });
+                        });
+
+                        /*
+                            row.RelativeItem().Element(c => GenelDurumKarti(c, "SAHA PROJELERİ", sahaDurum, Colors.Green.Darken1));
+                            row.ConstantItem(8);
+                            row.RelativeItem().Element(c => GenelDurumKarti(c, "YEDEK PROJELERİ", yedekDurum, Colors.Orange.Darken1));
+                        });
+
+                        headerCol.Item().PaddingTop(5).Text("Not: Sevk Edildi durumundaki sandıklar depo envanterine dahil edilmez. Proje kilidi açıldığında eski durumuna dönen sandıklar tekrar rapora girer.")
+                            .FontSize(7).FontColor(Colors.Grey.Darken1);
+                        */
+                        headerCol.Item().PaddingTop(5).LineHorizontal(1).LineColor(tableBorderColor);
+                    });
+
+                    page.Content().PaddingVertical(8).Table(table =>
+                    {
+                        table.ColumnsDefinition(columns =>
+                        {
+                            columns.ConstantColumn(24);
+                            columns.RelativeColumn(1.4f);
+                            columns.RelativeColumn(1.0f);
+                            columns.RelativeColumn(0.9f);
+                            columns.RelativeColumn(0.9f);
+                            columns.RelativeColumn(0.9f);
+                            columns.RelativeColumn(0.9f);
+                        });
+
+                        table.Header(header =>
+                        {
+                            void HeaderCell(IContainer c, string text) =>
+                                c.Background(headerBg).Padding(3).Text(text).Bold().FontSize(6.5f).FontColor(headerText);
+
+                            HeaderCell(header.Cell(), "#");
+                            HeaderCell(header.Cell(), "PROJE NO");
+                            HeaderCell(header.Cell(), "PROJE TİPİ");
+                            HeaderCell(header.Cell(), "TOPLAM SANDIK");
+                            HeaderCell(header.Cell(), "3K DEPO");
+                            HeaderCell(header.Cell(), "SEYMEN DEPO");
+                            HeaderCell(header.Cell(), "GRID DEPO");
+                        });
+
+                        int sira = 1;
+                        foreach (var proje in projeBazliDagilim)
+                        {
+                            var bg = sira % 2 == 0 ? altRowBg : "#FFFFFF";
+
+                            void DataCell(IContainer c, string text, bool bold = false, string? fontColor = null)
+                            {
+                                var cell = c.Background(bg).BorderBottom(0.5f).BorderColor(tableBorderColor).Padding(2);
+                                if (bold)
+                                    cell.Text(text).FontSize(6.5f).FontColor(fontColor ?? Colors.Black).Bold();
+                                else
+                                    cell.Text(text).FontSize(6.5f).FontColor(fontColor ?? Colors.Black);
+                            }
+
+                            string CountText(int value) => value > 0 ? value.ToString() : "-";
+
+                            DataCell(table.Cell(), sira.ToString());
+                            DataCell(table.Cell(), proje.ProjeNo, bold: true);
+                            DataCell(table.Cell(), proje.ProjeTipi, bold: true, fontColor: proje.ProjeTipiId switch
+                            {
+                                (int)ProjeTipi.Saha => "#078A55",
+                                (int)ProjeTipi.Yedek => "#B45309",
+                                _ => "#0EA5E9"
+                            });
+                            DataCell(table.Cell(), proje.ToplamSandik.ToString(), bold: true);
+                            DataCell(table.Cell(), CountText(proje.UcK), bold: proje.UcK > 0, fontColor: "#0EA5E9");
+                            DataCell(table.Cell(), CountText(proje.Seymen), bold: proje.Seymen > 0, fontColor: "#078A55");
+                            DataCell(table.Cell(), CountText(proje.Grid), bold: proje.Grid > 0, fontColor: "#F59E0B");
+
+                            sira++;
+                        }
+                    });
+
+                    page.Footer().Row(footer =>
+                    {
+                        footer.RelativeItem().Text("3K Ambalaj - Depo Sandık Raporu").FontSize(7).FontColor(Colors.Grey.Medium);
                         footer.RelativeItem().AlignRight().Text(x =>
                         {
                             x.Span("Sayfa ").FontSize(7).FontColor(Colors.Grey.Medium);
