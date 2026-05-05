@@ -39,20 +39,19 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                     s.DurumId == (int)SandikDurum.Kapandi || 
                     s.DurumId == (int)SandikDurum.Sevkedildi);
                 var isSahaYedek = p.ProjeTipiId == (int)ProjeTipi.Saha || p.ProjeTipiId == (int)ProjeTipi.Yedek;
+                var sandikIcerikleri = sandiklar.SelectMany(s => s.SandikIcerikleri).ToList();
                 
                 var toplamUrun = isSahaYedek 
-                    ? sandiklar.SelectMany(s => s.SandikIcerikleri).Count() 
+                    ? sandikIcerikleri.Count
                     : cekiSatirlari.Count;
                 
                 // Gerçek tamamlanan: 3K durumu TamGeldi olanlar (veya GridDurumuId TamGeldi)
                 var tamamlananUrun = isSahaYedek 
-                    ? sandiklar.SelectMany(s => s.SandikIcerikleri)
-                        .Count(si => si.CekiSatiri != null && 
-                            (si.CekiSatiri.UcKKarsilamaTipiId == (int)UcKDurum.TamGeldi
-                            || si.CekiSatiri.UcKKarsilamaTipiId == (int)UcKDurum.KontrolEdildi
-                            || si.CekiSatiri.UcKKarsilamaTipiId == (int)UcKDurum.ProjedenKarsilandi
-                            || si.CekiSatiri.UcKKarsilamaTipiId == (int)UcKDurum.StoktanKarsilandi
-                            || si.CekiSatiri.UcKKarsilamaTipiId == (int)UcKDurum.TedarikcidenGeldi))
+                    ? sandikIcerikleri.Count(si =>
+                    {
+                        var istenen = si.CekiSatiri?.IstenenAdet ?? si.Miktar;
+                        return istenen > 0 && si.KonulanAdet >= istenen;
+                    })
                     : cekiSatirlari.Count(cs => 
                         cs.GelenMiktar + cs.StokKarsilanan + cs.ProjeKarsilanan + cs.TedarikciKarsilanan >= cs.IstenenAdet);
 
