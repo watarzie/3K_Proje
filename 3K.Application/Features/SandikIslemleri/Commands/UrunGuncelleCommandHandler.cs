@@ -25,6 +25,21 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             CekiSatiri? urun = null;
             SandikIcerik? icerik = null;
 
+            var sandikRepo = _unitOfWork.GetRepository<Sandik>();
+            var hedefSandik = await sandikRepo.GetByIdAsync(request.SandikId);
+            if (hedefSandik == null || hedefSandik.ProjeId != request.ProjeId)
+                return Result.Failure("Sandık bulunamadı veya projeye ait değil.", 404);
+
+            var projeRepo = _unitOfWork.GetRepository<Proje>();
+            var hedefProje = await projeRepo.GetByIdAsync(hedefSandik.ProjeId);
+            var isSahaYedek = hedefProje != null &&
+                (hedefProje.ProjeTipiId == (int)ProjeTipi.Saha || hedefProje.ProjeTipiId == (int)ProjeTipi.Yedek);
+
+            if (isSahaYedek)
+            {
+                return await SahaYedekIcerikGuncelle(request, sandikIcerikRepo, hedefSandik);
+            }
+
             // ===== Saha/Yedek (CekiSatiriId yok) → SandikIcerikId ile bul =====
             if (!request.CekiSatiriId.HasValue || request.CekiSatiriId.Value == 0)
             {
@@ -41,8 +56,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 sandikIcerikRepo.Update(icerik);
 
                 // Sandık durumu kontrolü (CekiSatiri olmadan basit kontrol)
-                var sandikRepo = _unitOfWork.GetRepository<Sandik>();
-                var sandik = await sandikRepo.GetByIdAsync(request.SandikId);
+                var sandik = hedefSandik;
                 if (sandik != null)
                 {
                     var tumIcerikler = await sandikIcerikRepo.FindAsync(si => si.SandikId == request.SandikId);
@@ -114,8 +128,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             cekiSatiriRepo.Update(urun);
 
             // Sandık durumu ve lokasyon otomasyonu
-            var sandikRepo2 = _unitOfWork.GetRepository<Sandik>();
-            var sandik2 = await sandikRepo2.GetByIdAsync(request.SandikId);
+            var sandikRepo2 = sandikRepo;
+            var sandik2 = hedefSandik;
             if (sandik2 != null)
             {
                 if (request.UcKDurumuId.HasValue && request.UcKDurumuId.Value != (int)UcKDurum.Bekliyor)
@@ -182,6 +196,53 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 IslemTipiId = (int)IslemTipi.UrunGuncellendi,
                 KullaniciId = request.KullaniciId,
                 Aciklama = $"Durum: {durumMetni}, Grid: {gridMetni}, 3K: {uckMetni}, Konulan: {icerik.KonulanAdet}, Eksik: {icerik.EksikAdet}"
+            });
+
+            return Result.Success();
+        }
+
+        private async Task<Result> SahaYedekIcerikGuncelle(
+            UrunGuncelleCommand request,
+            IGenericRepository<SandikIcerik> sandikIcerikRepo,
+            Sandik sandik)
+        {
+            if (sandik.DurumId == (int)SandikDurum.Sevkedildi)
+                return Result.Failure("Sevk edilmiş sandıkta ürün adedi güncellenemez.");
+
+            if (!request.SandikIcerikId.HasValue || request.SandikIcerikId.Value <= 0)
+                return Result.Failure("Saha/Yedek ürün güncellemesi için SandikIcerikId zorunludur.");
+
+            var icerik = await sandikIcerikRepo.GetByIdAsync(request.SandikIcerikId.Value);
+            if (icerik == null || icerik.SandikId != request.SandikId)
+                return Result.Failure("Sandık içeriği bulunamadı.", 404);
+
+            if (request.KonulanAdet.HasValue)
+            {
+                if (request.KonulanAdet.Value < 0)
+                    return Result.Failure("Konulan adet 0'dan küçük olamaz.");
+
+                if (icerik.Miktar > 0 && request.KonulanAdet.Value > icerik.Miktar)
+                    return Result.Failure($"Konulan adet istenen miktardan büyük olamaz. Maksimum: {icerik.Miktar}");
+
+                icerik.KonulanAdet = request.KonulanAdet.Value;
+                icerik.EksikAdet = Math.Max(0, icerik.Miktar - icerik.KonulanAdet);
+            }
+
+            if (request.EksikAdet.HasValue)
+                icerik.EksikAdet = request.EksikAdet.Value;
+
+            sandikIcerikRepo.Update(icerik);
+            await _unitOfWork.SaveChangesAsync();
+
+            await _hareketService.HareketKaydetAsync(new HareketGecmisi
+            {
+                ProjeId = request.ProjeId,
+                ReferansTipi = "SandikIcerik",
+                ReferansId = icerik.Id.ToString(),
+                Islem = "Saha/Yedek Ürün Adet Güncellendi",
+                IslemTipiId = (int)IslemTipi.UrunGuncellendi,
+                KullaniciId = request.KullaniciId,
+                Aciklama = $"Konulan: {icerik.KonulanAdet}, Eksik: {icerik.EksikAdet}, Kaynak: {icerik.KaynakProjeNo ?? "-"}"
             });
 
             return Result.Success();

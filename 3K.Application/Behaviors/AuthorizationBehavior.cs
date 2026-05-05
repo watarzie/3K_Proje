@@ -60,8 +60,9 @@ namespace _3K.Application.Behaviors
                 if (!userId.HasValue)
                     return CreateFailureResult("Kullanıcı bilgisi alınamadı.", 401);
 
-                // Kullanıcının rolünü bul, o rolün bu menüye W yetkisi var mı kontrol et
-                var hasMenuPermission = await CheckMenuPermissionAsync(userId.Value, menuKod, cancellationToken);
+                // Query'ler icin R/W, command'ler icin W yetkisi kontrol edilir.
+                var requiredYetkiTipiId = GetRequiredYetkiTipiId(typeof(TRequest));
+                var hasMenuPermission = await CheckMenuPermissionAsync(userId.Value, menuKod, requiredYetkiTipiId, cancellationToken);
                 if (!hasMenuPermission)
                 {
                     return CreateFailureResult("Bu modül için yetkiniz bulunmuyor.", 403);
@@ -71,14 +72,21 @@ namespace _3K.Application.Behaviors
             return await next();
         }
 
-        private async Task<bool> CheckMenuPermissionAsync(int userId, string menuKod, CancellationToken ct)
+        private static int GetRequiredYetkiTipiId(Type requestType)
+        {
+            return requestType.Name.EndsWith("Query", StringComparison.OrdinalIgnoreCase)
+                ? (int)YetkiTipi.R
+                : (int)YetkiTipi.W;
+        }
+
+        private async Task<bool> CheckMenuPermissionAsync(int userId, string menuKod, int requiredYetkiTipiId, CancellationToken ct)
         {
             // Kullanıcının rollerini al
             var kullaniciRepo = _unitOfWork.GetRepository<Kullanici>();
             var kullanici = (await kullaniciRepo.FindAsync(k => k.Id == userId)).FirstOrDefault();
             if (kullanici == null) return false;
 
-            // RolYetki tablosunda bu rolün bu menüye W yetkisi var mı?
+            // RolYetki tablosunda bu rolün bu menüye gerekli yetkisi var mı?
             var rolYetkiRepo = _unitOfWork.GetRepository<RolYetki>();
             var menuRepo = _unitOfWork.GetRepository<MenuTanimi>();
 
@@ -88,7 +96,7 @@ namespace _3K.Application.Behaviors
             var yetki = (await rolYetkiRepo.FindAsync(ry =>
                 ry.RolId == kullanici.RolId && ry.MenuTanimiId == menu.Id)).FirstOrDefault();
 
-            return yetki != null && yetki.YetkiTipiId == (int)YetkiTipi.W;
+            return yetki != null && yetki.YetkiTipiId >= requiredYetkiTipiId;
         }
 
         /// <summary>

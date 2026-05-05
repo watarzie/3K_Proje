@@ -48,15 +48,22 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (icerik == null)
                 return Result.Failure("Ürün bulunamadı.", 404);
 
-            // CekiSatiri bağlantısı varsa buradan silinemez
-            if (icerik.CekiSatiriId != null)
-                return Result.Failure("Bu ürün çekiden gelmiştir. Saha/Yedek silme ile silinemez.");
-
-            // Sandık projeye ait mi kontrol et
+            // Hedef sandık Saha/Yedek ise ürün kaynak çeki satırından bağımsız yönetilir.
             var sandikRepo = _unitOfWork.GetRepository<Sandik>();
             var sandik = await sandikRepo.GetByIdAsync(icerik.SandikId);
             if (sandik == null || sandik.ProjeId != request.ProjeId)
                 return Result.Failure("Sandık bulunamadı veya projeye ait değil.");
+
+            var projeRepo = _unitOfWork.GetRepository<Proje>();
+            var proje = await projeRepo.GetByIdAsync(sandik.ProjeId);
+            var isSahaYedek = proje != null &&
+                (proje.ProjeTipiId == (int)ProjeTipi.Saha || proje.ProjeTipiId == (int)ProjeTipi.Yedek);
+
+            if (!isSahaYedek && icerik.CekiSatiriId != null)
+                return Result.Failure("Bu ürün çekiden gelmiştir. Saha/Yedek silme ile silinemez.");
+
+            if (sandik.DurumId == (int)SandikDurum.Sevkedildi)
+                return Result.Failure("Sevk edilmiş sandıktan ürün silinemez.");
 
             var urunBilgi = $"{icerik.BarkodNo ?? "-"} - {icerik.Isim ?? "-"} ({icerik.Miktar} adet)";
 

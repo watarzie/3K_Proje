@@ -9,7 +9,7 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
     /// </summary>
     public class GetEksikUrunlerQuery : IRequest<Result<List<EksikUrunDto>>>, ISecuredRequest
     {
-        public string[] RequiredRoles => new[] { "Admin", "Personel3K", "Yonetici" };
+        public string[] RequiredRoles => Array.Empty<string>();
         public string? RequiredMenuKod => "sandik-yonetimi";
         public int ProjeId { get; set; }
     }
