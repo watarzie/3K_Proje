@@ -16,7 +16,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         public int SandikId { get; set; }
         public string BarkodNo { get; set; } = string.Empty;
         public string Aciklama { get; set; } = string.Empty;
-        public int IstenenAdet { get; set; }
+        public decimal IstenenAdet { get; set; }
         public int BirimId { get; set; } = (int)Birim.Adet;
         public string? EklemeNedeni { get; set; }
         public int KullaniciId { get; set; }

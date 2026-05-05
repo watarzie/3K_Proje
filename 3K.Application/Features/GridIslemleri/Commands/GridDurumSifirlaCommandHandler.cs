@@ -39,8 +39,8 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 return Result.Failure("Ürün bulunamadı.", 404);
 
             // 3K tarafı işlem yapmışsa sıfırlama engelle
-            if (satir.UcKDurumuId != (int)UcKDurum.Bekliyor || satir.GelenMiktar > 0)
-                return Result.Failure("Bu ürün için 3K tarafında işlem yapılmış. Önce 3K durumunu sıfırlayın.");
+            if (satir.UcKDurumuId != (int)UcKDurum.Bekliyor || satir.GelenMiktar > 0 || satir.KarsilananMiktar > 0)
+                return Result.Failure("Bu ürün için 3K tarafında işlem yapılmış. Grid durumu sıfırlanamaz. Önce 3K durumunu sıfırlayın.");
 
             // Zaten sıfırlanmış mı kontrol et
             if (satir.GridDurumuId == (int)GridDurum.Gelmedi

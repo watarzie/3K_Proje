@@ -19,9 +19,9 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
         public string BarkodNo { get; set; } = string.Empty;
         public string Aciklama { get; set; } = string.Empty;
         public string SandikNo { get; set; } = string.Empty;
-        public int IstenenAdet { get; set; }
-        public int GelenMiktar { get; set; }
-        public int KalanMiktar { get; set; }
+        public decimal IstenenAdet { get; set; }
+        public decimal GelenMiktar { get; set; }
+        public decimal KalanMiktar { get; set; }
         public string Birim { get; set; } = string.Empty;
         public string ProjeNo { get; set; } = string.Empty;
     }

@@ -40,6 +40,16 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             if (satir == null)
                 return Result.Failure("Ürün bulunamadı.", 404);
 
+            // ===== 3K İşlem Blokajı =====
+            // 3K tarafında işlem yapılmışsa Grid artık durum değiştiremez.
+            // Önce 3K durumunun sıfırlanması gerekir.
+            if (satir.UcKDurumuId != (int)UcKDurum.Bekliyor
+                || satir.GelenMiktar > 0
+                || satir.KarsilananMiktar > 0)
+            {
+                return Result.Failure("Bu ürün için 3K tarafında işlem yapılmış. Grid durumu değiştirilemez. Önce 3K durumunu sıfırlayın.");
+            }
+
             var eskiDurum = satir.GridDurumuId;
 
             // Grid alanlarını güncelle

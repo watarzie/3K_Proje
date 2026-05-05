@@ -49,8 +49,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             var eskiIcerikler = await sandikIcerikRepo.FindAsync(si => si.CekiSatiriId == request.CekiSatiriId);
             var eskiIcerik = eskiIcerikler.FirstOrDefault();
 
-            int konulanAdet = eskiIcerik?.KonulanAdet ?? urun.IstenenAdet;
-            int eksikAdet = eskiIcerik?.EksikAdet ?? 0;
+            decimal konulanAdet = eskiIcerik?.KonulanAdet ?? urun.IstenenAdet;
+            decimal eksikAdet = eskiIcerik?.EksikAdet ?? 0;
 
             if (eskiIcerik != null) sandikIcerikRepo.Remove(eskiIcerik);
 

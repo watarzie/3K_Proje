@@ -11,7 +11,7 @@ namespace _3K.Core.Entities
         public int KaynakCekiSatiriId { get; set; }
         public int? HedefCekiSatiriId { get; set; }
         public string BarkodNo { get; set; } = string.Empty;
-        public int Miktar { get; set; }
+        public decimal Miktar { get; set; }
         public int KullaniciId { get; set; }
         public string? Aciklama { get; set; }
         public DateTime Tarih { get; set; } = DateTime.UtcNow;

@@ -8,24 +8,24 @@ namespace _3K.Core.Entities
         /// Normal projeler için CekiSatiri referansı. Saha/Yedek projelerinde null olabilir.
         /// </summary>
         public int? CekiSatiriId { get; set; }
-        public int KonulanAdet { get; set; }
-        public int EksikAdet { get; set; }
+        public decimal KonulanAdet { get; set; }
+        public decimal EksikAdet { get; set; }
 
         // ===== Madde 2: Parçalı Karşılama Detay Kolonları =====
         /// <summary>
         /// Stoktan karşılanan adet.
         /// </summary>
-        public int StokKarsilanan { get; set; } = 0;
+        public decimal StokKarsilanan { get; set; } = 0;
 
         /// <summary>
         /// Başka projeden (FB) karşılanan adet.
         /// </summary>
-        public int ProjeKarsilanan { get; set; } = 0;
+        public decimal ProjeKarsilanan { get; set; } = 0;
 
         /// <summary>
         /// Tedarikçiden karşılanan adet.
         /// </summary>
-        public int TedarikciKarsilanan { get; set; } = 0;
+        public decimal TedarikciKarsilanan { get; set; } = 0;
 
         // ===== Manuel Malzeme Alanları (Saha/Yedek projeleri için) =====
         /// <summary>
@@ -40,7 +40,7 @@ namespace _3K.Core.Entities
         /// <summary>
         /// Miktar (decimal). CekiSatiriId null olan kayıtlarda zorunludur.
         /// </summary>
-        public int Miktar { get; set; }
+        public decimal Miktar { get; set; }
         /// <summary>
         /// Malzeme eklerken kullanıcının gireceği ekstra açıklama / neden alanı.
         /// </summary>

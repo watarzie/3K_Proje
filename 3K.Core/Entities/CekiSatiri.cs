@@ -9,7 +9,7 @@ namespace _3K.Core.Entities
         public string? OlcuResmiPozNo { get; set; }
         public string BarkodNo { get; set; } = string.Empty;
         public string Aciklama { get; set; } = string.Empty;
-        public int IstenenAdet { get; set; }
+        public decimal IstenenAdet { get; set; }
         /// <summary>
         /// Madde 7: Birim artık serbest metin değil, Enum tabanlı dropdown.
         /// </summary>
@@ -29,11 +29,11 @@ namespace _3K.Core.Entities
         /// <summary>
         /// Grid'e gelen adet. TAM GELDİ → IstenenAdet, EKSİK GELDİ → kullanıcı girer, diğer → 0
         /// </summary>
-        public int GridGelenAdet { get; set; } = 0;
+        public decimal GridGelenAdet { get; set; } = 0;
         /// <summary>
         /// Trafo sevk edilen adet. Sadece TRAFO SEVK durumunda aktif.
         /// </summary>
-        public int TrafoSevkAdet { get; set; } = 0;
+        public decimal TrafoSevkAdet { get; set; } = 0;
         /// <summary>
         /// Grid Sevk Durumu: SevkEdildi=1, Bekliyor=2, SevkEdilmedi=3
         /// Lookup tablosuna bağlı değil, enum ile yönetilir.
@@ -42,7 +42,7 @@ namespace _3K.Core.Entities
         /// <summary>
         /// Grid'den 3K'ya sevk edilen adet.
         /// </summary>
-        public int? GridSevkMiktari { get; set; }
+        public decimal? GridSevkMiktari { get; set; }
         public DateTime? GridSevkTarihi { get; set; }
         public string? GridAciklama { get; set; }
         public int? GridPersonelId { get; set; }
@@ -56,7 +56,7 @@ namespace _3K.Core.Entities
         /// <summary>
         /// 3K'ya gelen / karşılanan adet (tüm kaynaklardan toplam).
         /// </summary>
-        public int GelenMiktar { get; set; } = 0;
+        public decimal GelenMiktar { get; set; } = 0;
         public DateTime? TeslimTarihi { get; set; }
         /// <summary>
         /// Projeden Karşılandı / Başka Projeye Verildi durumunda referans proje no.
@@ -71,38 +71,38 @@ namespace _3K.Core.Entities
         /// <summary>
         /// FB, stok veya tedarikçiden karşılanan toplam adet (legacy, geriye dönük uyumluluk).
         /// </summary>
-        public int KarsilananMiktar { get; set; } = 0;
+        public decimal KarsilananMiktar { get; set; } = 0;
 
         // ===== Madde 2: Parçalı Karşılama Detay Kolonları =====
         /// <summary>
         /// Stoktan karşılanan adet.
         /// </summary>
-        public int StokKarsilanan { get; set; } = 0;
+        public decimal StokKarsilanan { get; set; } = 0;
 
         /// <summary>
         /// Başka projeden (FB) karşılanan adet.
         /// </summary>
-        public int ProjeKarsilanan { get; set; } = 0;
+        public decimal ProjeKarsilanan { get; set; } = 0;
 
         /// <summary>
         /// Başka projeye gönderilen adet (bu üründen çıkan miktar).
         /// </summary>
-        public int ProjeGonderilen { get; set; } = 0;
+        public decimal ProjeGonderilen { get; set; } = 0;
 
         /// <summary>
         /// Tedarikçiden karşılanan adet.
         /// </summary>
-        public int TedarikciKarsilanan { get; set; } = 0;
+        public decimal TedarikciKarsilanan { get; set; } = 0;
 
         /// <summary>
         /// Hatalı gelen ürün adedi.
         /// </summary>
-        public int HataliMiktar { get; set; } = 0;
+        public decimal HataliMiktar { get; set; } = 0;
 
         /// <summary>
         /// Geri gönderilen toplam miktar.
         /// </summary>
-        public int GeriGonderilenMiktar { get; set; } = 0;
+        public decimal GeriGonderilenMiktar { get; set; } = 0;
 
         /// <summary>
         /// GeriGonderildi durumunda zorunlu sebep: LookupGeriGonderilmeSebebi Id
@@ -124,7 +124,7 @@ namespace _3K.Core.Entities
         /// Grid tarafı eksik hesabı: Miktar - GridGelenAdet - TrafoSevkAdet
         /// İptal ise 0, Sipariste ise açık eksik kalır.
         /// </summary>
-        public int GridEksikMiktar
+        public decimal GridEksikMiktar
         {
             get
             {
@@ -139,7 +139,7 @@ namespace _3K.Core.Entities
         /// Eksik = IstenenAdet - (GelenMiktar + StokKarsilanan + ProjeKarsilanan + TedarikciKarsilanan)
         /// Toplam == IstenenAdet ise ürün eksik sayılmaz, rapordan düşer (Madde 3).
         /// </summary>
-        public int EksikMiktar
+        public decimal EksikMiktar
         {
             get
             {
@@ -153,7 +153,7 @@ namespace _3K.Core.Entities
         /// Kümülatif toplam tamamlanan adet (tüm kaynaklardan).
         /// GelenMiktar + Stok + Proje + Tedarikçi
         /// </summary>
-        public int KumulatifToplam
+        public decimal KumulatifToplam
         {
             get
             {
@@ -165,7 +165,7 @@ namespace _3K.Core.Entities
         /// Kalan miktar — tüm karşılama kaynakları ve Trafo sevk düşülür. Hatalı ürün varsa kalan ASLA 0 olmaz.
         /// Madde 11: HataliUyumsuzGonderim durumunda da kalan 0 olmaz.
         /// </summary>
-        public int KalanMiktar
+        public decimal KalanMiktar
         {
             get
             {

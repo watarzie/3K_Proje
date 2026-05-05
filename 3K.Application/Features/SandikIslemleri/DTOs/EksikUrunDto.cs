@@ -6,9 +6,9 @@ namespace _3K.Application.Features.SandikIslemleri.DTOs
         public int SiraNo { get; set; }
         public string BarkodNo { get; set; } = string.Empty;
         public string Aciklama { get; set; } = string.Empty;
-        public int IstenenAdet { get; set; }
-        public int GelenMiktar { get; set; }
-        public int EksikMiktar { get; set; }
+        public decimal IstenenAdet { get; set; }
+        public decimal GelenMiktar { get; set; }
+        public decimal EksikMiktar { get; set; }
         public int GridDurumuId { get; set; }
         public string GridDurumuMetni { get; set; } = string.Empty;
         public int UcKDurumuId { get; set; }

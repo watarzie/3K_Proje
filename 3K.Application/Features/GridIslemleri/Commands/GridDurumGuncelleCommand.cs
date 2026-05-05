@@ -18,12 +18,12 @@ namespace _3K.Application.Features.GridIslemleri.Commands
         /// <summary>
         /// EksikGeldi durumunda zorunlu. TamGeldi'de otomatik miktar kadar.
         /// </summary>
-        public int? GridGelenAdet { get; set; }
+        public decimal? GridGelenAdet { get; set; }
 
         /// <summary>
         /// Sadece TrafoSevk durumunda zorunlu.
         /// </summary>
-        public int? TrafoSevkAdet { get; set; }
+        public decimal? TrafoSevkAdet { get; set; }
 
         /// <summary>
         /// Grid Sevk Durumu: SevkEdildi, Bekliyor, SevkEdilmedi
@@ -33,7 +33,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
         /// <summary>
         /// Grid'den 3K'ya sevk edilen adet.
         /// </summary>
-        public int? SevkMiktari { get; set; }
+        public decimal? SevkMiktari { get; set; }
 
         public string? Aciklama { get; set; }
     }

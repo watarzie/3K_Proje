@@ -53,7 +53,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
         /// <summary>
         /// TamGeldi hariç, kullanıcının girdiği adet.
         /// </summary>
-        public int? GelenAdet { get; set; }
+        public decimal? GelenAdet { get; set; }
 
         /// <summary>
         /// ProjedenKarsilandi / BaskaProyeVerildi için referans proje no.

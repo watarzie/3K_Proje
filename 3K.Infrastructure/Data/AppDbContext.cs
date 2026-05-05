@@ -152,6 +152,33 @@ namespace _3K.Infrastructure.Data
                 .HasForeignKey(cs => cs.GridPersonelId)
                 .OnDelete(DeleteBehavior.SetNull);
 
+            // --- Decimal hassasiyet konfigürasyonu (18,4) — kg, metre gibi kesirli birimler için ---
+            modelBuilder.Entity<CekiSatiri>(e =>
+            {
+                e.Property(p => p.IstenenAdet).HasPrecision(18, 4);
+                e.Property(p => p.GridGelenAdet).HasPrecision(18, 4);
+                e.Property(p => p.TrafoSevkAdet).HasPrecision(18, 4);
+                e.Property(p => p.GridSevkMiktari).HasPrecision(18, 4);
+                e.Property(p => p.GelenMiktar).HasPrecision(18, 4);
+                e.Property(p => p.KarsilananMiktar).HasPrecision(18, 4);
+                e.Property(p => p.StokKarsilanan).HasPrecision(18, 4);
+                e.Property(p => p.ProjeKarsilanan).HasPrecision(18, 4);
+                e.Property(p => p.ProjeGonderilen).HasPrecision(18, 4);
+                e.Property(p => p.TedarikciKarsilanan).HasPrecision(18, 4);
+                e.Property(p => p.HataliMiktar).HasPrecision(18, 4);
+                e.Property(p => p.GeriGonderilenMiktar).HasPrecision(18, 4);
+            });
+
+            modelBuilder.Entity<SandikIcerik>(e =>
+            {
+                e.Property(p => p.KonulanAdet).HasPrecision(18, 4);
+                e.Property(p => p.EksikAdet).HasPrecision(18, 4);
+                e.Property(p => p.StokKarsilanan).HasPrecision(18, 4);
+                e.Property(p => p.ProjeKarsilanan).HasPrecision(18, 4);
+                e.Property(p => p.TedarikciKarsilanan).HasPrecision(18, 4);
+                e.Property(p => p.Miktar).HasPrecision(18, 4);
+            });
+
             // --- Computed properties — DB'de kolon değil ---
             modelBuilder.Entity<CekiSatiri>()
                 .Ignore(cs => cs.EksikMiktar);
@@ -183,6 +210,9 @@ namespace _3K.Infrastructure.Data
                 .HasForeignKey(cs => cs.GeriGonderilmeSebebiId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .IsRequired(false);
+
+            modelBuilder.Entity<ProjeTransfer>()
+                .Property(p => p.Miktar).HasPrecision(18, 4);
 
             // --- ProjeTransfer ilişkileri ---
             modelBuilder.Entity<ProjeTransfer>()
