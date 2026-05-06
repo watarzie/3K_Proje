@@ -123,6 +123,18 @@ namespace _3K.Infrastructure.Services
                 // HataliUyumsuzGonderim durumunda entity zaten kalan=1 döndürüyor, buraya düşmez
                 satir.DurumId = (int)UrunDurum.Tamamlandi;
             }
+            else if (satir.DurumId == (int)UrunDurum.Tamamlandi)
+            {
+                var tamamlananToplam = satir.GelenMiktar
+                    + satir.StokKarsilanan
+                    + satir.ProjeKarsilanan
+                    + satir.TedarikciKarsilanan
+                    + satir.TrafoSevkAdet;
+
+                satir.DurumId = tamamlananToplam > 0
+                    ? (int)UrunDurum.KismiTamamlandi
+                    : (int)UrunDurum.Eksik;
+            }
             // kalan > 0 ise mevcut DurumId (HesaplaGenelDurum sonucu) korunur
             // Yani fiziksel sandık "Tam Geldi" olsa bile çeki satırı henüz tamamlanmamışsa
             // Eksik/KismiTamamlandi/Bekliyor gibi durumlar aktif kalır

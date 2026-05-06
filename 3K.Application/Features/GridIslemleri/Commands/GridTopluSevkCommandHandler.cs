@@ -60,15 +60,32 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             var now = DateTime.UtcNow;
             var kullaniciId = _currentUserService.UserId ?? 0;
             int guncellenen = 0;
+            var atlananlar = new List<string>();
+            var sevkEdilenSatirlar = new List<CekiSatiri>();
 
             foreach (var satir in satirlar)
             {
-                satir.GridDurumuId = (int)GridDurum.TamGeldi;
-                satir.GridGelenAdet = satir.IstenenAdet;
-                satir.TrafoSevkAdet = 0;
+                var sevkMiktari = satir.IstenenAdet;
+
+                if (satir.GridDurumuId == (int)GridDurum.TrafoSevk)
+                {
+                    if (satir.GridGelenAdet <= 0)
+                    {
+                        atlananlar.Add($"#{satir.SiraNo} ({satir.Aciklama}) - Trafo sevk, Grid'e gelen miktar yok");
+                        continue;
+                    }
+
+                    sevkMiktari = satir.GridGelenAdet;
+                }
+                else
+                {
+                    satir.GridDurumuId = (int)GridDurum.TamGeldi;
+                    satir.GridGelenAdet = satir.IstenenAdet;
+                    satir.TrafoSevkAdet = 0;
+                }
 
                 satir.GridSevkDurumuId = (int)GridSevkDurum.SevkEdildi;
-                satir.GridSevkMiktari = satir.IstenenAdet;
+                satir.GridSevkMiktari = sevkMiktari;
                 satir.GridSevkTarihi = now;
                 satir.GridPersonelId = kullaniciId;
                 satir.GridAciklama = request.Aciklama;
@@ -78,15 +95,26 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
                 repo.Update(satir);
                 guncellenen++;
+                sevkEdilenSatirlar.Add(satir);
             }
+
+            if (guncellenen == 0)
+                return Result.Failure("Sevk edilebilecek urun bulunamadi. Trafo sevk satirlari icin Grid gelen adet 0 olamaz.", 400);
 
             await _unitOfWork.SaveChangesAsync();
 
-            var sandikGruplari = satirlar.GroupBy(s => s.FiiliSandikNo ?? s.CekideGecenSandikNo ?? "Belirsiz");
+            var sandikGruplari = sevkEdilenSatirlar.GroupBy(s => s.FiiliSandikNo ?? s.CekideGecenSandikNo ?? "Belirsiz");
             
             var sb = new System.Text.StringBuilder();
             sb.AppendLine("Sevk Durumu: Sevk Edildi");
             sb.AppendLine($"{guncellenen} adet ürün toplu sevk edildi.\n");
+            if (atlananlar.Any())
+            {
+                sb.AppendLine($"Atlanan ({atlananlar.Count}):");
+                foreach (var atlanan in atlananlar.Take(10))
+                    sb.AppendLine($"  - {atlanan}");
+                sb.AppendLine();
+            }
             
             foreach (var grup in sandikGruplari)
             {

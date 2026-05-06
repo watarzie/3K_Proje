@@ -129,8 +129,10 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 // Sevk edilebilmesi kontrolü 
                 if (request.GridSevkDurumuId.Value == (int)GridSevkDurum.SevkEdildi)
                 {
-                    if (request.YeniDurumId != (int)GridDurum.TamGeldi && request.YeniDurumId != (int)GridDurum.EksikGeldi)
+                    if (request.YeniDurumId != (int)GridDurum.TamGeldi && request.YeniDurumId != (int)GridDurum.EksikGeldi && !(request.YeniDurumId == (int)GridDurum.TrafoSevk && satir.GridGelenAdet > 0))
                         return Result.Failure("Sevk edilmesi için durum TamGeldi veya EksikGeldi olmalıdır.");
+                    if (request.SevkMiktari > satir.GridGelenAdet)
+                        return Result.Failure("Sevk miktari Grid'e gelen adetten buyuk olamaz.");
                     if (request.SevkMiktari == null || request.SevkMiktari <= 0)
                         return Result.Failure("Sevk miktarı girilmelidir.");
                 }

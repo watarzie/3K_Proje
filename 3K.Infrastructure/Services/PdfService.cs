@@ -986,12 +986,40 @@ namespace _3K.Infrastructure.Services
                 return (GetSandikSortKey(firstSandikNo), firstSandikNo);
             }
 
+            decimal GetTrafodaSevkAdet(CekiSatiri satir)
+            {
+                return Math.Max(satir.TrafoSevkAdet, 0);
+            }
+
+            decimal GetGerceklesenAdet(CekiSatiri satir)
+            {
+                var trafodaSevk = GetTrafodaSevkAdet(satir);
+                var gerceklesen = satir.IstenenAdet - trafodaSevk - satir.KalanMiktar;
+                var maxGerceklesen = Math.Max(satir.IstenenAdet - trafodaSevk, 0);
+
+                if (gerceklesen < 0)
+                    return 0;
+
+                return gerceklesen > maxGerceklesen ? maxGerceklesen : gerceklesen;
+            }
+
+            int GetDurumSortPriority(CekiSatiri satir)
+            {
+                if (GetTrafodaSevkAdet(satir) > 0)
+                    return 0;
+
+                if (satir.KalanMiktar > 0)
+                    return 1;
+
+                return 2;
+            }
+
             string GetRaporDurum(CekiSatiri satir)
             {
-                if (satir.GridDurumuId == (int)GridDurum.TrafoSevk || satir.TrafoSevkAdet > 0)
+                if (GetTrafodaSevkAdet(satir) > 0)
                     return "Trafoda Sevk";
 
-                return satir.KalanMiktar <= 0 ? "Tamamlandı" : "Eksik Sevk";
+                return satir.KalanMiktar > 0 ? "Eksik Sevk" : "Tamamlandı";
             }
 
             string GetAciklama(CekiSatiri satir)
@@ -1013,21 +1041,24 @@ namespace _3K.Infrastructure.Services
 
             string GetDurumColor(CekiSatiri satir)
             {
-                if (satir.GridDurumuId == (int)GridDurum.TrafoSevk || satir.TrafoSevkAdet > 0)
+                if (GetTrafodaSevkAdet(satir) > 0)
                     return warningColor;
 
                 return satir.KalanMiktar <= 0 ? successColor : dangerColor;
             }
 
             satirlar = satirlar
-                .OrderBy(s => GetPrimarySandikSortKey(s).Number)
+                .OrderBy(GetDurumSortPriority)
+                .ThenBy(s => GetPrimarySandikSortKey(s).Number)
                 .ThenBy(s => GetPrimarySandikSortKey(s).Text)
                 .ThenBy(s => s.SiraNo)
                 .ToList();
 
             var toplamSatir = satirlar.Count;
             var toplamAdet = satirlar.Sum(s => s.IstenenAdet);
-            var toplamGerceklesen = satirlar.Sum(s => s.SandikIcerikleri.Sum(si => si.KonulanAdet));
+            var toplamGerceklesen = satirlar.Sum(GetGerceklesenAdet);
+            var toplamTrafodaSevk = satirlar.Sum(GetTrafodaSevkAdet);
+            var toplamKalan = satirlar.Sum(s => s.KalanMiktar);
 
             var document = Document.Create(container =>
             {
@@ -1073,7 +1104,7 @@ namespace _3K.Infrastructure.Services
                             row.RelativeItem().AlignRight().Text(t =>
                             {
                                 t.Span("Toplam: ").FontSize(10);
-                                t.Span($"{toplamSatir} satır / {FormatAdet(toplamAdet)} adet / {FormatAdet(toplamGerceklesen)} gerçekleşen").Bold().FontSize(10);
+                                t.Span($"{toplamSatir} satır / {FormatAdet(toplamAdet)} adet / {FormatAdet(toplamGerceklesen)} gerçekleşen / {FormatAdet(toplamTrafodaSevk)} trafoda / {FormatAdet(toplamKalan)} kalan").Bold().FontSize(9);
                             });
                         });
                     });
@@ -1082,15 +1113,17 @@ namespace _3K.Infrastructure.Services
                     {
                         table.ColumnsDefinition(columns =>
                         {
-                            columns.ConstantColumn(24);
-                            columns.ConstantColumn(48);
-                            columns.RelativeColumn(1.1f);
-                            columns.RelativeColumn(2.4f);
-                            columns.ConstantColumn(40);
-                            columns.ConstantColumn(38);
-                            columns.ConstantColumn(60);
-                            columns.RelativeColumn(1.25f);
+                            columns.ConstantColumn(22);
+                            columns.ConstantColumn(46);
+                            columns.ConstantColumn(70);
                             columns.RelativeColumn(2.2f);
+                            columns.ConstantColumn(42);
+                            columns.ConstantColumn(36);
+                            columns.ConstantColumn(60);
+                            columns.ConstantColumn(50);
+                            columns.ConstantColumn(42);
+                            columns.ConstantColumn(88);
+                            columns.RelativeColumn(1.7f);
                         });
 
                         table.Header(header =>
@@ -1105,7 +1138,9 @@ namespace _3K.Infrastructure.Services
                             HeaderCell(header.Cell(), "MİKTAR");
                             HeaderCell(header.Cell(), "BİRİM");
                             HeaderCell(header.Cell(), "GERÇEKLEŞEN");
-                            HeaderCell(header.Cell(), "3K DURUMU");
+                            HeaderCell(header.Cell(), "TRAFODA");
+                            HeaderCell(header.Cell(), "KALAN");
+                            HeaderCell(header.Cell(), "DURUM");
                             HeaderCell(header.Cell(), "AÇIKLAMA");
                         });
 
@@ -1113,7 +1148,9 @@ namespace _3K.Infrastructure.Services
                         foreach (var satir in satirlar)
                         {
                             var bg = sira % 2 == 0 ? altRowBg : "#FFFFFF";
-                            var gerceklesenAdet = satir.SandikIcerikleri.Sum(si => si.KonulanAdet);
+                            var gerceklesenAdet = GetGerceklesenAdet(satir);
+                            var trafodaSevkAdet = GetTrafodaSevkAdet(satir);
+                            var kalanMiktar = satir.KalanMiktar;
                             var durumMetni = GetRaporDurum(satir);
                             var durumColor = GetDurumColor(satir);
                             var aciklama = GetAciklama(satir);
@@ -1153,6 +1190,8 @@ namespace _3K.Infrastructure.Services
                             DataCell(table.Cell(), FormatAdet(satir.IstenenAdet), bold: true);
                             DataCell(table.Cell(), satir.BirimLookup?.Deger ?? "Adet");
                             DataCell(table.Cell(), FormatAdet(gerceklesenAdet), bold: true);
+                            DataCell(table.Cell(), trafodaSevkAdet > 0 ? FormatAdet(trafodaSevkAdet) : "-", bold: trafodaSevkAdet > 0, color: trafodaSevkAdet > 0 ? warningColor : Colors.Black);
+                            DataCell(table.Cell(), FormatAdet(kalanMiktar), bold: true, color: kalanMiktar > 0 ? dangerColor : successColor);
                             DurumCell(table.Cell(), durumMetni);
                             DataCell(table.Cell(), aciklama);
 

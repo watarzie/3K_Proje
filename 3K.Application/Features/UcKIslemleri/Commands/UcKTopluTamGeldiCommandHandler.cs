@@ -42,9 +42,12 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
                 // Grid blokaj kontrolleri
                 if (satir.GridDurumuId == (int)GridDurum.Iptal ||
-                    satir.GridDurumuId == (int)GridDurum.GridKapandi ||
-                    satir.GridDurumuId == (int)GridDurum.TrafoSevk)
+                    satir.GridDurumuId == (int)GridDurum.GridKapandi)
                 { hatalar.Add($"ID {cekiSatiriId}: Grid durumu uygun değil."); continue; }
+
+                if (satir.GridDurumuId == (int)GridDurum.TrafoSevk &&
+                    (satir.GridSevkDurumuId != (int)GridSevkDurum.SevkEdildi || (satir.GridSevkMiktari ?? 0) <= 0))
+                { hatalar.Add($"ID {cekiSatiriId}: Trafo sevk satirinda 3K'ya sevk edilmis Grid gelen miktar yok."); continue; }
 
                 // Grid sevk kontrolü
                 if (satir.GridSevkDurumuId != (int)GridSevkDurum.SevkEdildi)

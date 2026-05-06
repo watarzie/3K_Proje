@@ -42,8 +42,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
                 // Grid blokaj kontrolleri
                 if (satir.GridDurumuId == (int)GridDurum.Iptal ||
-                    satir.GridDurumuId == (int)GridDurum.GridKapandi ||
-                    satir.GridDurumuId == (int)GridDurum.TrafoSevk)
+                    satir.GridDurumuId == (int)GridDurum.GridKapandi)
                 { hatalar.Add($"ID {cekiSatiriId}: Grid durumu uygun değil."); continue; }
 
                 // Kalan miktarı hesapla

@@ -106,7 +106,10 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                 (int)UcKDurum.TedarikcidenGeldi => "TEDARİKÇİDEN GELDİ",
                 (int)UcKDurum.HataliUrun => $"HATALI ÜRÜN – {cs.HataliMiktar} adet",
                 _ when cs.GridDurumuId == (int)GridDurum.Iptal => "GRİD İPTAL – İŞLEM YAPILAMAZ",
-                _ when cs.GridDurumuId == (int)GridDurum.TrafoSevk => "TRAFO SEVK – İŞLEM YAPILAMAZ",
+                _ when cs.GridDurumuId == (int)GridDurum.TrafoSevk
+                    && cs.GridSevkDurumuId == (int)GridSevkDurum.SevkEdildi
+                    && (cs.GridSevkMiktari ?? 0) > 0 => "KISMİ TRAFO SEVK – 3K SEVK BEKLİYOR",
+                _ when cs.GridDurumuId == (int)GridDurum.TrafoSevk => "TRAFO SEVK – 3K FİZİKSEL İŞLEM YOK",
                 _ when cs.GridDurumuId == (int)GridDurum.TamGeldi && cs.GelenMiktar < cs.IstenenAdet =>
                     "UYARI: GRİD TAM SEVK, 3K EKSİK GELİŞ",
                 _ => "BEKLİYOR"

@@ -50,15 +50,21 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
             foreach (var satir in satirlar)
             {
-                // Grid İptal veya TrafoSevk → atla
+                // Grid İptal veya kapandı → atla
                 if (satir.GridDurumuId == (int)GridDurum.Iptal)
                 {
                     atlananlar.Add($"#{satir.SiraNo} ({satir.Aciklama}) - Grid İptal");
                     continue;
                 }
-                if (satir.GridDurumuId == (int)GridDurum.TrafoSevk)
+                if (satir.GridDurumuId == (int)GridDurum.GridKapandi)
                 {
-                    atlananlar.Add($"#{satir.SiraNo} ({satir.Aciklama}) - Trafo Sevk");
+                    atlananlar.Add($"#{satir.SiraNo} ({satir.Aciklama}) - Grid Kapandı");
+                    continue;
+                }
+                if (satir.GridDurumuId == (int)GridDurum.TrafoSevk &&
+                    (satir.GridSevkDurumuId != (int)GridSevkDurum.SevkEdildi || (satir.GridSevkMiktari ?? 0) <= 0))
+                {
+                    atlananlar.Add($"#{satir.SiraNo} ({satir.Aciklama}) - Trafo sevk, 3K'ya sevk edilmis Grid gelen miktar yok");
                     continue;
                 }
 

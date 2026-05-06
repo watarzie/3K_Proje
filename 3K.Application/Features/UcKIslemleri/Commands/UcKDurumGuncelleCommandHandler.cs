@@ -54,8 +54,25 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 return Result.Failure("Bu ürün Grid tarafından kapatıldığı için üzerinde hiçbir işlem yapılamaz.");
 
             // ===== Grid Trafo Sevk Blokajı =====
-            if (satir.GridDurumuId == (int)GridDurum.TrafoSevk)
-                return Result.Failure("Bu ürün Grid tarafından 'Trafo Sevk' olarak işaretlendiğinden 3K işlemi yapılamaz.");
+            var fizikselSevkGerektirenTipler = new[]
+            {
+                (int)UcKDurum.TamGeldi,
+                (int)UcKDurum.EksikGeldi,
+                (int)UcKDurum.Gelmedi,
+                (int)UcKDurum.GeriGonderildi
+            };
+
+            var gridKismiTrafoSevkEdildi =
+                satir.GridDurumuId == (int)GridDurum.TrafoSevk &&
+                satir.GridSevkDurumuId == (int)GridSevkDurum.SevkEdildi &&
+                (satir.GridSevkMiktari ?? 0) > 0;
+
+            if (satir.GridDurumuId == (int)GridDurum.TrafoSevk
+                && fizikselSevkGerektirenTipler.Contains(request.KarsilamaTipiId)
+                && !gridKismiTrafoSevkEdildi)
+            {
+                return Result.Failure("Bu ürün Trafo Sevk durumunda. 3K fiziksel işlem yapılabilmesi için Grid'e gelen miktar önce 3K'ya sevk edilmelidir.");
+            }
 
             // ===== Kalite Tadilatta Blokajı =====
             if (satir.KaliteDurumId.HasValue)
@@ -227,8 +244,8 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
             // Toplam kontrol
             var toplam = satir.GelenMiktar + satir.KarsilananMiktar;
-            if (toplam > satir.IstenenAdet)
-                return Result.Failure($"Toplam tamamlanan adet ({toplam}), çeki miktarını ({satir.IstenenAdet}) aşamaz.");
+            if (toplam + satir.TrafoSevkAdet > satir.IstenenAdet)
+                return Result.Failure($"Toplam tamamlanan adet ({toplam}) ve trafo sevk ({satir.TrafoSevkAdet}), çeki miktarını ({satir.IstenenAdet}) aşamaz.");
 
             // Genel durumu hesapla
             satir.DurumId = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumuId, satir.UcKDurumuId);
