@@ -12,17 +12,20 @@ namespace _3K.Application.Features.GridIslemleri.Commands
         private readonly ICurrentUserService _currentUserService;
         private readonly IDurumHesaplaService _durumHesaplaService;
         private readonly IHareketService _hareketService;
+        private readonly ILookupCacheService _lookupCache;
 
         public GridTopluSevkCommandHandler(
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUserService,
             IDurumHesaplaService durumHesaplaService,
-            IHareketService hareketService)
+            IHareketService hareketService,
+            ILookupCacheService lookupCache)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _durumHesaplaService = durumHesaplaService;
             _hareketService = hareketService;
+            _lookupCache = lookupCache;
         }
 
         public async Task<Result> Handle(GridTopluSevkCommand request, CancellationToken cancellationToken)
@@ -36,6 +39,23 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
             if (!satirlar.Any())
                 return Result.Failure("Seçilen ürünler bulunamadı.", 404);
+
+            var tadilattakiSatirlar = satirlar
+                .Where(s => s.KaliteDurumId.HasValue
+                    && _lookupCache.GetDeger<LookupKaliteDurum>(s.KaliteDurumId.Value) == "Tadilatta")
+                .ToList();
+
+            if (tadilattakiSatirlar.Any())
+            {
+                var detay = string.Join(", ", tadilattakiSatirlar
+                    .Take(5)
+                    .Select(s => $"{(string.IsNullOrWhiteSpace(s.BarkodNo) ? s.SiraNo.ToString() : s.BarkodNo)} - {s.Aciklama}"));
+                var kalan = tadilattakiSatirlar.Count > 5 ? $" (+{tadilattakiSatirlar.Count - 5})" : string.Empty;
+
+                return Result.Failure(
+                    $"Kalite durumu 'Tadilatta' olan ürünler toplu sevk edilemez: {detay}{kalan}",
+                    400);
+            }
 
             var now = DateTime.UtcNow;
             var kullaniciId = _currentUserService.UserId ?? 0;
