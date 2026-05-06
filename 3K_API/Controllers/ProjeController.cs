@@ -79,6 +79,15 @@ namespace _3K_API.Controllers
             var result = await _mediator.Send(command);
             return result.ToActionResult();
         }
+        /// <summary>
+        /// Projeyi ve tüm alt verilerini (sandık, ürün, çeki vb.) siler — Sadece Admin
+        /// </summary>
+        [HttpDelete("{id}")]
+        public async Task<ActionResult> Delete(int id)
+        {
+            var result = await _mediator.Send(new ProjeSilCommand { ProjeId = id });
+            return result.ToActionResult();
+        }
     }
 
     public record SevkEtRequest
