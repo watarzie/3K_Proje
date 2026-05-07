@@ -163,6 +163,7 @@ namespace _3K.Infrastructure.Data
                 e.Property(p => p.GridGelenAdet).HasPrecision(18, 4);
                 e.Property(p => p.TrafoSevkAdet).HasPrecision(18, 4);
                 e.Property(p => p.GridSevkMiktari).HasPrecision(18, 4);
+                e.Property(p => p.YenidenSevkGerekliAdet).HasPrecision(18, 4);
                 e.Property(p => p.GelenMiktar).HasPrecision(18, 4);
                 e.Property(p => p.KarsilananMiktar).HasPrecision(18, 4);
                 e.Property(p => p.StokKarsilanan).HasPrecision(18, 4);
@@ -557,7 +558,8 @@ namespace _3K.Infrastructure.Data
             modelBuilder.Entity<LookupGridSevkDurum>().HasData(
                 new LookupGridSevkDurum { Id = 1, Anahtar = 1, Deger = "Sevk Edildi" },
                 new LookupGridSevkDurum { Id = 2, Anahtar = 2, Deger = "Bekliyor" },
-                new LookupGridSevkDurum { Id = 3, Anahtar = 3, Deger = "Sevk Edilmedi" }
+                new LookupGridSevkDurum { Id = 3, Anahtar = 3, Deger = "Sevk Edilmedi" },
+                new LookupGridSevkDurum { Id = 4, Anahtar = 4, Deger = "Yeniden Sevk Gerekli" }
             );
 
             // UcKDurum

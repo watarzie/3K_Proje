@@ -4,6 +4,7 @@ namespace _3K.Core.Enums
     {
         SevkEdildi = 1,
         Bekliyor = 2,
-        SevkEdilmedi = 3
+        SevkEdilmedi = 3,
+        YenidenSevkGerekli = 4
     }
 }

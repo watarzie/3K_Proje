@@ -46,6 +46,7 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                     GridSevkDurumuId = cs.GridSevkDurumuId,
                     GridSevkDurumuMetni = _lookupCache.GetDeger<LookupGridSevkDurum>(cs.GridSevkDurumuId),
                     GridSevkMiktari = cs.GridSevkMiktari,
+                    YenidenSevkGerekliAdet = cs.YenidenSevkGerekliAdet,
                     GridSevkTarihi = cs.GridSevkTarihi,
                     GridAciklama = cs.GridAciklama,
                     GridEksikMiktar = cs.GridEksikMiktar,
@@ -53,6 +54,10 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                     UcKDurumuMetni = _lookupCache.GetDeger<LookupUcKDurum>(cs.UcKDurumuId),
                     GelenMiktar = cs.GelenMiktar,
                     GeriGonderilenMiktar = cs.GeriGonderilenMiktar,
+                    GeriGonderilmeSebebiId = cs.GeriGonderilmeSebebiId,
+                    GeriGonderilmeSebebiMetni = cs.GeriGonderilmeSebebiId.HasValue
+                        ? _lookupCache.GetDeger<LookupGeriGonderilmeSebebi>(cs.GeriGonderilmeSebebiId.Value)
+                        : null,
                     KaynakHedefProjeNo = cs.KaynakHedefProjeNo,
                     UcKAciklama = cs.UcKAciklama,
                     GenelDurumId = cs.DurumId,

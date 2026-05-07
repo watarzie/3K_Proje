@@ -14,6 +14,10 @@ namespace _3K.Application.Features.ProjeIslemleri.DTOs
         public string SorumluKisi { get; set; } = string.Empty;
         public int SandikSayisi { get; set; }
         public int HazirSandikSayisi { get; set; }
+        public int DepoSandikSayisi { get; set; }
+        public int DepoUcKSandikSayisi { get; set; }
+        public int DepoSeymenSandikSayisi { get; set; }
+        public int DepoGridSandikSayisi { get; set; }
         public int ToplamUrunSayisi { get; set; }
         public int TamamlananUrunSayisi { get; set; }
 

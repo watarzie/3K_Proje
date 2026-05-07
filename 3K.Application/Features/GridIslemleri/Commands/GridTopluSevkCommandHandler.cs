@@ -65,9 +65,28 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
             foreach (var satir in satirlar)
             {
+                var yenidenSevkAkisi =
+                    satir.GridSevkDurumuId == (int)GridSevkDurum.YenidenSevkGerekli &&
+                    satir.YenidenSevkGerekliAdet > 0;
+
+                if (!yenidenSevkAkisi &&
+                    (satir.UcKDurumuId != (int)UcKDurum.Bekliyor || satir.GelenMiktar > 0 || satir.KarsilananMiktar > 0))
+                {
+                    atlananlar.Add($"#{satir.SiraNo} ({satir.Aciklama}) - 3K tarafÄ±nda iÅŸlem yapÄ±lmÄ±ÅŸ");
+                    continue;
+                }
+
                 var sevkMiktari = satir.IstenenAdet;
 
-                if (satir.GridDurumuId == (int)GridDurum.TrafoSevk)
+                if (yenidenSevkAkisi)
+                {
+                    sevkMiktari = satir.YenidenSevkGerekliAdet;
+                    satir.YenidenSevkGerekliAdet = 0;
+                    satir.UcKDurumuId = (int)UcKDurum.Bekliyor;
+                    satir.UcKKarsilamaTipiId = (int)UcKDurum.Bekliyor;
+                    satir.TeslimTarihi = null;
+                }
+                else if (satir.GridDurumuId == (int)GridDurum.TrafoSevk)
                 {
                     if (satir.GridGelenAdet <= 0)
                     {

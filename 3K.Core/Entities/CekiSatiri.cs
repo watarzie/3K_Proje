@@ -43,6 +43,10 @@ namespace _3K.Core.Entities
         /// Grid'den 3K'ya sevk edilen adet.
         /// </summary>
         public decimal? GridSevkMiktari { get; set; }
+        /// <summary>
+        /// 3K geri bildirimi sonucunda Grid'in yeniden sevk etmesi gereken aktif miktar.
+        /// </summary>
+        public decimal YenidenSevkGerekliAdet { get; set; } = 0;
         public DateTime? GridSevkTarihi { get; set; }
         public string? GridAciklama { get; set; }
         public int? GridPersonelId { get; set; }

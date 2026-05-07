@@ -38,6 +38,7 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                     UrunSayisi = icerikler.Count,
                     IsManuelSandik = isManuelSandik,
                     SilinebilirMi = icerikler.Count == 0 || (isManuelSandik && icerikler.All(i => !ManuelSatirIslemGormus(i.CekiSatiri!))),
+                    DepodaSayilacakMi = DepodaSayilacakSandik(s, icerikler),
                     En = s.En,
                     Boy = s.Boy,
                     Yukseklik = s.Yukseklik,
@@ -64,6 +65,24 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 || satir.ProjeGonderilen > 0
                 || satir.TedarikciKarsilanan > 0
                 || satir.GeriGonderilenMiktar > 0;
+        }
+
+        private static bool DepodaSayilacakSandik(Sandik sandik, IReadOnlyCollection<SandikIcerik> icerikler)
+        {
+            if (sandik.DurumId == (int)_3K.Core.Enums.SandikDurum.Sevkedildi)
+                return false;
+
+            return icerikler.Any(i =>
+            {
+                var satir = i.CekiSatiri;
+                if (satir == null)
+                    return i.Miktar > 0 || i.KonulanAdet > 0 || i.StokKarsilanan > 0 || i.ProjeKarsilanan > 0 || i.TedarikciKarsilanan > 0;
+
+                return satir.GelenMiktar > 0
+                    || satir.ProjeKarsilanan > 0
+                    || satir.StokKarsilanan > 0
+                    || satir.TedarikciKarsilanan > 0;
+            });
         }
     }
 }

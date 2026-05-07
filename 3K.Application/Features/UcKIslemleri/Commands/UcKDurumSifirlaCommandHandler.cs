@@ -50,7 +50,8 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 && satir.StokKarsilanan == 0
                 && satir.ProjeKarsilanan == 0
                 && satir.TedarikciKarsilanan == 0
-                && satir.HataliMiktar == 0)
+                && satir.HataliMiktar == 0
+                && satir.YenidenSevkGerekliAdet == 0)
                 return Result.Failure("Bu ürün zaten başlangıç durumunda.");
 
             // ===== Eski değerleri kaydet (hareket logu için) =====
@@ -77,6 +78,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             satir.KaynakHedefProjeNo = null;
             satir.KaynakProjeId = null;
             satir.GeriGonderilmeSebebiId = null;
+            satir.YenidenSevkGerekliAdet = 0;
+            if (satir.GridSevkDurumuId == (int)GridSevkDurum.YenidenSevkGerekli)
+                satir.GridSevkDurumuId = (int)GridSevkDurum.SevkEdildi;
 
             // ===== Genel durumu yeniden hesapla =====
             satir.DurumId = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumuId, satir.UcKDurumuId);

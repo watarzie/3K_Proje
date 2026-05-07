@@ -90,11 +90,40 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     return Result.Failure("Grid 'Gelmedi' durumunda yalnızca Projeden, Stoktan veya Tedarikçiden karşılama yapılabilir.");
             }
 
+            var kaynakKarsilamaTipleri = new[] { (int)UcKDurum.ProjedenKarsilandi, (int)UcKDurum.StoktanKarsilandi, (int)UcKDurum.TedarikcidenGeldi };
+            var gridKaynakKarsilamaAcik =
+                satir.GridDurumuId == (int)GridDurum.EksikGeldi ||
+                satir.GridDurumuId == (int)GridDurum.Gelmedi ||
+                satir.GridDurumuId == (int)GridDurum.TrafoSevk;
+
+            var geriGonderimSonrasiKaynakAcik =
+                satir.KalanMiktar > 0 &&
+                (satir.UcKKarsilamaTipiId == (int)UcKDurum.GeriGonderildi ||
+                 satir.GeriGonderilenMiktar > 0 ||
+                 satir.YenidenSevkGerekliAdet > 0);
+
+            if (kaynakKarsilamaTipleri.Contains(request.KarsilamaTipiId)
+                && !gridKaynakKarsilamaAcik
+                && !geriGonderimSonrasiKaynakAcik)
+            {
+                return Result.Failure("Projeden, stoktan veya tedarikciden karsilama yalnizca eksik/gelmedi, kismi trafo sevk veya 3K geri gonderim sonrasi kalan acikken yapilabilir.");
+            }
+
             // ===== Eksiksiz (Tam) Geldi Validasyonu =====
             if (request.KarsilamaTipiId == (int)UcKDurum.TamGeldi && satir.GridSevkDurumuId != (int)GridSevkDurum.SevkEdildi)
                 return Result.Failure("Grid tarafından eksiksiz sevk edilmeden ürün 'Tam Geldi' olarak işaretlenemez.");
 
 
+
+            var gridSevkiVar =
+                satir.GridSevkDurumuId == (int)GridSevkDurum.SevkEdildi &&
+                (satir.GridSevkMiktari ?? 0) > 0;
+
+            if ((request.KarsilamaTipiId == (int)UcKDurum.Gelmedi || request.KarsilamaTipiId == (int)UcKDurum.GeriGonderildi)
+                && !gridSevkiVar)
+            {
+                return Result.Failure("Gelmedi veya Geri GÃ¶nderildi iÅŸlemi iÃ§in Grid tarafÄ±ndan sevk edilmiÅŸ aktif miktar bulunmalÄ±dÄ±r.");
+            }
 
             // ===== Validasyon =====
             switch (request.KarsilamaTipiId)
@@ -154,7 +183,6 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     if (request.GelenAdet == null || request.GelenAdet <= 0)
                         return Result.Failure("Gelen adet girilmelidir.");
                     break;
-
                 case (int)UcKDurum.GeriGonderildi:
                     if (!request.GeriGonderilmeSebebiId.HasValue || request.GeriGonderilmeSebebiId.Value <= 0)
                         return Result.Failure("Geri gönderilme sebebi seçilmelidir.");
@@ -190,6 +218,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 case (int)UcKDurum.Gelmedi:
                     satir.UcKDurumuId = (int)UcKDurum.Gelmedi;
                     satir.TeslimTarihi = DateTime.UtcNow;
+                    var gelmeyenAdet = satir.GridSevkMiktari ?? 0;
+                    satir.YenidenSevkGerekliAdet = Math.Max(satir.YenidenSevkGerekliAdet, gelmeyenAdet);
+                    satir.GridSevkDurumuId = (int)GridSevkDurum.YenidenSevkGerekli;
                     break;
 
                 case (int)UcKDurum.ProjedenKarsilandi:
@@ -198,6 +229,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     satir.UcKDurumuId = (int)UcKDurum.ProjedenKarsilandi;
                     satir.TeslimTarihi = DateTime.UtcNow;
                     // Cross-project transfer
+                    KapatYenidenSevkIhtiyaci(satir, request.GelenAdet.Value);
                     await HandleProjedenKarsilandi(satir, request);
                     break;
 
@@ -208,6 +240,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     satir.TeslimTarihi = DateTime.UtcNow;
 
                     // Stoktan Düşme ve StokHareketi Loglama İşlemi
+                    KapatYenidenSevkIhtiyaci(satir, request.GelenAdet.Value);
                     await _stokService.StokDusAsync(request.StokKaydiId!.Value, request.GelenAdet.Value);
 
                     var stokHareketRepo = _unitOfWork.GetRepository<StokHareketi>();
@@ -229,14 +262,16 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     satir.TedarikciKarsilanan += request.GelenAdet!.Value; // Madde 2: Parçalı tracking
                     satir.UcKDurumuId = (int)UcKDurum.TedarikcidenGeldi;
                     satir.TeslimTarihi = DateTime.UtcNow;
+                    KapatYenidenSevkIhtiyaci(satir, request.GelenAdet.Value);
                     break;
 
                 case (int)UcKDurum.GeriGonderildi:
                     // Geri gönderilen miktarı 3K gelen'den ve Grid gelen'den düş
                     var geriAdet = request.GelenAdet!.Value;
                     satir.GelenMiktar = Math.Max(satir.GelenMiktar - geriAdet, 0);
-                    satir.GridGelenAdet = Math.Max(satir.GridGelenAdet - geriAdet, 0);
                     satir.GeriGonderilenMiktar += geriAdet;
+                    satir.YenidenSevkGerekliAdet += geriAdet;
+                    satir.GridSevkDurumuId = (int)GridSevkDurum.YenidenSevkGerekli;
                     satir.UcKDurumuId = (int)UcKDurum.GeriGonderildi;
                     satir.GeriGonderilmeSebebiId = request.GeriGonderilmeSebebiId;
                     break;
@@ -287,6 +322,23 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             });
 
             return Result.Success();
+        }
+
+        /// <summary>
+        /// Geri bildirim sonrasındaki yeniden sevk ihtiyacını 3K kaynak karşılaması kadar kapatır.
+        /// </summary>
+        private static void KapatYenidenSevkIhtiyaci(CekiSatiri satir, decimal karsilananAdet)
+        {
+            if (satir.YenidenSevkGerekliAdet <= 0 || karsilananAdet <= 0)
+                return;
+
+            satir.YenidenSevkGerekliAdet = Math.Max(satir.YenidenSevkGerekliAdet - karsilananAdet, 0);
+
+            if (satir.YenidenSevkGerekliAdet <= 0 &&
+                satir.GridSevkDurumuId == (int)GridSevkDurum.YenidenSevkGerekli)
+            {
+                satir.GridSevkDurumuId = (int)GridSevkDurum.SevkEdildi;
+            }
         }
 
         /// <summary>

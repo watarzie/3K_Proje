@@ -18,6 +18,7 @@ namespace _3K.Application.Features.GridIslemleri.DTOs
         public int GridSevkDurumuId { get; set; }
         public string GridSevkDurumuMetni { get; set; } = string.Empty;
         public decimal? GridSevkMiktari { get; set; }
+        public decimal YenidenSevkGerekliAdet { get; set; }
         public DateTime? GridSevkTarihi { get; set; }
         public string? GridAciklama { get; set; }
         public decimal GridEksikMiktar { get; set; }
@@ -35,6 +36,8 @@ namespace _3K.Application.Features.GridIslemleri.DTOs
         public string UcKDurumuMetni { get; set; } = string.Empty;
         public decimal GelenMiktar { get; set; }
         public decimal GeriGonderilenMiktar { get; set; }
+        public int? GeriGonderilmeSebebiId { get; set; }
+        public string? GeriGonderilmeSebebiMetni { get; set; }
         public string? KaynakHedefProjeNo { get; set; }
 
         // Çapraz açıklama: 3K tarafının bu ürüne yazdığı açıklama (Grid tarafı görür)

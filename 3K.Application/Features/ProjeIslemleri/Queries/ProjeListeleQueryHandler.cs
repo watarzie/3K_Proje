@@ -38,6 +38,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                 var hazirSandik = sandiklar.Count(s => 
                     s.DurumId == (int)SandikDurum.Kapandi || 
                     s.DurumId == (int)SandikDurum.Sevkedildi);
+                var depoSandiklar = sandiklar.Where(DepodaSayilacakSandik).ToList();
                 var isSahaYedek = p.ProjeTipiId == (int)ProjeTipi.Saha || p.ProjeTipiId == (int)ProjeTipi.Yedek;
                 var sandikIcerikleri = sandiklar.SelectMany(s => s.SandikIcerikleri).ToList();
                 
@@ -78,6 +79,10 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                     SorumluKisi = p.SorumluKisi,
                     SandikSayisi = toplamSandik,
                     HazirSandikSayisi = hazirSandik,
+                    DepoSandikSayisi = depoSandiklar.Count,
+                    DepoUcKSandikSayisi = depoSandiklar.Count(s => s.DepoLokasyonId == (int)DepoLokasyon.UcK),
+                    DepoSeymenSandikSayisi = depoSandiklar.Count(s => s.DepoLokasyonId == (int)DepoLokasyon.Seymen),
+                    DepoGridSandikSayisi = depoSandiklar.Count(s => s.DepoLokasyonId == (int)DepoLokasyon.Grid),
                     ToplamUrunSayisi = toplamUrun,
                     TamamlananUrunSayisi = tamamlananUrun,
                     FBNo = p.FBNo,
@@ -92,6 +97,24 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
             });
 
             return Result<IEnumerable<ProjeDto>>.Success(result);
+        }
+
+        private static bool DepodaSayilacakSandik(Sandik sandik)
+        {
+            if (sandik.DurumId == (int)SandikDurum.Sevkedildi)
+                return false;
+
+            return sandik.SandikIcerikleri.Any(i =>
+            {
+                var satir = i.CekiSatiri;
+                if (satir == null)
+                    return i.Miktar > 0 || i.KonulanAdet > 0 || i.StokKarsilanan > 0 || i.ProjeKarsilanan > 0 || i.TedarikciKarsilanan > 0;
+
+                return satir.GelenMiktar > 0
+                    || satir.ProjeKarsilanan > 0
+                    || satir.StokKarsilanan > 0
+                    || satir.TedarikciKarsilanan > 0;
+            });
         }
     }
 }

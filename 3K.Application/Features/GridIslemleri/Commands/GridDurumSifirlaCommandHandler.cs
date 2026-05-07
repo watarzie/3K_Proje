@@ -46,7 +46,8 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             if (satir.GridDurumuId == (int)GridDurum.Gelmedi
                 && satir.GridGelenAdet == 0
                 && satir.TrafoSevkAdet == 0
-                && satir.GridSevkDurumuId == (int)GridSevkDurum.SevkEdilmedi)
+                && satir.GridSevkDurumuId == (int)GridSevkDurum.SevkEdilmedi
+                && satir.YenidenSevkGerekliAdet == 0)
                 return Result.Failure("Bu ürün zaten sıfırlanmış durumda.");
 
             // ===== Eski değerleri kaydet (hareket logu için) =====
@@ -62,6 +63,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             satir.TrafoSevkAdet = 0;
             satir.GridSevkDurumuId = (int)GridSevkDurum.SevkEdilmedi;
             satir.GridSevkMiktari = null;
+            satir.YenidenSevkGerekliAdet = 0;
             satir.GridSevkTarihi = null;
             satir.GridPersonelId = null;
             satir.GridAciklama = null;

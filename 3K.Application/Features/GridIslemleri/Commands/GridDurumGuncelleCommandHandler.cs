@@ -46,9 +46,14 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             // ===== 3K İşlem Blokajı =====
             // 3K tarafında işlem yapılmışsa Grid artık durum değiştiremez.
             // Önce 3K durumunun sıfırlanması gerekir.
-            if (satir.UcKDurumuId != (int)UcKDurum.Bekliyor
+            var yenidenSevkAkisi =
+                satir.GridSevkDurumuId == (int)GridSevkDurum.YenidenSevkGerekli &&
+                satir.YenidenSevkGerekliAdet > 0 &&
+                request.GridSevkDurumuId == (int)GridSevkDurum.SevkEdildi;
+
+            if (!yenidenSevkAkisi && (satir.UcKDurumuId != (int)UcKDurum.Bekliyor
                 || satir.GelenMiktar > 0
-                || satir.KarsilananMiktar > 0)
+                || satir.KarsilananMiktar > 0))
             {
                 return Result.Failure("Bu ürün için 3K tarafında işlem yapılmış. Grid durumu değiştirilemez. Önce 3K durumunu sıfırlayın.");
             }
@@ -131,7 +136,8 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 {
                     if (request.YeniDurumId != (int)GridDurum.TamGeldi && request.YeniDurumId != (int)GridDurum.EksikGeldi && !(request.YeniDurumId == (int)GridDurum.TrafoSevk && satir.GridGelenAdet > 0))
                         return Result.Failure("Sevk edilmesi için durum TamGeldi veya EksikGeldi olmalıdır.");
-                    if (request.SevkMiktari > satir.GridGelenAdet)
+                    var sevkUstSinir = yenidenSevkAkisi ? satir.YenidenSevkGerekliAdet : satir.GridGelenAdet;
+                    if (request.SevkMiktari > sevkUstSinir)
                         return Result.Failure("Sevk miktari Grid'e gelen adetten buyuk olamaz.");
                     if (request.SevkMiktari == null || request.SevkMiktari <= 0)
                         return Result.Failure("Sevk miktarı girilmelidir.");
@@ -142,6 +148,16 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 {
                     satir.GridSevkMiktari = request.SevkMiktari.Value;
                     satir.GridSevkTarihi = DateTime.UtcNow;
+                    if (yenidenSevkAkisi)
+                    {
+                        satir.YenidenSevkGerekliAdet = Math.Max(satir.YenidenSevkGerekliAdet - request.SevkMiktari.Value, 0);
+                        satir.GridSevkDurumuId = satir.YenidenSevkGerekliAdet > 0
+                            ? (int)GridSevkDurum.YenidenSevkGerekli
+                            : (int)GridSevkDurum.SevkEdildi;
+                        satir.UcKDurumuId = (int)UcKDurum.Bekliyor;
+                        satir.UcKKarsilamaTipiId = (int)UcKDurum.Bekliyor;
+                        satir.TeslimTarihi = null;
+                    }
                 }
             }
 

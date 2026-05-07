@@ -58,6 +58,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 satir.UcKDurumuId = (int)UcKDurum.TedarikcidenGeldi;
                 satir.TeslimTarihi = DateTime.UtcNow;
                 satir.UcKAciklama = request.Aciklama;
+                KapatYenidenSevkIhtiyaci(satir, kalan);
 
                 // Genel durumu hesapla
                 satir.DurumId = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumuId, satir.UcKDurumuId);
@@ -101,6 +102,20 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 return Result.Failure($"{basarili} ürün güncellendi, {hatalar.Count} hata: {string.Join("; ", hatalar.Take(3))}");
 
             return Result.Success();
+        }
+
+        private static void KapatYenidenSevkIhtiyaci(CekiSatiri satir, decimal karsilananAdet)
+        {
+            if (satir.YenidenSevkGerekliAdet <= 0 || karsilananAdet <= 0)
+                return;
+
+            satir.YenidenSevkGerekliAdet = Math.Max(satir.YenidenSevkGerekliAdet - karsilananAdet, 0);
+
+            if (satir.YenidenSevkGerekliAdet <= 0 &&
+                satir.GridSevkDurumuId == (int)GridSevkDurum.YenidenSevkGerekli)
+            {
+                satir.GridSevkDurumuId = (int)GridSevkDurum.SevkEdildi;
+            }
         }
     }
 }
