@@ -6,6 +6,8 @@ using _3K.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Drawing.Spreadsheet;
+using System.Globalization;
+using System.Text;
 
 namespace _3K.Infrastructure.Services
 {
@@ -53,7 +55,7 @@ namespace _3K.Infrastructure.Services
                 // Çıktı sayfasını bul
                 foreach (var ws in allSheets)
                 {
-                    if (NormalizeName(ws.Name) == "CIKTI SAYFASI")
+                    if (NormalizeExcelText(ws.Name) == "CIKTI SAYFASI" || NormalizeName(ws.Name) == "CIKTI SAYFASI")
                     {
                         worksheet = ws;
                         break;
@@ -64,8 +66,9 @@ namespace _3K.Infrastructure.Services
                 {
                     foreach (var ws in allSheets)
                     {
-                        var nName = NormalizeName(ws.Name);
-                        if (nName.Contains("CIKTI") && !nName.Contains("YDK") && !nName.Contains("YEDEK"))
+                        var nName = NormalizeExcelText(ws.Name);
+                        var legacyName = NormalizeName(ws.Name);
+                        if ((nName.Contains("CIKTI") || legacyName.Contains("CIKTI")) && !nName.Contains("YDK") && !nName.Contains("YEDEK"))
                         {
                             worksheet = ws;
                             break;
@@ -156,6 +159,7 @@ namespace _3K.Infrastructure.Services
 
                 // Sandık ismi eşleştirmesi: koliNo → sandıkIsmi
                 var sandikIsimleri = new Dictionary<string, string>();
+                var sandikBilgileri = OkuCekiListesiSandikBilgileri(workbook);
 
                 int baslangicSatir = 6;
                 for (int r = 1; r <= 20; r++)
@@ -200,7 +204,7 @@ namespace _3K.Infrastructure.Services
                     var siraNoStr = row.Cell(1).GetString().Trim();
                     if (int.TryParse(siraNoStr, out int parsedSira)) siraNo = parsedSira;
 
-                    var koliNo = row.Cell(5).GetString().Trim();
+                    var koliNo = NormalizeKoliNo(row.Cell(5).GetString().Trim());
 
                     int istenenAdet = 0;
                     try
@@ -265,18 +269,25 @@ namespace _3K.Infrastructure.Services
                 // --- 6. SANDIK GRUPLAMA VE OLUŞTURMA ---
                 var sandikRepo = _unitOfWork.GetRepository<Sandik>();
                 var sandikIcerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
-                var benzersizSandiklar = satirlar.GroupBy(s => s.CekideGecenSandikNo);
+                var benzersizSandiklar = satirlar.GroupBy(s => NormalizeKoliNo(s.CekideGecenSandikNo));
 
                 foreach (var grup in benzersizSandiklar)
                 {
                     if (string.IsNullOrWhiteSpace(grup.Key)) continue;
 
+                    sandikBilgileri.TryGetValue(grup.Key, out var sandikBilgisi);
+
                     var sandik = new Sandik
                     {
                         ProjeId = proje.Id,
                         SandikNo = grup.Key,
-                        Ad = sandikIsimleri.TryGetValue(grup.Key, out var isim) ? isim : null,
-                        DurumId = (int)SandikDurum.Hazirlaniyor
+                        Ad = sandikBilgisi?.SandikIsmi ?? (sandikIsimleri.TryGetValue(grup.Key, out var isim) ? isim : null),
+                        DurumId = (int)SandikDurum.Hazirlaniyor,
+                        En = sandikBilgisi?.En,
+                        Boy = sandikBilgisi?.Boy,
+                        Yukseklik = sandikBilgisi?.Yukseklik,
+                        NetKg = sandikBilgisi?.NetKg,
+                        GrossKg = sandikBilgisi?.GrossKg
                     };
                     await sandikRepo.AddAsync(sandik);
                     await _unitOfWork.SaveChangesAsync();
@@ -326,8 +337,203 @@ namespace _3K.Infrastructure.Services
         }
 
         /// <summary>
-        /// ClosedXML resim adlarında :\/?*[] karakterlerini kabul etmiyor.
-        /// OpenXML ile resim adlarını temizler, sorunsuz yükleme sağlar.
+        /// Reads case names and physical values from the packing list sheet.
+        /// </summary>
+        private static Dictionary<string, SandikImportBilgisi> OkuCekiListesiSandikBilgileri(IXLWorkbook workbook)
+        {
+            var sonuc = new Dictionary<string, SandikImportBilgisi>();
+            var worksheet = workbook.Worksheets.FirstOrDefault(ws =>
+            {
+                var name = NormalizeExcelText(ws.Name);
+                return name.Contains("CEKI") && name.Contains("LISTESI") && !name.Contains("CIKTI");
+            }) ?? workbook.Worksheets.FirstOrDefault(ws => NormalizeExcelText(ws.Name).Contains("PACKING LIST"));
+
+            if (worksheet == null)
+                return sonuc;
+
+            var baslikSatiri = BulCekiListesiBaslikSatiri(worksheet);
+            if (baslikSatiri == null)
+                return sonuc;
+
+            var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? baslikSatiri.Value;
+            for (int r = baslikSatiri.Value + 1; r <= lastRow; r++)
+            {
+                var koliNoRaw = worksheet.Cell(r, 1).GetString().Trim();
+                if (string.IsNullOrWhiteSpace(koliNoRaw))
+                    continue;
+
+                var sandikIsmi = worksheet.Cell(r, 10).GetString().Trim();
+                var ambalajCinsi = worksheet.Cell(r, 3).GetString().Trim();
+                var netKg = ReadNullableDecimal(worksheet.Cell(r, 4));
+                var grossKg = ReadNullableDecimal(worksheet.Cell(r, 5));
+                var boyMm = ReadNullableDecimal(worksheet.Cell(r, 6));
+                var enMm = ReadNullableDecimal(worksheet.Cell(r, 7));
+                var yukseklikMm = ReadNullableDecimal(worksheet.Cell(r, 8));
+
+                if (string.IsNullOrWhiteSpace(sandikIsmi)
+                    && string.IsNullOrWhiteSpace(ambalajCinsi)
+                    && netKg == null
+                    && grossKg == null
+                    && boyMm == null
+                    && enMm == null
+                    && yukseklikMm == null)
+                {
+                    continue;
+                }
+
+                foreach (var koliNo in ExpandKoliNo(koliNoRaw))
+                {
+                    if (sonuc.ContainsKey(koliNo))
+                        continue;
+
+                    sonuc[koliNo] = new SandikImportBilgisi
+                    {
+                        SandikNo = koliNo,
+                        SandikIsmi = string.IsNullOrWhiteSpace(sandikIsmi) ? null : sandikIsmi,
+                        AmbalajCinsi = string.IsNullOrWhiteSpace(ambalajCinsi) ? null : ambalajCinsi,
+                        En = MmToCm(enMm),
+                        Boy = MmToCm(boyMm),
+                        Yukseklik = MmToCm(yukseklikMm),
+                        NetKg = netKg,
+                        GrossKg = grossKg
+                    };
+                }
+            }
+
+            return sonuc;
+        }
+
+        private static int? BulCekiListesiBaslikSatiri(IXLWorksheet worksheet)
+        {
+            var lastRow = Math.Min(worksheet.LastRowUsed()?.RowNumber() ?? 0, 100);
+            var lastColumn = Math.Min(worksheet.LastColumnUsed()?.ColumnNumber() ?? 0, 20);
+
+            for (int r = 1; r <= lastRow; r++)
+            {
+                var rowText = new StringBuilder();
+                for (int c = 1; c <= lastColumn; c++)
+                    rowText.Append(' ').Append(NormalizeExcelText(worksheet.Cell(r, c).GetString()));
+
+                var text = rowText.ToString();
+                if ((text.Contains("KOLI") || text.Contains("CASE"))
+                    && (text.Contains("AMBALAJ") || text.Contains("PACKAGE"))
+                    && (text.Contains("CINSI") || text.Contains("DESCRIPTION")))
+                {
+                    return r;
+                }
+            }
+
+            return null;
+        }
+
+        private static IEnumerable<string> ExpandKoliNo(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                yield break;
+
+            var text = value.Trim()
+                .Replace('\u00A0', ' ')
+                .Replace('\u2013', '-')
+                .Replace('\u2014', '-');
+
+            var parts = text.Split(new[] { ',', ';', '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var part in parts)
+            {
+                var normalizedPart = part.Trim();
+                var rangeParts = normalizedPart.Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                if (rangeParts.Length == 2
+                    && int.TryParse(NormalizeKoliNo(rangeParts[0]), out var start)
+                    && int.TryParse(NormalizeKoliNo(rangeParts[1]), out var end)
+                    && start > 0
+                    && end >= start
+                    && end - start <= 500)
+                {
+                    for (var no = start; no <= end; no++)
+                        yield return no.ToString(CultureInfo.InvariantCulture);
+
+                    continue;
+                }
+
+                var normalized = NormalizeKoliNo(normalizedPart);
+                if (!string.IsNullOrWhiteSpace(normalized))
+                    yield return normalized;
+            }
+        }
+
+        private static string NormalizeKoliNo(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return string.Empty;
+
+            var text = value.Trim()
+                .Replace('\u00A0', ' ')
+                .Replace(" ", string.Empty)
+                .Replace('\u2013', '-')
+                .Replace('\u2014', '-');
+
+            if (!text.Contains(',') && decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out var numericValue)
+                && numericValue == decimal.Truncate(numericValue))
+            {
+                return ((int)numericValue).ToString(CultureInfo.InvariantCulture);
+            }
+
+            return text;
+        }
+
+        private static decimal? ReadNullableDecimal(IXLCell cell)
+        {
+            var text = cell.GetString().Trim().Replace("\u00A0", string.Empty).Replace(" ", string.Empty);
+            if (string.IsNullOrWhiteSpace(text))
+                return null;
+
+            if (decimal.TryParse(text, NumberStyles.Any, CultureInfo.GetCultureInfo("tr-TR"), out var trValue))
+                return trValue;
+
+            if (decimal.TryParse(text.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out var invariantValue))
+                return invariantValue;
+
+            return null;
+        }
+
+        private static decimal? MmToCm(decimal? value)
+        {
+            return value.HasValue ? Math.Round(value.Value / 10m, 2) : null;
+        }
+
+        private static string NormalizeExcelText(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return string.Empty;
+
+            var normalized = value.Trim()
+                .Replace('\u00A0', ' ')
+                .ToUpper(new CultureInfo("tr-TR"))
+                .Normalize(NormalizationForm.FormD);
+
+            var builder = new StringBuilder(normalized.Length);
+            foreach (var ch in normalized)
+            {
+                if (CharUnicodeInfo.GetUnicodeCategory(ch) != UnicodeCategory.NonSpacingMark)
+                    builder.Append(ch);
+            }
+
+            return builder.ToString().Normalize(NormalizationForm.FormC);
+        }
+
+        private sealed class SandikImportBilgisi
+        {
+            public string SandikNo { get; set; } = string.Empty;
+            public string? SandikIsmi { get; set; }
+            public string? AmbalajCinsi { get; set; }
+            public decimal? En { get; set; }
+            public decimal? Boy { get; set; }
+            public decimal? Yukseklik { get; set; }
+            public decimal? NetKg { get; set; }
+            public decimal? GrossKg { get; set; }
+        }
+
+        /// <summary>
+        /// Sanitizes picture names that ClosedXML cannot read.
         /// </summary>
         private static byte[] SanitizePictureNames(byte[] fileBytes)
         {
