@@ -88,5 +88,25 @@ namespace _3K_API.Controllers
             var result = await _mediator.Send(command);
             return result.ToActionResult();
         }
+
+        /// <summary>
+        /// Seçili ürünleri toplu olarak belirli Grid durumuna getirir (Tam Geldi / Grid Kapandı / İptal).
+        /// </summary>
+        [HttpPut("toplu-durum-guncelle")]
+        public async Task<ActionResult> TopluDurumGuncelle([FromBody] GridTopluDurumGuncelleCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
+        /// <summary>
+        /// Seçili ürünlerin Grid durumlarını toplu olarak sıfırlar (geri alır).
+        /// </summary>
+        [HttpPut("toplu-sifirla")]
+        public async Task<ActionResult> TopluSifirla([FromBody] GridTopluSifirlaCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
     }
 }

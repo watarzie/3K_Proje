@@ -66,5 +66,15 @@ namespace _3K_API.Controllers
             var result = await _mediator.Send(command);
             return result.ToActionResult();
         }
+
+        /// <summary>
+        /// Seçili ürünlerin 3K durumlarını toplu olarak sıfırlar (geri alır).
+        /// </summary>
+        [HttpPut("toplu-sifirla")]
+        public async Task<ActionResult> TopluSifirla([FromBody] UcKTopluSifirlaCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
     }
 }

@@ -51,6 +51,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 && satir.ProjeKarsilanan == 0
                 && satir.TedarikciKarsilanan == 0
                 && satir.HataliMiktar == 0
+                && satir.GeriGonderilenMiktar == 0
                 && satir.YenidenSevkGerekliAdet == 0)
                 return Result.Failure("Bu ürün zaten başlangıç durumunda.");
 
@@ -63,6 +64,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             var eskiProjeKarsilanan = satir.ProjeKarsilanan;
             var eskiTedarikciKarsilanan = satir.TedarikciKarsilanan;
             var eskiHataliMiktar = satir.HataliMiktar;
+            var eskiGeriGonderilenMiktar = satir.GeriGonderilenMiktar;
 
             // ===== 3K alanlarını sıfırla =====
             satir.UcKDurumuId = (int)UcKDurum.Bekliyor;
@@ -73,6 +75,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             satir.ProjeKarsilanan = 0;
             satir.TedarikciKarsilanan = 0;
             satir.HataliMiktar = 0;
+            satir.GeriGonderilenMiktar = 0;
             satir.TeslimTarihi = null;
             satir.UcKAciklama = null;
             satir.KaynakHedefProjeNo = null;
@@ -110,6 +113,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 $"StokKarsilanan:{eskiStokKarsilanan}→0, " +
                 $"ProjeKarsilanan:{eskiProjeKarsilanan}→0, " +
                 $"TedarikciKarsilanan:{eskiTedarikciKarsilanan}→0, " +
+                $"GeriGonderilen:{eskiGeriGonderilenMiktar}->0, " +
                 $"HataliMiktar:{eskiHataliMiktar}→0";
 
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
