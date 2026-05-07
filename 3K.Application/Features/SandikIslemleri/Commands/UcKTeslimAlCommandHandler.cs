@@ -3,6 +3,7 @@ using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
+using System.Globalization;
 
 namespace _3K.Application.Features.SandikIslemleri.Commands
 {
@@ -69,10 +70,17 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 IslemTipiId = (int)IslemTipi.UcKTeslimAlindi,
                 EskiDeger = $"GelenMiktar:{eskiGelenMiktar}, UcKDurum:{eskiUcKDurum}",
                 YeniDeger = $"GelenMiktar:{satir.GelenMiktar}, UcKDurum:{satir.UcKDurumuId}",
-                Aciklama = $"+{request.GelenMiktar} adet teslim alındı. {request.Aciklama}"
+                Aciklama = $"+{FormatAdet(request.GelenMiktar)} adet teslim alındı. {request.Aciklama}"
             });
 
             return Result.Success();
+        }
+
+        private static string FormatAdet(decimal value)
+        {
+            if (decimal.Truncate(value) == value)
+                return decimal.Truncate(value).ToString(CultureInfo.InvariantCulture);
+            return value.ToString("0.####", CultureInfo.InvariantCulture);
         }
     }
 }

@@ -571,7 +571,6 @@ namespace _3K.Infrastructure.Services
                                     col.Item().Text($"Ağırlık (Net/Gross): {sandik.NetKg ?? 0} / {sandik.GrossKg ?? 0} kg").FontSize(8);
                                 });
                             });
-                            });
 
                             headerCol.Item().PaddingTop(5).LineHorizontal(1).LineColor(tableBorderColor);
                         });
@@ -760,17 +759,6 @@ namespace _3K.Infrastructure.Services
                                 col.Item().Text($"Müşteri: {proje.Musteri}").FontSize(8);
                                 if (!string.IsNullOrWhiteSpace(proje.FBNo))
                                     col.Item().Text($"FB No: {proje.FBNo}").FontSize(8);
-                            });
-
-                            row.ConstantItem(10); // Spacer
-
-                            // Teknik Bilgiler
-                            row.RelativeItem().Border(1).BorderColor(tableBorderColor).Padding(8).Column(col =>
-                            {
-                                col.Item().Text("TEKNİK BİLGİLER").Bold().FontSize(7).FontColor(Colors.Orange.Darken1);
-                                col.Item().PaddingTop(3).Text($"Güç: {proje.Guc ?? "-"} MVA").FontSize(10).Bold();
-                                col.Item().Text($"Gerilim: {proje.Gerilim ?? "-"} kV").FontSize(8);
-                                col.Item().Text($"Lokasyon: {proje.Lokasyon ?? "-"}").FontSize(8);
                             });
 
                             row.ConstantItem(10); // Spacer

@@ -3,6 +3,7 @@ using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
+using System.Globalization;
 
 namespace _3K.Application.Features.UcKIslemleri.Commands
 {
@@ -252,7 +253,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                         KullaniciId = _currentUserService.UserId ?? 0,
                         Miktar = request.GelenAdet.Value,
                         IslemTipiId = (int)IslemTipi.StoktanKarsilandi,
-                        Aciklama = $"Proje {request.ProjeId} için 3K aşamasında stoktan {request.GelenAdet.Value} adet karşılandı.",
+                        Aciklama = $"Proje {request.ProjeId} için 3K aşamasında stoktan {FormatAdet(request.GelenAdet.Value)} adet karşılandı.",
                         Tarih = DateTime.UtcNow
                     });
                     break;
@@ -308,6 +309,15 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             await _unitOfWork.SaveChangesAsync();
 
             // Hareket kaydı
+            var hareketAciklama = request.Aciklama ?? "";
+            // Geri gönderildi durumunda açıklamaya sebep ve adet bilgisi ekle
+            if (request.KarsilamaTipiId == (int)UcKDurum.GeriGonderildi)
+            {
+                var sebebiMetni = request.GeriGonderilmeSebebiId.HasValue
+                    ? _lookupCache.GetDeger<LookupGeriGonderilmeSebebi>(request.GeriGonderilmeSebebiId.Value)
+                    : "Bilinmiyor";
+                hareketAciklama = $"Geri gönderildi — {FormatAdet(request.GelenAdet ?? 0)} adet — Sebep: {sebebiMetni}. {hareketAciklama}".Trim();
+            }
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {
                 ProjeId = request.ProjeId,
@@ -318,7 +328,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 IslemTipiId = (int)IslemTipi.UcKDurumGuncellendi,
                 EskiDeger = eskiDurum.ToString(),
                 YeniDeger = request.KarsilamaTipiId.ToString(),
-                Aciklama = request.Aciklama
+                Aciklama = hareketAciklama
             });
 
             return Result.Success();
@@ -394,6 +404,16 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 };
                 await transferRepo.AddAsync(transfer);
             }
+        }
+
+        /// <summary>
+        /// Adet değerini ondalıksız (2,000 → 2) formatta döndürür.
+        /// </summary>
+        private static string FormatAdet(decimal value)
+        {
+            if (decimal.Truncate(value) == value)
+                return decimal.Truncate(value).ToString(CultureInfo.InvariantCulture);
+            return value.ToString("0.####", CultureInfo.InvariantCulture);
         }
     }
 }

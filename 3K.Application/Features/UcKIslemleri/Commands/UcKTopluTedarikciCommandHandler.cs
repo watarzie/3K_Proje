@@ -3,6 +3,7 @@ using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
+using System.Globalization;
 
 namespace _3K.Application.Features.UcKIslemleri.Commands
 {
@@ -92,7 +93,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     IslemTipiId = (int)IslemTipi.UcKDurumGuncellendi,
                     EskiDeger = eskiDurum.ToString(),
                     YeniDeger = ((int)UcKDurum.TedarikcidenGeldi).ToString(),
-                    Aciklama = $"Toplu Tedarikçi — {kalan} adet — {(string.IsNullOrWhiteSpace(request.Aciklama) ? "Açıklama yok" : request.Aciklama)}"
+                    Aciklama = $"Toplu Tedari̇kçi — {FormatAdet(kalan)} adet — {(string.IsNullOrWhiteSpace(request.Aciklama) ? "Açıklama yok" : request.Aciklama)}"
                 });
             }
 
@@ -116,6 +117,13 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             {
                 satir.GridSevkDurumuId = (int)GridSevkDurum.SevkEdildi;
             }
+        }
+
+        private static string FormatAdet(decimal value)
+        {
+            if (decimal.Truncate(value) == value)
+                return decimal.Truncate(value).ToString(CultureInfo.InvariantCulture);
+            return value.ToString("0.####", CultureInfo.InvariantCulture);
         }
     }
 }

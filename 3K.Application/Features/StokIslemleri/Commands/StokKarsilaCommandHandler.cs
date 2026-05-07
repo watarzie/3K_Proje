@@ -2,7 +2,7 @@ using MediatR;
 using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
-
+using System.Globalization;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.StokIslemleri.Commands
@@ -58,7 +58,7 @@ namespace _3K.Application.Features.StokIslemleri.Commands
                 KullaniciId = request.KullaniciId,
                 Miktar = request.Miktar,
                 IslemTipiId = (int)IslemTipi.StoktanKarsilandi,
-                Aciklama = $"Proje {request.ProjeId} için stoktan {request.Miktar} adet kullanıldı"
+                Aciklama = $"Proje {request.ProjeId} için stoktan {FormatAdet(request.Miktar)} adet kullanıldı"
             };
             await stokHareketRepo.AddAsync(stokHareketi);
             await _unitOfWork.SaveChangesAsync();
@@ -71,10 +71,17 @@ namespace _3K.Application.Features.StokIslemleri.Commands
                 Islem = "Stoktan Karşılandı",
                 IslemTipiId = (int)IslemTipi.StoktanKarsilandi,
                 KullaniciId = request.KullaniciId,
-                Aciklama = $"{request.Miktar} adet '{urun.Aciklama}' stoktan karşılandı."
+                Aciklama = $"{FormatAdet(request.Miktar)} adet '{urun.Aciklama}' stoktan karşılandı."
             });
 
             return Result.Success();
+        }
+
+        private static string FormatAdet(decimal value)
+        {
+            if (decimal.Truncate(value) == value)
+                return decimal.Truncate(value).ToString(CultureInfo.InvariantCulture);
+            return value.ToString("0.####", CultureInfo.InvariantCulture);
         }
     }
 }
