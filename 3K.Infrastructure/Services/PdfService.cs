@@ -683,6 +683,7 @@ namespace _3K.Infrastructure.Services
                 .Include(cs => cs.UcKDurumLookup)
                 .Include(cs => cs.DurumLookup)
                 .Include(cs => cs.GeriGonderilmeSebebiLookup)
+                .Include(cs => cs.SurecDurumLookup)
                 .Where(cs => cs.Ceki.ProjeId == projeId)
                 .OrderBy(cs => cs.SiraNo)
                 .ToListAsync();
@@ -793,6 +794,7 @@ namespace _3K.Infrastructure.Services
                             columns.ConstantColumn(55);   // Prj. Verildi
                             columns.ConstantColumn(45);   // Kalan
                             columns.RelativeColumn(1.5f); // 3K Durum
+                            columns.RelativeColumn(1);    // Sürec
                         });
 
                         // Başlık satırı
@@ -813,6 +815,7 @@ namespace _3K.Infrastructure.Services
                             HeaderCell(header.Cell(), "PRJ. VERİLDİ");
                             HeaderCell(header.Cell(), "KALAN");
                             HeaderCell(header.Cell(), "3K DURUM");
+                            HeaderCell(header.Cell(), "SÜREÇ");
                         });
 
                         // Data satırları
@@ -847,6 +850,7 @@ namespace _3K.Infrastructure.Services
                             DataCell(table.Cell(), projVerildi, fontColor: cs.ProjeGonderilen > 0 ? "#1565C0" : null);
                             DataCell(table.Cell(), FormatAdet(cs.KalanMiktar), bold: true, fontColor: dangerColor);
                             DataCell(table.Cell(), ucKDurum, fontColor: cs.UcKKarsilamaTipiId == (int)_3K.Core.Enums.UcKDurum.Bekliyor ? dangerColor : warningColor);
+                            DataCell(table.Cell(), cs.SurecDurumLookup?.Deger ?? "-");
 
                             sira++;
                         }

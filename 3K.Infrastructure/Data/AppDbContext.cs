@@ -550,7 +550,6 @@ namespace _3K.Infrastructure.Data
                 new LookupGridDurum { Id = 10, Anahtar = 10, Deger = "Gelmedi" },
                 new LookupGridDurum { Id = 11, Anahtar = 11, Deger = "Trafo Sevk" },
                 new LookupGridDurum { Id = 12, Anahtar = 12, Deger = "İptal" },
-                new LookupGridDurum { Id = 13, Anahtar = 13, Deger = "Siparişte" },
                 new LookupGridDurum { Id = 14, Anahtar = 14, Deger = "Grid Kapandı" }
             );
 
@@ -670,7 +669,8 @@ namespace _3K.Infrastructure.Data
                 new LookupSurecDurum { Id = 1, Anahtar = 1, Deger = "Ambar" },
                 new LookupSurecDurum { Id = 2, Anahtar = 2, Deger = "İmalat" },
                 new LookupSurecDurum { Id = 3, Anahtar = 3, Deger = "Tedarik" },
-                new LookupSurecDurum { Id = 4, Anahtar = 4, Deger = "Tedarik 3K Teslim" }
+                new LookupSurecDurum { Id = 4, Anahtar = 4, Deger = "Tedarik 3K Teslim" },
+                new LookupSurecDurum { Id = 5, Anahtar = 5, Deger = "Siparişte" }
             );
 
 
