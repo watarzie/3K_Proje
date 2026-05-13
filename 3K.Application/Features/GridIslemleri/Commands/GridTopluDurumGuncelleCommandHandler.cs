@@ -53,6 +53,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             var kullaniciId = _currentUserService.UserId ?? 0;
             int basarili = 0;
             var hatalar = new List<string>();
+            var gridKapandiSandikNolari = new HashSet<string>();
 
             foreach (var satir in satirlar)
             {
@@ -83,6 +84,13 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                     satir.GridSevkMiktari = null;
                 }
 
+                if (request.HedefDurumId == (int)GridDurum.GridKapandi)
+                {
+                    var sandikNo = satir.FiiliSandikNo ?? satir.CekideGecenSandikNo;
+                    if (!string.IsNullOrWhiteSpace(sandikNo))
+                        gridKapandiSandikNolari.Add(sandikNo);
+                }
+
                 satir.GridAciklama = request.Aciklama;
 
                 // Genel durumu hesapla
@@ -110,12 +118,30 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             if (basarili == 0)
                 return Result.Failure("Hiçbir ürün güncellenemedi.");
 
+            if (gridKapandiSandikNolari.Count > 0)
+            {
+                await SandiklariGridLokasyonunaAlAsync(request.ProjeId, gridKapandiSandikNolari);
+            }
+
             await _unitOfWork.SaveChangesAsync();
 
             if (hatalar.Any())
                 return Result.Success();
 
             return Result.Success();
+        }
+
+        private async Task SandiklariGridLokasyonunaAlAsync(int projeId, IReadOnlyCollection<string> sandikNolari)
+        {
+            var sandikRepo = _unitOfWork.GetRepository<Sandik>();
+            var sandikNoListesi = sandikNolari.ToList();
+            var sandiklar = await sandikRepo.FindAsync(s => s.ProjeId == projeId && sandikNoListesi.Contains(s.SandikNo));
+
+            foreach (var sandik in sandiklar.Where(s => s.DepoLokasyonId != (int)DepoLokasyon.Grid))
+            {
+                sandik.DepoLokasyonId = (int)DepoLokasyon.Grid;
+                sandikRepo.Update(sandik);
+            }
         }
     }
 }

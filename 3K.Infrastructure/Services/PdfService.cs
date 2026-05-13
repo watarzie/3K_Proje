@@ -1213,6 +1213,7 @@ namespace _3K.Infrastructure.Services
                 .Include(s => s.TipLookup)
                 .Include(s => s.DepoLokasyonLookup)
                 .Include(s => s.SandikIcerikleri)
+                    .ThenInclude(si => si.CekiSatiri)
                 .Where(s => s.DurumId != (int)SandikDurum.Sevkedildi);
 
             if (projeTipiId.HasValue)
@@ -1227,8 +1228,31 @@ namespace _3K.Infrastructure.Services
                 return int.TryParse(digits, out var number) ? number : int.MaxValue;
             }
 
+            int EtkinDepoLokasyonId(Sandik sandik)
+            {
+                return SandiktaGridKapandiUrunVar(sandik)
+                    ? (int)DepoLokasyon.Grid
+                    : sandik.DepoLokasyonId;
+            }
+
+            string EtkinDepoLokasyonMetni(Sandik sandik)
+            {
+                return EtkinDepoLokasyonId(sandik) switch
+                {
+                    (int)DepoLokasyon.UcK => "3K",
+                    (int)DepoLokasyon.Seymen => "Seymen",
+                    (int)DepoLokasyon.Grid => "GRID",
+                    _ => "Belirsiz"
+                };
+            }
+
+            bool SandiktaGridKapandiUrunVar(Sandik sandik)
+            {
+                return sandik.SandikIcerikleri.Any(i => i.CekiSatiri?.GridDurumuId == (int)GridDurum.GridKapandi);
+            }
+
             var siraliSandiklar = sandiklar
-                .OrderBy(s => s.DepoLokasyonLookup?.Deger ?? "Belirsiz")
+                .OrderBy(EtkinDepoLokasyonMetni)
                 .ThenBy(s => s.Proje.ProjeNo)
                 .ThenBy(s => GetSandikSortKey(s.SandikNo))
                 .ThenBy(s => s.SandikNo)
@@ -1270,9 +1294,9 @@ namespace _3K.Infrastructure.Services
                         _ => "-"
                     }),
                     ToplamSandik = g.Count(),
-                    UcK = g.Count(s => s.DepoLokasyonId == (int)DepoLokasyon.UcK),
-                    Seymen = g.Count(s => s.DepoLokasyonId == (int)DepoLokasyon.Seymen),
-                    Grid = g.Count(s => s.DepoLokasyonId == (int)DepoLokasyon.Grid)
+                    UcK = g.Count(s => EtkinDepoLokasyonId(s) == (int)DepoLokasyon.UcK),
+                    Seymen = g.Count(s => EtkinDepoLokasyonId(s) == (int)DepoLokasyon.Seymen),
+                    Grid = g.Count(s => EtkinDepoLokasyonId(s) == (int)DepoLokasyon.Grid)
                 })
                 .OrderBy(p => p.ProjeNo)
                 .ToList();

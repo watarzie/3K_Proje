@@ -2,6 +2,7 @@ using MediatR;
 using _3K.Application.Common;
 using _3K.Application.Features.SandikIslemleri.DTOs;
 using _3K.Core.Entities;
+using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.SandikIslemleri.Queries
@@ -24,6 +25,9 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 return Result<SandikDetayDto>.Failure($"Sandık bulunamadı: {request.SandikId}", 404);
 
             var icerikler = await _sandikService.GetSandikIcerikAsync(request.SandikId);
+            var etkinDepoLokasyonId = icerikler.Any(i => i.CekiSatiri?.GridDurumuId == (int)GridDurum.GridKapandi)
+                ? (int)DepoLokasyon.Grid
+                : sandik.DepoLokasyonId;
 
             var dto = new SandikDetayDto
             {
@@ -32,8 +36,8 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 Ad = sandik.Ad,
                 DurumId = sandik.DurumId,
                 DurumMetni = _lookupCache.GetDeger<LookupSandikDurum>(sandik.DurumId),
-                DepoLokasyonId = sandik.DepoLokasyonId,
-                DepoLokasyonMetni = _lookupCache.GetDeger<LookupDepoLokasyon>(sandik.DepoLokasyonId),
+                DepoLokasyonId = etkinDepoLokasyonId,
+                DepoLokasyonMetni = _lookupCache.GetDeger<LookupDepoLokasyon>(etkinDepoLokasyonId),
                 En = sandik.En,
                 Boy = sandik.Boy,
                 Yukseklik = sandik.Yukseklik,

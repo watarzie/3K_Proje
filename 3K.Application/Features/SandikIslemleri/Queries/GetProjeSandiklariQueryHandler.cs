@@ -2,6 +2,7 @@ using MediatR;
 using _3K.Application.Common;
 using _3K.Application.Features.SandikIslemleri.DTOs;
 using _3K.Core.Entities;
+using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.SandikIslemleri.Queries
@@ -25,6 +26,7 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
             {
                 var icerikler = s.SandikIcerikleri?.ToList() ?? new List<SandikIcerik>();
                 var isManuelSandik = IsManuelSandik(icerikler);
+                var etkinDepoLokasyonId = EtkinDepoLokasyonId(s, icerikler);
 
                 return new SandikDto
                 {
@@ -33,8 +35,8 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                     Ad = s.Ad,
                     DurumId = s.DurumId,
                     DurumMetni = _lookupCache.GetDeger<LookupSandikDurum>(s.DurumId),
-                    DepoLokasyonId = s.DepoLokasyonId,
-                    DepoLokasyonMetni = _lookupCache.GetDeger<LookupDepoLokasyon>(s.DepoLokasyonId),
+                    DepoLokasyonId = etkinDepoLokasyonId,
+                    DepoLokasyonMetni = _lookupCache.GetDeger<LookupDepoLokasyon>(etkinDepoLokasyonId),
                     UrunSayisi = icerikler.Count,
                     IsManuelSandik = isManuelSandik,
                     SilinebilirMi = icerikler.Count == 0 || (isManuelSandik && icerikler.All(i => !ManuelSatirIslemGormus(i.CekiSatiri!))),
@@ -69,8 +71,11 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
 
         private static bool DepodaSayilacakSandik(Sandik sandik, IReadOnlyCollection<SandikIcerik> icerikler)
         {
-            if (sandik.DurumId == (int)_3K.Core.Enums.SandikDurum.Sevkedildi)
+            if (sandik.DurumId == (int)SandikDurum.Sevkedildi)
                 return false;
+
+            if (SandiktaGridKapandiUrunVar(icerikler))
+                return true;
 
             return icerikler.Any(i =>
             {
@@ -83,6 +88,18 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                     || satir.StokKarsilanan > 0
                     || satir.TedarikciKarsilanan > 0;
             });
+        }
+
+        private static int EtkinDepoLokasyonId(Sandik sandik, IReadOnlyCollection<SandikIcerik> icerikler)
+        {
+            return SandiktaGridKapandiUrunVar(icerikler)
+                ? (int)DepoLokasyon.Grid
+                : sandik.DepoLokasyonId;
+        }
+
+        private static bool SandiktaGridKapandiUrunVar(IReadOnlyCollection<SandikIcerik> icerikler)
+        {
+            return icerikler.Any(i => i.CekiSatiri?.GridDurumuId == (int)GridDurum.GridKapandi);
         }
     }
 }

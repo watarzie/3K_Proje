@@ -134,6 +134,11 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                     break;
             }
 
+            if (request.YeniDurumId == (int)GridDurum.GridKapandi)
+            {
+                await SandigiGridLokasyonunaAlAsync(request.ProjeId, satir);
+            }
+
             // ===== Grid Sevk Durumu =====
             if (request.GridSevkDurumuId.HasValue)
             {
@@ -274,6 +279,22 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                     });
                 }
             }
+        }
+
+        private async Task SandigiGridLokasyonunaAlAsync(int projeId, CekiSatiri satir)
+        {
+            var sandikNo = satir.FiiliSandikNo ?? satir.CekideGecenSandikNo;
+            if (string.IsNullOrWhiteSpace(sandikNo))
+                return;
+
+            var sandikRepo = _unitOfWork.GetRepository<Sandik>();
+            var sandiklar = await sandikRepo.FindAsync(s => s.ProjeId == projeId && s.SandikNo == sandikNo);
+            var sandik = sandiklar.FirstOrDefault();
+            if (sandik == null || sandik.DepoLokasyonId == (int)DepoLokasyon.Grid)
+                return;
+
+            sandik.DepoLokasyonId = (int)DepoLokasyon.Grid;
+            sandikRepo.Update(sandik);
         }
     }
 }
