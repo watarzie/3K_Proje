@@ -68,8 +68,13 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 var yenidenSevkAkisi =
                     satir.GridSevkDurumuId == (int)GridSevkDurum.YenidenSevkGerekli &&
                     satir.YenidenSevkGerekliAdet > 0;
+                var projeTransferYenidenSevkAkisi =
+                    satir.GridSevkDurumuId == (int)GridSevkDurum.SevkEdildi &&
+                    (satir.GridSevkMiktari ?? 0) > 0 &&
+                    satir.ProjeGonderilen > 0 &&
+                    satir.KalanMiktar > 0;
 
-                if (!yenidenSevkAkisi &&
+                if (!yenidenSevkAkisi && !projeTransferYenidenSevkAkisi &&
                     (satir.UcKDurumuId != (int)UcKDurum.Bekliyor || satir.GelenMiktar > 0 || satir.KarsilananMiktar > 0))
                 {
                     atlananlar.Add($"#{satir.SiraNo} ({satir.Aciklama}) - 3K tarafÄ±nda iÅŸlem yapÄ±lmÄ±ÅŸ");
@@ -82,6 +87,13 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 {
                     sevkMiktari = satir.YenidenSevkGerekliAdet;
                     satir.YenidenSevkGerekliAdet = 0;
+                    satir.UcKDurumuId = (int)UcKDurum.Bekliyor;
+                    satir.UcKKarsilamaTipiId = (int)UcKDurum.Bekliyor;
+                    satir.TeslimTarihi = null;
+                }
+                else if (projeTransferYenidenSevkAkisi)
+                {
+                    sevkMiktari = Math.Min(satir.ProjeGonderilen, satir.KalanMiktar);
                     satir.UcKDurumuId = (int)UcKDurum.Bekliyor;
                     satir.UcKKarsilamaTipiId = (int)UcKDurum.Bekliyor;
                     satir.TeslimTarihi = null;

@@ -30,7 +30,12 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                 return Result<List<GridUrunDto>>.Failure("Bu projeye ait çeki bulunamadı.", 404);
 
             var result = satirlar
-                .Select(cs => new GridUrunDto
+                .Select(cs =>
+                {
+                    var gorunenUcKGelen = Math.Max(cs.GelenMiktar - cs.ProjeGonderilen, 0);
+                    var netKullanilabilir = Math.Max(cs.GelenMiktar + cs.ProjeKarsilanan - cs.ProjeGonderilen, 0);
+
+                    return new GridUrunDto
                 {
                     CekiSatiriId = cs.Id,
                     SiraNo = cs.SiraNo,
@@ -52,7 +57,7 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                     GridEksikMiktar = cs.GridEksikMiktar,
                     UcKDurumuId = cs.UcKDurumuId,
                     UcKDurumuMetni = _lookupCache.GetDeger<LookupUcKDurum>(cs.UcKDurumuId),
-                    GelenMiktar = cs.GelenMiktar,
+                    GelenMiktar = gorunenUcKGelen,
                     GeriGonderilenMiktar = cs.GeriGonderilenMiktar,
                     GeriGonderilmeSebebiId = cs.GeriGonderilmeSebebiId,
                     GeriGonderilmeSebebiMetni = cs.GeriGonderilmeSebebiId.HasValue
@@ -66,6 +71,7 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                     StokKarsilanan = cs.StokKarsilanan,
                     ProjeKarsilanan = cs.ProjeKarsilanan,
                     ProjeGonderilen = cs.ProjeGonderilen,
+                    NetKullanilabilir = netKullanilabilir,
                     TedarikciKarsilanan = cs.TedarikciKarsilanan,
                     EksikMiktar = cs.EksikMiktar,
                     KalanMiktar = cs.KalanMiktar,
@@ -74,6 +80,7 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                     KaliteDurumMetni = cs.KaliteDurumId.HasValue ? _lookupCache.GetDeger<LookupKaliteDurum>(cs.KaliteDurumId.Value) : null,
                     SurecDurumId = cs.SurecDurumId,
                     SurecDurumMetni = cs.SurecDurumId.HasValue ? _lookupCache.GetDeger<LookupSurecDurum>(cs.SurecDurumId.Value) : null
+                };
                 })
                 .ToList();
 

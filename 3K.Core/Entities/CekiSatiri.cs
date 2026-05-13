@@ -161,7 +161,7 @@ namespace _3K.Core.Entities
             get
             {
                 if (GridDurumuId == (int)GridDurum.GridKapandi) return 0;
-                var toplam = GelenMiktar + StokKarsilanan + ProjeKarsilanan + TedarikciKarsilanan;
+                var toplam = GelenMiktar + StokKarsilanan + ProjeKarsilanan + TedarikciKarsilanan - ProjeGonderilen;
                 return Math.Max(IstenenAdet - toplam, 0);
             }
         }
@@ -174,7 +174,7 @@ namespace _3K.Core.Entities
         {
             get
             {
-                return GelenMiktar + StokKarsilanan + ProjeKarsilanan + TedarikciKarsilanan;
+                return GelenMiktar + StokKarsilanan + ProjeKarsilanan + TedarikciKarsilanan - ProjeGonderilen;
             }
         }
 
@@ -188,7 +188,7 @@ namespace _3K.Core.Entities
             {
                 // Grid Kapandı veya İptal → kalan 0
                 if (GridDurumuId == (int)GridDurum.GridKapandi || GridDurumuId == (int)GridDurum.Iptal) return 0;
-                var kalan = IstenenAdet - GelenMiktar - StokKarsilanan - ProjeKarsilanan - TedarikciKarsilanan - TrafoSevkAdet;
+                var kalan = IstenenAdet - GelenMiktar - StokKarsilanan - ProjeKarsilanan - TedarikciKarsilanan + ProjeGonderilen - TrafoSevkAdet;
                 // İŞ KURALI: Hatalı ürün veya Hatalı/Uyumsuz Gönderim varsa kalan en az 1
                 if ((HataliMiktar > 0 || DurumId == (int)UrunDurum.HataliUyumsuzGonderim) && kalan <= 0) return 1;
                 return Math.Max(kalan, 0);

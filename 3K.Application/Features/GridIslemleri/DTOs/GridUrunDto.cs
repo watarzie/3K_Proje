@@ -27,6 +27,7 @@ namespace _3K.Application.Features.GridIslemleri.DTOs
         public decimal StokKarsilanan { get; set; }
         public decimal ProjeKarsilanan { get; set; }
         public decimal ProjeGonderilen { get; set; }
+        public decimal NetKullanilabilir { get; set; }
         public decimal TedarikciKarsilanan { get; set; }
         public decimal EksikMiktar { get; set; }
         public decimal KalanMiktar { get; set; }

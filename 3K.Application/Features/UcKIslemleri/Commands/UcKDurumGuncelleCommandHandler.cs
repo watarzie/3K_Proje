@@ -103,11 +103,17 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                  satir.GeriGonderilenMiktar > 0 ||
                  satir.YenidenSevkGerekliAdet > 0);
 
+            var projeTransferTelafiProjedenAcik =
+                request.KarsilamaTipiId == (int)UcKDurum.ProjedenKarsilandi &&
+                satir.KalanMiktar > 0 &&
+                satir.ProjeGonderilen > 0;
+
             if (kaynakKarsilamaTipleri.Contains(request.KarsilamaTipiId)
                 && !gridKaynakKarsilamaAcik
-                && !geriGonderimSonrasiKaynakAcik)
+                && !geriGonderimSonrasiKaynakAcik
+                && !projeTransferTelafiProjedenAcik)
             {
-                return Result.Failure("Projeden, stoktan veya tedarikciden karsilama yalnizca eksik/gelmedi, kismi trafo sevk veya 3K geri gonderim sonrasi kalan acikken yapilabilir.");
+                return Result.Failure("Projeden, stoktan veya tedarikciden karsilama yalnizca eksik/gelmedi, kismi trafo sevk veya 3K geri gonderim sonrasi kalan acikken yapilabilir. Proje transfer telafisi yalnizca projeden karsilama icin gecerlidir.");
             }
 
             // ===== Eksiksiz (Tam) Geldi Validasyonu =====
@@ -141,6 +147,8 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                         return Result.Failure("Projeden karşılama adeti girilmelidir.");
                     if (string.IsNullOrWhiteSpace(request.KaynakHedefProjeNo))
                         return Result.Failure("Kaynak proje girilmelidir.");
+                    if (request.KaynakCekiSatiriId == null || request.KaynakCekiSatiriId <= 0)
+                        return Result.Failure("Kaynak urun secilmelidir.");
                     // Kendi projesinden karşılama yapılamaz
                     var cekiRepo = _unitOfWork.GetRepository<Ceki>();
                     var ceki = await cekiRepo.GetByIdAsync(satir.CekiId);
@@ -231,7 +239,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     satir.TeslimTarihi = DateTime.UtcNow;
                     // Cross-project transfer
                     KapatYenidenSevkIhtiyaci(satir, request.GelenAdet.Value);
-                    await HandleProjedenKarsilandi(satir, request);
+                    var transferResult = await HandleProjedenKarsilandi(satir, request);
+                    if (!transferResult.IsSuccess)
+                        return transferResult;
                     break;
 
                 case (int)UcKDurum.StoktanKarsilandi:
@@ -279,7 +289,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             }
 
             // Toplam kontrol
-            var toplam = satir.GelenMiktar + satir.KarsilananMiktar;
+            var toplam = satir.GelenMiktar + satir.KarsilananMiktar - satir.ProjeGonderilen;
             if (toplam + satir.TrafoSevkAdet > satir.IstenenAdet)
                 return Result.Failure($"Toplam tamamlanan adet ({toplam}) ve trafo sevk ({satir.TrafoSevkAdet}), çeki miktarını ({satir.IstenenAdet}) aşamaz.");
 
@@ -298,7 +308,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             if (ilgiliIcerikler.Any())
             {
                 var anaIcerik = ilgiliIcerikler.First();
-                anaIcerik.KonulanAdet = toplam; // Kümülatif toplamı konulan adete eşitle
+                anaIcerik.KonulanAdet = Math.Max(toplam, 0); // Kumulatif net toplami konulan adete esitle
                 // Madde 2: Parçalı karşılama SandikIcerik senkronizasyonu
                 anaIcerik.StokKarsilanan = satir.StokKarsilanan;
                 anaIcerik.ProjeKarsilanan = satir.ProjeKarsilanan;
@@ -354,17 +364,22 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
         /// <summary>
         /// PROJEDEN KARŞILANDI: Kaynak projede eşleşen ürünü bul, adet düş, transfer kaydı oluştur.
         /// </summary>
-        private async Task HandleProjedenKarsilandi(CekiSatiri hedefSatir, UcKDurumGuncelleCommand request)
+        private async Task<Result> HandleProjedenKarsilandi(CekiSatiri hedefSatir, UcKDurumGuncelleCommand request)
         {
-            if (request.KaynakCekiSatiriId == null) return;
+            if (request.KaynakCekiSatiriId == null)
+                return Result.Failure("Kaynak urun secilmelidir.");
 
             var cekiSatiriRepo = _unitOfWork.GetRepository<CekiSatiri>();
             var kaynakSatir = await cekiSatiriRepo.GetByIdAsync(request.KaynakCekiSatiriId.Value);
 
-            if (kaynakSatir == null) return;
+            if (kaynakSatir == null)
+                return Result.Failure("Kaynak urun bulunamadi.", 404);
 
             // Kaynak projedeki ürünün fiziksel gelen stoğundan eksilt
-            kaynakSatir.GelenMiktar = Math.Max(0, kaynakSatir.GelenMiktar - (request.GelenAdet ?? 0));
+            var adet = request.GelenAdet ?? 0;
+            var kullanilabilir = HesaplaNetKullanilabilir(kaynakSatir);
+            if (adet > kullanilabilir)
+                return Result.Failure($"Kaynak urunde kullanilabilir miktar yetersiz. Kullanilabilir: {FormatAdet(kullanilabilir)}, istenen: {FormatAdet(adet)}.");
 
             // Kaynak üründe "Başka projeye verildi" bilgisini kaydet
             // Birden fazla projeye verilebileceği için mevcut değere ekleme yapılır
@@ -375,7 +390,10 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 kaynakSatir.KaynakHedefProjeNo += $", {hedefProjeNo}";
 
             // Gönderilen miktar takibi
-            kaynakSatir.ProjeGonderilen += request.GelenAdet ?? 0;
+            kaynakSatir.ProjeGonderilen += adet;
+            kaynakSatir.DurumId = _durumHesaplaService.HesaplaGenelDurum(kaynakSatir.GridDurumuId, kaynakSatir.UcKDurumuId);
+            _durumHesaplaService.HesaplaKalanVeDurum(kaynakSatir);
+            AcYenidenSevkIhtiyaci(kaynakSatir);
 
             cekiSatiriRepo.Update(kaynakSatir);
 
@@ -387,23 +405,60 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             var hedefProjeler = await projeRepo.FindAsync(p => p.Cekiler.Any(c => c.Id == hedefSatir.CekiId));
             var hedefProje = hedefProjeler.FirstOrDefault();
 
-            if (kaynakProje != null && hedefProje != null)
+            if (kaynakProje == null || hedefProje == null)
+                return Result.Failure("Kaynak veya hedef proje bulunamadi.", 404);
+
+            var transferRepo = _unitOfWork.GetRepository<ProjeTransfer>();
+            var aktifTransferler = await transferRepo.FindAsync(t =>
+                t.DurumId == (int)ProjeTransferDurum.Aktif &&
+                (t.KaynakCekiSatiriId == hedefSatir.Id || t.HedefCekiSatiriId == hedefSatir.Id));
+
+            var parentTransfer = aktifTransferler
+                .Where(t => t.KaynakCekiSatiriId == hedefSatir.Id)
+                .OrderBy(t => t.ZincirSeviyesi)
+                .ThenBy(t => t.Tarih)
+                .FirstOrDefault();
+
+            var transfer = new ProjeTransfer
             {
-                var transferRepo = _unitOfWork.GetRepository<ProjeTransfer>();
-                var transfer = new ProjeTransfer
-                {
-                    KaynakProjeId = kaynakProje.Id,
-                    HedefProjeId = hedefProje.Id,
-                    KaynakCekiSatiriId = kaynakSatir.Id,
-                    HedefCekiSatiriId = hedefSatir.Id,
-                    BarkodNo = hedefSatir.BarkodNo,
-                    Miktar = request.GelenAdet ?? 0,
-                    KullaniciId = _currentUserService.UserId ?? 0,
-                    Aciklama = request.Aciklama,
-                    Tarih = DateTime.UtcNow
-                };
-                await transferRepo.AddAsync(transfer);
-            }
+                KaynakProjeId = kaynakProje.Id,
+                HedefProjeId = hedefProje.Id,
+                KaynakCekiSatiriId = kaynakSatir.Id,
+                HedefCekiSatiriId = hedefSatir.Id,
+                BarkodNo = hedefSatir.BarkodNo,
+                UrunAdi = hedefSatir.Aciklama,
+                Miktar = adet,
+                TransferTipiId = parentTransfer != null ? (int)ProjeTransferTipi.Telafi : (int)ProjeTransferTipi.Karsilama,
+                DurumId = (int)ProjeTransferDurum.Aktif,
+                ParentTransferId = parentTransfer?.Id,
+                RootTransferId = parentTransfer?.RootTransferId ?? parentTransfer?.Id,
+                ZincirSeviyesi = parentTransfer != null ? parentTransfer.ZincirSeviyesi + 1 : 0,
+                KullaniciId = _currentUserService.UserId ?? 0,
+                Aciklama = request.Aciklama,
+                Tarih = DateTime.UtcNow
+            };
+            await transferRepo.AddAsync(transfer);
+
+            return Result.Success();
+        }
+
+        private static decimal HesaplaNetKullanilabilir(CekiSatiri satir)
+        {
+            var net = satir.GelenMiktar + satir.ProjeKarsilanan - satir.ProjeGonderilen;
+
+            return Math.Max(net, 0);
+        }
+
+        private static void AcYenidenSevkIhtiyaci(CekiSatiri satir)
+        {
+            if (satir.KalanMiktar <= 0)
+                return;
+
+            if (satir.GridSevkDurumuId != (int)GridSevkDurum.SevkEdildi || (satir.GridSevkMiktari ?? 0) <= 0)
+                return;
+
+            satir.YenidenSevkGerekliAdet = Math.Max(satir.YenidenSevkGerekliAdet, satir.KalanMiktar);
+            satir.GridSevkDurumuId = (int)GridSevkDurum.YenidenSevkGerekli;
         }
 
         /// <summary>

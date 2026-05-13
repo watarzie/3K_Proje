@@ -113,7 +113,7 @@ namespace _3K.Infrastructure.Services
         public void HesaplaKalanVeDurum(CekiSatiri satir)
         {
             // Entity'deki computed KalanMiktar zaten doğru formülü kullanıyor:
-            // IstenenAdet - GelenMiktar - StokKarsilanan - ProjeKarsilanan - TedarikciKarsilanan - TrafoSevkAdet
+            // IstenenAdet - GelenMiktar - StokKarsilanan - ProjeKarsilanan - TedarikciKarsilanan + ProjeGonderilen - TrafoSevkAdet
             // HataliMiktar > 0 ise kalan en az 1 (entity'de korunan iş kuralı)
             var kalan = satir.KalanMiktar;
 
@@ -129,6 +129,7 @@ namespace _3K.Infrastructure.Services
                     + satir.StokKarsilanan
                     + satir.ProjeKarsilanan
                     + satir.TedarikciKarsilanan
+                    - satir.ProjeGonderilen
                     + satir.TrafoSevkAdet;
 
                 satir.DurumId = tamamlananToplam > 0

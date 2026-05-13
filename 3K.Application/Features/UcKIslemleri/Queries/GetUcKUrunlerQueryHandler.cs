@@ -29,9 +29,38 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
             if (!satirlar.Any())
                 return Result<List<UcKUrunDto>>.Failure("Bu projeye ait çeki bulunamadı.", 404);
 
+            var satirIdler = satirlar.Select(s => s.Id).ToList();
+            var transferler = (await _unitOfWork.GetRepository<ProjeTransfer>()
+                .FindAsync(t => t.DurumId == (int)ProjeTransferDurum.Aktif &&
+                    (satirIdler.Contains(t.KaynakCekiSatiriId) ||
+                     (t.HedefCekiSatiriId.HasValue && satirIdler.Contains(t.HedefCekiSatiriId.Value)))))
+                .ToList();
+
+            var transferProjeIdler = transferler
+                .SelectMany(t => new[] { t.KaynakProjeId, t.HedefProjeId })
+                .Distinct()
+                .ToList();
+            var transferProjeler = transferProjeIdler.Any()
+                ? await _unitOfWork.GetRepository<Proje>().FindAsync(p => transferProjeIdler.Contains(p.Id))
+                : Enumerable.Empty<Proje>();
+            var projeNoMap = transferProjeler.ToDictionary(p => p.Id, p => p.ProjeNo);
+
             var result = satirlar
                 .Select(cs =>
                 {
+                    var gelenTransferler = transferler.Where(t => t.HedefCekiSatiriId == cs.Id).ToList();
+                    var gidenTransferler = transferler.Where(t => t.KaynakCekiSatiriId == cs.Id).ToList();
+                    var projeKarsilanan = gelenTransferler.Any() ? gelenTransferler.Sum(t => t.Miktar) : cs.ProjeKarsilanan;
+                    var projeGonderilen = gidenTransferler.Any() ? gidenTransferler.Sum(t => t.Miktar) : cs.ProjeGonderilen;
+                    var gorunenUcKGelen = Math.Max(cs.GelenMiktar - projeGonderilen, 0);
+                    var netKullanilabilir = Math.Max(cs.GelenMiktar + projeKarsilanan - projeGonderilen, 0);
+                    var transferZinciri = gelenTransferler
+                        .Select(t => MapTransferZincir("Gelen", t, projeNoMap))
+                        .Concat(gidenTransferler.Select(t => MapTransferZincir("Giden", t, projeNoMap)))
+                        .OrderBy(t => t.ZincirSeviyesi)
+                        .ThenBy(t => t.Tarih)
+                        .ToList();
+
                     return new UcKUrunDto
                     {
                         CekiSatiriId = cs.Id,
@@ -50,7 +79,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                         GridSevkMiktari = cs.GridSevkMiktari,
                         UcKKarsilamaTipiId = cs.UcKKarsilamaTipiId,
                         UcKKarsilamaTipiMetni = _lookupCache.GetDeger<LookupUcKDurum>(cs.UcKKarsilamaTipiId),
-                        GelenMiktar = cs.GelenMiktar,
+                        GelenMiktar = gorunenUcKGelen,
                         KarsilananMiktar = cs.KarsilananMiktar,
                         HataliMiktar = cs.HataliMiktar,
                         KaynakHedefProjeNo = cs.KaynakHedefProjeNo,
@@ -67,8 +96,11 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                         GenelDurumMetni = _lookupCache.GetDeger<LookupUrunDurum>(cs.DurumId),
                         // Madde 2: Parçalı karşılama
                         StokKarsilanan = cs.StokKarsilanan,
-                        ProjeKarsilanan = cs.ProjeKarsilanan,
-                        ProjeGonderilen = cs.ProjeGonderilen,
+                        ProjeKarsilanan = projeKarsilanan,
+                        ProjeGonderilen = projeGonderilen,
+                        NetKullanilabilir = netKullanilabilir,
+                        TransferZinciriVar = transferZinciri.Any(),
+                        TransferZinciri = transferZinciri,
                         TedarikciKarsilanan = cs.TedarikciKarsilanan,
                         EksikMiktar = cs.EksikMiktar,
                         // Kalite & Süreç
@@ -82,6 +114,27 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                 .ToList();
 
             return Result<List<UcKUrunDto>>.Success(result);
+        }
+
+        private static ProjeTransferZincirDto MapTransferZincir(string yon, ProjeTransfer transfer, Dictionary<int, string> projeNoMap)
+        {
+            return new ProjeTransferZincirDto
+            {
+                Id = transfer.Id,
+                Yon = yon,
+                KaynakProjeNo = projeNoMap.TryGetValue(transfer.KaynakProjeId, out var kaynakProjeNo) ? kaynakProjeNo : transfer.KaynakProjeId.ToString(),
+                HedefProjeNo = projeNoMap.TryGetValue(transfer.HedefProjeId, out var hedefProjeNo) ? hedefProjeNo : transfer.HedefProjeId.ToString(),
+                BarkodNo = transfer.BarkodNo,
+                UrunAdi = transfer.UrunAdi,
+                Miktar = transfer.Miktar,
+                TransferTipi = ((ProjeTransferTipi)transfer.TransferTipiId).ToString(),
+                Durum = ((ProjeTransferDurum)transfer.DurumId).ToString(),
+                ParentTransferId = transfer.ParentTransferId,
+                RootTransferId = transfer.RootTransferId,
+                ZincirSeviyesi = transfer.ZincirSeviyesi,
+                Aciklama = transfer.Aciklama,
+                Tarih = transfer.Tarih
+            };
         }
 
         private string HesaplaKontrolUyari(CekiSatiri cs)

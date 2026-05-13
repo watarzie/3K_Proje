@@ -235,6 +235,26 @@ namespace _3K.Infrastructure.Data
             modelBuilder.Entity<ProjeTransfer>()
                 .Property(p => p.Miktar).HasPrecision(18, 4);
 
+            modelBuilder.Entity<ProjeTransfer>()
+                .Property(p => p.BarkodNo)
+                .IsRequired();
+
+            modelBuilder.Entity<ProjeTransfer>()
+                .Property(p => p.UrunAdi)
+                .IsRequired();
+
+            modelBuilder.Entity<ProjeTransfer>()
+                .HasIndex(p => p.DurumId);
+
+            modelBuilder.Entity<ProjeTransfer>()
+                .HasIndex(p => p.TransferTipiId);
+
+            modelBuilder.Entity<ProjeTransfer>()
+                .HasIndex(p => p.ParentTransferId);
+
+            modelBuilder.Entity<ProjeTransfer>()
+                .HasIndex(p => p.RootTransferId);
+
             // --- ProjeTransfer ilişkileri ---
             modelBuilder.Entity<ProjeTransfer>()
                 .HasOne(pt => pt.KaynakProje)
@@ -259,6 +279,18 @@ namespace _3K.Infrastructure.Data
                 .WithMany()
                 .HasForeignKey(pt => pt.HedefCekiSatiriId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<ProjeTransfer>()
+                .HasOne(pt => pt.ParentTransfer)
+                .WithMany(pt => pt.ChildTransfers)
+                .HasForeignKey(pt => pt.ParentTransferId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<ProjeTransfer>()
+                .HasOne(pt => pt.RootTransfer)
+                .WithMany(pt => pt.RootChildTransfers)
+                .HasForeignKey(pt => pt.RootTransferId)
+                .OnDelete(DeleteBehavior.SetNull);
 
             modelBuilder.Entity<ProjeTransfer>()
                 .HasOne(pt => pt.Kullanici)

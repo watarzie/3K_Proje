@@ -52,14 +52,21 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                     kaynakCekiIdler.Contains(cs.CekiId) && cs.BarkodNo == urun.BarkodNo);
                 var kaynakSatir = kaynakSatirlar.FirstOrDefault();
 
+                if (kaynakSatir == null)
+                    return Result.Failure("Kaynak projede eslesen urun bulunamadi.", 404);
+
                 if (kaynakSatir != null)
                 {
                     // ===== İŞ KURALI 6: Kaynak projenin stoğunu düş =====
-                    kaynakSatir.GelenMiktar = Math.Max(0, kaynakSatir.GelenMiktar - request.KarsilananAdet);
-                    kaynakSatir.UcKDurumuId = (int)UcKDurum.EksikGeldi;
-                    kaynakSatir.UcKKarsilamaTipiId = 11; // BaskaProyeVerildi (kaldırıldı, FB transfer eski veriler için)
+                    var kullanilabilir = Math.Max(kaynakSatir.GelenMiktar + kaynakSatir.ProjeKarsilanan - kaynakSatir.ProjeGonderilen, 0);
+                    if (request.KarsilananAdet > kullanilabilir)
+                        return Result.Failure($"Kaynak projede kullanilabilir 3K gelen miktar yetersiz. Kullanilabilir: {kullanilabilir}, istenen: {request.KarsilananAdet}.");
+
+                    kaynakSatir.ProjeGonderilen += request.KarsilananAdet;
                     kaynakSatir.KaynakHedefProjeNo = request.AsilFB;
                     kaynakSatir.DurumId = _durumHesaplaService.HesaplaGenelDurum(kaynakSatir.GridDurumuId, kaynakSatir.UcKDurumuId);
+                    _durumHesaplaService.HesaplaKalanVeDurum(kaynakSatir);
+                    AcYenidenSevkIhtiyaci(kaynakSatir);
                     urunRepo.Update(kaynakSatir);
                 }
 
@@ -75,7 +82,10 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                     KaynakCekiSatiriId = kaynakSatir?.Id ?? 0,
                     HedefCekiSatiriId = urun.Id,
                     BarkodNo = urun.BarkodNo,
+                    UrunAdi = urun.Aciklama,
                     Miktar = request.KarsilananAdet,
+                    TransferTipiId = (int)ProjeTransferTipi.Karsilama,
+                    DurumId = (int)ProjeTransferDurum.Aktif,
                     KullaniciId = _currentUserService.UserId ?? 0,
                     Aciklama = request.Aciklama,
                     Tarih = DateTime.UtcNow
@@ -115,6 +125,18 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             });
 
             return Result.Success();
+        }
+
+        private static void AcYenidenSevkIhtiyaci(CekiSatiri satir)
+        {
+            if (satir.KalanMiktar <= 0)
+                return;
+
+            if (satir.GridSevkDurumuId != (int)GridSevkDurum.SevkEdildi || (satir.GridSevkMiktari ?? 0) <= 0)
+                return;
+
+            satir.YenidenSevkGerekliAdet = Math.Max(satir.YenidenSevkGerekliAdet, satir.KalanMiktar);
+            satir.GridSevkDurumuId = (int)GridSevkDurum.YenidenSevkGerekli;
         }
     }
 }

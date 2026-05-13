@@ -38,6 +38,9 @@ namespace _3K.Application.Features.UcKIslemleri.DTOs
         public decimal StokKarsilanan { get; set; }
         public decimal ProjeKarsilanan { get; set; }
         public decimal ProjeGonderilen { get; set; }
+        public decimal NetKullanilabilir { get; set; }
+        public bool TransferZinciriVar { get; set; }
+        public List<ProjeTransferZincirDto> TransferZinciri { get; set; } = new();
         public decimal TedarikciKarsilanan { get; set; }
         public decimal EksikMiktar { get; set; }
 
@@ -54,6 +57,24 @@ namespace _3K.Application.Features.UcKIslemleri.DTOs
         public string? SurecDurumMetni { get; set; }
 
         public bool IsManuelEklenen { get; set; }
+    }
+
+    public class ProjeTransferZincirDto
+    {
+        public int Id { get; set; }
+        public string Yon { get; set; } = string.Empty;
+        public string KaynakProjeNo { get; set; } = string.Empty;
+        public string HedefProjeNo { get; set; } = string.Empty;
+        public string BarkodNo { get; set; } = string.Empty;
+        public string UrunAdi { get; set; } = string.Empty;
+        public decimal Miktar { get; set; }
+        public string TransferTipi { get; set; } = string.Empty;
+        public string Durum { get; set; } = string.Empty;
+        public int? ParentTransferId { get; set; }
+        public int? RootTransferId { get; set; }
+        public int ZincirSeviyesi { get; set; }
+        public string? Aciklama { get; set; }
+        public DateTime Tarih { get; set; }
     }
 }
 

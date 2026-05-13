@@ -49,6 +49,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 && satir.KarsilananMiktar == 0
                 && satir.StokKarsilanan == 0
                 && satir.ProjeKarsilanan == 0
+                && satir.ProjeGonderilen == 0
                 && satir.TedarikciKarsilanan == 0
                 && satir.HataliMiktar == 0
                 && satir.GeriGonderilenMiktar == 0
@@ -56,6 +57,18 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 return Result.Failure("Bu ürün zaten başlangıç durumunda.");
 
             // ===== Eski değerleri kaydet (hareket logu için) =====
+            var transferRepo = _unitOfWork.GetRepository<ProjeTransfer>();
+            var aktifTransferler = (await transferRepo.FindAsync(t =>
+                t.DurumId == (int)ProjeTransferDurum.Aktif &&
+                (t.KaynakCekiSatiriId == satir.Id || t.HedefCekiSatiriId == satir.Id)))
+                .ToList();
+
+            var aktifGidenTransferler = aktifTransferler.Where(t => t.KaynakCekiSatiriId == satir.Id).ToList();
+            if (aktifGidenTransferler.Any())
+                return Result.Failure("Bu urun baska projeye kaynak olarak verilmis. Once hedef projedeki karsilama geri alinmalidir.");
+
+            var aktifGelenTransferler = aktifTransferler.Where(t => t.HedefCekiSatiriId == satir.Id).ToList();
+
             var eskiDurum = satir.UcKDurumuId;
             var eskiKarsilamaTipi = satir.UcKKarsilamaTipiId;
             var eskiGelenMiktar = satir.GelenMiktar;
@@ -73,6 +86,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             satir.KarsilananMiktar = 0;
             satir.StokKarsilanan = 0;
             satir.ProjeKarsilanan = 0;
+            satir.ProjeGonderilen = 0;
             satir.TedarikciKarsilanan = 0;
             satir.HataliMiktar = 0;
             satir.GeriGonderilenMiktar = 0;
@@ -92,6 +106,23 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             repo.Update(satir);
 
             // ===== SandıkIçerik senkronizasyonu — konulan adeti de sıfırla =====
+            foreach (var transfer in aktifGelenTransferler)
+            {
+                var kaynakSatir = await repo.GetByIdAsync(transfer.KaynakCekiSatiriId);
+                if (kaynakSatir != null)
+                {
+                    kaynakSatir.ProjeGonderilen = Math.Max(kaynakSatir.ProjeGonderilen - transfer.Miktar, 0);
+                    kaynakSatir.DurumId = _durumHesaplaService.HesaplaGenelDurum(kaynakSatir.GridDurumuId, kaynakSatir.UcKDurumuId);
+                    _durumHesaplaService.HesaplaKalanVeDurum(kaynakSatir);
+                    repo.Update(kaynakSatir);
+                }
+
+                transfer.DurumId = (int)ProjeTransferDurum.GeriAlindi;
+                transfer.IptalTarihi = DateTime.UtcNow;
+                transfer.IptalAciklama = "3K durumu geri alindigi icin transfer pasife cekildi.";
+                transferRepo.Update(transfer);
+            }
+
             var sandikIcerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
             var ilgiliIcerikler = await sandikIcerikRepo.FindAsync(x => x.CekiSatiriId == satir.Id);
             foreach (var icerik in ilgiliIcerikler)
