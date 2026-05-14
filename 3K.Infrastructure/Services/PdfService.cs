@@ -428,9 +428,9 @@ namespace _3K.Infrastructure.Services
                         {
                             string projeNo = icerik.KaynakProjeNo ?? icerik.CekiSatiri?.Ceki?.Proje?.ProjeNo ?? sandik.Proje?.ProjeNo ?? "-";
                             string urunAdi = icerik.Isim ?? icerik.CekiSatiri?.Aciklama ?? "-";
-                            string miktar = (icerik.CekiSatiriId == null ? icerik.Miktar : icerik.KonulanAdet).ToString();
+                            string miktar = FormatAdet(icerik.CekiSatiriId == null ? icerik.Miktar : icerik.KonulanAdet);
                             string birim = icerik.BirimLookup?.Deger ?? icerik.CekiSatiri?.BirimLookup?.Deger ?? "Adet";
-                            string aciklama = icerik.CekiSatiri?.GridAciklama ?? "-";
+                            string aciklama = icerik.Aciklama ?? icerik.CekiSatiri?.GridAciklama ?? "-";
                             
                             string ekleyenId = icerik.CreatedBy ?? "";
                             string ekleyen = kullaniciDict.TryGetValue(ekleyenId, out var isim) ? isim : ekleyenId;
@@ -613,9 +613,9 @@ namespace _3K.Infrastructure.Services
                                 var bg = sira % 2 == 0 ? altRowBg : "#FFFFFF";
                                 string projeNo = icerik.KaynakProjeNo ?? icerik.CekiSatiri?.Ceki?.Proje?.ProjeNo ?? proje.ProjeNo;
                                 string urunAdi = icerik.Isim ?? icerik.CekiSatiri?.Aciklama ?? "-";
-                                string miktar = (icerik.CekiSatiriId == null ? icerik.Miktar : icerik.KonulanAdet).ToString();
+                                string miktar = FormatAdet(icerik.CekiSatiriId == null ? icerik.Miktar : icerik.KonulanAdet);
                                 string birim = icerik.BirimLookup?.Deger ?? icerik.CekiSatiri?.BirimLookup?.Deger ?? "Adet";
-                                string aciklama = icerik.CekiSatiri?.GridAciklama ?? "-";
+                                string aciklama = icerik.Aciklama ?? icerik.CekiSatiri?.GridAciklama ?? "-";
 
                                 string ekleyenId = icerik.CreatedBy ?? "";
                                 string ekleyen = kullaniciDict.TryGetValue(ekleyenId, out var isim) ? isim : ekleyenId;
