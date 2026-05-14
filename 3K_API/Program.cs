@@ -34,6 +34,18 @@ var serviceRetainedCount = int.TryParse(configuration["Serilog:ServiceRetainedFi
 var defaultLevel = Enum.TryParse<LogEventLevel>(configuration["Serilog:MinimumLevel:Default"], out var dl) ? dl : LogEventLevel.Information;
 
 var logOutputTemplate = "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz}] [{Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}";
+const string sseStreamPath = "/api/onay/sse-stream";
+
+bool IsSseStreamLogEvent(LogEvent logEvent)
+{
+    if (logEvent.Properties.TryGetValue("RequestPath", out var requestPath)
+        && requestPath.ToString().Contains(sseStreamPath, StringComparison.OrdinalIgnoreCase))
+    {
+        return true;
+    }
+
+    return logEvent.RenderMessage().Contains(sseStreamPath, StringComparison.OrdinalIgnoreCase);
+}
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Is(defaultLevel)
@@ -50,11 +62,13 @@ Log.Logger = new LoggerConfiguration()
     .WriteTo.Console(outputTemplate: logOutputTemplate)
     // Trace kanalı: Verbose → Information (tüm detay logları)
     // Klasör yapısı: {LogBasePath}/{yyyy-MM}/{dd}/trace-{HH}.txt
-    .WriteTo.HourlyFolderFile(
-        basePath: logBasePath,
-        filePrefix: "trace",
-        minimumLevel: LogEventLevel.Verbose,
-        outputTemplate: logOutputTemplate)
+    .WriteTo.Logger(traceLogger => traceLogger
+        .Filter.ByExcluding(IsSseStreamLogEvent)
+        .WriteTo.HourlyFolderFile(
+            basePath: logBasePath,
+            filePrefix: "trace",
+            minimumLevel: LogEventLevel.Verbose,
+            outputTemplate: logOutputTemplate))
     // Service kanalı: Warning ve üzeri (hata + kritik loglar)
     // Klasör yapısı: {LogBasePath}/{yyyy-MM}/{dd}/service-{HH}.txt
     .WriteTo.HourlyFolderFile(
@@ -227,6 +241,9 @@ try
         options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.000} ms";
         options.GetLevel = (httpContext, elapsed, ex) =>
         {
+            if (httpContext.Request.Path.StartsWithSegments(sseStreamPath))
+                return ex == null ? LogEventLevel.Debug : LogEventLevel.Error;
+
             if (ex != null) return LogEventLevel.Error;
             if (httpContext.Response.StatusCode >= 500) return LogEventLevel.Error;
             if (httpContext.Response.StatusCode >= 400) return LogEventLevel.Warning;
