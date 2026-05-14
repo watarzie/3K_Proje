@@ -1021,14 +1021,6 @@ namespace _3K.Infrastructure.Services
                 return "";
             }
 
-            string GetDurumColor(CekiSatiri satir)
-            {
-                if (GetTrafodaSevkAdet(satir) > 0)
-                    return warningColor;
-
-                return satir.KalanMiktar <= 0 ? successColor : dangerColor;
-            }
-
             satirlar = satirlar
                 .OrderBy(GetDurumSortPriority)
                 .ThenBy(s => GetPrimarySandikSortKey(s).Number)
@@ -1134,7 +1126,6 @@ namespace _3K.Infrastructure.Services
                             var trafodaSevkAdet = GetTrafodaSevkAdet(satir);
                             var kalanMiktar = satir.KalanMiktar;
                             var durumMetni = GetRaporDurum(satir);
-                            var durumColor = GetDurumColor(satir);
                             var aciklama = GetAciklama(satir);
 
                             void DataCell(IContainer c, string text, bool bold = false, string? color = null)
@@ -1148,21 +1139,15 @@ namespace _3K.Infrastructure.Services
 
                             void DurumCell(IContainer c, string text)
                             {
-                                var badge = c.Background(bg)
+                                var cell = c.Background(bg)
                                     .BorderBottom(0.5f)
                                     .BorderColor(tableBorderColor)
-                                    .Padding(4)
-                                    .AlignMiddle()
-                                    .Border(0.7f)
-                                    .BorderColor(durumColor)
-                                    .PaddingVertical(2)
-                                    .PaddingHorizontal(3)
-                                    .AlignCenter();
+                                    .Padding(4);
 
-                                badge.Text(text.ToUpper(new System.Globalization.CultureInfo("tr-TR")))
-                                    .FontSize(6.3f)
+                                cell.Text(text)
+                                    .FontSize(7)
                                     .Bold()
-                                    .FontColor(durumColor);
+                                    .FontColor(Colors.Black);
                             }
 
                             DataCell(table.Cell(), sira.ToString(), bold: true);
@@ -1172,8 +1157,8 @@ namespace _3K.Infrastructure.Services
                             DataCell(table.Cell(), FormatAdet(satir.IstenenAdet), bold: true);
                             DataCell(table.Cell(), satir.BirimLookup?.Deger ?? "Adet");
                             DataCell(table.Cell(), FormatAdet(gerceklesenAdet), bold: true);
-                            DataCell(table.Cell(), trafodaSevkAdet > 0 ? FormatAdet(trafodaSevkAdet) : "-", bold: trafodaSevkAdet > 0, color: trafodaSevkAdet > 0 ? warningColor : Colors.Black);
-                            DataCell(table.Cell(), FormatAdet(kalanMiktar), bold: true, color: kalanMiktar > 0 ? dangerColor : successColor);
+                            DataCell(table.Cell(), trafodaSevkAdet > 0 ? FormatAdet(trafodaSevkAdet) : "-", bold: trafodaSevkAdet > 0);
+                            DataCell(table.Cell(), FormatAdet(kalanMiktar), bold: true);
                             DurumCell(table.Cell(), durumMetni);
                             DataCell(table.Cell(), aciklama);
 

@@ -14,5 +14,6 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         public decimal? Yukseklik { get; set; }
         public decimal? NetKg { get; set; }
         public decimal? GrossKg { get; set; }
+        public int? DepoLokasyonId { get; set; }
     }
 }

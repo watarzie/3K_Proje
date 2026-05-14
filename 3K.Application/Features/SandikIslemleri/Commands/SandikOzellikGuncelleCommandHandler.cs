@@ -27,6 +27,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             sandik.Yukseklik = request.Yukseklik;
             sandik.NetKg = request.NetKg;
             sandik.GrossKg = request.GrossKg;
+            if (request.DepoLokasyonId.HasValue)
+                sandik.DepoLokasyonId = request.DepoLokasyonId.Value;
 
             repo.Update(sandik);
             await _unitOfWork.SaveChangesAsync();
