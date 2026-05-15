@@ -414,13 +414,13 @@ namespace _3K.Infrastructure.Services
                         // Header Row
                         table.Header(header =>
                         {
-                            header.Cell().BorderBottom(1).Padding(2).Text("Proje No").Bold();
-                            header.Cell().BorderBottom(1).Padding(2).Text("Ürün Adı / Tanımı").Bold();
-                            header.Cell().BorderBottom(1).Padding(2).Text("Miktar").Bold();
-                            header.Cell().BorderBottom(1).Padding(2).Text("Birim").Bold();
-                            header.Cell().BorderBottom(1).Padding(2).Text("Açıklama").Bold();
-                            header.Cell().BorderBottom(1).Padding(2).Text("Ekleyen").Bold();
-                            header.Cell().BorderBottom(1).Padding(2).Text("Tarih").Bold();
+                            header.Cell().Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(2).Text("Proje No").Bold();
+                            header.Cell().Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(2).Text("Ürün Adı / Tanımı").Bold();
+                            header.Cell().Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(2).Text("Miktar").Bold();
+                            header.Cell().Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(2).Text("Birim").Bold();
+                            header.Cell().Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(2).Text("Açıklama").Bold();
+                            header.Cell().Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(2).Text("Ekleyen").Bold();
+                            header.Cell().Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(2).Text("Tarih").Bold();
                         });
 
                         // Data Rows
@@ -437,13 +437,13 @@ namespace _3K.Infrastructure.Services
                             
                             string tarih = icerik.CreatedDate.ToString("dd.MM.yyyy HH:mm");
 
-                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(2).Text(projeNo);
-                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(2).Text(urunAdi);
-                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(2).Text(miktar);
-                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(2).Text(birim);
-                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(2).Text(aciklama);
-                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(2).Text(ekleyen);
-                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(2).Text(tarih);
+                            table.Cell().Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(2).Text(projeNo);
+                            table.Cell().Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(2).Text(urunAdi);
+                            table.Cell().Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(2).Text(miktar);
+                            table.Cell().Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(2).Text(birim);
+                            table.Cell().Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(2).Text(aciklama);
+                            table.Cell().Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(2).Text(ekleyen);
+                            table.Cell().Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(2).Text(tarih);
                         }
                     });
 
@@ -594,7 +594,7 @@ namespace _3K.Infrastructure.Services
                             table.Header(header =>
                             {
                                 void HeaderCell(IContainer c, string text) =>
-                                    c.Background(headerBg).Padding(3).Text(text).Bold().FontSize(7).FontColor(headerText);
+                                    c.Border(0.5f).BorderColor(headerBg).Background(headerBg).Padding(3).Text(text).Bold().FontSize(7).FontColor(headerText);
 
                                 HeaderCell(header.Cell(), "#");
                                 HeaderCell(header.Cell(), "PROJE NO");
@@ -624,7 +624,7 @@ namespace _3K.Infrastructure.Services
 
                                 void DataCell(IContainer c, string text, bool bold = false, string? fontColor = null)
                                 {
-                                    var cell = c.Background(bg).BorderBottom(0.5f).BorderColor(tableBorderColor).Padding(2);
+                                    var cell = c.Background(bg).Border(0.5f).BorderColor(tableBorderColor).Padding(2);
                                     if (bold)
                                         cell.Text(text).FontSize(7).FontColor(fontColor ?? Colors.Black).Bold();
                                     else
@@ -801,7 +801,7 @@ namespace _3K.Infrastructure.Services
                         table.Header(header =>
                         {
                             void HeaderCell(IContainer c, string text) =>
-                                c.Background(headerBg).Padding(3).Text(text).Bold().FontSize(7).FontColor(headerText);
+                                c.Border(0.5f).BorderColor(headerBg).Background(headerBg).Padding(3).Text(text).Bold().FontSize(7).FontColor(headerText);
 
                             HeaderCell(header.Cell(), "#");
                             HeaderCell(header.Cell(), "SIRA");
@@ -829,7 +829,7 @@ namespace _3K.Infrastructure.Services
 
                             void DataCell(IContainer c, string text, bool bold = false, string? fontColor = null)
                             {
-                                var cell = c.Background(bg).BorderBottom(0.5f).BorderColor(tableBorderColor).Padding(2);
+                                var cell = c.Background(bg).Border(0.5f).BorderColor(tableBorderColor).Padding(2);
                                 if (bold)
                                     cell.Text(text).FontSize(7).FontColor(fontColor ?? Colors.Black).Bold();
                                 else
@@ -1103,7 +1103,7 @@ namespace _3K.Infrastructure.Services
                         table.Header(header =>
                         {
                             void HeaderCell(IContainer c, string text) =>
-                                c.Background(headerBg).Border(0.5f).BorderColor(headerBg).Padding(4).Text(text).Bold().FontSize(7).FontColor(headerText);
+                                c.Border(0.5f).BorderColor(headerBg).Background(headerBg).Padding(4).Text(text).Bold().FontSize(7).FontColor(headerText);
 
                             HeaderCell(header.Cell(), "#");
                             HeaderCell(header.Cell(), "SANDIK");
@@ -1130,7 +1130,7 @@ namespace _3K.Infrastructure.Services
 
                             void DataCell(IContainer c, string text, bool bold = false, string? color = null)
                             {
-                                var cell = c.Background(bg).BorderBottom(0.5f).BorderColor(tableBorderColor).Padding(4);
+                                var cell = c.Background(bg).Border(0.5f).BorderColor(tableBorderColor).Padding(4);
                                 if (bold)
                                     cell.Text(text).FontSize(7).FontColor(color ?? Colors.Black).Bold();
                                 else
@@ -1140,7 +1140,7 @@ namespace _3K.Infrastructure.Services
                             void DurumCell(IContainer c, string text)
                             {
                                 var cell = c.Background(bg)
-                                    .BorderBottom(0.5f)
+                                    .Border(0.5f)
                                     .BorderColor(tableBorderColor)
                                     .Padding(4);
 
@@ -1343,7 +1343,7 @@ namespace _3K.Infrastructure.Services
                         table.Header(header =>
                         {
                             void HeaderCell(IContainer c, string text) =>
-                                c.Background(headerBg).Padding(3).Text(text).Bold().FontSize(6.5f).FontColor(headerText);
+                                c.Border(0.5f).BorderColor(headerBg).Background(headerBg).Padding(3).Text(text).Bold().FontSize(6.5f).FontColor(headerText);
 
                             HeaderCell(header.Cell(), "#");
                             HeaderCell(header.Cell(), "PROJE NO");
@@ -1361,7 +1361,7 @@ namespace _3K.Infrastructure.Services
 
                             void DataCell(IContainer c, string text, bool bold = false, string? fontColor = null)
                             {
-                                var cell = c.Background(bg).BorderBottom(0.5f).BorderColor(tableBorderColor).Padding(2);
+                                var cell = c.Background(bg).Border(0.5f).BorderColor(tableBorderColor).Padding(2);
                                 if (bold)
                                     cell.Text(text).FontSize(6.5f).FontColor(fontColor ?? Colors.Black).Bold();
                                 else
@@ -1498,7 +1498,7 @@ namespace _3K.Infrastructure.Services
                         table.Header(header =>
                         {
                             void HeaderCell(IContainer c, string text) =>
-                                c.Background(headerBg).Padding(3).Text(text).Bold().FontSize(7).FontColor(headerText);
+                                c.Border(0.5f).BorderColor(headerBg).Background(headerBg).Padding(3).Text(text).Bold().FontSize(7).FontColor(headerText);
 
                             HeaderCell(header.Cell(), "#");
                             HeaderCell(header.Cell(), "MALZEME KODU");
@@ -1519,7 +1519,7 @@ namespace _3K.Infrastructure.Services
 
                             void DataCell(IContainer c, string text, bool bold = false, string? fontColor = null)
                             {
-                                var cell = c.Background(bg).BorderBottom(0.5f).BorderColor(tableBorderColor).Padding(2);
+                                var cell = c.Background(bg).Border(0.5f).BorderColor(tableBorderColor).Padding(2);
                                 if (bold)
                                     cell.Text(text).FontSize(7).FontColor(fontColor ?? Colors.Black).Bold();
                                 else
