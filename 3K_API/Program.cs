@@ -8,6 +8,7 @@ using FluentValidation;
 using Serilog;
 using Serilog.Events;
 using _3K_API.Logging;
+using _3K_API.Middleware;
 using _3K.Core.Interfaces;
 using _3K.Application.Behaviors;
 using _3K.Infrastructure.Data;
@@ -29,11 +30,13 @@ var configuration = new ConfigurationBuilder()
 var logBasePath = configuration["Serilog:LogBasePath"] ?? @"C:\Logs\3K";
 var traceRetainedCount = int.TryParse(configuration["Serilog:TraceRetainedFileCount"], out var tc) ? tc : 168;   // 7 gün x 24 saat
 var serviceRetainedCount = int.TryParse(configuration["Serilog:ServiceRetainedFileCount"], out var sc) ? sc : 720; // 30 gün x 24 saat
+var traceRetainedDays = int.TryParse(configuration["Serilog:TraceRetainedDays"], out var trd) ? trd : 7;
+var serviceRetainedDays = int.TryParse(configuration["Serilog:ServiceRetainedDays"], out var srd) ? srd : 30;
 
 // Minimum seviye overrides konfigürasyondan okunur
 var defaultLevel = Enum.TryParse<LogEventLevel>(configuration["Serilog:MinimumLevel:Default"], out var dl) ? dl : LogEventLevel.Information;
 
-var logOutputTemplate = "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz}] [{Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}";
+var logOutputTemplate = "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz}] [{Level:u3}] [{CorrelationId}] [{SourceContext}] {Message:lj}{NewLine}{Exception}";
 const string sseStreamPath = "/api/onay/sse-stream";
 
 bool IsSseStreamLogEvent(LogEvent logEvent)
@@ -68,14 +71,16 @@ Log.Logger = new LoggerConfiguration()
             basePath: logBasePath,
             filePrefix: "trace",
             minimumLevel: LogEventLevel.Verbose,
-            outputTemplate: logOutputTemplate))
+            outputTemplate: logOutputTemplate,
+            retainedDays: traceRetainedDays))
     // Service kanalı: Warning ve üzeri (hata + kritik loglar)
     // Klasör yapısı: {LogBasePath}/{yyyy-MM}/{dd}/service-{HH}.txt
     .WriteTo.HourlyFolderFile(
         basePath: logBasePath,
         filePrefix: "service",
         minimumLevel: LogEventLevel.Warning,
-        outputTemplate: logOutputTemplate)
+        outputTemplate: logOutputTemplate,
+        retainedDays: serviceRetainedDays)
     .CreateLogger();
 
 try
@@ -234,6 +239,9 @@ try
     });
 
     var app = builder.Build();
+
+    // ======= Correlation ID — Tüm loglarda istek takibi =======
+    app.UseMiddleware<CorrelationIdMiddleware>();
 
     // ======= Serilog Request Logging — Her HTTP isteğini otomatik loglar =======
     app.UseSerilogRequestLogging(options =>
