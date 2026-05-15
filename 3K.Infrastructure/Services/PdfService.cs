@@ -901,6 +901,13 @@ namespace _3K.Infrastructure.Services
             if (!satirlar.Any())
                 throw new KeyNotFoundException($"Projeye ait ceki satiri bulunamadi: {projeId}");
 
+            // İlk sayfa için sandık bilgilerini çek
+            var projeSandiklari = await _context.Sandiklar
+                .AsNoTracking()
+                .Where(s => s.ProjeId == projeId)
+                .OrderBy(s => s.SandikNo)
+                .ToListAsync();
+
             QuestPDF.Settings.License = LicenseType.Community;
 
             var headerBg = Colors.Blue.Darken3;
@@ -923,6 +930,12 @@ namespace _3K.Infrastructure.Services
                     ? numericValue
                     : int.MaxValue;
             }
+
+            // Sandıkları sayısal sıraya göre sırala
+            projeSandiklari = projeSandiklari
+                .OrderBy(s => GetSandikSortKey(s.SandikNo))
+                .ThenBy(s => s.SandikNo)
+                .ToList();
 
             List<string> GetSandikNoList(CekiSatiri satir)
             {
@@ -1036,6 +1049,155 @@ namespace _3K.Infrastructure.Services
 
             var document = Document.Create(container =>
             {
+                // ===== SAYFA 1: SANDIK ÖZET TABLOSU =====
+                if (projeSandiklari.Any())
+                {
+                    container.Page(page =>
+                    {
+                        page.Size(PageSizes.A4.Landscape());
+                        page.Margin(18);
+                        page.DefaultTextStyle(x => x.FontSize(8));
+
+                        // Header
+                        page.Header().Column(headerCol =>
+                        {
+                            headerCol.Item().Background(headerBg).Padding(12).Row(row =>
+                            {
+                                row.RelativeItem().Column(col =>
+                                {
+                                    col.Item().Text("3K").Bold().FontSize(24).FontColor(headerText);
+                                    col.Item().Text("All Processes. One Flow.").FontSize(7).FontColor(Colors.Grey.Lighten3).Italic();
+                                });
+                                row.RelativeItem(2).AlignCenter().Column(col =>
+                                {
+                                    col.Item().Text("Koli / Sandık Bilgileri").Bold().FontSize(16).FontColor(headerText);
+                                    col.Item().Text("3K Sevkiyat Yönetim Sistemi – Gerçekleşen Çeki Listesi").FontSize(7).FontColor(Colors.Grey.Lighten3);
+                                });
+                                row.RelativeItem().AlignRight().Column(col =>
+                                {
+                                    col.Item().Text($"Rapor Tarihi: {raporTarihi}").FontSize(8).FontColor(Colors.Grey.Lighten3);
+                                    col.Item().Text($"Sevk Tarihi: {sevkTarihi}").FontSize(8).FontColor(Colors.Grey.Lighten3);
+                                });
+                            });
+
+                            headerCol.Item().PaddingTop(10).Border(1).BorderColor(tableBorderColor).Padding(8).Row(row =>
+                            {
+                                row.RelativeItem().Text(t =>
+                                {
+                                    t.Span("Proje No: ").FontSize(10);
+                                    t.Span(proje.ProjeNo).Bold().FontSize(11).FontColor(headerBg);
+                                });
+                                row.RelativeItem().Text(t =>
+                                {
+                                    t.Span("Müşteri: ").FontSize(10);
+                                    t.Span(proje.Musteri ?? "-").Bold().FontSize(11).FontColor(headerBg);
+                                });
+                                row.RelativeItem().AlignRight().Text(t =>
+                                {
+                                    t.Span("Toplam Sandık: ").FontSize(10);
+                                    t.Span($"{projeSandiklari.Count} adet").Bold().FontSize(11).FontColor(headerBg);
+                                });
+                            });
+
+                            headerCol.Item().PaddingTop(5).LineHorizontal(1).LineColor(tableBorderColor);
+                        });
+
+                        // Content - Sandık Tablosu
+                        page.Content().PaddingTop(10).Table(table =>
+                        {
+                            table.ColumnsDefinition(columns =>
+                            {
+                                columns.ConstantColumn(30);    // #
+                                columns.ConstantColumn(65);    // Koli No
+                                columns.RelativeColumn(2.5f);  // Sandık Adı
+                                columns.ConstantColumn(70);    // Net (kg)
+                                columns.ConstantColumn(70);    // Brüt (kg)
+                                columns.ConstantColumn(75);    // Boy (mm)
+                                columns.ConstantColumn(75);    // En (mm)
+                                columns.ConstantColumn(85);    // Yükseklik (mm)
+                            });
+
+                            table.Header(header =>
+                            {
+                                void SandikHeaderCell(IContainer c, string text) =>
+                                    c.Border(0.5f).BorderColor(headerBg).Background(headerBg).Padding(5).Text(text).Bold().FontSize(8).FontColor(headerText);
+
+                                SandikHeaderCell(header.Cell(), "#");
+                                SandikHeaderCell(header.Cell(), "KOLİ NO");
+                                SandikHeaderCell(header.Cell(), "SANDIK ADI");
+                                SandikHeaderCell(header.Cell(), "NET (kg)");
+                                SandikHeaderCell(header.Cell(), "BRÜT (kg)");
+                                SandikHeaderCell(header.Cell(), "BOY (mm)");
+                                SandikHeaderCell(header.Cell(), "EN (mm)");
+                                SandikHeaderCell(header.Cell(), "YÜKSEKLİK (mm)");
+                            });
+
+                            int sandikSira = 1;
+                            decimal toplamNet = 0;
+                            decimal toplamBrut = 0;
+
+                            foreach (var sandik in projeSandiklari)
+                            {
+                                var bg = sandikSira % 2 == 0 ? altRowBg : "#FFFFFF";
+                                var netKg = sandik.NetKg ?? 0;
+                                var brutKg = sandik.GrossKg ?? 0;
+                                toplamNet += netKg;
+                                toplamBrut += brutKg;
+
+                                void SandikDataCell(IContainer c, string text, bool bold = false, string? fontColor = null)
+                                {
+                                    var cell = c.Background(bg).Border(0.5f).BorderColor(tableBorderColor).Padding(5);
+                                    if (bold)
+                                        cell.Text(text).FontSize(8).FontColor(fontColor ?? Colors.Black).Bold();
+                                    else
+                                        cell.Text(text).FontSize(8).FontColor(fontColor ?? Colors.Black);
+                                }
+
+                                SandikDataCell(table.Cell(), sandikSira.ToString(), bold: true);
+                                SandikDataCell(table.Cell(), sandik.SandikNo, bold: true, fontColor: headerBg);
+                                SandikDataCell(table.Cell(), sandik.Ad ?? "-");
+                                SandikDataCell(table.Cell(), FormatAdet(netKg), bold: true);
+                                SandikDataCell(table.Cell(), FormatAdet(brutKg), bold: true);
+                                SandikDataCell(table.Cell(), FormatAdet(sandik.Boy ?? 0));
+                                SandikDataCell(table.Cell(), FormatAdet(sandik.En ?? 0));
+                                SandikDataCell(table.Cell(), FormatAdet(sandik.Yukseklik ?? 0));
+
+                                sandikSira++;
+                            }
+
+                            // Toplam satırı
+                            void ToplamCell(IContainer c, string text, bool bold = true)
+                            {
+                                var cell = c.Background("#E3F2FD").Border(0.5f).BorderColor(tableBorderColor).Padding(5);
+                                cell.Text(text).FontSize(8).FontColor(Colors.Black).Bold();
+                            }
+
+                            ToplamCell(table.Cell(), "");
+                            ToplamCell(table.Cell(), "");
+                            ToplamCell(table.Cell(), "TOPLAM");
+                            ToplamCell(table.Cell(), FormatAdet(toplamNet));
+                            ToplamCell(table.Cell(), FormatAdet(toplamBrut));
+                            ToplamCell(table.Cell(), "");
+                            ToplamCell(table.Cell(), "");
+                            ToplamCell(table.Cell(), "");
+                        });
+
+                        // Footer
+                        page.Footer().Row(footer =>
+                        {
+                            footer.RelativeItem().Text($"3K Ambalaj - Koli/Sandık Bilgileri | Proje: {proje.ProjeNo}").FontSize(7).FontColor(Colors.Grey.Medium);
+                            footer.RelativeItem().AlignRight().Text(x =>
+                            {
+                                x.Span("Sayfa ").FontSize(7).FontColor(Colors.Grey.Medium);
+                                x.CurrentPageNumber().FontSize(7).FontColor(Colors.Grey.Medium);
+                                x.Span(" / ").FontSize(7).FontColor(Colors.Grey.Medium);
+                                x.TotalPages().FontSize(7).FontColor(Colors.Grey.Medium);
+                            });
+                        });
+                    });
+                }
+
+                // ===== SAYFA 2+: GERÇEKLEŞEN ÇEKİ LİSTESİ DETAY =====
                 container.Page(page =>
                 {
                     page.Size(PageSizes.A4.Landscape());
