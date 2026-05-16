@@ -35,6 +35,14 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
 
+        [HttpPost("manuel")]
+        public async Task<ActionResult> ManuelOlustur([FromBody] CekiManuelOlusturCommand command)
+        {
+            command.KullaniciId = GetKullaniciId();
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
         [HttpGet("{cekiId}/satirlar")]
         public async Task<ActionResult> GetSatirlari(int cekiId)
         {

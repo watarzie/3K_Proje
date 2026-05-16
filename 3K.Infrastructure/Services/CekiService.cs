@@ -2,6 +2,7 @@ using ClosedXML.Excel;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 using _3K.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using DocumentFormat.OpenXml.Packaging;
@@ -310,6 +311,135 @@ namespace _3K.Infrastructure.Services
             return ceki;
         }
 
+        public async Task<Ceki> CekiManuelOlusturAsync(ManuelCekiOlusturModel model)
+        {
+            var projeNo = model.ProjeNo?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(projeNo))
+                throw new Exception("Proje no zorunludur.");
+
+            if (model.Satirlar == null || model.Satirlar.Count == 0)
+                throw new Exception("En az bir ürün satırı girilmelidir.");
+
+            model.Sandiklar ??= new List<ManuelSandikModel>();
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+
+            var projeRepo = _unitOfWork.GetRepository<Proje>();
+            var cekiRepo = _unitOfWork.GetRepository<Ceki>();
+            var cekiSatiriRepo = _unitOfWork.GetRepository<CekiSatiri>();
+            var sandikRepo = _unitOfWork.GetRepository<Sandik>();
+            var sandikIcerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
+
+            var fbNo = string.IsNullOrWhiteSpace(model.FBNo) ? projeNo : model.FBNo.Trim();
+            var proje = await _context.Projeler.FirstOrDefaultAsync(p => p.FBNo == fbNo || p.ProjeNo == projeNo);
+
+            if (proje == null)
+            {
+                proje = new Proje
+                {
+                    ProjeNo = projeNo,
+                    FBNo = fbNo,
+                    DurumId = (int)ProjeDurum.Hazirlaniyor,
+                    ProjeTipiId = model.ProjeTipiId > 0 ? model.ProjeTipiId : (int)ProjeTipi.Normal
+                };
+                await projeRepo.AddAsync(proje);
+                await _unitOfWork.SaveChangesAsync();
+            }
+            else
+            {
+                var cekiVarMi = await _context.Cekiler.AnyAsync(c => c.ProjeId == proje.Id);
+                if (cekiVarMi)
+                    throw new Exception($"Bu projeye ({proje.ProjeNo}) ait çeki listesi daha önce oluşturulmuş! Aynı proje iki kez oluşturulamaz.");
+            }
+
+            ApplyManuelProjeBilgileri(proje, model);
+            projeRepo.Update(proje);
+            await _unitOfWork.SaveChangesAsync();
+
+            var ceki = new Ceki
+            {
+                ProjeId = proje.Id,
+                OrijinalDosyaYolu = string.Empty
+            };
+            await cekiRepo.AddAsync(ceki);
+            await _unitOfWork.SaveChangesAsync();
+
+            var satirlar = new List<CekiSatiri>();
+            for (var i = 0; i < model.Satirlar.Count; i++)
+            {
+                var item = model.Satirlar[i];
+                var sandikNo = NormalizeKoliNo(item.SandikNo);
+                if (string.IsNullOrWhiteSpace(sandikNo))
+                    throw new Exception($"{i + 1}. ürün satırında sandık no zorunludur.");
+
+                if (string.IsNullOrWhiteSpace(item.Aciklama))
+                    throw new Exception($"{i + 1}. ürün satırında açıklama zorunludur.");
+
+                if (item.IstenenAdet <= 0)
+                    throw new Exception($"{i + 1}. ürün satırında miktar 0'dan büyük olmalıdır.");
+
+                var satir = new CekiSatiri
+                {
+                    CekiId = ceki.Id,
+                    SiraNo = item.SiraNo.GetValueOrDefault(i + 1),
+                    BarkodNo = item.BarkodNo?.Trim() ?? string.Empty,
+                    Aciklama = item.Aciklama.Trim(),
+                    CekideGecenSandikNo = sandikNo,
+                    FiiliSandikNo = sandikNo,
+                    IstenenAdet = item.IstenenAdet,
+                    BirimId = item.BirimId.GetValueOrDefault(ParseBirimToId(item.Birim ?? string.Empty)),
+                    Remarks = string.IsNullOrWhiteSpace(item.Remarks) ? null : item.Remarks.Trim(),
+                    DurumId = (int)UrunDurum.Bekliyor,
+                    GridDurumuId = (int)GridDurum.Gelmedi,
+                    GridSevkDurumuId = (int)GridSevkDurum.SevkEdilmedi
+                };
+
+                satirlar.Add(satir);
+                await cekiSatiriRepo.AddAsync(satir);
+            }
+            await _unitOfWork.SaveChangesAsync();
+
+            var sandikBilgileri = model.Sandiklar
+                .Where(s => !string.IsNullOrWhiteSpace(s.SandikNo))
+                .GroupBy(s => NormalizeKoliNo(s.SandikNo))
+                .ToDictionary(g => g.Key, g => g.First());
+
+            foreach (var grup in satirlar.GroupBy(s => NormalizeKoliNo(s.CekideGecenSandikNo)))
+            {
+                if (string.IsNullOrWhiteSpace(grup.Key)) continue;
+
+                sandikBilgileri.TryGetValue(grup.Key, out var sandikBilgisi);
+                var sandik = new Sandik
+                {
+                    ProjeId = proje.Id,
+                    SandikNo = grup.Key,
+                    Ad = string.IsNullOrWhiteSpace(sandikBilgisi?.Ad) ? null : sandikBilgisi.Ad.Trim(),
+                    DurumId = (int)SandikDurum.Hazirlaniyor,
+                    En = sandikBilgisi?.En,
+                    Boy = sandikBilgisi?.Boy,
+                    Yukseklik = sandikBilgisi?.Yukseklik,
+                    NetKg = sandikBilgisi?.NetKg,
+                    GrossKg = sandikBilgisi?.GrossKg
+                };
+                await sandikRepo.AddAsync(sandik);
+                await _unitOfWork.SaveChangesAsync();
+
+                foreach (var satir in grup)
+                {
+                    await sandikIcerikRepo.AddAsync(new SandikIcerik
+                    {
+                        SandikId = sandik.Id,
+                        CekiSatiriId = satir.Id,
+                        KonulanAdet = 0,
+                        EksikAdet = 0
+                    });
+                }
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+            await transaction.CommitAsync();
+            return ceki;
+        }
+
         public async Task<IEnumerable<CekiSatiri>> GetCekiSatirlariAsync(int cekiId)
         {
             return await _context.CekiSatirlari
@@ -319,6 +449,24 @@ namespace _3K.Infrastructure.Services
                 .Where(cs => cs.CekiId == cekiId)
                 .OrderBy(cs => cs.SiraNo)
                 .ToListAsync();
+        }
+
+        private static void ApplyManuelProjeBilgileri(Proje proje, ManuelCekiOlusturModel model)
+        {
+            proje.ProjeNo = model.ProjeNo.Trim();
+            proje.FBNo = string.IsNullOrWhiteSpace(model.FBNo) ? proje.ProjeNo : model.FBNo.Trim();
+            proje.ProjeTipiId = model.ProjeTipiId > 0 ? model.ProjeTipiId : (int)ProjeTipi.Normal;
+
+            if (!string.IsNullOrWhiteSpace(model.Musteri)) proje.Musteri = model.Musteri.Trim();
+            if (!string.IsNullOrWhiteSpace(model.Lokasyon)) proje.Lokasyon = model.Lokasyon.Trim();
+            if (!string.IsNullOrWhiteSpace(model.Guc)) proje.Guc = model.Guc.Trim();
+            if (!string.IsNullOrWhiteSpace(model.Gerilim)) proje.Gerilim = model.Gerilim.Trim();
+            if (!string.IsNullOrWhiteSpace(model.ProjeMuduru)) proje.ProjeMuduru = model.ProjeMuduru.Trim();
+            if (!string.IsNullOrWhiteSpace(model.SorumluKisi)) proje.SorumluKisi = model.SorumluKisi.Trim();
+            if (!string.IsNullOrWhiteSpace(model.OlcuResmiNo)) proje.OlcuResmiNo = model.OlcuResmiNo.Trim();
+            if (!string.IsNullOrWhiteSpace(model.NakilOlcuResmiNo)) proje.NakilOlcuResmiNo = model.NakilOlcuResmiNo.Trim();
+            if (!string.IsNullOrWhiteSpace(model.SonMontajResmiNo)) proje.SonMontajResmiNo = model.SonMontajResmiNo.Trim();
+            if (model.PlanlananSevkTarihi.HasValue) proje.PlanlananSevkTarihi = model.PlanlananSevkTarihi;
         }
 
         public async Task<Ceki?> GetCekiByIdAsync(int cekiId)
