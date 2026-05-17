@@ -1595,6 +1595,26 @@ namespace _3K.Infrastructure.Services
 
                             sira++;
                         }
+
+                        // ===== TOPLAM SATIRI =====
+                        var genelToplamSandik = projeBazliDagilim.Sum(p => p.ToplamSandik);
+                        var genelUcK = projeBazliDagilim.Sum(p => p.UcK);
+                        var genelSeymen = projeBazliDagilim.Sum(p => p.Seymen);
+                        var genelGrid = projeBazliDagilim.Sum(p => p.Grid);
+
+                        void ToplamCell(IContainer c, string text, string? fontColor = null)
+                        {
+                            var cell = c.Background("#E3F2FD").Border(0.5f).BorderColor(tableBorderColor).Padding(3);
+                            cell.Text(text).FontSize(7).FontColor(fontColor ?? Colors.Black).Bold();
+                        }
+
+                        ToplamCell(table.Cell(), "");
+                        ToplamCell(table.Cell(), "TOPLAM");
+                        ToplamCell(table.Cell(), $"{projeBazliDagilim.Count} proje");
+                        ToplamCell(table.Cell(), genelToplamSandik.ToString());
+                        ToplamCell(table.Cell(), genelUcK > 0 ? genelUcK.ToString() : "-", "#0EA5E9");
+                        ToplamCell(table.Cell(), genelSeymen > 0 ? genelSeymen.ToString() : "-", "#078A55");
+                        ToplamCell(table.Cell(), genelGrid > 0 ? genelGrid.ToString() : "-", "#F59E0B");
                     });
 
                     page.Footer().Row(footer =>
