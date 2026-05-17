@@ -277,20 +277,30 @@ namespace _3K.Infrastructure.Services
                                         columns.RelativeColumn(2);    // Remarks
                                     });
 
-                                    // Başlık satırı
+                                    // Başlık satırı (TR + EN)
                                     table.Header(header =>
                                     {
-                                        header.Cell().Border(1).Padding(2).Text("#").Bold();
-                                        header.Cell().Border(1).Padding(2).Text("POZ NO").Bold();
-                                        header.Cell().Border(1).Padding(2).Text("BARKOD NO").Bold();
-                                        header.Cell().Border(1).Padding(2).Text("AÇIKLAMA").Bold();
-                                        header.Cell().Border(1).Padding(2).Text("İSTENEN").Bold();
-                                        header.Cell().Border(1).Padding(2).Text("KONULAN").Bold();
-                                        header.Cell().Border(1).Padding(2).Text("EKSİK").Bold();
-                                        header.Cell().Border(1).Padding(2).Text("BİRİM").Bold();
-                                        header.Cell().Border(1).Padding(2).Text("PKT").Bold();
-                                        header.Cell().Border(1).Padding(2).Text("KNT").Bold();
-                                        header.Cell().Border(1).Padding(2).Text("REMARKS").Bold();
+                                        void BiHeader(IContainer c, string tr, string en = "")
+                                        {
+                                            c.Border(1).Padding(2).Column(col =>
+                                            {
+                                                col.Item().Text(tr).Bold();
+                                                if (!string.IsNullOrEmpty(en))
+                                                    col.Item().Text(en).FontSize(6).FontColor(Colors.Grey.Darken1).Italic();
+                                            });
+                                        }
+
+                                        BiHeader(header.Cell(), "#");
+                                        BiHeader(header.Cell(), "POZ NO", "Position No");
+                                        BiHeader(header.Cell(), "BARKOD NO", "Barcode No");
+                                        BiHeader(header.Cell(), "AÇIKLAMA", "Description");
+                                        BiHeader(header.Cell(), "İSTENEN", "Requested");
+                                        BiHeader(header.Cell(), "KONULAN", "Packed");
+                                        BiHeader(header.Cell(), "EKSİK", "Missing");
+                                        BiHeader(header.Cell(), "BİRİM", "Unit");
+                                        BiHeader(header.Cell(), "PKT", "Packer");
+                                        BiHeader(header.Cell(), "KNT", "Inspector");
+                                        BiHeader(header.Cell(), "REMARKS");
                                     });
 
                                     int sira = 1;
@@ -411,16 +421,26 @@ namespace _3K.Infrastructure.Services
                             columns.RelativeColumn(1.5f); // Tarih
                         });
 
-                        // Header Row
+                        // Header Row (TR + EN)
                         table.Header(header =>
                         {
-                            header.Cell().Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(2).Text("Proje No").Bold();
-                            header.Cell().Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(2).Text("Ürün Adı / Tanımı").Bold();
-                            header.Cell().Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(2).Text("Miktar").Bold();
-                            header.Cell().Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(2).Text("Birim").Bold();
-                            header.Cell().Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(2).Text("Açıklama").Bold();
-                            header.Cell().Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(2).Text("Ekleyen").Bold();
-                            header.Cell().Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(2).Text("Tarih").Bold();
+                            void BiHeader(IContainer c, string tr, string en = "")
+                            {
+                                c.Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(2).Column(col =>
+                                {
+                                    col.Item().Text(tr).Bold();
+                                    if (!string.IsNullOrEmpty(en))
+                                        col.Item().Text(en).FontSize(7).FontColor(Colors.Grey.Darken1).Italic();
+                                });
+                            }
+
+                            BiHeader(header.Cell(), "Proje No", "Project No");
+                            BiHeader(header.Cell(), "Ürün Adı / Tanımı", "Product Name");
+                            BiHeader(header.Cell(), "Miktar", "Quantity");
+                            BiHeader(header.Cell(), "Birim", "Unit");
+                            BiHeader(header.Cell(), "Açıklama", "Description");
+                            BiHeader(header.Cell(), "Ekleyen", "Added By");
+                            BiHeader(header.Cell(), "Tarih", "Date");
                         });
 
                         // Data Rows
@@ -590,20 +610,27 @@ namespace _3K.Infrastructure.Services
                                 columns.RelativeColumn(1.5f); // Tarih
                             });
 
-                            // Başlık satırı
+                            // Başlık satırı (TR + EN)
                             table.Header(header =>
                             {
-                                void HeaderCell(IContainer c, string text) =>
-                                    c.Border(0.5f).BorderColor(headerBg).Background(headerBg).Padding(3).Text(text).Bold().FontSize(7).FontColor(headerText);
+                                void BiHeader(IContainer c, string tr, string en = "")
+                                {
+                                    c.Border(0.5f).BorderColor(headerBg).Background(headerBg).Padding(3).Column(col =>
+                                    {
+                                        col.Item().Text(tr).Bold().FontSize(7).FontColor(headerText);
+                                        if (!string.IsNullOrEmpty(en))
+                                            col.Item().Text(en).FontSize(5).FontColor(Colors.Grey.Lighten3).Italic();
+                                    });
+                                }
 
-                                HeaderCell(header.Cell(), "#");
-                                HeaderCell(header.Cell(), "PROJE NO");
-                                HeaderCell(header.Cell(), "ÜRÜN ADI / TANIMI");
-                                HeaderCell(header.Cell(), "MİKTAR");
-                                HeaderCell(header.Cell(), "BİRİM");
-                                HeaderCell(header.Cell(), "AÇIKLAMA");
-                                HeaderCell(header.Cell(), "EKLEYEN");
-                                HeaderCell(header.Cell(), "TARİH");
+                                BiHeader(header.Cell(), "#");
+                                BiHeader(header.Cell(), "PROJE NO", "Project No");
+                                BiHeader(header.Cell(), "ÜRÜN ADI / TANIMI", "Product Name");
+                                BiHeader(header.Cell(), "MİKTAR", "Quantity");
+                                BiHeader(header.Cell(), "BİRİM", "Unit");
+                                BiHeader(header.Cell(), "AÇIKLAMA", "Description");
+                                BiHeader(header.Cell(), "EKLEYEN", "Added By");
+                                BiHeader(header.Cell(), "TARİH", "Date");
                             });
 
                             // Data Rows
@@ -797,25 +824,32 @@ namespace _3K.Infrastructure.Services
                             columns.RelativeColumn(1);    // Sürec
                         });
 
-                        // Başlık satırı
+                        // Başlık satırı (TR + EN)
                         table.Header(header =>
                         {
-                            void HeaderCell(IContainer c, string text) =>
-                                c.Border(0.5f).BorderColor(headerBg).Background(headerBg).Padding(3).Text(text).Bold().FontSize(7).FontColor(headerText);
+                            void BiHeader(IContainer c, string tr, string en = "")
+                            {
+                                c.Border(0.5f).BorderColor(headerBg).Background(headerBg).Padding(3).Column(col =>
+                                {
+                                    col.Item().Text(tr).Bold().FontSize(7).FontColor(headerText);
+                                    if (!string.IsNullOrEmpty(en))
+                                        col.Item().Text(en).FontSize(5).FontColor(Colors.Grey.Lighten3).Italic();
+                                });
+                            }
 
-                            HeaderCell(header.Cell(), "#");
-                            HeaderCell(header.Cell(), "SIRA");
-                            HeaderCell(header.Cell(), "BARKOD NO");
-                            HeaderCell(header.Cell(), "ÜRÜN AÇIKLAMASI");
-                            HeaderCell(header.Cell(), "SANDIK");
-                            HeaderCell(header.Cell(), "İSTENEN");
-                            HeaderCell(header.Cell(), "3K GELEN");
-                            HeaderCell(header.Cell(), "KARŞI.");
-                            HeaderCell(header.Cell(), "GERİ GÖN.");
-                            HeaderCell(header.Cell(), "PRJ. VERİLDİ");
-                            HeaderCell(header.Cell(), "KALAN");
-                            HeaderCell(header.Cell(), "3K DURUM");
-                            HeaderCell(header.Cell(), "SÜREÇ");
+                            BiHeader(header.Cell(), "#");
+                            BiHeader(header.Cell(), "SIRA", "Seq.");
+                            BiHeader(header.Cell(), "BARKOD NO", "Barcode No");
+                            BiHeader(header.Cell(), "ÜRÜN AÇIKLAMASI", "Product Desc.");
+                            BiHeader(header.Cell(), "SANDIK", "Crate");
+                            BiHeader(header.Cell(), "İSTENEN", "Requested");
+                            BiHeader(header.Cell(), "3K GELEN", "3K Received");
+                            BiHeader(header.Cell(), "KARŞI.", "Fulfilled");
+                            BiHeader(header.Cell(), "GERİ GÖN.", "Returned");
+                            BiHeader(header.Cell(), "PRJ. VERİLDİ", "Given to Prj.");
+                            BiHeader(header.Cell(), "KALAN", "Remaining");
+                            BiHeader(header.Cell(), "3K DURUM", "3K Status");
+                            BiHeader(header.Cell(), "SÜREÇ", "Process");
                         });
 
                         // Data satırları
@@ -1119,17 +1153,24 @@ namespace _3K.Infrastructure.Services
 
                             table.Header(header =>
                             {
-                                void SandikHeaderCell(IContainer c, string text) =>
-                                    c.Border(0.5f).BorderColor(headerBg).Background(headerBg).Padding(5).Text(text).Bold().FontSize(8).FontColor(headerText);
+                                void BiHeader(IContainer c, string tr, string en = "")
+                                {
+                                    c.Border(0.5f).BorderColor(headerBg).Background(headerBg).Padding(5).Column(col =>
+                                    {
+                                        col.Item().Text(tr).Bold().FontSize(8).FontColor(headerText);
+                                        if (!string.IsNullOrEmpty(en))
+                                            col.Item().Text(en).FontSize(5.5f).FontColor(Colors.Grey.Lighten3).Italic();
+                                    });
+                                }
 
-                                SandikHeaderCell(header.Cell(), "#");
-                                SandikHeaderCell(header.Cell(), "KOLİ NO");
-                                SandikHeaderCell(header.Cell(), "SANDIK ADI");
-                                SandikHeaderCell(header.Cell(), "NET (kg)");
-                                SandikHeaderCell(header.Cell(), "BRÜT (kg)");
-                                SandikHeaderCell(header.Cell(), "BOY (mm)");
-                                SandikHeaderCell(header.Cell(), "EN (mm)");
-                                SandikHeaderCell(header.Cell(), "YÜKSEKLİK (mm)");
+                                BiHeader(header.Cell(), "#");
+                                BiHeader(header.Cell(), "KOLİ NO", "Case No");
+                                BiHeader(header.Cell(), "SANDIK ADI", "Crate Name");
+                                BiHeader(header.Cell(), "NET (kg)");
+                                BiHeader(header.Cell(), "BRÜT (kg)", "Gross (kg)");
+                                BiHeader(header.Cell(), "BOY (mm)", "Length (mm)");
+                                BiHeader(header.Cell(), "EN (mm)", "Width (mm)");
+                                BiHeader(header.Cell(), "YÜKSEKLİK (mm)", "Height (mm)");
                             });
 
                             int sandikSira = 1;
@@ -1264,20 +1305,27 @@ namespace _3K.Infrastructure.Services
 
                         table.Header(header =>
                         {
-                            void HeaderCell(IContainer c, string text) =>
-                                c.Border(0.5f).BorderColor(headerBg).Background(headerBg).Padding(4).Text(text).Bold().FontSize(7).FontColor(headerText);
+                            void BiHeader(IContainer c, string tr, string en = "")
+                            {
+                                c.Border(0.5f).BorderColor(headerBg).Background(headerBg).Padding(4).Column(col =>
+                                {
+                                    col.Item().Text(tr).Bold().FontSize(7).FontColor(headerText);
+                                    if (!string.IsNullOrEmpty(en))
+                                        col.Item().Text(en).FontSize(5).FontColor(Colors.Grey.Lighten3).Italic();
+                                });
+                            }
 
-                            HeaderCell(header.Cell(), "#");
-                            HeaderCell(header.Cell(), "SANDIK");
-                            HeaderCell(header.Cell(), "BARKOD");
-                            HeaderCell(header.Cell(), "İSİM");
-                            HeaderCell(header.Cell(), "MİKTAR");
-                            HeaderCell(header.Cell(), "BİRİM");
-                            HeaderCell(header.Cell(), "GERÇEKLEŞEN");
-                            HeaderCell(header.Cell(), "TRAFODA");
-                            HeaderCell(header.Cell(), "KALAN");
-                            HeaderCell(header.Cell(), "DURUM");
-                            HeaderCell(header.Cell(), "AÇIKLAMA");
+                            BiHeader(header.Cell(), "#");
+                            BiHeader(header.Cell(), "SANDIK", "Crate");
+                            BiHeader(header.Cell(), "BARKOD", "Barcode");
+                            BiHeader(header.Cell(), "İSİM", "Name");
+                            BiHeader(header.Cell(), "MİKTAR", "Quantity");
+                            BiHeader(header.Cell(), "BİRİM", "Unit");
+                            BiHeader(header.Cell(), "GERÇEKLEŞEN", "Actual");
+                            BiHeader(header.Cell(), "TRAFODA", "At Transformer");
+                            BiHeader(header.Cell(), "KALAN", "Remaining");
+                            BiHeader(header.Cell(), "DURUM", "Status");
+                            BiHeader(header.Cell(), "AÇIKLAMA", "Remarks");
                         });
 
                         var sira = 1;
