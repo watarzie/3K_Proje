@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using _3K.Core.Entities;
+using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
 
 namespace _3K.Infrastructure.Data
@@ -49,12 +50,12 @@ namespace _3K.Infrastructure.Data
                 switch (entry.State)
                 {
                     case EntityState.Added:
-                        entry.Entity.CreatedDate = DateTime.UtcNow;
+                        entry.Entity.CreatedDate = TurkeyTime.Now;
                         entry.Entity.CreatedBy = userName;
                         break;
 
                     case EntityState.Modified:
-                        entry.Entity.UpdatedDate = DateTime.UtcNow;
+                        entry.Entity.UpdatedDate = TurkeyTime.Now;
                         entry.Entity.UpdatedBy = userName;
                         // CreatedDate readonly — değiştirilemesin
                         entry.Property(nameof(BaseEntity.CreatedDate)).IsModified = false;

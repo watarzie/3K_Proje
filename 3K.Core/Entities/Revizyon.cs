@@ -1,3 +1,4 @@
+using _3K.Core.Helpers;
 namespace _3K.Core.Entities
 {
     public class Revizyon : BaseEntity
@@ -8,7 +9,7 @@ namespace _3K.Core.Entities
         public string? EskiDeger { get; set; }
         public string? YeniDeger { get; set; }
         public string? Aciklama { get; set; }
-        public DateTime Tarih { get; set; } = DateTime.UtcNow;
+        public DateTime Tarih { get; set; } = TurkeyTime.Now;
 
         // Navigation Properties
         public virtual Proje Proje { get; set; } = null!;

@@ -3,6 +3,7 @@ using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
+using _3K.Core.Helpers;
 
 namespace _3K.Application.Features.UcKIslemleri.Commands
 {
@@ -41,7 +42,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             if (!satirlar.Any())
                 return Result.Failure("Seçilen ürünler bulunamadı.", 404);
 
-            var now = DateTime.UtcNow;
+            var now = TurkeyTime.Now;
             var kullaniciId = _currentUserService.UserId ?? 0;
             int guncellenen = 0;
             var atlananlar = new List<string>();

@@ -2,6 +2,7 @@ using _3K.Core.Entities;
 using _3K.Core.Interfaces;
 using _3K.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using _3K.Core.Helpers;
 
 namespace _3K.Infrastructure.Services
 {
@@ -19,7 +20,7 @@ namespace _3K.Infrastructure.Services
         public async Task HareketKaydetAsync(HareketGecmisi hareket)
         {
             var repo = _unitOfWork.GetRepository<HareketGecmisi>();
-            hareket.Tarih = DateTime.UtcNow;
+            hareket.Tarih = TurkeyTime.Now;
             await repo.AddAsync(hareket);
             await _unitOfWork.SaveChangesAsync();
         }

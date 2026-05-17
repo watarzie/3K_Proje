@@ -3,6 +3,7 @@ using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
+using _3K.Core.Helpers;
 
 namespace _3K.Application.Features.SandikIslemleri.Commands
 {
@@ -52,7 +53,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 GelenMiktar = request.IstenenAdet,
                 UcKDurumuId = (int)UcKDurum.TamGeldi,
                 UcKKarsilamaTipiId = (int)UcKDurum.TamGeldi,
-                TeslimTarihi = DateTime.UtcNow
+                TeslimTarihi = TurkeyTime.Now
             };
 
             await cekiSatiriRepo.AddAsync(yeniUrun);

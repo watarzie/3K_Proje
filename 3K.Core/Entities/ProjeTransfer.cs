@@ -1,3 +1,4 @@
+using _3K.Core.Helpers;
 using _3K.Core.Enums;
 
 namespace _3K.Core.Entities
@@ -21,7 +22,7 @@ namespace _3K.Core.Entities
         public int ZincirSeviyesi { get; set; } = 0;
         public int KullaniciId { get; set; }
         public string? Aciklama { get; set; }
-        public DateTime Tarih { get; set; } = DateTime.UtcNow;
+        public DateTime Tarih { get; set; } = TurkeyTime.Now;
         public DateTime? IptalTarihi { get; set; }
         public string? IptalAciklama { get; set; }
 

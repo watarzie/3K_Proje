@@ -4,6 +4,7 @@ using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
 using System.Globalization;
+using _3K.Core.Helpers;
 
 namespace _3K.Application.Features.UcKIslemleri.Commands
 {
@@ -215,18 +216,18 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     var sevkMiktari = satir.GridSevkMiktari ?? (satir.IstenenAdet - satir.GelenMiktar - satir.StokKarsilanan - satir.ProjeKarsilanan - satir.TedarikciKarsilanan);
                     satir.GelenMiktar += Math.Max(sevkMiktari, 0);
                     satir.UcKDurumuId = (int)UcKDurum.TamGeldi;
-                    satir.TeslimTarihi = DateTime.UtcNow;
+                    satir.TeslimTarihi = TurkeyTime.Now;
                     break;
 
                 case (int)UcKDurum.EksikGeldi:
                     satir.GelenMiktar += request.GelenAdet!.Value;
                     satir.UcKDurumuId = (int)UcKDurum.EksikGeldi;
-                    satir.TeslimTarihi = DateTime.UtcNow;
+                    satir.TeslimTarihi = TurkeyTime.Now;
                     break;
 
                 case (int)UcKDurum.Gelmedi:
                     satir.UcKDurumuId = (int)UcKDurum.Gelmedi;
-                    satir.TeslimTarihi = DateTime.UtcNow;
+                    satir.TeslimTarihi = TurkeyTime.Now;
                     var gelmeyenAdet = satir.GridSevkMiktari ?? 0;
                     satir.YenidenSevkGerekliAdet = Math.Max(satir.YenidenSevkGerekliAdet, gelmeyenAdet);
                     satir.GridSevkDurumuId = (int)GridSevkDurum.YenidenSevkGerekli;
@@ -236,7 +237,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     satir.KarsilananMiktar += request.GelenAdet!.Value;
                     satir.ProjeKarsilanan += request.GelenAdet!.Value; // Madde 2: Parçalı tracking
                     satir.UcKDurumuId = (int)UcKDurum.ProjedenKarsilandi;
-                    satir.TeslimTarihi = DateTime.UtcNow;
+                    satir.TeslimTarihi = TurkeyTime.Now;
                     // Cross-project transfer
                     KapatYenidenSevkIhtiyaci(satir, request.GelenAdet.Value);
                     var transferResult = await HandleProjedenKarsilandi(satir, request);
@@ -248,7 +249,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     satir.KarsilananMiktar += request.GelenAdet!.Value;
                     satir.StokKarsilanan += request.GelenAdet!.Value; // Madde 2: Parçalı tracking
                     satir.UcKDurumuId = (int)UcKDurum.StoktanKarsilandi;
-                    satir.TeslimTarihi = DateTime.UtcNow;
+                    satir.TeslimTarihi = TurkeyTime.Now;
 
                     // Stoktan Düşme ve StokHareketi Loglama İşlemi
                     KapatYenidenSevkIhtiyaci(satir, request.GelenAdet.Value);
@@ -264,7 +265,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                         Miktar = request.GelenAdet.Value,
                         IslemTipiId = (int)IslemTipi.StoktanKarsilandi,
                         Aciklama = $"Proje {request.ProjeId} için 3K aşamasında stoktan {FormatAdet(request.GelenAdet.Value)} adet karşılandı.",
-                        Tarih = DateTime.UtcNow
+                        Tarih = TurkeyTime.Now
                     });
                     break;
 
@@ -272,7 +273,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     satir.KarsilananMiktar += request.GelenAdet!.Value;
                     satir.TedarikciKarsilanan += request.GelenAdet!.Value; // Madde 2: Parçalı tracking
                     satir.UcKDurumuId = (int)UcKDurum.TedarikcidenGeldi;
-                    satir.TeslimTarihi = DateTime.UtcNow;
+                    satir.TeslimTarihi = TurkeyTime.Now;
                     KapatYenidenSevkIhtiyaci(satir, request.GelenAdet.Value);
                     break;
 
@@ -435,7 +436,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 ZincirSeviyesi = parentTransfer != null ? parentTransfer.ZincirSeviyesi + 1 : 0,
                 KullaniciId = _currentUserService.UserId ?? 0,
                 Aciklama = request.Aciklama,
-                Tarih = DateTime.UtcNow
+                Tarih = TurkeyTime.Now
             };
             await transferRepo.AddAsync(transfer);
 

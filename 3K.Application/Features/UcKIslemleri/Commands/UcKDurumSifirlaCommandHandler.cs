@@ -3,6 +3,7 @@ using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
+using _3K.Core.Helpers;
 
 namespace _3K.Application.Features.UcKIslemleri.Commands
 {
@@ -118,7 +119,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 }
 
                 transfer.DurumId = (int)ProjeTransferDurum.GeriAlindi;
-                transfer.IptalTarihi = DateTime.UtcNow;
+                transfer.IptalTarihi = TurkeyTime.Now;
                 transfer.IptalAciklama = "3K durumu geri alindigi icin transfer pasife cekildi.";
                 transferRepo.Update(transfer);
             }

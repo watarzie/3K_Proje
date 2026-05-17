@@ -3,6 +3,7 @@ using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
+using _3K.Core.Helpers;
 
 namespace _3K.Application.Features.ProjeIslemleri.Commands
 {
@@ -44,7 +45,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
 
             int eskiDurum = proje.DurumId;
             proje.DurumId = (int)ProjeDurum.SevkEdildi;
-            proje.GerceklesenSevkTarihi = request.SevkTarihi ?? DateTime.UtcNow.AddHours(3);
+            proje.GerceklesenSevkTarihi = request.SevkTarihi ?? TurkeyTime.Now;
             projeRepo.Update(proje);
 
             // ===== Tüm sandıkları "Sevk Edildi" durumuna geçir =====

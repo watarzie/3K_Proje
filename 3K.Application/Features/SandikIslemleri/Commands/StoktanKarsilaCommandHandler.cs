@@ -3,6 +3,7 @@ using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
+using _3K.Core.Helpers;
 
 namespace _3K.Application.Features.SandikIslemleri.Commands
 {
@@ -71,7 +72,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 IslemTipiId = (int)IslemTipi.StoktanKarsilandi,
                 CekiSatiriId = urun.Id,
                 ProjeId = request.ProjeId,
-                Tarih = DateTime.UtcNow,
+                Tarih = TurkeyTime.Now,
                 Aciklama = $"Projede ({request.ProjeId}) sipariş kapatıldı."
             });
 

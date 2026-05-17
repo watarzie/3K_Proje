@@ -4,6 +4,7 @@ using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
 using System.Globalization;
+using _3K.Core.Helpers;
 
 namespace _3K.Application.Features.UcKIslemleri.Commands
 {
@@ -57,7 +58,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 satir.TedarikciKarsilanan += kalan;
                 satir.UcKKarsilamaTipiId = (int)UcKDurum.TedarikcidenGeldi;
                 satir.UcKDurumuId = (int)UcKDurum.TedarikcidenGeldi;
-                satir.TeslimTarihi = DateTime.UtcNow;
+                satir.TeslimTarihi = TurkeyTime.Now;
                 satir.UcKAciklama = request.Aciklama;
                 KapatYenidenSevkIhtiyaci(satir, kalan);
 

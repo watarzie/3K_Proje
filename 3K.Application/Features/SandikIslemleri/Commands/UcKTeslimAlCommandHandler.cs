@@ -4,6 +4,7 @@ using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
 using System.Globalization;
+using _3K.Core.Helpers;
 
 namespace _3K.Application.Features.SandikIslemleri.Commands
 {
@@ -42,7 +43,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             // Kümülatif toplama — parça parça gelebilir
             satir.GelenMiktar += request.GelenMiktar;
-            satir.TeslimTarihi = DateTime.UtcNow;
+            satir.TeslimTarihi = TurkeyTime.Now;
             satir.UcKAciklama = request.Aciklama;
 
             // 3K durumunu otomatik belirle

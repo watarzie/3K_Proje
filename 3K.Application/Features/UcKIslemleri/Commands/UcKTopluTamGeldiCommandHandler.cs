@@ -3,6 +3,7 @@ using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
+using _3K.Core.Helpers;
 
 namespace _3K.Application.Features.UcKIslemleri.Commands
 {
@@ -63,7 +64,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 satir.GelenMiktar += Math.Max(sevkMiktari, 0);
                 satir.UcKKarsilamaTipiId = (int)UcKDurum.TamGeldi;
                 satir.UcKDurumuId = (int)UcKDurum.TamGeldi;
-                satir.TeslimTarihi = DateTime.UtcNow;
+                satir.TeslimTarihi = TurkeyTime.Now;
                 satir.UcKAciklama = request.Aciklama;
 
                 // Genel durumu hesapla

@@ -3,6 +3,7 @@ using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
+using _3K.Core.Helpers;
 
 namespace _3K.Application.Features.GridIslemleri.Commands
 {
@@ -162,7 +163,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 if (request.SevkMiktari.HasValue)
                 {
                     satir.GridSevkMiktari = request.SevkMiktari.Value;
-                    satir.GridSevkTarihi = DateTime.UtcNow;
+                    satir.GridSevkTarihi = TurkeyTime.Now;
                     if (yenidenSevkAkisi)
                     {
                         satir.YenidenSevkGerekliAdet = Math.Max(satir.YenidenSevkGerekliAdet - request.SevkMiktari.Value, 0);

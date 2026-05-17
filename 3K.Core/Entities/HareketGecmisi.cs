@@ -1,3 +1,4 @@
+using _3K.Core.Helpers;
 namespace _3K.Core.Entities
 {
     public class HareketGecmisi : BaseEntity
@@ -8,7 +9,7 @@ namespace _3K.Core.Entities
         public string Islem { get; set; } = string.Empty;
         public int? IslemTipiId { get; set; } // Added for relation
         public int KullaniciId { get; set; }
-        public DateTime Tarih { get; set; } = DateTime.UtcNow;
+        public DateTime Tarih { get; set; } = TurkeyTime.Now;
 
         // İş akışı 11: eski değer, yeni değer, açıklama
         public string? EskiDeger { get; set; }

@@ -1,10 +1,11 @@
+using _3K.Core.Helpers;
 namespace _3K.Core.Entities
 {
     public class Ceki : BaseEntity
     {
         public int ProjeId { get; set; }
         public string OrijinalDosyaYolu { get; set; } = string.Empty;
-        public DateTime YuklemeTarihi { get; set; } = DateTime.UtcNow;
+        public DateTime YuklemeTarihi { get; set; } = TurkeyTime.Now;
 
         // Navigation Properties
         public virtual Proje Proje { get; set; } = null!;

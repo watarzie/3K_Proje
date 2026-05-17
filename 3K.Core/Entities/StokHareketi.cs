@@ -1,3 +1,4 @@
+using _3K.Core.Helpers;
 using _3K.Core.Enums;
 
 namespace _3K.Core.Entities
@@ -11,7 +12,7 @@ namespace _3K.Core.Entities
         public decimal Miktar { get; set; }
         public int IslemTipiId { get; set; }
         public string? Aciklama { get; set; }
-        public DateTime Tarih { get; set; } = DateTime.UtcNow;
+        public DateTime Tarih { get; set; } = TurkeyTime.Now;
 
         // Navigation Properties
         public virtual StokKaydi StokKaydi { get; set; } = null!;

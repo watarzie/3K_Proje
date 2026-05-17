@@ -3,6 +3,7 @@ using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
+using _3K.Core.Helpers;
 
 namespace _3K.Application.Features.SandikIslemleri.Commands
 {
@@ -88,7 +89,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                     DurumId = (int)ProjeTransferDurum.Aktif,
                     KullaniciId = _currentUserService.UserId ?? 0,
                     Aciklama = request.Aciklama,
-                    Tarih = DateTime.UtcNow
+                    Tarih = TurkeyTime.Now
                 });
             }
 
