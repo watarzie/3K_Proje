@@ -948,9 +948,6 @@ namespace _3K.Infrastructure.Services
             var headerText = Colors.White;
             var tableBorderColor = Colors.Grey.Lighten2;
             var altRowBg = "#F8FAFE";
-            var successColor = "#1B8F3A";
-            var warningColor = "#F57C00";
-            var dangerColor = "#D32F2F";
             var raporTarihi = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
             var sevkTarihi = proje.GerceklesenSevkTarihi?.ToString("dd.MM.yyyy") ?? proje.PlanlananSevkTarihi?.ToString("dd.MM.yyyy") ?? "-";
 
@@ -1020,8 +1017,17 @@ namespace _3K.Infrastructure.Services
                 return Math.Max(satir.TrafoSevkAdet, 0);
             }
 
+            bool IsGridIptal(CekiSatiri satir)
+            {
+                return satir.GridDurumuId == (int)GridDurum.Iptal
+                    || satir.GridDurumuId == (int)GridDurum.IptalEdildi;
+            }
+
             decimal GetGerceklesenAdet(CekiSatiri satir)
             {
+                if (IsGridIptal(satir))
+                    return 0;
+
                 var trafodaSevk = GetTrafodaSevkAdet(satir);
                 var gerceklesen = satir.IstenenAdet - trafodaSevk - satir.KalanMiktar;
                 var maxGerceklesen = Math.Max(satir.IstenenAdet - trafodaSevk, 0);
@@ -1037,16 +1043,22 @@ namespace _3K.Infrastructure.Services
                 if (GetTrafodaSevkAdet(satir) > 0)
                     return 0;
 
-                if (satir.KalanMiktar > 0)
+                if (IsGridIptal(satir))
                     return 1;
 
-                return 2;
+                if (satir.KalanMiktar > 0)
+                    return 2;
+
+                return 3;
             }
 
             string GetRaporDurum(CekiSatiri satir)
             {
                 if (GetTrafodaSevkAdet(satir) > 0)
                     return "Trafoda Sevk";
+
+                if (IsGridIptal(satir))
+                    return "İptal";
 
                 return satir.KalanMiktar > 0 ? "Eksik Sevk" : "Tamamlandı";
             }
