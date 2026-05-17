@@ -391,9 +391,9 @@ namespace _3K.Infrastructure.Services
                         SandikNo = koliNo,
                         SandikIsmi = string.IsNullOrWhiteSpace(sandikIsmi) ? null : sandikIsmi,
                         AmbalajCinsi = string.IsNullOrWhiteSpace(ambalajCinsi) ? null : ambalajCinsi,
-                        En = MmToCm(enMm),
-                        Boy = MmToCm(boyMm),
-                        Yukseklik = MmToCm(yukseklikMm),
+                        En = enMm,
+                        Boy = boyMm,
+                        Yukseklik = yukseklikMm,
                         NetKg = netKg,
                         GrossKg = grossKg
                     };
@@ -495,10 +495,10 @@ namespace _3K.Infrastructure.Services
             return null;
         }
 
-        private static decimal? MmToCm(decimal? value)
-        {
-            return value.HasValue ? Math.Round(value.Value / 10m, 2) : null;
-        }
+        /// <summary>
+        /// Eski dönüşüm metodu — artık kullanılmıyor. Değerler çekideki gibi mm olarak saklanır.
+        /// </summary>
+        // private static decimal? MmToCm(decimal? value) => value.HasValue ? Math.Round(value.Value / 10m, 2) : null;
 
         private static string NormalizeExcelText(string? value)
         {
