@@ -2,8 +2,9 @@ namespace _3K.Application.Common
 {
     /// <summary>
     /// Bu interface'i implemente eden Command/Query'ler,
-    /// AuthorizationBehavior tarafından otomatik rol kontrolüne tabi tutulur.
-    /// RequiredMenuKod belirtilirse, menü bazlı yetki kontrolü de yapılır.
+    /// AuthorizationBehavior tarafından otomatik yetki kontrolüne tabi tutulur.
+    /// RequiredMenuKod belirtilirse RolYetkileri tablosu tek yetki kaynağıdır.
+    /// RequiredRoles yalnızca RequiredMenuKod olmayan eski/özel isteklerde fallback olarak kullanılır.
     /// </summary>
     public interface ISecuredRequest
     {

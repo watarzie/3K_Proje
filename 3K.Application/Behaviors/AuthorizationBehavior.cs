@@ -1,6 +1,5 @@
 using MediatR;
 using _3K.Application.Common;
-using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 
@@ -16,12 +15,12 @@ namespace _3K.Application.Behaviors
         where TRequest : notnull
     {
         private readonly ICurrentUserService _currentUserService;
-        private readonly IUnitOfWork _unitOfWork;
+        private readonly IRolService _rolService;
 
-        public AuthorizationBehavior(ICurrentUserService currentUserService, IUnitOfWork unitOfWork)
+        public AuthorizationBehavior(ICurrentUserService currentUserService, IRolService rolService)
         {
             _currentUserService = currentUserService;
-            _unitOfWork = unitOfWork;
+            _rolService = rolService;
         }
 
         public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
@@ -38,21 +37,7 @@ namespace _3K.Application.Behaviors
                 return CreateFailureResult("Oturum açmanız gerekiyor.", 401);
             }
 
-            // Rol kontrolü
-            var requiredRoles = securedRequest.RequiredRoles;
-            if (requiredRoles != null && requiredRoles.Length > 0)
-            {
-                var userRoles = _currentUserService.Roles;
-                var hasRequiredRole = requiredRoles.Any(role =>
-                    userRoles.Any(userRole => string.Equals(userRole, role, StringComparison.OrdinalIgnoreCase)));
-
-                if (!hasRequiredRole)
-                {
-                    return CreateFailureResult("Bu işlem için yetkiniz bulunmuyor.", 403);
-                }
-            }
-
-            // Menü kodu bazlı yetki kontrolü
+            // Menu kodu varsa hardcoded rol listesi devreye girmez; rol yonetimi tablosu karar verir.
             var menuKod = securedRequest.RequiredMenuKod;
             if (!string.IsNullOrEmpty(menuKod))
             {
@@ -61,42 +46,38 @@ namespace _3K.Application.Behaviors
                     return CreateFailureResult("Kullanıcı bilgisi alınamadı.", 401);
 
                 // Query'ler icin R/W, command'ler icin W yetkisi kontrol edilir.
-                var requiredYetkiTipiId = GetRequiredYetkiTipiId(typeof(TRequest));
-                var hasMenuPermission = await CheckMenuPermissionAsync(userId.Value, menuKod, requiredYetkiTipiId, cancellationToken);
+                var requiredYetkiTipi = GetRequiredYetkiTipi(typeof(TRequest));
+                var hasMenuPermission = await _rolService.HasUserPermissionAsync(userId.Value, menuKod, requiredYetkiTipi, cancellationToken);
                 if (!hasMenuPermission)
                 {
                     return CreateFailureResult("Bu modül için yetkiniz bulunmuyor.", 403);
+                }
+            }
+            else
+            {
+                // Geriye donuk uyumluluk: Menu kodu olmayan eski/ozel isteklerde rol listesi fallback olarak calisir.
+                var requiredRoles = securedRequest.RequiredRoles;
+                if (requiredRoles != null && requiredRoles.Length > 0)
+                {
+                    var userRoles = _currentUserService.Roles;
+                    var hasRequiredRole = requiredRoles.Any(role =>
+                        userRoles.Any(userRole => string.Equals(userRole, role, StringComparison.OrdinalIgnoreCase)));
+
+                    if (!hasRequiredRole)
+                    {
+                        return CreateFailureResult("Bu işlem için yetkiniz bulunmuyor.", 403);
+                    }
                 }
             }
 
             return await next();
         }
 
-        private static int GetRequiredYetkiTipiId(Type requestType)
+        private static YetkiTipi GetRequiredYetkiTipi(Type requestType)
         {
             return requestType.Name.EndsWith("Query", StringComparison.OrdinalIgnoreCase)
-                ? (int)YetkiTipi.R
-                : (int)YetkiTipi.W;
-        }
-
-        private async Task<bool> CheckMenuPermissionAsync(int userId, string menuKod, int requiredYetkiTipiId, CancellationToken ct)
-        {
-            // Kullanıcının rollerini al
-            var kullaniciRepo = _unitOfWork.GetRepository<Kullanici>();
-            var kullanici = (await kullaniciRepo.FindAsync(k => k.Id == userId)).FirstOrDefault();
-            if (kullanici == null) return false;
-
-            // RolYetki tablosunda bu rolün bu menüye gerekli yetkisi var mı?
-            var rolYetkiRepo = _unitOfWork.GetRepository<RolYetki>();
-            var menuRepo = _unitOfWork.GetRepository<MenuTanimi>();
-
-            var menu = (await menuRepo.FindAsync(m => m.Kod == menuKod)).FirstOrDefault();
-            if (menu == null) return false;
-
-            var yetki = (await rolYetkiRepo.FindAsync(ry =>
-                ry.RolId == kullanici.RolId && ry.MenuTanimiId == menu.Id)).FirstOrDefault();
-
-            return yetki != null && yetki.YetkiTipiId >= requiredYetkiTipiId;
+                ? YetkiTipi.R
+                : YetkiTipi.W;
         }
 
         /// <summary>

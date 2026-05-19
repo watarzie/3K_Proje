@@ -50,21 +50,31 @@ namespace _3K_API.Controllers
         /// </summary>
         private List<MenuTreeDto> FilterTree(List<MenuTreeDto> nodes)
         {
-            return nodes
-                .Where(n => n.YetkiTipiId >= 2) // 2=R, 3=W — exclude 1=N
-                .Select(n => new MenuTreeDto
+            var result = new List<MenuTreeDto>();
+
+            foreach (var node in nodes)
+            {
+                var children = node.Children != null ? FilterTree(node.Children) : new();
+                var hasOwnAccess = node.YetkiTipiId >= 2; // 2=R, 3=W — exclude 1=N
+
+                if (!hasOwnAccess && !children.Any())
+                    continue;
+
+                result.Add(new MenuTreeDto
                 {
-                    Id = n.Id,
-                    Kod = n.Kod,
-                    LabelKey = n.LabelKey,
-                    Icon = n.Icon,
-                    Route = n.Route,
-                    Sira = n.Sira,
-                    YetkiTipiId = n.YetkiTipiId,
-                    YetkiTipiMetni = n.YetkiTipiMetni,
-                    Children = n.Children != null ? FilterTree(n.Children) : new()
-                })
-                .ToList();
+                    Id = node.Id,
+                    Kod = node.Kod,
+                    LabelKey = node.LabelKey,
+                    Icon = node.Icon,
+                    Route = node.Route,
+                    Sira = node.Sira,
+                    YetkiTipiId = node.YetkiTipiId,
+                    YetkiTipiMetni = node.YetkiTipiMetni,
+                    Children = children
+                });
+            }
+
+            return result;
         }
     }
 }

@@ -1,4 +1,5 @@
 using _3K.Core.Entities;
+using _3K.Core.Enums;
 
 namespace _3K.Core.Interfaces
 {
@@ -19,5 +20,7 @@ namespace _3K.Core.Interfaces
 
         /// <summary>Kullanıcının rollerine göre belirtilen menüde belirtilen yetkiye sahip olup olmadığını kontrol eder.</summary>
         Task<bool> HasPermissionAsync(string[] userRoles, string menuKod, string yetkiTipi = "W", CancellationToken ct = default);
+
+        Task<bool> HasUserPermissionAsync(int userId, string menuKod, YetkiTipi requiredYetkiTipi, CancellationToken ct = default);
     }
 }

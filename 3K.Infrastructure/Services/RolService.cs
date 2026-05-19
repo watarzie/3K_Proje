@@ -87,5 +87,38 @@ namespace _3K.Infrastructure.Services
 
             return hasPermission;
         }
+
+        public async Task<bool> HasUserPermissionAsync(int userId, string menuKod, YetkiTipi requiredYetkiTipi, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(menuKod))
+                return false;
+
+            var kullanici = await _context.Kullanicilar
+                .AsNoTracking()
+                .Include(k => k.Rol)
+                .Where(k => k.Id == userId)
+                .Select(k => new
+                {
+                    k.RolId,
+                    RolAdi = k.Rol.Ad
+                })
+                .FirstOrDefaultAsync(ct);
+
+            if (kullanici == null)
+                return false;
+
+            if (string.Equals(kullanici.RolAdi, "Admin", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            var requiredYetkiTipiId = (int)requiredYetkiTipi;
+
+            return await _context.RolYetkileri
+                .AsNoTracking()
+                .AnyAsync(ry =>
+                    ry.RolId == kullanici.RolId &&
+                    ry.MenuTanimi.Kod == menuKod &&
+                    ry.YetkiTipiId >= requiredYetkiTipiId,
+                    ct);
+        }
     }
 }
