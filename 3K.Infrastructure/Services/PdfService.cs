@@ -399,7 +399,7 @@ namespace _3K.Infrastructure.Services
                             });
                             row.RelativeItem().Column(col =>
                             {
-                                col.Item().Text($"Ölçüler (E/B/Y): {sandik.En ?? 0} x {sandik.Boy ?? 0} x {sandik.Yukseklik ?? 0} cm");
+                                col.Item().Text($"Ölçüler (E/B/Y): {sandik.En ?? 0} x {sandik.Boy ?? 0} x {sandik.Yukseklik ?? 0} mm");
                                 col.Item().Text($"Ağırlık (Net/Gross): {sandik.NetKg ?? 0} kg / {sandik.GrossKg ?? 0} kg");
                             });
                         });
@@ -587,7 +587,7 @@ namespace _3K.Infrastructure.Services
                                 {
                                     col.Item().Text("SANDIK BİLGİSİ").Bold().FontSize(7).FontColor(accentColor);
                                     col.Item().PaddingTop(3).Text($"Sandık No: {sandik.SandikNo}").Bold().FontSize(13);
-                                    col.Item().Text($"Ölçüler (E/B/Y): {sandik.En ?? 0} x {sandik.Boy ?? 0} x {sandik.Yukseklik ?? 0} cm").FontSize(8);
+                                    col.Item().Text($"Ölçüler (E/B/Y): {sandik.En ?? 0} x {sandik.Boy ?? 0} x {sandik.Yukseklik ?? 0} mm").FontSize(8);
                                     col.Item().Text($"Ağırlık (Net/Gross): {sandik.NetKg ?? 0} / {sandik.GrossKg ?? 0} kg").FontSize(8);
                                 });
                             });
