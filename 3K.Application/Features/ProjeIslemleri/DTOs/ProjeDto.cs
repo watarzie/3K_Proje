@@ -9,6 +9,8 @@ namespace _3K.Application.Features.ProjeIslemleri.DTOs
         public string DurumMetni { get; set; } = string.Empty;
         public int ProjeTipiId { get; set; }
         public string ProjeTipiMetni { get; set; } = string.Empty;
+        public DateTime BaslamaTarihi { get; set; }
+        public int CalismaGunSayisi { get; set; }
         public DateTime? PlanlananSevkTarihi { get; set; }
         public DateTime? GerceklesenSevkTarihi { get; set; }
         public string SorumluKisi { get; set; } = string.Empty;

@@ -3,6 +3,7 @@ using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Application.Features.ProjeIslemleri.DTOs;
 using _3K.Core.Entities;
+using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.ProjeIslemleri.Commands
@@ -60,6 +61,8 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 DurumMetni = _lookupCache.GetDeger<LookupProjeDurum>(proje.DurumId),
                 ProjeTipiId = proje.ProjeTipiId,
                 ProjeTipiMetni = _lookupCache.GetDeger<LookupProjeTipi>(proje.ProjeTipiId),
+                BaslamaTarihi = proje.CreatedDate,
+                CalismaGunSayisi = Math.Max(0, (TurkeyTime.Now.Date - proje.CreatedDate.Date).Days),
                 PlanlananSevkTarihi = proje.PlanlananSevkTarihi,
                 SorumluKisi = proje.SorumluKisi
             });

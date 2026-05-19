@@ -3,6 +3,7 @@ using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Application.Features.ProjeIslemleri.DTOs;
 using _3K.Core.Entities;
+using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.ProjeIslemleri.Queries
@@ -80,6 +81,8 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                     DurumMetni = _lookupCache.GetDeger<LookupProjeDurum>(durumId),
                     ProjeTipiId = p.ProjeTipiId,
                     ProjeTipiMetni = _lookupCache.GetDeger<LookupProjeTipi>(p.ProjeTipiId),
+                    BaslamaTarihi = p.CreatedDate,
+                    CalismaGunSayisi = HesaplaCalismaGunSayisi(p.CreatedDate, p.GerceklesenSevkTarihi),
                     PlanlananSevkTarihi = p.PlanlananSevkTarihi,
                     GerceklesenSevkTarihi = p.GerceklesenSevkTarihi,
                     SorumluKisi = p.SorumluKisi,
@@ -137,6 +140,13 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
         {
             return gridKapandiSandikNolari.Contains(sandik.SandikNo.Trim())
                 || sandik.SandikIcerikleri.Any(i => i.CekiSatiri?.GridDurumuId == (int)GridDurum.GridKapandi);
+        }
+
+        private static int HesaplaCalismaGunSayisi(DateTime baslamaTarihi, DateTime? bitisTarihi)
+        {
+            var bitis = (bitisTarihi ?? TurkeyTime.Now).Date;
+            var gunSayisi = (bitis - baslamaTarihi.Date).Days;
+            return Math.Max(0, gunSayisi);
         }
     }
 }
