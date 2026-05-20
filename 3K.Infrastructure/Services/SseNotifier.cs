@@ -17,8 +17,9 @@ namespace _3K.Infrastructure.Services
                 return;
 
             context.Response.Headers.Append("Content-Type", "text/event-stream");
-            context.Response.Headers.Append("Cache-Control", "no-cache");
+            context.Response.Headers.Append("Cache-Control", "no-cache, no-store");
             context.Response.Headers.Append("Connection", "keep-alive");
+            context.Response.Headers.Append("X-Accel-Buffering", "no");
 
             var clientId = Guid.NewGuid();
             _clients.TryAdd(clientId, context.Response);
@@ -30,18 +31,22 @@ namespace _3K.Infrastructure.Services
                 await context.Response.WriteAsync(initMessage);
                 await context.Response.Body.FlushAsync();
 
-                // Keep connection alive indefinitely until client disconnects
+                // Keep connection alive — Cloudflare 100s timeout'unun altında kalacak şekilde
+                // 25 saniyede bir heartbeat gönder (Cloudflare proxy + nginx uyumu için)
                 while (!context.RequestAborted.IsCancellationRequested)
                 {
-                    // Ping interval to keep proxy connections alive
-                    await Task.Delay(15000, context.RequestAborted);
-                    await context.Response.WriteAsync(":\n\n");
+                    await Task.Delay(25000, context.RequestAborted);
+                    await context.Response.WriteAsync("event: heartbeat\ndata: ping\n\n");
                     await context.Response.Body.FlushAsync();
                 }
             }
             catch (TaskCanceledException)
             {
                 // Normal client disconnect
+            }
+            catch (IOException)
+            {
+                // Client disconnected abruptly
             }
             finally
             {
