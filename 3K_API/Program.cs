@@ -235,7 +235,13 @@ try
     builder.Services.AddCors(options =>
     {
         options.AddPolicy("AllowAll", policy =>
-            policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+            policy.WithOrigins(
+                    "https://www.3klojistikdepolama.com",
+                    "https://3klojistikdepolama.com"
+                )
+                .AllowAnyMethod()
+                .AllowAnyHeader()
+                .AllowCredentials());
     });
 
     var app = builder.Build();
