@@ -53,15 +53,14 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                     ? sandikIcerikleri.Count
                     : cekiSatirlari.Count;
                 
-                // Gerçek tamamlanan: 3K durumu TamGeldi olanlar (veya GridDurumuId TamGeldi)
+                // Tamamlanma ürün bazlı ilerler: normal projelerde kalan 0 olan çekisatırları tamamlanmış sayılır.
                 var tamamlananUrun = isSahaYedek 
                     ? sandikIcerikleri.Count(si =>
                     {
                         var istenen = si.CekiSatiri?.IstenenAdet ?? si.Miktar;
                         return istenen > 0 && si.KonulanAdet >= istenen;
                     })
-                    : cekiSatirlari.Count(cs => 
-                        cs.GelenMiktar + cs.StokKarsilanan + cs.ProjeKarsilanan + cs.TedarikciKarsilanan >= cs.IstenenAdet);
+                    : cekiSatirlari.Count(cs => cs.KalanMiktar <= 0);
 
                 // Durum hesaplama
                 int durumId;
