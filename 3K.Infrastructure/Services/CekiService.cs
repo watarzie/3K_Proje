@@ -173,6 +173,7 @@ namespace _3K.Infrastructure.Services
                 }
 
                 var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? baslangicSatir;
+                var pozNoKolon = BulCiktiPozNoKolonu(worksheet, baslangicSatir - 1);
 
                 int ardisikBosSatirSayisi = 0;
                 const int MAX_BOS_SATIR_TOLERANSI = 15; // 15 boş satırda okumayı kes
@@ -218,6 +219,9 @@ namespace _3K.Infrastructure.Services
                     var birim = row.Cell(7).GetString().Trim();
                     int birimId = ParseBirimToId(birim);
 
+                    var olcuResmiPozNo = pozNoKolon.HasValue
+                        ? row.Cell(pozNoKolon.Value).GetString().Trim()
+                        : string.Empty;
                     var remarks = row.Cell(13).GetString().Trim();
 
                     // SANDIK İSMİ — son anlamlı sütundan oku (sütun 14+)
@@ -250,6 +254,7 @@ namespace _3K.Infrastructure.Services
                         CekiId = ceki.Id,
                         SiraNo = siraNo,
                         BarkodNo = barkod,
+                        OlcuResmiPozNo = string.IsNullOrWhiteSpace(olcuResmiPozNo) ? null : olcuResmiPozNo,
                         Aciklama = tanim,
                         CekideGecenSandikNo = koliNo,
                         IstenenAdet = istenenAdet,
@@ -424,6 +429,32 @@ namespace _3K.Infrastructure.Services
             }
 
             return null;
+        }
+
+        private static int? BulCiktiPozNoKolonu(IXLWorksheet worksheet, int headerRow)
+        {
+            if (headerRow <= 0)
+                return null;
+
+            var lastColumn = Math.Min(worksheet.LastColumnUsed()?.ColumnNumber() ?? 0, 80);
+            int? fallbackColumn = null;
+
+            for (int c = 4; c <= lastColumn; c++)
+            {
+                var text = NormalizeExcelText(worksheet.Cell(headerRow, c).GetString());
+                if (string.IsNullOrWhiteSpace(text))
+                    continue;
+
+                var isPozNo = (text.Contains("POZ") || text.Contains("POS")) && text.Contains("NO");
+                if (!isPozNo)
+                    continue;
+
+                fallbackColumn = c;
+                if (!text.Contains("OLCU") && !text.Contains("DIMENSIONAL") && !text.Contains("DRW"))
+                    return c;
+            }
+
+            return fallbackColumn;
         }
 
         private static IEnumerable<string> ExpandKoliNo(string? value)

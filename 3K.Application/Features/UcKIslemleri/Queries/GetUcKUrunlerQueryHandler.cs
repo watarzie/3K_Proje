@@ -66,6 +66,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                         CekiSatiriId = cs.Id,
                         SiraNo = cs.SiraNo,
                         BarkodNo = cs.BarkodNo,
+                        OlcuResmiPozNo = cs.OlcuResmiPozNo,
                         Aciklama = cs.Aciklama,
                         SandikNo = cs.FiiliSandikNo ?? cs.CekideGecenSandikNo,
                         IstenenAdet = cs.IstenenAdet,

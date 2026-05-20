@@ -5,6 +5,7 @@ namespace _3K.Application.Features.GridIslemleri.DTOs
         public int CekiSatiriId { get; set; }
         public int SiraNo { get; set; }
         public string BarkodNo { get; set; } = string.Empty;
+        public string? OlcuResmiPozNo { get; set; }
         public string Aciklama { get; set; } = string.Empty;
         public decimal IstenenAdet { get; set; }
         public string Birim { get; set; } = string.Empty;

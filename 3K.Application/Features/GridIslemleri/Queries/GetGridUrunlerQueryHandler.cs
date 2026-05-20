@@ -40,6 +40,7 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                     CekiSatiriId = cs.Id,
                     SiraNo = cs.SiraNo,
                     BarkodNo = cs.BarkodNo,
+                    OlcuResmiPozNo = cs.OlcuResmiPozNo,
                     Aciklama = cs.Aciklama,
                     IstenenAdet = cs.IstenenAdet,
                     Birim = ((Birim)cs.BirimId).ToString(),
