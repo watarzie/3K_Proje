@@ -5,7 +5,6 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 {
     public class SandikOzellikGuncelleCommand : IRequest<Result>, ISecuredRequest
     {
-        public string[] RequiredRoles => Array.Empty<string>();
 
         public int SandikId { get; set; }
         public string? SandikIsmi { get; set; }

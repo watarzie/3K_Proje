@@ -12,23 +12,18 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserService _currentUserService;
         private readonly IHareketService _hareketService;
-        private readonly IRolService _rolService;
 
-        public SandikLokasyonGuncelleCommandHandler(IUnitOfWork unitOfWork, ICurrentUserService currentUserService, IHareketService hareketService, IRolService rolService)
+        public SandikLokasyonGuncelleCommandHandler(IUnitOfWork unitOfWork, ICurrentUserService currentUserService, IHareketService hareketService)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _hareketService = hareketService;
-            _rolService = rolService;
         }
 
         public async Task<Result<bool>> Handle(SandikLokasyonGuncelleCommand request, CancellationToken cancellationToken)
         {
             if (!_currentUserService.IsAuthenticated) return Result<bool>.Failure("Oturum açmanız gerekiyor.");
             
-            bool hasPermission = await _rolService.HasPermissionAsync(_currentUserService.Roles, "sandik-yonetimi", "W", cancellationToken);
-            if (!hasPermission) return Result<bool>.Failure("Lokasyon güncelleme yetkiniz bulunmuyor.", 403);
-
             if (request.SandikIds == null || !request.SandikIds.Any())
             {
                 return Result<bool>.Failure("Güncellenecek sandık seçilmedi.");

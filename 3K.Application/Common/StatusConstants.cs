@@ -1,5 +1,3 @@
-using _3K.Core.Enums;
-
 namespace _3K.Application.Common
 {
     /// <summary>
@@ -10,17 +8,5 @@ namespace _3K.Application.Common
     {
         public const int ActionQueuedForApproval = 202;
 
-        /// <summary>
-        /// Kullanıcı rol string'leri — JWT claim'lerde kullanılır.
-        /// </summary>
-        public static class KullaniciRol
-        {
-            public const string Admin = "Admin";
-            public const string Personel3K = "Personel3K";
-            public const string PersonelGrid = "PersonelGrid";
-            public const string Yonetici = "Yonetici";
-            public const string Kalite = "Kalite";
-            public const string Surec = "Surec";
-        }
     }
 }

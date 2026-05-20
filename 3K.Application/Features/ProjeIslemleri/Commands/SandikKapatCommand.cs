@@ -10,7 +10,5 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
     {
         public int SandikId { get; set; }
         public bool Kapali { get; set; }
-        public string[] RequiredRoles => Array.Empty<string>();
-        public string? RequiredMenuKod => "sandik-yonetimi";
     }
 }

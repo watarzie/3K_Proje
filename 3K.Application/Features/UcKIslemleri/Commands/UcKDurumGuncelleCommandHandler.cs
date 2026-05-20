@@ -84,7 +84,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     return Result.Failure("Bu ürün Kalite tarafından 'Tadilatta' olarak işaretlenmiş. 3K işlemi yapılamaz.");
             }
 
-            // ===== Grid Gelmedi → Sadece Projeden/Stoktan/Tedarikçiden =====
+            // ===== Grid Gelmedi - Sadece Projeden/Stoktan/Tedarikçiden =====
             if (satir.GridDurumuId == (int)GridDurum.Gelmedi)
             {
                 var izinliTipler = new[] { (int)UcKDurum.ProjedenKarsilandi, (int)UcKDurum.StoktanKarsilandi, (int)UcKDurum.TedarikcidenGeldi };
@@ -130,7 +130,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             if ((request.KarsilamaTipiId == (int)UcKDurum.Gelmedi || request.KarsilamaTipiId == (int)UcKDurum.GeriGonderildi)
                 && !gridSevkiVar)
             {
-                return Result.Failure("Gelmedi veya Geri GÃ¶nderildi iÅŸlemi iÃ§in Grid tarafÄ±ndan sevk edilmiÅŸ aktif miktar bulunmalÄ±dÄ±r.");
+                return Result.Failure("Gelmedi veya Geri Gönderildi işlemi için Grid tarafından sevk edilmiş aktif miktar bulunmalıdır.");
             }
 
             // ===== Validasyon =====
@@ -203,7 +203,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     break;
             }
 
-            // ===== Alanları güncelle =====
+            // ===== Alanları göncelle =====
             satir.UcKKarsilamaTipiId = request.KarsilamaTipiId;
             satir.UcKAciklama = request.Aciklama;
             satir.KaynakHedefProjeNo = request.KaynakHedefProjeNo;
@@ -211,8 +211,8 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             switch (request.KarsilamaTipiId)
             {
                 case (int)UcKDurum.TamGeldi:
-                    // KURAL 1: Tam Geldi → Grid'in sevk ettiği miktar kadar teslim al (sandık bütünlüğü)
-                    // Çeki hedefinin tamamını DEĞİL, o sevkiyattaki fiziksel miktarı alır
+                    // KURAL 1: Tam Geldi - Grid'in sevk ettiği miktar kadar teslim al (sandık bütünlüğü)
+                    // çeki hedefinin tamamını DEĞİL, o sevkiyattaki fiziksel miktarı alır
                     var sevkMiktari = satir.GridSevkMiktari ?? (satir.IstenenAdet - satir.GelenMiktar - satir.StokKarsilanan - satir.ProjeKarsilanan - satir.TedarikciKarsilanan);
                     satir.GelenMiktar += Math.Max(sevkMiktari, 0);
                     satir.UcKDurumuId = (int)UcKDurum.TamGeldi;
@@ -327,7 +327,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 var sebebiMetni = request.GeriGonderilmeSebebiId.HasValue
                     ? _lookupCache.GetDeger<LookupGeriGonderilmeSebebi>(request.GeriGonderilmeSebebiId.Value)
                     : "Bilinmiyor";
-                hareketAciklama = $"Geri gönderildi — {FormatAdet(request.GelenAdet ?? 0)} adet — Sebep: {sebebiMetni}. {hareketAciklama}".Trim();
+                hareketAciklama = $"Geri gönderildi - {FormatAdet(request.GelenAdet ?? 0)} adet - Sebep: {sebebiMetni}. {hareketAciklama}".Trim();
             }
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {
@@ -335,7 +335,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 KullaniciId = _currentUserService.UserId ?? 0,
                 ReferansTipi = "CekiSatiri",
                 ReferansId = satir.Id.ToString(),
-                Islem = "3K Durum Güncellendi",
+                Islem = "3K Durum Göncellendi",
                 IslemTipiId = (int)IslemTipi.UcKDurumGuncellendi,
                 EskiDeger = eskiDurum.ToString(),
                 YeniDeger = request.KarsilamaTipiId.ToString(),
@@ -463,7 +463,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
         }
 
         /// <summary>
-        /// Adet değerini ondalıksız (2,000 → 2) formatta döndürür.
+        /// Adet değerini ondalıksız (2,000 -> 2) formatta döndürür.
         /// </summary>
         private static string FormatAdet(decimal value)
         {

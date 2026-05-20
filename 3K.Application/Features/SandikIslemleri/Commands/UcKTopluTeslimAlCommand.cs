@@ -8,8 +8,6 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
     /// </summary>
     public class UcKTopluTeslimAlCommand : IRequest<Result>, ISecuredRequest
     {
-        public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin, StatusConstants.KullaniciRol.Personel3K };
-        public string? RequiredMenuKod => "sandik-yonetimi";
 
         public int ProjeId { get; set; }
         public List<TopluTeslimItem> Urunler { get; set; } = new();

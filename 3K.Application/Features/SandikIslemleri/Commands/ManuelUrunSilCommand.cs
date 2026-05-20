@@ -8,8 +8,6 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
     /// </summary>
     public class ManuelUrunSilCommand : IRequest<Result>, ISecuredRequest
     {
-        public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin, StatusConstants.KullaniciRol.Personel3K };
-        public string? RequiredMenuKod => "sandik-yonetimi";
 
         /// <summary>Normal proje manuel ürünleri için CekiSatiriId kullanılır.</summary>
         public int? CekiSatiriId { get; set; }

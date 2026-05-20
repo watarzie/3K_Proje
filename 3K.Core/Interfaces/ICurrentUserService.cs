@@ -7,7 +7,7 @@ namespace _3K.Core.Interfaces
     public interface ICurrentUserService
     {
         int? UserId { get; }
-        string[] Roles { get; }
         bool IsAuthenticated { get; }
+        string? MenuKod { get; }
     }
 }

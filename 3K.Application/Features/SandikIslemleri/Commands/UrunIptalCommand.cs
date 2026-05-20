@@ -6,12 +6,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 {
     /// <summary>
     /// İş akışı 9: Ürün iptali/pasife çekme.
-    /// Roller: Admin, Personel3K
     /// </summary>
     public class UrunIptalCommand : IRequest<Result>, ISecuredRequest
     {
-        public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin, StatusConstants.KullaniciRol.Personel3K };
-        public string? RequiredMenuKod => "sandik-yonetimi";
 
         public int CekiSatiriId { get; set; }
         public int ProjeId { get; set; }

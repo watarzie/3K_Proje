@@ -9,7 +9,6 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
     /// </summary>
     public class GetProjeSandiklariQuery : IRequest<Result<IEnumerable<SandikDto>>>, ISecuredRequest
     {
-        public string[] RequiredRoles => Array.Empty<string>(); // Authenticate yeterli, rol gerekmez
         public int ProjeId { get; set; }
     }
 }

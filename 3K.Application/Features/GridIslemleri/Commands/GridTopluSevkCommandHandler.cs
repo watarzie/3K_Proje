@@ -78,7 +78,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 if (!yenidenSevkAkisi && !projeTransferYenidenSevkAkisi &&
                     (satir.UcKDurumuId != (int)UcKDurum.Bekliyor || satir.GelenMiktar > 0 || satir.KarsilananMiktar > 0))
                 {
-                    atlananlar.Add($"#{satir.SiraNo} ({satir.Aciklama}) - 3K tarafÄ±nda iÅŸlem yapÄ±lmÄ±ÅŸ");
+                    atlananlar.Add($"#{satir.SiraNo} ({satir.Aciklama}) - 3K tarafında işlem yapılmış");
                     continue;
                 }
 
@@ -150,10 +150,10 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             
             foreach (var grup in sandikGruplari)
             {
-                sb.AppendLine($"📦 Sandık: {grup.Key}");
+                sb.AppendLine($"Sandık: {grup.Key}");
                 foreach (var s in grup)
                 {
-                    sb.AppendLine($"  • {s.OlcuResmiPozNo ?? s.SiraNo.ToString()} - {s.Aciklama}");
+                    sb.AppendLine($"  - {s.OlcuResmiPozNo ?? s.SiraNo.ToString()} - {s.Aciklama}");
                 }
                 sb.AppendLine(); // Boşluk
             }

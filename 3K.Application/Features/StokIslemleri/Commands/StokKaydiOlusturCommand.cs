@@ -7,12 +7,9 @@ namespace _3K.Application.Features.StokIslemleri.Commands
 {
     /// <summary>
     /// Stok kaydı oluştur.
-    /// Roller: Admin
     /// </summary>
     public class StokKaydiOlusturCommand : IRequest<Result<StokKaydiDto>>, ISecuredRequest
     {
-        public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin };
-        public string? RequiredMenuKod => "stok";
 
         public string MalzemeKodu { get; set; } = string.Empty;
         public string MalzemeAdi { get; set; } = string.Empty;

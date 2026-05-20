@@ -131,7 +131,7 @@ namespace _3K_API.Controllers
         }
         /// <summary>
         /// Sandığı manuel kapatır. Eksik veya hatalı ürün varsa forceClose=false durumunda uyarı döner.
-        /// Ayrıca sadece Admin kapatabilir (Command tarafında rolü belirtilir).
+        /// Yetki kontrolü aktif menü bağlamı ve RolYetkileri üzerinden yapılır.
         /// </summary>
         [HttpPost("kapat")]
         public async Task<ActionResult> SandikKapat([FromBody] SandikKapatCommand command)

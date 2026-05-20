@@ -10,8 +10,6 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
     /// </summary>
     public class SandikEkleCommand : IRequest<Result<SandikDto>>, ISecuredRequest
     {
-        public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin, StatusConstants.KullaniciRol.Personel3K };
-        public string? RequiredMenuKod => "sandik-yonetimi";
 
         public int ProjeId { get; set; }
         public string SandikNo { get; set; } = string.Empty;

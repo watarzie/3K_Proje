@@ -8,7 +8,7 @@ namespace _3K_API.Controllers
 {
     /// <summary>
     /// Rol ve Yetki Yönetimi API.
-    /// Tüm endpoint'ler sadece Admin yetkisi gerektirir.
+    /// Erişim, rol yönetimi menüsü için tanımlı RolYetkileri üzerinden kontrol edilir.
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]

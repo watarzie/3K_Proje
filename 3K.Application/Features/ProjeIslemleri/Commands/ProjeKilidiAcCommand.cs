@@ -8,8 +8,6 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
 {
     public class ProjeKilidiAcCommand : IRequest<Result>, ISecuredRequest
     {
-        public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin };
-        public string? RequiredMenuKod => "proje-sevk-et";
 
         public int ProjeId { get; set; }
     }

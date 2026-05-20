@@ -9,8 +9,6 @@ namespace _3K.Application.Features.GridIslemleri.Queries
     /// </summary>
     public class GetGridUrunlerQuery : IRequest<Result<List<GridUrunDto>>>, ISecuredRequest
     {
-        public string[] RequiredRoles => Array.Empty<string>();
-        public string? RequiredMenuKod => "grid-modulu";
         public int ProjeId { get; set; }
     }
 }

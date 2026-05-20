@@ -69,7 +69,6 @@ namespace _3K_API.Controllers
 
         /// <summary>
         /// Kalite durumunu günceller (tekli veya toplu).
-        /// Roller: Admin, Kalite
         /// </summary>
         [HttpPut("kalite-durum")]
         public async Task<ActionResult> KaliteDurumGuncelle([FromBody] KaliteDurumGuncelleCommand command)
@@ -80,7 +79,6 @@ namespace _3K_API.Controllers
 
         /// <summary>
         /// Süreç durumunu günceller (tekli veya toplu).
-        /// Roller: Admin, Surec
         /// </summary>
         [HttpPut("surec-durum")]
         public async Task<ActionResult> SurecDurumGuncelle([FromBody] SurecDurumGuncelleCommand command)

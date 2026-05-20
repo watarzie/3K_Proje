@@ -9,7 +9,6 @@ namespace _3K.Application.Features.CekiIslemleri.Queries
     /// </summary>
     public class CekiSatirlariQuery : IRequest<Result<IEnumerable<CekiSatiriDto>>>, ISecuredRequest
     {
-        public string[] RequiredRoles => Array.Empty<string>();
         public int CekiId { get; set; }
     }
 }

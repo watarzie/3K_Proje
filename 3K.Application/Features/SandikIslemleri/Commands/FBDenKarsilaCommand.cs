@@ -6,12 +6,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 {
     /// <summary>
     /// İş akışı 11: Eksik ürünü FB transferi ile karşıla.
-    /// Roller: Admin, Personel3K
     /// </summary>
     public class FBDenKarsilaCommand : IRequest<Result>, ISecuredRequest
     {
-        public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin, StatusConstants.KullaniciRol.Personel3K };
-        public string? RequiredMenuKod => "sandik-yonetimi";
 
         public int CekiSatiriId { get; set; }
         public int ProjeId { get; set; }

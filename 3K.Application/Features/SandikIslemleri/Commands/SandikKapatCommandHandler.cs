@@ -11,18 +11,15 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserService _currentUserService;
         private readonly IHareketService _hareketService;
-        private readonly IRolService _rolService;
 
         public SandikKapatCommandHandler(
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUserService,
-            IHareketService hareketService,
-            IRolService rolService)
+            IHareketService hareketService)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _hareketService = hareketService;
-            _rolService = rolService;
         }
 
         public async Task<SandikKapatResult> Handle(SandikKapatCommand request, CancellationToken cancellationToken)
@@ -30,12 +27,6 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (!_currentUserService.IsAuthenticated)
             {
                 return new SandikKapatResult { IsSuccess = false, Message = "Oturum açmanız gerekiyor." };
-            }
-
-            bool hasPermission = await _rolService.HasPermissionAsync(_currentUserService.Roles, "sandik-yonetimi", "W", cancellationToken);
-            if (!hasPermission)
-            {
-                return new SandikKapatResult { IsSuccess = false, Message = "Sandık hazırlandı işlemini yapabilmek için yetkiniz bulunmuyor." };
             }
 
             var sandikRepo = _unitOfWork.GetRepository<Sandik>();

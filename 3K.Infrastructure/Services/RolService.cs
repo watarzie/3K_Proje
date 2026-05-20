@@ -57,37 +57,6 @@ namespace _3K.Infrastructure.Services
             await _context.SaveChangesAsync(ct);
         }
 
-        public async Task<bool> HasPermissionAsync(string[] userRoles, string menuKod, string yetkiTipi = "W", CancellationToken ct = default)
-        {
-            if (userRoles == null || userRoles.Length == 0) return false;
-
-            if (userRoles.Contains("Admin", StringComparer.OrdinalIgnoreCase)) return true;
-
-            var roles = await _context.Roller
-                .Where(r => userRoles.Contains(r.Ad))
-                .ToListAsync(ct);
-
-            if (!roles.Any()) return false;
-
-            var roleIds = roles.Select(r => r.Id).ToList();
-
-            // Map string yetkiTipi to int for backward compatibility
-            int yetkiTipiId = yetkiTipi switch
-            {
-                "W" => (int)YetkiTipi.W,
-                "R" => (int)YetkiTipi.R,
-                _ => (int)YetkiTipi.N
-            };
-
-            var hasPermission = await _context.RolYetkileri
-                .Include(ry => ry.MenuTanimi)
-                .AnyAsync(ry => roleIds.Contains(ry.RolId) &&
-                                ry.MenuTanimi.Kod == menuKod &&
-                                ry.YetkiTipiId >= yetkiTipiId, ct);
-
-            return hasPermission;
-        }
-
         public async Task<bool> HasUserPermissionAsync(int userId, string menuKod, YetkiTipi requiredYetkiTipi, CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(menuKod))
@@ -95,20 +64,15 @@ namespace _3K.Infrastructure.Services
 
             var kullanici = await _context.Kullanicilar
                 .AsNoTracking()
-                .Include(k => k.Rol)
                 .Where(k => k.Id == userId)
                 .Select(k => new
                 {
-                    k.RolId,
-                    RolAdi = k.Rol.Ad
+                    k.RolId
                 })
                 .FirstOrDefaultAsync(ct);
 
             if (kullanici == null)
                 return false;
-
-            if (string.Equals(kullanici.RolAdi, "Admin", StringComparison.OrdinalIgnoreCase))
-                return true;
 
             var requiredYetkiTipiId = (int)requiredYetkiTipi;
 

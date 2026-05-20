@@ -28,19 +28,16 @@ namespace _3K.Infrastructure.Services
             }
         }
 
-        public string[] Roles
+        public bool IsAuthenticated =>
+            _httpContextAccessor.HttpContext?.User?.Identity?.IsAuthenticated ?? false;
+
+        public string? MenuKod
         {
             get
             {
-                var roles = _httpContextAccessor.HttpContext?.User?.FindAll(ClaimTypes.Role)
-                    .Select(c => c.Value)
-                    .ToArray();
-
-                return roles ?? Array.Empty<string>();
+                var value = _httpContextAccessor.HttpContext?.Request.Headers["X-Menu-Kod"].FirstOrDefault();
+                return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
             }
         }
-
-        public bool IsAuthenticated =>
-            _httpContextAccessor.HttpContext?.User?.Identity?.IsAuthenticated ?? false;
     }
 }

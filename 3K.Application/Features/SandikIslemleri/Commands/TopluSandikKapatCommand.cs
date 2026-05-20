@@ -5,7 +5,6 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 {
     public class TopluSandikKapatCommand : IRequest<TopluSandikKapatResult>, ISecuredRequest
     {
-        public string[] RequiredRoles => Array.Empty<string>();
 
         public List<int> SandikIds { get; set; } = new();
         public bool ForceClose { get; set; } = false;

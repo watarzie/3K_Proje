@@ -9,7 +9,6 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
     /// </summary>
     public class ProjeListeleQuery : IRequest<Result<IEnumerable<ProjeDto>>>, ISecuredRequest
     {
-        public string[] RequiredRoles => Array.Empty<string>();
         /// <summary>
         /// Null ise tüm projeler döner, doluysa sadece o tipteki projeler (Normal=1, Saha=2, Yedek=3).
         /// </summary>

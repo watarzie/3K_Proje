@@ -8,6 +8,5 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         public List<int> SandikIds { get; set; } = new();
         public int DepoLokasyonId { get; set; }
         
-        public string[] RequiredRoles => Array.Empty<string>();
     }
 }

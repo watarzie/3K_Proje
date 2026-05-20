@@ -42,7 +42,7 @@ namespace _3K_API.Controllers
         }
 
         /// <summary>
-        /// Sandık Kapat/Aç — Sadece Admin
+        /// Sandık Kapat/Aç
         /// </summary>
         [HttpPut("sandik-kapat")]
         public async Task<ActionResult> SandikKapat([FromBody] SandikKapatCommand command)
@@ -61,7 +61,7 @@ namespace _3K_API.Controllers
         }
 
         /// <summary>
-        /// Proje kilidini açar (Devam durumuna çeker) — Sadece Admin
+        /// Proje kilidini açar (Devam durumuna çeker)
         /// </summary>
         [HttpPost("{id}/kilidi-ac")]
         public async Task<ActionResult> KilidiAc(int id)
@@ -71,7 +71,7 @@ namespace _3K_API.Controllers
         }
 
         /// <summary>
-        /// Projenin Planlanan Sevk Tarihini günceller — Sadece Admin
+        /// Projenin Planlanan Sevk Tarihini günceller
         /// </summary>
         [HttpPut("sevk-tarihi-guncelle")]
         public async Task<ActionResult> SevkTarihiGuncelle([FromBody] ProjeSevkTarihiGuncelleCommand command)
@@ -80,7 +80,7 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
         /// <summary>
-        /// Projeyi ve tüm alt verilerini (sandık, ürün, çeki vb.) siler — Sadece Admin
+        /// Projeyi ve tüm alt verilerini (sandık, ürün, çeki vb.) siler
         /// </summary>
         [HttpDelete("{id}")]
         public async Task<ActionResult> Delete(int id)

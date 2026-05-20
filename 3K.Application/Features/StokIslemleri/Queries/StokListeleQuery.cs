@@ -9,7 +9,6 @@ namespace _3K.Application.Features.StokIslemleri.Queries
     /// </summary>
     public class StokListeleQuery : PaginatedQuery<Result<PaginatedList<StokKaydiDto>>>, ISecuredRequest
     {
-        public string[] RequiredRoles => Array.Empty<string>();
         public string? SearchTerm { get; set; }
     }
 }

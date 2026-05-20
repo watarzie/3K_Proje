@@ -10,8 +10,6 @@ namespace _3K.Application.Features.AuthIslemleri.Commands
     /// </summary>
     public class RegisterCommand : IRequest<Result<KullaniciDto>>, ISecuredRequest
     {
-        public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin };
-        public string? RequiredMenuKod => "kullanicilar";
 
         public string AdSoyad { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;

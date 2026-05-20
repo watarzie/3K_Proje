@@ -35,7 +35,7 @@ namespace _3K_API.Controllers
 
         /// <summary>
         /// Yeni kullanıcı oluşturur.
-        /// Eski register endpoint'inin karşılığı — artık sadece admin panelden erişilir.
+        /// Eski register endpoint'inin karşılığı — erişim RolYetkileri üzerinden kontrol edilir.
         /// </summary>
         [HttpPost("olustur")]
         public async Task<ActionResult> Olustur([FromBody] RegisterCommand command)
@@ -60,7 +60,7 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
 
-        /// <summary>Kullanıcı şifresini değiştirir (Admin yetkisi).</summary>
+        /// <summary>Kullanıcı şifresini değiştirir.</summary>
         [HttpPut("sifre-degistir")]
         public async Task<ActionResult> SifreDegistir([FromBody] KullaniciSifreDegistirCommand command)
         {

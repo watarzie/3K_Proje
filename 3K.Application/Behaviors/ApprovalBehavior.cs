@@ -16,13 +16,15 @@ namespace _3K.Application.Behaviors
         private readonly IUnitOfWork _unitOfWork;
         private readonly ISseNotifier _sseNotifier;
         private readonly IMemoryCache _cache;
+        private readonly IRolService _rolService;
 
-        public ApprovalBehavior(ICurrentUserService currentUserService, IUnitOfWork unitOfWork, ISseNotifier sseNotifier, IMemoryCache cache)
+        public ApprovalBehavior(ICurrentUserService currentUserService, IUnitOfWork unitOfWork, ISseNotifier sseNotifier, IMemoryCache cache, IRolService rolService)
         {
             _currentUserService = currentUserService;
             _unitOfWork = unitOfWork;
             _sseNotifier = sseNotifier;
             _cache = cache;
+            _rolService = rolService;
         }
 
         public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
@@ -51,10 +53,14 @@ namespace _3K.Application.Behaviors
 
                 if (isRuleActive)
                 {
-                    var role = _currentUserService.Roles.FirstOrDefault() ?? "";
-                    
-                    // If Admin or specifically authorized role -> bypass approval
-                    if (role == StatusConstants.KullaniciRol.Admin || role == StatusConstants.KullaniciRol.Yonetici)
+                    var canApprove = _currentUserService.UserId.HasValue &&
+                        await _rolService.HasUserPermissionAsync(
+                            _currentUserService.UserId.Value,
+                            "islem-onay-merkezi",
+                            YetkiTipi.W,
+                            cancellationToken);
+
+                    if (canApprove)
                     {
                         return await next();
                     }

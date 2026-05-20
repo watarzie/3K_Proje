@@ -9,6 +9,5 @@ namespace _3K.Application.Features.KullaniciIslemleri.Queries
     /// </summary>
     public class KullaniciListeleQuery : IRequest<Result<IEnumerable<KullaniciDto>>>, ISecuredRequest
     {
-        public string[] RequiredRoles => Array.Empty<string>();
     }
 }

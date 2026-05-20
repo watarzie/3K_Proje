@@ -8,8 +8,6 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
 {
     public class ProjeSevkTarihiGuncelleCommand : IRequest<Result>, ISecuredRequest
     {
-        public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin };
-        public string? RequiredMenuKod => "aktif-projeler";
 
         public int ProjeId { get; set; }
         public DateTime? PlanlananSevkTarihi { get; set; }

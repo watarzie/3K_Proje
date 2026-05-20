@@ -9,6 +9,5 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
     /// </summary>
     public class ProjeDropdownQuery : IRequest<Result<IEnumerable<ProjeDropdownDto>>>, ISecuredRequest
     {
-        public string[] RequiredRoles => Array.Empty<string>();
     }
 }

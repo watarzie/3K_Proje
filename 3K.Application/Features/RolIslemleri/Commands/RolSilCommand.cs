@@ -7,8 +7,6 @@ namespace _3K.Application.Features.RolIslemleri.Commands
     /// <summary>Rolü siler.</summary>
     public class RolSilCommand : IRequest<Result<bool>>, ISecuredRequest
     {
-        public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin };
-        public string? RequiredMenuKod => "rol-yonetimi";
 
         public int Id { get; set; }
     }

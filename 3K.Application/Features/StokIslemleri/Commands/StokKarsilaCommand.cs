@@ -6,12 +6,9 @@ namespace _3K.Application.Features.StokIslemleri.Commands
 {
     /// <summary>
     /// İş akışı 6: Stoktan eksik karşılama.
-    /// Roller: Admin, Personel3K
     /// </summary>
     public class StokKarsilaCommand : IRequest<Result>, ISecuredRequest
     {
-        public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin, StatusConstants.KullaniciRol.Personel3K };
-        public string? RequiredMenuKod => "stok";
 
         public int CekiSatiriId { get; set; }
         public int StokKaydiId { get; set; }

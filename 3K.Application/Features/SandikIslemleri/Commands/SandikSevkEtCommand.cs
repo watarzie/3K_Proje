@@ -11,8 +11,6 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
     /// </summary>
     public class SandikSevkEtCommand : IRequest<Result>, ISecuredRequest
     {
-        public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin };
-        public string? RequiredMenuKod => "sandik-yonetimi";
 
         public int ProjeId { get; set; }
         public int SandikId { get; set; }

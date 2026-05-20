@@ -11,8 +11,6 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
     /// </summary>
     public class UcKDurumGuncelleCommand : IRequest<Result>, ISecuredRequest, IRequireApproval
     {
-        public string[] RequiredRoles => new[] { StatusConstants.KullaniciRol.Admin, StatusConstants.KullaniciRol.Personel3K };
-        public string? RequiredMenuKod => "3k-modulu";
 
         public string GetApprovalKarsilamaTipi()
         {

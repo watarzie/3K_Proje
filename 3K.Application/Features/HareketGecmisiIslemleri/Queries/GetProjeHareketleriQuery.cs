@@ -9,7 +9,6 @@ namespace _3K.Application.Features.HareketGecmisiIslemleri.Queries
     /// </summary>
     public class GetProjeHareketleriQuery : IRequest<Result<IEnumerable<HareketGecmisiDto>>>, ISecuredRequest
     {
-        public string[] RequiredRoles => Array.Empty<string>();
         public int ProjeId { get; set; }
     }
 }

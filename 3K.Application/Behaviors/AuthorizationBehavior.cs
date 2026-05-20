@@ -6,10 +6,9 @@ using _3K.Core.Interfaces;
 namespace _3K.Application.Behaviors
 {
     /// <summary>
-    /// MediatR Pipeline Behavior: Rol + Menü tabanlı yetkilendirme.
-    /// ISecuredRequest implemente eden Command/Query'lerde kullanıcının rollerini kontrol eder.
-    /// RequiredMenuKod belirtilmişse menü bazlı yetki kontrolü de yapılır.
-    /// Yetki yoksa Exception fırlatmaz; Result.Failure döner.
+    /// Central authorization pipeline.
+    /// ISecuredRequest only marks the request; the required menu comes from the
+    /// active UI context and the permission decision is read from RolYetkileri.
     /// </summary>
     public class AuthorizationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
         where TRequest : notnull
@@ -25,50 +24,29 @@ namespace _3K.Application.Behaviors
 
         public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
         {
-            // Eğer istek ISecuredRequest değilse, doğrudan geç
-            if (request is not ISecuredRequest securedRequest)
-            {
+            if (request is not ISecuredRequest)
                 return await next();
-            }
 
-            // Kullanıcı authenticate değilse
             if (!_currentUserService.IsAuthenticated)
-            {
                 return CreateFailureResult("Oturum açmanız gerekiyor.", 401);
-            }
 
-            // Menu kodu varsa hardcoded rol listesi devreye girmez; rol yonetimi tablosu karar verir.
-            var menuKod = securedRequest.RequiredMenuKod;
-            if (!string.IsNullOrEmpty(menuKod))
-            {
-                var userId = _currentUserService.UserId;
-                if (!userId.HasValue)
-                    return CreateFailureResult("Kullanıcı bilgisi alınamadı.", 401);
+            var userId = _currentUserService.UserId;
+            if (!userId.HasValue)
+                return CreateFailureResult("Kullanıcı bilgisi alınamadı.", 401);
 
-                // Query'ler icin R/W, command'ler icin W yetkisi kontrol edilir.
-                var requiredYetkiTipi = GetRequiredYetkiTipi(typeof(TRequest));
-                var hasMenuPermission = await _rolService.HasUserPermissionAsync(userId.Value, menuKod, requiredYetkiTipi, cancellationToken);
-                if (!hasMenuPermission)
-                {
-                    return CreateFailureResult("Bu modül için yetkiniz bulunmuyor.", 403);
-                }
-            }
-            else
-            {
-                // Geriye donuk uyumluluk: Menu kodu olmayan eski/ozel isteklerde rol listesi fallback olarak calisir.
-                var requiredRoles = securedRequest.RequiredRoles;
-                if (requiredRoles != null && requiredRoles.Length > 0)
-                {
-                    var userRoles = _currentUserService.Roles;
-                    var hasRequiredRole = requiredRoles.Any(role =>
-                        userRoles.Any(userRole => string.Equals(userRole, role, StringComparison.OrdinalIgnoreCase)));
+            var menuKod = _currentUserService.MenuKod;
+            if (string.IsNullOrWhiteSpace(menuKod))
+                return CreateFailureResult("Yetki bağlamı alınamadı.", 403);
 
-                    if (!hasRequiredRole)
-                    {
-                        return CreateFailureResult("Bu işlem için yetkiniz bulunmuyor.", 403);
-                    }
-                }
-            }
+            var requiredYetkiTipi = GetRequiredYetkiTipi(typeof(TRequest));
+            var hasPermission = await _rolService.HasUserPermissionAsync(
+                userId.Value,
+                menuKod,
+                requiredYetkiTipi,
+                cancellationToken);
+
+            if (!hasPermission)
+                return CreateFailureResult("Bu modül için yetkiniz bulunmuyor.", 403);
 
             return await next();
         }
@@ -80,34 +58,35 @@ namespace _3K.Application.Behaviors
                 : YetkiTipi.W;
         }
 
-        /// <summary>
-        /// TResponse tipinden uygun Failure Result'ı üretir.
-        /// TResponse = Result ise Result.Failure, TResponse = Result&lt;T&gt; ise Result&lt;T&gt;.Failure döner.
-        /// </summary>
         private static TResponse CreateFailureResult(string message, int code)
         {
             var responseType = typeof(TResponse);
 
-            // TResponse doğrudan Result ise
             if (responseType == typeof(Result))
-            {
                 return (TResponse)(object)Result.Failure(message, code);
-            }
 
-            // TResponse generic Result<T> ise (Reflection ile Failure metodu çağırılır)
             if (responseType.IsGenericType && responseType.GetGenericTypeDefinition() == typeof(Result<>))
             {
                 var failureMethod = responseType.GetMethod("Failure", new[] { typeof(string), typeof(int) });
                 if (failureMethod != null)
-                {
                     return (TResponse)failureMethod.Invoke(null, new object[] { message, code })!;
-                }
             }
 
-            // Result pattern kullanmayan eski tip komutlar için fallback
-            // Bu durum idealde olmamalı — tüm komutlar Result dönmeli
+            var isSuccessProperty = responseType.GetProperty("IsSuccess");
+            var messageProperty = responseType.GetProperty("Message");
+            if (responseType.GetConstructor(Type.EmptyTypes) != null &&
+                isSuccessProperty?.CanWrite == true &&
+                isSuccessProperty.PropertyType == typeof(bool) &&
+                messageProperty?.CanWrite == true &&
+                messageProperty.PropertyType == typeof(string))
+            {
+                var response = Activator.CreateInstance(responseType)!;
+                isSuccessProperty.SetValue(response, false);
+                messageProperty.SetValue(response, message);
+                return (TResponse)response;
+            }
+
             throw new UnauthorizedAccessException(message);
         }
     }
 }
-
