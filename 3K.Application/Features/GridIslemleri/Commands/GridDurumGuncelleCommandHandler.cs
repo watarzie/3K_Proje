@@ -57,8 +57,14 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 satir.ProjeGonderilen > 0 &&
                 satir.KalanMiktar > 0 &&
                 request.GridSevkDurumuId == (int)GridSevkDurum.SevkEdildi;
+            var parcaliEksikYenidenSevkAkisi =
+                satir.GridDurumuId == (int)GridDurum.EksikGeldi &&
+                satir.GridSevkDurumuId == (int)GridSevkDurum.SevkEdildi &&
+                (satir.GridSevkMiktari ?? 0) > 0 &&
+                satir.KalanMiktar > 0 &&
+                request.GridSevkDurumuId == (int)GridSevkDurum.SevkEdildi;
 
-            if (!yenidenSevkAkisi && !projeTransferYenidenSevkAkisi && (satir.UcKDurumuId != (int)UcKDurum.Bekliyor
+            if (!yenidenSevkAkisi && !projeTransferYenidenSevkAkisi && !parcaliEksikYenidenSevkAkisi && (satir.UcKDurumuId != (int)UcKDurum.Bekliyor
                 || satir.GelenMiktar > 0
                 || satir.KarsilananMiktar > 0))
             {
@@ -152,7 +158,9 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                         ? satir.YenidenSevkGerekliAdet
                         : projeTransferYenidenSevkAkisi
                             ? Math.Min(satir.ProjeGonderilen, satir.KalanMiktar)
-                            : satir.GridGelenAdet;
+                            : parcaliEksikYenidenSevkAkisi
+                                ? satir.KalanMiktar
+                                : satir.GridGelenAdet;
                     if (request.SevkMiktari > sevkUstSinir)
                         return Result.Failure("Sevk miktari Grid'e gelen adetten buyuk olamaz.");
                     if (request.SevkMiktari == null || request.SevkMiktari <= 0)
@@ -175,6 +183,12 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                         satir.TeslimTarihi = null;
                     }
                     else if (projeTransferYenidenSevkAkisi)
+                    {
+                        satir.UcKDurumuId = (int)UcKDurum.Bekliyor;
+                        satir.UcKKarsilamaTipiId = (int)UcKDurum.Bekliyor;
+                        satir.TeslimTarihi = null;
+                    }
+                    else if (parcaliEksikYenidenSevkAkisi)
                     {
                         satir.UcKDurumuId = (int)UcKDurum.Bekliyor;
                         satir.UcKKarsilamaTipiId = (int)UcKDurum.Bekliyor;
