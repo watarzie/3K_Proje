@@ -238,14 +238,28 @@ try
     // ======= CORS =======
     builder.Services.AddCors(options =>
     {
-        options.AddPolicy("AllowAll", policy =>
-            policy.WithOrigins(
-                    "https://www.3klojistikdepolama.com",
-                    "https://3klojistikdepolama.com"
-                )
-                .AllowAnyMethod()
-                .AllowAnyHeader()
-                .AllowCredentials());
+        if (builder.Environment.IsDevelopment())
+        {
+            options.AddPolicy("AllowAll", policy =>
+                policy.WithOrigins(
+                        "http://localhost:4200",
+                        "https://localhost:4200"
+                    )
+                    .AllowAnyMethod()
+                    .AllowAnyHeader()
+                    .AllowCredentials());
+        }
+        else
+        {
+            options.AddPolicy("AllowAll", policy =>
+                policy.WithOrigins(
+                        "https://www.3klojistikdepolama.com",
+                        "https://3klojistikdepolama.com"
+                    )
+                    .AllowAnyMethod()
+                    .AllowAnyHeader()
+                    .AllowCredentials());
+        }
     });
 
     var app = builder.Build();

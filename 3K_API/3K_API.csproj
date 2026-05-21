@@ -24,4 +24,10 @@
     <ProjectReference Include="..\3K.Core\3K.Core.csproj" />
   </ItemGroup>
 
+  <!-- Publish'te appsettings dosyaları gönderilmez, sunucudaki mevcut dosyalar korunur -->
+  <ItemGroup>
+    <Content Update="appsettings.json" CopyToPublishDirectory="Never" />
+    <Content Update="appsettings.*.json" CopyToPublishDirectory="Never" />
+  </ItemGroup>
+
 </Project>
