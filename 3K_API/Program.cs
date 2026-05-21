@@ -23,6 +23,7 @@ var configuration = new ConfigurationBuilder()
     .SetBasePath(Directory.GetCurrentDirectory())
     .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
     .AddJsonFile($"appsettings.{Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production"}.json", optional: true, reloadOnChange: true)
+    .AddJsonFile("appsettings.Secrets.json", optional: true, reloadOnChange: true)
     .AddEnvironmentVariables()
     .Build();
 
@@ -88,6 +89,9 @@ try
     Log.Information("========== 3K API başlatılıyor ==========");
 
     var builder = WebApplication.CreateBuilder(args);
+
+    // Hassas bilgileri ayrı dosyadan oku (Git'e gitmez)
+    builder.Configuration.AddJsonFile("appsettings.Secrets.json", optional: true, reloadOnChange: true);
 
     // Serilog'u host'a bağla — tüm ILogger<T> çağrıları artık Serilog'a yönlenir
     builder.Host.UseSerilog();

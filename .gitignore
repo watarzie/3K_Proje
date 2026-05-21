@@ -364,3 +364,6 @@ FodyWeavers.xsd
 
 # 3K - Uploaded Excel files (runtime data)
 **/uploads/
+
+# 3K - Hassas bilgiler (connection string, JWT key vb.)
+appsettings.Secrets.json
