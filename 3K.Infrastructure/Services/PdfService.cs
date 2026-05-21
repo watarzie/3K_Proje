@@ -809,18 +809,19 @@ namespace _3K.Infrastructure.Services
                     {
                         table.ColumnsDefinition(columns =>
                         {
-                            columns.ConstantColumn(25);   // #
-                            columns.ConstantColumn(30);   // Sıra
-                            columns.RelativeColumn(1.5f); // Barkod
-                            columns.RelativeColumn(3);    // Açıklama
-                            columns.RelativeColumn(1);    // Sandık
-                            columns.ConstantColumn(45);   // İstenen
-                            columns.ConstantColumn(50);   // 3K Gelen
-                            columns.ConstantColumn(50);   // Karşılanan
-                            columns.ConstantColumn(50);   // Geri Gönd.
-                            columns.ConstantColumn(55);   // Prj. Verildi
-                            columns.ConstantColumn(45);   // Kalan
-                            columns.RelativeColumn(1.5f); // 3K Durum
+                            columns.ConstantColumn(24);   // #
+                            columns.ConstantColumn(28);   // Sıra
+                            columns.RelativeColumn(1.25f); // Barkod
+                            columns.ConstantColumn(42);   // Poz No
+                            columns.RelativeColumn(2.7f); // Açıklama
+                            columns.RelativeColumn(0.85f); // Sandık
+                            columns.ConstantColumn(42);   // İstenen
+                            columns.ConstantColumn(46);   // 3K Gelen
+                            columns.ConstantColumn(46);   // Karşılanan
+                            columns.ConstantColumn(46);   // Geri Gönd.
+                            columns.ConstantColumn(50);   // Prj. Verildi
+                            columns.ConstantColumn(42);   // Kalan
+                            columns.RelativeColumn(1.35f); // 3K Durum
                             columns.RelativeColumn(1);    // Sürec
                         });
 
@@ -840,6 +841,7 @@ namespace _3K.Infrastructure.Services
                             BiHeader(header.Cell(), "#");
                             BiHeader(header.Cell(), "SIRA", "Seq.");
                             BiHeader(header.Cell(), "BARKOD NO", "Barcode No");
+                            BiHeader(header.Cell(), "POZ NO", "Pos. No");
                             BiHeader(header.Cell(), "ÜRÜN AÇIKLAMASI", "Product Desc.");
                             BiHeader(header.Cell(), "SANDIK", "Crate");
                             BiHeader(header.Cell(), "İSTENEN", "Requested");
@@ -873,6 +875,7 @@ namespace _3K.Infrastructure.Services
                             DataCell(table.Cell(), sira.ToString());
                             DataCell(table.Cell(), cs.SiraNo.ToString());
                             DataCell(table.Cell(), cs.BarkodNo);
+                            DataCell(table.Cell(), string.IsNullOrWhiteSpace(cs.OlcuResmiPozNo) ? "-" : cs.OlcuResmiPozNo);
                             DataCell(table.Cell(), cs.Aciklama);
                             DataCell(table.Cell(), sandikNo);
                             DataCell(table.Cell(), FormatAdet(cs.IstenenAdet));
@@ -1304,15 +1307,16 @@ namespace _3K.Infrastructure.Services
                         {
                             columns.ConstantColumn(22);
                             columns.ConstantColumn(46);
-                            columns.ConstantColumn(70);
-                            columns.RelativeColumn(2.2f);
+                            columns.ConstantColumn(66);
+                            columns.ConstantColumn(42);
+                            columns.RelativeColumn(2.05f);
                             columns.ConstantColumn(42);
                             columns.ConstantColumn(36);
                             columns.ConstantColumn(60);
                             columns.ConstantColumn(50);
                             columns.ConstantColumn(42);
-                            columns.ConstantColumn(88);
-                            columns.RelativeColumn(1.7f);
+                            columns.ConstantColumn(82);
+                            columns.RelativeColumn(1.55f);
                         });
 
                         table.Header(header =>
@@ -1330,6 +1334,7 @@ namespace _3K.Infrastructure.Services
                             BiHeader(header.Cell(), "#");
                             BiHeader(header.Cell(), "SANDIK", "Crate");
                             BiHeader(header.Cell(), "BARKOD", "Barcode");
+                            BiHeader(header.Cell(), "POZ NO", "Pos. No");
                             BiHeader(header.Cell(), "İSİM", "Name");
                             BiHeader(header.Cell(), "MİKTAR", "Quantity");
                             BiHeader(header.Cell(), "BİRİM", "Unit");
@@ -1375,6 +1380,7 @@ namespace _3K.Infrastructure.Services
                             DataCell(table.Cell(), sira.ToString(), bold: true);
                             DataCell(table.Cell(), GetSandikNolari(satir), bold: true, color: headerBg);
                             DataCell(table.Cell(), satir.BarkodNo);
+                            DataCell(table.Cell(), string.IsNullOrWhiteSpace(satir.OlcuResmiPozNo) ? "-" : satir.OlcuResmiPozNo);
                             DataCell(table.Cell(), satir.Aciklama);
                             DataCell(table.Cell(), FormatAdet(satir.IstenenAdet), bold: true);
                             DataCell(table.Cell(), satir.BirimLookup?.Deger ?? "Adet");
