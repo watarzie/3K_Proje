@@ -18,5 +18,11 @@ namespace _3K.Core.Interfaces
         /// Uygulama başlangıcında çağrılarak tüm lookup verilerini belleğe yükler.
         /// </summary>
         Task WarmupAsync(CancellationToken ct = default);
+
+        /// <summary>
+        /// Belirtilen lookup tablosunu yeniden okuyup cache'e yazar.
+        /// Dinamik parametre değişikliklerinden sonra kullanılır.
+        /// </summary>
+        Task RefreshAsync<TLookup>(CancellationToken ct = default) where TLookup : LookupBase;
     }
 }

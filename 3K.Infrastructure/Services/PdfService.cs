@@ -1433,12 +1433,23 @@ namespace _3K.Infrastructure.Services
                 sandikQuery = sandikQuery.Where(s => s.Proje.ProjeTipiId == projeTipiId.Value);
 
             var sandiklar = await sandikQuery.ToListAsync();
+            var depoLokasyonlari = await _context.LookupDepoLokasyonlari
+                .AsNoTracking()
+                .OrderBy(l => l.Anahtar)
+                .ToListAsync();
+            var lokasyonAdlari = depoLokasyonlari.ToDictionary(l => l.Id, l => l.Deger);
 
             int GetSandikSortKey(string? sandikNo)
             {
                 if (string.IsNullOrWhiteSpace(sandikNo)) return int.MaxValue;
                 var digits = new string(sandikNo.TakeWhile(char.IsDigit).ToArray());
                 return int.TryParse(digits, out var number) ? number : int.MaxValue;
+            }
+
+            bool BelirsizLokasyonMu(LookupDepoLokasyon lokasyon)
+            {
+                return lokasyon.Id == (int)DepoLokasyon.Belirsiz
+                    || lokasyon.Deger.Equals("Belirsiz", StringComparison.OrdinalIgnoreCase);
             }
 
             int EtkinDepoLokasyonId(Sandik sandik)
@@ -1450,12 +1461,18 @@ namespace _3K.Infrastructure.Services
 
             string EtkinDepoLokasyonMetni(Sandik sandik)
             {
-                return EtkinDepoLokasyonId(sandik) switch
+                return lokasyonAdlari.GetValueOrDefault(EtkinDepoLokasyonId(sandik), "Belirsiz");
+            }
+
+            string LokasyonRengi(LookupDepoLokasyon lokasyon)
+            {
+                return lokasyon.Deger.Trim().ToUpperInvariant() switch
                 {
-                    (int)DepoLokasyon.UcK => "3K",
-                    (int)DepoLokasyon.Seymen => "Seymen",
-                    (int)DepoLokasyon.Grid => "GRID",
-                    _ => "Belirsiz"
+                    "3K" => "#0EA5E9",
+                    "SEYMEN" => "#078A55",
+                    "GRID" => "#F59E0B",
+                    "BELİRSİZ" or "BELIRSIZ" => "#64748B",
+                    _ => "#2563EB"
                 };
             }
 
@@ -1465,6 +1482,7 @@ namespace _3K.Infrastructure.Services
             }
 
             var siraliSandiklar = sandiklar
+                .Where(s => EtkinDepoLokasyonId(s) != (int)DepoLokasyon.Belirsiz)
                 .OrderBy(EtkinDepoLokasyonMetni)
                 .ThenBy(s => s.Proje.ProjeNo)
                 .ThenBy(s => GetSandikSortKey(s.SandikNo))
@@ -1507,11 +1525,16 @@ namespace _3K.Infrastructure.Services
                         _ => "-"
                     }),
                     ToplamSandik = g.Count(),
-                    UcK = g.Count(s => EtkinDepoLokasyonId(s) == (int)DepoLokasyon.UcK),
-                    Seymen = g.Count(s => EtkinDepoLokasyonId(s) == (int)DepoLokasyon.Seymen),
-                    Grid = g.Count(s => EtkinDepoLokasyonId(s) == (int)DepoLokasyon.Grid)
+                    LokasyonSayilari = depoLokasyonlari.ToDictionary(
+                        lokasyon => lokasyon.Id,
+                        lokasyon => g.Count(s => EtkinDepoLokasyonId(s) == lokasyon.Id))
                 })
                 .OrderBy(p => p.ProjeNo)
+                .ToList();
+
+            var raporLokasyonlari = depoLokasyonlari
+                .Where(l => !BelirsizLokasyonMu(l))
+                .OrderBy(l => l.Anahtar)
                 .ToList();
 
             var document = Document.Create(container =>
@@ -1563,9 +1586,8 @@ namespace _3K.Infrastructure.Services
                             columns.RelativeColumn(1.4f);
                             columns.RelativeColumn(1.0f);
                             columns.RelativeColumn(0.9f);
-                            columns.RelativeColumn(0.9f);
-                            columns.RelativeColumn(0.9f);
-                            columns.RelativeColumn(0.9f);
+                            foreach (var _ in raporLokasyonlari)
+                                columns.RelativeColumn(0.9f);
                         });
 
                         table.Header(header =>
@@ -1577,9 +1599,8 @@ namespace _3K.Infrastructure.Services
                             HeaderCell(header.Cell(), "PROJE NO");
                             HeaderCell(header.Cell(), "PROJE TİPİ");
                             HeaderCell(header.Cell(), "TOPLAM SANDIK");
-                            HeaderCell(header.Cell(), "3K DEPO");
-                            HeaderCell(header.Cell(), "SEYMEN DEPO");
-                            HeaderCell(header.Cell(), "GRID DEPO");
+                            foreach (var lokasyon in raporLokasyonlari)
+                                HeaderCell(header.Cell(), lokasyon.Deger.ToUpperInvariant());
                         });
 
                         int sira = 1;
@@ -1607,18 +1628,17 @@ namespace _3K.Infrastructure.Services
                                 _ => "#0EA5E9"
                             });
                             DataCell(table.Cell(), proje.ToplamSandik.ToString(), bold: true);
-                            DataCell(table.Cell(), CountText(proje.UcK), bold: proje.UcK > 0, fontColor: "#0EA5E9");
-                            DataCell(table.Cell(), CountText(proje.Seymen), bold: proje.Seymen > 0, fontColor: "#078A55");
-                            DataCell(table.Cell(), CountText(proje.Grid), bold: proje.Grid > 0, fontColor: "#F59E0B");
+                            foreach (var lokasyon in raporLokasyonlari)
+                            {
+                                var count = proje.LokasyonSayilari.GetValueOrDefault(lokasyon.Id);
+                                DataCell(table.Cell(), CountText(count), bold: count > 0, fontColor: LokasyonRengi(lokasyon));
+                            }
 
                             sira++;
                         }
 
                         // ===== TOPLAM SATIRI =====
                         var genelToplamSandik = projeBazliDagilim.Sum(p => p.ToplamSandik);
-                        var genelUcK = projeBazliDagilim.Sum(p => p.UcK);
-                        var genelSeymen = projeBazliDagilim.Sum(p => p.Seymen);
-                        var genelGrid = projeBazliDagilim.Sum(p => p.Grid);
 
                         void ToplamCell(IContainer c, string text, string? fontColor = null)
                         {
@@ -1630,9 +1650,11 @@ namespace _3K.Infrastructure.Services
                         ToplamCell(table.Cell(), "TOPLAM");
                         ToplamCell(table.Cell(), $"{projeBazliDagilim.Count} proje");
                         ToplamCell(table.Cell(), genelToplamSandik.ToString());
-                        ToplamCell(table.Cell(), genelUcK > 0 ? genelUcK.ToString() : "-", "#0EA5E9");
-                        ToplamCell(table.Cell(), genelSeymen > 0 ? genelSeymen.ToString() : "-", "#078A55");
-                        ToplamCell(table.Cell(), genelGrid > 0 ? genelGrid.ToString() : "-", "#F59E0B");
+                        foreach (var lokasyon in raporLokasyonlari)
+                        {
+                            var toplam = projeBazliDagilim.Sum(p => p.LokasyonSayilari.GetValueOrDefault(lokasyon.Id));
+                            ToplamCell(table.Cell(), toplam > 0 ? toplam.ToString() : "-", LokasyonRengi(lokasyon));
+                        }
                     });
 
                     page.Footer().Row(footer =>

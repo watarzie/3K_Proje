@@ -305,10 +305,11 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             // 3K'da "Tam Geldi" veya karşılandı olarak işaretlenen ürünler doğrudan sandığa konmuş sayılır.
             var sandikIcerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
             var ilgiliIcerikler = await sandikIcerikRepo.FindAsync(x => x.CekiSatiriId == satir.Id);
+            var ilgiliIcerikListesi = ilgiliIcerikler.ToList();
             
-            if (ilgiliIcerikler.Any())
+            if (ilgiliIcerikListesi.Any())
             {
-                var anaIcerik = ilgiliIcerikler.First();
+                var anaIcerik = ilgiliIcerikListesi.First();
                 anaIcerik.KonulanAdet = Math.Max(toplam, 0); // Kumulatif net toplami konulan adete esitle
                 // Madde 2: Parçalı karşılama SandikIcerik senkronizasyonu
                 anaIcerik.StokKarsilanan = satir.StokKarsilanan;
@@ -316,6 +317,8 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 anaIcerik.TedarikciKarsilanan = satir.TedarikciKarsilanan;
                 sandikIcerikRepo.Update(anaIcerik);
             }
+
+            await VarsayilanUcKDepoLokasyonuAtaAsync(ilgiliIcerikListesi, request.KarsilamaTipiId);
 
             await _unitOfWork.SaveChangesAsync();
 
@@ -343,6 +346,37 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             });
 
             return Result.Success();
+        }
+
+        private async Task VarsayilanUcKDepoLokasyonuAtaAsync(IReadOnlyCollection<SandikIcerik> ilgiliIcerikler, int karsilamaTipiId)
+        {
+            if (!UcKDepoLokasyonuTetikler(karsilamaTipiId) || !ilgiliIcerikler.Any())
+                return;
+
+            var sandikIdleri = ilgiliIcerikler
+                .Select(i => i.SandikId)
+                .Distinct()
+                .ToList();
+
+            var sandikRepo = _unitOfWork.GetRepository<Sandik>();
+            var sandiklar = await sandikRepo.FindAsync(s =>
+                sandikIdleri.Contains(s.Id) &&
+                s.DepoLokasyonId == (int)DepoLokasyon.Belirsiz);
+
+            foreach (var sandik in sandiklar)
+            {
+                sandik.DepoLokasyonId = (int)DepoLokasyon.UcK;
+                sandikRepo.Update(sandik);
+            }
+        }
+
+        private static bool UcKDepoLokasyonuTetikler(int karsilamaTipiId)
+        {
+            return karsilamaTipiId == (int)UcKDurum.TamGeldi ||
+                   karsilamaTipiId == (int)UcKDurum.EksikGeldi ||
+                   karsilamaTipiId == (int)UcKDurum.ProjedenKarsilandi ||
+                   karsilamaTipiId == (int)UcKDurum.StoktanKarsilandi ||
+                   karsilamaTipiId == (int)UcKDurum.TedarikcidenGeldi;
         }
 
         /// <summary>

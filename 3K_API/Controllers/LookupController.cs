@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using _3K.Application.Features.LookupIslemleri.Commands;
 using _3K.Application.Features.LookupIslemleri.Queries;
 using _3K_API.Extensions;
 
@@ -36,6 +37,20 @@ namespace _3K_API.Controllers
             }
 
             var result = await _mediator.Send(new GetLookupsQuery { Entities = entity });
+            return result.ToActionResult();
+        }
+
+        [HttpPost("depo-lokasyon")]
+        public async Task<ActionResult> DepoLokasyonOlustur([FromBody] DepoLokasyonOlusturCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
+        [HttpDelete("depo-lokasyon/{id:int}")]
+        public async Task<ActionResult> DepoLokasyonSil(int id)
+        {
+            var result = await _mediator.Send(new DepoLokasyonSilCommand { Id = id });
             return result.ToActionResult();
         }
     }

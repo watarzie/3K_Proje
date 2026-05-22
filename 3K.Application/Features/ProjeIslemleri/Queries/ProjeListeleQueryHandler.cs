@@ -45,7 +45,10 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                 var hazirSandik = sandiklar.Count(s => 
                     s.DurumId == (int)SandikDurum.Kapandi || 
                     s.DurumId == (int)SandikDurum.Sevkedildi);
-                var depoSandiklar = sandiklar.Where(s => DepodaSayilacakSandik(s, gridKapandiSandikNolari)).ToList();
+                var depoSandiklar = sandiklar
+                    .Where(s => DepodaSayilacakSandik(s, gridKapandiSandikNolari))
+                    .Where(s => EtkinDepoLokasyonId(s, gridKapandiSandikNolari) != (int)DepoLokasyon.Belirsiz)
+                    .ToList();
                 var isSahaYedek = p.ProjeTipiId == (int)ProjeTipi.Saha || p.ProjeTipiId == (int)ProjeTipi.Yedek;
                 var sandikIcerikleri = sandiklar.SelectMany(s => s.SandikIcerikleri).ToList();
                 

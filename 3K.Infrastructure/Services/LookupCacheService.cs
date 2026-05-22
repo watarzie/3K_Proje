@@ -47,6 +47,11 @@ namespace _3K.Infrastructure.Services
             await LoadLookup<LookupSurecDurum>(ct);
         }
 
+        public Task RefreshAsync<TLookup>(CancellationToken ct = default) where TLookup : LookupBase
+        {
+            return LoadLookup<TLookup>(ct);
+        }
+
         private async Task LoadLookup<T>(CancellationToken ct) where T : LookupBase
         {
             var items = await _context.Set<T>().AsNoTracking().ToListAsync(ct);

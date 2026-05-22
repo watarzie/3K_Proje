@@ -6,9 +6,10 @@ namespace _3K.Application.Features.LookupIslemleri.Queries
     /// <summary>
     /// Birden fazla lookup tablosunu tek seferde çeker.
     /// Entity adları LookupBase subclass adlarıdır (örn: "LookupProjeDurum").
-    /// ICacheableRequest ile cache'lenir — Lookup verileri nadiren değişir.
+    /// Lookup verileri rol/depo yönetimi gibi ekranlardan değişebildiği için
+    /// bu sorgu uygulama cache'ine alınmaz.
     /// </summary>
-    public class GetLookupsQuery : IRequest<Result<Dictionary<string, List<DTOs.LookupItemDto>>>>, ICacheableRequest
+    public class GetLookupsQuery : IRequest<Result<Dictionary<string, List<DTOs.LookupItemDto>>>>
     {
         /// <summary>
         /// İstenen lookup sınıf adları listesi.
@@ -16,8 +17,5 @@ namespace _3K.Application.Features.LookupIslemleri.Queries
         /// </summary>
         public List<string> Entities { get; set; } = new();
 
-        // ===== ICacheableRequest =====
-        public string CacheKey => $"Lookups_{string.Join("_", Entities.OrderBy(e => e))}";
-        public int ExpirationInMinutes => 30; // Lookup verileri 30 dk cache'lenir
     }
 }

@@ -40,7 +40,7 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                     UrunSayisi = icerikler.Count,
                     IsManuelSandik = isManuelSandik,
                     SilinebilirMi = icerikler.Count == 0 || (isManuelSandik && icerikler.All(i => !ManuelSatirIslemGormus(i.CekiSatiri!))),
-                    DepodaSayilacakMi = DepodaSayilacakSandik(s, icerikler),
+                    DepodaSayilacakMi = etkinDepoLokasyonId != (int)DepoLokasyon.Belirsiz && DepodaSayilacakSandik(s, icerikler),
                     En = s.En,
                     Boy = s.Boy,
                     Yukseklik = s.Yukseklik,

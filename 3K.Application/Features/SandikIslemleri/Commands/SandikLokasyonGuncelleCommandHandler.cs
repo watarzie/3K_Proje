@@ -30,11 +30,57 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             }
 
             var repo = _unitOfWork.GetRepository<Sandik>();
-            var sandiklar = await repo.FindAsync(s => request.SandikIds.Contains(s.Id));
+            var sandiklar = (await repo.FindAsync(s => request.SandikIds.Contains(s.Id))).ToList();
 
             if (!sandiklar.Any())
             {
                 return Result<bool>.Failure("Sandıklar bulunamadı.");
+            }
+
+            var lokasyonRepo = _unitOfWork.GetRepository<LookupDepoLokasyon>();
+            var lokasyonlar = (await lokasyonRepo.FindAsync(l => true))
+                .ToDictionary(l => l.Id, l => l.Deger);
+
+            if (!lokasyonlar.ContainsKey(request.DepoLokasyonId))
+            {
+                return Result<bool>.Failure("Seçilen depo lokasyonu bulunamadı.");
+            }
+
+            if (!SandikDepoKurali.BelirsizLokasyonMu(request.DepoLokasyonId))
+            {
+                var sandikIdler = sandiklar.Select(s => s.Id).ToHashSet();
+                var icerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
+                var cekiSatiriRepo = _unitOfWork.GetRepository<CekiSatiri>();
+
+                var tumIcerikler = (await icerikRepo.FindAsync(i => sandikIdler.Contains(i.SandikId))).ToList();
+                var cekiSatiriIdler = tumIcerikler
+                    .Where(i => i.CekiSatiriId.HasValue)
+                    .Select(i => i.CekiSatiriId!.Value)
+                    .Distinct()
+                    .ToList();
+
+                var cekiSatirlari = cekiSatiriIdler.Count == 0
+                    ? new Dictionary<int, CekiSatiri>()
+                    : (await cekiSatiriRepo.FindAsync(c => cekiSatiriIdler.Contains(c.Id))).ToDictionary(c => c.Id);
+
+                var iceriklerBySandik = tumIcerikler
+                    .GroupBy(i => i.SandikId)
+                    .ToDictionary(g => g.Key, g => (IReadOnlyCollection<SandikIcerik>)g.ToList());
+
+                var atanamayanSandiklar = sandiklar
+                    .Where(s => s.DepoLokasyonId != request.DepoLokasyonId)
+                    .Where(s => !SandikDepoKurali.DepoLokasyonuAtanabilir(
+                        s,
+                        iceriklerBySandik.GetValueOrDefault(s.Id) ?? Array.Empty<SandikIcerik>(),
+                        cekiSatirlari))
+                    .Select(s => s.SandikNo)
+                    .ToList();
+
+                if (atanamayanSandiklar.Any())
+                {
+                    var sandikNoListesi = string.Join(", ", atanamayanSandiklar);
+                    return Result<bool>.Failure($"{sandikNoListesi} numaralı sandık(lar) için lokasyon atanamaz. {SandikDepoKurali.LokasyonAtamaUyariMesaji}");
+                }
             }
 
             foreach (var sandik in sandiklar)
@@ -43,8 +89,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 sandik.DepoLokasyonId = request.DepoLokasyonId;
                 repo.Update(sandik);
 
-                var eskiLokasyonMetni = Enum.GetName(typeof(DepoLokasyon), eskiLokasyon) ?? eskiLokasyon.ToString();
-                var yeniLokasyonMetni = Enum.GetName(typeof(DepoLokasyon), sandik.DepoLokasyonId) ?? sandik.DepoLokasyonId.ToString();
+                var eskiLokasyonMetni = lokasyonlar.GetValueOrDefault(eskiLokasyon, eskiLokasyon.ToString());
+                var yeniLokasyonMetni = lokasyonlar.GetValueOrDefault(sandik.DepoLokasyonId, sandik.DepoLokasyonId.ToString());
 
                 await _hareketService.HareketKaydetAsync(new HareketGecmisi
                 {
