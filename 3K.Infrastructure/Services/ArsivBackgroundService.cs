@@ -31,6 +31,7 @@ namespace _3K.Infrastructure.Services
                     var delay = nextRun - now;
 
                     _logger.LogInformation("Sonraki arşivleme: {NextRun:dd.MM.yyyy HH:mm}", nextRun);
+
                     await Task.Delay(delay, stoppingToken);
 
                     using var scope = _scopeFactory.CreateScope();

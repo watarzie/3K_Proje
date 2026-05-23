@@ -39,7 +39,8 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                 Lokasyon = proje.Lokasyon,
                 SandikSayisi = sandiklar.Count,
                 ToplamUrunSayisi = toplamUrun,
-                TamamlananUrunSayisi = tamamlananUrun
+                TamamlananUrunSayisi = tamamlananUrun,
+                TamamlanmaYuzdesi = toplamUrun > 0 ? (int)((double)tamamlananUrun / toplamUrun * 100) : 0
             };
         }
 
