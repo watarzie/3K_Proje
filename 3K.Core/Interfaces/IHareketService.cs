@@ -11,5 +11,7 @@ namespace _3K.Core.Interfaces
         Task HareketKaydetAsync(HareketGecmisi hareket);
         Task<IEnumerable<HareketGecmisi>> GetProjeHareketleriAsync(int projeId);
         Task<IEnumerable<HareketGecmisi>> GetUrunHareketleriAsync(string referansTipi, string referansId);
+        Task<(IEnumerable<HareketGecmisi> Items, int TotalCount)> GetPaginatedProjeHareketleriAsync(
+            int projeId, string? searchTerm, int? islemTipiId, int pageNumber, int pageSize);
     }
 }

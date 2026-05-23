@@ -1,0 +1,36 @@
+namespace _3K.Core.Entities
+{
+    /// <summary>
+    /// Dashboard özet ham verileri.
+    /// IDashboardStatsProvider tarafından SQL aggregate sorgularıyla doldurulur.
+    /// </summary>
+    public class DashboardOzetRawStats
+    {
+        // Proje durum sayıları
+        public int ToplamProje { get; set; }
+        public int HazirlananProje { get; set; }
+        public int BeklemedeProje { get; set; }
+        public int TamamlananProje { get; set; }
+        public int SevkEdilenProje { get; set; }
+
+        // Sandık sayıları
+        public int ToplamSandik { get; set; }
+        public int NormalSandik { get; set; }
+        public int SahaSandik { get; set; }
+        public int YedekSandik { get; set; }
+
+        // Eksik ürün
+        public int EksikUrunSayisi { get; set; }
+
+        // Depo lokasyon bazlı
+        public int ToplamDepoSandik { get; set; }
+        public int DepoUcKSandik { get; set; }
+        public int DepoSeymenSandik { get; set; }
+        public int DepoGridSandik { get; set; }
+        public int DepoDigerSandik { get; set; }
+
+        // Saha/Yedek yüzdeleri
+        public int SahaYuzde { get; set; }
+        public int YedekYuzde { get; set; }
+    }
+}

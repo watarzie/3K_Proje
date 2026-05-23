@@ -37,6 +37,7 @@ namespace _3K.Application.Features.DashboardIslemleri.DTOs
         public int SandikSayisi { get; set; }
         public int ToplamUrunSayisi { get; set; }
         public int TamamlananUrunSayisi { get; set; }
+        public int TamamlanmaYuzdesi { get; set; }
     }
 
     public class DashboardKritikProjeDto

@@ -52,6 +52,53 @@ namespace _3K.Infrastructure.Repositories
                 .ToListAsync(cancellationToken);
         }
 
+        public async Task<(IEnumerable<Proje> Items, int TotalCount)> GetFilteredPagedAsync(
+            int? projeTipiId, string? searchTerm, bool? isSevkEdilen,
+            int pageNumber, int pageSize, CancellationToken cancellationToken = default)
+        {
+            var query = _context.Projeler.AsQueryable();
+
+            if (projeTipiId.HasValue)
+                query = query.Where(p => p.ProjeTipiId == projeTipiId.Value);
+
+            if (isSevkEdilen.HasValue)
+            {
+                if (isSevkEdilen.Value)
+                    query = query.Where(p => p.DurumId == 5 || p.DurumId == 6); // SevkEdildi, EksikSevkEdildi
+                else
+                    query = query.Where(p => p.DurumId != 5 && p.DurumId != 6);
+            }
+
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                var lower = searchTerm.ToLower();
+                query = query.Where(p =>
+                    p.ProjeNo.ToLower().Contains(lower) ||
+                    p.Musteri.ToLower().Contains(lower));
+            }
+
+            var totalCount = await query.CountAsync(cancellationToken);
+
+            var safePage = Math.Max(pageNumber, 1);
+            var safePageSize = Math.Clamp(pageSize, 1, 100);
+
+            var items = await query
+                .OrderByDescending(p => p.CreatedDate)
+                .ThenByDescending(p => p.Id)
+                .Skip((safePage - 1) * safePageSize)
+                .Take(safePageSize)
+                .Include(p => p.Sandiklar)
+                    .ThenInclude(s => s.SandikIcerikleri)
+                        .ThenInclude(si => si.CekiSatiri)
+                .Include(p => p.Cekiler)
+                    .ThenInclude(c => c.CekiSatirlari)
+                .AsNoTracking()
+                .AsSplitQuery()
+                .ToListAsync(cancellationToken);
+
+            return (items, totalCount);
+        }
+
         /// <summary>
         /// Dropdown'lar için hafif proje listesi — Include yok, sadece Proje tablosu.
         /// </summary>

@@ -8,7 +8,7 @@ using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.ProjeIslemleri.Queries
 {
-    public class ProjeListeleQueryHandler : IRequestHandler<ProjeListeleQuery, Result<IEnumerable<ProjeDto>>>
+    public class ProjeListeleQueryHandler : IRequestHandler<ProjeListeleQuery, Result<PaginatedList<ProjeDto>>>
     {
         private readonly IProjeRepository _projeRepository;
         private readonly ILookupCacheService _lookupCache;
@@ -19,15 +19,11 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
             _lookupCache = lookupCache;
         }
 
-        public async Task<Result<IEnumerable<ProjeDto>>> Handle(ProjeListeleQuery request, CancellationToken cancellationToken)
+        public async Task<Result<PaginatedList<ProjeDto>>> Handle(ProjeListeleQuery request, CancellationToken cancellationToken)
         {
-            var projeler = await _projeRepository.GetAllWithDetailsAsync(cancellationToken);
-
-            // ProjeTipiId filtresi
-            if (request.ProjeTipiId.HasValue)
-            {
-                projeler = projeler.Where(p => p.ProjeTipiId == request.ProjeTipiId.Value);
-            }
+            var (projeler, totalCount) = await _projeRepository.GetFilteredPagedAsync(
+                request.ProjeTipiId, request.SearchTerm, request.IsSevkEdilen,
+                request.PageNumber, request.PageSize, cancellationToken);
 
             var result = projeler.Select(p =>
             {
@@ -107,7 +103,9 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                 };
             });
 
-            return Result<IEnumerable<ProjeDto>>.Success(result);
+            var resultList = result.ToList();
+            var paginatedList = new PaginatedList<ProjeDto>(resultList, totalCount, request.PageNumber, request.PageSize);
+            return Result<PaginatedList<ProjeDto>>.Success(paginatedList);
         }
 
         private static bool DepodaSayilacakSandik(Sandik sandik, IReadOnlySet<string> gridKapandiSandikNolari)

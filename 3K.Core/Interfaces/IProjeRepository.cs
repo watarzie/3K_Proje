@@ -13,6 +13,10 @@ namespace _3K.Core.Interfaces
         Task<int> CountAsync(CancellationToken cancellationToken = default);
         Task<IEnumerable<Proje>> GetPagedWithDetailsAsync(int page, int pageSize, CancellationToken cancellationToken = default);
 
+        Task<(IEnumerable<Proje> Items, int TotalCount)> GetFilteredPagedAsync(
+            int? projeTipiId, string? searchTerm, bool? isSevkEdilen,
+            int pageNumber, int pageSize, CancellationToken cancellationToken = default);
+
         /// <summary>
         /// Dropdown'lar için hafif proje listesi — Include yok, sadece Proje tablosu.
         /// </summary>

@@ -9,66 +9,37 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
 {
     public class DashboardOzetQueryHandler : IRequestHandler<DashboardOzetQuery, Result<DashboardOzetDto>>
     {
-        private readonly IProjeRepository _projeRepository;
-        private readonly ILookupCacheService _lookupCache;
+        private readonly IDashboardStatsProvider _statsProvider;
 
-        public DashboardOzetQueryHandler(IProjeRepository projeRepository, ILookupCacheService lookupCache)
+        public DashboardOzetQueryHandler(IDashboardStatsProvider statsProvider)
         {
-            _projeRepository = projeRepository;
-            _lookupCache = lookupCache;
+            _statsProvider = statsProvider;
         }
 
         public async Task<Result<DashboardOzetDto>> Handle(DashboardOzetQuery request, CancellationToken cancellationToken)
         {
-            var projeler = (await _projeRepository.GetAllWithDetailsAsync(cancellationToken)).ToList();
-            var projeItems = projeler.Select(p => DashboardProjection.ToProjeItem(p, _lookupCache)).ToList();
-            var depoSandiklar = new List<(Sandik Sandik, int LokasyonId)>();
-
-            foreach (var proje in projeler)
-            {
-                var cekiSatirlari = proje.Cekiler?.SelectMany(c => c.CekiSatirlari).ToList() ?? new List<CekiSatiri>();
-                var gridKapandiSandikNolari = cekiSatirlari
-                    .Where(cs => cs.GridDurumuId == (int)GridDurum.GridKapandi)
-                    .Select(cs => cs.FiiliSandikNo ?? cs.CekideGecenSandikNo)
-                    .Where(sandikNo => !string.IsNullOrWhiteSpace(sandikNo))
-                    .Select(sandikNo => sandikNo!.Trim())
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-                foreach (var sandik in proje.Sandiklar.Where(s => DashboardProjection.DepodaSayilacakSandik(s, gridKapandiSandikNolari)))
-                {
-                    var lokasyonId = DashboardProjection.EtkinDepoLokasyonId(sandik, gridKapandiSandikNolari);
-                    if (lokasyonId != (int)DepoLokasyon.Belirsiz)
-                        depoSandiklar.Add((sandik, lokasyonId));
-                }
-            }
-
-            var sahaProjeleri = projeItems.Where(p => p.ProjeTipiId == (int)ProjeTipi.Saha).ToList();
-            var yedekProjeleri = projeItems.Where(p => p.ProjeTipiId == (int)ProjeTipi.Yedek).ToList();
-            var sahaToplam = sahaProjeleri.Sum(p => p.ToplamUrunSayisi);
-            var sahaTamamlanan = sahaProjeleri.Sum(p => p.TamamlananUrunSayisi);
-            var yedekToplam = yedekProjeleri.Sum(p => p.ToplamUrunSayisi);
-            var yedekTamamlanan = yedekProjeleri.Sum(p => p.TamamlananUrunSayisi);
+            var stats = await _statsProvider.GetOzetStatsAsync(cancellationToken);
 
             var ozet = new DashboardOzetDto
             {
-                ToplamProje = projeItems.Count,
-                HazirlananProje = projeItems.Count(p => p.DurumId == (int)ProjeDurum.Hazirlaniyor),
-                BeklemedeProje = projeItems.Count(p => p.DurumId == (int)ProjeDurum.Beklemede),
-                TamamlananProje = projeItems.Count(p => p.DurumId == (int)ProjeDurum.Tamamlandi),
-                SevkEdilenProje = projeItems.Count(p => p.DurumId == (int)ProjeDurum.SevkEdildi || p.DurumId == (int)ProjeDurum.EksikSevkEdildi),
-                ToplamSandik = projeItems.Sum(p => p.SandikSayisi),
-                EksikUrunSayisi = projeItems.Sum(p => Math.Max(p.ToplamUrunSayisi - p.TamamlananUrunSayisi, 0)),
-                ToplamDepoSandik = depoSandiklar.Count,
-                DepoUcKSandik = depoSandiklar.Count(s => s.LokasyonId == (int)DepoLokasyon.UcK),
-                DepoSeymenSandik = depoSandiklar.Count(s => s.LokasyonId == (int)DepoLokasyon.Seymen),
-                DepoGridSandik = depoSandiklar.Count(s => s.LokasyonId == (int)DepoLokasyon.Grid),
-                NormalSandik = projeItems.Where(p => p.ProjeTipiId == (int)ProjeTipi.Normal).Sum(p => p.SandikSayisi),
-                SahaSandik = sahaProjeleri.Sum(p => p.SandikSayisi),
-                YedekSandik = yedekProjeleri.Sum(p => p.SandikSayisi),
-                SahaYuzde = sahaToplam > 0 ? (int)Math.Floor((decimal)sahaTamamlanan / sahaToplam * 100) : 0,
-                YedekYuzde = yedekToplam > 0 ? (int)Math.Floor((decimal)yedekTamamlanan / yedekToplam * 100) : 0
+                ToplamProje = stats.ToplamProje,
+                HazirlananProje = stats.HazirlananProje,
+                BeklemedeProje = stats.BeklemedeProje,
+                TamamlananProje = stats.TamamlananProje,
+                SevkEdilenProje = stats.SevkEdilenProje,
+                ToplamSandik = stats.ToplamSandik,
+                EksikUrunSayisi = stats.EksikUrunSayisi,
+                ToplamDepoSandik = stats.ToplamDepoSandik,
+                DepoUcKSandik = stats.DepoUcKSandik,
+                DepoSeymenSandik = stats.DepoSeymenSandik,
+                DepoGridSandik = stats.DepoGridSandik,
+                DepoDigerSandik = stats.DepoDigerSandik,
+                NormalSandik = stats.NormalSandik,
+                SahaSandik = stats.SahaSandik,
+                YedekSandik = stats.YedekSandik,
+                SahaYuzde = stats.SahaYuzde,
+                YedekYuzde = stats.YedekYuzde
             };
-            ozet.DepoDigerSandik = Math.Max(ozet.ToplamDepoSandik - ozet.DepoUcKSandik - ozet.DepoSeymenSandik - ozet.DepoGridSandik, 0);
 
             return Result<DashboardOzetDto>.Success(ozet);
         }

@@ -5,13 +5,12 @@ using _3K.Application.Features.ProjeIslemleri.DTOs;
 namespace _3K.Application.Features.ProjeIslemleri.Queries
 {
     /// <summary>
-    /// Projeleri listeler — opsiyonel ProjeTipiId filtresi ile.
+    /// Projeleri listeler — server-side pagination ile.
     /// </summary>
-    public class ProjeListeleQuery : IRequest<Result<IEnumerable<ProjeDto>>>, ISecuredRequest
+    public class ProjeListeleQuery : PaginatedQuery<Result<PaginatedList<ProjeDto>>>, ISecuredRequest
     {
-        /// <summary>
-        /// Null ise tüm projeler döner, doluysa sadece o tipteki projeler (Normal=1, Saha=2, Yedek=3).
-        /// </summary>
         public int? ProjeTipiId { get; set; }
+        public string? SearchTerm { get; set; }
+        public bool? IsSevkEdilen { get; set; }
     }
 }
