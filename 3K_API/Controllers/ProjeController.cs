@@ -18,9 +18,21 @@ namespace _3K_API.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult> GetAll([FromQuery] int? projeTipiId = null)
+        public async Task<ActionResult> GetAll(
+            [FromQuery] int? projeTipiId = null,
+            [FromQuery] string? searchTerm = null,
+            [FromQuery] bool? isSevkEdilen = null,
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 15)
         {
-            var result = await _mediator.Send(new ProjeListeleQuery { ProjeTipiId = projeTipiId });
+            var result = await _mediator.Send(new ProjeListeleQuery
+            {
+                ProjeTipiId = projeTipiId,
+                SearchTerm = searchTerm,
+                IsSevkEdilen = isSevkEdilen,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            });
             return result.ToActionResult();
         }
 
