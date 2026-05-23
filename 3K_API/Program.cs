@@ -119,6 +119,7 @@ try
     builder.Services.AddScoped<IUrunService, UrunService>();
     builder.Services.AddScoped<IStokService, StokService>();
     builder.Services.AddScoped<IHareketService, HareketService>();
+    builder.Services.AddScoped<IArsivService, ArsivService>();
     builder.Services.AddScoped<IPdfService, PdfService>();
     builder.Services.AddScoped<IMailService, MailService>();
     builder.Services.AddScoped<IAuthService, AuthService>();
@@ -134,6 +135,7 @@ try
     // ======= Background Task Queue =======
     builder.Services.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
     builder.Services.AddHostedService<BackgroundTaskProcessor>();
+    builder.Services.AddHostedService<ArsivBackgroundService>();
 
     // ======= In-Memory Cache + Lookup Cache =======
     builder.Services.AddMemoryCache();

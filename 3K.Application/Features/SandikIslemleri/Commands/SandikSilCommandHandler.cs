@@ -96,6 +96,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 ReferansId = request.SandikId.ToString(),
                 Islem = "Sandık Silindi",
                 IslemTipiId = (int)IslemTipi.SandikSilindi,
+                ReferansMetni = $"No: {sandikNo}",
                 Aciklama = silinenManuelUrunSayisi > 0
                     ? $"Manuel sandık {sandikNo} ve içindeki {silinenManuelUrunSayisi} manuel ürün silindi."
                     : $"Sandık {sandikNo} silindi."

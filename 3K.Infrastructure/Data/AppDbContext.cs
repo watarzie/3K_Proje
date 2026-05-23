@@ -21,6 +21,7 @@ namespace _3K.Infrastructure.Data
         public DbSet<StokKaydi> StokKayitlari { get; set; } = null!;
         public DbSet<StokHareketi> StokHareketleri { get; set; } = null!;
         public DbSet<HareketGecmisi> HareketGecmisleri { get; set; } = null!;
+        public DbSet<HareketGecmisiArsiv> HareketGecmisleriArsiv { get; set; } = null!;
         public DbSet<ProjeTransfer> ProjeTransferleri { get; set; } = null!;
         public DbSet<OnayBekleyenIslem> OnayBekleyenIslemler { get; set; } = null!;
 
@@ -487,6 +488,14 @@ namespace _3K.Infrastructure.Data
                 .WithMany(k => k.HareketGecmisleri)
                 .HasForeignKey(hg => hg.KullaniciId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // HareketGecmisiArsiv — arsiv tablosu (FK yok, self-contained)
+            modelBuilder.Entity<HareketGecmisiArsiv>(entity =>
+            {
+                entity.ToTable("HareketGecmisleriArsiv");
+                entity.HasIndex(e => new { e.ProjeId, e.Tarih }).IsDescending(false, true);
+                entity.HasIndex(e => e.IslemTipiId);
+            });
 
 
             // ===============================================================

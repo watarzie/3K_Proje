@@ -78,6 +78,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 ReferansId = request.SandikIcerikId!.Value.ToString(),
                 Islem = "Manuel Ürün Silindi",
                 IslemTipiId = (int)IslemTipi.ManuelUrunSilindi,
+                ReferansMetni = urunBilgi,
                 Aciklama = $"Saha/Yedek ürün silindi: {urunBilgi}"
             });
 
@@ -128,6 +129,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 ReferansId = request.CekiSatiriId!.Value.ToString(),
                 Islem = "Manuel Ürün Silindi",
                 IslemTipiId = (int)IslemTipi.ManuelUrunSilindi,
+                ReferansMetni = urunBilgi,
                 Aciklama = $"Manuel eklenen ürün silindi: {urunBilgi}"
             });
 

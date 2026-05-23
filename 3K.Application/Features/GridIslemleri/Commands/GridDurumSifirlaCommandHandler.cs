@@ -77,10 +77,10 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
             // ===== Hareket kaydı =====
             var detay = $"Grid Sıfırlandı: " +
-                $"GridDurum:{eskiGridDurum}→Bekliyor, " +
-                $"GridGelenAdet:{eskiGridGelenAdet}→0, " +
-                $"TrafoSevkAdet:{eskiTrafoSevkAdet}→0, " +
-                $"SevkDurum:{eskiSevkDurum}→SevkEdilmedi, " +
+                $"GridDurum:{Enum.GetName(typeof(GridDurum), eskiGridDurum) ?? eskiGridDurum.ToString()}→Bekliyor, " +
+                $"GridGelenAdet:{(int)eskiGridGelenAdet}→0, " +
+                $"TrafoSevkAdet:{(int)eskiTrafoSevkAdet}→0, " +
+                $"SevkDurum:{Enum.GetName(typeof(GridSevkDurum), eskiSevkDurum) ?? eskiSevkDurum.ToString()}→SevkEdilmedi, " +
                 $"SevkMiktari:{eskiSevkMiktari?.ToString() ?? "null"}→null";
 
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
@@ -91,7 +91,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 ReferansId = satir.Id.ToString(),
                 Islem = "Grid Durum Sıfırlandı",
                 IslemTipiId = (int)IslemTipi.GridDurumSifirlandi,
-                EskiDeger = $"GridDurum:{eskiGridDurum}, GridGelenAdet:{eskiGridGelenAdet}, SevkDurum:{eskiSevkDurum}",
+                EskiDeger = $"GridDurum:{Enum.GetName(typeof(GridDurum), eskiGridDurum) ?? eskiGridDurum.ToString()}, GridGelenAdet:{(int)eskiGridGelenAdet}, SevkDurum:{Enum.GetName(typeof(GridSevkDurum), eskiSevkDurum) ?? eskiSevkDurum.ToString()}",
                 YeniDeger = "Bekliyor (Sıfırlandı)",
                 Aciklama = string.IsNullOrWhiteSpace(request.Aciklama)
                     ? detay

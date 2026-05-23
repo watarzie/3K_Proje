@@ -7,7 +7,7 @@ using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.HareketGecmisiIslemleri.Queries
 {
-    public class GetProjeHareketleriQueryHandler : IRequestHandler<GetProjeHareketleriQuery, Result<IEnumerable<HareketGecmisiDto>>>
+    public class GetProjeHareketleriQueryHandler : IRequestHandler<GetProjeHareketleriQuery, Result<PaginatedList<HareketGecmisiDto>>>
     {
         private readonly IHareketService _hareketService;
         private readonly IUnitOfWork _unitOfWork;
@@ -18,9 +18,11 @@ namespace _3K.Application.Features.HareketGecmisiIslemleri.Queries
             _unitOfWork = unitOfWork;
         }
 
-        public async Task<Result<IEnumerable<HareketGecmisiDto>>> Handle(GetProjeHareketleriQuery request, CancellationToken cancellationToken)
+        public async Task<Result<PaginatedList<HareketGecmisiDto>>> Handle(GetProjeHareketleriQuery request, CancellationToken cancellationToken)
         {
-            var hareketler = await _hareketService.GetProjeHareketleriAsync(request.ProjeId);
+            var pagedData = await _hareketService.GetPaginatedProjeHareketleriAsync(
+                request.ProjeId, request.SearchTerm, request.IslemTipiId, request.PageNumber, request.PageSize);
+            var hareketler = pagedData.Items;
 
             var cekiSatirlari = await _unitOfWork.GetRepository<CekiSatiri>().FindAsync(x => x.Ceki.ProjeId == request.ProjeId);
             var sandiklar = await _unitOfWork.GetRepository<Sandik>().FindAsync(x => x.ProjeId == request.ProjeId);
@@ -37,50 +39,70 @@ namespace _3K.Application.Features.HareketGecmisiIslemleri.Queries
                 string refTipi = h.ReferansTipi;
                 string refId = h.ReferansId ?? "";
 
-                if (h.ReferansTipi.Equals("CekiSatiri", StringComparison.OrdinalIgnoreCase))
+                // Use denormalized ReferansMetni if available (new records)
+                if (!string.IsNullOrWhiteSpace(h.ReferansMetni))
                 {
-                    refTipi = "Ürün";
-                    if (cekiDict.TryGetValue(refId, out var ceki))
-                        refId = $"Poz: {ceki.OlcuResmiPozNo} - {ceki.Aciklama}";
-                    else
-                        refId = "Eski / Silinmiş Ürün";
-                }
-                else if (h.ReferansTipi.Equals("Sandik", StringComparison.OrdinalIgnoreCase))
-                {
-                    refTipi = "Sandık";
-                    if (sandikDict.TryGetValue(refId, out var sandik))
-                        refId = $"No: {sandik.SandikNo}";
-                    else
-                        refId = "Eski / Silinmiş Sandık";
-                }
-                else if (h.ReferansTipi.Equals("SandikIcerik", StringComparison.OrdinalIgnoreCase))
-                {
-                    refTipi = "Sandık İçeriği";
-                    if (icerikDict.TryGetValue(refId, out var icerik))
+                    // Still map ReferansTipi to readable name
+                    refTipi = h.ReferansTipi switch
                     {
-                        var urunTanim = cekiDict.TryGetValue(icerik.CekiSatiriId.ToString(), out var urun) ? urun.Aciklama : "Ürün";
-                        var sandikNo = sandikDict.TryGetValue(icerik.SandikId.ToString(), out var s) ? s.SandikNo : "?";
-                        refId = $"Sandık {sandikNo} -> {urunTanim}";
-                    }
-                    else
+                        "CekiSatiri" => "Ürün",
+                        "Sandik" => "Sandık",
+                        "SandikIcerik" => "Sandık İçeriği",
+                        "StokHareketi" => "Stok Hareketi",
+                        "Proje" => "Proje Geneli",
+                        _ when h.ReferansTipi.Contains("Toplu", StringComparison.OrdinalIgnoreCase) => "Toplu İşlem",
+                        _ => h.ReferansTipi
+                    };
+                    refId = h.ReferansMetni;
+                }
+                else
+                {
+                    // Fallback: dictionary resolution for old records (existing logic)
+                    if (h.ReferansTipi.Equals("CekiSatiri", StringComparison.OrdinalIgnoreCase))
                     {
-                        refId = "Geçmiş / Taşınmış Kayıt";
+                        refTipi = "Ürün";
+                        if (cekiDict.TryGetValue(refId, out var ceki))
+                            refId = $"Poz: {ceki.OlcuResmiPozNo} - {ceki.Aciklama}";
+                        else
+                            refId = "Eski / Silinmiş Ürün";
                     }
-                }
-                else if (h.ReferansTipi.Equals("StokHareketi", StringComparison.OrdinalIgnoreCase))
-                {
-                    refTipi = "Stok Hareketi";
-                    refId = "Geçmiş Stok İşlemi";
-                }
-                else if (h.ReferansTipi.Equals("Proje", StringComparison.OrdinalIgnoreCase))
-                {
-                    refTipi = "Proje Geneli";
-                    refId = "-";
-                }
-                else if (h.ReferansTipi.Contains("Toplu", StringComparison.OrdinalIgnoreCase))
-                {
-                    refTipi = "Toplu İşlem";
-                    refId = "Birden fazla kayıt";
+                    else if (h.ReferansTipi.Equals("Sandik", StringComparison.OrdinalIgnoreCase))
+                    {
+                        refTipi = "Sandık";
+                        if (sandikDict.TryGetValue(refId, out var sandik))
+                            refId = $"No: {sandik.SandikNo}";
+                        else
+                            refId = "Eski / Silinmiş Sandık";
+                    }
+                    else if (h.ReferansTipi.Equals("SandikIcerik", StringComparison.OrdinalIgnoreCase))
+                    {
+                        refTipi = "Sandık İçeriği";
+                        if (icerikDict.TryGetValue(refId, out var icerik))
+                        {
+                            var urunTanim = cekiDict.TryGetValue(icerik.CekiSatiriId.ToString(), out var urun) ? urun.Aciklama : "Ürün";
+                            var sandikNo = sandikDict.TryGetValue(icerik.SandikId.ToString(), out var s) ? s.SandikNo : "?";
+                            refId = $"Sandık {sandikNo} -> {urunTanim}";
+                        }
+                        else
+                        {
+                            refId = "Geçmiş / Taşınmış Kayıt";
+                        }
+                    }
+                    else if (h.ReferansTipi.Equals("StokHareketi", StringComparison.OrdinalIgnoreCase))
+                    {
+                        refTipi = "Stok Hareketi";
+                        refId = "Geçmiş Stok İşlemi";
+                    }
+                    else if (h.ReferansTipi.Equals("Proje", StringComparison.OrdinalIgnoreCase))
+                    {
+                        refTipi = "Proje Geneli";
+                        refId = "-";
+                    }
+                    else if (h.ReferansTipi.Contains("Toplu", StringComparison.OrdinalIgnoreCase))
+                    {
+                        refTipi = "Toplu İşlem";
+                        refId = "Birden fazla kayıt";
+                    }
                 }
 
                 return new HareketGecmisiDto
@@ -96,9 +118,10 @@ namespace _3K.Application.Features.HareketGecmisiIslemleri.Queries
                     KullaniciAdi = h.Kullanici?.AdSoyad ?? "",
                     Tarih = h.Tarih
                 };
-            });
+            }).ToList();
 
-            return Result<IEnumerable<HareketGecmisiDto>>.Success(result);
+            var paginatedList = new PaginatedList<HareketGecmisiDto>(result, pagedData.TotalCount, request.PageNumber, request.PageSize);
+            return Result<PaginatedList<HareketGecmisiDto>>.Success(paginatedList);
         }
 
         private string? GetDegerMetni(int? islemTipiId, string? islemMetni, string? deger)

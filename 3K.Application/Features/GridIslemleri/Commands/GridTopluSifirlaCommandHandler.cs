@@ -91,7 +91,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                     ReferansId = satir.Id.ToString(),
                     Islem = "Grid Toplu Sıfırlandı",
                     IslemTipiId = (int)IslemTipi.GridDurumSifirlandi,
-                    EskiDeger = $"GridDurum:{eskiGridDurum}",
+                    EskiDeger = $"GridDurum:{Enum.GetName(typeof(GridDurum), eskiGridDurum) ?? eskiGridDurum.ToString()}",
                     YeniDeger = "Bekliyor (Sıfırlandı)",
                     Aciklama = $"Toplu Grid sıfırlama — {(string.IsNullOrWhiteSpace(request.Aciklama) ? "Açıklama yok" : request.Aciklama)}"
                 });

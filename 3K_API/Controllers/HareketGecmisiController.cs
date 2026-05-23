@@ -17,9 +17,21 @@ namespace _3K_API.Controllers
         }
 
         [HttpGet("{projeId}/gecmis")]
-        public async Task<ActionResult> GetByProje(int projeId)
+        public async Task<ActionResult> GetByProje(
+            int projeId,
+            [FromQuery] string? searchTerm = null,
+            [FromQuery] int? islemTipiId = null,
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 15)
         {
-            var result = await _mediator.Send(new GetProjeHareketleriQuery { ProjeId = projeId });
+            var result = await _mediator.Send(new GetProjeHareketleriQuery
+            {
+                ProjeId = projeId,
+                SearchTerm = searchTerm,
+                IslemTipiId = islemTipiId,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            });
             return result.ToActionResult();
         }
     }
