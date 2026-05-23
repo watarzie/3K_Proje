@@ -28,9 +28,17 @@ namespace _3K.Core.Entities
         public int DepoSeymenSandik { get; set; }
         public int DepoGridSandik { get; set; }
         public int DepoDigerSandik { get; set; }
+        public List<DashboardDepoDagilimRawStats> DepoDagilimlari { get; set; } = new();
 
         // Saha/Yedek yüzdeleri
         public int SahaYuzde { get; set; }
         public int YedekYuzde { get; set; }
+    }
+
+    public class DashboardDepoDagilimRawStats
+    {
+        public int DepoLokasyonId { get; set; }
+        public string DepoLokasyonMetni { get; set; } = string.Empty;
+        public int SandikSayisi { get; set; }
     }
 }

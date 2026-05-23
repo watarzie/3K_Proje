@@ -14,11 +14,19 @@ namespace _3K.Application.Features.DashboardIslemleri.DTOs
         public int DepoSeymenSandik { get; set; }
         public int DepoGridSandik { get; set; }
         public int DepoDigerSandik { get; set; }
+        public List<DashboardDepoDagilimDto> DepoDagilimlari { get; set; } = new();
         public int NormalSandik { get; set; }
         public int SahaSandik { get; set; }
         public int YedekSandik { get; set; }
         public int SahaYuzde { get; set; }
         public int YedekYuzde { get; set; }
+    }
+
+    public class DashboardDepoDagilimDto
+    {
+        public int DepoLokasyonId { get; set; }
+        public string DepoLokasyonMetni { get; set; } = string.Empty;
+        public int SandikSayisi { get; set; }
     }
 
     public class DashboardProjeItemDto

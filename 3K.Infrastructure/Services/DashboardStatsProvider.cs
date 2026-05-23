@@ -89,6 +89,26 @@ namespace _3K.Infrastructure.Services
             var depoUcK = GetDepoCount((int)DepoLokasyon.UcK);
             var depoSeymen = GetDepoCount((int)DepoLokasyon.Seymen);
             var depoGrid = GetDepoCount((int)DepoLokasyon.Grid);
+            var depoLokasyonIds = depoSandikCounts.Select(d => d.LokasyonId).ToList();
+            var depoLokasyonlar = await _context.LookupDepoLokasyonlari
+                .Where(l => depoLokasyonIds.Contains(l.Id))
+                .Select(l => new { l.Id, l.Anahtar, l.Deger })
+                .ToListAsync(ct);
+            var depoLokasyonLookup = depoLokasyonlar.ToDictionary(l => l.Id);
+            var depoDagilimlari = depoSandikCounts
+                .Select(d =>
+                {
+                    depoLokasyonLookup.TryGetValue(d.LokasyonId, out var lokasyon);
+                    return new DashboardDepoDagilimRawStats
+                    {
+                        DepoLokasyonId = d.LokasyonId,
+                        DepoLokasyonMetni = lokasyon?.Deger ?? $"Depo {d.LokasyonId}",
+                        SandikSayisi = d.Count
+                    };
+                })
+                .OrderBy(d => depoLokasyonLookup.TryGetValue(d.DepoLokasyonId, out var lokasyon) ? lokasyon.Anahtar : d.DepoLokasyonId)
+                .ThenBy(d => d.DepoLokasyonMetni)
+                .ToList();
 
             // ── Saha/Yedek yüzdeleri ──
             var sahaYedekStats = await _context.Projeler
@@ -125,6 +145,7 @@ namespace _3K.Infrastructure.Services
                 DepoSeymenSandik = depoSeymen,
                 DepoGridSandik = depoGrid,
                 DepoDigerSandik = Math.Max(toplamDepoSandik - depoUcK - depoSeymen - depoGrid, 0),
+                DepoDagilimlari = depoDagilimlari,
                 SahaYuzde = sahaStats is { ToplamUrun: > 0 }
                     ? (int)Math.Floor((decimal)sahaStats.TamamlananUrun / sahaStats.ToplamUrun * 100) : 0,
                 YedekYuzde = yedekStats is { ToplamUrun: > 0 }

@@ -20,6 +20,7 @@ namespace _3K.Application.Features.ProjeIslemleri.DTOs
         public int DepoUcKSandikSayisi { get; set; }
         public int DepoSeymenSandikSayisi { get; set; }
         public int DepoGridSandikSayisi { get; set; }
+        public List<ProjeDepoDagilimDto> DepoDagilimlari { get; set; } = new();
         public int ToplamUrunSayisi { get; set; }
         public int TamamlananUrunSayisi { get; set; }
 
@@ -32,5 +33,12 @@ namespace _3K.Application.Features.ProjeIslemleri.DTOs
         public string? NakilOlcuResmiNo { get; set; }
         public string? SonMontajResmiNo { get; set; }
         public string? ProjeMuduru { get; set; }
+    }
+
+    public class ProjeDepoDagilimDto
+    {
+        public int DepoLokasyonId { get; set; }
+        public string DepoLokasyonMetni { get; set; } = string.Empty;
+        public int SandikSayisi { get; set; }
     }
 }

@@ -34,6 +34,14 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                 DepoSeymenSandik = stats.DepoSeymenSandik,
                 DepoGridSandik = stats.DepoGridSandik,
                 DepoDigerSandik = stats.DepoDigerSandik,
+                DepoDagilimlari = stats.DepoDagilimlari
+                    .Select(d => new DashboardDepoDagilimDto
+                    {
+                        DepoLokasyonId = d.DepoLokasyonId,
+                        DepoLokasyonMetni = d.DepoLokasyonMetni,
+                        SandikSayisi = d.SandikSayisi
+                    })
+                    .ToList(),
                 NormalSandik = stats.NormalSandik,
                 SahaSandik = stats.SahaSandik,
                 YedekSandik = stats.YedekSandik,

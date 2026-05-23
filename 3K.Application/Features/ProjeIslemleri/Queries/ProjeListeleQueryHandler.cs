@@ -45,6 +45,16 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                     .Where(s => DepodaSayilacakSandik(s, gridKapandiSandikNolari))
                     .Where(s => EtkinDepoLokasyonId(s, gridKapandiSandikNolari) != (int)DepoLokasyon.Belirsiz)
                     .ToList();
+                var depoDagilimlari = depoSandiklar
+                    .GroupBy(s => EtkinDepoLokasyonId(s, gridKapandiSandikNolari))
+                    .Select(g => new ProjeDepoDagilimDto
+                    {
+                        DepoLokasyonId = g.Key,
+                        DepoLokasyonMetni = _lookupCache.GetDeger<LookupDepoLokasyon>(g.Key),
+                        SandikSayisi = g.Count()
+                    })
+                    .OrderBy(x => x.DepoLokasyonId)
+                    .ToList();
                 var isSahaYedek = p.ProjeTipiId == (int)ProjeTipi.Saha || p.ProjeTipiId == (int)ProjeTipi.Yedek;
                 var sandikIcerikleri = sandiklar.SelectMany(s => s.SandikIcerikleri).ToList();
                 
@@ -90,6 +100,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                     DepoUcKSandikSayisi = depoSandiklar.Count(s => EtkinDepoLokasyonId(s, gridKapandiSandikNolari) == (int)DepoLokasyon.UcK),
                     DepoSeymenSandikSayisi = depoSandiklar.Count(s => EtkinDepoLokasyonId(s, gridKapandiSandikNolari) == (int)DepoLokasyon.Seymen),
                     DepoGridSandikSayisi = depoSandiklar.Count(s => EtkinDepoLokasyonId(s, gridKapandiSandikNolari) == (int)DepoLokasyon.Grid),
+                    DepoDagilimlari = depoDagilimlari,
                     ToplamUrunSayisi = toplamUrun,
                     TamamlananUrunSayisi = tamamlananUrun,
                     FBNo = p.FBNo,
