@@ -39,6 +39,184 @@ namespace _3K.Infrastructure.Services
             return value.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
         }
 
+        private static int GetRaporSandikSortKey(string? sandikNo)
+        {
+            if (string.IsNullOrWhiteSpace(sandikNo))
+                return int.MaxValue;
+
+            var match = System.Text.RegularExpressions.Regex.Match(sandikNo, @"\d+");
+            return match.Success && int.TryParse(match.Value, out var numericValue)
+                ? numericValue
+                : int.MaxValue;
+        }
+
+        private static List<string> GetRaporSandikNoList(CekiSatiri satir)
+        {
+            if (!string.IsNullOrWhiteSpace(satir.FiiliSandikNo))
+                return new List<string> { satir.FiiliSandikNo.Trim() };
+
+            var aktifSandiklar = satir.SandikIcerikleri
+                .Where(si => si.KonulanAdet > 0 && si.Sandik != null && !string.IsNullOrWhiteSpace(si.Sandik.SandikNo))
+                .Select(si => si.Sandik!.SandikNo.Trim())
+                .Distinct()
+                .OrderBy(GetRaporSandikSortKey)
+                .ThenBy(x => x)
+                .ToList();
+
+            if (aktifSandiklar.Any())
+                return aktifSandiklar;
+
+            if (!string.IsNullOrWhiteSpace(satir.CekideGecenSandikNo))
+                return new List<string> { satir.CekideGecenSandikNo.Trim() };
+
+            var sandiklar = satir.SandikIcerikleri
+                .Where(si => si.Sandik != null && !string.IsNullOrWhiteSpace(si.Sandik.SandikNo))
+                .Select(si => si.Sandik!.SandikNo.Trim())
+                .Distinct()
+                .OrderBy(GetRaporSandikSortKey)
+                .ThenBy(x => x)
+                .ToList();
+
+            return sandiklar;
+        }
+
+        private static string GetRaporSandikNolari(CekiSatiri satir)
+        {
+            return string.Join(", ", GetRaporSandikNoList(satir));
+        }
+
+        private static (int Number, string Text) GetRaporPrimarySandikSortKey(CekiSatiri satir)
+        {
+            var firstSandikNo = GetRaporSandikNoList(satir).FirstOrDefault() ?? "";
+            return (GetRaporSandikSortKey(firstSandikNo), firstSandikNo);
+        }
+
+        private static decimal GetRaporTrafodaSevkAdet(CekiSatiri satir)
+        {
+            return Math.Max(satir.TrafoSevkAdet, 0);
+        }
+
+        private static bool IsRaporGridIptal(CekiSatiri satir)
+        {
+            return satir.GridDurumuId == (int)GridDurum.Iptal
+                || satir.GridDurumuId == (int)GridDurum.IptalEdildi;
+        }
+
+        private static decimal GetRaporGerceklesenAdet(CekiSatiri satir)
+        {
+            if (IsRaporGridIptal(satir))
+                return 0;
+
+            var trafodaSevk = GetRaporTrafodaSevkAdet(satir);
+            var gerceklesen = satir.IstenenAdet - trafodaSevk - satir.KalanMiktar;
+            var maxGerceklesen = Math.Max(satir.IstenenAdet - trafodaSevk, 0);
+
+            if (gerceklesen < 0)
+                return 0;
+
+            return gerceklesen > maxGerceklesen ? maxGerceklesen : gerceklesen;
+        }
+
+        private static int GetRaporDurumSortPriority(CekiSatiri satir)
+        {
+            if (GetRaporTrafodaSevkAdet(satir) > 0)
+                return 0;
+
+            if (IsRaporGridIptal(satir))
+                return 1;
+
+            if (satir.KalanMiktar > 0)
+                return 2;
+
+            return 3;
+        }
+
+        private static string GetGerceklesenRaporDurum(CekiSatiri satir)
+        {
+            if (GetRaporTrafodaSevkAdet(satir) > 0)
+                return "Trafoda Sevk";
+
+            if (IsRaporGridIptal(satir))
+                return "İptal";
+
+            return satir.KalanMiktar > 0 ? "Eksik Sevk" : "Tamamlandı";
+        }
+
+        private static string GetRaporAciklama(CekiSatiri satir)
+        {
+            var gridAciklama = satir.GridAciklama?.Trim();
+            var ucKAciklama = satir.UcKAciklama?.Trim();
+            var hasGrid = !string.IsNullOrWhiteSpace(gridAciklama);
+            var hasUcK = !string.IsNullOrWhiteSpace(ucKAciklama);
+
+            if (hasGrid && hasUcK)
+                return $"Not 1: {gridAciklama}\nNot 2: {ucKAciklama}";
+            if (hasGrid)
+                return gridAciklama!;
+            if (hasUcK)
+                return ucKAciklama!;
+
+            return "";
+        }
+
+        private static void SetDecimalCell(IXLCell cell, decimal value)
+        {
+            cell.SetValue(value);
+            cell.Style.NumberFormat.Format = decimal.Truncate(value) == value ? "0" : "0.####";
+        }
+
+        private static void StyleExcelInfoRows(IXLWorksheet worksheet, int lastColumn)
+        {
+            var infoRange = worksheet.Range(2, 1, 3, lastColumn);
+            infoRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+            infoRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+        }
+
+        private static void StyleExcelTitle(IXLWorksheet worksheet, int lastColumn)
+        {
+            var titleRange = worksheet.Range(1, 1, 1, lastColumn);
+            titleRange.Merge();
+            titleRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#1565C0");
+            titleRange.Style.Font.FontColor = XLColor.White;
+            titleRange.Style.Font.Bold = true;
+            titleRange.Style.Font.FontSize = 16;
+            titleRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            titleRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            worksheet.Row(1).Height = 28;
+        }
+
+        private static void StyleExcelHeader(IXLWorksheet worksheet, int headerRow, int lastColumn)
+        {
+            var headerRange = worksheet.Range(headerRow, 1, headerRow, lastColumn);
+            headerRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#1565C0");
+            headerRange.Style.Font.FontColor = XLColor.White;
+            headerRange.Style.Font.Bold = true;
+            headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            headerRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            headerRange.Style.Alignment.WrapText = true;
+        }
+
+        private static void FinalizeExcelWorksheet(IXLWorksheet worksheet, int headerRow, int lastRow, int lastColumn)
+        {
+            if (lastRow >= headerRow)
+            {
+                var usedRange = worksheet.Range(headerRow, 1, lastRow, lastColumn);
+                usedRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                usedRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+                usedRange.Style.Border.OutsideBorderColor = XLColor.FromHtml("#D9E2EC");
+                usedRange.Style.Border.InsideBorderColor = XLColor.FromHtml("#D9E2EC");
+            }
+
+            worksheet.SheetView.FreezeRows(headerRow);
+            worksheet.Columns().AdjustToContents();
+
+            for (var col = 1; col <= lastColumn; col++)
+            {
+                if (worksheet.Column(col).Width > 48)
+                    worksheet.Column(col).Width = 48;
+            }
+        }
+
         /// <summary>
         /// İş akışı 9: Orijinal Excel şablonunu açar, operasyon verilerini yazar, Excel olarak döner.
         /// Şablon düzeni değiştirilmez. ÇALIŞMA SAYFASI'ndaki ilgili hücrelere:
@@ -1411,6 +1589,276 @@ namespace _3K.Infrastructure.Services
             using var pdfStream = new MemoryStream();
             document.GeneratePdf(pdfStream);
             return pdfStream.ToArray();
+        }
+
+        public async Task<byte[]> EksikUrunlerRaporuExcelOlusturAsync(int projeId)
+        {
+            var proje = await _context.Projeler
+                .Include(p => p.ProjeTipiLookup)
+                .FirstOrDefaultAsync(p => p.Id == projeId);
+
+            if (proje == null)
+                throw new KeyNotFoundException($"Proje bulunamadı: {projeId}");
+
+            var satirlar = await _context.CekiSatirlari
+                .AsNoTracking()
+                .Include(cs => cs.BirimLookup)
+                .Include(cs => cs.GridDurumLookup)
+                .Include(cs => cs.UcKDurumLookup)
+                .Include(cs => cs.DurumLookup)
+                .Include(cs => cs.GeriGonderilmeSebebiLookup)
+                .Include(cs => cs.SurecDurumLookup)
+                .Where(cs => cs.Ceki.ProjeId == projeId)
+                .ToListAsync();
+
+            var eksikSatirlar = satirlar
+                .Where(cs => cs.KalanMiktar > 0)
+                .OrderBy(cs => GetRaporSandikSortKey(cs.FiiliSandikNo ?? cs.CekideGecenSandikNo))
+                .ThenBy(cs => cs.FiiliSandikNo ?? cs.CekideGecenSandikNo)
+                .ThenBy(cs => cs.SiraNo)
+                .ToList();
+
+            var toplamEksikUrun = eksikSatirlar.Count;
+            var toplamKalanAdet = eksikSatirlar.Sum(s => s.KalanMiktar);
+            var toplamIstenenAdet = eksikSatirlar.Sum(s => s.IstenenAdet);
+            var toplamGelenAdet = eksikSatirlar.Sum(s => s.GelenMiktar + s.StokKarsilanan + s.ProjeKarsilanan + s.TedarikciKarsilanan);
+            var karsilamaOrani = toplamIstenenAdet > 0 ? toplamGelenAdet * 100 / toplamIstenenAdet : 0;
+
+            using var workbook = new XLWorkbook();
+            var worksheet = workbook.Worksheets.Add("Eksik Raporu");
+            const int lastColumn = 14;
+            const int headerRow = 6;
+
+            worksheet.Cell(1, 1).Value = "Eksik Ürünler Raporu";
+            StyleExcelTitle(worksheet, lastColumn);
+
+            worksheet.Cell(2, 1).Value = "Proje No";
+            worksheet.Cell(2, 2).Value = proje.ProjeNo;
+            worksheet.Cell(2, 4).Value = "Müşteri";
+            worksheet.Cell(2, 5).Value = proje.Musteri ?? "-";
+            worksheet.Cell(2, 8).Value = "Rapor Tarihi";
+            worksheet.Cell(2, 9).Value = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
+
+            worksheet.Cell(3, 1).Value = "Eksik Ürün";
+            SetDecimalCell(worksheet.Cell(3, 2), toplamEksikUrun);
+            worksheet.Cell(3, 4).Value = "Toplam Kalan";
+            SetDecimalCell(worksheet.Cell(3, 5), toplamKalanAdet);
+            worksheet.Cell(3, 8).Value = "Karşılama Oranı";
+            worksheet.Cell(3, 9).Value = $"%{FormatAdet(karsilamaOrani)}";
+            StyleExcelInfoRows(worksheet, lastColumn);
+
+            var headers = new[]
+            {
+                "#", "Sıra", "Barkod No", "Poz No", "Ürün Açıklaması", "Sandık",
+                "İstenen", "3K Gelen", "Karşılanan", "Geri Gön.", "Prj. Verildi",
+                "Kalan", "3K Durum", "Süreç"
+            };
+
+            for (var i = 0; i < headers.Length; i++)
+                worksheet.Cell(headerRow, i + 1).Value = headers[i];
+
+            StyleExcelHeader(worksheet, headerRow, lastColumn);
+
+            var row = headerRow + 1;
+            var sira = 1;
+            foreach (var cs in eksikSatirlar)
+            {
+                var karsilanan = cs.StokKarsilanan + cs.ProjeKarsilanan + cs.TedarikciKarsilanan;
+                var sandikNo = cs.FiiliSandikNo ?? cs.CekideGecenSandikNo;
+                var projVerildi = cs.ProjeGonderilen > 0 ? $"{FormatAdet(cs.ProjeGonderilen)} ({cs.KaynakHedefProjeNo ?? "?"})" : "-";
+
+                worksheet.Cell(row, 1).SetValue(sira);
+                worksheet.Cell(row, 2).SetValue(cs.SiraNo);
+                worksheet.Cell(row, 3).Value = cs.BarkodNo;
+                worksheet.Cell(row, 4).Value = string.IsNullOrWhiteSpace(cs.OlcuResmiPozNo) ? "-" : cs.OlcuResmiPozNo;
+                worksheet.Cell(row, 5).Value = cs.Aciklama;
+                worksheet.Cell(row, 6).Value = sandikNo;
+                SetDecimalCell(worksheet.Cell(row, 7), cs.IstenenAdet);
+                SetDecimalCell(worksheet.Cell(row, 8), cs.GelenMiktar);
+                if (karsilanan > 0) SetDecimalCell(worksheet.Cell(row, 9), karsilanan); else worksheet.Cell(row, 9).Value = "-";
+                if (cs.GeriGonderilenMiktar > 0) SetDecimalCell(worksheet.Cell(row, 10), cs.GeriGonderilenMiktar); else worksheet.Cell(row, 10).Value = "-";
+                worksheet.Cell(row, 11).Value = projVerildi;
+                SetDecimalCell(worksheet.Cell(row, 12), cs.KalanMiktar);
+                worksheet.Cell(row, 13).Value = cs.UcKDurumLookup?.Deger ?? "-";
+                worksheet.Cell(row, 14).Value = cs.SurecDurumLookup?.Deger ?? "-";
+
+                if (sira % 2 == 0)
+                    worksheet.Range(row, 1, row, lastColumn).Style.Fill.BackgroundColor = XLColor.FromHtml("#F8FAFE");
+
+                row++;
+                sira++;
+            }
+
+            worksheet.Column(5).Style.Alignment.WrapText = true;
+            FinalizeExcelWorksheet(worksheet, headerRow, Math.Max(row - 1, headerRow), lastColumn);
+
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+            return stream.ToArray();
+        }
+
+        public async Task<byte[]> GerceklesenCekiListesiRaporuExcelOlusturAsync(int projeId)
+        {
+            var proje = await _context.Projeler
+                .Include(p => p.DurumLookup)
+                .FirstOrDefaultAsync(p => p.Id == projeId);
+
+            if (proje == null)
+                throw new KeyNotFoundException($"Proje bulunamadi: {projeId}");
+
+            if (proje.DurumId != (int)ProjeDurum.SevkEdildi)
+                throw new InvalidOperationException("Gerceklesen ceki listesi raporu sadece sevk edilmis projeler icin alinabilir.");
+
+            var satirlar = await _context.CekiSatirlari
+                .AsNoTracking()
+                .Include(cs => cs.BirimLookup)
+                .Include(cs => cs.SandikIcerikleri)
+                    .ThenInclude(si => si.Sandik)
+                .Where(cs => cs.Ceki.ProjeId == projeId)
+                .ToListAsync();
+
+            if (!satirlar.Any())
+                throw new KeyNotFoundException($"Projeye ait ceki satiri bulunamadi: {projeId}");
+
+            var projeSandiklari = await _context.Sandiklar
+                .AsNoTracking()
+                .Where(s => s.ProjeId == projeId)
+                .OrderBy(s => s.SandikNo)
+                .ToListAsync();
+
+            projeSandiklari = projeSandiklari
+                .OrderBy(s => GetRaporSandikSortKey(s.SandikNo))
+                .ThenBy(s => s.SandikNo)
+                .ToList();
+
+            satirlar = satirlar
+                .OrderBy(GetRaporDurumSortPriority)
+                .ThenBy(s => GetRaporPrimarySandikSortKey(s).Number)
+                .ThenBy(s => GetRaporPrimarySandikSortKey(s).Text)
+                .ThenBy(s => s.SiraNo)
+                .ToList();
+
+            var toplamSatir = satirlar.Count;
+            var toplamAdet = satirlar.Sum(s => s.IstenenAdet);
+            var toplamGerceklesen = satirlar.Sum(GetRaporGerceklesenAdet);
+            var toplamTrafodaSevk = satirlar.Sum(GetRaporTrafodaSevkAdet);
+            var toplamKalan = satirlar.Sum(s => s.KalanMiktar);
+            var sevkTarihi = proje.GerceklesenSevkTarihi?.ToString("dd.MM.yyyy") ?? proje.PlanlananSevkTarihi?.ToString("dd.MM.yyyy") ?? "-";
+
+            using var workbook = new XLWorkbook();
+
+            if (projeSandiklari.Any())
+            {
+                var sandikSheet = workbook.Worksheets.Add("Sandık Bilgileri");
+                const int sandikLastColumn = 8;
+                const int sandikHeaderRow = 6;
+
+                sandikSheet.Cell(1, 1).Value = "Koli / Sandık Bilgileri";
+                StyleExcelTitle(sandikSheet, sandikLastColumn);
+                sandikSheet.Cell(2, 1).Value = "Proje No";
+                sandikSheet.Cell(2, 2).Value = proje.ProjeNo;
+                sandikSheet.Cell(2, 4).Value = "Müşteri";
+                sandikSheet.Cell(2, 5).Value = proje.Musteri ?? "-";
+                sandikSheet.Cell(2, 7).Value = "Rapor Tarihi";
+                sandikSheet.Cell(2, 8).Value = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
+                sandikSheet.Cell(3, 1).Value = "Toplam Sandık";
+                SetDecimalCell(sandikSheet.Cell(3, 2), projeSandiklari.Count);
+                sandikSheet.Cell(3, 4).Value = "Sevk Tarihi";
+                sandikSheet.Cell(3, 5).Value = sevkTarihi;
+                StyleExcelInfoRows(sandikSheet, sandikLastColumn);
+
+                var sandikHeaders = new[] { "#", "Koli No", "Sandık Adı", "Net (kg)", "Brüt (kg)", "Boy (mm)", "En (mm)", "Yükseklik (mm)" };
+                for (var i = 0; i < sandikHeaders.Length; i++)
+                    sandikSheet.Cell(sandikHeaderRow, i + 1).Value = sandikHeaders[i];
+
+                StyleExcelHeader(sandikSheet, sandikHeaderRow, sandikLastColumn);
+
+                var row = sandikHeaderRow + 1;
+                var sira = 1;
+                foreach (var sandik in projeSandiklari)
+                {
+                    sandikSheet.Cell(row, 1).SetValue(sira);
+                    sandikSheet.Cell(row, 2).Value = sandik.SandikNo;
+                    sandikSheet.Cell(row, 3).Value = sandik.Ad ?? "-";
+                    SetDecimalCell(sandikSheet.Cell(row, 4), sandik.NetKg ?? 0);
+                    SetDecimalCell(sandikSheet.Cell(row, 5), sandik.GrossKg ?? 0);
+                    SetDecimalCell(sandikSheet.Cell(row, 6), sandik.Boy ?? 0);
+                    SetDecimalCell(sandikSheet.Cell(row, 7), sandik.En ?? 0);
+                    SetDecimalCell(sandikSheet.Cell(row, 8), sandik.Yukseklik ?? 0);
+
+                    if (sira % 2 == 0)
+                        sandikSheet.Range(row, 1, row, sandikLastColumn).Style.Fill.BackgroundColor = XLColor.FromHtml("#F8FAFE");
+
+                    row++;
+                    sira++;
+                }
+
+                FinalizeExcelWorksheet(sandikSheet, sandikHeaderRow, row - 1, sandikLastColumn);
+            }
+
+            var worksheet = workbook.Worksheets.Add("Gerçekleşen Çeki");
+            const int lastColumn = 12;
+            const int headerRow = 6;
+
+            worksheet.Cell(1, 1).Value = "Gerçekleşen Çeki Listesi Raporu";
+            StyleExcelTitle(worksheet, lastColumn);
+            worksheet.Cell(2, 1).Value = "Proje No";
+            worksheet.Cell(2, 2).Value = proje.ProjeNo;
+            worksheet.Cell(2, 4).Value = "Müşteri";
+            worksheet.Cell(2, 5).Value = proje.Musteri ?? "-";
+            worksheet.Cell(2, 8).Value = "Rapor Tarihi";
+            worksheet.Cell(2, 9).Value = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
+            worksheet.Cell(3, 1).Value = "Sevk Tarihi";
+            worksheet.Cell(3, 2).Value = sevkTarihi;
+            worksheet.Cell(3, 4).Value = "Toplam";
+            worksheet.Cell(3, 5).Value = $"{toplamSatir} satır / {FormatAdet(toplamAdet)} adet / {FormatAdet(toplamGerceklesen)} gerçekleşen / {FormatAdet(toplamTrafodaSevk)} trafoda / {FormatAdet(toplamKalan)} kalan";
+            StyleExcelInfoRows(worksheet, lastColumn);
+
+            var headers = new[]
+            {
+                "#", "Sandık", "Barkod", "Poz No", "İsim", "Miktar", "Birim",
+                "Gerçekleşen", "Trafoda", "Kalan", "Durum", "Açıklama"
+            };
+
+            for (var i = 0; i < headers.Length; i++)
+                worksheet.Cell(headerRow, i + 1).Value = headers[i];
+
+            StyleExcelHeader(worksheet, headerRow, lastColumn);
+
+            var dataRow = headerRow + 1;
+            var dataSira = 1;
+            foreach (var satir in satirlar)
+            {
+                var gerceklesenAdet = GetRaporGerceklesenAdet(satir);
+                var trafodaSevkAdet = GetRaporTrafodaSevkAdet(satir);
+
+                worksheet.Cell(dataRow, 1).SetValue(dataSira);
+                worksheet.Cell(dataRow, 2).Value = GetRaporSandikNolari(satir);
+                worksheet.Cell(dataRow, 3).Value = satir.BarkodNo;
+                worksheet.Cell(dataRow, 4).Value = string.IsNullOrWhiteSpace(satir.OlcuResmiPozNo) ? "-" : satir.OlcuResmiPozNo;
+                worksheet.Cell(dataRow, 5).Value = satir.Aciklama;
+                SetDecimalCell(worksheet.Cell(dataRow, 6), satir.IstenenAdet);
+                worksheet.Cell(dataRow, 7).Value = satir.BirimLookup?.Deger ?? "Adet";
+                SetDecimalCell(worksheet.Cell(dataRow, 8), gerceklesenAdet);
+                if (trafodaSevkAdet > 0) SetDecimalCell(worksheet.Cell(dataRow, 9), trafodaSevkAdet); else worksheet.Cell(dataRow, 9).Value = "-";
+                SetDecimalCell(worksheet.Cell(dataRow, 10), satir.KalanMiktar);
+                worksheet.Cell(dataRow, 11).Value = GetGerceklesenRaporDurum(satir);
+                worksheet.Cell(dataRow, 12).Value = GetRaporAciklama(satir);
+
+                if (dataSira % 2 == 0)
+                    worksheet.Range(dataRow, 1, dataRow, lastColumn).Style.Fill.BackgroundColor = XLColor.FromHtml("#F8FAFE");
+
+                dataRow++;
+                dataSira++;
+            }
+
+            worksheet.Column(5).Style.Alignment.WrapText = true;
+            worksheet.Column(12).Style.Alignment.WrapText = true;
+            FinalizeExcelWorksheet(worksheet, headerRow, dataRow - 1, lastColumn);
+
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+            return stream.ToArray();
         }
 
         public async Task<byte[]> DepoSandikRaporuPdfOlusturAsync(int? projeTipiId = null)

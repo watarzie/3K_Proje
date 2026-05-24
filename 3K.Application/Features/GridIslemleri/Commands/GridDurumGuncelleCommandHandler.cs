@@ -199,6 +199,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
             // Genel durumu otomatik hesapla
             satir.DurumId = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumuId, satir.UcKDurumuId);
+            GridSurecDurumHelper.SyncSurecTamamlandi(satir);
 
             repo.Update(satir);
             await _unitOfWork.SaveChangesAsync();

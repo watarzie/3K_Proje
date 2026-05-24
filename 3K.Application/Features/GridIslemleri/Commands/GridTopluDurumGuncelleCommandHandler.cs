@@ -96,6 +96,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 // Genel durumu hesapla
                 satir.DurumId = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumuId, satir.UcKDurumuId);
                 _durumHesaplaService.HesaplaKalanVeDurum(satir);
+                GridSurecDurumHelper.SyncSurecTamamlandi(satir);
 
                 repo.Update(satir);
                 basarili++;

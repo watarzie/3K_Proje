@@ -69,7 +69,8 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 GridDurumuId = (int)GridDurum.TamGeldi,
                 GridGelenAdet = request.IstenenAdet,
                 GridSevkDurumuId = 3, // Sevk Edilmedi
-                UcKDurumuId = (int)UcKDurum.Bekliyor
+                UcKDurumuId = (int)UcKDurum.Bekliyor,
+                SurecDurumId = (int)SurecDurum.Tamamlandi
             };
 
             await cekiSatiriRepo.AddAsync(yeniUrun);

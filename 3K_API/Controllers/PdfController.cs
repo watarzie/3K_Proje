@@ -106,6 +106,23 @@ namespace _3K_API.Controllers
             return File(result.Value!, "application/pdf", $"{projeNo}_EksikRaporu.pdf");
         }
 
+        [HttpGet("eksik-urunler/{projeId}/excel")]
+        public async Task<IActionResult> EksikUrunlerExcelIndir(int projeId)
+        {
+            var result = await _mediator.Send(new _3K.Application.Features.PdfIslemleri.Queries.GetEksikUrunlerExcelQuery
+            {
+                ProjeId = projeId
+            });
+
+            if (!result.IsSuccess)
+                return result.ToActionResult();
+
+            var projeNo = await GetProjeNo(projeId);
+            return File(result.Value!,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                $"{projeNo}_EksikRaporu.xlsx");
+        }
+
         [HttpGet("gerceklesen-ceki-listesi/{projeId}")]
         public async Task<IActionResult> GerceklesenCekiListesiPdfIndir(int projeId)
         {
@@ -119,6 +136,23 @@ namespace _3K_API.Controllers
 
             var projeNo = await GetProjeNo(projeId);
             return File(result.Value!, "application/pdf", $"{projeNo}_GerceklesenCekiListesi.pdf");
+        }
+
+        [HttpGet("gerceklesen-ceki-listesi/{projeId}/excel")]
+        public async Task<IActionResult> GerceklesenCekiListesiExcelIndir(int projeId)
+        {
+            var result = await _mediator.Send(new _3K.Application.Features.PdfIslemleri.Queries.GetGerceklesenCekiListesiExcelQuery
+            {
+                ProjeId = projeId
+            });
+
+            if (!result.IsSuccess)
+                return result.ToActionResult();
+
+            var projeNo = await GetProjeNo(projeId);
+            return File(result.Value!,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                $"{projeNo}_GerceklesenCekiListesi.xlsx");
         }
 
         [HttpGet("stok")]

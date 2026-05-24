@@ -39,6 +39,10 @@ namespace _3K.Core.Interfaces
         /// </summary>
         Task<byte[]> GerceklesenCekiListesiRaporuPdfOlusturAsync(int projeId);
 
+        Task<byte[]> EksikUrunlerRaporuExcelOlusturAsync(int projeId);
+
+        Task<byte[]> GerceklesenCekiListesiRaporuExcelOlusturAsync(int projeId);
+
         /// <summary>
         /// Stok modülündeki tüm ürünlerin PDF raporunu oluşturur.
         /// </summary>

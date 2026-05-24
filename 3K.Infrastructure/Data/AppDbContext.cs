@@ -711,7 +711,8 @@ namespace _3K.Infrastructure.Data
                 new LookupSurecDurum { Id = 2, Anahtar = 2, Deger = "İmalat" },
                 new LookupSurecDurum { Id = 3, Anahtar = 3, Deger = "Tedarik" },
                 new LookupSurecDurum { Id = 4, Anahtar = 4, Deger = "Tedarik 3K Teslim" },
-                new LookupSurecDurum { Id = 5, Anahtar = 5, Deger = "Siparişte" }
+                new LookupSurecDurum { Id = 5, Anahtar = 5, Deger = "Siparişte" },
+                new LookupSurecDurum { Id = 6, Anahtar = 6, Deger = "Tamamlandı" }
             );
 
 
