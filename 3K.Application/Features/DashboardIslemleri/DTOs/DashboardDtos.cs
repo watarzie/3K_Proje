@@ -15,6 +15,9 @@ namespace _3K.Application.Features.DashboardIslemleri.DTOs
         public int DepoGridSandik { get; set; }
         public int DepoDigerSandik { get; set; }
         public List<DashboardDepoDagilimDto> DepoDagilimlari { get; set; } = new();
+        public List<DashboardDepoDagilimDto> NormalDepoDagilimlari { get; set; } = new();
+        public List<DashboardDepoDagilimDto> SahaDepoDagilimlari { get; set; } = new();
+        public List<DashboardDepoDagilimDto> YedekDepoDagilimlari { get; set; } = new();
         public int NormalSandik { get; set; }
         public int SahaSandik { get; set; }
         public int YedekSandik { get; set; }

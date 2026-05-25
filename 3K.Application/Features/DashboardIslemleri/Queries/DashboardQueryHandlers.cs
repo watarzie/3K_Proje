@@ -34,14 +34,10 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                 DepoSeymenSandik = stats.DepoSeymenSandik,
                 DepoGridSandik = stats.DepoGridSandik,
                 DepoDigerSandik = stats.DepoDigerSandik,
-                DepoDagilimlari = stats.DepoDagilimlari
-                    .Select(d => new DashboardDepoDagilimDto
-                    {
-                        DepoLokasyonId = d.DepoLokasyonId,
-                        DepoLokasyonMetni = d.DepoLokasyonMetni,
-                        SandikSayisi = d.SandikSayisi
-                    })
-                    .ToList(),
+                DepoDagilimlari = MapDepoDagilimlari(stats.DepoDagilimlari),
+                NormalDepoDagilimlari = MapDepoDagilimlari(stats.NormalDepoDagilimlari),
+                SahaDepoDagilimlari = MapDepoDagilimlari(stats.SahaDepoDagilimlari),
+                YedekDepoDagilimlari = MapDepoDagilimlari(stats.YedekDepoDagilimlari),
                 NormalSandik = stats.NormalSandik,
                 SahaSandik = stats.SahaSandik,
                 YedekSandik = stats.YedekSandik,
@@ -50,6 +46,18 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
             };
 
             return Result<DashboardOzetDto>.Success(ozet);
+        }
+
+        private static List<DashboardDepoDagilimDto> MapDepoDagilimlari(IEnumerable<DashboardDepoDagilimRawStats> dagilimlar)
+        {
+            return dagilimlar
+                .Select(d => new DashboardDepoDagilimDto
+                {
+                    DepoLokasyonId = d.DepoLokasyonId,
+                    DepoLokasyonMetni = d.DepoLokasyonMetni,
+                    SandikSayisi = d.SandikSayisi
+                })
+                .ToList();
         }
     }
 

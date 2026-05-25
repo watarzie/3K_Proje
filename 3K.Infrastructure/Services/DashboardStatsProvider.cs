@@ -61,7 +61,7 @@ namespace _3K.Infrastructure.Services
                     ct);
 
             // ── Depo sandık sayıları (lokasyon bazlı) ──
-            var depoSandikCounts = await _context.Sandiklar
+            var depoSandikCountsByTip = await _context.Sandiklar
                 .Where(s => s.DurumId != (int)SandikDurum.Sevkedildi)
                 .Where(s => s.SandikIcerikleri.Any(si =>
                     (si.CekiSatiriId != null && (si.CekiSatiri!.GelenMiktar > 0
@@ -75,40 +75,65 @@ namespace _3K.Infrastructure.Services
                 ))
                 .Select(s => new
                 {
+                    ProjeTipiId = s.Proje.ProjeTipiId,
                     LokasyonId = s.SandikIcerikleri.Any(si => si.CekiSatiri != null && si.CekiSatiri!.GridDurumuId == (int)GridDurum.GridKapandi)
                         ? (int)DepoLokasyon.Grid
                         : s.DepoLokasyonId
                 })
                 .Where(s => s.LokasyonId != (int)DepoLokasyon.Belirsiz)
-                .GroupBy(s => s.LokasyonId)
-                .Select(g => new { LokasyonId = g.Key, Count = g.Count() })
+                .GroupBy(s => new { s.ProjeTipiId, s.LokasyonId })
+                .Select(g => new { g.Key.ProjeTipiId, g.Key.LokasyonId, Count = g.Count() })
                 .ToListAsync(ct);
+
+            var depoSandikCounts = depoSandikCountsByTip
+                .GroupBy(d => d.LokasyonId)
+                .Select(g => new { LokasyonId = g.Key, Count = g.Sum(x => x.Count) })
+                .ToList();
 
             int GetDepoCount(int lokId) => depoSandikCounts.FirstOrDefault(d => d.LokasyonId == lokId)?.Count ?? 0;
             var toplamDepoSandik = depoSandikCounts.Sum(d => d.Count);
             var depoUcK = GetDepoCount((int)DepoLokasyon.UcK);
             var depoSeymen = GetDepoCount((int)DepoLokasyon.Seymen);
             var depoGrid = GetDepoCount((int)DepoLokasyon.Grid);
-            var depoLokasyonIds = depoSandikCounts.Select(d => d.LokasyonId).ToList();
+            var depoLokasyonIds = depoSandikCounts
+                .Select(d => d.LokasyonId)
+                .Concat(depoSandikCountsByTip.Select(d => d.LokasyonId))
+                .Distinct()
+                .ToList();
             var depoLokasyonlar = await _context.LookupDepoLokasyonlari
                 .Where(l => depoLokasyonIds.Contains(l.Id))
                 .Select(l => new { l.Id, l.Anahtar, l.Deger })
                 .ToListAsync(ct);
             var depoLokasyonLookup = depoLokasyonlar.ToDictionary(l => l.Id);
-            var depoDagilimlari = depoSandikCounts
-                .Select(d =>
-                {
-                    depoLokasyonLookup.TryGetValue(d.LokasyonId, out var lokasyon);
-                    return new DashboardDepoDagilimRawStats
+
+            List<DashboardDepoDagilimRawStats> BuildDepoDagilimlari(IEnumerable<(int LokasyonId, int Count)> counts)
+            {
+                return counts
+                    .Select(d =>
                     {
-                        DepoLokasyonId = d.LokasyonId,
-                        DepoLokasyonMetni = lokasyon?.Deger ?? $"Depo {d.LokasyonId}",
-                        SandikSayisi = d.Count
-                    };
-                })
-                .OrderBy(d => depoLokasyonLookup.TryGetValue(d.DepoLokasyonId, out var lokasyon) ? lokasyon.Anahtar : d.DepoLokasyonId)
-                .ThenBy(d => d.DepoLokasyonMetni)
-                .ToList();
+                        depoLokasyonLookup.TryGetValue(d.LokasyonId, out var lokasyon);
+                        return new DashboardDepoDagilimRawStats
+                        {
+                            DepoLokasyonId = d.LokasyonId,
+                            DepoLokasyonMetni = lokasyon?.Deger ?? $"Depo {d.LokasyonId}",
+                            SandikSayisi = d.Count
+                        };
+                    })
+                    .OrderBy(d => depoLokasyonLookup.TryGetValue(d.DepoLokasyonId, out var lokasyon) ? lokasyon.Anahtar : d.DepoLokasyonId)
+                    .ThenBy(d => d.DepoLokasyonMetni)
+                    .ToList();
+            }
+
+            var depoDagilimlari = BuildDepoDagilimlari(depoSandikCounts.Select(d => (d.LokasyonId, d.Count)));
+            var normalDepoDagilimlari = BuildDepoDagilimlari(depoSandikCountsByTip
+                .Where(d => d.ProjeTipiId == (int)ProjeTipi.Normal)
+                .Select(d => (d.LokasyonId, d.Count)));
+            var sahaDepoDagilimlari = BuildDepoDagilimlari(depoSandikCountsByTip
+                .Where(d => d.ProjeTipiId == (int)ProjeTipi.Saha)
+                .Select(d => (d.LokasyonId, d.Count)));
+            var yedekDepoDagilimlari = BuildDepoDagilimlari(depoSandikCountsByTip
+                .Where(d => d.ProjeTipiId == (int)ProjeTipi.Yedek)
+                .Select(d => (d.LokasyonId, d.Count)));
 
             // ── Saha/Yedek yüzdeleri ──
             var sahaYedekStats = await _context.Projeler
@@ -146,6 +171,9 @@ namespace _3K.Infrastructure.Services
                 DepoGridSandik = depoGrid,
                 DepoDigerSandik = Math.Max(toplamDepoSandik - depoUcK - depoSeymen - depoGrid, 0),
                 DepoDagilimlari = depoDagilimlari,
+                NormalDepoDagilimlari = normalDepoDagilimlari,
+                SahaDepoDagilimlari = sahaDepoDagilimlari,
+                YedekDepoDagilimlari = yedekDepoDagilimlari,
                 SahaYuzde = sahaStats is { ToplamUrun: > 0 }
                     ? (int)Math.Floor((decimal)sahaStats.TamamlananUrun / sahaStats.ToplamUrun * 100) : 0,
                 YedekYuzde = yedekStats is { ToplamUrun: > 0 }
