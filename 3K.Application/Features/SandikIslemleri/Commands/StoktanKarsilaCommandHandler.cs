@@ -62,6 +62,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 icerik.KonulanAdet += request.KarsilananAdet;
                 icerik.StokKarsilanan = urun.StokKarsilanan;
                 sandikIcerikRepo.Update(icerik);
+                await SandikLokasyonHelper.VarsayilanUcKDepoLokasyonuAtaAsync(_unitOfWork, new[] { icerik });
             }
 
             await stokHareketRepo.AddAsync(new StokHareketi

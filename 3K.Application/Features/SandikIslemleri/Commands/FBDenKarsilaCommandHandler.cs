@@ -108,6 +108,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 icerik.EksikAdet = Math.Max(0, icerik.EksikAdet - request.KarsilananAdet);
                 icerik.KonulanAdet += request.KarsilananAdet;
                 sandikIcerikRepo.Update(icerik);
+                await SandikLokasyonHelper.VarsayilanUcKDepoLokasyonuAtaAsync(_unitOfWork, new[] { icerik });
             }
 
             await _unitOfWork.SaveChangesAsync();

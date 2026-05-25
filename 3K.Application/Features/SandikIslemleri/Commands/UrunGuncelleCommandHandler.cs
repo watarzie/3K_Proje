@@ -132,9 +132,11 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             var sandik2 = hedefSandik;
             if (sandik2 != null)
             {
-                if (request.UcKDurumuId.HasValue && request.UcKDurumuId.Value != (int)UcKDurum.Bekliyor)
+                if (SandikDepoKurali.BelirsizLokasyonMu(sandik2.DepoLokasyonId) &&
+                    request.UcKDurumuId.HasValue && request.UcKDurumuId.Value != (int)UcKDurum.Bekliyor)
                     sandik2.DepoLokasyonId = (int)DepoLokasyon.UcK;
-                else if (request.GridDurumuId.HasValue && request.GridDurumuId.Value != (int)GridDurum.Bekliyor)
+                else if (SandikDepoKurali.BelirsizLokasyonMu(sandik2.DepoLokasyonId) &&
+                         request.GridDurumuId.HasValue && request.GridDurumuId.Value != (int)GridDurum.Bekliyor)
                     sandik2.DepoLokasyonId = (int)DepoLokasyon.Grid;
 
                 var tumIcerikler2 = await sandikIcerikRepo.FindAsync(si => si.SandikId == request.SandikId);

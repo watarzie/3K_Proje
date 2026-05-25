@@ -93,7 +93,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
                 // SandikIcerik senkronizasyonu
                 var toplam = satir.GelenMiktar + satir.KarsilananMiktar;
-                var ilgiliIcerikler = await sandikIcerikRepo.FindAsync(x => x.CekiSatiriId == satir.Id);
+                var ilgiliIcerikler = (await sandikIcerikRepo.FindAsync(x => x.CekiSatiriId == satir.Id)).ToList();
                 if (ilgiliIcerikler.Any())
                 {
                     var anaIcerik = ilgiliIcerikler.First();
@@ -103,6 +103,8 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     anaIcerik.TedarikciKarsilanan = satir.TedarikciKarsilanan;
                     sandikIcerikRepo.Update(anaIcerik);
                 }
+
+                await SandikLokasyonHelper.VarsayilanUcKDepoLokasyonuAtaAsync(_unitOfWork, ilgiliIcerikler);
 
                 guncellenen++;
             }

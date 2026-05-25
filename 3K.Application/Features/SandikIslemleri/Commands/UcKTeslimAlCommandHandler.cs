@@ -58,6 +58,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             _durumHesaplaService.HesaplaKalanVeDurum(satir);
 
             repo.Update(satir);
+            await SandikLokasyonHelper.VarsayilanUcKDepoLokasyonuAtaAsync(_unitOfWork, satir.Id);
             await _unitOfWork.SaveChangesAsync();
 
             // Hareket kaydı

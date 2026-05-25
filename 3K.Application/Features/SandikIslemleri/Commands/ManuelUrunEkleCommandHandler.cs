@@ -59,13 +59,16 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             await cekiSatiriRepo.AddAsync(yeniUrun);
             await _unitOfWork.SaveChangesAsync();
 
-            await sandikIcerikRepo.AddAsync(new SandikIcerik
+            var yeniIcerik = new SandikIcerik
             {
                 SandikId = sandik.Id,
                 CekiSatiriId = yeniUrun.Id,
                 KonulanAdet = request.IstenenAdet,
                 EksikAdet = 0
-            });
+            };
+
+            await sandikIcerikRepo.AddAsync(yeniIcerik);
+            await SandikLokasyonHelper.VarsayilanUcKDepoLokasyonuAtaAsync(_unitOfWork, new[] { yeniIcerik });
             await _unitOfWork.SaveChangesAsync();
 
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
