@@ -57,6 +57,17 @@ namespace _3K.Infrastructure.Services
             await _context.SaveChangesAsync(ct);
         }
 
+        public async Task<bool> IsAdminAsync(int userId, CancellationToken ct = default)
+        {
+            var kullanici = await _context.Kullanicilar
+                .AsNoTracking()
+                .Include(k => k.Rol)
+                .FirstOrDefaultAsync(k => k.Id == userId, ct);
+
+            return kullanici?.RolId == 1 ||
+                string.Equals(kullanici?.Rol?.Ad, "Admin", StringComparison.OrdinalIgnoreCase);
+        }
+
         public async Task<bool> HasUserPermissionAsync(int userId, string menuKod, YetkiTipi requiredYetkiTipi, CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(menuKod))

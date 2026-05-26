@@ -70,6 +70,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                         Aciklama = cs.Aciklama,
                         SandikNo = cs.FiiliSandikNo ?? cs.CekideGecenSandikNo,
                         IstenenAdet = cs.IstenenAdet,
+                        BirimId = cs.BirimId,
                         Birim = ((Birim)cs.BirimId).ToString(),
                         GridDurumuId = cs.GridDurumuId,
                         GridDurumuMetni = _lookupCache.GetDeger<LookupGridDurum>(cs.GridDurumuId),

@@ -18,6 +18,8 @@ namespace _3K.Core.Interfaces
         /// <summary>Rolün yetkilerini toplu günceller (upsert).</summary>
         Task YetkileriGuncelleAsync(int rolId, List<RolYetki> yetkiler, CancellationToken ct = default);
 
+        Task<bool> IsAdminAsync(int userId, CancellationToken ct = default);
+
         Task<bool> HasUserPermissionAsync(int userId, string menuKod, YetkiTipi requiredYetkiTipi, CancellationToken ct = default);
     }
 }

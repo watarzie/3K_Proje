@@ -43,6 +43,7 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                     OlcuResmiPozNo = cs.OlcuResmiPozNo,
                     Aciklama = cs.Aciklama,
                     IstenenAdet = cs.IstenenAdet,
+                    BirimId = cs.BirimId,
                     Birim = ((Birim)cs.BirimId).ToString(),
                     SandikNo = cs.FiiliSandikNo ?? cs.CekideGecenSandikNo,
                     GridDurumuId = cs.GridDurumuId,

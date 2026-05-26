@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using _3K.Application.Features.CekiIslemleri.Commands;
 using _3K.Application.Features.SandikIslemleri.Commands;
 using _3K.Application.Features.SandikIslemleri.Queries;
 using _3K_API.Extensions;
@@ -47,6 +48,13 @@ namespace _3K_API.Controllers
 
         [HttpPut("ozellik-guncelle")]
         public async Task<ActionResult> OzellikGuncelle([FromBody] SandikOzellikGuncelleCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
+        [HttpPut("ceki-satiri-guncelle")]
+        public async Task<ActionResult> CekiSatiriGuncelle([FromBody] CekiSatiriAnaVeriGuncelleCommand command)
         {
             var result = await _mediator.Send(command);
             return result.ToActionResult();

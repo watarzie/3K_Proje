@@ -9,6 +9,7 @@ namespace _3K.Application.Features.UcKIslemleri.DTOs
         public string Aciklama { get; set; } = string.Empty;
         public string SandikNo { get; set; } = string.Empty;
         public decimal IstenenAdet { get; set; }
+        public int BirimId { get; set; }
         public string Birim { get; set; } = string.Empty;
 
         // Grid tarafı (read-only)
