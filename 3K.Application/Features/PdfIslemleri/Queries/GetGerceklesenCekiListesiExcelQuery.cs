@@ -3,7 +3,7 @@ using _3K.Application.Common;
 
 namespace _3K.Application.Features.PdfIslemleri.Queries
 {
-    public class GetGerceklesenCekiListesiExcelQuery : IRequest<Result<byte[]>>
+    public class GetGerceklesenCekiListesiExcelQuery : IRequest<Result<byte[]>>, ISecuredRequest
     {
         public int ProjeId { get; set; }
     }

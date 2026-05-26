@@ -6,7 +6,7 @@ using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.CekiIslemleri.Commands
 {
-    public class CekiSatiriAnaVeriGuncelleCommand : IRequest<Result<CekiSatiriAnaVeriGuncelleDto>>, IAdminOnlyRequest
+    public class CekiSatiriAnaVeriGuncelleCommand : IRequest<Result<CekiSatiriAnaVeriGuncelleDto>>, ISecuredRequest
     {
         public int CekiSatiriId { get; set; }
         public int SiraNo { get; set; }

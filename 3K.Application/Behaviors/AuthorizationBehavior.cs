@@ -34,15 +34,6 @@ namespace _3K.Application.Behaviors
             if (!userId.HasValue)
                 return CreateFailureResult("Kullanıcı bilgisi alınamadı.", 401);
 
-            if (request is IAdminOnlyRequest)
-            {
-                var isAdmin = await _rolService.IsAdminAsync(userId.Value, cancellationToken);
-                if (!isAdmin)
-                    return CreateFailureResult("Bu islem sadece admin tarafindan yapilabilir.", 403);
-
-                return await next();
-            }
-
             var menuKod = _currentUserService.MenuKod;
             if (string.IsNullOrWhiteSpace(menuKod))
                 return CreateFailureResult("Yetki bağlamı alınamadı.", 403);
