@@ -17,6 +17,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         public int ProjeId { get; set; }
         public int SandikId { get; set; }
         public string? Aciklama { get; set; }
+        public string? AracPlaka { get; set; }
     }
 
     public class SandikSevkEtCommandHandler : IRequestHandler<SandikSevkEtCommand, Result>
@@ -73,6 +74,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 new[] { sandik },
                 sevkTarihi,
                 request.Aciklama,
+                request.AracPlaka,
                 _currentUserService.UserId.Value);
 
             await _unitOfWork.SaveChangesAsync();

@@ -6,6 +6,7 @@ namespace _3K.Core.Entities
         public int SevkiyatNo { get; set; }
         public DateTime SevkTarihi { get; set; }
         public string? Aciklama { get; set; }
+        public string? AracPlaka { get; set; }
         public int KullaniciId { get; set; }
 
         public virtual Proje Proje { get; set; } = null!;

@@ -11,11 +11,13 @@ namespace _3K.Application.Common
             IEnumerable<Sandik> sandiklar,
             DateTime sevkTarihi,
             string? aciklama,
+            string? aracPlaka,
             int kullaniciId)
         {
             var sandikList = sandiklar.ToList();
             var sevkiyatRepo = unitOfWork.GetRepository<Sevkiyat>();
             var sevkiyatSandikRepo = unitOfWork.GetRepository<SevkiyatSandik>();
+            var temizAracPlaka = NormalizeAracPlaka(aracPlaka);
 
             var sonSevkiyatNo = sevkiyatRepo.Queryable()
                 .Where(s => s.ProjeId == projeId)
@@ -28,6 +30,7 @@ namespace _3K.Application.Common
                 SevkiyatNo = sonSevkiyatNo + 1,
                 SevkTarihi = sevkTarihi,
                 Aciklama = string.IsNullOrWhiteSpace(aciklama) ? null : aciklama.Trim(),
+                AracPlaka = temizAracPlaka,
                 KullaniciId = kullaniciId
             };
 
@@ -43,6 +46,15 @@ namespace _3K.Application.Common
             }
 
             return sevkiyat;
+        }
+
+        private static string? NormalizeAracPlaka(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return null;
+
+            var trimmed = value.Trim().ToUpperInvariant();
+            return trimmed.Length > 30 ? trimmed[..30] : trimmed;
         }
     }
 }

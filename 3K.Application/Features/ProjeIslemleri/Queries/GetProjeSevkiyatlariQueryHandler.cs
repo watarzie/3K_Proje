@@ -27,6 +27,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                     SevkiyatNo = s.SevkiyatNo,
                     SevkTarihi = s.SevkTarihi,
                     Aciklama = s.Aciklama,
+                    AracPlaka = s.AracPlaka,
                     KullaniciAdSoyad = s.Kullanici.AdSoyad,
                     SandikSayisi = s.Sandiklar.Count,
                     KayitTipi = "Sevkiyat",

@@ -73,7 +73,8 @@ namespace _3K_API.Controllers
                 ProjeId = id,
                 SevkTarihi = request?.SevkTarihi,
                 SandikIds = request?.SandikIds,
-                Aciklama = request?.Aciklama
+                Aciklama = request?.Aciklama,
+                AracPlaka = request?.AracPlaka
             });
             return result.ToActionResult();
         }
@@ -120,5 +121,6 @@ namespace _3K_API.Controllers
         public DateTime? SevkTarihi { get; init; }
         public List<int>? SandikIds { get; init; }
         public string? Aciklama { get; init; }
+        public string? AracPlaka { get; init; }
     }
 }

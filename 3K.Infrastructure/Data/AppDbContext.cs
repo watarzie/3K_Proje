@@ -314,6 +314,7 @@ namespace _3K.Infrastructure.Data
             modelBuilder.Entity<Sevkiyat>(e =>
             {
                 e.Property(p => p.Aciklama).HasMaxLength(500);
+                e.Property(p => p.AracPlaka).HasMaxLength(30);
                 e.HasIndex(p => new { p.ProjeId, p.SevkiyatNo }).IsUnique();
                 e.HasIndex(p => p.SevkTarihi);
 

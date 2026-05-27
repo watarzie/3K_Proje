@@ -17,6 +17,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
         public DateTime? SevkTarihi { get; set; }
         public List<int>? SandikIds { get; set; }
         public string? Aciklama { get; set; }
+        public string? AracPlaka { get; set; }
     }
 
     public class ProjeSevkEtCommandHandler : IRequestHandler<ProjeSevkEtCommand, Result>
@@ -88,6 +89,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 sevkEdilecekSandiklar,
                 sevkTarihi,
                 request.Aciklama,
+                request.AracPlaka,
                 _currentUserService.UserId.Value);
 
             proje.DurumId = ProjeSevkDurumHelper.Hesapla(sandiklar, proje.DurumId);

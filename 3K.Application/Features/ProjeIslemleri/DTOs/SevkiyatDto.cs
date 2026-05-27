@@ -6,6 +6,7 @@ namespace _3K.Application.Features.ProjeIslemleri.DTOs
         public int SevkiyatNo { get; set; }
         public DateTime SevkTarihi { get; set; }
         public string? Aciklama { get; set; }
+        public string? AracPlaka { get; set; }
         public string? KullaniciAdSoyad { get; set; }
         public int SandikSayisi { get; set; }
         public string KayitTipi { get; set; } = "Sevkiyat";
