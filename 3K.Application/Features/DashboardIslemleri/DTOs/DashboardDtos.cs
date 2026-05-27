@@ -23,6 +23,7 @@ namespace _3K.Application.Features.DashboardIslemleri.DTOs
         public int YedekSandik { get; set; }
         public int SahaYuzde { get; set; }
         public int YedekYuzde { get; set; }
+        public List<DashboardProjeTipiOzetDto> ProjeTipiOzetleri { get; set; } = new();
     }
 
     public class DashboardDepoDagilimDto
@@ -30,6 +31,21 @@ namespace _3K.Application.Features.DashboardIslemleri.DTOs
         public int DepoLokasyonId { get; set; }
         public string DepoLokasyonMetni { get; set; } = string.Empty;
         public int SandikSayisi { get; set; }
+    }
+
+    public class DashboardProjeTipiOzetDto
+    {
+        public int ProjeTipiId { get; set; }
+        public string ProjeTipiMetni { get; set; } = string.Empty;
+        public int ToplamProje { get; set; }
+        public int HazirlananProje { get; set; }
+        public int SevkEdilenProje { get; set; }
+        public int TamamlananProje { get; set; }
+        public int ToplamSandik { get; set; }
+        public int EksikUrunSayisi { get; set; }
+        public int ToplamDepoSandik { get; set; }
+        public int TamamlanmaYuzdesi { get; set; }
+        public List<DashboardDepoDagilimDto> DepoDagilimlari { get; set; } = new();
     }
 
     public class DashboardProjeItemDto

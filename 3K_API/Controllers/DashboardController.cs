@@ -24,9 +24,17 @@ namespace _3K_API.Controllers
         }
 
         [HttpGet("projeler")]
-        public async Task<ActionResult> GetProjeler([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        public async Task<ActionResult> GetProjeler(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20,
+            [FromQuery] int? projeTipiId = null)
         {
-            var result = await _mediator.Send(new DashboardProjelerQuery { Page = page, PageSize = pageSize });
+            var result = await _mediator.Send(new DashboardProjelerQuery
+            {
+                Page = page,
+                PageSize = pageSize,
+                ProjeTipiId = projeTipiId
+            });
             return result.ToActionResult();
         }
 

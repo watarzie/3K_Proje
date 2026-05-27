@@ -17,19 +17,30 @@ namespace _3K.Infrastructure.Services
 
         public async Task<DashboardOzetRawStats> GetOzetStatsAsync(CancellationToken ct = default)
         {
-            // ── Proje durum sayıları (tek sorgu) ──
-            var projeDurumCounts = await _context.Projeler
-                .GroupBy(p => p.DurumId)
-                .Select(g => new { DurumId = g.Key, Count = g.Count() })
+            // ── Proje durum sayıları (proje tipi + durum bazlı tek sorgu) ──
+            var projeTipiDurumCounts = await _context.Projeler
+                .GroupBy(p => new { p.ProjeTipiId, p.DurumId })
+                .Select(g => new { g.Key.ProjeTipiId, g.Key.DurumId, Count = g.Count() })
                 .ToListAsync(ct);
 
+            var projeDurumCounts = projeTipiDurumCounts
+                .GroupBy(d => d.DurumId)
+                .Select(g => new { DurumId = g.Key, Count = g.Sum(x => x.Count) })
+                .ToList();
+
             int GetDurumCount(int durumId) => projeDurumCounts.FirstOrDefault(d => d.DurumId == durumId)?.Count ?? 0;
+            int GetTipDurumCount(int tipId, int durumId) => projeTipiDurumCounts.FirstOrDefault(d => d.ProjeTipiId == tipId && d.DurumId == durumId)?.Count ?? 0;
+            int GetTipToplamProje(int tipId) => projeTipiDurumCounts.Where(d => d.ProjeTipiId == tipId).Sum(d => d.Count);
 
             var toplamProje = projeDurumCounts.Sum(d => d.Count);
             var hazirlananProje = GetDurumCount((int)ProjeDurum.Hazirlaniyor);
             var beklemedeProje = GetDurumCount((int)ProjeDurum.Beklemede);
             var tamamlananProje = GetDurumCount((int)ProjeDurum.Tamamlandi);
             var sevkEdilenProje = GetDurumCount((int)ProjeDurum.SevkEdildi) + GetDurumCount((int)ProjeDurum.EksikSevkEdildi);
+
+            var projeTipiAdlari = await _context.LookupProjeTipleri
+                .Select(l => new { l.Id, l.Deger })
+                .ToDictionaryAsync(l => l.Id, l => l.Deger, ct);
 
             // ── Toplam sandık ──
             var toplamSandik = await _context.Sandiklar.CountAsync(ct);
@@ -53,12 +64,20 @@ namespace _3K.Infrastructure.Services
                         && cs.IstenenAdet - cs.GelenMiktar - cs.StokKarsilanan - cs.ProjeKarsilanan - cs.TedarikciKarsilanan + cs.ProjeGonderilen - cs.TrafoSevkAdet <= 0),
                     ct);
 
-            var sahaYedekEksikUrun = await _context.SandikIcerikleri
+            var sahaYedekEksikUrunCounts = await _context.SandikIcerikleri
                 .Where(si => si.Sandik.Proje.ProjeTipiId == (int)ProjeTipi.Saha || si.Sandik.Proje.ProjeTipiId == (int)ProjeTipi.Yedek)
-                .CountAsync(si =>
+                .Where(si =>
                     !(((si.CekiSatiriId != null ? si.CekiSatiri!.IstenenAdet : si.Miktar) > 0)
-                      && si.KonulanAdet >= (si.CekiSatiriId != null ? si.CekiSatiri!.IstenenAdet : si.Miktar)),
-                    ct);
+                      && si.KonulanAdet >= (si.CekiSatiriId != null ? si.CekiSatiri!.IstenenAdet : si.Miktar)))
+                .GroupBy(si => si.Sandik.Proje.ProjeTipiId)
+                .Select(g => new { ProjeTipiId = g.Key, Count = g.Count() })
+                .ToListAsync(ct);
+
+            int GetEksikUrunByTip(int tipId) => tipId == (int)ProjeTipi.Normal
+                ? normalEksikUrun
+                : sahaYedekEksikUrunCounts.FirstOrDefault(d => d.ProjeTipiId == tipId)?.Count ?? 0;
+
+            var sahaYedekEksikUrun = sahaYedekEksikUrunCounts.Sum(d => d.Count);
 
             // ── Depo sandık sayıları (lokasyon bazlı) ──
             var depoSandikCountsByTip = await _context.Sandiklar
@@ -135,7 +154,22 @@ namespace _3K.Infrastructure.Services
                 .Where(d => d.ProjeTipiId == (int)ProjeTipi.Yedek)
                 .Select(d => (d.LokasyonId, d.Count)));
 
-            // ── Saha/Yedek yüzdeleri ──
+            // ── Proje tipi bazlı ürün tamamlanma yüzdeleri ──
+            var normalTamamlanmaStats = await _context.CekiSatirlari
+                .Where(cs => cs.Ceki.Proje.ProjeTipiId == (int)ProjeTipi.Normal)
+                .GroupBy(_ => 1)
+                .Select(g => new
+                {
+                    ToplamUrun = g.Count(),
+                    TamamlananUrun = g.Count(cs =>
+                        cs.GridDurumuId == (int)GridDurum.GridKapandi ||
+                        cs.GridDurumuId == (int)GridDurum.Iptal ||
+                        (cs.HataliMiktar <= 0 &&
+                         cs.DurumId != (int)UrunDurum.HataliUyumsuzGonderim &&
+                         cs.IstenenAdet - cs.GelenMiktar - cs.StokKarsilanan - cs.ProjeKarsilanan - cs.TedarikciKarsilanan + cs.ProjeGonderilen - cs.TrafoSevkAdet <= 0))
+                })
+                .FirstOrDefaultAsync(ct);
+
             var sahaYedekStats = await _context.Projeler
                 .Where(p => p.ProjeTipiId == (int)ProjeTipi.Saha || p.ProjeTipiId == (int)ProjeTipi.Yedek)
                 .GroupBy(p => p.ProjeTipiId)
@@ -152,6 +186,48 @@ namespace _3K.Infrastructure.Services
 
             var sahaStats = sahaYedekStats.FirstOrDefault(s => s.ProjeTipiId == (int)ProjeTipi.Saha);
             var yedekStats = sahaYedekStats.FirstOrDefault(s => s.ProjeTipiId == (int)ProjeTipi.Yedek);
+
+            int GetTamamlanmaYuzdesi(int tipId)
+            {
+                if (tipId == (int)ProjeTipi.Normal)
+                {
+                    return normalTamamlanmaStats is { ToplamUrun: > 0 }
+                        ? (int)Math.Floor((decimal)normalTamamlanmaStats.TamamlananUrun / normalTamamlanmaStats.ToplamUrun * 100)
+                        : 0;
+                }
+
+                var stats = sahaYedekStats.FirstOrDefault(s => s.ProjeTipiId == tipId);
+                return stats is { ToplamUrun: > 0 }
+                    ? (int)Math.Floor((decimal)stats.TamamlananUrun / stats.ToplamUrun * 100)
+                    : 0;
+            }
+
+            DashboardProjeTipiOzetRawStats BuildProjeTipiOzet(int tipId, List<DashboardDepoDagilimRawStats> depoDagilimlari)
+            {
+                projeTipiAdlari.TryGetValue(tipId, out var projeTipiMetni);
+
+                return new DashboardProjeTipiOzetRawStats
+                {
+                    ProjeTipiId = tipId,
+                    ProjeTipiMetni = string.IsNullOrWhiteSpace(projeTipiMetni) ? ((ProjeTipi)tipId).ToString() : projeTipiMetni,
+                    ToplamProje = GetTipToplamProje(tipId),
+                    HazirlananProje = GetTipDurumCount(tipId, (int)ProjeDurum.Hazirlaniyor),
+                    SevkEdilenProje = GetTipDurumCount(tipId, (int)ProjeDurum.SevkEdildi) + GetTipDurumCount(tipId, (int)ProjeDurum.EksikSevkEdildi),
+                    TamamlananProje = GetTipDurumCount(tipId, (int)ProjeDurum.Tamamlandi),
+                    ToplamSandik = GetSandikByTip(tipId),
+                    EksikUrunSayisi = GetEksikUrunByTip(tipId),
+                    ToplamDepoSandik = depoDagilimlari.Sum(d => d.SandikSayisi),
+                    TamamlanmaYuzdesi = GetTamamlanmaYuzdesi(tipId),
+                    DepoDagilimlari = depoDagilimlari
+                };
+            }
+
+            var projeTipiOzetleri = new List<DashboardProjeTipiOzetRawStats>
+            {
+                BuildProjeTipiOzet((int)ProjeTipi.Normal, normalDepoDagilimlari),
+                BuildProjeTipiOzet((int)ProjeTipi.Saha, sahaDepoDagilimlari),
+                BuildProjeTipiOzet((int)ProjeTipi.Yedek, yedekDepoDagilimlari)
+            };
 
             return new DashboardOzetRawStats
             {
@@ -177,7 +253,8 @@ namespace _3K.Infrastructure.Services
                 SahaYuzde = sahaStats is { ToplamUrun: > 0 }
                     ? (int)Math.Floor((decimal)sahaStats.TamamlananUrun / sahaStats.ToplamUrun * 100) : 0,
                 YedekYuzde = yedekStats is { ToplamUrun: > 0 }
-                    ? (int)Math.Floor((decimal)yedekStats.TamamlananUrun / yedekStats.ToplamUrun * 100) : 0
+                    ? (int)Math.Floor((decimal)yedekStats.TamamlananUrun / yedekStats.ToplamUrun * 100) : 0,
+                ProjeTipiOzetleri = projeTipiOzetleri
             };
         }
     }

@@ -42,7 +42,23 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                 SahaSandik = stats.SahaSandik,
                 YedekSandik = stats.YedekSandik,
                 SahaYuzde = stats.SahaYuzde,
-                YedekYuzde = stats.YedekYuzde
+                YedekYuzde = stats.YedekYuzde,
+                ProjeTipiOzetleri = stats.ProjeTipiOzetleri
+                    .Select(t => new DashboardProjeTipiOzetDto
+                    {
+                        ProjeTipiId = t.ProjeTipiId,
+                        ProjeTipiMetni = t.ProjeTipiMetni,
+                        ToplamProje = t.ToplamProje,
+                        HazirlananProje = t.HazirlananProje,
+                        SevkEdilenProje = t.SevkEdilenProje,
+                        TamamlananProje = t.TamamlananProje,
+                        ToplamSandik = t.ToplamSandik,
+                        EksikUrunSayisi = t.EksikUrunSayisi,
+                        ToplamDepoSandik = t.ToplamDepoSandik,
+                        TamamlanmaYuzdesi = t.TamamlanmaYuzdesi,
+                        DepoDagilimlari = MapDepoDagilimlari(t.DepoDagilimlari)
+                    })
+                    .ToList()
             };
 
             return Result<DashboardOzetDto>.Success(ozet);
@@ -76,8 +92,13 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
         {
             var page = Math.Max(request.Page, 1);
             var pageSize = Math.Clamp(request.PageSize, 1, 100);
-            var totalCount = await _projeRepository.CountAsync(cancellationToken);
-            var projeler = await _projeRepository.GetPagedWithDetailsAsync(page, pageSize, cancellationToken);
+            var (projeler, totalCount) = await _projeRepository.GetFilteredPagedAsync(
+                request.ProjeTipiId,
+                searchTerm: null,
+                isSevkEdilen: null,
+                page,
+                pageSize,
+                cancellationToken);
             var items = projeler.Select(p => DashboardProjection.ToProjeItem(p, _lookupCache)).ToList();
 
             return Result<DashboardPagedResultDto<DashboardProjeItemDto>>.Success(new DashboardPagedResultDto<DashboardProjeItemDto>

@@ -36,6 +36,7 @@ namespace _3K.Core.Entities
         // Saha/Yedek yüzdeleri
         public int SahaYuzde { get; set; }
         public int YedekYuzde { get; set; }
+        public List<DashboardProjeTipiOzetRawStats> ProjeTipiOzetleri { get; set; } = new();
     }
 
     public class DashboardDepoDagilimRawStats
@@ -43,5 +44,20 @@ namespace _3K.Core.Entities
         public int DepoLokasyonId { get; set; }
         public string DepoLokasyonMetni { get; set; } = string.Empty;
         public int SandikSayisi { get; set; }
+    }
+
+    public class DashboardProjeTipiOzetRawStats
+    {
+        public int ProjeTipiId { get; set; }
+        public string ProjeTipiMetni { get; set; } = string.Empty;
+        public int ToplamProje { get; set; }
+        public int HazirlananProje { get; set; }
+        public int SevkEdilenProje { get; set; }
+        public int TamamlananProje { get; set; }
+        public int ToplamSandik { get; set; }
+        public int EksikUrunSayisi { get; set; }
+        public int ToplamDepoSandik { get; set; }
+        public int TamamlanmaYuzdesi { get; set; }
+        public List<DashboardDepoDagilimRawStats> DepoDagilimlari { get; set; } = new();
     }
 }
