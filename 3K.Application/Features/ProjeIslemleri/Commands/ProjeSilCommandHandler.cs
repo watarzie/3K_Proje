@@ -46,6 +46,17 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
 
             if (sandikIdler.Count > 0)
             {
+                var sevkiyatSandikRepo = _unitOfWork.GetRepository<SevkiyatSandik>();
+                var sevkiyatSandiklari = await sevkiyatSandikRepo.FindAsync(ss => sandikIdler.Contains(ss.SandikId));
+                foreach (var ss in sevkiyatSandiklari) sevkiyatSandikRepo.Remove(ss);
+            }
+
+            var sevkiyatRepo = _unitOfWork.GetRepository<Sevkiyat>();
+            var sevkiyatlar = await sevkiyatRepo.FindAsync(s => s.ProjeId == request.ProjeId);
+            foreach (var sevkiyat in sevkiyatlar) sevkiyatRepo.Remove(sevkiyat);
+
+            if (sandikIdler.Count > 0)
+            {
                 var icerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
                 var icerikler = await icerikRepo.FindAsync(i => sandikIdler.Contains(i.SandikId));
                 foreach (var ic in icerikler) icerikRepo.Remove(ic);

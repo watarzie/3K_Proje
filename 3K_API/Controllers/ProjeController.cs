@@ -68,7 +68,20 @@ namespace _3K_API.Controllers
         [HttpPost("{id}/sevk-et")]
         public async Task<ActionResult> SevkEt(int id, [FromBody] SevkEtRequest? request = null)
         {
-            var result = await _mediator.Send(new ProjeSevkEtCommand { ProjeId = id, SevkTarihi = request?.SevkTarihi });
+            var result = await _mediator.Send(new ProjeSevkEtCommand
+            {
+                ProjeId = id,
+                SevkTarihi = request?.SevkTarihi,
+                SandikIds = request?.SandikIds,
+                Aciklama = request?.Aciklama
+            });
+            return result.ToActionResult();
+        }
+
+        [HttpGet("{id}/sevkiyatlar")]
+        public async Task<ActionResult> GetSevkiyatlar(int id)
+        {
+            var result = await _mediator.Send(new GetProjeSevkiyatlariQuery { ProjeId = id });
             return result.ToActionResult();
         }
 
@@ -105,5 +118,7 @@ namespace _3K_API.Controllers
     public record SevkEtRequest
     {
         public DateTime? SevkTarihi { get; init; }
+        public List<int>? SandikIds { get; init; }
+        public string? Aciklama { get; init; }
     }
 }

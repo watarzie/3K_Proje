@@ -23,6 +23,8 @@ namespace _3K.Infrastructure.Data
         public DbSet<HareketGecmisi> HareketGecmisleri { get; set; } = null!;
         public DbSet<HareketGecmisiArsiv> HareketGecmisleriArsiv { get; set; } = null!;
         public DbSet<ProjeTransfer> ProjeTransferleri { get; set; } = null!;
+        public DbSet<Sevkiyat> Sevkiyatlar { get; set; } = null!;
+        public DbSet<SevkiyatSandik> SevkiyatSandiklari { get; set; } = null!;
         public DbSet<OnayBekleyenIslem> OnayBekleyenIslemler { get; set; } = null!;
 
         // ======= RBAC (Rol Tabanlı Erişim Kontrolü) DbSet'leri =======
@@ -309,6 +311,39 @@ namespace _3K.Infrastructure.Data
             // ===============================================================
             // ONAY BEKLEYEN ISLEMLER KONFIGURASYONU
             // ===============================================================
+            modelBuilder.Entity<Sevkiyat>(e =>
+            {
+                e.Property(p => p.Aciklama).HasMaxLength(500);
+                e.HasIndex(p => new { p.ProjeId, p.SevkiyatNo }).IsUnique();
+                e.HasIndex(p => p.SevkTarihi);
+
+                e.HasOne(p => p.Proje)
+                    .WithMany(p => p.Sevkiyatlar)
+                    .HasForeignKey(p => p.ProjeId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                e.HasOne(p => p.Kullanici)
+                    .WithMany()
+                    .HasForeignKey(p => p.KullaniciId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<SevkiyatSandik>(e =>
+            {
+                e.HasIndex(p => new { p.SevkiyatId, p.SandikId }).IsUnique();
+                e.HasIndex(p => p.SandikId);
+
+                e.HasOne(p => p.Sevkiyat)
+                    .WithMany(p => p.Sandiklar)
+                    .HasForeignKey(p => p.SevkiyatId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                e.HasOne(p => p.Sandik)
+                    .WithMany(p => p.SevkiyatSandiklari)
+                    .HasForeignKey(p => p.SandikId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
             modelBuilder.Entity<OnayBekleyenIslem>()
                 .Property(o => o.PayloadJson)
                 .HasColumnType("text")

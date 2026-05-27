@@ -1102,7 +1102,7 @@ namespace _3K.Infrastructure.Services
             if (proje == null)
                 throw new KeyNotFoundException($"Proje bulunamadi: {projeId}");
 
-            if (proje.DurumId != (int)ProjeDurum.SevkEdildi)
+            if (proje.DurumId != (int)ProjeDurum.SevkEdildi && proje.DurumId != (int)ProjeDurum.EksikSevkEdildi)
                 throw new InvalidOperationException("Gerceklesen ceki listesi raporu sadece sevk edilmis projeler icin alinabilir.");
 
             var satirlar = await _context.CekiSatirlari
@@ -1706,7 +1706,7 @@ namespace _3K.Infrastructure.Services
             if (proje == null)
                 throw new KeyNotFoundException($"Proje bulunamadi: {projeId}");
 
-            if (proje.DurumId != (int)ProjeDurum.SevkEdildi)
+            if (proje.DurumId != (int)ProjeDurum.SevkEdildi && proje.DurumId != (int)ProjeDurum.EksikSevkEdildi)
                 throw new InvalidOperationException("Gerceklesen ceki listesi raporu sadece sevk edilmis projeler icin alinabilir.");
 
             var satirlar = await _context.CekiSatirlari

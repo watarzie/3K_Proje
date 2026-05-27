@@ -27,6 +27,7 @@ namespace _3K.Core.Entities
         public virtual LookupProjeTipi? ProjeTipiLookup { get; set; }
         public virtual ICollection<Ceki> Cekiler { get; set; } = new List<Ceki>();
         public virtual ICollection<Sandik> Sandiklar { get; set; } = new List<Sandik>();
+        public virtual ICollection<Sevkiyat> Sevkiyatlar { get; set; } = new List<Sevkiyat>();
         public virtual ICollection<HareketGecmisi> HareketGecmisleri { get; set; } = new List<HareketGecmisi>();
         public virtual ICollection<StokHareketi> StokHareketleri { get; set; } = new List<StokHareketi>();
     }

@@ -1,7 +1,9 @@
+using System.Linq;
 using MediatR;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
+using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.SandikIslemleri.Commands
@@ -14,6 +16,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
         public int ProjeId { get; set; }
         public int SandikId { get; set; }
+        public string? Aciklama { get; set; }
     }
 
     public class SandikSevkEtCommandHandler : IRequestHandler<SandikSevkEtCommand, Result>
@@ -32,6 +35,11 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         public async Task<Result> Handle(SandikSevkEtCommand request, CancellationToken cancellationToken)
         {
             var sandikRepo = _unitOfWork.GetRepository<Sandik>();
+            var projeRepo = _unitOfWork.GetRepository<Proje>();
+
+            if (!_currentUserService.UserId.HasValue)
+                return Result.Failure("Oturum acmaniz gerekiyor.", 401);
+
             var sandik = await sandikRepo.GetByIdAsync(request.SandikId);
 
             if (sandik == null || sandik.ProjeId != request.ProjeId)
@@ -41,22 +49,45 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 return Result.Failure("Sandık zaten sevk edilmiş durumda.");
 
             int eskiDurum = sandik.DurumId;
+            var sevkTarihi = TurkeyTime.Now;
+            sandik.SevkOncesiDurumId ??= sandik.DurumId;
             sandik.DurumId = (int)SandikDurum.Sevkedildi;
             sandikRepo.Update(sandik);
+
+            var proje = await projeRepo.GetByIdAsync(request.ProjeId);
+            if (proje != null)
+            {
+                var sandiklar = (await sandikRepo.FindAsync(s => s.ProjeId == request.ProjeId)).ToList();
+                var guncelSandik = sandiklar.FirstOrDefault(s => s.Id == request.SandikId);
+                if (guncelSandik != null)
+                    guncelSandik.DurumId = (int)SandikDurum.Sevkedildi;
+
+                proje.DurumId = ProjeSevkDurumHelper.Hesapla(sandiklar, proje.DurumId);
+                proje.GerceklesenSevkTarihi ??= sevkTarihi;
+                projeRepo.Update(proje);
+            }
+
+            var sevkiyat = await SevkiyatKayitHelper.OlusturAsync(
+                _unitOfWork,
+                request.ProjeId,
+                new[] { sandik },
+                sevkTarihi,
+                request.Aciklama,
+                _currentUserService.UserId.Value);
 
             await _unitOfWork.SaveChangesAsync();
 
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {
                 ProjeId = request.ProjeId,
-                KullaniciId = _currentUserService.UserId ?? 0,
+                KullaniciId = _currentUserService.UserId.Value,
                 ReferansTipi = "Sandik",
                 ReferansId = sandik.Id.ToString(),
                 Islem = "Sandık Sevk Edildi",
                 IslemTipiId = (int)IslemTipi.SandikSevkEdildi,
                 EskiDeger = eskiDurum.ToString(),
                 YeniDeger = sandik.DurumId.ToString(),
-                Aciklama = $"Sandık {sandik.SandikNo} sevk edildi."
+                Aciklama = $"Sandık {sandik.SandikNo} {sevkiyat.SevkiyatNo}. sevkiyat ile sevk edildi."
             });
 
             return Result.Success();

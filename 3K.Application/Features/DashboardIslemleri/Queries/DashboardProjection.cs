@@ -79,8 +79,8 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                 s.DurumId == (int)SandikDurum.Kapandi ||
                 s.DurumId == (int)SandikDurum.Sevkedildi);
 
-            if (proje.DurumId == (int)ProjeDurum.SevkEdildi)
-                return (int)ProjeDurum.SevkEdildi;
+            if (proje.DurumId == (int)ProjeDurum.SevkEdildi || proje.DurumId == (int)ProjeDurum.EksikSevkEdildi)
+                return proje.DurumId;
 
             if (hazirSandik == toplamSandik && toplamSandik > 0)
                 return (int)ProjeDurum.Tamamlandi;

@@ -31,6 +31,7 @@ namespace _3K.Core.Entities
         public virtual LookupSandikTipi? TipLookup { get; set; }
         public virtual LookupDepoLokasyon? DepoLokasyonLookup { get; set; }
         public virtual ICollection<SandikIcerik> SandikIcerikleri { get; set; } = new List<SandikIcerik>();
+        public virtual ICollection<SevkiyatSandik> SevkiyatSandiklari { get; set; } = new List<SevkiyatSandik>();
     }
 }
 

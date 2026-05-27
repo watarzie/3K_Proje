@@ -34,7 +34,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             if (proje == null)
                 return Result.Failure("Proje bulunamadı.");
 
-            if (proje.DurumId != (int)ProjeDurum.SevkEdildi)
+            if (proje.DurumId != (int)ProjeDurum.SevkEdildi && proje.DurumId != (int)ProjeDurum.EksikSevkEdildi)
                 return Result.Failure("Proje sevk edilmediği için kilidi açılamaz.");
 
             int eskiDurum = proje.DurumId;

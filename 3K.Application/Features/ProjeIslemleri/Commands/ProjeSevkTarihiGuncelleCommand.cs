@@ -51,8 +51,8 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 ReferansId = proje.Id.ToString(),
                 Islem = "Sevk Tarihi Güncellendi",
                 IslemTipiId = null,
-                EskiDeger = eskiTarih?.ToString("dd.MM.yyyy") ?? "Yok",
-                YeniDeger = request.PlanlananSevkTarihi?.ToString("dd.MM.yyyy") ?? "Yok",
+                EskiDeger = eskiTarih?.ToString("dd.MM.yyyy HH:mm") ?? "Yok",
+                YeniDeger = request.PlanlananSevkTarihi?.ToString("dd.MM.yyyy HH:mm") ?? "Yok",
                 Aciklama = "Projenin planlanan sevk tarihi güncellendi."
             });
 
