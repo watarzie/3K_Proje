@@ -18,10 +18,27 @@ namespace _3K.Infrastructure.Services
         public async Task<DashboardOzetRawStats> GetOzetStatsAsync(CancellationToken ct = default)
         {
             // ── Proje durum sayıları (proje tipi + durum bazlı tek sorgu) ──
-            var projeTipiDurumCounts = await _context.Projeler
+            var projeDurumRows = await _context.Projeler
+                .Select(p => new
+                {
+                    p.ProjeTipiId,
+                    p.DurumId,
+                    ToplamSandik = p.Sandiklar.Count(),
+                    HazirSandik = p.Sandiklar.Count(s =>
+                        s.DurumId == (int)SandikDurum.Kapandi ||
+                        s.DurumId == (int)SandikDurum.Sevkedildi)
+                })
+                .ToListAsync(ct);
+
+            var projeTipiDurumCounts = projeDurumRows
+                .Select(p => new
+                {
+                    p.ProjeTipiId,
+                    DurumId = HesaplaDashboardDurumId(p.DurumId, p.ToplamSandik, p.HazirSandik)
+                })
                 .GroupBy(p => new { p.ProjeTipiId, p.DurumId })
                 .Select(g => new { g.Key.ProjeTipiId, g.Key.DurumId, Count = g.Count() })
-                .ToListAsync(ct);
+                .ToList();
 
             var projeDurumCounts = projeTipiDurumCounts
                 .GroupBy(d => d.DurumId)
@@ -36,7 +53,8 @@ namespace _3K.Infrastructure.Services
             var hazirlananProje = GetDurumCount((int)ProjeDurum.Hazirlaniyor);
             var beklemedeProje = GetDurumCount((int)ProjeDurum.Beklemede);
             var tamamlananProje = GetDurumCount((int)ProjeDurum.Tamamlandi);
-            var sevkEdilenProje = GetDurumCount((int)ProjeDurum.SevkEdildi) + GetDurumCount((int)ProjeDurum.EksikSevkEdildi);
+            var sevkEdilenProje = GetDurumCount((int)ProjeDurum.SevkEdildi);
+            var eksikSevkEdilenProje = GetDurumCount((int)ProjeDurum.EksikSevkEdildi);
 
             var projeTipiAdlari = await _context.LookupProjeTipleri
                 .Select(l => new { l.Id, l.Deger })
@@ -212,7 +230,8 @@ namespace _3K.Infrastructure.Services
                     ProjeTipiMetni = string.IsNullOrWhiteSpace(projeTipiMetni) ? ((ProjeTipi)tipId).ToString() : projeTipiMetni,
                     ToplamProje = GetTipToplamProje(tipId),
                     HazirlananProje = GetTipDurumCount(tipId, (int)ProjeDurum.Hazirlaniyor),
-                    SevkEdilenProje = GetTipDurumCount(tipId, (int)ProjeDurum.SevkEdildi) + GetTipDurumCount(tipId, (int)ProjeDurum.EksikSevkEdildi),
+                    SevkEdilenProje = GetTipDurumCount(tipId, (int)ProjeDurum.SevkEdildi),
+                    EksikSevkEdilenProje = GetTipDurumCount(tipId, (int)ProjeDurum.EksikSevkEdildi),
                     TamamlananProje = GetTipDurumCount(tipId, (int)ProjeDurum.Tamamlandi),
                     ToplamSandik = GetSandikByTip(tipId),
                     EksikUrunSayisi = GetEksikUrunByTip(tipId),
@@ -236,6 +255,7 @@ namespace _3K.Infrastructure.Services
                 BeklemedeProje = beklemedeProje,
                 TamamlananProje = tamamlananProje,
                 SevkEdilenProje = sevkEdilenProje,
+                EksikSevkEdilenProje = eksikSevkEdilenProje,
                 ToplamSandik = toplamSandik,
                 NormalSandik = GetSandikByTip((int)ProjeTipi.Normal),
                 SahaSandik = GetSandikByTip((int)ProjeTipi.Saha),
@@ -256,6 +276,17 @@ namespace _3K.Infrastructure.Services
                     ? (int)Math.Floor((decimal)yedekStats.TamamlananUrun / yedekStats.ToplamUrun * 100) : 0,
                 ProjeTipiOzetleri = projeTipiOzetleri
             };
+        }
+
+        private static int HesaplaDashboardDurumId(int mevcutDurumId, int toplamSandik, int hazirSandik)
+        {
+            if (mevcutDurumId == (int)ProjeDurum.SevkEdildi || mevcutDurumId == (int)ProjeDurum.EksikSevkEdildi)
+                return mevcutDurumId;
+
+            if (toplamSandik > 0 && hazirSandik == toplamSandik)
+                return (int)ProjeDurum.Tamamlandi;
+
+            return (int)ProjeDurum.Hazirlaniyor;
         }
     }
 }

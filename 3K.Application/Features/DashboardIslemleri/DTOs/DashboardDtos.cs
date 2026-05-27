@@ -7,6 +7,7 @@ namespace _3K.Application.Features.DashboardIslemleri.DTOs
         public int BeklemedeProje { get; set; }
         public int TamamlananProje { get; set; }
         public int SevkEdilenProje { get; set; }
+        public int EksikSevkEdilenProje { get; set; }
         public int ToplamSandik { get; set; }
         public int EksikUrunSayisi { get; set; }
         public int ToplamDepoSandik { get; set; }
@@ -40,6 +41,7 @@ namespace _3K.Application.Features.DashboardIslemleri.DTOs
         public int ToplamProje { get; set; }
         public int HazirlananProje { get; set; }
         public int SevkEdilenProje { get; set; }
+        public int EksikSevkEdilenProje { get; set; }
         public int TamamlananProje { get; set; }
         public int ToplamSandik { get; set; }
         public int EksikUrunSayisi { get; set; }

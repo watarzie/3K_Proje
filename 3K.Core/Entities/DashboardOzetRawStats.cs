@@ -12,6 +12,7 @@ namespace _3K.Core.Entities
         public int BeklemedeProje { get; set; }
         public int TamamlananProje { get; set; }
         public int SevkEdilenProje { get; set; }
+        public int EksikSevkEdilenProje { get; set; }
 
         // Sandık sayıları
         public int ToplamSandik { get; set; }
@@ -53,6 +54,7 @@ namespace _3K.Core.Entities
         public int ToplamProje { get; set; }
         public int HazirlananProje { get; set; }
         public int SevkEdilenProje { get; set; }
+        public int EksikSevkEdilenProje { get; set; }
         public int TamamlananProje { get; set; }
         public int ToplamSandik { get; set; }
         public int EksikUrunSayisi { get; set; }
