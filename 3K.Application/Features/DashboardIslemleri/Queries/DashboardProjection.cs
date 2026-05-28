@@ -65,13 +65,6 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
             });
         }
 
-        public static int EtkinDepoLokasyonId(Sandik sandik, IReadOnlySet<string> gridKapandiSandikNolari)
-        {
-            return SandiktaGridKapandiUrunVar(sandik, gridKapandiSandikNolari)
-                ? (int)DepoLokasyon.Grid
-                : sandik.DepoLokasyonId;
-        }
-
         private static int HesaplaDurumId(Proje proje, ICollection<Sandik> sandiklar)
         {
             var toplamSandik = sandiklar.Count;

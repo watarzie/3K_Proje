@@ -1900,16 +1900,9 @@ namespace _3K.Infrastructure.Services
                     || lokasyon.Deger.Equals("Belirsiz", StringComparison.OrdinalIgnoreCase);
             }
 
-            int EtkinDepoLokasyonId(Sandik sandik)
-            {
-                return SandiktaGridKapandiUrunVar(sandik)
-                    ? (int)DepoLokasyon.Grid
-                    : sandik.DepoLokasyonId;
-            }
-
             string EtkinDepoLokasyonMetni(Sandik sandik)
             {
-                return lokasyonAdlari.GetValueOrDefault(EtkinDepoLokasyonId(sandik), "Belirsiz");
+                return lokasyonAdlari.GetValueOrDefault(sandik.DepoLokasyonId, "Belirsiz");
             }
 
             string LokasyonRengi(LookupDepoLokasyon lokasyon)
@@ -1930,7 +1923,7 @@ namespace _3K.Infrastructure.Services
             }
 
             var siraliSandiklar = sandiklar
-                .Where(s => EtkinDepoLokasyonId(s) != (int)DepoLokasyon.Belirsiz)
+                .Where(s => s.DepoLokasyonId != (int)DepoLokasyon.Belirsiz)
                 .OrderBy(EtkinDepoLokasyonMetni)
                 .ThenBy(s => s.Proje.ProjeNo)
                 .ThenBy(s => GetSandikSortKey(s.SandikNo))
@@ -1975,7 +1968,7 @@ namespace _3K.Infrastructure.Services
                     ToplamSandik = g.Count(),
                     LokasyonSayilari = depoLokasyonlari.ToDictionary(
                         lokasyon => lokasyon.Id,
-                        lokasyon => g.Count(s => EtkinDepoLokasyonId(s) == lokasyon.Id))
+                        lokasyon => g.Count(s => s.DepoLokasyonId == lokasyon.Id))
                 })
                 .OrderBy(p => p.ProjeNo)
                 .ToList();

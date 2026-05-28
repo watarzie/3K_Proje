@@ -113,9 +113,7 @@ namespace _3K.Infrastructure.Services
                 .Select(s => new
                 {
                     ProjeTipiId = s.Proje.ProjeTipiId,
-                    LokasyonId = s.SandikIcerikleri.Any(si => si.CekiSatiri != null && si.CekiSatiri!.GridDurumuId == (int)GridDurum.GridKapandi)
-                        ? (int)DepoLokasyon.Grid
-                        : s.DepoLokasyonId
+                    LokasyonId = s.DepoLokasyonId
                 })
                 .Where(s => s.LokasyonId != (int)DepoLokasyon.Belirsiz)
                 .GroupBy(s => new { s.ProjeTipiId, s.LokasyonId })
