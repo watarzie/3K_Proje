@@ -17,6 +17,13 @@ namespace _3K_API.Controllers
             _mediator = mediator;
         }
 
+        [HttpGet("is-listesi")]
+        public async Task<ActionResult> GetIsListesi([FromQuery] GetUcKIsListesiQuery query)
+        {
+            var result = await _mediator.Send(query);
+            return result.ToActionResult();
+        }
+
         /// <summary>
         /// 3K ürün listesi — proje bazında tüm ürünler ve 3K durumları.
         /// </summary>
