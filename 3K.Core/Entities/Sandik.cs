@@ -10,6 +10,7 @@ namespace _3K.Core.Entities
         /// Madde 6: Sandık adı (Örn: Mekanik, Elektrik).
         /// </summary>
         public string? Ad { get; set; }
+        public string? AdIngilizce { get; set; }
         public int TipId { get; set; } = (int)SandikTipi.AhsapKapali;
         public int DurumId { get; set; } = (int)SandikDurum.Bos;
         /// <summary>

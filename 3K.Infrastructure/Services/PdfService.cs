@@ -1334,14 +1334,15 @@ namespace _3K.Infrastructure.Services
                         {
                             table.ColumnsDefinition(columns =>
                             {
-                                columns.ConstantColumn(30);    // #
-                                columns.ConstantColumn(65);    // Koli No
-                                columns.RelativeColumn(2.5f);  // Sandık Adı
-                                columns.ConstantColumn(70);    // Net (kg)
-                                columns.ConstantColumn(70);    // Brüt (kg)
-                                columns.ConstantColumn(75);    // Boy (mm)
-                                columns.ConstantColumn(75);    // En (mm)
-                                columns.ConstantColumn(85);    // Yükseklik (mm)
+                                columns.ConstantColumn(28);    // #
+                                columns.ConstantColumn(55);    // Koli No
+                                columns.RelativeColumn(1.8f);  // Sandık Adı
+                                columns.RelativeColumn(1.8f);  // Sandık Adı (EN)
+                                columns.ConstantColumn(58);    // Net (kg)
+                                columns.ConstantColumn(58);    // Brüt (kg)
+                                columns.ConstantColumn(64);    // Boy (mm)
+                                columns.ConstantColumn(64);    // En (mm)
+                                columns.ConstantColumn(72);    // Yükseklik (mm)
                             });
 
                             table.Header(header =>
@@ -1359,6 +1360,7 @@ namespace _3K.Infrastructure.Services
                                 BiHeader(header.Cell(), "#");
                                 BiHeader(header.Cell(), "KOLİ NO", "Case No");
                                 BiHeader(header.Cell(), "SANDIK ADI", "Crate Name");
+                                BiHeader(header.Cell(), "SANDIK ADI (EN)", "Case Name");
                                 BiHeader(header.Cell(), "NET (kg)");
                                 BiHeader(header.Cell(), "BRÜT (kg)", "Gross (kg)");
                                 BiHeader(header.Cell(), "BOY (mm)", "Length (mm)");
@@ -1390,6 +1392,7 @@ namespace _3K.Infrastructure.Services
                                 SandikDataCell(table.Cell(), sandikSira.ToString(), bold: true);
                                 SandikDataCell(table.Cell(), sandik.SandikNo, bold: true, fontColor: headerBg);
                                 SandikDataCell(table.Cell(), sandik.Ad ?? "-");
+                                SandikDataCell(table.Cell(), sandik.AdIngilizce ?? "-");
                                 SandikDataCell(table.Cell(), FormatAdet(netKg), bold: true);
                                 SandikDataCell(table.Cell(), FormatAdet(brutKg), bold: true);
                                 SandikDataCell(table.Cell(), FormatAdet(sandik.Boy ?? 0));
@@ -1409,6 +1412,7 @@ namespace _3K.Infrastructure.Services
                             ToplamCell(table.Cell(), "");
                             ToplamCell(table.Cell(), "");
                             ToplamCell(table.Cell(), "TOPLAM");
+                            ToplamCell(table.Cell(), "");
                             ToplamCell(table.Cell(), FormatAdet(toplamNet));
                             ToplamCell(table.Cell(), FormatAdet(toplamBrut));
                             ToplamCell(table.Cell(), "");
@@ -1483,18 +1487,18 @@ namespace _3K.Infrastructure.Services
                     {
                         table.ColumnsDefinition(columns =>
                         {
-                            columns.ConstantColumn(22);
-                            columns.ConstantColumn(46);
-                            columns.ConstantColumn(66);
-                            columns.ConstantColumn(42);
-                            columns.RelativeColumn(2.05f);
-                            columns.ConstantColumn(42);
-                            columns.ConstantColumn(36);
+                            columns.ConstantColumn(20);
+                            columns.ConstantColumn(40);
                             columns.ConstantColumn(60);
-                            columns.ConstantColumn(50);
-                            columns.ConstantColumn(42);
-                            columns.ConstantColumn(82);
-                            columns.RelativeColumn(1.55f);
+                            columns.ConstantColumn(36);
+                            columns.RelativeColumn(1.8f);
+                            columns.ConstantColumn(38);
+                            columns.ConstantColumn(34);
+                            columns.ConstantColumn(54);
+                            columns.ConstantColumn(44);
+                            columns.ConstantColumn(38);
+                            columns.ConstantColumn(72);
+                            columns.RelativeColumn(1.2f);
                         });
 
                         table.Header(header =>
@@ -1750,7 +1754,7 @@ namespace _3K.Infrastructure.Services
             if (projeSandiklari.Any())
             {
                 var sandikSheet = workbook.Worksheets.Add("Sandık Bilgileri");
-                const int sandikLastColumn = 8;
+                const int sandikLastColumn = 9;
                 const int sandikHeaderRow = 6;
 
                 sandikSheet.Cell(1, 1).Value = "Koli / Sandık Bilgileri";
@@ -1759,15 +1763,15 @@ namespace _3K.Infrastructure.Services
                 sandikSheet.Cell(2, 2).Value = proje.ProjeNo;
                 sandikSheet.Cell(2, 4).Value = "Müşteri";
                 sandikSheet.Cell(2, 5).Value = proje.Musteri ?? "-";
-                sandikSheet.Cell(2, 7).Value = "Rapor Tarihi";
-                sandikSheet.Cell(2, 8).Value = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
+                sandikSheet.Cell(2, 8).Value = "Rapor Tarihi";
+                sandikSheet.Cell(2, 9).Value = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
                 sandikSheet.Cell(3, 1).Value = "Toplam Sandık";
                 SetDecimalCell(sandikSheet.Cell(3, 2), projeSandiklari.Count);
                 sandikSheet.Cell(3, 4).Value = "Sevk Tarihi";
                 sandikSheet.Cell(3, 5).Value = sevkTarihi;
                 StyleExcelInfoRows(sandikSheet, sandikLastColumn);
 
-                var sandikHeaders = new[] { "#", "Koli No", "Sandık Adı", "Net (kg)", "Brüt (kg)", "Boy (mm)", "En (mm)", "Yükseklik (mm)" };
+                var sandikHeaders = new[] { "#", "Koli No", "Sandık Adı", "Sandık Adı (EN)", "Net (kg)", "Brüt (kg)", "Boy (mm)", "En (mm)", "Yükseklik (mm)" };
                 for (var i = 0; i < sandikHeaders.Length; i++)
                     sandikSheet.Cell(sandikHeaderRow, i + 1).Value = sandikHeaders[i];
 
@@ -1780,11 +1784,12 @@ namespace _3K.Infrastructure.Services
                     sandikSheet.Cell(row, 1).SetValue(sira);
                     sandikSheet.Cell(row, 2).Value = sandik.SandikNo;
                     sandikSheet.Cell(row, 3).Value = sandik.Ad ?? "-";
-                    SetDecimalCell(sandikSheet.Cell(row, 4), sandik.NetKg ?? 0);
-                    SetDecimalCell(sandikSheet.Cell(row, 5), sandik.GrossKg ?? 0);
-                    SetDecimalCell(sandikSheet.Cell(row, 6), sandik.Boy ?? 0);
-                    SetDecimalCell(sandikSheet.Cell(row, 7), sandik.En ?? 0);
-                    SetDecimalCell(sandikSheet.Cell(row, 8), sandik.Yukseklik ?? 0);
+                    sandikSheet.Cell(row, 4).Value = sandik.AdIngilizce ?? "-";
+                    SetDecimalCell(sandikSheet.Cell(row, 5), sandik.NetKg ?? 0);
+                    SetDecimalCell(sandikSheet.Cell(row, 6), sandik.GrossKg ?? 0);
+                    SetDecimalCell(sandikSheet.Cell(row, 7), sandik.Boy ?? 0);
+                    SetDecimalCell(sandikSheet.Cell(row, 8), sandik.En ?? 0);
+                    SetDecimalCell(sandikSheet.Cell(row, 9), sandik.Yukseklik ?? 0);
 
                     if (sira % 2 == 0)
                         sandikSheet.Range(row, 1, row, sandikLastColumn).Style.Fill.BackgroundColor = XLColor.FromHtml("#F8FAFE");

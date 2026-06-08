@@ -287,6 +287,7 @@ namespace _3K.Infrastructure.Services
                         ProjeId = proje.Id,
                         SandikNo = grup.Key,
                         Ad = sandikBilgisi?.SandikIsmi ?? (sandikIsimleri.TryGetValue(grup.Key, out var isim) ? isim : null),
+                        AdIngilizce = sandikBilgisi?.SandikIsmiIngilizce,
                         DurumId = (int)SandikDurum.Hazirlaniyor,
                         En = sandikBilgisi?.En,
                         Boy = sandikBilgisi?.Boy,
@@ -405,7 +406,114 @@ namespace _3K.Infrastructure.Services
                 }
             }
 
+            foreach (var item in OkuPackingListSandikIngilizceAdlari(workbook))
+            {
+                if (sonuc.TryGetValue(item.Key, out var bilgi))
+                {
+                    bilgi.SandikIsmiIngilizce = item.Value;
+                }
+                else
+                {
+                    sonuc[item.Key] = new SandikImportBilgisi
+                    {
+                        SandikNo = item.Key,
+                        SandikIsmiIngilizce = item.Value
+                    };
+                }
+            }
+
             return sonuc;
+        }
+
+        private static Dictionary<string, string> OkuPackingListSandikIngilizceAdlari(IXLWorkbook workbook)
+        {
+            var sonuc = new Dictionary<string, string>();
+            var worksheet = workbook.Worksheets.FirstOrDefault(ws => NormalizeExcelText(ws.Name).Contains("PACKING LIST"));
+            var usedRange = worksheet?.RangeUsed();
+
+            if (worksheet == null || usedRange == null)
+                return sonuc;
+
+            if (!TryFindPackingListColumns(worksheet, usedRange, out var headerRow, out var caseNumberColumn, out var caseDescriptionColumn))
+                return sonuc;
+
+            var lastRow = usedRange.LastRow().RowNumber();
+            for (var row = headerRow + 1; row <= lastRow; row++)
+            {
+                var caseNumber = worksheet.Cell(row, caseNumberColumn).GetString().Trim();
+                var caseDescription = worksheet.Cell(row, caseDescriptionColumn).GetString().Trim();
+
+                if (string.IsNullOrWhiteSpace(caseNumber) || string.IsNullOrWhiteSpace(caseDescription))
+                    continue;
+
+                var sandikNo = ExtractPackingListSandikNo(caseNumber);
+                if (string.IsNullOrWhiteSpace(sandikNo))
+                    continue;
+
+                sonuc[sandikNo] = caseDescription;
+            }
+
+            return sonuc;
+        }
+
+        private static bool TryFindPackingListColumns(
+            IXLWorksheet worksheet,
+            IXLRange usedRange,
+            out int headerRow,
+            out int caseNumberColumn,
+            out int caseDescriptionColumn)
+        {
+            headerRow = 0;
+            caseNumberColumn = 0;
+            caseDescriptionColumn = 0;
+
+            var firstRow = usedRange.FirstRow().RowNumber();
+            var lastRow = Math.Min(usedRange.LastRow().RowNumber(), firstRow + 80);
+            var firstColumn = usedRange.FirstColumn().ColumnNumber();
+            var lastColumn = usedRange.LastColumn().ColumnNumber();
+
+            for (var row = firstRow; row <= lastRow; row++)
+            {
+                for (var column = firstColumn; column <= lastColumn; column++)
+                {
+                    var header = NormalizeExcelText(worksheet.Cell(row, column).GetString());
+                    if (string.IsNullOrWhiteSpace(header))
+                        continue;
+
+                    if (caseNumberColumn == 0 && header.Contains("CASE") && (header.Contains("NUMBER") || header.Contains("NO")))
+                    {
+                        caseNumberColumn = column;
+                        headerRow = Math.Max(headerRow, row);
+                    }
+
+                    if (caseDescriptionColumn == 0
+                        && (header.Contains("CONTENT")
+                            || header.Contains("CASE DESCRIPTION")
+                            || header.Contains("CASE NAME")))
+                    {
+                        caseDescriptionColumn = column;
+                        headerRow = Math.Max(headerRow, row);
+                    }
+                }
+
+                if (caseNumberColumn > 0 && caseDescriptionColumn > 0)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static string ExtractPackingListSandikNo(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return string.Empty;
+
+            var text = value.Trim();
+            var trailingDigits = new string(text.Reverse().TakeWhile(char.IsDigit).Reverse().ToArray());
+
+            return string.IsNullOrWhiteSpace(trailingDigits)
+                ? NormalizeKoliNo(text)
+                : NormalizeKoliNo(trailingDigits);
         }
 
         private static int? BulCekiListesiBaslikSatiri(IXLWorksheet worksheet)
@@ -555,6 +663,7 @@ namespace _3K.Infrastructure.Services
         {
             public string SandikNo { get; set; } = string.Empty;
             public string? SandikIsmi { get; set; }
+            public string? SandikIsmiIngilizce { get; set; }
             public string? AmbalajCinsi { get; set; }
             public decimal? En { get; set; }
             public decimal? Boy { get; set; }
