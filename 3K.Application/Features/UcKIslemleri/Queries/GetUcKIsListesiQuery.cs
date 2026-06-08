@@ -10,5 +10,6 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
         public int PageSize { get; set; } = 20;
         public string? IsTipi { get; set; }
         public int? ProjeId { get; set; }
+        public bool SadeceBugun { get; set; }
     }
 }

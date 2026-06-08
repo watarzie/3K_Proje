@@ -91,29 +91,57 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                 TrafoSevk = items.Count(i => i.IsTipi == TipTrafo),
                 YenidenSevkGerekli = items.Count(i => i.IsTipi == TipYeniden),
                 GridKapandi = items.Count(i => i.IsTipi == TipKapandi),
-                BugunGridIslemi = items.Count(i => (i.SonIslemTarihi ?? i.GridSevkTarihi)?.Date == TurkeyTime.Now.Date)
+                BugunGridIslemi = items.Count(IsTodayGridOperation)
             };
+
+            if (request.SadeceBugun)
+            {
+                items = items.Where(IsTodayGridOperation).ToList();
+            }
 
             if (!string.IsNullOrWhiteSpace(isTipi))
             {
                 items = items.Where(i => i.IsTipi == isTipi).ToList();
             }
 
-            var orderedItems = items
-                .OrderBy(i => i.Oncelik)
-                .ThenByDescending(i => i.SonIslemTarihi ?? i.GridSevkTarihi ?? DateTime.MinValue)
-                .ThenBy(i => i.ProjeNo)
-                .ThenBy(i => GetSandikSira(i.SandikNo))
-                .ThenBy(i => i.SiraNo)
+            var orderedProjectGroups = items
+                .GroupBy(i => i.ProjeId)
+                .Select(group =>
+                {
+                    var orderedGroupItems = group
+                        .OrderByDescending(GetOperationDate)
+                        .ThenBy(i => i.Oncelik)
+                        .ThenBy(i => GetSandikSira(i.SandikNo))
+                        .ThenBy(i => i.SiraNo)
+                        .ToList();
+
+                    return new
+                    {
+                        ProjeId = group.Key,
+                        ProjeNo = orderedGroupItems.First().ProjeNo,
+                        LatestOperationDate = orderedGroupItems.Max(GetOperationDate),
+                        Priority = orderedGroupItems.Min(i => i.Oncelik),
+                        Items = orderedGroupItems
+                    };
+                })
+                .OrderByDescending(group => group.LatestOperationDate)
+                .ThenBy(group => group.Priority)
+                .ThenBy(group => group.ProjeNo)
+                .ToList();
+
+            var pagedItems = orderedProjectGroups
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .SelectMany(group => group.Items)
                 .ToList();
 
             dto.Liste = new UcKPagedResultDto<UcKIsListesiItemDto>
             {
-                Items = orderedItems.Skip((page - 1) * pageSize).Take(pageSize).ToList(),
-                TotalCount = orderedItems.Count,
+                Items = pagedItems,
+                TotalCount = orderedProjectGroups.Count,
                 Page = page,
                 PageSize = pageSize,
-                HasMore = page * pageSize < orderedItems.Count
+                HasMore = page * pageSize < orderedProjectGroups.Count
             };
 
             return Task.FromResult(Result<UcKIsListesiDto>.Success(dto));
@@ -225,6 +253,17 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                 return null;
 
             return isTipi.Trim().ToLowerInvariant();
+        }
+
+        private static bool IsTodayGridOperation(UcKIsListesiItemDto item)
+        {
+            var operationDate = item.SonIslemTarihi ?? item.GridSevkTarihi;
+            return operationDate?.Date == TurkeyTime.Now.Date;
+        }
+
+        private static DateTime GetOperationDate(UcKIsListesiItemDto item)
+        {
+            return item.SonIslemTarihi ?? item.GridSevkTarihi ?? DateTime.MinValue;
         }
 
         private static int GetSandikSira(string? sandikNo)
