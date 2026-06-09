@@ -60,6 +60,13 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
 
+        [HttpPost("ceki-satirlari-sil")]
+        public async Task<ActionResult> CekiSatirlariSil([FromBody] CekiSatirlariSilCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
         [HttpPost("manuel-ekle")]
         public async Task<ActionResult> ManuelUrunEkle([FromBody] ManuelUrunEkleCommand command)
         {
