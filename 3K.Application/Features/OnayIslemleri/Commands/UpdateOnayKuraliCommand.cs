@@ -38,10 +38,12 @@ namespace _3K.Application.Features.OnayIslemleri.Commands
             repo.Update(rule);
             await _unitOfWork.SaveChangesAsync();
 
+            _cache.Remove($"ApprovalRule_UcK_{request.LookupUcKDurumId}");
+
             var lookupRepo = _unitOfWork.GetRepository<LookupUcKDurum>();
             var lookup = await lookupRepo.GetByIdAsync(request.LookupUcKDurumId);
 
-            // Clear the memory cache instantly
+            // Clear legacy string-keyed cache entries from older runtime versions too.
             if (lookup != null)
             {
                 _cache.Remove($"ApprovalRule_UcK_{lookup.Deger}");

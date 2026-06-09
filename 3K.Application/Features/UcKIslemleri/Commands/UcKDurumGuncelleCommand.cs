@@ -12,10 +12,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
     public class UcKDurumGuncelleCommand : IRequest<Result>, ISecuredRequest, IRequireApproval
     {
 
-        public string GetApprovalKarsilamaTipi()
+        public int GetApprovalLookupUcKDurumId()
         {
-            // ApprovalBehavior uses string to match lookup Deger — convert Id to readable name
-            return ((UcKDurum)KarsilamaTipiId).ToString();
+            return KarsilamaTipiId;
         }
 
         public string GetApprovalDescription()

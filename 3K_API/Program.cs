@@ -11,6 +11,7 @@ using _3K_API.Logging;
 using _3K_API.Middleware;
 using _3K.Core.Interfaces;
 using _3K.Application.Behaviors;
+using _3K.Application.Common;
 using _3K.Infrastructure.Data;
 using _3K.Infrastructure.Repositories;
 using _3K.Infrastructure.Services;
@@ -132,6 +133,7 @@ try
     // ======= Current User Service (Pipeline Behavior için) =======
     builder.Services.AddHttpContextAccessor();
     builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+    builder.Services.AddScoped<IApprovalExecutionContext, ApprovalExecutionContext>();
 
     // ======= Background Task Queue =======
     builder.Services.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();

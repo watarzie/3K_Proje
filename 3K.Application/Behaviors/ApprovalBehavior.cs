@@ -16,36 +16,30 @@ namespace _3K.Application.Behaviors
         private readonly IUnitOfWork _unitOfWork;
         private readonly ISseNotifier _sseNotifier;
         private readonly IMemoryCache _cache;
-        private readonly IRolService _rolService;
+        private readonly IApprovalExecutionContext _approvalExecutionContext;
 
-        public ApprovalBehavior(ICurrentUserService currentUserService, IUnitOfWork unitOfWork, ISseNotifier sseNotifier, IMemoryCache cache, IRolService rolService)
+        public ApprovalBehavior(ICurrentUserService currentUserService, IUnitOfWork unitOfWork, ISseNotifier sseNotifier, IMemoryCache cache, IApprovalExecutionContext approvalExecutionContext)
         {
             _currentUserService = currentUserService;
             _unitOfWork = unitOfWork;
             _sseNotifier = sseNotifier;
             _cache = cache;
-            _rolService = rolService;
+            _approvalExecutionContext = approvalExecutionContext;
         }
 
         public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
         {
             if (request is IRequireApproval approvalReq)
             {
-                var karsilamaTipi = approvalReq.GetApprovalKarsilamaTipi();
-                var cacheKey = $"ApprovalRule_UcK_{karsilamaTipi}";
+                var lookupUcKDurumId = approvalReq.GetApprovalLookupUcKDurumId();
+                var cacheKey = $"ApprovalRule_UcK_{lookupUcKDurumId}";
 
                 var isRuleActive = await _cache.GetOrCreateAsync(cacheKey, async entry =>
                 {
                     entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(24);
-                    
-                    var lookupRepo = _unitOfWork.GetRepository<LookupUcKDurum>();
-                    var lookupList = await lookupRepo.FindAsync(l => l.Deger == karsilamaTipi);
-                    var lookup = lookupList.FirstOrDefault();
-                    
-                    if (lookup == null) return false;
 
                     var ruleRepo = _unitOfWork.GetRepository<IslemOnayKurali>();
-                    var ruleList = await ruleRepo.FindAsync(r => r.LookupUcKDurumId == lookup.Id);
+                    var ruleList = await ruleRepo.FindAsync(r => r.LookupUcKDurumId == lookupUcKDurumId);
                     var kural = ruleList.FirstOrDefault();
                     
                     return kural?.OnayGerektirirMi ?? false;
@@ -53,14 +47,7 @@ namespace _3K.Application.Behaviors
 
                 if (isRuleActive)
                 {
-                    var canApprove = _currentUserService.UserId.HasValue &&
-                        await _rolService.HasUserPermissionAsync(
-                            _currentUserService.UserId.Value,
-                            "islem-onay-merkezi",
-                            YetkiTipi.W,
-                            cancellationToken);
-
-                    if (canApprove)
+                    if (_approvalExecutionContext.IsExecutingApprovedCommand)
                     {
                         return await next();
                     }

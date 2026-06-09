@@ -12,12 +12,14 @@ namespace _3K.Application.Features.OnayIslemleri.Commands
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMediator _mediator;
         private readonly ICurrentUserService _currentUserService;
+        private readonly IApprovalExecutionContext _approvalExecutionContext;
 
-        public IslemOnaylaCommandHandler(IUnitOfWork unitOfWork, IMediator mediator, ICurrentUserService currentUserService)
+        public IslemOnaylaCommandHandler(IUnitOfWork unitOfWork, IMediator mediator, ICurrentUserService currentUserService, IApprovalExecutionContext approvalExecutionContext)
         {
             _unitOfWork = unitOfWork;
             _mediator = mediator;
             _currentUserService = currentUserService;
+            _approvalExecutionContext = approvalExecutionContext;
         }
 
         public async Task<Result> Handle(IslemOnaylaCommand request, CancellationToken cancellationToken)
@@ -43,7 +45,8 @@ namespace _3K.Application.Features.OnayIslemleri.Commands
             if (originalRequest == null)
                 return Result.Failure("JSON datası orijinal komuta dönüştürülemedi.");
 
-            // 3. Asıl komutu MediatR ile çalıştır. Onay merkezi yazma yetkisi bu akışı geçirir.
+            // 3. Asıl komutu MediatR ile onaylı çalıştırma modunda çalıştır.
+            using var approvedExecution = _approvalExecutionContext.BeginApprovedExecution();
             var response = await _mediator.Send(originalRequest, cancellationToken);
             
             // response could be Result or Result<T>. We check if it was successful.
