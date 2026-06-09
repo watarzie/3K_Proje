@@ -50,6 +50,74 @@ namespace _3K.Infrastructure.Services
                 : int.MaxValue;
         }
 
+        private async Task<(Dictionary<int, string> ProjedenAlinan, Dictionary<int, string> ProjeyeVerilen)> GetProjeTransferRaporMapleriAsync(
+            IReadOnlyCollection<CekiSatiri> satirlar)
+        {
+            var satirIds = satirlar.Select(s => s.Id).Distinct().ToList();
+            if (!satirIds.Any())
+                return (new Dictionary<int, string>(), new Dictionary<int, string>());
+
+            var transferler = await _context.ProjeTransferleri
+                .AsNoTracking()
+                .Include(t => t.KaynakProje)
+                .Include(t => t.HedefProje)
+                .Where(t => t.DurumId == (int)ProjeTransferDurum.Aktif &&
+                    (satirIds.Contains(t.KaynakCekiSatiriId) ||
+                     (t.HedefCekiSatiriId.HasValue && satirIds.Contains(t.HedefCekiSatiriId.Value))))
+                .ToListAsync();
+
+            var projedenAlinan = transferler
+                .Where(t => t.HedefCekiSatiriId.HasValue && satirIds.Contains(t.HedefCekiSatiriId.Value))
+                .GroupBy(t => t.HedefCekiSatiriId!.Value)
+                .ToDictionary(
+                    g => g.Key,
+                    g => BuildProjeTransferRaporMetni(g, t => t.KaynakProje?.ProjeNo, "Alınan"));
+
+            var projeyeVerilen = transferler
+                .Where(t => satirIds.Contains(t.KaynakCekiSatiriId))
+                .GroupBy(t => t.KaynakCekiSatiriId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => BuildProjeTransferRaporMetni(g, t => t.HedefProje?.ProjeNo, "Verilen"));
+
+            return (projedenAlinan, projeyeVerilen);
+        }
+
+        private static string BuildProjeTransferRaporMetni(
+            IEnumerable<ProjeTransfer> transferler,
+            Func<ProjeTransfer, string?> projeNoSelector,
+            string hareketEtiketi)
+        {
+            return string.Join(", ", transferler
+                .GroupBy(t => string.IsNullOrWhiteSpace(projeNoSelector(t)) ? "?" : projeNoSelector(t)!.Trim())
+                .OrderBy(g => g.Key)
+                .Select(g => $"{hareketEtiketi}: {FormatAdet(g.Sum(t => t.Miktar))} ({g.Key})"));
+        }
+
+        private static string GetProjedenAlinanRaporMetni(CekiSatiri satir, IReadOnlyDictionary<int, string> transferMap)
+        {
+            if (transferMap.TryGetValue(satir.Id, out var transferMetni) && !string.IsNullOrWhiteSpace(transferMetni))
+                return transferMetni;
+
+            if (satir.ProjeKarsilanan <= 0)
+                return "-";
+
+            var projeNo = string.IsNullOrWhiteSpace(satir.KaynakHedefProjeNo) ? "?" : satir.KaynakHedefProjeNo;
+            return $"Alınan: {FormatAdet(satir.ProjeKarsilanan)} ({projeNo})";
+        }
+
+        private static string GetProjeyeVerilenRaporMetni(CekiSatiri satir, IReadOnlyDictionary<int, string> transferMap)
+        {
+            if (transferMap.TryGetValue(satir.Id, out var transferMetni) && !string.IsNullOrWhiteSpace(transferMetni))
+                return transferMetni;
+
+            if (satir.ProjeGonderilen <= 0)
+                return "-";
+
+            var projeNo = string.IsNullOrWhiteSpace(satir.KaynakHedefProjeNo) ? "?" : satir.KaynakHedefProjeNo;
+            return $"Verilen: {FormatAdet(satir.ProjeGonderilen)} ({projeNo})";
+        }
+
         private static List<string> GetRaporSandikNoList(CekiSatiri satir)
         {
             if (!string.IsNullOrWhiteSpace(satir.FiiliSandikNo))
@@ -923,6 +991,7 @@ namespace _3K.Infrastructure.Services
             var toplamKalanAdet = eksikSatirlar.Sum(s => s.KalanMiktar);
             var toplamIstenenAdet = eksikSatirlar.Sum(s => s.IstenenAdet);
             var toplamGelenAdet = eksikSatirlar.Sum(s => s.GelenMiktar + s.StokKarsilanan + s.ProjeKarsilanan + s.TedarikciKarsilanan);
+            var (projedenAlinanMap, projeyeVerilenMap) = await GetProjeTransferRaporMapleriAsync(eksikSatirlar);
 
             var document = Document.Create(container =>
             {
@@ -997,7 +1066,8 @@ namespace _3K.Infrastructure.Services
                             columns.ConstantColumn(46);   // 3K Gelen
                             columns.ConstantColumn(46);   // Karşılanan
                             columns.ConstantColumn(46);   // Geri Gönd.
-                            columns.ConstantColumn(50);   // Prj. Verildi
+                            columns.ConstantColumn(52);   // Prj. Alındı
+                            columns.ConstantColumn(52);   // Prj. Verildi
                             columns.ConstantColumn(42);   // Kalan
                             columns.RelativeColumn(1.35f); // 3K Durum
                             columns.RelativeColumn(1);    // Sürec
@@ -1026,6 +1096,7 @@ namespace _3K.Infrastructure.Services
                             BiHeader(header.Cell(), "3K GELEN", "3K Received");
                             BiHeader(header.Cell(), "KARŞI.", "Fulfilled");
                             BiHeader(header.Cell(), "GERİ GÖN.", "Returned");
+                            BiHeader(header.Cell(), "PRJ. ALINDI", "From Prj.");
                             BiHeader(header.Cell(), "PRJ. VERİLDİ", "Given to Prj.");
                             BiHeader(header.Cell(), "KALAN", "Remaining");
                             BiHeader(header.Cell(), "3K DURUM", "3K Status");
@@ -1060,9 +1131,10 @@ namespace _3K.Infrastructure.Services
                             DataCell(table.Cell(), FormatAdet(cs.GelenMiktar));
                             DataCell(table.Cell(), karsilanan > 0 ? FormatAdet(karsilanan) : "-");
                             DataCell(table.Cell(), cs.GeriGonderilenMiktar > 0 ? FormatAdet(cs.GeriGonderilenMiktar) : "-");
-                            // Başka projeye verildi
-                            var projVerildi = cs.ProjeGonderilen > 0 ? $"{FormatAdet(cs.ProjeGonderilen)} ({cs.KaynakHedefProjeNo ?? "?"})" : "-";
-                            DataCell(table.Cell(), projVerildi, fontColor: cs.ProjeGonderilen > 0 ? "#1565C0" : null);
+                            var projedenAlindi = GetProjedenAlinanRaporMetni(cs, projedenAlinanMap);
+                            var projeyeVerildi = GetProjeyeVerilenRaporMetni(cs, projeyeVerilenMap);
+                            DataCell(table.Cell(), projedenAlindi, fontColor: projedenAlindi != "-" ? "#2E7D32" : null);
+                            DataCell(table.Cell(), projeyeVerildi, fontColor: projeyeVerildi != "-" ? "#1565C0" : null);
                             DataCell(table.Cell(), FormatAdet(cs.KalanMiktar), bold: true, fontColor: dangerColor);
                             DataCell(table.Cell(), ucKDurum, fontColor: cs.UcKKarsilamaTipiId == (int)_3K.Core.Enums.UcKDurum.Bekliyor ? dangerColor : warningColor);
                             DataCell(table.Cell(), cs.SurecDurumLookup?.Deger ?? "-");
@@ -1627,10 +1699,11 @@ namespace _3K.Infrastructure.Services
             var toplamIstenenAdet = eksikSatirlar.Sum(s => s.IstenenAdet);
             var toplamGelenAdet = eksikSatirlar.Sum(s => s.GelenMiktar + s.StokKarsilanan + s.ProjeKarsilanan + s.TedarikciKarsilanan);
             var karsilamaOrani = toplamIstenenAdet > 0 ? toplamGelenAdet * 100 / toplamIstenenAdet : 0;
+            var (projedenAlinanMap, projeyeVerilenMap) = await GetProjeTransferRaporMapleriAsync(eksikSatirlar);
 
             using var workbook = new XLWorkbook();
             var worksheet = workbook.Worksheets.Add("Eksik Raporu");
-            const int lastColumn = 14;
+            const int lastColumn = 15;
             const int headerRow = 6;
 
             worksheet.Cell(1, 1).Value = "Eksik Ürünler Raporu";
@@ -1654,8 +1727,8 @@ namespace _3K.Infrastructure.Services
             var headers = new[]
             {
                 "#", "Sıra", "Barkod No", "Poz No", "Ürün Açıklaması", "Sandık",
-                "İstenen", "3K Gelen", "Karşılanan", "Geri Gön.", "Prj. Verildi",
-                "Kalan", "3K Durum", "Süreç"
+                "İstenen", "3K Gelen", "Karşılanan", "Geri Gön.", "Prj. Alındı",
+                "Prj. Verildi", "Kalan", "3K Durum", "Süreç"
             };
 
             for (var i = 0; i < headers.Length; i++)
@@ -1669,7 +1742,8 @@ namespace _3K.Infrastructure.Services
             {
                 var karsilanan = cs.StokKarsilanan + cs.ProjeKarsilanan + cs.TedarikciKarsilanan;
                 var sandikNo = cs.FiiliSandikNo ?? cs.CekideGecenSandikNo;
-                var projVerildi = cs.ProjeGonderilen > 0 ? $"{FormatAdet(cs.ProjeGonderilen)} ({cs.KaynakHedefProjeNo ?? "?"})" : "-";
+                var projedenAlindi = GetProjedenAlinanRaporMetni(cs, projedenAlinanMap);
+                var projeyeVerildi = GetProjeyeVerilenRaporMetni(cs, projeyeVerilenMap);
 
                 worksheet.Cell(row, 1).SetValue(sira);
                 worksheet.Cell(row, 2).SetValue(cs.SiraNo);
@@ -1681,10 +1755,11 @@ namespace _3K.Infrastructure.Services
                 SetDecimalCell(worksheet.Cell(row, 8), cs.GelenMiktar);
                 if (karsilanan > 0) SetDecimalCell(worksheet.Cell(row, 9), karsilanan); else worksheet.Cell(row, 9).Value = "-";
                 if (cs.GeriGonderilenMiktar > 0) SetDecimalCell(worksheet.Cell(row, 10), cs.GeriGonderilenMiktar); else worksheet.Cell(row, 10).Value = "-";
-                worksheet.Cell(row, 11).Value = projVerildi;
-                SetDecimalCell(worksheet.Cell(row, 12), cs.KalanMiktar);
-                worksheet.Cell(row, 13).Value = cs.UcKDurumLookup?.Deger ?? "-";
-                worksheet.Cell(row, 14).Value = cs.SurecDurumLookup?.Deger ?? "-";
+                worksheet.Cell(row, 11).Value = projedenAlindi;
+                worksheet.Cell(row, 12).Value = projeyeVerildi;
+                SetDecimalCell(worksheet.Cell(row, 13), cs.KalanMiktar);
+                worksheet.Cell(row, 14).Value = cs.UcKDurumLookup?.Deger ?? "-";
+                worksheet.Cell(row, 15).Value = cs.SurecDurumLookup?.Deger ?? "-";
 
                 if (sira % 2 == 0)
                     worksheet.Range(row, 1, row, lastColumn).Style.Fill.BackgroundColor = XLColor.FromHtml("#F8FAFE");
