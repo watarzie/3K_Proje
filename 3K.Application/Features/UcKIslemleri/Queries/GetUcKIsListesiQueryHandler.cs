@@ -13,9 +13,6 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
         private const string TipTeslim = "teslim";
         private const string TipYeniden = "yeniden";
         private const string TipEksik = "eksik";
-        private const string TipTrafo = "trafo";
-        private const string TipKapandi = "kapandi";
-
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILookupCacheService _lookupCache;
 
@@ -90,9 +87,9 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                 Toplam = items.Count,
                 TeslimBekleyen = items.Count(i => i.IsTipi == TipTeslim),
                 EksikGelen = items.Count(i => i.IsTipi == TipEksik),
-                TrafoSevk = items.Count(i => i.IsTipi == TipTrafo),
+                TrafoSevk = 0,
                 YenidenSevkGerekli = items.Count(i => i.IsTipi == TipYeniden),
-                GridKapandi = items.Count(i => i.IsTipi == TipKapandi),
+                GridKapandi = 0,
                 BugunGridIslemi = items.Count(IsTodayGridOperation)
             };
 
@@ -216,12 +213,6 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
             if (gridDurumuId == (int)GridDurum.EksikGeldi && gridEksik > 0)
                 return (TipEksik, "Grid eksik geldi", 3);
 
-            if (gridDurumuId == (int)GridDurum.TrafoSevk && trafoSevkAdet > 0)
-                return (TipTrafo, "Trafo sevk var", 4);
-
-            if (gridDurumuId == (int)GridDurum.GridKapandi && ucKKarsilamaTipiId == (int)UcKDurum.Bekliyor)
-                return (TipKapandi, "Grid kapandi", 5);
-
             return null;
         }
 
@@ -254,7 +245,10 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
             if (string.IsNullOrWhiteSpace(isTipi) || isTipi.Equals("all", StringComparison.OrdinalIgnoreCase))
                 return null;
 
-            return isTipi.Trim().ToLowerInvariant();
+            var normalized = isTipi.Trim().ToLowerInvariant();
+            return normalized is TipTeslim or TipYeniden or TipEksik
+                ? normalized
+                : null;
         }
 
         private static bool IsTodayGridOperation(UcKIsListesiItemDto item)
