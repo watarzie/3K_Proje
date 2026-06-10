@@ -64,7 +64,7 @@ namespace _3K.Infrastructure.Repositories
             if (isSevkEdilen.HasValue)
             {
                 if (isSevkEdilen.Value)
-                    query = query.Where(p => p.DurumId == 5); // Sadece tamamen sevk edilen projeler
+                    query = query.Where(p => p.DurumId == 5 || p.Sevkiyatlar.Any(s => s.Sandiklar.Any())); // Tam veya kısmi gerçekleşen sevkiyatlar
                 else
                     query = query.Where(p => p.DurumId != 5); // EksikSevkEdildi aktif iş olarak kalır
             }

@@ -4,7 +4,7 @@ using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.PdfIslemleri.Queries
 {
-    public class GetDepoSandikPdfQuery : IRequest<Result<byte[]>>
+    public class GetDepoSandikPdfQuery : IRequest<Result<byte[]>>, ISecuredRequest
     {
         public int? ProjeTipiId { get; set; }
     }
