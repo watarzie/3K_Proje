@@ -41,10 +41,16 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             var now = TurkeyTime.Now;
             var kullaniciId = _currentUserService.UserId ?? 0;
             int teslimAlinan = 0;
+            var kilitliSatirIdleri = await SandikSevkKilidiHelper.GetSevkEdilmisSandikCekiSatiriIdleriAsync(
+                _unitOfWork,
+                idler);
 
             foreach (var item in request.Urunler)
             {
                 if (!satirlar.TryGetValue(item.CekiSatiriId, out var satir))
+                    continue;
+
+                if (kilitliSatirIdleri.Contains(item.CekiSatiriId))
                     continue;
 
                 if (item.GelenMiktar <= 0)

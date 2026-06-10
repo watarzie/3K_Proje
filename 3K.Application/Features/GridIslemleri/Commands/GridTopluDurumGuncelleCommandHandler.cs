@@ -50,6 +50,13 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             if (!satirlar.Any())
                 return Result.Failure("Seçilen ürünler bulunamadı.", 404);
 
+            var kilitliSatirIdleri = await SandikSevkKilidiHelper.GetSevkEdilmisSandikCekiSatiriIdleriAsync(
+                _unitOfWork,
+                satirlar.Select(s => s.Id));
+
+            if (kilitliSatirIdleri.Any())
+                return Result.Failure($"Seçili ürünlerden {kilitliSatirIdleri.Count} tanesi sevk edilmiş sandıkta olduğu için Grid işlemi yapılamaz.");
+
             var kullaniciId = _currentUserService.UserId ?? 0;
             int basarili = 0;
             var hatalar = new List<string>();

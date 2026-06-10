@@ -41,10 +41,20 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (request.TasinanAdet > kaynakIcerik.KonulanAdet)
                 return Result.Failure($"Taşınan adet ({request.TasinanAdet}), mevcut adetten ({kaynakIcerik.KonulanAdet}) büyük olamaz.");
 
+            var kaynakSandik = await sandikRepo.GetByIdAsync(kaynakIcerik.SandikId);
+            if (kaynakSandik == null)
+                return Result.Failure("Kaynak sandık bulunamadı.", 404);
+
+            if (SandikSevkKilidiHelper.SandikKilitliMi(kaynakSandik))
+                return Result.Failure("Kaynak sandık sevk edildiği için içinden ürün taşınamaz.");
+
             // Hedef sandık var mı?
             var hedefSandik = await sandikRepo.GetByIdAsync(request.HedefSandikId);
             if (hedefSandik == null)
                 return Result.Failure("Hedef sandık bulunamadı.", 404);
+
+            if (SandikSevkKilidiHelper.SandikKilitliMi(hedefSandik))
+                return Result.Failure("Hedef sandık sevk edildiği için içine ürün taşınamaz.");
 
             // Aynı proje kontrolü
             if (hedefSandik.ProjeId != request.ProjeId)
@@ -138,7 +148,6 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             await _unitOfWork.SaveChangesAsync();
 
             // ===== 4. Hareket kaydı =====
-            var kaynakSandik = await sandikRepo.GetByIdAsync(kaynakIcerik.SandikId);
             string cekiSatiriText;
             if (kaynakIcerik.CekiSatiriId.HasValue)
             {

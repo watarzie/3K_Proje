@@ -31,6 +31,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (sandik == null || sandik.ProjeId != request.ProjeId)
                 return Result.Failure("Sandık bulunamadı veya projeye ait değil.", 404);
 
+            if (SandikSevkKilidiHelper.SandikKilitliMi(sandik))
+                return Result.Failure(SandikSevkKilidiHelper.SandikKilitliMesaji);
+
             var sonCeki = (await cekiRepo.FindAsync(c => c.ProjeId == request.ProjeId))
                           .OrderByDescending(c => c.YuklemeTarihi)
                           .FirstOrDefault();

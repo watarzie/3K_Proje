@@ -11,6 +11,9 @@ namespace _3K.Application.Features.GridIslemleri.DTOs
         public int BirimId { get; set; }
         public string Birim { get; set; } = string.Empty;
         public string SandikNo { get; set; } = string.Empty;
+        public int? SandikDurumId { get; set; }
+        public string? SandikDurumMetni { get; set; }
+        public bool SandikSevkEdildiMi { get; set; }
 
         // Grid tarafı
         public int GridDurumuId { get; set; }

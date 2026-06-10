@@ -41,6 +41,13 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             if (!satirlar.Any())
                 return Result.Failure("Seçilen ürünler bulunamadı.", 404);
 
+            var kilitliSatirIdleri = await SandikSevkKilidiHelper.GetSevkEdilmisSandikCekiSatiriIdleriAsync(
+                _unitOfWork,
+                satirlar.Select(s => s.Id));
+
+            if (kilitliSatirIdleri.Any())
+                return Result.Failure($"Seçili ürünlerden {kilitliSatirIdleri.Count} tanesi sevk edilmiş sandıkta olduğu için Grid sevk işlemi yapılamaz.", 400);
+
             var tadilattakiSatirlar = satirlar
                 .Where(s => s.KaliteDurumId.HasValue
                     && _lookupCache.GetDeger<LookupKaliteDurum>(s.KaliteDurumId.Value) == "Tadilatta")

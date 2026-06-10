@@ -53,6 +53,11 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
             if (satirlar.Count != idler.Count)
                 return Result<CekiSatirlariSilDto>.Failure("Çeki satırı bulunamadı.", 404);
 
+            var kilitliSatirIdleri = await SandikSevkKilidiHelper.GetSevkEdilmisSandikCekiSatiriIdleriAsync(_unitOfWork, idler);
+            if (kilitliSatirIdleri.Any())
+                return Result<CekiSatirlariSilDto>.Failure(
+                    $"Seçili satırlardan {kilitliSatirIdleri.Count} tanesi sevk edilmiş sandıkta olduğu için silinemez.");
+
             var cekiRepo = _unitOfWork.GetRepository<Ceki>();
             var cekiIdler = satirlar.Select(s => s.CekiId).Distinct().ToList();
             var cekiler = (await cekiRepo.FindAsync(c => cekiIdler.Contains(c.Id))).ToDictionary(c => c.Id);

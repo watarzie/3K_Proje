@@ -64,9 +64,9 @@ namespace _3K.Infrastructure.Repositories
             if (isSevkEdilen.HasValue)
             {
                 if (isSevkEdilen.Value)
-                    query = query.Where(p => p.DurumId == 5 || p.DurumId == 6); // SevkEdildi, EksikSevkEdildi
+                    query = query.Where(p => p.DurumId == 5); // Sadece tamamen sevk edilen projeler
                 else
-                    query = query.Where(p => p.DurumId != 5 && p.DurumId != 6);
+                    query = query.Where(p => p.DurumId != 5); // EksikSevkEdildi aktif iş olarak kalır
             }
 
             if (!string.IsNullOrWhiteSpace(searchTerm))

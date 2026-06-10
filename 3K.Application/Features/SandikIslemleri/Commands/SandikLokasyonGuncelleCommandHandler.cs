@@ -37,6 +37,17 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 return Result<bool>.Failure("Sandıklar bulunamadı.");
             }
 
+            var sevkEdilmisSandiklar = sandiklar
+                .Where(SandikSevkKilidiHelper.SandikKilitliMi)
+                .Select(s => s.SandikNo)
+                .ToList();
+
+            if (sevkEdilmisSandiklar.Any())
+            {
+                return Result<bool>.Failure(
+                    $"{string.Join(", ", sevkEdilmisSandiklar)} numaralı sandık(lar) sevk edildiği için lokasyon değiştirilemez.");
+            }
+
             var lokasyonRepo = _unitOfWork.GetRepository<LookupDepoLokasyon>();
             var lokasyonlar = (await lokasyonRepo.FindAsync(l => true))
                 .ToDictionary(l => l.Id, l => l.Deger);

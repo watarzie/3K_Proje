@@ -25,6 +25,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             if (urun == null) return Result.Failure("Ürün bulunamadı.", 404);
 
+            if (await SandikSevkKilidiHelper.CekiSatiriSevkEdilmisSandiktaMiAsync(_unitOfWork, urun))
+                return Result.Failure(SandikSevkKilidiHelper.UrunKilitliMesaji);
+
             urun.DurumId = (int)UrunDurum.IptalVeyaPasif;
             urun.Remarks = $"İPTAL: {request.Neden}";
             urunRepo.Update(urun);

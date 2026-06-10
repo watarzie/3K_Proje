@@ -29,10 +29,20 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (urun == null) return Result.Failure("Ürün bulunamadı.", 404);
 
             string eskiSandikNo = urun.FiiliSandikNo ?? urun.CekideGecenSandikNo;
+            var eskiSandik = (await sandikRepo.FindAsync(s =>
+                    s.ProjeId == request.ProjeId &&
+                    s.SandikNo == eskiSandikNo))
+                .FirstOrDefault();
+
+            if (eskiSandik != null && SandikSevkKilidiHelper.SandikKilitliMi(eskiSandik))
+                return Result.Failure("Ürün sevk edilmiş sandıkta olduğu için sandığı değiştirilemez.");
 
             var hedefSandiklar = await sandikRepo.FindAsync(s =>
                 s.ProjeId == request.ProjeId && s.SandikNo == request.YeniFiiliSandikNo);
             var hedefSandik = hedefSandiklar.FirstOrDefault();
+
+            if (hedefSandik != null && SandikSevkKilidiHelper.SandikKilitliMi(hedefSandik))
+                return Result.Failure("Hedef sandık sevk edildiği için bu sandığa ürün taşınamaz.");
 
             if (hedefSandik == null)
             {

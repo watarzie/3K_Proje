@@ -37,6 +37,9 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
             // Sandık kontrolü veya oluşturma
             var sandik = (await sandikRepo.FindAsync(s => s.ProjeId == request.ProjeId && s.SandikNo == request.SandikNo)).FirstOrDefault();
+            if (sandik != null && SandikSevkKilidiHelper.SandikKilitliMi(sandik))
+                return Result.Failure("Bu sandık sevk edildiği için Grid manuel ürün ekleyemez.");
+
             if (sandik == null)
             {
                 sandik = new Sandik

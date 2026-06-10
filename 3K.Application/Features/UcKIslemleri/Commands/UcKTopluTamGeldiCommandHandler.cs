@@ -33,6 +33,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
             var repo = _unitOfWork.GetRepository<CekiSatiri>();
             var sandikIcerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
+            var kilitliSatirIdleri = await SandikSevkKilidiHelper.GetSevkEdilmisSandikCekiSatiriIdleriAsync(
+                _unitOfWork,
+                request.CekiSatiriIdler);
             var basarili = 0;
             var hatalar = new List<string>();
 
@@ -40,6 +43,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             {
                 var satir = await repo.GetByIdAsync(cekiSatiriId);
                 if (satir == null) { hatalar.Add($"ID {cekiSatiriId}: Ürün bulunamadı."); continue; }
+                if (kilitliSatirIdleri.Contains(cekiSatiriId)) { hatalar.Add($"ID {cekiSatiriId}: {SandikSevkKilidiHelper.UrunKilitliMesaji}"); continue; }
 
                 // Grid blokaj kontrolleri
                 if (satir.GridDurumuId == (int)GridDurum.Iptal ||

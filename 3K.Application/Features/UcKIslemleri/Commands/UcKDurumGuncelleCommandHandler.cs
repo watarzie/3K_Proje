@@ -47,6 +47,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             if (satir == null)
                 return Result.Failure("Ürün bulunamadı.", 404);
 
+            if (await SandikSevkKilidiHelper.CekiSatiriSevkEdilmisSandiktaMiAsync(_unitOfWork, satir))
+                return Result.Failure(SandikSevkKilidiHelper.UrunKilitliMesaji);
+
             var eskiDurum = satir.UcKKarsilamaTipiId;
 
             // ===== Grid İptal / Kapandı Blokajı =====

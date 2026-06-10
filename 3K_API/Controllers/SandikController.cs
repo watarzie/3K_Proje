@@ -204,6 +204,16 @@ namespace _3K_API.Controllers
         }
 
         /// <summary>
+        /// Yanlışlıkla sevk edilen sandığın kilidini açar ve sevk öncesi durumuna döndürür.
+        /// </summary>
+        [HttpPost("kilidi-ac")]
+        public async Task<ActionResult> SandikKilidiAc([FromBody] SandikKilidiAcCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
+        /// <summary>
         /// Manuel eklenen ürünü siler.
         /// Normal projeler: cekiSatiriId ile, Saha/Yedek: sandikIcerikId ile.
         /// </summary>

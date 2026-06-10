@@ -8,6 +8,9 @@ namespace _3K.Application.Features.UcKIslemleri.DTOs
         public string? OlcuResmiPozNo { get; set; }
         public string Aciklama { get; set; } = string.Empty;
         public string SandikNo { get; set; } = string.Empty;
+        public int? SandikDurumId { get; set; }
+        public string? SandikDurumMetni { get; set; }
+        public bool SandikSevkEdildiMi { get; set; }
         public decimal IstenenAdet { get; set; }
         public int BirimId { get; set; }
         public string Birim { get; set; } = string.Empty;

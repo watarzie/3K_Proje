@@ -20,6 +20,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
         {
             var sevkiyatlar = _unitOfWork.GetRepository<Sevkiyat>().Queryable()
                 .Where(s => s.ProjeId == request.ProjeId)
+                .Where(s => s.Sandiklar.Any())
                 .OrderBy(s => s.SevkiyatNo)
                 .Select(s => new SevkiyatDto
                 {
@@ -59,10 +60,12 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
 
             var kilitAcmaKayitlari = _unitOfWork.GetRepository<HareketGecmisi>().Queryable()
                 .Where(h => h.ProjeId == request.ProjeId
-                    && h.ReferansTipi == "Proje"
-                    && h.Islem.StartsWith("Proje Kilidi")
-                    && eskiSevkDurumleri.Contains(h.EskiDeger ?? string.Empty)
-                    && h.YeniDeger == ((int)ProjeDurum.Hazirlaniyor).ToString())
+                    && ((h.ReferansTipi == "Proje"
+                            && h.Islem.StartsWith("Proje Kilidi")
+                            && eskiSevkDurumleri.Contains(h.EskiDeger ?? string.Empty)
+                            && h.YeniDeger == ((int)ProjeDurum.Hazirlaniyor).ToString())
+                        || (h.ReferansTipi == "Sandik"
+                            && h.Islem.StartsWith("Sandık Kilidi"))))
                 .Select(h => new SevkiyatDto
                 {
                     Id = h.Id,

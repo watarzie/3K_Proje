@@ -43,6 +43,13 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             if (!satirlar.Any())
                 return Result.Failure("Belirtilen ürünler bulunamadı.", 404);
 
+            var kilitliSatirIdleri = await SandikSevkKilidiHelper.GetSevkEdilmisSandikCekiSatiriIdleriAsync(
+                _unitOfWork,
+                satirlar.Select(s => s.Id));
+
+            if (kilitliSatirIdleri.Any())
+                return Result.Failure($"Seçili ürünlerden {kilitliSatirIdleri.Count} tanesi sevk edilmiş sandıkta olduğu için kalite durumu değiştirilemez.");
+
             foreach (var satir in satirlar)
             {
                 var eskiDurum = satir.KaliteDurumId.HasValue

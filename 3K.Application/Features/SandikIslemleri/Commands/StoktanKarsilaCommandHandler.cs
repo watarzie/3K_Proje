@@ -35,6 +35,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             if (urun == null) return Result.Failure("Ürün bulunamadı.", 404);
             if (stok == null) return Result.Failure("Stok kaydı bulunamadı.", 404);
+            if (await SandikSevkKilidiHelper.CekiSatiriSevkEdilmisSandiktaMiAsync(_unitOfWork, urun))
+                return Result.Failure(SandikSevkKilidiHelper.UrunKilitliMesaji);
             if (stok.Miktar < request.KarsilananAdet)
                 return Result.Failure("Yeterli stok miktarı bulunmuyor!", 400);
 

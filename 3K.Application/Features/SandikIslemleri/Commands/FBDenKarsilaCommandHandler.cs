@@ -35,6 +35,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             // ===== 1. Hedef ürünü bul =====
             var urun = await urunRepo.GetByIdAsync(request.CekiSatiriId);
             if (urun == null) return Result.Failure("Ürün bulunamadı.", 404);
+            if (await SandikSevkKilidiHelper.CekiSatiriSevkEdilmisSandiktaMiAsync(_unitOfWork, urun))
+                return Result.Failure(SandikSevkKilidiHelper.UrunKilitliMesaji);
 
             // ===== 2. Kaynak projeyi bul ve stoğunu düş =====
             var projeRepo = _unitOfWork.GetRepository<Proje>();
@@ -55,6 +57,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
                 if (kaynakSatir == null)
                     return Result.Failure("Kaynak projede eslesen urun bulunamadi.", 404);
+
+                if (await SandikSevkKilidiHelper.CekiSatiriSevkEdilmisSandiktaMiAsync(_unitOfWork, kaynakSatir))
+                    return Result.Failure("Kaynak ürün sevk edilmiş bir sandıkta olduğu için bu projeden karşılama yapılamaz.");
 
                 if (kaynakSatir != null)
                 {

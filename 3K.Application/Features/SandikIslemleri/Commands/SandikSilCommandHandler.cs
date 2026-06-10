@@ -30,6 +30,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (sandik.ProjeId != request.ProjeId)
                 return Result.Failure("Sandık bu projeye ait değil.");
 
+            if (SandikSevkKilidiHelper.SandikKilitliMi(sandik))
+                return Result.Failure(SandikSevkKilidiHelper.SandikKilitliMesaji);
+
             // İçinde ürün var mı kontrol et
             var sandikIcerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
             var icerikler = (await sandikIcerikRepo.FindAsync(x => x.SandikId == sandik.Id)).ToList();

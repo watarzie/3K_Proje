@@ -30,6 +30,22 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                 return Result<List<UcKUrunDto>>.Failure("Bu projeye ait çeki bulunamadı.", 404);
 
             var satirIdler = satirlar.Select(s => s.Id).ToList();
+            var sandikIcerikleri = (await _unitOfWork.GetRepository<SandikIcerik>()
+                    .FindAsync(i => i.CekiSatiriId.HasValue && satirIdler.Contains(i.CekiSatiriId.Value)))
+                .ToList();
+            var projeSandiklari = (await _unitOfWork.GetRepository<Sandik>()
+                    .FindAsync(s => s.ProjeId == request.ProjeId))
+                .ToList();
+            var sandikMap = projeSandiklari.ToDictionary(s => s.Id);
+            var sandikNoMap = projeSandiklari
+                .Where(s => !string.IsNullOrWhiteSpace(s.SandikNo))
+                .GroupBy(s => s.SandikNo.Trim(), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+            var sandikIcerikleriBySatirId = sandikIcerikleri
+                .Where(i => i.CekiSatiriId.HasValue)
+                .GroupBy(i => i.CekiSatiriId!.Value)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
             var transferler = (await _unitOfWork.GetRepository<ProjeTransfer>()
                 .FindAsync(t => t.DurumId == (int)ProjeTransferDurum.Aktif &&
                     (satirIdler.Contains(t.KaynakCekiSatiriId) ||
@@ -60,6 +76,17 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                         .OrderBy(t => t.ZincirSeviyesi)
                         .ThenBy(t => t.Tarih)
                         .ToList();
+                    var sandikNo = cs.FiiliSandikNo ?? cs.CekideGecenSandikNo ?? string.Empty;
+                    var satirIcerikleri = sandikIcerikleriBySatirId.GetValueOrDefault(cs.Id) ?? new List<SandikIcerik>();
+                    var sandik = satirIcerikleri
+                        .Select(i => sandikMap.GetValueOrDefault(i.SandikId))
+                        .Where(s => s != null)
+                        .Select(s => s!)
+                        .FirstOrDefault(s => string.Equals(s.SandikNo, sandikNo, StringComparison.OrdinalIgnoreCase))
+                        ?? satirIcerikleri
+                            .Select(i => sandikMap.GetValueOrDefault(i.SandikId))
+                            .FirstOrDefault(s => s != null)
+                        ?? (sandikNoMap.TryGetValue(sandikNo.Trim(), out var sandikByNo) ? sandikByNo : null);
 
                     return new UcKUrunDto
                     {
@@ -68,7 +95,10 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                         BarkodNo = cs.BarkodNo,
                         OlcuResmiPozNo = cs.OlcuResmiPozNo,
                         Aciklama = cs.Aciklama,
-                        SandikNo = cs.FiiliSandikNo ?? cs.CekideGecenSandikNo,
+                        SandikNo = sandikNo,
+                        SandikDurumId = sandik?.DurumId,
+                        SandikDurumMetni = sandik != null ? _lookupCache.GetDeger<LookupSandikDurum>(sandik.DurumId) : null,
+                        SandikSevkEdildiMi = sandik?.DurumId == (int)SandikDurum.Sevkedildi,
                         IstenenAdet = cs.IstenenAdet,
                         BirimId = cs.BirimId,
                         Birim = ((Birim)cs.BirimId).ToString(),

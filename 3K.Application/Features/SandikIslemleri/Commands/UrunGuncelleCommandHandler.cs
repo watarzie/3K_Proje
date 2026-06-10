@@ -30,6 +30,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (hedefSandik == null || hedefSandik.ProjeId != request.ProjeId)
                 return Result.Failure("Sandık bulunamadı veya projeye ait değil.", 404);
 
+            if (SandikSevkKilidiHelper.SandikKilitliMi(hedefSandik))
+                return Result.Failure(SandikSevkKilidiHelper.SandikKilitliMesaji);
+
             var projeRepo = _unitOfWork.GetRepository<Proje>();
             var hedefProje = await projeRepo.GetByIdAsync(hedefSandik.ProjeId);
             var isSahaYedek = hedefProje != null &&

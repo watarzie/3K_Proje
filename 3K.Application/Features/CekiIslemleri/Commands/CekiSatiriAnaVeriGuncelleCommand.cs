@@ -59,6 +59,9 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
             if (satir == null)
                 return Result<CekiSatiriAnaVeriGuncelleDto>.Failure("Ceki satiri bulunamadi.", 404);
 
+            if (await SandikSevkKilidiHelper.CekiSatiriSevkEdilmisSandiktaMiAsync(_unitOfWork, satir))
+                return Result<CekiSatiriAnaVeriGuncelleDto>.Failure(SandikSevkKilidiHelper.UrunKilitliMesaji);
+
             var ceki = await _unitOfWork.GetRepository<Ceki>().GetByIdAsync(satir.CekiId);
             if (ceki == null)
                 return Result<CekiSatiriAnaVeriGuncelleDto>.Failure("Ceki bulunamadi.", 404);

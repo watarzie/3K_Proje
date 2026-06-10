@@ -48,9 +48,18 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             var atlananlar = new List<string>();
 
             var sandikIcerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
+            var kilitliSatirIdleri = await SandikSevkKilidiHelper.GetSevkEdilmisSandikCekiSatiriIdleriAsync(
+                _unitOfWork,
+                satirlar.Select(s => s.Id));
 
             foreach (var satir in satirlar)
             {
+                if (kilitliSatirIdleri.Contains(satir.Id))
+                {
+                    atlananlar.Add($"#{satir.SiraNo} ({satir.Aciklama}) - {SandikSevkKilidiHelper.UrunKilitliMesaji}");
+                    continue;
+                }
+
                 // Grid İptal veya kapandı → atla
                 if (satir.GridDurumuId == (int)GridDurum.Iptal)
                 {

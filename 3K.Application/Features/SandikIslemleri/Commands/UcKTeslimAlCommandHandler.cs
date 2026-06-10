@@ -38,6 +38,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (satir == null)
                 return Result.Failure("Ürün bulunamadı.", 404);
 
+            if (await SandikSevkKilidiHelper.CekiSatiriSevkEdilmisSandiktaMiAsync(_unitOfWork, satir))
+                return Result.Failure(SandikSevkKilidiHelper.UrunKilitliMesaji);
+
             var eskiGelenMiktar = satir.GelenMiktar;
             var eskiUcKDurum = satir.UcKDurumuId;
 

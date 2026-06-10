@@ -38,6 +38,11 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 return new SandikKapatResult { IsSuccess = false, Message = "Sandık bulunamadı." };
             }
 
+            if (SandikSevkKilidiHelper.SandikKilitliMi(sandik))
+            {
+                return new SandikKapatResult { IsSuccess = false, Message = SandikSevkKilidiHelper.SandikKilitliMesaji };
+            }
+
             if (sandik.DurumId == (int)SandikDurum.Kapandi)
             {
                 return new SandikKapatResult { IsSuccess = false, Message = "Sandık zaten kapalı (Hazır) durumdadır." };

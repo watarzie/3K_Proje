@@ -40,11 +40,18 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             var uyarilar = new List<SandikUyariDetay>();
             var kapatilacakSandiklar = new List<Sandik>();
+            var sevkEdilmisSandiklar = new List<string>();
 
             foreach (var sandikId in request.SandikIds)
             {
                 var sandik = await sandikRepo.GetByIdAsync(sandikId);
                 if (sandik == null) continue;
+
+                if (SandikSevkKilidiHelper.SandikKilitliMi(sandik))
+                {
+                    sevkEdilmisSandiklar.Add(sandik.SandikNo);
+                    continue;
+                }
 
                 if (sandik.DurumId == (int)SandikDurum.Kapandi)
                 {
@@ -86,6 +93,15 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 {
                     kapatilacakSandiklar.Add(sandik);
                 }
+            }
+
+            if (sevkEdilmisSandiklar.Any())
+            {
+                return new TopluSandikKapatResult
+                {
+                    IsSuccess = false,
+                    Message = $"{string.Join(", ", sevkEdilmisSandiklar)} numaralı sandık(lar) sevk edildiği için üzerinde işlem yapılamaz."
+                };
             }
 
             // Uyarı varsa ve ForceClose değilse işlemi tamamen reddet

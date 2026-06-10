@@ -44,6 +44,9 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             if (satir == null)
                 return Result.Failure("Ürün bulunamadı.", 404);
 
+            if (await SandikSevkKilidiHelper.CekiSatiriSevkEdilmisSandiktaMiAsync(_unitOfWork, satir))
+                return Result.Failure(SandikSevkKilidiHelper.UrunKilitliMesaji);
+
             // ===== 3K İşlem Blokajı =====
             // 3K tarafında işlem yapılmışsa Grid artık durum değiştiremez.
             // Önce 3K durumunun sıfırlanması gerekir.

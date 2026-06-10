@@ -21,9 +21,10 @@ namespace _3K.Infrastructure.Services
 
         public async Task<int> ProjeleriArsivleAsync()
         {
-            // Sevk edilmiş projelerin loglarını o gece arşive taşı
+            // Tamamen sevk edilmiş projelerin loglarını o gece arşive taşı.
+            // Kısmi sevkte sevk edilmemiş sandıklarda 3K işi devam eder.
             var arsivlenecekProjeler = await _context.Projeler
-                .Where(p => p.DurumId == (int)ProjeDurum.SevkEdildi || p.DurumId == (int)ProjeDurum.EksikSevkEdildi)
+                .Where(p => p.DurumId == (int)ProjeDurum.SevkEdildi)
                 .Select(p => new { p.Id, p.ProjeNo, p.Musteri })
                 .ToListAsync();
 

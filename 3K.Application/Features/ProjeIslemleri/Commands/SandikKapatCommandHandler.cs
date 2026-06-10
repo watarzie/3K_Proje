@@ -26,6 +26,9 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
 
             if (sandik == null)
                 return Result<bool>.Failure("Sandık bulunamadı.", 404);
+
+            if (SandikSevkKilidiHelper.SandikKilitliMi(sandik))
+                return Result<bool>.Failure(SandikSevkKilidiHelper.SandikKilitliMesaji);
             
             var eskiDurumId = sandik.DurumId;
 

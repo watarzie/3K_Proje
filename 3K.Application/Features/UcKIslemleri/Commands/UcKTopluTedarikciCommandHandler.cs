@@ -34,6 +34,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
             var repo = _unitOfWork.GetRepository<CekiSatiri>();
             var sandikIcerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
+            var kilitliSatirIdleri = await SandikSevkKilidiHelper.GetSevkEdilmisSandikCekiSatiriIdleriAsync(
+                _unitOfWork,
+                request.CekiSatiriIdler);
             var basarili = 0;
             var hatalar = new List<string>();
 
@@ -41,6 +44,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             {
                 var satir = await repo.GetByIdAsync(cekiSatiriId);
                 if (satir == null) { hatalar.Add($"ID {cekiSatiriId}: Ürün bulunamadı."); continue; }
+                if (kilitliSatirIdleri.Contains(cekiSatiriId)) { hatalar.Add($"ID {cekiSatiriId}: {SandikSevkKilidiHelper.UrunKilitliMesaji}"); continue; }
 
                 // Grid blokaj kontrolleri
                 if (satir.GridDurumuId == (int)GridDurum.Iptal ||
@@ -50,6 +54,12 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 // Kalan miktarı hesapla
                 var kalan = satir.KalanMiktar;
                 if (kalan <= 0) continue; // Zaten tamamlanmış, atla
+
+                if (!TedarikcidenKarsilamaYapilabilir(satir))
+                {
+                    hatalar.Add($"ID {cekiSatiriId}: Tedarikçiden karşılama için Grid/3K durumu uygun değil.");
+                    continue;
+                }
 
                 var eskiDurum = satir.UcKKarsilamaTipiId;
 
@@ -120,6 +130,22 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             {
                 satir.GridSevkDurumuId = (int)GridSevkDurum.SevkEdildi;
             }
+        }
+
+        private static bool TedarikcidenKarsilamaYapilabilir(CekiSatiri satir)
+        {
+            var gridKaynakKarsilamaAcik =
+                satir.GridDurumuId == (int)GridDurum.EksikGeldi ||
+                satir.GridDurumuId == (int)GridDurum.Gelmedi ||
+                satir.GridDurumuId == (int)GridDurum.TrafoSevk;
+
+            var geriGonderimSonrasiKaynakAcik =
+                satir.KalanMiktar > 0 &&
+                (satir.UcKKarsilamaTipiId == (int)UcKDurum.GeriGonderildi ||
+                 satir.GeriGonderilenMiktar > 0 ||
+                 satir.YenidenSevkGerekliAdet > 0);
+
+            return gridKaynakKarsilamaAcik || geriGonderimSonrasiKaynakAcik;
         }
 
         private static string FormatAdet(decimal value)

@@ -38,6 +38,9 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             if (satir == null)
                 return Result.Failure("Ürün bulunamadı.", 404);
 
+            if (await SandikSevkKilidiHelper.CekiSatiriSevkEdilmisSandiktaMiAsync(_unitOfWork, satir))
+                return Result.Failure(SandikSevkKilidiHelper.UrunKilitliMesaji);
+
             // 3K tarafı işlem yapmışsa sıfırlama engelle
             if (satir.UcKDurumuId != (int)UcKDurum.Bekliyor || satir.GelenMiktar > 0 || satir.KarsilananMiktar > 0)
                 return Result.Failure("Bu ürün için 3K tarafında işlem yapılmış. Grid durumu sıfırlanamaz. Önce 3K durumunu sıfırlayın.");
