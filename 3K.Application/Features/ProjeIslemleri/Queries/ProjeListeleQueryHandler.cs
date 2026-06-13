@@ -38,6 +38,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
                 var toplamSandik = sandiklar.Count;
+                var sevkEdilmisSandikSayisi = sandiklar.Count(s => s.DurumId == (int)SandikDurum.Sevkedildi);
                 var hazirSandik = sandiklar.Count(s => 
                     s.DurumId == (int)SandikDurum.Kapandi || 
                     s.DurumId == (int)SandikDurum.Sevkedildi);
@@ -80,6 +81,11 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                 else
                     durumId = (int)ProjeDurum.Hazirlaniyor; // Proje üzerinde çalışılıyor veya henüz başlanmadı
 
+                var aktifSevkKaydiVar = durumId == (int)ProjeDurum.SevkEdildi ||
+                    durumId == (int)ProjeDurum.EksikSevkEdildi ||
+                    sevkEdilmisSandikSayisi > 0;
+                var gerceklesenSevkTarihi = aktifSevkKaydiVar ? p.GerceklesenSevkTarihi : null;
+
                 return new ProjeDto
                 {
                     Id = p.Id,
@@ -90,9 +96,9 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                     ProjeTipiId = p.ProjeTipiId,
                     ProjeTipiMetni = _lookupCache.GetDeger<LookupProjeTipi>(p.ProjeTipiId),
                     BaslamaTarihi = p.CreatedDate,
-                    CalismaGunSayisi = HesaplaCalismaGunSayisi(p.CreatedDate, p.GerceklesenSevkTarihi),
+                    CalismaGunSayisi = HesaplaCalismaGunSayisi(p.CreatedDate, gerceklesenSevkTarihi),
                     PlanlananSevkTarihi = p.PlanlananSevkTarihi,
-                    GerceklesenSevkTarihi = p.GerceklesenSevkTarihi,
+                    GerceklesenSevkTarihi = gerceklesenSevkTarihi,
                     SorumluKisi = p.SorumluKisi,
                     SandikSayisi = toplamSandik,
                     HazirSandikSayisi = hazirSandik,

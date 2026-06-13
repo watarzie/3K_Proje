@@ -67,7 +67,24 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             var urunBilgi = $"{icerik.BarkodNo ?? "-"} - {icerik.Isim ?? "-"} ({icerik.Miktar} adet)";
 
-            sandikIcerikRepo.Remove(icerik);
+            CekiSatiri? bagliSatir = null;
+            var cekiSatiriRepo = _unitOfWork.GetRepository<CekiSatiri>();
+            if (icerik.CekiSatiriId.HasValue)
+                bagliSatir = await cekiSatiriRepo.GetByIdAsync(icerik.CekiSatiriId.Value);
+
+            if (bagliSatir != null)
+            {
+                var bagliIcerikler = await sandikIcerikRepo.FindAsync(x => x.CekiSatiriId == bagliSatir.Id);
+                foreach (var bagliIcerik in bagliIcerikler)
+                    sandikIcerikRepo.Remove(bagliIcerik);
+
+                cekiSatiriRepo.Remove(bagliSatir);
+            }
+            else
+            {
+                sandikIcerikRepo.Remove(icerik);
+            }
+
             await _unitOfWork.SaveChangesAsync();
 
             await _hareketService.HareketKaydetAsync(new HareketGecmisi

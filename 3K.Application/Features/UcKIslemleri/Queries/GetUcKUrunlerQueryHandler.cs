@@ -20,23 +20,36 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
 
         public async Task<Result<List<UcKUrunDto>>> Handle(GetUcKUrunlerQuery request, CancellationToken cancellationToken)
         {
+            var proje = await _unitOfWork.GetRepository<Proje>().GetByIdAsync(request.ProjeId);
+            if (proje == null)
+                return Result<List<UcKUrunDto>>.Failure("Proje bulunamadı.", 404);
+
+            var projeSandiklari = (await _unitOfWork.GetRepository<Sandik>()
+                    .FindAsync(s => s.ProjeId == request.ProjeId))
+                .ToList();
+            var sandikMap = projeSandiklari.ToDictionary(s => s.Id);
+            var sandikIdler = projeSandiklari.Select(s => s.Id).ToList();
             // Tek sorgu: CekiSatirlari → Ceki.ProjeId filtresi ile direkt erişim (AsNoTracking GenericRepository'de)
             var satirlar = (await _unitOfWork.GetRepository<CekiSatiri>()
                 .FindAsync(cs => cs.Ceki.ProjeId == request.ProjeId))
                 .OrderBy(cs => cs.SiraNo)
                 .ToList();
 
-            if (!satirlar.Any())
-                return Result<List<UcKUrunDto>>.Failure("Bu projeye ait çeki bulunamadı.", 404);
-
             var satirIdler = satirlar.Select(s => s.Id).ToList();
             var sandikIcerikleri = (await _unitOfWork.GetRepository<SandikIcerik>()
                     .FindAsync(i => i.CekiSatiriId.HasValue && satirIdler.Contains(i.CekiSatiriId.Value)))
                 .ToList();
-            var projeSandiklari = (await _unitOfWork.GetRepository<Sandik>()
-                    .FindAsync(s => s.ProjeId == request.ProjeId))
-                .ToList();
-            var sandikMap = projeSandiklari.ToDictionary(s => s.Id);
+            var manuelSahaIcerikleri = proje.ProjeTipiId == (int)ProjeTipi.Saha && sandikIdler.Any()
+                ? (await _unitOfWork.GetRepository<SandikIcerik>()
+                    .FindAsync(i => !i.CekiSatiriId.HasValue && sandikIdler.Contains(i.SandikId)))
+                    .OrderBy(i => sandikMap.GetValueOrDefault(i.SandikId)?.SandikNo)
+                    .ThenBy(i => i.Id)
+                    .ToList()
+                : new List<SandikIcerik>();
+
+            if (!satirlar.Any() && !manuelSahaIcerikleri.Any())
+                return Result<List<UcKUrunDto>>.Failure("Bu projeye ait ürün bulunamadı.", 404);
+
             var sandikNoMap = projeSandiklari
                 .Where(s => !string.IsNullOrWhiteSpace(s.SandikNo))
                 .GroupBy(s => s.SandikNo.Trim(), StringComparer.OrdinalIgnoreCase)
@@ -46,11 +59,13 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                 .GroupBy(i => i.CekiSatiriId!.Value)
                 .ToDictionary(g => g.Key, g => g.ToList());
 
-            var transferler = (await _unitOfWork.GetRepository<ProjeTransfer>()
-                .FindAsync(t => t.DurumId == (int)ProjeTransferDurum.Aktif &&
-                    (satirIdler.Contains(t.KaynakCekiSatiriId) ||
-                     (t.HedefCekiSatiriId.HasValue && satirIdler.Contains(t.HedefCekiSatiriId.Value)))))
-                .ToList();
+            var transferler = satirIdler.Any()
+                ? (await _unitOfWork.GetRepository<ProjeTransfer>()
+                    .FindAsync(t => t.DurumId == (int)ProjeTransferDurum.Aktif &&
+                        (satirIdler.Contains(t.KaynakCekiSatiriId) ||
+                         (t.HedefCekiSatiriId.HasValue && satirIdler.Contains(t.HedefCekiSatiriId.Value)))))
+                    .ToList()
+                : new List<ProjeTransfer>();
 
             var transferProjeIdler = transferler
                 .SelectMany(t => new[] { t.KaynakProjeId, t.HedefProjeId })
@@ -87,6 +102,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                             .Select(i => sandikMap.GetValueOrDefault(i.SandikId))
                             .FirstOrDefault(s => s != null)
                         ?? (sandikNoMap.TryGetValue(sandikNo.Trim(), out var sandikByNo) ? sandikByNo : null);
+                    var gorunenSandikNo = sandik?.SandikNo ?? sandikNo;
 
                     return new UcKUrunDto
                     {
@@ -95,7 +111,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                         BarkodNo = cs.BarkodNo,
                         OlcuResmiPozNo = cs.OlcuResmiPozNo,
                         Aciklama = cs.Aciklama,
-                        SandikNo = sandikNo,
+                        SandikNo = gorunenSandikNo,
                         SandikDurumId = sandik?.DurumId,
                         SandikDurumMetni = sandik != null ? _lookupCache.GetDeger<LookupSandikDurum>(sandik.DurumId) : null,
                         SandikSevkEdildiMi = sandik?.DurumId == (int)SandikDurum.Sevkedildi,
@@ -145,7 +161,65 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                 })
                 .ToList();
 
+            var manuelSiraNo = satirlar.Any() ? satirlar.Max(s => s.SiraNo) : 0;
+            result.AddRange(manuelSahaIcerikleri.Select((icerik, index) =>
+                MapSahaManuelIcerik(icerik, sandikMap.GetValueOrDefault(icerik.SandikId), manuelSiraNo + index + 1)));
+
             return Result<List<UcKUrunDto>>.Success(result);
+        }
+
+        private UcKUrunDto MapSahaManuelIcerik(SandikIcerik icerik, Sandik? sandik, int siraNo)
+        {
+            var birimId = icerik.BirimId ?? (int)Birim.Adet;
+            var miktar = icerik.Miktar > 0 ? icerik.Miktar : icerik.KonulanAdet;
+            var gorunenAd = !string.IsNullOrWhiteSpace(icerik.Isim)
+                ? icerik.Isim!
+                : icerik.Aciklama ?? string.Empty;
+
+            return new UcKUrunDto
+            {
+                CekiSatiriId = -icerik.Id,
+                SandikIcerikId = icerik.Id,
+                IsSahaManuelSandikIcerigi = true,
+                SiraNo = siraNo,
+                BarkodNo = icerik.BarkodNo ?? string.Empty,
+                OlcuResmiPozNo = null,
+                Aciklama = gorunenAd,
+                SandikNo = sandik?.SandikNo ?? string.Empty,
+                SandikDurumId = sandik?.DurumId,
+                SandikDurumMetni = sandik != null ? _lookupCache.GetDeger<LookupSandikDurum>(sandik.DurumId) : null,
+                SandikSevkEdildiMi = sandik?.DurumId == (int)SandikDurum.Sevkedildi,
+                IstenenAdet = miktar,
+                BirimId = birimId,
+                Birim = ((Birim)birimId).ToString(),
+                GridDurumuId = (int)GridDurum.TamGeldi,
+                GridDurumuMetni = _lookupCache.GetDeger<LookupGridDurum>((int)GridDurum.TamGeldi),
+                GridGelenAdet = miktar,
+                TrafoSevkAdet = 0,
+                GridSevkDurumuId = (int)GridSevkDurum.SevkEdildi,
+                GridSevkDurumuMetni = _lookupCache.GetDeger<LookupGridSevkDurum>((int)GridSevkDurum.SevkEdildi),
+                GridSevkMiktari = miktar,
+                UcKKarsilamaTipiId = (int)UcKDurum.TamGeldi,
+                UcKKarsilamaTipiMetni = _lookupCache.GetDeger<LookupUcKDurum>((int)UcKDurum.TamGeldi),
+                GelenMiktar = miktar,
+                KarsilananMiktar = miktar,
+                HataliMiktar = 0,
+                KaynakHedefProjeNo = icerik.KaynakProjeNo,
+                GeriGonderilenMiktar = 0,
+                UcKAciklama = icerik.Aciklama,
+                GridAciklama = null,
+                Kalan = 0,
+                KontrolUyari = "MANUEL SAHA ÜRÜNÜ",
+                GenelDurumId = (int)UrunDurum.Tamamlandi,
+                GenelDurumMetni = _lookupCache.GetDeger<LookupUrunDurum>((int)UrunDurum.Tamamlandi),
+                StokKarsilanan = 0,
+                ProjeKarsilanan = 0,
+                ProjeGonderilen = 0,
+                NetKullanilabilir = miktar,
+                TedarikciKarsilanan = 0,
+                EksikMiktar = 0,
+                IsManuelEklenen = true
+            };
         }
 
         private static ProjeTransferZincirDto MapTransferZincir(string yon, ProjeTransfer transfer, Dictionary<int, string> projeNoMap)

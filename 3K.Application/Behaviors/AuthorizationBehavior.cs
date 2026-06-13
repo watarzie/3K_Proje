@@ -34,7 +34,9 @@ namespace _3K.Application.Behaviors
             if (!userId.HasValue)
                 return CreateFailureResult("Kullanıcı bilgisi alınamadı.", 401);
 
-            var menuKod = _currentUserService.MenuKod;
+            var menuKod = request is IRequiresMenuPermission fixedMenuRequest
+                ? fixedMenuRequest.RequiredMenuKod
+                : _currentUserService.MenuKod;
             if (string.IsNullOrWhiteSpace(menuKod))
                 return CreateFailureResult("Yetki bağlamı alınamadı.", 403);
 

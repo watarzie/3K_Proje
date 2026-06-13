@@ -53,6 +53,13 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
 
+        [HttpPost("eksiklerden-saha-olustur")]
+        public async Task<ActionResult> EksiklerdenSahaOlustur([FromBody] EksiklerdenSahaProjesiOlusturCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
         /// <summary>
         /// Sandık Kapat/Aç
         /// </summary>

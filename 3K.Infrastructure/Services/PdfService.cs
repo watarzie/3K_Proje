@@ -50,6 +50,35 @@ namespace _3K.Infrastructure.Services
                 : int.MaxValue;
         }
 
+        private static decimal GetEksikRaporKalan(CekiSatiri satir, IReadOnlyDictionary<int, decimal> tamamlamaPlanMap)
+        {
+            if (satir.KaynakCekiSatiriId.HasValue)
+                return satir.KalanMiktar;
+
+            var planlananTamamlama = tamamlamaPlanMap.TryGetValue(satir.Id, out var value) ? value : 0;
+            return Math.Max(satir.KalanMiktar - planlananTamamlama, 0);
+        }
+
+        private async Task<Dictionary<int, decimal>> GetTamamlamaPlanMapAsync(IReadOnlyCollection<CekiSatiri> satirlar)
+        {
+            var kaynakSatirIds = satirlar
+                .Where(s => !s.KaynakCekiSatiriId.HasValue)
+                .Select(s => s.Id)
+                .Distinct()
+                .ToList();
+
+            if (!kaynakSatirIds.Any())
+                return new Dictionary<int, decimal>();
+
+            return await _context.CekiSatirlari
+                .AsNoTracking()
+                .Where(cs => cs.KaynakCekiSatiriId.HasValue &&
+                    kaynakSatirIds.Contains(cs.KaynakCekiSatiriId.Value))
+                .GroupBy(cs => cs.KaynakCekiSatiriId!.Value)
+                .Select(g => new { CekiSatiriId = g.Key, PlanlananAdet = g.Sum(cs => cs.IstenenAdet) })
+                .ToDictionaryAsync(x => x.CekiSatiriId, x => x.PlanlananAdet);
+        }
+
         private async Task<(Dictionary<int, string> ProjedenAlinan, Dictionary<int, string> ProjeyeVerilen)> GetProjeTransferRaporMapleriAsync(
             IReadOnlyCollection<CekiSatiri> satirlar)
         {
@@ -961,10 +990,12 @@ namespace _3K.Infrastructure.Services
                 .OrderBy(cs => cs.SiraNo)
                 .ToListAsync();
 
+            var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar);
+
             // Memory'de kalan > 0 filtresi (computed property)
             // Sıralama: Sandık numarasına göre sayısal (1,2,3...10,11), sonra sıra numarasına göre
             var eksikSatirlar = satirlar
-                .Where(cs => cs.KalanMiktar > 0)
+                .Where(cs => GetEksikRaporKalan(cs, tamamlamaPlanMap) > 0)
                 .OrderBy(cs =>
                 {
                     var sandikStr = cs.FiiliSandikNo ?? cs.CekideGecenSandikNo ?? "";
@@ -988,7 +1019,7 @@ namespace _3K.Infrastructure.Services
 
             var raporTarihi = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
             var toplamEksikUrun = eksikSatirlar.Count;
-            var toplamKalanAdet = eksikSatirlar.Sum(s => s.KalanMiktar);
+            var toplamKalanAdet = eksikSatirlar.Sum(s => GetEksikRaporKalan(s, tamamlamaPlanMap));
             var toplamIstenenAdet = eksikSatirlar.Sum(s => s.IstenenAdet);
             var toplamGelenAdet = eksikSatirlar.Sum(s => s.GelenMiktar + s.StokKarsilanan + s.ProjeKarsilanan + s.TedarikciKarsilanan);
             var (projedenAlinanMap, projeyeVerilenMap) = await GetProjeTransferRaporMapleriAsync(eksikSatirlar);
@@ -1135,7 +1166,7 @@ namespace _3K.Infrastructure.Services
                             var projeyeVerildi = GetProjeyeVerilenRaporMetni(cs, projeyeVerilenMap);
                             DataCell(table.Cell(), projedenAlindi, fontColor: projedenAlindi != "-" ? "#2E7D32" : null);
                             DataCell(table.Cell(), projeyeVerildi, fontColor: projeyeVerildi != "-" ? "#1565C0" : null);
-                            DataCell(table.Cell(), FormatAdet(cs.KalanMiktar), bold: true, fontColor: dangerColor);
+                            DataCell(table.Cell(), FormatAdet(GetEksikRaporKalan(cs, tamamlamaPlanMap)), bold: true, fontColor: dangerColor);
                             DataCell(table.Cell(), ucKDurum, fontColor: cs.UcKKarsilamaTipiId == (int)_3K.Core.Enums.UcKDurum.Bekliyor ? dangerColor : warningColor);
                             DataCell(table.Cell(), cs.SurecDurumLookup?.Deger ?? "-");
 
@@ -1223,6 +1254,8 @@ namespace _3K.Infrastructure.Services
 
             if (!satirlar.Any())
                 throw new KeyNotFoundException($"Projeye ait sevk edilmis ceki satiri bulunamadi: {projeId}");
+
+            var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar);
 
             QuestPDF.Settings.License = LicenseType.Community;
 
@@ -1373,7 +1406,7 @@ namespace _3K.Infrastructure.Services
             var toplamAdet = satirlar.Sum(s => s.IstenenAdet);
             var toplamGerceklesen = satirlar.Sum(GetGerceklesenAdet);
             var toplamTrafodaSevk = satirlar.Sum(GetTrafodaSevkAdet);
-            var toplamKalan = satirlar.Sum(s => s.KalanMiktar);
+            var toplamKalan = satirlar.Sum(s => GetEksikRaporKalan(s, tamamlamaPlanMap));
 
             var document = Document.Create(container =>
             {
@@ -1634,7 +1667,7 @@ namespace _3K.Infrastructure.Services
                             var bg = sira % 2 == 0 ? altRowBg : "#FFFFFF";
                             var gerceklesenAdet = GetGerceklesenAdet(satir);
                             var trafodaSevkAdet = GetTrafodaSevkAdet(satir);
-                            var kalanMiktar = satir.KalanMiktar;
+                            var kalanMiktar = GetEksikRaporKalan(satir, tamamlamaPlanMap);
                             var durumMetni = GetRaporDurum(satir);
                             var aciklama = GetAciklama(satir);
 
@@ -1730,15 +1763,17 @@ namespace _3K.Infrastructure.Services
                 .Where(cs => cs.Ceki.ProjeId == projeId)
                 .ToListAsync();
 
+            var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar);
+
             var eksikSatirlar = satirlar
-                .Where(cs => cs.KalanMiktar > 0)
+                .Where(cs => GetEksikRaporKalan(cs, tamamlamaPlanMap) > 0)
                 .OrderBy(cs => GetRaporSandikSortKey(cs.FiiliSandikNo ?? cs.CekideGecenSandikNo))
                 .ThenBy(cs => cs.FiiliSandikNo ?? cs.CekideGecenSandikNo)
                 .ThenBy(cs => cs.SiraNo)
                 .ToList();
 
             var toplamEksikUrun = eksikSatirlar.Count;
-            var toplamKalanAdet = eksikSatirlar.Sum(s => s.KalanMiktar);
+            var toplamKalanAdet = eksikSatirlar.Sum(s => GetEksikRaporKalan(s, tamamlamaPlanMap));
             var toplamIstenenAdet = eksikSatirlar.Sum(s => s.IstenenAdet);
             var toplamGelenAdet = eksikSatirlar.Sum(s => s.GelenMiktar + s.StokKarsilanan + s.ProjeKarsilanan + s.TedarikciKarsilanan);
             var karsilamaOrani = toplamIstenenAdet > 0 ? toplamGelenAdet * 100 / toplamIstenenAdet : 0;
@@ -1800,7 +1835,7 @@ namespace _3K.Infrastructure.Services
                 if (cs.GeriGonderilenMiktar > 0) SetDecimalCell(worksheet.Cell(row, 10), cs.GeriGonderilenMiktar); else worksheet.Cell(row, 10).Value = "-";
                 worksheet.Cell(row, 11).Value = projedenAlindi;
                 worksheet.Cell(row, 12).Value = projeyeVerildi;
-                SetDecimalCell(worksheet.Cell(row, 13), cs.KalanMiktar);
+                SetDecimalCell(worksheet.Cell(row, 13), GetEksikRaporKalan(cs, tamamlamaPlanMap));
                 worksheet.Cell(row, 14).Value = cs.UcKDurumLookup?.Deger ?? "-";
                 worksheet.Cell(row, 15).Value = cs.SurecDurumLookup?.Deger ?? "-";
 
@@ -1877,6 +1912,8 @@ namespace _3K.Infrastructure.Services
             if (!satirlar.Any())
                 throw new KeyNotFoundException($"Projeye ait sevk edilmis ceki satiri bulunamadi: {projeId}");
 
+            var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar);
+
             projeSandiklari = projeSandiklari
                 .OrderBy(s => GetRaporSandikSortKey(s.SandikNo))
                 .ThenBy(s => s.SandikNo)
@@ -1893,7 +1930,7 @@ namespace _3K.Infrastructure.Services
             var toplamAdet = satirlar.Sum(s => s.IstenenAdet);
             var toplamGerceklesen = satirlar.Sum(GetRaporGerceklesenAdet);
             var toplamTrafodaSevk = satirlar.Sum(GetRaporTrafodaSevkAdet);
-            var toplamKalan = satirlar.Sum(s => s.KalanMiktar);
+            var toplamKalan = satirlar.Sum(s => GetEksikRaporKalan(s, tamamlamaPlanMap));
             var sevkTarihi = proje.GerceklesenSevkTarihi?.ToString("dd.MM.yyyy") ?? proje.PlanlananSevkTarihi?.ToString("dd.MM.yyyy") ?? "-";
 
             using var workbook = new XLWorkbook();
@@ -1993,7 +2030,7 @@ namespace _3K.Infrastructure.Services
                 worksheet.Cell(dataRow, 7).Value = satir.BirimLookup?.Deger ?? "Adet";
                 SetDecimalCell(worksheet.Cell(dataRow, 8), gerceklesenAdet);
                 if (trafodaSevkAdet > 0) SetDecimalCell(worksheet.Cell(dataRow, 9), trafodaSevkAdet); else worksheet.Cell(dataRow, 9).Value = "-";
-                SetDecimalCell(worksheet.Cell(dataRow, 10), satir.KalanMiktar);
+                SetDecimalCell(worksheet.Cell(dataRow, 10), GetEksikRaporKalan(satir, tamamlamaPlanMap));
                 worksheet.Cell(dataRow, 11).Value = GetGerceklesenRaporDurum(satir);
                 worksheet.Cell(dataRow, 12).Value = GetRaporAciklama(satir);
 

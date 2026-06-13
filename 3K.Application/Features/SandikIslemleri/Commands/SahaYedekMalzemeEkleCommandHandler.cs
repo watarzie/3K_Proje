@@ -3,6 +3,7 @@ using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
+using _3K.Core.Helpers;
 
 namespace _3K.Application.Features.SandikIslemleri.Commands
 {
@@ -26,14 +27,25 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         {
             var sandikRepo = _unitOfWork.GetRepository<Sandik>();
             var icerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
+            var projeRepo = _unitOfWork.GetRepository<Proje>();
 
             var sandik = await sandikRepo.GetByIdAsync(request.SandikId);
+            var proje = await projeRepo.GetByIdAsync(request.ProjeId);
+            if (proje == null)
+                return Result.Failure("Proje bulunamadı.", 404);
             if (sandik == null || sandik.ProjeId != request.ProjeId)
                 return Result.Failure("Sandık bulunamadı veya projeye ait değil.", 404);
 
             // Sandık "Sevk Edildi" durumundaysa ekleme yapılamaz
             if (sandik.DurumId == (int)SandikDurum.Sevkedildi)
                 return Result.Failure("Sevk edilmiş sandığa malzeme eklenemez.");
+
+            if (request.CekiSatiriId.HasValue && request.CekiSatiriId.Value > 0)
+            {
+                var tamamlamaResult = await EksikTamamlamaSatiriEkleAsync(request, sandik, cancellationToken);
+                if (tamamlamaResult != null)
+                    return tamamlamaResult;
+            }
 
             var icerik = new SandikIcerik
             {
@@ -72,6 +84,147 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             });
 
             return Result.Success();
+        }
+
+        private async Task<Result?> EksikTamamlamaSatiriEkleAsync(
+            SahaYedekMalzemeEkleCommand request,
+            Sandik sandik,
+            CancellationToken cancellationToken)
+        {
+            var cekiSatiriRepo = _unitOfWork.GetRepository<CekiSatiri>();
+            var cekiRepo = _unitOfWork.GetRepository<Ceki>();
+            var projeRepo = _unitOfWork.GetRepository<Proje>();
+            var sandikRepo = _unitOfWork.GetRepository<Sandik>();
+            var icerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
+
+            var kaynakSatir = await cekiSatiriRepo.GetByIdAsync(request.CekiSatiriId!.Value);
+            if (kaynakSatir == null)
+                return Result.Failure("Kaynak çeki satırı bulunamadı.", 404);
+
+            var kaynakCeki = await cekiRepo.GetByIdAsync(kaynakSatir.CekiId);
+            if (kaynakCeki == null)
+                return Result.Failure("Kaynak çeki bulunamadı.", 404);
+
+            var proje = await projeRepo.GetByIdAsync(request.ProjeId);
+            if (proje == null)
+                return Result.Failure("Proje bulunamadı.", 404);
+
+            if (kaynakCeki.ProjeId != request.ProjeId || proje.ProjeTipiId != (int)ProjeTipi.Normal)
+                return null;
+
+            if (kaynakSatir.KaynakCekiSatiriId.HasValue)
+                return Result.Failure("Eksik tamamlama satırından tekrar tamamlama oluşturulamaz.");
+
+            if (request.Miktar <= 0)
+                return Result.Failure("Tamamlama adedi 0'dan büyük olmalıdır.");
+
+            var mevcutTamamlamaSatirlari = (await cekiSatiriRepo.FindAsync(cs => cs.KaynakCekiSatiriId == kaynakSatir.Id)).ToList();
+            var planlananTamamlamaAdedi = mevcutTamamlamaSatirlari.Sum(cs => cs.IstenenAdet);
+            var kalanPlanlanabilirAdet = Math.Max(kaynakSatir.KalanMiktar - planlananTamamlamaAdedi, 0);
+
+            if (kalanPlanlanabilirAdet <= 0)
+                return Result.Failure("Bu ürün için eksik tamamlama adedi zaten planlanmış.");
+
+            if (request.Miktar > kalanPlanlanabilirAdet)
+                return Result.Failure($"Tamamlama adedi kalan planlanabilir adetten büyük olamaz. Kalan: {FormatAdet(kalanPlanlanabilirAdet)}");
+
+            var tamamlamaCekileri = (await cekiRepo.FindAsync(c =>
+                    c.ProjeId == request.ProjeId &&
+                    c.CekiTipiId == (int)CekiTipi.EksikTamamlama))
+                .OrderByDescending(c => c.TamamlamaNo ?? 0)
+                .ThenByDescending(c => c.Id)
+                .ToList();
+
+            var tamamlamaCeki = tamamlamaCekileri.FirstOrDefault();
+            if (tamamlamaCeki == null)
+            {
+                tamamlamaCeki = new Ceki
+                {
+                    ProjeId = request.ProjeId,
+                    OrijinalDosyaYolu = string.Empty,
+                    YuklemeTarihi = TurkeyTime.Now,
+                    CekiTipiId = (int)CekiTipi.EksikTamamlama,
+                    KaynakCekiId = kaynakCeki.Id,
+                    TamamlamaNo = 1,
+                    Aciklama = "Eksik tamamlama çekisi"
+                };
+
+                await cekiRepo.AddAsync(tamamlamaCeki);
+                await _unitOfWork.SaveChangesAsync();
+            }
+
+            var projeSatirlari = await cekiSatiriRepo.FindAsync(cs => cs.Ceki.ProjeId == request.ProjeId);
+            var yeniSiraNo = projeSatirlari.Any() ? projeSatirlari.Max(cs => cs.SiraNo) + 1 : 1;
+
+            var yeniSatir = new CekiSatiri
+            {
+                CekiId = tamamlamaCeki.Id,
+                KaynakCekiSatiriId = kaynakSatir.Id,
+                SiraNo = yeniSiraNo,
+                OlcuResmiPozNo = kaynakSatir.OlcuResmiPozNo,
+                BarkodNo = kaynakSatir.BarkodNo,
+                Aciklama = kaynakSatir.Aciklama,
+                IstenenAdet = request.Miktar,
+                BirimId = kaynakSatir.BirimId,
+                CekideGecenSandikNo = sandik.SandikNo,
+                FiiliSandikNo = sandik.SandikNo,
+                Remarks = kaynakSatir.Remarks,
+                DurumId = (int)UrunDurum.Bekliyor,
+                GridDurumuId = (int)GridDurum.Gelmedi,
+                GridSevkDurumuId = (int)GridSevkDurum.SevkEdilmedi,
+                UcKDurumuId = (int)UcKDurum.Bekliyor,
+                UcKKarsilamaTipiId = (int)UcKDurum.Bekliyor,
+                KaynakHedefProjeNo = proje.ProjeNo,
+                IsManuelEklenen = true,
+                EklemeNedeni = "Eksik tamamlama",
+                UcKAciklama = request.Aciklama
+            };
+
+            await cekiSatiriRepo.AddAsync(yeniSatir);
+            await _unitOfWork.SaveChangesAsync();
+
+            var yeniIcerik = new SandikIcerik
+            {
+                SandikId = sandik.Id,
+                CekiSatiriId = yeniSatir.Id,
+                KonulanAdet = request.Miktar,
+                EksikAdet = 0,
+                KaynakProjeNo = proje.ProjeNo,
+                Aciklama = request.Aciklama
+            };
+
+            await icerikRepo.AddAsync(yeniIcerik);
+
+            if (sandik.DurumId == (int)SandikDurum.Bos || sandik.DurumId == (int)SandikDurum.Kapandi)
+            {
+                sandik.DurumId = (int)SandikDurum.Hazirlaniyor;
+                sandikRepo.Update(sandik);
+            }
+
+            await SandikLokasyonHelper.VarsayilanUcKDepoLokasyonuAtaAsync(_unitOfWork, new[] { yeniIcerik });
+            await _unitOfWork.SaveChangesAsync();
+
+            await _hareketService.HareketKaydetAsync(new HareketGecmisi
+            {
+                ProjeId = request.ProjeId,
+                KullaniciId = _currentUserService.UserId ?? 0,
+                ReferansTipi = "CekiSatiri",
+                ReferansId = yeniSatir.Id.ToString(),
+                Islem = "Eksik Tamamlama Satırı Oluşturuldu",
+                IslemTipiId = (int)IslemTipi.SahaYedekMalzemeEklendi,
+                EskiDeger = kaynakSatir.Id.ToString(),
+                YeniDeger = yeniSatir.Id.ToString(),
+                Aciklama = $"{FormatAdet(request.Miktar)} adet '{kaynakSatir.Aciklama}', Sandık {sandik.SandikNo} için eksik tamamlama satırı olarak oluşturuldu."
+            });
+
+            return Result.Success();
+        }
+
+        private static string FormatAdet(decimal value)
+        {
+            return decimal.Truncate(value) == value
+                ? decimal.Truncate(value).ToString("0")
+                : value.ToString("0.####");
         }
     }
 }

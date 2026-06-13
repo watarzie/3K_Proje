@@ -85,6 +85,12 @@ namespace _3K.Infrastructure.Data
                 .HasIndex(s => new { s.ProjeId, s.SandikNo })
                 .IsUnique();
 
+            modelBuilder.Entity<Ceki>()
+                .HasIndex(c => new { c.ProjeId, c.CekiTipiId });
+
+            modelBuilder.Entity<CekiSatiri>()
+                .HasIndex(cs => cs.KaynakCekiSatiriId);
+
             // ===============================================================
             // 3. FK İLİŞKİLERİ — Entity ↔ Lookup Tabloları (ID bazlı)
             // ===============================================================
@@ -439,6 +445,22 @@ namespace _3K.Infrastructure.Data
                 .WithOne(cs => cs.Ceki)
                 .HasForeignKey(cs => cs.CekiId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // Ceki self-reference: Eksik tamamlama cekisi ana cekiye baglanabilir.
+            modelBuilder.Entity<Ceki>()
+                .HasOne(c => c.KaynakCeki)
+                .WithMany(c => c.TamamlamaCekileri)
+                .HasForeignKey(c => c.KaynakCekiId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .IsRequired(false);
+
+            // CekiSatiri self-reference: Tamamlama satiri orijinal satiri takip eder.
+            modelBuilder.Entity<CekiSatiri>()
+                .HasOne(cs => cs.KaynakCekiSatiri)
+                .WithMany(cs => cs.TamamlamaSatirlari)
+                .HasForeignKey(cs => cs.KaynakCekiSatiriId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .IsRequired(false);
 
             // Proje (1) - Sandik (1..*)
             modelBuilder.Entity<Proje>()
@@ -808,8 +830,15 @@ namespace _3K.Infrastructure.Data
                 new MenuTanimi { Id = 15, Kod = "3k-modulu", LabelKey = "MENU.3K_MODULU", Icon = "", Route = null, Sira = 2, ParentId = 5 },
                 new MenuTanimi { Id = 16, Kod = "proje-sevk-et", LabelKey = "MENU.PROJE_SEVK_ET", Icon = "", Route = null, Sira = 5, ParentId = 2 },
                 new MenuTanimi { Id = 24, Kod = "proje-sil", LabelKey = "MENU.PROJE_SIL", Icon = "", Route = null, Sira = 6, ParentId = 2 },
+                new MenuTanimi { Id = 28, Kod = "eksik-saha-projesi", LabelKey = "MENU.EKSIK_SAHA_PROJESI", Icon = "", Route = null, Sira = 7, ParentId = 17 },
                 // Saha ve Yedek Menüleri
                 new MenuTanimi { Id = 17, Kod = "saha-yonetimi", LabelKey = "MENU.SAHA_YONETIMI", Icon = "ri-tools-line", Route = "/saha-yonetimi", Sira = 6, ParentId = null },
+                new MenuTanimi { Id = 29, Kod = "saha-grid-modulu", LabelKey = "MENU.SAHA_GRID_MODULU", Icon = "", Route = null, Sira = 1, ParentId = 17 },
+                new MenuTanimi { Id = 30, Kod = "saha-3k-modulu", LabelKey = "MENU.SAHA_3K_MODULU", Icon = "", Route = null, Sira = 2, ParentId = 17 },
+                new MenuTanimi { Id = 31, Kod = "saha-raporu", LabelKey = "MENU.SAHA_RAPORU", Icon = "", Route = null, Sira = 3, ParentId = 17 },
+                new MenuTanimi { Id = 32, Kod = "saha-sandiklar", LabelKey = "MENU.SAHA_SANDIKLAR", Icon = "", Route = null, Sira = 4, ParentId = 17 },
+                new MenuTanimi { Id = 33, Kod = "saha-sevk-et", LabelKey = "MENU.SAHA_SEVK_ET", Icon = "", Route = null, Sira = 5, ParentId = 17 },
+                new MenuTanimi { Id = 34, Kod = "saha-proje-sil", LabelKey = "MENU.SAHA_PROJE_SIL", Icon = "", Route = null, Sira = 6, ParentId = 17 },
                 new MenuTanimi { Id = 18, Kod = "yedek-yonetimi", LabelKey = "MENU.YEDEK_YONETIMI", Icon = "ri-box-3-line", Route = "/yedek-yonetimi", Sira = 7, ParentId = null },
                 // Onay Merkezi
                 new MenuTanimi { Id = 99, Kod = "islem-onay-merkezi", LabelKey = "MENU.ISLEM_ONAY", Icon = "ri-check-double-line", Route = "/onay-merkezi", Sira = 11, ParentId = null },
@@ -824,8 +853,8 @@ namespace _3K.Infrastructure.Data
             );
 
             // ======= ADMIN ROL YETKİLERİ (tüm menülere W=3) =======
-            // Not: MenuTanimi Id'leri: 1,2,3,4,5,7,8,10,11,12,14,15,16,17,18,20,21,22,23,24,25,26,27,99
-            var menuIds = new[] { 1, 2, 3, 4, 5, 7, 8, 10, 11, 12, 14, 15, 16, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27 };
+            // Not: MenuTanimi Id'leri: 1,2,3,4,5,7,8,10,11,12,14,15,16,17,18,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,99
+            var menuIds = new[] { 1, 2, 3, 4, 5, 7, 8, 10, 11, 12, 14, 15, 16, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34 };
             var adminYetkiler = new List<RolYetki>();
             for (int i = 0; i < menuIds.Length; i++)
             {

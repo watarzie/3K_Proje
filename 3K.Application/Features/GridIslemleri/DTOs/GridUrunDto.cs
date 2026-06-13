@@ -3,6 +3,8 @@ namespace _3K.Application.Features.GridIslemleri.DTOs
     public class GridUrunDto
     {
         public int CekiSatiriId { get; set; }
+        public int? SandikIcerikId { get; set; }
+        public bool IsSahaManuelSandikIcerigi { get; set; }
         public int SiraNo { get; set; }
         public string BarkodNo { get; set; } = string.Empty;
         public string? OlcuResmiPozNo { get; set; }

@@ -29,6 +29,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
         {
             var repo = _unitOfWork.GetRepository<Proje>();
             var sandikRepo = _unitOfWork.GetRepository<Sandik>();
+            var sevkiyatSandikRepo = _unitOfWork.GetRepository<SevkiyatSandik>();
             var proje = await repo.GetByIdAsync(request.ProjeId);
 
             if (proje == null)
@@ -38,17 +39,18 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 return Result.Failure("Proje sevk edilmediği için kilidi açılamaz.");
 
             int eskiDurum = proje.DurumId;
-            proje.DurumId = (int)ProjeDurum.Hazirlaniyor; // Kilidi açınca Hazırlanıyor durumuna geçsin
-
-            repo.Update(proje);
 
             // ===== Sandıkları sevk öncesi durumlarına geri döndür =====
-            var sandiklar = await sandikRepo.FindAsync(s => s.ProjeId == request.ProjeId);
+            var sandiklar = (await sandikRepo.FindAsync(s => s.ProjeId == request.ProjeId)).ToList();
             int geriDondurulenSandik = 0;
             foreach (var sandik in sandiklar)
             {
                 if (sandik.DurumId == (int)SandikDurum.Sevkedildi)
                 {
+                    var sevkiyatBaglari = (await sevkiyatSandikRepo.FindAsync(ss => ss.SandikId == sandik.Id)).ToList();
+                    foreach (var sevkiyatBag in sevkiyatBaglari)
+                        sevkiyatSandikRepo.Remove(sevkiyatBag);
+
                     // Sevk öncesi durum varsa ona dön, yoksa Hazır'a dön
                     sandik.DurumId = sandik.SevkOncesiDurumId ?? (int)SandikDurum.Kapandi;
                     sandik.SevkOncesiDurumId = null; // Temizle
@@ -56,6 +58,11 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                     geriDondurulenSandik++;
                 }
             }
+
+            proje.DurumId = ProjeSevkDurumHelper.Hesapla(sandiklar, proje.DurumId);
+            if (sandiklar.All(s => s.DurumId != (int)SandikDurum.Sevkedildi))
+                proje.GerceklesenSevkTarihi = null;
+            repo.Update(proje);
 
             await _unitOfWork.SaveChangesAsync();
 

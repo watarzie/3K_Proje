@@ -237,6 +237,44 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 icerik.EksikAdet = request.EksikAdet.Value;
 
             sandikIcerikRepo.Update(icerik);
+
+            if (icerik.CekiSatiriId.HasValue)
+            {
+                var cekiSatiriRepo = _unitOfWork.GetRepository<CekiSatiri>();
+                var satir = await cekiSatiriRepo.GetByIdAsync(icerik.CekiSatiriId.Value);
+
+                if (satir != null)
+                {
+                    satir.GelenMiktar = icerik.KonulanAdet;
+                    satir.GridGelenAdet = icerik.KonulanAdet;
+                    satir.GridSevkMiktari = icerik.KonulanAdet;
+
+                    if (icerik.KonulanAdet >= satir.IstenenAdet)
+                    {
+                        satir.DurumId = (int)UrunDurum.Tamamlandi;
+                        satir.GridDurumuId = (int)GridDurum.TamGeldi;
+                        satir.UcKDurumuId = (int)UcKDurum.TamGeldi;
+                        satir.UcKKarsilamaTipiId = (int)UcKDurum.TamGeldi;
+                    }
+                    else if (icerik.KonulanAdet > 0)
+                    {
+                        satir.DurumId = (int)UrunDurum.KismiGeldi;
+                        satir.GridDurumuId = (int)GridDurum.EksikGeldi;
+                        satir.UcKDurumuId = (int)UcKDurum.EksikGeldi;
+                        satir.UcKKarsilamaTipiId = (int)UcKDurum.EksikGeldi;
+                    }
+                    else
+                    {
+                        satir.DurumId = (int)UrunDurum.Bekliyor;
+                        satir.GridDurumuId = (int)GridDurum.Gelmedi;
+                        satir.UcKDurumuId = (int)UcKDurum.Bekliyor;
+                        satir.UcKKarsilamaTipiId = (int)UcKDurum.Bekliyor;
+                    }
+
+                    cekiSatiriRepo.Update(satir);
+                }
+            }
+
             await _unitOfWork.SaveChangesAsync();
 
             await _hareketService.HareketKaydetAsync(new HareketGecmisi

@@ -5,6 +5,7 @@ namespace _3K.Core.Entities
     public class CekiSatiri : BaseEntity
     {
         public int CekiId { get; set; }
+        public int? KaynakCekiSatiriId { get; set; }
         public int SiraNo { get; set; }
         public string? OlcuResmiPozNo { get; set; }
         public string BarkodNo { get; set; } = string.Empty;
@@ -197,6 +198,8 @@ namespace _3K.Core.Entities
 
         // Navigation Properties
         public virtual Ceki Ceki { get; set; } = null!;
+        public virtual CekiSatiri? KaynakCekiSatiri { get; set; }
+        public virtual ICollection<CekiSatiri> TamamlamaSatirlari { get; set; } = new List<CekiSatiri>();
         public virtual Kullanici? Paketleyen { get; set; }
         public virtual Kullanici? KontrolEden { get; set; }
         public virtual Kullanici? GridPersonel { get; set; }

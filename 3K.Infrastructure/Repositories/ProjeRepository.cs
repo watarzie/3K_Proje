@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using _3K.Core.Entities;
+using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Infrastructure.Data;
 
@@ -64,9 +65,12 @@ namespace _3K.Infrastructure.Repositories
             if (isSevkEdilen.HasValue)
             {
                 if (isSevkEdilen.Value)
-                    query = query.Where(p => p.DurumId == 5 || p.Sevkiyatlar.Any(s => s.Sandiklar.Any())); // Tam veya kısmi gerçekleşen sevkiyatlar
+                    query = query.Where(p =>
+                        p.DurumId == (int)ProjeDurum.SevkEdildi ||
+                        p.DurumId == (int)ProjeDurum.EksikSevkEdildi ||
+                        p.Sandiklar.Any(s => s.DurumId == (int)SandikDurum.Sevkedildi));
                 else
-                    query = query.Where(p => p.DurumId != 5); // EksikSevkEdildi aktif iş olarak kalır
+                    query = query.Where(p => p.DurumId != (int)ProjeDurum.SevkEdildi); // EksikSevkEdildi aktif iş olarak kalır
             }
 
             if (!string.IsNullOrWhiteSpace(searchTerm))

@@ -26,23 +26,51 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
             if (proje.ProjeTipiId != (int)ProjeTipi.Normal)
                 return Result<List<EksikUrunForSandikDto>>.Failure("Sadece normal projelerden ürün seçilebilir.");
 
-            var satirlar = (await _unitOfWork.GetRepository<CekiSatiri>()
+            var cekiSatiriRepo = _unitOfWork.GetRepository<CekiSatiri>();
+            var tumSatirlar = (await cekiSatiriRepo
                 .FindAsync(cs => cs.Ceki.ProjeId == request.ProjeId))
-                .Where(cs => cs.KalanMiktar > 0)
-                .OrderBy(cs => cs.SiraNo)
                 .ToList();
 
-            var result = satirlar.Select(cs => new EksikUrunForSandikDto
+            var kaynakSatirlar = tumSatirlar
+                .Where(cs => !cs.KaynakCekiSatiriId.HasValue)
+                .ToList();
+            var kaynakSatirIds = kaynakSatirlar.Select(cs => cs.Id).ToList();
+
+            var tamamlamaSatirlari = kaynakSatirIds.Count == 0
+                ? new List<CekiSatiri>()
+                : (await cekiSatiriRepo.FindAsync(cs =>
+                        cs.KaynakCekiSatiriId.HasValue &&
+                        kaynakSatirIds.Contains(cs.KaynakCekiSatiriId.Value)))
+                    .ToList();
+
+            var tamamlamaPlanMap = tamamlamaSatirlari
+                .GroupBy(cs => cs.KaynakCekiSatiriId!.Value)
+                .ToDictionary(g => g.Key, g => g.Sum(cs => cs.IstenenAdet));
+
+            var satirlar = kaynakSatirlar
+                .Select(cs => new
+                {
+                    Satir = cs,
+                    Planlanan = tamamlamaPlanMap.GetValueOrDefault(cs.Id),
+                    PlanlanabilirKalan = Math.Max(cs.KalanMiktar - tamamlamaPlanMap.GetValueOrDefault(cs.Id), 0)
+                })
+                .Where(x => x.PlanlanabilirKalan > 0)
+                .OrderBy(x => x.Satir.SiraNo)
+                .ToList();
+
+            var result = satirlar.Select(x => new EksikUrunForSandikDto
             {
-                CekiSatiriId = cs.Id,
-                SiraNo = cs.SiraNo,
-                BarkodNo = cs.BarkodNo,
-                Aciklama = cs.Aciklama,
-                SandikNo = cs.FiiliSandikNo ?? cs.CekideGecenSandikNo,
-                IstenenAdet = cs.IstenenAdet,
-                GelenMiktar = cs.GelenMiktar,
-                KalanMiktar = cs.KalanMiktar,
-                Birim = ((Birim)cs.BirimId).ToString(),
+                CekiSatiriId = x.Satir.Id,
+                SiraNo = x.Satir.SiraNo,
+                BarkodNo = x.Satir.BarkodNo,
+                Aciklama = x.Satir.Aciklama,
+                SandikNo = x.Satir.FiiliSandikNo ?? x.Satir.CekideGecenSandikNo,
+                IstenenAdet = x.Satir.IstenenAdet,
+                GelenMiktar = x.Satir.GelenMiktar,
+                KalanMiktar = x.PlanlanabilirKalan,
+                TamamlamaPlanlananAdet = x.Planlanan,
+                Birim = ((Birim)x.Satir.BirimId).ToString(),
+                ProjeId = proje.Id,
                 ProjeNo = proje.ProjeNo
             }).ToList();
 

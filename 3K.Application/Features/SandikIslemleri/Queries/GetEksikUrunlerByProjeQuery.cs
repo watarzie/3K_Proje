@@ -22,7 +22,9 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
         public decimal IstenenAdet { get; set; }
         public decimal GelenMiktar { get; set; }
         public decimal KalanMiktar { get; set; }
+        public decimal TamamlamaPlanlananAdet { get; set; }
         public string Birim { get; set; } = string.Empty;
+        public int ProjeId { get; set; }
         public string ProjeNo { get; set; } = string.Empty;
     }
 }
