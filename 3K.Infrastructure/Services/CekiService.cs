@@ -1,7 +1,9 @@
 using ClosedXML.Excel;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
+using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 using _3K.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using DocumentFormat.OpenXml.Packaging;
@@ -16,12 +18,18 @@ namespace _3K.Infrastructure.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly AppDbContext _context;
         private readonly IHareketService _hareketService;
+        private readonly IDurumHesaplaService _durumHesaplaService;
 
-        public CekiService(IUnitOfWork unitOfWork, AppDbContext context, IHareketService hareketService)
+        public CekiService(
+            IUnitOfWork unitOfWork,
+            AppDbContext context,
+            IHareketService hareketService,
+            IDurumHesaplaService durumHesaplaService)
         {
             _unitOfWork = unitOfWork;
             _context = context;
             _hareketService = hareketService;
+            _durumHesaplaService = durumHesaplaService;
         }
 
         public async Task<Ceki> CekiYukleAsync(Stream excelDosya, string dosyaAdi)
@@ -316,6 +324,206 @@ namespace _3K.Infrastructure.Services
             return ceki;
         }
 
+        public async Task<CekiRevizyonOnizlemeSonuc> CekiRevizyonOnizleAsync(Stream excelDosya, string dosyaAdi)
+        {
+            using var memoryStream = new MemoryStream();
+            await excelDosya.CopyToAsync(memoryStream);
+            var dosyaBytes = memoryStream.ToArray();
+            var cleanedBytes = SanitizePictureNames(dosyaBytes);
+
+            CiktiImportBilgisi import;
+            using (var excelStream = new MemoryStream(cleanedBytes))
+            using (var workbook = new XLWorkbook(excelStream))
+            {
+                import = OkuCiktiImportBilgisi(workbook);
+            }
+
+            if (string.IsNullOrWhiteSpace(import.FbNo))
+                throw new Exception("Revizyon Excel dosyasında FB NO (Proje Adı) bulunamadı.");
+
+            var proje = await _context.Projeler
+                .FirstOrDefaultAsync(p => p.FBNo == import.FbNo || p.ProjeNo == import.FbNo);
+
+            if (proje == null)
+                throw new Exception($"Revizyon dosyasındaki proje ({import.FbNo}) sistemde bulunamadı. Önce ana çeki yüklenmiş olmalı.");
+
+            var anaCeki = await _context.Cekiler
+                .Where(c => c.ProjeId == proje.Id && c.CekiTipiId == (int)CekiTipi.Normal)
+                .OrderBy(c => c.Id)
+                .FirstOrDefaultAsync();
+
+            if (anaCeki == null)
+                throw new Exception($"{proje.ProjeNo} projesi için revize edilecek ana çeki bulunamadı.");
+
+            var anaSatirlar = await _context.CekiSatirlari
+                .Include(s => s.SandikIcerikleri)
+                .ThenInclude(i => i.Sandik)
+                .Where(s => s.CekiId == anaCeki.Id)
+                .ToListAsync();
+
+            return await RevizyonOnizlemeOlusturAsync(import, dosyaAdi, proje, anaCeki, anaSatirlar);
+        }
+
+        public async Task<CekiRevizyonSonuc> CekiRevizyonYukleAsync(Stream excelDosya, string dosyaAdi, int kullaniciId)
+        {
+            using var memoryStream = new MemoryStream();
+            await excelDosya.CopyToAsync(memoryStream);
+            var dosyaBytes = memoryStream.ToArray();
+            var cleanedBytes = SanitizePictureNames(dosyaBytes);
+
+            CiktiImportBilgisi import;
+            using (var excelStream = new MemoryStream(cleanedBytes))
+            using (var workbook = new XLWorkbook(excelStream))
+            {
+                import = OkuCiktiImportBilgisi(workbook);
+            }
+
+            if (string.IsNullOrWhiteSpace(import.FbNo))
+                throw new Exception("Revizyon Excel dosyasında FB NO (Proje Adı) bulunamadı.");
+
+            var revizyonSatirlari = import.Satirlar
+                .Where(s => !string.IsNullOrWhiteSpace(s.CheckKodu))
+                .ToList();
+
+            if (revizyonSatirlari.Count == 0)
+                throw new Exception("Revizyon Excel dosyasında CHECK/KONTROL kolonunda A, U veya D işareti bulunamadı.");
+
+            var proje = await _context.Projeler
+                .FirstOrDefaultAsync(p => p.FBNo == import.FbNo || p.ProjeNo == import.FbNo);
+
+            if (proje == null)
+                throw new Exception($"Revizyon dosyasındaki proje ({import.FbNo}) sistemde bulunamadı. Önce ana çeki yüklenmiş olmalı.");
+
+            var anaCeki = await _context.Cekiler
+                .Where(c => c.ProjeId == proje.Id && c.CekiTipiId == (int)CekiTipi.Normal)
+                .OrderBy(c => c.Id)
+                .FirstOrDefaultAsync();
+
+            if (anaCeki == null)
+                throw new Exception($"{proje.ProjeNo} projesi için revize edilecek ana çeki bulunamadı.");
+
+            var anaSatirlar = await _context.CekiSatirlari
+                .Include(s => s.SandikIcerikleri)
+                .ThenInclude(i => i.Sandik)
+                .Where(s => s.CekiId == anaCeki.Id)
+                .ToListAsync();
+
+            var siraGruplari = anaSatirlar
+                .GroupBy(s => s.SiraNo)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            var sandiklar = await _context.Sandiklar
+                .Where(s => s.ProjeId == proje.Id)
+                .ToListAsync();
+
+            var sandikCache = sandiklar
+                .GroupBy(s => NormalizeKoliNo(s.SandikNo), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+            using var transaction = await _context.Database.BeginTransactionAsync();
+
+            var uploadsDir = Path.Combine(Directory.GetCurrentDirectory(), "Uploads", proje.Id.ToString(), "Revizyonlar");
+            Directory.CreateDirectory(uploadsDir);
+            var dosyaYolu = Path.Combine(uploadsDir, $"{TurkeyTime.Now:yyyyMMdd_HHmmss}_{CleanFileName(dosyaAdi)}");
+            await File.WriteAllBytesAsync(dosyaYolu, dosyaBytes);
+
+            var revizyonCeki = new Ceki
+            {
+                ProjeId = proje.Id,
+                OrijinalDosyaYolu = dosyaYolu,
+                YuklemeTarihi = TurkeyTime.Now,
+                CekiTipiId = (int)CekiTipi.Revizyon,
+                KaynakCekiId = anaCeki.Id,
+                Aciklama = $"Revizyon dosyası: {dosyaAdi}"
+            };
+
+            _context.Cekiler.Add(revizyonCeki);
+            await _context.SaveChangesAsync();
+
+            var sonuc = new CekiRevizyonSonuc
+            {
+                ProjeId = proje.Id,
+                ProjeNo = proje.ProjeNo,
+                AnaCekiId = anaCeki.Id,
+                RevizyonCekiId = revizyonCeki.Id
+            };
+
+            var silinecekSatirlar = new List<CekiSatiri>();
+            var guncellenecekler = new List<(CekiSatiri Satir, CiktiSatirImportBilgisi RevizyonSatiri)>();
+            var eklenecekler = new List<CiktiSatirImportBilgisi>();
+
+            foreach (var revizyonSatiri in revizyonSatirlari)
+            {
+                var kod = revizyonSatiri.CheckKodu;
+
+                if (kod is "A" or "U" && !revizyonSatiri.VeriSatiriMi)
+                    throw new Exception($"Revizyon satırı boş: Excel satırı {revizyonSatiri.ExcelSatirNo}, CHECK={kod}.");
+
+                if (kod is "A" or "U" && revizyonSatiri.IstenenAdet <= 0)
+                    throw new Exception($"Revizyon satırında miktar geçersiz: Excel satırı {revizyonSatiri.ExcelSatirNo}, CHECK={kod}.");
+
+                if (kod == "A")
+                {
+                    eklenecekler.Add(revizyonSatiri);
+                    continue;
+                }
+
+                var mevcutSatir = EslesenAnaSatiriBul(revizyonSatiri, siraGruplari, anaSatirlar);
+                if (mevcutSatir == null)
+                    throw new Exception($"Revizyon {kod} satırı ana çekide bulunamadı. Excel satırı: {revizyonSatiri.ExcelSatirNo}, Sıra No: {revizyonSatiri.SiraNo}.");
+
+                if (kod == "U")
+                {
+                    var islemMiktari = CekiSatiriIslemMiktari(mevcutSatir);
+                    if (revizyonSatiri.IstenenAdet < islemMiktari)
+                        throw new Exception($"Revizyon U satırı uygulanamaz. Sıra No: {revizyonSatiri.SiraNo}, yeni miktar ({revizyonSatiri.IstenenAdet}) mevcut işlem miktarından ({islemMiktari}) düşük.");
+
+                    guncellenecekler.Add((mevcutSatir, revizyonSatiri));
+                }
+                else if (kod == "D")
+                {
+                    silinecekSatirlar.Add(mevcutSatir);
+                }
+            }
+
+            if (silinecekSatirlar.Count > 0)
+                sonuc.SilinenSatirSayisi = await RevizyonSatirlariniSilAsync(proje.Id, silinecekSatirlar.DistinctBy(s => s.Id).ToList(), kullaniciId);
+
+            foreach (var item in guncellenecekler)
+            {
+                await RevizyonSatiriniGuncelleAsync(proje.Id, item.Satir, item.RevizyonSatiri, sandikCache, import.SandikBilgileri, kullaniciId);
+                sonuc.GuncellenenSatirSayisi++;
+            }
+
+            foreach (var revizyonSatiri in eklenecekler)
+            {
+                await RevizyonSatiriEkleAsync(proje.Id, anaCeki.Id, revizyonSatiri, sandikCache, import.SandikBilgileri, kullaniciId);
+                sonuc.EklenenSatirSayisi++;
+            }
+
+            _context.HareketGecmisleri.Add(new HareketGecmisi
+            {
+                ProjeId = proje.Id,
+                ReferansTipi = "Ceki",
+                ReferansId = anaCeki.Id.ToString(),
+                ReferansMetni = $"Çeki Revizyonu - {dosyaAdi}",
+                Islem = "Çeki Revizyonu Uygulandı",
+                KullaniciId = kullaniciId,
+                Tarih = TurkeyTime.Now,
+                EskiDeger = anaCeki.Id.ToString(),
+                YeniDeger = revizyonCeki.Id.ToString(),
+                Aciklama = $"Eklenen: {sonuc.EklenenSatirSayisi}, Güncellenen: {sonuc.GuncellenenSatirSayisi}, Silinen: {sonuc.SilinenSatirSayisi}"
+            });
+
+            await _context.SaveChangesAsync();
+            await BosSandiklariTemizleVeDurumlariGuncelleAsync(proje.Id);
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            sonuc.Mesaj = $"{proje.ProjeNo} revizyonu uygulandı. Eklenen: {sonuc.EklenenSatirSayisi}, Güncellenen: {sonuc.GuncellenenSatirSayisi}, Silinen: {sonuc.SilinenSatirSayisi}.";
+            return sonuc;
+        }
+
         public async Task<IEnumerable<CekiSatiri>> GetCekiSatirlariAsync(int cekiId)
         {
             return await _context.CekiSatirlari
@@ -340,6 +548,855 @@ namespace _3K.Infrastructure.Services
                 .Where(c => c.ProjeId == projeId)
                 .OrderByDescending(c => c.YuklemeTarihi)
                 .ToListAsync();
+        }
+
+        private async Task<CekiRevizyonOnizlemeSonuc> RevizyonOnizlemeOlusturAsync(
+            CiktiImportBilgisi import,
+            string dosyaAdi,
+            Proje proje,
+            Ceki anaCeki,
+            List<CekiSatiri> anaSatirlar)
+        {
+            var revizyonSatirlari = import.Satirlar
+                .Where(s => !string.IsNullOrWhiteSpace(s.CheckKodu))
+                .ToList();
+
+            if (revizyonSatirlari.Count == 0)
+                throw new Exception("Revizyon Excel dosyasında CHECK/KONTROL kolonunda A, U veya D işareti bulunamadı.");
+
+            var siraGruplari = anaSatirlar
+                .GroupBy(s => s.SiraNo)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            var sonuc = new CekiRevizyonOnizlemeSonuc
+            {
+                ProjeId = proje.Id,
+                ProjeNo = proje.ProjeNo,
+                AnaCekiId = anaCeki.Id,
+                DosyaAdi = dosyaAdi,
+                ToplamIsaretliSatirSayisi = revizyonSatirlari.Count
+            };
+
+            foreach (var revizyonSatiri in revizyonSatirlari)
+            {
+                var satir = new CekiRevizyonOnizlemeSatiri
+                {
+                    ExcelSatirNo = revizyonSatiri.ExcelSatirNo,
+                    CheckKodu = revizyonSatiri.CheckKodu,
+                    IslemTipi = revizyonSatiri.CheckKodu switch
+                    {
+                        "A" => "Eklenecek",
+                        "U" => "Güncellenecek",
+                        "D" => "Silinecek",
+                        _ => "Bilinmiyor"
+                    },
+                    YeniSiraNo = revizyonSatiri.SiraNo,
+                    BarkodNo = revizyonSatiri.BarkodNo,
+                    PozNo = revizyonSatiri.OlcuResmiPozNo,
+                    Tanim = revizyonSatiri.Aciklama,
+                    YeniKoliNo = revizyonSatiri.KoliNo,
+                    YeniIstenenAdet = revizyonSatiri.IstenenAdet
+                };
+
+                if (revizyonSatiri.CheckKodu is "A" or "U" && !revizyonSatiri.VeriSatiriMi)
+                {
+                    RevizyonSatirRiskEkle(satir, "Engel", "CHECK işaretli satır boş görünüyor.");
+                    sonuc.Satirlar.Add(satir);
+                    continue;
+                }
+
+                if (revizyonSatiri.CheckKodu is "A" or "U" && revizyonSatiri.IstenenAdet <= 0)
+                {
+                    RevizyonSatirRiskEkle(satir, "Engel", "Miktar sıfır veya negatif olamaz.");
+                    sonuc.Satirlar.Add(satir);
+                    continue;
+                }
+
+                if (revizyonSatiri.CheckKodu == "A")
+                {
+                    sonuc.EklenenSatirSayisi++;
+                    satir.Mesaj = "Yeni çeki satırı olarak eklenecek.";
+
+                    if (RevizyonBenzerSatirVarMi(revizyonSatiri, anaSatirlar))
+                        RevizyonSatirRiskEkle(satir, "Uyarı", "Ana çekide aynı barkod/poz/sandık ile benzer bir satır var. Yine de CHECK=A olduğu için yeni satır olarak ele alınacak.");
+
+                    sonuc.Satirlar.Add(satir);
+                    continue;
+                }
+
+                var mevcutSatir = EslesenAnaSatiriBul(revizyonSatiri, siraGruplari, anaSatirlar);
+                if (mevcutSatir == null)
+                {
+                    RevizyonSatirRiskEkle(satir, "Engel", $"Ana çekide eşleşen satır bulunamadı. Sıra No: {revizyonSatiri.SiraNo}");
+                    sonuc.Satirlar.Add(satir);
+                    continue;
+                }
+
+                RevizyonEskiSatirBilgileriniDoldur(satir, mevcutSatir);
+
+                if (revizyonSatiri.CheckKodu == "U")
+                {
+                    sonuc.GuncellenenSatirSayisi++;
+                    RevizyonDegisiklikleriDoldur(satir, mevcutSatir, revizyonSatiri);
+
+                    if (satir.Degisiklikler.Count == 0)
+                        satir.Degisiklikler.Add("Ana veride değişiklik yok.");
+
+                    var islemMiktari = CekiSatiriIslemMiktari(mevcutSatir);
+                    if (revizyonSatiri.IstenenAdet < islemMiktari)
+                    {
+                        RevizyonSatirRiskEkle(satir, "Engel", $"Yeni miktar ({revizyonSatiri.IstenenAdet}) mevcut işlem miktarından ({islemMiktari}) düşük. Önce operasyon verisi kontrol edilmeli.");
+                    }
+                    else if (satir.IslemGormusMu)
+                    {
+                        RevizyonSatirRiskEkle(satir, "Uyarı", "Satır işlem görmüş. Ana veri güncellenecek, mevcut Grid/3K/stok/proje hareketleri korunacak.");
+                    }
+
+                    if (!string.Equals(NormalizeKoliNo(mevcutSatir.CekideGecenSandikNo), NormalizeKoliNo(revizyonSatiri.KoliNo), StringComparison.OrdinalIgnoreCase)
+                        && mevcutSatir.SandikIcerikleri.Any()
+                        && !RevizyonIcerikleriTasinabilirMi(mevcutSatir.SandikIcerikleri.ToList()))
+                    {
+                        RevizyonSatirRiskEkle(satir, "Uyarı", "Sandık değişiyor fakat satırda işlem/konum bilgisi var. Planlanan sandık güncellenir, mevcut operasyon izi korunur.");
+                    }
+
+                    if (string.IsNullOrWhiteSpace(satir.Mesaj))
+                        satir.Mesaj = "Ana çeki satırı güncellenecek.";
+                }
+                else if (revizyonSatiri.CheckKodu == "D")
+                {
+                    sonuc.SilinecekSatirSayisi++;
+                    satir.Mesaj = "Ana çekiden silinecek.";
+
+                    if (satir.IslemGormusMu)
+                        RevizyonSatirRiskEkle(satir, "Uyarı", "Satır işlem görmüş. Uygulama öncesi bu silme kararını özellikle kontrol edin.");
+
+                    if (mevcutSatir.SandikIcerikleri.Any(i => i.Sandik?.DurumId == (int)SandikDurum.Sevkedildi))
+                        RevizyonSatirRiskEkle(satir, "Engel", "Satır sevk edilmiş sandıkta olduğu için otomatik silinemez.");
+
+                    if (await RevizyonDisariGidenAktifTransferVarMiAsync(mevcutSatir.Id))
+                        RevizyonSatirRiskEkle(satir, "Engel", "Satır başka bir proje/satıra kaynak olmuş. Önce ilgili proje karşılama işlemi geri alınmalı.");
+                }
+
+                sonuc.Satirlar.Add(satir);
+            }
+
+            sonuc.RiskliSatirSayisi = sonuc.Satirlar.Count(s => s.RiskSeviyesi != "Güvenli");
+            sonuc.EngelliSatirSayisi = sonuc.Satirlar.Count(s => !s.UygulanabilirMi);
+            sonuc.UygulanabilirMi = sonuc.EngelliSatirSayisi == 0;
+            sonuc.Mesaj = sonuc.UygulanabilirMi
+                ? $"{proje.ProjeNo} revizyonu ön izleme hazır. Eklenen: {sonuc.EklenenSatirSayisi}, Güncellenecek: {sonuc.GuncellenenSatirSayisi}, Silinecek: {sonuc.SilinecekSatirSayisi}."
+                : $"{proje.ProjeNo} revizyonunda {sonuc.EngelliSatirSayisi} engelli satır var. Engeller giderilmeden revizyon uygulanamaz.";
+
+            if (sonuc.RiskliSatirSayisi > 0)
+                sonuc.Uyarilar.Add($"{sonuc.RiskliSatirSayisi} satırda uyarı/engel var. Uygulamadan önce detayları kontrol edin.");
+
+            return sonuc;
+        }
+
+        private static void RevizyonEskiSatirBilgileriniDoldur(CekiRevizyonOnizlemeSatiri onizlemeSatiri, CekiSatiri mevcutSatir)
+        {
+            onizlemeSatiri.MevcutCekiSatiriId = mevcutSatir.Id;
+            onizlemeSatiri.EskiSiraNo = mevcutSatir.SiraNo;
+            onizlemeSatiri.EskiKoliNo = mevcutSatir.CekideGecenSandikNo;
+            onizlemeSatiri.EskiIstenenAdet = mevcutSatir.IstenenAdet;
+            onizlemeSatiri.IslemGormusMu = CekiSatiriIslemGormusMu(mevcutSatir);
+            onizlemeSatiri.IslemGorenAdet = CekiSatiriIslemMiktari(mevcutSatir);
+
+            if (string.IsNullOrWhiteSpace(onizlemeSatiri.BarkodNo))
+                onizlemeSatiri.BarkodNo = mevcutSatir.BarkodNo;
+            if (string.IsNullOrWhiteSpace(onizlemeSatiri.PozNo))
+                onizlemeSatiri.PozNo = mevcutSatir.OlcuResmiPozNo;
+            if (string.IsNullOrWhiteSpace(onizlemeSatiri.Tanim))
+                onizlemeSatiri.Tanim = mevcutSatir.Aciklama;
+        }
+
+        private static void RevizyonDegisiklikleriDoldur(CekiRevizyonOnizlemeSatiri satir, CekiSatiri mevcutSatir, CiktiSatirImportBilgisi revizyonSatiri)
+        {
+            RevizyonDegisiklikEkle(satir, "Sıra No", mevcutSatir.SiraNo, revizyonSatiri.SiraNo);
+            RevizyonDegisiklikEkle(satir, "Barkod", mevcutSatir.BarkodNo, revizyonSatiri.BarkodNo);
+            RevizyonDegisiklikEkle(satir, "Poz No", mevcutSatir.OlcuResmiPozNo, revizyonSatiri.OlcuResmiPozNo);
+            RevizyonDegisiklikEkle(satir, "Tanım", mevcutSatir.Aciklama, revizyonSatiri.Aciklama);
+            RevizyonDegisiklikEkle(satir, "Sandık", mevcutSatir.CekideGecenSandikNo, revizyonSatiri.KoliNo);
+            RevizyonDegisiklikEkle(satir, "Miktar", mevcutSatir.IstenenAdet, revizyonSatiri.IstenenAdet);
+            RevizyonDegisiklikEkle(satir, "Birim", mevcutSatir.BirimId, revizyonSatiri.BirimId);
+            RevizyonDegisiklikEkle(satir, "Açıklama", mevcutSatir.Remarks, revizyonSatiri.Remarks);
+        }
+
+        private static void RevizyonDegisiklikEkle(CekiRevizyonOnizlemeSatiri satir, string alan, int eskiDeger, int yeniDeger)
+        {
+            if (eskiDeger != yeniDeger)
+                satir.Degisiklikler.Add($"{alan}: {eskiDeger.ToString(CultureInfo.InvariantCulture)} → {yeniDeger.ToString(CultureInfo.InvariantCulture)}");
+        }
+
+        private static void RevizyonDegisiklikEkle(CekiRevizyonOnizlemeSatiri satir, string alan, decimal eskiDeger, decimal yeniDeger)
+        {
+            if (eskiDeger != yeniDeger)
+                satir.Degisiklikler.Add($"{alan}: {FormatRevizyonDecimal(eskiDeger)} → {FormatRevizyonDecimal(yeniDeger)}");
+        }
+
+        private static void RevizyonDegisiklikEkle(CekiRevizyonOnizlemeSatiri satir, string alan, string? eskiDeger, string? yeniDeger)
+        {
+            var eski = (eskiDeger ?? string.Empty).Trim();
+            var yeni = (yeniDeger ?? string.Empty).Trim();
+            if (!string.Equals(eski, yeni, StringComparison.OrdinalIgnoreCase))
+                satir.Degisiklikler.Add($"{alan}: {DisplayValue(eski)} → {DisplayValue(yeni)}");
+        }
+
+        private static string DisplayValue(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? "-" : value;
+        }
+
+        private static string FormatRevizyonDecimal(decimal value)
+        {
+            return decimal.Truncate(value) == value
+                ? value.ToString("0", CultureInfo.InvariantCulture)
+                : value.ToString("0.####", CultureInfo.InvariantCulture);
+        }
+
+        private static void RevizyonSatirRiskEkle(CekiRevizyonOnizlemeSatiri satir, string riskSeviyesi, string mesaj)
+        {
+            if (riskSeviyesi == "Engel")
+            {
+                satir.RiskSeviyesi = "Engel";
+                satir.UygulanabilirMi = false;
+            }
+            else if (satir.RiskSeviyesi != "Engel")
+            {
+                satir.RiskSeviyesi = "Uyarı";
+            }
+
+            satir.Uyarilar.Add(mesaj);
+            if (string.IsNullOrWhiteSpace(satir.Mesaj))
+                satir.Mesaj = mesaj;
+        }
+
+        private static bool CekiSatiriIslemGormusMu(CekiSatiri satir)
+        {
+            return satir.GridDurumuId != (int)GridDurum.Bekliyor
+                || satir.GridGelenAdet > 0
+                || satir.TrafoSevkAdet > 0
+                || (satir.GridSevkMiktari ?? 0) > 0
+                || satir.UcKDurumuId != (int)UcKDurum.Bekliyor
+                || satir.GelenMiktar > 0
+                || satir.StokKarsilanan > 0
+                || satir.ProjeKarsilanan > 0
+                || satir.ProjeGonderilen > 0
+                || satir.TedarikciKarsilanan > 0
+                || satir.HataliMiktar > 0
+                || satir.GeriGonderilenMiktar > 0
+                || satir.SandikIcerikleri.Any(i => i.KonulanAdet > 0 || i.EksikAdet > 0 || i.StokKarsilanan > 0 || i.ProjeKarsilanan > 0 || i.TedarikciKarsilanan > 0);
+        }
+
+        private static decimal CekiSatiriIslemMiktari(CekiSatiri satir)
+        {
+            var gridMiktari = Math.Max(satir.GridGelenAdet, satir.GridSevkMiktari ?? 0) + satir.TrafoSevkAdet;
+            var ucKMiktari = satir.GelenMiktar + satir.StokKarsilanan + satir.ProjeKarsilanan + satir.TedarikciKarsilanan - satir.ProjeGonderilen;
+            var sandikMiktari = satir.SandikIcerikleri.Sum(i => i.KonulanAdet + i.StokKarsilanan + i.ProjeKarsilanan + i.TedarikciKarsilanan);
+            return Math.Max(Math.Max(gridMiktari, ucKMiktari), sandikMiktari);
+        }
+
+        private static bool RevizyonBenzerSatirVarMi(CiktiSatirImportBilgisi revizyonSatiri, List<CekiSatiri> anaSatirlar)
+        {
+            var barkod = NormalizeTextKey(revizyonSatiri.BarkodNo);
+            if (string.IsNullOrWhiteSpace(barkod))
+                return false;
+
+            var poz = NormalizeTextKey(revizyonSatiri.OlcuResmiPozNo);
+            var koli = NormalizeKoliNo(revizyonSatiri.KoliNo);
+
+            return anaSatirlar.Any(s =>
+                NormalizeTextKey(s.BarkodNo) == barkod &&
+                NormalizeTextKey(s.OlcuResmiPozNo) == poz &&
+                NormalizeKoliNo(s.CekideGecenSandikNo) == koli);
+        }
+
+        private async Task<bool> RevizyonDisariGidenAktifTransferVarMiAsync(int cekiSatiriId)
+        {
+            return await _context.ProjeTransferleri.AnyAsync(t =>
+                t.KaynakCekiSatiriId == cekiSatiriId &&
+                t.DurumId == (int)ProjeTransferDurum.Aktif &&
+                (!t.HedefCekiSatiriId.HasValue || t.HedefCekiSatiriId.Value != cekiSatiriId));
+        }
+
+        private async Task RevizyonSatiriEkleAsync(
+            int projeId,
+            int anaCekiId,
+            CiktiSatirImportBilgisi revizyonSatiri,
+            Dictionary<string, Sandik> sandikCache,
+            Dictionary<string, SandikImportBilgisi> sandikBilgileri,
+            int kullaniciId)
+        {
+            var sandik = await GetOrCreateSandikAsync(projeId, revizyonSatiri.KoliNo, sandikCache, sandikBilgileri);
+
+            var satir = new CekiSatiri
+            {
+                CekiId = anaCekiId,
+                SiraNo = revizyonSatiri.SiraNo,
+                BarkodNo = revizyonSatiri.BarkodNo,
+                OlcuResmiPozNo = string.IsNullOrWhiteSpace(revizyonSatiri.OlcuResmiPozNo) ? null : revizyonSatiri.OlcuResmiPozNo,
+                Aciklama = revizyonSatiri.Aciklama,
+                CekideGecenSandikNo = revizyonSatiri.KoliNo,
+                FiiliSandikNo = revizyonSatiri.KoliNo,
+                IstenenAdet = revizyonSatiri.IstenenAdet,
+                BirimId = revizyonSatiri.BirimId,
+                Remarks = string.IsNullOrWhiteSpace(revizyonSatiri.Remarks) ? null : revizyonSatiri.Remarks,
+                DurumId = (int)UrunDurum.Bekliyor,
+                GridDurumuId = (int)GridDurum.Gelmedi
+            };
+
+            _context.CekiSatirlari.Add(satir);
+            _context.SandikIcerikleri.Add(new SandikIcerik
+            {
+                Sandik = sandik,
+                CekiSatiri = satir,
+                KonulanAdet = 0,
+                EksikAdet = 0
+            });
+
+            _context.HareketGecmisleri.Add(new HareketGecmisi
+            {
+                ProjeId = projeId,
+                ReferansTipi = "CekiSatiri",
+                ReferansMetni = $"Sıra: {satir.SiraNo} - {satir.Aciklama}",
+                Islem = "Revizyon Satırı Eklendi",
+                KullaniciId = kullaniciId,
+                Tarih = TurkeyTime.Now,
+                YeniDeger = RevizyonSatirOzeti(revizyonSatiri),
+                Aciklama = $"Revizyon A satırı eklendi. Excel satırı: {revizyonSatiri.ExcelSatirNo}"
+            });
+        }
+
+        private async Task RevizyonSatiriniGuncelleAsync(
+            int projeId,
+            CekiSatiri mevcutSatir,
+            CiktiSatirImportBilgisi revizyonSatiri,
+            Dictionary<string, Sandik> sandikCache,
+            Dictionary<string, SandikImportBilgisi> sandikBilgileri,
+            int kullaniciId)
+        {
+            var eskiOzet = CekiSatiriOzeti(mevcutSatir);
+            var eskiKoliNo = NormalizeKoliNo(mevcutSatir.CekideGecenSandikNo);
+            var eskiFiiliKoliNo = NormalizeKoliNo(mevcutSatir.FiiliSandikNo);
+            var yeniKoliNo = NormalizeKoliNo(revizyonSatiri.KoliNo);
+
+            var fiiliPlanlaAyni = string.IsNullOrWhiteSpace(eskiFiiliKoliNo) ||
+                string.Equals(eskiFiiliKoliNo, eskiKoliNo, StringComparison.OrdinalIgnoreCase);
+
+            var hedefSandik = await GetOrCreateSandikAsync(projeId, yeniKoliNo, sandikCache, sandikBilgileri);
+
+            mevcutSatir.SiraNo = revizyonSatiri.SiraNo;
+            mevcutSatir.BarkodNo = revizyonSatiri.BarkodNo;
+            mevcutSatir.OlcuResmiPozNo = string.IsNullOrWhiteSpace(revizyonSatiri.OlcuResmiPozNo) ? null : revizyonSatiri.OlcuResmiPozNo;
+            mevcutSatir.Aciklama = revizyonSatiri.Aciklama;
+            mevcutSatir.CekideGecenSandikNo = yeniKoliNo;
+            mevcutSatir.IstenenAdet = revizyonSatiri.IstenenAdet;
+            mevcutSatir.BirimId = revizyonSatiri.BirimId;
+            mevcutSatir.Remarks = string.IsNullOrWhiteSpace(revizyonSatiri.Remarks) ? null : revizyonSatiri.Remarks;
+
+            if (fiiliPlanlaAyni)
+                mevcutSatir.FiiliSandikNo = yeniKoliNo;
+
+            mevcutSatir.DurumId = _durumHesaplaService.HesaplaGenelDurum(mevcutSatir.GridDurumuId, mevcutSatir.UcKDurumuId);
+            _durumHesaplaService.HesaplaKalanVeDurum(mevcutSatir);
+
+            var icerikler = await _context.SandikIcerikleri
+                .Include(i => i.Sandik)
+                .Where(i => i.CekiSatiriId == mevcutSatir.Id)
+                .ToListAsync();
+
+            if (icerikler.Count == 0)
+            {
+                _context.SandikIcerikleri.Add(new SandikIcerik
+                {
+                    Sandik = hedefSandik,
+                    CekiSatiriId = mevcutSatir.Id,
+                    KonulanAdet = 0,
+                    EksikAdet = 0
+                });
+            }
+            else if (!string.Equals(eskiKoliNo, yeniKoliNo, StringComparison.OrdinalIgnoreCase) &&
+                fiiliPlanlaAyni &&
+                RevizyonIcerikleriTasinabilirMi(icerikler))
+            {
+                foreach (var icerik in icerikler)
+                    icerik.SandikId = hedefSandik.Id;
+            }
+
+            _context.CekiSatirlari.Update(mevcutSatir);
+            _context.HareketGecmisleri.Add(new HareketGecmisi
+            {
+                ProjeId = projeId,
+                ReferansTipi = "CekiSatiri",
+                ReferansId = mevcutSatir.Id.ToString(),
+                ReferansMetni = $"Sıra: {mevcutSatir.SiraNo} - {mevcutSatir.Aciklama}",
+                Islem = "Revizyon Satırı Güncellendi",
+                KullaniciId = kullaniciId,
+                Tarih = TurkeyTime.Now,
+                EskiDeger = eskiOzet,
+                YeniDeger = CekiSatiriOzeti(mevcutSatir),
+                Aciklama = $"Revizyon U satırı uygulandı. Excel satırı: {revizyonSatiri.ExcelSatirNo}"
+            });
+        }
+
+        private async Task<int> RevizyonSatirlariniSilAsync(int projeId, List<CekiSatiri> satirlar, int kullaniciId)
+        {
+            var idler = satirlar.Select(s => s.Id).Distinct().ToList();
+            if (idler.Count == 0)
+                return 0;
+
+            var kilitliIcerikler = await _context.SandikIcerikleri
+                .Include(i => i.Sandik)
+                .Where(i => i.CekiSatiriId.HasValue &&
+                    idler.Contains(i.CekiSatiriId.Value) &&
+                    i.Sandik.DurumId == (int)SandikDurum.Sevkedildi)
+                .ToListAsync();
+
+            if (kilitliIcerikler.Any())
+                throw new Exception($"Revizyon D satırlarından {kilitliIcerikler.Count} tanesi sevk edilmiş sandıkta olduğu için silinemez.");
+
+            var transferler = await _context.ProjeTransferleri
+                .Where(t => idler.Contains(t.KaynakCekiSatiriId) ||
+                    (t.HedefCekiSatiriId.HasValue && idler.Contains(t.HedefCekiSatiriId.Value)))
+                .ToListAsync();
+
+            var aktifTransferler = transferler
+                .Where(t => t.DurumId == (int)ProjeTransferDurum.Aktif)
+                .ToList();
+
+            var disariGidenTransferVar = aktifTransferler.Any(t =>
+                idler.Contains(t.KaynakCekiSatiriId) &&
+                (!t.HedefCekiSatiriId.HasValue || !idler.Contains(t.HedefCekiSatiriId.Value)));
+
+            if (disariGidenTransferVar)
+                throw new Exception("Revizyon D satırlarından bazıları başka bir proje/satıra kaynak olmuş. Önce ilgili proje karşılama işlemini geri alın.");
+
+            var kaynakSatirIdler = aktifTransferler
+                .Where(t => t.HedefCekiSatiriId.HasValue &&
+                    idler.Contains(t.HedefCekiSatiriId.Value) &&
+                    !idler.Contains(t.KaynakCekiSatiriId))
+                .Select(t => t.KaynakCekiSatiriId)
+                .Distinct()
+                .ToList();
+
+            var kaynakSatirlar = kaynakSatirIdler.Count == 0
+                ? new Dictionary<int, CekiSatiri>()
+                : await _context.CekiSatirlari
+                    .Where(s => kaynakSatirIdler.Contains(s.Id))
+                    .ToDictionaryAsync(s => s.Id);
+
+            foreach (var transfer in aktifTransferler.Where(t => t.HedefCekiSatiriId.HasValue && idler.Contains(t.HedefCekiSatiriId.Value)))
+            {
+                if (kaynakSatirlar.TryGetValue(transfer.KaynakCekiSatiriId, out var kaynakSatir))
+                {
+                    kaynakSatir.ProjeGonderilen = Math.Max(kaynakSatir.ProjeGonderilen - transfer.Miktar, 0);
+                    kaynakSatir.DurumId = _durumHesaplaService.HesaplaGenelDurum(kaynakSatir.GridDurumuId, kaynakSatir.UcKDurumuId);
+                    _durumHesaplaService.HesaplaKalanVeDurum(kaynakSatir);
+                    _context.CekiSatirlari.Update(kaynakSatir);
+                }
+
+                transfer.DurumId = (int)ProjeTransferDurum.GeriAlindi;
+                transfer.IptalTarihi = TurkeyTime.Now;
+                transfer.IptalAciklama = "Revizyon D satırı silindiği için transfer pasife alındı.";
+                transfer.HedefCekiSatiriId = null;
+                _context.ProjeTransferleri.Update(transfer);
+            }
+
+            foreach (var transfer in transferler.Where(t => idler.Contains(t.KaynakCekiSatiriId)))
+                _context.ProjeTransferleri.Remove(transfer);
+
+            var stokHareketleri = await _context.StokHareketleri
+                .Where(h => idler.Contains(h.CekiSatiriId))
+                .ToListAsync();
+            await RevizyonStokHareketleriniGeriAlAsync(stokHareketleri);
+
+            var icerikler = await _context.SandikIcerikleri
+                .Where(i => i.CekiSatiriId.HasValue && idler.Contains(i.CekiSatiriId.Value))
+                .ToListAsync();
+            _context.SandikIcerikleri.RemoveRange(icerikler);
+
+            foreach (var satir in satirlar)
+            {
+                _context.HareketGecmisleri.Add(new HareketGecmisi
+                {
+                    ProjeId = projeId,
+                    ReferansTipi = "CekiSatiri",
+                    ReferansId = satir.Id.ToString(),
+                    ReferansMetni = $"Sıra: {satir.SiraNo} - {satir.Aciklama}",
+                    Islem = "Revizyon Satırı Silindi",
+                    KullaniciId = kullaniciId,
+                    Tarih = TurkeyTime.Now,
+                    EskiDeger = CekiSatiriOzeti(satir),
+                    Aciklama = $"Revizyon D satırı silindi. Sıra: {satir.SiraNo}, Barkod: {satir.BarkodNo}, Sandık: {satir.CekideGecenSandikNo}"
+                });
+                _context.CekiSatirlari.Remove(satir);
+            }
+
+            await _context.SaveChangesAsync();
+            return satirlar.Count;
+        }
+
+        private async Task RevizyonStokHareketleriniGeriAlAsync(List<StokHareketi> stokHareketleri)
+        {
+            if (stokHareketleri.Count == 0)
+                return;
+
+            var stokIdler = stokHareketleri.Select(h => h.StokKaydiId).Distinct().ToList();
+            var stoklar = await _context.StokKayitlari
+                .Where(s => stokIdler.Contains(s.Id))
+                .ToDictionaryAsync(s => s.Id);
+
+            foreach (var grup in stokHareketleri.GroupBy(h => h.StokKaydiId))
+            {
+                if (!stoklar.TryGetValue(grup.Key, out var stok))
+                    continue;
+
+                stok.Miktar += grup.Sum(h => Math.Abs(h.Miktar));
+                if (stok.Miktar > 0)
+                    stok.DurumId = (int)StokDurum.Aktif;
+
+                _context.StokKayitlari.Update(stok);
+            }
+
+            _context.StokHareketleri.RemoveRange(stokHareketleri);
+        }
+
+        private async Task BosSandiklariTemizleVeDurumlariGuncelleAsync(int projeId)
+        {
+            var sandiklar = await _context.Sandiklar
+                .Include(s => s.SandikIcerikleri)
+                .ThenInclude(i => i.CekiSatiri)
+                .Where(s => s.ProjeId == projeId)
+                .ToListAsync();
+
+            foreach (var sandik in sandiklar)
+            {
+                if (sandik.DurumId == (int)SandikDurum.Sevkedildi)
+                    continue;
+
+                if (sandik.SandikIcerikleri.Count == 0)
+                {
+                    _context.Sandiklar.Remove(sandik);
+                    continue;
+                }
+
+                var cekiIcerikleri = sandik.SandikIcerikleri.Where(i => i.CekiSatiriId.HasValue).ToList();
+                var hepsiTamamlandi = cekiIcerikleri.Count > 0 &&
+                    cekiIcerikleri.All(i => i.CekiSatiri?.DurumId == (int)UrunDurum.Tamamlandi);
+                var enAzBiriKonuldu = sandik.SandikIcerikleri.Any(i => i.KonulanAdet > 0);
+
+                sandik.DurumId = hepsiTamamlandi
+                    ? (int)SandikDurum.Kapandi
+                    : enAzBiriKonuldu
+                        ? (int)SandikDurum.Hazirlaniyor
+                        : (int)SandikDurum.Bos;
+            }
+        }
+
+        private async Task<Sandik> GetOrCreateSandikAsync(
+            int projeId,
+            string koliNo,
+            Dictionary<string, Sandik> sandikCache,
+            Dictionary<string, SandikImportBilgisi> sandikBilgileri)
+        {
+            var normalizedKoliNo = NormalizeKoliNo(koliNo);
+            if (string.IsNullOrWhiteSpace(normalizedKoliNo))
+                throw new Exception("Revizyon satırında koli/sandık no boş olamaz.");
+
+            if (sandikCache.TryGetValue(normalizedKoliNo, out var mevcutSandik))
+            {
+                SandikBilgisiniUygula(mevcutSandik, sandikBilgileri.GetValueOrDefault(normalizedKoliNo));
+                return mevcutSandik;
+            }
+
+            sandikBilgileri.TryGetValue(normalizedKoliNo, out var bilgi);
+            var sandik = new Sandik
+            {
+                ProjeId = projeId,
+                SandikNo = normalizedKoliNo,
+                Ad = bilgi?.SandikIsmi,
+                AdIngilizce = bilgi?.SandikIsmiIngilizce,
+                DurumId = (int)SandikDurum.Hazirlaniyor,
+                En = bilgi?.En,
+                Boy = bilgi?.Boy,
+                Yukseklik = bilgi?.Yukseklik,
+                NetKg = bilgi?.NetKg,
+                GrossKg = bilgi?.GrossKg
+            };
+
+            _context.Sandiklar.Add(sandik);
+            sandikCache[normalizedKoliNo] = sandik;
+            return sandik;
+        }
+
+        private static void SandikBilgisiniUygula(Sandik sandik, SandikImportBilgisi? bilgi)
+        {
+            if (bilgi == null)
+                return;
+
+            if (!string.IsNullOrWhiteSpace(bilgi.SandikIsmi))
+                sandik.Ad = bilgi.SandikIsmi;
+            if (!string.IsNullOrWhiteSpace(bilgi.SandikIsmiIngilizce))
+                sandik.AdIngilizce = bilgi.SandikIsmiIngilizce;
+            sandik.En = bilgi.En ?? sandik.En;
+            sandik.Boy = bilgi.Boy ?? sandik.Boy;
+            sandik.Yukseklik = bilgi.Yukseklik ?? sandik.Yukseklik;
+            sandik.NetKg = bilgi.NetKg ?? sandik.NetKg;
+            sandik.GrossKg = bilgi.GrossKg ?? sandik.GrossKg;
+        }
+
+        private static bool RevizyonIcerikleriTasinabilirMi(List<SandikIcerik> icerikler)
+        {
+            return icerikler.All(i =>
+                i.Sandik.DurumId != (int)SandikDurum.Sevkedildi &&
+                i.KonulanAdet == 0 &&
+                i.EksikAdet == 0 &&
+                i.StokKarsilanan == 0 &&
+                i.ProjeKarsilanan == 0 &&
+                i.TedarikciKarsilanan == 0);
+        }
+
+        private static CekiSatiri? EslesenAnaSatiriBul(
+            CiktiSatirImportBilgisi revizyonSatiri,
+            Dictionary<int, List<CekiSatiri>> siraGruplari,
+            List<CekiSatiri> anaSatirlar)
+        {
+            var barkod = NormalizeTextKey(revizyonSatiri.BarkodNo);
+            var poz = NormalizeTextKey(revizyonSatiri.OlcuResmiPozNo);
+            var koli = NormalizeKoliNo(revizyonSatiri.KoliNo);
+
+            var adaylar = new List<CekiSatiri>();
+
+            if (!string.IsNullOrWhiteSpace(barkod))
+            {
+                adaylar = anaSatirlar
+                    .Where(s =>
+                        NormalizeTextKey(s.BarkodNo) == barkod &&
+                        NormalizeTextKey(s.OlcuResmiPozNo) == poz &&
+                        NormalizeKoliNo(s.CekideGecenSandikNo) == koli)
+                    .ToList();
+
+                if (adaylar.Count == 1)
+                    return adaylar[0];
+
+                adaylar = anaSatirlar
+                    .Where(s =>
+                        NormalizeTextKey(s.BarkodNo) == barkod &&
+                        NormalizeTextKey(s.OlcuResmiPozNo) == poz)
+                    .ToList();
+
+                if (adaylar.Count == 1)
+                    return adaylar[0];
+
+                adaylar = anaSatirlar
+                    .Where(s => NormalizeTextKey(s.BarkodNo) == barkod)
+                    .ToList();
+
+                if (adaylar.Count == 1)
+                    return adaylar[0];
+            }
+
+            if (siraGruplari.TryGetValue(revizyonSatiri.SiraNo, out var siraEslesmeleri) && siraEslesmeleri.Count == 1)
+                return siraEslesmeleri[0];
+
+            return adaylar.Count == 1 ? adaylar[0] : null;
+        }
+
+        private static CiktiImportBilgisi OkuCiktiImportBilgisi(IXLWorkbook workbook)
+        {
+            var worksheet = BulCiktiSayfasi(workbook)
+                ?? throw new Exception("Excel dosyasında 'ÇIKTI SAYFASI' bulunamadı.");
+
+            var baslik = OkuCiktiBaslikBilgileri(worksheet);
+            var baslangicSatir = BulCiktiBaslangicSatiri(worksheet);
+            var headerRow = baslangicSatir - 1;
+            var pozNoKolon = BulCiktiPozNoKolonu(worksheet, headerRow);
+            var checkKolon = BulCiktiCheckKolonu(worksheet, headerRow);
+            var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? baslangicSatir;
+
+            var satirlar = new List<CiktiSatirImportBilgisi>();
+            for (var r = baslangicSatir; r <= lastRow; r++)
+            {
+                var checkKodu = ReadRevisionCheckCode(worksheet.Cell(r, checkKolon));
+                var barkod = worksheet.Cell(r, 3).GetString().Trim();
+                var tanim = worksheet.Cell(r, 4).GetString().Trim();
+                var hasData = !string.IsNullOrWhiteSpace(barkod) || !string.IsNullOrWhiteSpace(tanim);
+
+                if (!hasData && string.IsNullOrWhiteSpace(checkKodu))
+                    continue;
+
+                var siraNo = TryReadInt(worksheet.Cell(r, 1)) ?? Math.Max(1, r - headerRow);
+                var miktar = ReadNullableDecimal(worksheet.Cell(r, 6)) ?? 0;
+
+                satirlar.Add(new CiktiSatirImportBilgisi
+                {
+                    ExcelSatirNo = r,
+                    SiraNo = siraNo,
+                    OlcuResmiPozNo = pozNoKolon.HasValue ? worksheet.Cell(r, pozNoKolon.Value).GetString().Trim() : string.Empty,
+                    BarkodNo = barkod,
+                    Aciklama = tanim,
+                    KoliNo = NormalizeKoliNo(worksheet.Cell(r, 5).GetString().Trim()),
+                    IstenenAdet = miktar,
+                    BirimId = ParseBirimToId(worksheet.Cell(r, 7).GetString().Trim()),
+                    Remarks = worksheet.Cell(r, 14).GetString().Trim(),
+                    CheckKodu = checkKodu,
+                    VeriSatiriMi = hasData
+                });
+            }
+
+            return new CiktiImportBilgisi
+            {
+                FbNo = baslik.FbNo,
+                Musteri = baslik.Musteri,
+                Lokasyon = baslik.Lokasyon,
+                Satirlar = satirlar,
+                SandikBilgileri = OkuCekiListesiSandikBilgileri(workbook)
+            };
+        }
+
+        private static IXLWorksheet? BulCiktiSayfasi(IXLWorkbook workbook)
+        {
+            return workbook.Worksheets.FirstOrDefault(ws => NormalizeExcelText(ws.Name) == "CIKTI SAYFASI")
+                ?? workbook.Worksheets.FirstOrDefault(ws =>
+                {
+                    var name = NormalizeExcelText(ws.Name);
+                    return name.Contains("CIKTI") && !name.Contains("YDK") && !name.Contains("YEDEK");
+                });
+        }
+
+        private static CiktiBaslikBilgisi OkuCiktiBaslikBilgileri(IXLWorksheet worksheet)
+        {
+            string fbNo = string.Empty;
+            for (int r = 1; r <= 10; r++)
+            {
+                for (int c = 1; c <= 8; c++)
+                {
+                    var val = NormalizeExcelText(worksheet.Cell(r, c).GetString());
+                    if (val.Contains("FB NO") || val.Contains("SERIAL NO"))
+                    {
+                        fbNo = worksheet.Cell(r, c + 1).GetString().Trim();
+                        if (string.IsNullOrWhiteSpace(fbNo))
+                            fbNo = worksheet.Cell(r, c + 2).GetString().Trim();
+                        break;
+                    }
+                }
+                if (!string.IsNullOrWhiteSpace(fbNo)) break;
+            }
+
+            return new CiktiBaslikBilgisi
+            {
+                FbNo = fbNo,
+                Musteri = worksheet.Cell(2, 6).GetString().Trim(),
+                Lokasyon = worksheet.Cell(4, 6).GetString().Trim()
+            };
+        }
+
+        private static int BulCiktiBaslangicSatiri(IXLWorksheet worksheet)
+        {
+            for (int r = 1; r <= 20; r++)
+            {
+                if (TryReadInt(worksheet.Cell(r, 1)).HasValue)
+                    return r;
+            }
+
+            return 6;
+        }
+
+        private static int BulCiktiCheckKolonu(IXLWorksheet worksheet, int headerRow)
+        {
+            if (headerRow <= 0)
+                return 11;
+
+            var lastColumn = Math.Min(worksheet.LastColumnUsed()?.ColumnNumber() ?? 0, 80);
+            for (int c = 1; c <= lastColumn; c++)
+            {
+                var header = NormalizeExcelText(worksheet.Cell(headerRow, c).GetString());
+                if (header.Contains("CHECK") || header.Contains("KONTROL"))
+                    return c;
+            }
+
+            return 11;
+        }
+
+        private static string ReadRevisionCheckCode(IXLCell cell)
+        {
+            var value = NormalizeExcelText(cell.GetString());
+            return value switch
+            {
+                "A" => "A",
+                "U" => "U",
+                "D" => "D",
+                _ => string.Empty
+            };
+        }
+
+        private static int? TryReadInt(IXLCell cell)
+        {
+            if (cell.TryGetValue<int>(out var intValue))
+                return intValue;
+
+            var text = cell.GetString().Trim();
+            if (int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+                return parsed;
+
+            if (decimal.TryParse(text.Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture, out var decimalValue))
+                return (int)decimalValue;
+
+            return null;
+        }
+
+        private static string CekiSatiriOzeti(CekiSatiri satir)
+        {
+            return $"Sıra:{satir.SiraNo}; Poz:{satir.OlcuResmiPozNo}; Barkod:{satir.BarkodNo}; Tanım:{satir.Aciklama}; Koli:{satir.CekideGecenSandikNo}; Miktar:{satir.IstenenAdet}; Birim:{satir.BirimId}; Açıklama:{satir.Remarks}";
+        }
+
+        private static string RevizyonSatirOzeti(CiktiSatirImportBilgisi satir)
+        {
+            return $"Sıra:{satir.SiraNo}; Poz:{satir.OlcuResmiPozNo}; Barkod:{satir.BarkodNo}; Tanım:{satir.Aciklama}; Koli:{satir.KoliNo}; Miktar:{satir.IstenenAdet}; Birim:{satir.BirimId}; Açıklama:{satir.Remarks}";
+        }
+
+        private static string NormalizeTextKey(string? value)
+        {
+            return NormalizeExcelText(value).Replace(" ", string.Empty);
+        }
+
+        private static string CleanFileName(string fileName)
+        {
+            var safeName = Path.GetFileName(fileName);
+            foreach (var invalidChar in Path.GetInvalidFileNameChars())
+                safeName = safeName.Replace(invalidChar, '_');
+            return string.IsNullOrWhiteSpace(safeName) ? "revizyon.xlsx" : safeName;
+        }
+
+        private sealed class CiktiImportBilgisi
+        {
+            public string FbNo { get; set; } = string.Empty;
+            public string? Musteri { get; set; }
+            public string? Lokasyon { get; set; }
+            public List<CiktiSatirImportBilgisi> Satirlar { get; set; } = new();
+            public Dictionary<string, SandikImportBilgisi> SandikBilgileri { get; set; } = new();
+        }
+
+        private sealed class CiktiBaslikBilgisi
+        {
+            public string FbNo { get; set; } = string.Empty;
+            public string? Musteri { get; set; }
+            public string? Lokasyon { get; set; }
+        }
+
+        private sealed class CiktiSatirImportBilgisi
+        {
+            public int ExcelSatirNo { get; set; }
+            public int SiraNo { get; set; }
+            public string? OlcuResmiPozNo { get; set; }
+            public string BarkodNo { get; set; } = string.Empty;
+            public string Aciklama { get; set; } = string.Empty;
+            public string KoliNo { get; set; } = string.Empty;
+            public decimal IstenenAdet { get; set; }
+            public int BirimId { get; set; }
+            public string? Remarks { get; set; }
+            public string CheckKodu { get; set; } = string.Empty;
+            public bool VeriSatiriMi { get; set; }
         }
 
         /// <summary>

@@ -849,12 +849,13 @@ namespace _3K.Infrastructure.Data
                 new MenuTanimi { Id = 23, Kod = "gerceklesen-ceki-raporu", LabelKey = "MENU.GERCEKLESEN_CEKI_RAPORU", Icon = "", Route = null, Sira = 6, ParentId = 5 },
                 new MenuTanimi { Id = 25, Kod = "ceki-verisi-duzenle", LabelKey = "MENU.CEKI_VERISI_DUZENLE", Icon = "", Route = null, Sira = 7, ParentId = 5 },
                 new MenuTanimi { Id = 26, Kod = "3k-is-listesi", LabelKey = "MENU.3K_IS_LISTESI", Icon = "ri-list-check-3-line", Route = "/uck-is-listesi", Sira = 8, ParentId = 5 },
-                new MenuTanimi { Id = 27, Kod = "ceki-verisi-sil", LabelKey = "MENU.CEKI_VERISI_SIL", Icon = "", Route = null, Sira = 9, ParentId = 5 }
+                new MenuTanimi { Id = 27, Kod = "ceki-verisi-sil", LabelKey = "MENU.CEKI_VERISI_SIL", Icon = "", Route = null, Sira = 9, ParentId = 5 },
+                new MenuTanimi { Id = 35, Kod = "ceki-revizyon-yukle", LabelKey = "MENU.CEKI_REVIZYON_YUKLE", Icon = "", Route = null, Sira = 10, ParentId = 5 }
             );
 
             // ======= ADMIN ROL YETKİLERİ (tüm menülere W=3) =======
-            // Not: MenuTanimi Id'leri: 1,2,3,4,5,7,8,10,11,12,14,15,16,17,18,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,99
-            var menuIds = new[] { 1, 2, 3, 4, 5, 7, 8, 10, 11, 12, 14, 15, 16, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34 };
+            // Not: MenuTanimi Id'leri: 1,2,3,4,5,7,8,10,11,12,14,15,16,17,18,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,99
+            var menuIds = new[] { 1, 2, 3, 4, 5, 7, 8, 10, 11, 12, 14, 15, 16, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35 };
             var adminYetkiler = new List<RolYetki>();
             for (int i = 0; i < menuIds.Length; i++)
             {

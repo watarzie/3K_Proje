@@ -35,6 +35,41 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
 
+        [HttpPost("revizyon-yukle")]
+        public async Task<ActionResult> RevizyonYukle(IFormFile dosya)
+        {
+            if (dosya == null || dosya.Length == 0)
+                return BadRequest(new { message = "Dosya seçilmedi." });
+
+            using var stream = dosya.OpenReadStream();
+            var command = new CekiRevizyonYukleCommand
+            {
+                ExcelDosya = stream,
+                DosyaAdi = dosya.FileName,
+                KullaniciId = GetKullaniciId()
+            };
+
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
+        [HttpPost("revizyon-onizle")]
+        public async Task<ActionResult> RevizyonOnizle(IFormFile dosya)
+        {
+            if (dosya == null || dosya.Length == 0)
+                return BadRequest(new { message = "Dosya seçilmedi." });
+
+            using var stream = dosya.OpenReadStream();
+            var command = new CekiRevizyonOnizleCommand
+            {
+                ExcelDosya = stream,
+                DosyaAdi = dosya.FileName
+            };
+
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
         [HttpGet("{cekiId}/satirlar")]
         public async Task<ActionResult> GetSatirlari(int cekiId)
         {
