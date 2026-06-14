@@ -109,11 +109,21 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (proje == null)
                 return Result.Failure("Proje bulunamadı.", 404);
 
-            if (kaynakCeki.ProjeId != request.ProjeId || proje.ProjeTipiId != (int)ProjeTipi.Normal)
+            var hedefNormalProjeMi = proje.ProjeTipiId == (int)ProjeTipi.Normal && kaynakCeki.ProjeId == request.ProjeId;
+            var hedefSahaProjesiMi = proje.ProjeTipiId == (int)ProjeTipi.Saha && kaynakCeki.ProjeId != request.ProjeId;
+
+            if (!hedefNormalProjeMi && !hedefSahaProjesiMi)
                 return null;
 
             if (kaynakSatir.KaynakCekiSatiriId.HasValue)
                 return Result.Failure("Eksik tamamlama satırından tekrar tamamlama oluşturulamaz.");
+
+            var kaynakProje = await projeRepo.GetByIdAsync(kaynakCeki.ProjeId);
+            if (kaynakProje == null)
+                return Result.Failure("Kaynak proje bulunamadı.", 404);
+
+            if (hedefSahaProjesiMi && kaynakProje.ProjeTipiId != (int)ProjeTipi.Normal)
+                return Result.Failure("Saha projesine yalnızca normal proje eksikleri eklenebilir.");
 
             if (request.Miktar <= 0)
                 return Result.Failure("Tamamlama adedi 0'dan büyük olmalıdır.");
@@ -144,9 +154,11 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                     OrijinalDosyaYolu = string.Empty,
                     YuklemeTarihi = TurkeyTime.Now,
                     CekiTipiId = (int)CekiTipi.EksikTamamlama,
-                    KaynakCekiId = kaynakCeki.Id,
+                    KaynakCekiId = hedefSahaProjesiMi ? null : kaynakCeki.Id,
                     TamamlamaNo = 1,
-                    Aciklama = "Eksik tamamlama çekisi"
+                    Aciklama = hedefSahaProjesiMi
+                        ? $"Saha eksik tamamlama çekisi - Kaynak: {kaynakProje.ProjeNo}"
+                        : "Eksik tamamlama çekisi"
                 };
 
                 await cekiRepo.AddAsync(tamamlamaCeki);
@@ -174,9 +186,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 GridSevkDurumuId = (int)GridSevkDurum.SevkEdilmedi,
                 UcKDurumuId = (int)UcKDurum.Bekliyor,
                 UcKKarsilamaTipiId = (int)UcKDurum.Bekliyor,
-                KaynakHedefProjeNo = proje.ProjeNo,
+                KaynakHedefProjeNo = kaynakProje.ProjeNo,
                 IsManuelEklenen = true,
-                EklemeNedeni = "Eksik tamamlama",
+                EklemeNedeni = hedefSahaProjesiMi ? "Eksik saha tamamlama" : "Eksik tamamlama",
                 UcKAciklama = request.Aciklama
             };
 
@@ -187,9 +199,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             {
                 SandikId = sandik.Id,
                 CekiSatiriId = yeniSatir.Id,
-                KonulanAdet = request.Miktar,
+                KonulanAdet = hedefSahaProjesiMi ? 0 : request.Miktar,
                 EksikAdet = 0,
-                KaynakProjeNo = proje.ProjeNo,
+                KaynakProjeNo = kaynakProje.ProjeNo,
                 Aciklama = request.Aciklama
             };
 

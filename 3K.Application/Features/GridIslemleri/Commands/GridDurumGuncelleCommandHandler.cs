@@ -82,6 +82,13 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                     return Result.Failure("Bu ürün Kalite tarafından 'Tadilatta' olarak işaretlenmiş. Grid durumu değiştirilemez.");
             }
 
+            if (request.SevkMiktari.HasValue &&
+                request.SevkMiktari.Value > 0 &&
+                request.GridSevkDurumuId != (int)GridSevkDurum.SevkEdildi)
+            {
+                return Result.Failure("Sevk adeti girildiyse Grid sevk durumu 'Sevk Edildi' seçilmelidir.");
+            }
+
             var eskiDurum = satir.GridDurumuId;
 
             // Grid alanlarını güncelle

@@ -45,6 +45,8 @@ namespace _3K.Core.Enums
         /// <summary>Manuel eklenen ürün silindi.</summary>
         ManuelUrunSilindi = 32,
         /// <summary>Sandık silindi.</summary>
-        SandikSilindi = 33
+        SandikSilindi = 33,
+        /// <summary>Fazla teslim edilen ürün stoka aktarıldı.</summary>
+        FazlaTeslimStogaAktarildi = 34
     }
 }

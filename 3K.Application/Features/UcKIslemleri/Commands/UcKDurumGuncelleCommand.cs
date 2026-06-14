@@ -79,6 +79,8 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
         /// StoktanKarsilandi durumunda zorunlu: Kullanılan stoğun ID'si.
         /// </summary>
         public int? StokKaydiId { get; set; }
+
+        public bool StogaAktar { get; set; }
     }
 }
 

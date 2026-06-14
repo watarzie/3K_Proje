@@ -210,7 +210,9 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
             if (teslimBekleyen > 0 && gridSevkDurumuId == (int)GridSevkDurum.SevkEdildi)
                 return (TipTeslim, "3K teslim bekliyor", 2);
 
-            if (gridDurumuId == (int)GridDurum.EksikGeldi && gridEksik > 0)
+            if (gridDurumuId == (int)GridDurum.EksikGeldi &&
+                gridEksik > 0 &&
+                gridSevkDurumuId == (int)GridSevkDurum.SevkEdildi)
                 return (TipEksik, "Grid eksik geldi", 3);
 
             return null;

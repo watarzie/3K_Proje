@@ -674,7 +674,8 @@ namespace _3K.Infrastructure.Data
                 new LookupUcKDurum { Id = 10, Anahtar = 10, Deger = "Tedarikçiden Geldi" },
                 new LookupUcKDurum { Id = 11, Anahtar = 11, Deger = "Başka Projeye Verildi" },
                 new LookupUcKDurum { Id = 12, Anahtar = 12, Deger = "Geri Gönderildi" },
-                new LookupUcKDurum { Id = 13, Anahtar = 13, Deger = "Hatalı Ürün" }
+                new LookupUcKDurum { Id = 13, Anahtar = 13, Deger = "Hatalı Ürün" },
+                new LookupUcKDurum { Id = 14, Anahtar = 14, Deger = "Fazla Geldi" }
             );
 
             // GeriGonderilmeSebebi
@@ -733,7 +734,8 @@ namespace _3K.Infrastructure.Data
                 new LookupIslemTipi { Id = 30, Anahtar = 30, Deger = "3K Durum Sıfırlandı" },
                 new LookupIslemTipi { Id = 31, Anahtar = 31, Deger = "Grid Durum Sıfırlandı" },
                 new LookupIslemTipi { Id = 32, Anahtar = 32, Deger = "Manuel Ürün Silindi" },
-                new LookupIslemTipi { Id = 33, Anahtar = 33, Deger = "Sandık Silindi" }
+                new LookupIslemTipi { Id = 33, Anahtar = 33, Deger = "Sandık Silindi" },
+                new LookupIslemTipi { Id = 34, Anahtar = 34, Deger = "Fazla Teslim Stoka Aktarıldı" }
             );
 
             // ProjeTipi
@@ -789,7 +791,8 @@ namespace _3K.Infrastructure.Data
                 new IslemOnayKurali { Id = 6, LookupUcKDurumId = 4, OnayGerektirirMi = false }, // Gelmedi
                 new IslemOnayKurali { Id = 7, LookupUcKDurumId = 11, OnayGerektirirMi = false }, // BaşkaProjeyeVerildi
                 new IslemOnayKurali { Id = 8, LookupUcKDurumId = 12, OnayGerektirirMi = false }, // GeriGönderildi
-                new IslemOnayKurali { Id = 9, LookupUcKDurumId = 13, OnayGerektirirMi = false } // HatalıÜrün
+                new IslemOnayKurali { Id = 9, LookupUcKDurumId = 13, OnayGerektirirMi = false }, // HatalıÜrün
+                new IslemOnayKurali { Id = 10, LookupUcKDurumId = 14, OnayGerektirirMi = false } // FazlaGeldi
             );
         }
 
@@ -850,12 +853,15 @@ namespace _3K.Infrastructure.Data
                 new MenuTanimi { Id = 25, Kod = "ceki-verisi-duzenle", LabelKey = "MENU.CEKI_VERISI_DUZENLE", Icon = "", Route = null, Sira = 7, ParentId = 5 },
                 new MenuTanimi { Id = 26, Kod = "3k-is-listesi", LabelKey = "MENU.3K_IS_LISTESI", Icon = "ri-list-check-3-line", Route = "/uck-is-listesi", Sira = 8, ParentId = 5 },
                 new MenuTanimi { Id = 27, Kod = "ceki-verisi-sil", LabelKey = "MENU.CEKI_VERISI_SIL", Icon = "", Route = null, Sira = 9, ParentId = 5 },
-                new MenuTanimi { Id = 35, Kod = "ceki-revizyon-yukle", LabelKey = "MENU.CEKI_REVIZYON_YUKLE", Icon = "", Route = null, Sira = 10, ParentId = 5 }
+                new MenuTanimi { Id = 35, Kod = "ceki-revizyon-yukle", LabelKey = "MENU.CEKI_REVIZYON_YUKLE", Icon = "", Route = null, Sira = 10, ParentId = 5 },
+                new MenuTanimi { Id = 36, Kod = "3k-sandik-durum-raporu", LabelKey = "MENU.3K_SANDIK_DURUM_RAPORU", Icon = "", Route = null, Sira = 11, ParentId = 5 },
+                new MenuTanimi { Id = 37, Kod = "saha-sevk-sonrasi-eksik-raporu", LabelKey = "MENU.SAHA_SEVK_SONRASI_EKSIK_RAPORU", Icon = "", Route = null, Sira = 7, ParentId = 17 },
+                new MenuTanimi { Id = 38, Kod = "saha-3k-sandik-durum-raporu", LabelKey = "MENU.SAHA_3K_SANDIK_DURUM_RAPORU", Icon = "", Route = null, Sira = 8, ParentId = 17 }
             );
 
             // ======= ADMIN ROL YETKİLERİ (tüm menülere W=3) =======
             // Not: MenuTanimi Id'leri: 1,2,3,4,5,7,8,10,11,12,14,15,16,17,18,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,99
-            var menuIds = new[] { 1, 2, 3, 4, 5, 7, 8, 10, 11, 12, 14, 15, 16, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35 };
+            var menuIds = new[] { 1, 2, 3, 4, 5, 7, 8, 10, 11, 12, 14, 15, 16, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38 };
             var adminYetkiler = new List<RolYetki>();
             for (int i = 0; i < menuIds.Length; i++)
             {

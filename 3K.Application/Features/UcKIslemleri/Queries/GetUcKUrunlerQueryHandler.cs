@@ -263,6 +263,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                 (int)UcKDurum.ProjedenKarsilandi => $"PROJEDEN KARŞILANDI – {cs.KaynakHedefProjeNo ?? ""}",
                 (int)UcKDurum.StoktanKarsilandi => "STOKTAN KARŞILANDI",
                 (int)UcKDurum.TedarikcidenGeldi => "TEDARİKÇİDEN GELDİ",
+                (int)UcKDurum.FazlaGeldi => "FAZLA GELDİ - STOKA AKTARILDI",
                 (int)UcKDurum.HataliUrun => $"HATALI ÜRÜN – {cs.HataliMiktar} adet",
                 _ when cs.GridDurumuId == (int)GridDurum.Iptal => "GRİD İPTAL – İŞLEM YAPILAMAZ",
                 _ when cs.GridDurumuId == (int)GridDurum.TrafoSevk

@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using _3K.Application.Features.PdfIslemleri.Commands;
+using _3K.Core.Enums;
 using _3K.Infrastructure.Data;
 using _3K_API.Extensions;
 
@@ -102,8 +103,10 @@ namespace _3K_API.Controllers
             if (!result.IsSuccess)
                 return result.ToActionResult();
 
-            var projeNo = await GetProjeNo(projeId);
-            return File(result.Value!, "application/pdf", $"{projeNo}_EksikRaporu.pdf");
+            var proje = await _context.Projeler.FindAsync(projeId);
+            var projeNo = proje?.ProjeNo ?? projeId.ToString();
+            var raporAdi = proje?.ProjeTipiId == (int)ProjeTipi.Saha ? "SevkSonrasiEksikRaporu" : "EksikRaporu";
+            return File(result.Value!, "application/pdf", $"{projeNo}_{raporAdi}.pdf");
         }
 
         [HttpGet("eksik-urunler/{projeId}/excel")]
@@ -117,10 +120,12 @@ namespace _3K_API.Controllers
             if (!result.IsSuccess)
                 return result.ToActionResult();
 
-            var projeNo = await GetProjeNo(projeId);
+            var proje = await _context.Projeler.FindAsync(projeId);
+            var projeNo = proje?.ProjeNo ?? projeId.ToString();
+            var raporAdi = proje?.ProjeTipiId == (int)ProjeTipi.Saha ? "SevkSonrasiEksikRaporu" : "EksikRaporu";
             return File(result.Value!,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                $"{projeNo}_EksikRaporu.xlsx");
+                $"{projeNo}_{raporAdi}.xlsx");
         }
 
         [HttpGet("gerceklesen-ceki-listesi/{projeId}")]
@@ -153,6 +158,21 @@ namespace _3K_API.Controllers
             return File(result.Value!,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 $"{projeNo}_GerceklesenCekiListesi.xlsx");
+        }
+
+        [HttpGet("uck-sandik-durum/{projeId}")]
+        public async Task<IActionResult> UcKSandikDurumPdfIndir(int projeId)
+        {
+            var result = await _mediator.Send(new _3K.Application.Features.PdfIslemleri.Queries.GetUcKSandikDurumPdfQuery
+            {
+                ProjeId = projeId
+            });
+
+            if (!result.IsSuccess)
+                return result.ToActionResult();
+
+            var projeNo = await GetProjeNo(projeId);
+            return File(result.Value!, "application/pdf", $"{projeNo}_SandikDurumRaporu.pdf");
         }
 
         [HttpGet("stok")]

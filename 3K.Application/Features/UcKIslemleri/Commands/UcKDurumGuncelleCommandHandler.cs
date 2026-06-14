@@ -19,7 +19,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
         private static readonly int[] GecerliTipler =
             { (int)UcKDurum.TamGeldi, (int)UcKDurum.EksikGeldi, (int)UcKDurum.Gelmedi, (int)UcKDurum.ProjedenKarsilandi, (int)UcKDurum.StoktanKarsilandi,
-              (int)UcKDurum.TedarikcidenGeldi, (int)UcKDurum.GeriGonderildi };
+              (int)UcKDurum.TedarikcidenGeldi, (int)UcKDurum.GeriGonderildi, (int)UcKDurum.FazlaGeldi };
 
         public UcKDurumGuncelleCommandHandler(
             IUnitOfWork unitOfWork,
@@ -64,7 +64,8 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 (int)UcKDurum.TamGeldi,
                 (int)UcKDurum.EksikGeldi,
                 (int)UcKDurum.Gelmedi,
-                (int)UcKDurum.GeriGonderildi
+                (int)UcKDurum.GeriGonderildi,
+                (int)UcKDurum.FazlaGeldi
             };
 
             var gridKismiTrafoSevkEdildi =
@@ -130,10 +131,12 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 satir.GridSevkDurumuId == (int)GridSevkDurum.SevkEdildi &&
                 (satir.GridSevkMiktari ?? 0) > 0;
 
-            if ((request.KarsilamaTipiId == (int)UcKDurum.Gelmedi || request.KarsilamaTipiId == (int)UcKDurum.GeriGonderildi)
+            if ((request.KarsilamaTipiId == (int)UcKDurum.Gelmedi ||
+                 request.KarsilamaTipiId == (int)UcKDurum.GeriGonderildi ||
+                 request.KarsilamaTipiId == (int)UcKDurum.FazlaGeldi)
                 && !gridSevkiVar)
             {
-                return Result.Failure("Gelmedi veya Geri Gönderildi işlemi için Grid tarafından sevk edilmiş aktif miktar bulunmalıdır.");
+                return Result.Failure("Gelmedi, Geri Gönderildi veya Fazla Geldi işlemi için Grid tarafından sevk edilmiş aktif miktar bulunmalıdır.");
             }
 
             // ===== Validasyon =====
@@ -196,6 +199,12 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     if (request.GelenAdet == null || request.GelenAdet <= 0)
                         return Result.Failure("Gelen adet girilmelidir.");
                     break;
+                case (int)UcKDurum.FazlaGeldi:
+                    if (request.GelenAdet == null || request.GelenAdet <= 0)
+                        return Result.Failure("Fazla gelen adet girilmelidir.");
+                    if (!request.StogaAktar)
+                        return Result.Failure("Fazla gelen adet stoka aktarılmalıdır.");
+                    break;
                 case (int)UcKDurum.GeriGonderildi:
                     if (!request.GeriGonderilmeSebebiId.HasValue || request.GeriGonderilmeSebebiId.Value <= 0)
                         return Result.Failure("Geri gönderilme sebebi seçilmelidir.");
@@ -210,6 +219,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             satir.UcKKarsilamaTipiId = request.KarsilamaTipiId;
             satir.UcKAciklama = request.Aciklama;
             satir.KaynakHedefProjeNo = request.KaynakHedefProjeNo;
+            decimal? fazlaTeslimStokAdedi = null;
 
             switch (request.KarsilamaTipiId)
             {
@@ -280,6 +290,18 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     KapatYenidenSevkIhtiyaci(satir, request.GelenAdet.Value);
                     break;
 
+                case (int)UcKDurum.FazlaGeldi:
+                    var mevcutTamamlanan = satir.GelenMiktar + satir.KarsilananMiktar - satir.ProjeGonderilen + satir.TrafoSevkAdet;
+                    var normalKalan = Math.Max(satir.IstenenAdet - mevcutTamamlanan, 0);
+                    var normalTeslimAdedi = Math.Min(satir.GridSevkMiktari ?? normalKalan, normalKalan);
+                    if (normalTeslimAdedi > 0)
+                        satir.GelenMiktar += normalTeslimAdedi;
+
+                    satir.UcKDurumuId = (int)UcKDurum.TamGeldi;
+                    satir.TeslimTarihi = TurkeyTime.Now;
+                    fazlaTeslimStokAdedi = request.GelenAdet!.Value;
+                    break;
+
                 case (int)UcKDurum.GeriGonderildi:
                     // Geri gönderilen miktarı 3K gelen'den ve Grid gelen'den düş
                     var geriAdet = request.GelenAdet!.Value;
@@ -323,6 +345,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
             await VarsayilanUcKDepoLokasyonuAtaAsync(ilgiliIcerikListesi, request.KarsilamaTipiId);
 
+            if (fazlaTeslimStokAdedi.HasValue)
+                await FazlaTeslimStogaAktarAsync(satir, request, fazlaTeslimStokAdedi.Value);
+
             await _unitOfWork.SaveChangesAsync();
 
             // Hareket kaydı
@@ -349,6 +374,45 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             });
 
             return Result.Success();
+        }
+
+        private async Task FazlaTeslimStogaAktarAsync(CekiSatiri satir, UcKDurumGuncelleCommand request, decimal fazlaAdet)
+        {
+            var projeNo = request.MevcutProjeNo;
+            if (string.IsNullOrWhiteSpace(projeNo))
+            {
+                var projeRepo = _unitOfWork.GetRepository<Proje>();
+                var proje = await projeRepo.GetByIdAsync(request.ProjeId);
+                projeNo = proje?.ProjeNo;
+            }
+
+            var stokRepo = _unitOfWork.GetRepository<StokKaydi>();
+            var stokKaydi = new StokKaydi
+            {
+                MalzemeKodu = satir.BarkodNo ?? string.Empty,
+                MalzemeAdi = satir.Aciklama ?? string.Empty,
+                Miktar = fazlaAdet,
+                BirimId = satir.BirimId,
+                KaynakProje = projeNo,
+                StokGirisNedeni = "Fazla teslim",
+                DurumId = (int)StokDurum.Aktif
+            };
+
+            await stokRepo.AddAsync(stokKaydi);
+            await _unitOfWork.SaveChangesAsync();
+
+            var stokHareketRepo = _unitOfWork.GetRepository<StokHareketi>();
+            await stokHareketRepo.AddAsync(new StokHareketi
+            {
+                StokKaydiId = stokKaydi.Id,
+                CekiSatiriId = satir.Id,
+                ProjeId = request.ProjeId,
+                KullaniciId = _currentUserService.UserId ?? 0,
+                Miktar = fazlaAdet,
+                IslemTipiId = (int)IslemTipi.FazlaTeslimStogaAktarildi,
+                Aciklama = $"Fazla teslim nedeniyle {FormatAdet(fazlaAdet)} adet stoka aktarıldı.",
+                Tarih = TurkeyTime.Now
+            });
         }
 
         private async Task VarsayilanUcKDepoLokasyonuAtaAsync(IReadOnlyCollection<SandikIcerik> ilgiliIcerikler, int karsilamaTipiId)
@@ -379,7 +443,8 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                    karsilamaTipiId == (int)UcKDurum.EksikGeldi ||
                    karsilamaTipiId == (int)UcKDurum.ProjedenKarsilandi ||
                    karsilamaTipiId == (int)UcKDurum.StoktanKarsilandi ||
-                   karsilamaTipiId == (int)UcKDurum.TedarikcidenGeldi;
+                   karsilamaTipiId == (int)UcKDurum.TedarikcidenGeldi ||
+                   karsilamaTipiId == (int)UcKDurum.FazlaGeldi;
         }
 
         /// <summary>

@@ -474,10 +474,6 @@ namespace _3K.Infrastructure.Services
 
                 if (kod == "U")
                 {
-                    var islemMiktari = CekiSatiriIslemMiktari(mevcutSatir);
-                    if (revizyonSatiri.IstenenAdet < islemMiktari)
-                        throw new Exception($"Revizyon U satırı uygulanamaz. Sıra No: {revizyonSatiri.SiraNo}, yeni miktar ({revizyonSatiri.IstenenAdet}) mevcut işlem miktarından ({islemMiktari}) düşük.");
-
                     guncellenecekler.Add((mevcutSatir, revizyonSatiri));
                 }
                 else if (kod == "D")
@@ -491,6 +487,9 @@ namespace _3K.Infrastructure.Services
 
             foreach (var item in guncellenecekler)
             {
+                if (CekiSatiriIslemGormusMu(item.Satir))
+                    await RevizyonSatiriIslemleriniGeriAlAsync(proje.Id, item.Satir, kullaniciId, $"Revizyon U satırı uygulanmadan önce otomatik geri alındı. Excel satırı: {item.RevizyonSatiri.ExcelSatirNo}");
+
                 await RevizyonSatiriniGuncelleAsync(proje.Id, item.Satir, item.RevizyonSatiri, sandikCache, import.SandikBilgileri, kullaniciId);
                 sonuc.GuncellenenSatirSayisi++;
             }
@@ -642,14 +641,13 @@ namespace _3K.Infrastructure.Services
                     if (satir.Degisiklikler.Count == 0)
                         satir.Degisiklikler.Add("Ana veride değişiklik yok.");
 
-                    var islemMiktari = CekiSatiriIslemMiktari(mevcutSatir);
-                    if (revizyonSatiri.IstenenAdet < islemMiktari)
+                    if (satir.IslemGormusMu)
                     {
-                        RevizyonSatirRiskEkle(satir, "Engel", $"Yeni miktar ({revizyonSatiri.IstenenAdet}) mevcut işlem miktarından ({islemMiktari}) düşük. Önce operasyon verisi kontrol edilmeli.");
-                    }
-                    else if (satir.IslemGormusMu)
-                    {
-                        RevizyonSatirRiskEkle(satir, "Uyarı", "Satır işlem görmüş. Ana veri güncellenecek, mevcut Grid/3K/stok/proje hareketleri korunacak.");
+                        var geriAlEngeli = await RevizyonOtomatikGeriAlEngelMesajiAsync(mevcutSatir);
+                        if (!string.IsNullOrWhiteSpace(geriAlEngeli))
+                            RevizyonSatirRiskEkle(satir, "Engel", geriAlEngeli);
+                        else
+                            RevizyonSatirRiskEkle(satir, "Uyarı", "Satır işlem görmüş. Revizyon uygulanırken önce Grid/3K/stok/proje hareketleri otomatik geri alınacak, sonra ana veri güncellenecek.");
                     }
 
                     if (!string.Equals(NormalizeKoliNo(mevcutSatir.CekideGecenSandikNo), NormalizeKoliNo(revizyonSatiri.KoliNo), StringComparison.OrdinalIgnoreCase)
@@ -668,13 +666,13 @@ namespace _3K.Infrastructure.Services
                     satir.Mesaj = "Ana çekiden silinecek.";
 
                     if (satir.IslemGormusMu)
-                        RevizyonSatirRiskEkle(satir, "Uyarı", "Satır işlem görmüş. Uygulama öncesi bu silme kararını özellikle kontrol edin.");
+                        RevizyonSatirRiskEkle(satir, "Uyarı", "Satır işlem görmüş. Revizyon uygulanırken geri alınabilir hareketler otomatik temizlenecek ve satır silinecek.");
 
                     if (mevcutSatir.SandikIcerikleri.Any(i => i.Sandik?.DurumId == (int)SandikDurum.Sevkedildi))
-                        RevizyonSatirRiskEkle(satir, "Engel", "Satır sevk edilmiş sandıkta olduğu için otomatik silinemez.");
+                        RevizyonSatirRiskEkle(satir, "Engel", "Satır sevk edilmiş sandıkta. Silmek için önce ilgili sandığın sevk kilidini açın.");
 
                     if (await RevizyonDisariGidenAktifTransferVarMiAsync(mevcutSatir.Id))
-                        RevizyonSatirRiskEkle(satir, "Engel", "Satır başka bir proje/satıra kaynak olmuş. Önce ilgili proje karşılama işlemi geri alınmalı.");
+                        RevizyonSatirRiskEkle(satir, "Engel", "Satır başka bir proje/satıra kaynak olarak verilmiş. Silmek için önce hedef projedeki karşılama/transfer geri alınmalı.");
                 }
 
                 sonuc.Satirlar.Add(satir);
@@ -819,6 +817,120 @@ namespace _3K.Infrastructure.Services
                 (!t.HedefCekiSatiriId.HasValue || t.HedefCekiSatiriId.Value != cekiSatiriId));
         }
 
+        private async Task<string?> RevizyonOtomatikGeriAlEngelMesajiAsync(CekiSatiri satir)
+        {
+            if (satir.SandikIcerikleri.Any(i => i.Sandik?.DurumId == (int)SandikDurum.Sevkedildi))
+                return "Satır sevk edilmiş sandıkta. Otomatik geri alma yapılamaz; önce ilgili sandığın sevk kilidini açın.";
+
+            if (await RevizyonDisariGidenAktifTransferVarMiAsync(satir.Id))
+                return "Satır başka bir proje/satıra kaynak olarak verilmiş. Otomatik geri alma için önce hedef projedeki karşılama/transfer geri alınmalı.";
+
+            return null;
+        }
+
+        private async Task RevizyonSatiriIslemleriniGeriAlAsync(int projeId, CekiSatiri satir, int kullaniciId, string aciklama)
+        {
+            var engel = await RevizyonOtomatikGeriAlEngelMesajiAsync(satir);
+            if (!string.IsNullOrWhiteSpace(engel))
+                throw new Exception($"Revizyon satırı otomatik geri alınamadı. Sıra No: {satir.SiraNo}. {engel}");
+
+            var transferler = await _context.ProjeTransferleri
+                .Where(t => t.DurumId == (int)ProjeTransferDurum.Aktif &&
+                    (t.KaynakCekiSatiriId == satir.Id ||
+                     (t.HedefCekiSatiriId.HasValue && t.HedefCekiSatiriId.Value == satir.Id)))
+                .ToListAsync();
+
+            var gelenTransferler = transferler
+                .Where(t => t.HedefCekiSatiriId.HasValue && t.HedefCekiSatiriId.Value == satir.Id)
+                .ToList();
+
+            if (gelenTransferler.Any())
+            {
+                var kaynakIdler = gelenTransferler.Select(t => t.KaynakCekiSatiriId).Distinct().ToList();
+                var kaynakSatirlar = await _context.CekiSatirlari
+                    .Where(s => kaynakIdler.Contains(s.Id))
+                    .ToDictionaryAsync(s => s.Id);
+
+                foreach (var transfer in gelenTransferler)
+                {
+                    if (kaynakSatirlar.TryGetValue(transfer.KaynakCekiSatiriId, out var kaynakSatir))
+                    {
+                        kaynakSatir.ProjeGonderilen = Math.Max(kaynakSatir.ProjeGonderilen - transfer.Miktar, 0);
+                        kaynakSatir.DurumId = _durumHesaplaService.HesaplaGenelDurum(kaynakSatir.GridDurumuId, kaynakSatir.UcKDurumuId);
+                        _durumHesaplaService.HesaplaKalanVeDurum(kaynakSatir);
+                        _context.CekiSatirlari.Update(kaynakSatir);
+                    }
+
+                    transfer.DurumId = (int)ProjeTransferDurum.GeriAlindi;
+                    transfer.IptalTarihi = TurkeyTime.Now;
+                    transfer.IptalAciklama = "Revizyon uygulaması sırasında satır otomatik geri alındı.";
+                    _context.ProjeTransferleri.Update(transfer);
+                }
+            }
+
+            var stokHareketleri = await _context.StokHareketleri
+                .Where(h => h.CekiSatiriId == satir.Id)
+                .ToListAsync();
+            await RevizyonStokHareketleriniGeriAlAsync(stokHareketleri);
+
+            satir.GridDurumuId = (int)GridDurum.Gelmedi;
+            satir.GridGelenAdet = 0;
+            satir.TrafoSevkAdet = 0;
+            satir.GridSevkDurumuId = (int)GridSevkDurum.SevkEdilmedi;
+            satir.GridSevkMiktari = 0;
+            satir.YenidenSevkGerekliAdet = 0;
+            satir.GridSevkTarihi = null;
+            satir.GridAciklama = null;
+            satir.GridPersonelId = null;
+
+            satir.UcKDurumuId = (int)UcKDurum.Bekliyor;
+            satir.UcKKarsilamaTipiId = (int)UcKDurum.Bekliyor;
+            satir.GelenMiktar = 0;
+            satir.TeslimTarihi = null;
+            satir.KaynakHedefProjeNo = null;
+            satir.UcKAciklama = null;
+            satir.KarsilananMiktar = 0;
+            satir.StokKarsilanan = 0;
+            satir.ProjeKarsilanan = 0;
+            satir.ProjeGonderilen = 0;
+            satir.TedarikciKarsilanan = 0;
+            satir.HataliMiktar = 0;
+            satir.GeriGonderilenMiktar = 0;
+            satir.GeriGonderilmeSebebiId = null;
+            satir.KaynakProjeId = null;
+
+            satir.DurumId = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumuId, satir.UcKDurumuId);
+            _durumHesaplaService.HesaplaKalanVeDurum(satir);
+
+            var icerikler = await _context.SandikIcerikleri
+                .Where(i => i.CekiSatiriId == satir.Id)
+                .ToListAsync();
+
+            foreach (var icerik in icerikler)
+            {
+                icerik.KonulanAdet = 0;
+                icerik.EksikAdet = 0;
+                icerik.StokKarsilanan = 0;
+                icerik.ProjeKarsilanan = 0;
+                icerik.TedarikciKarsilanan = 0;
+                _context.SandikIcerikleri.Update(icerik);
+            }
+
+            _context.CekiSatirlari.Update(satir);
+            _context.HareketGecmisleri.Add(new HareketGecmisi
+            {
+                ProjeId = projeId,
+                ReferansTipi = "CekiSatiri",
+                ReferansId = satir.Id.ToString(),
+                ReferansMetni = $"Sıra: {satir.SiraNo} - {satir.Aciklama}",
+                Islem = "Revizyon Öncesi Otomatik Geri Al",
+                KullaniciId = kullaniciId,
+                Tarih = TurkeyTime.Now,
+                YeniDeger = "Bekliyor",
+                Aciklama = aciklama
+            });
+        }
+
         private async Task RevizyonSatiriEkleAsync(
             int projeId,
             int anaCekiId,
@@ -953,7 +1065,7 @@ namespace _3K.Infrastructure.Services
                 .ToListAsync();
 
             if (kilitliIcerikler.Any())
-                throw new Exception($"Revizyon D satırlarından {kilitliIcerikler.Count} tanesi sevk edilmiş sandıkta olduğu için silinemez.");
+                throw new Exception($"Revizyon D satırlarından {kilitliIcerikler.Count} tanesi sevk edilmiş sandıkta. Silmek için önce ilgili sandıkların sevk kilidini açın.");
 
             var transferler = await _context.ProjeTransferleri
                 .Where(t => idler.Contains(t.KaynakCekiSatiriId) ||
@@ -969,7 +1081,7 @@ namespace _3K.Infrastructure.Services
                 (!t.HedefCekiSatiriId.HasValue || !idler.Contains(t.HedefCekiSatiriId.Value)));
 
             if (disariGidenTransferVar)
-                throw new Exception("Revizyon D satırlarından bazıları başka bir proje/satıra kaynak olmuş. Önce ilgili proje karşılama işlemini geri alın.");
+                throw new Exception("Revizyon D satırlarından bazıları başka bir proje/satıra kaynak olarak verilmiş. Silmek için önce hedef projedeki karşılama/transfer geri alınmalı.");
 
             var kaynakSatirIdler = aktifTransferler
                 .Where(t => t.HedefCekiSatiriId.HasValue &&

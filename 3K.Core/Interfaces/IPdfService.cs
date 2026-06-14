@@ -29,6 +29,8 @@ namespace _3K.Core.Interfaces
         /// </summary>
         Task<byte[]> SahaProjeSandiklariPdfOlusturAsync(int projeId);
 
+        Task<byte[]> UcKSandikDurumRaporuPdfOlusturAsync(int projeId);
+
         /// <summary>
         /// Normal projelerdeki eksik/gelmedi durumlu ve kalan > 0 olan ürünlerin PDF raporunu oluşturur.
         /// </summary>
