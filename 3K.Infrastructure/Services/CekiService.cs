@@ -898,6 +898,10 @@ namespace _3K.Infrastructure.Services
             satir.GeriGonderilenMiktar = 0;
             satir.GeriGonderilmeSebebiId = null;
             satir.KaynakProjeId = null;
+            satir.KaliteDurumId = null;
+            satir.SurecDurumId = null;
+            satir.PaketleyenId = null;
+            satir.KontrolEdenId = null;
 
             satir.DurumId = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumuId, satir.UcKDurumuId);
             _durumHesaplaService.HesaplaKalanVeDurum(satir);
