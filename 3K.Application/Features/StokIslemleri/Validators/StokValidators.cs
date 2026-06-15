@@ -36,4 +36,12 @@ namespace _3K.Application.Features.StokIslemleri.Validators
             RuleFor(x => x.StokGirisNedeni).NotEmpty().WithMessage("Stok giriş nedeni zorunludur.");
         }
     }
+
+    public class StokKaydiSilCommandValidator : AbstractValidator<StokKaydiSilCommand>
+    {
+        public StokKaydiSilCommandValidator()
+        {
+            RuleFor(x => x.Id).GreaterThan(0).WithMessage("Geçerli bir stok ID'si girilmelidir.");
+        }
+    }
 }

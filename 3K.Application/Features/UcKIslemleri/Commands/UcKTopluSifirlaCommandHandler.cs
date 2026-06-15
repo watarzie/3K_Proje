@@ -79,6 +79,13 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
                 var eskiDurum = satir.UcKDurumuId;
 
+                var stokGeriAlSonucu = await UcKStokHareketGeriAlHelper.GeriAlAsync(_unitOfWork, satir.Id);
+                if (!stokGeriAlSonucu.IsSuccess)
+                {
+                    hatalar.Add($"#{satir.SiraNo}: {stokGeriAlSonucu.Error?.Message ?? "Stok hareketi geri alınamadı."}");
+                    continue;
+                }
+
                 // 3K alanlarını sıfırla
                 satir.UcKDurumuId = (int)UcKDurum.Bekliyor;
                 satir.UcKKarsilamaTipiId = (int)UcKDurum.Bekliyor;

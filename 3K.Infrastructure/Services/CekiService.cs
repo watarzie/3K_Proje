@@ -1161,15 +1161,45 @@ namespace _3K.Infrastructure.Services
             var stoklar = await _context.StokKayitlari
                 .Where(s => stokIdler.Contains(s.Id))
                 .ToDictionaryAsync(s => s.Id);
+            var tumIlgiliStokHareketleri = await _context.StokHareketleri
+                .Where(h => stokIdler.Contains(h.StokKaydiId))
+                .ToListAsync();
+            var geriAlinacakHareketIdleri = stokHareketleri.Select(h => h.Id).ToHashSet();
 
             foreach (var grup in stokHareketleri.GroupBy(h => h.StokKaydiId))
             {
                 if (!stoklar.TryGetValue(grup.Key, out var stok))
                     continue;
 
-                stok.Miktar += grup.Sum(h => Math.Abs(h.Miktar));
-                if (stok.Miktar > 0)
-                    stok.DurumId = (int)StokDurum.Aktif;
+                var stoktanKarsilanan = grup
+                    .Where(h => h.IslemTipiId == (int)IslemTipi.StoktanKarsilandi)
+                    .Sum(h => Math.Abs(h.Miktar));
+
+                var fazlaTeslimdenAktarilan = grup
+                    .Where(h => h.IslemTipiId == (int)IslemTipi.FazlaTeslimStogaAktarildi)
+                    .Sum(h => Math.Abs(h.Miktar));
+
+                if (fazlaTeslimdenAktarilan > 0)
+                {
+                    var baskaHareketVarMi = tumIlgiliStokHareketleri.Any(h =>
+                        h.StokKaydiId == grup.Key &&
+                        !geriAlinacakHareketIdleri.Contains(h.Id));
+
+                    if (baskaHareketVarMi)
+                        throw new Exception("Fazla teslimden oluşan stok kaydı başka bir işlemde kullanılmış. Önce bu stoku kullanan işlemleri geri alın.");
+
+                    if (stok.Miktar < fazlaTeslimdenAktarilan)
+                        throw new Exception("Fazla teslimden oluşan stok miktarı geri almak için yetersiz. Önce bu stok üzerindeki kullanımları geri alın.");
+
+                    stok.Miktar = Math.Max(stok.Miktar - fazlaTeslimdenAktarilan, 0);
+                }
+
+                if (stoktanKarsilanan > 0)
+                    stok.Miktar += stoktanKarsilanan;
+
+                stok.DurumId = stok.Miktar > 0
+                    ? (int)StokDurum.Aktif
+                    : (int)StokDurum.Tukendi;
 
                 _context.StokKayitlari.Update(stok);
             }

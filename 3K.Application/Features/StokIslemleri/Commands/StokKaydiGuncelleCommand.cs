@@ -3,7 +3,7 @@ using _3K.Application.Common;
 
 namespace _3K.Application.Features.StokIslemleri.Commands
 {
-    public class StokKaydiGuncelleCommand : IRequest<Result>
+    public class StokKaydiGuncelleCommand : IRequest<Result>, ISecuredRequest
     {
         public int Id { get; set; }
         public string? MalzemeKodu { get; set; }

@@ -1,5 +1,6 @@
 using MediatR;
 using _3K.Application.Common;
+using _3K.Application.Features.UcKIslemleri.Commands;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Helpers;
@@ -125,7 +126,13 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
 
             var stokHareketRepo = _unitOfWork.GetRepository<StokHareketi>();
             var stokHareketleri = (await stokHareketRepo.FindAsync(h => idler.Contains(h.CekiSatiriId))).ToList();
-            await StokHareketleriniGeriAlAsync(stokHareketleri, stokHareketRepo);
+            var stokGeriAlSonucu = await UcKStokHareketGeriAlHelper.GeriAlAsync(_unitOfWork, idler);
+            if (!stokGeriAlSonucu.IsSuccess)
+            {
+                return Result<CekiSatirlariSilDto>.Failure(
+                    stokGeriAlSonucu.Error?.Message ?? "Stok hareketi geri alınamadı.",
+                    stokGeriAlSonucu.StatusCode);
+            }
 
             var icerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
             var icerikler = (await icerikRepo.FindAsync(i =>
@@ -170,33 +177,6 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
                 IadeEdilenStokHareketiSayisi = stokHareketleri.Count,
                 PasifeAlinanTransferSayisi = hedefiSecilenTransferler.Count
             });
-        }
-
-        private async Task StokHareketleriniGeriAlAsync(
-            List<StokHareketi> stokHareketleri,
-            IGenericRepository<StokHareketi> stokHareketRepo)
-        {
-            if (stokHareketleri.Count == 0)
-                return;
-
-            var stokRepo = _unitOfWork.GetRepository<StokKaydi>();
-            var stokIdler = stokHareketleri.Select(h => h.StokKaydiId).Distinct().ToList();
-            var stoklar = (await stokRepo.FindAsync(s => stokIdler.Contains(s.Id))).ToDictionary(s => s.Id);
-
-            foreach (var grup in stokHareketleri.GroupBy(h => h.StokKaydiId))
-            {
-                if (!stoklar.TryGetValue(grup.Key, out var stok))
-                    continue;
-
-                stok.Miktar += grup.Sum(h => Math.Abs(h.Miktar));
-                if (stok.Miktar > 0)
-                    stok.DurumId = (int)StokDurum.Aktif;
-
-                stokRepo.Update(stok);
-            }
-
-            foreach (var hareket in stokHareketleri)
-                stokHareketRepo.Remove(hareket);
         }
 
         private static async Task<List<int>> GetSilinecekSandikIdsAsync(

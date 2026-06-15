@@ -5,4 +5,9 @@ namespace _3K.Application.Common
         string GetApprovalDescription();
         int GetApprovalLookupUcKDurumId();
     }
+
+    public interface IAlwaysRequireApproval
+    {
+        string GetApprovalDescription();
+    }
 }

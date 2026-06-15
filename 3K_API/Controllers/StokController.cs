@@ -48,5 +48,12 @@ namespace _3K_API.Controllers
             var result = await _mediator.Send(command);
             return result.ToActionResult();
         }
+
+        [HttpDelete("{id}")]
+        public async Task<ActionResult> Delete(int id)
+        {
+            var result = await _mediator.Send(new StokKaydiSilCommand { Id = id });
+            return result.ToActionResult();
+        }
     }
 }

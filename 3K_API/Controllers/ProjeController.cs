@@ -97,9 +97,15 @@ namespace _3K_API.Controllers
         /// Proje kilidini açar (Devam durumuna çeker)
         /// </summary>
         [HttpPost("{id}/kilidi-ac")]
-        public async Task<ActionResult> KilidiAc(int id)
+        public async Task<ActionResult> KilidiAc(int id, [FromBody] KilitAcRequest? request = null)
         {
-            var result = await _mediator.Send(new ProjeKilidiAcCommand { ProjeId = id });
+            var result = await _mediator.Send(new ProjeKilidiAcCommand
+            {
+                ProjeId = id,
+                ProjeNo = request?.ProjeNo,
+                KilitAcmaTipiId = request?.KilitAcmaTipiId ?? (int)_3K.Core.Enums.SevkiyatKilitAcmaTipi.SevkiyatGeriAlinarakAc,
+                Aciklama = request?.Aciklama
+            });
             return result.ToActionResult();
         }
 
@@ -129,5 +135,12 @@ namespace _3K_API.Controllers
         public List<int>? SandikIds { get; init; }
         public string? Aciklama { get; init; }
         public string? AracPlaka { get; init; }
+    }
+
+    public record KilitAcRequest
+    {
+        public int? KilitAcmaTipiId { get; init; }
+        public string? ProjeNo { get; init; }
+        public string? Aciklama { get; init; }
     }
 }

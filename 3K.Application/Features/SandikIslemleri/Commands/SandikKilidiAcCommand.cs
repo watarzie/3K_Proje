@@ -6,11 +6,45 @@ using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.SandikIslemleri.Commands
 {
-    public class SandikKilidiAcCommand : IRequest<Result>, ISecuredRequest
+    public class SandikKilidiAcCommand : IRequest<Result>, ISecuredRequest, IAlwaysRequireApproval
     {
         public int ProjeId { get; set; }
         public int SandikId { get; set; }
+        public string? ProjeNo { get; set; }
+        public string? SandikNo { get; set; }
+        public int KilitAcmaTipiId { get; set; } = (int)SevkiyatKilitAcmaTipi.SevkiyatGeriAlinarakAc;
         public string? Aciklama { get; set; }
+
+        public string GetApprovalDescription()
+        {
+            var tip = KilitAcmaTipiId == (int)SevkiyatKilitAcmaTipi.SevkiyatKaydiKorunarakAc
+                ? "Sevkiyat kaydı korunarak sandık kilidi açma"
+                : "Sevkiyat geri alınarak sandık kilidi açma";
+
+            var projeBilgisi = string.IsNullOrWhiteSpace(ProjeNo)
+                ? $"ProjeId: {ProjeId}"
+                : $"Proje: {ProjeNo}";
+            var sandikBilgisi = string.IsNullOrWhiteSpace(SandikNo)
+                ? $"SandikId: {SandikId}"
+                : $"Sandık: {SandikNo}";
+
+            var gerekceBilgisi = string.IsNullOrWhiteSpace(Aciklama)
+                ? string.Empty
+                : $" Gerekçe: {TekSatir(Aciklama)}";
+
+            return $"{tip} talebi. {projeBilgisi}, {sandikBilgisi}.{gerekceBilgisi}";
+        }
+
+        private static string TekSatir(string value)
+        {
+            var normalized = string.Join(" ", value
+                .Replace("\r", " ")
+                .Replace("\n", " ")
+                .Replace("\t", " ")
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries));
+
+            return normalized.Length > 250 ? normalized[..250] + "..." : normalized;
+        }
     }
 
     public class SandikKilidiAcCommandHandler : IRequestHandler<SandikKilidiAcCommand, Result>
@@ -46,29 +80,49 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (proje == null)
                 return Result.Failure("Proje bulunamadı.", 404);
 
+            if (!Enum.IsDefined(typeof(SevkiyatKilitAcmaTipi), request.KilitAcmaTipiId))
+                return Result.Failure("Geçersiz kilit açma tipi.");
+
+            var kilitAcmaTipi = (SevkiyatKilitAcmaTipi)request.KilitAcmaTipiId;
             var eskiSandikDurum = sandik.DurumId;
             var eskiProjeDurum = proje.DurumId;
             var yeniSandikDurum = sandik.SevkOncesiDurumId ?? (int)SandikDurum.Kapandi;
 
             sandik.DurumId = yeniSandikDurum;
-            sandik.SevkOncesiDurumId = null;
+            if (kilitAcmaTipi == SevkiyatKilitAcmaTipi.SevkiyatGeriAlinarakAc)
+                sandik.SevkOncesiDurumId = null;
             sandikRepo.Update(sandik);
 
-            var sevkiyatBaglari = (await sevkiyatSandikRepo.FindAsync(ss => ss.SandikId == sandik.Id)).ToList();
-            foreach (var sevkiyatBag in sevkiyatBaglari)
-                sevkiyatSandikRepo.Remove(sevkiyatBag);
+            if (kilitAcmaTipi == SevkiyatKilitAcmaTipi.SevkiyatGeriAlinarakAc)
+            {
+                var sevkiyatBaglari = (await sevkiyatSandikRepo.FindAsync(ss => ss.SandikId == sandik.Id)).ToList();
+                foreach (var sevkiyatBag in sevkiyatBaglari)
+                    sevkiyatSandikRepo.Remove(sevkiyatBag);
+            }
 
             var sandiklar = (await sandikRepo.FindAsync(s => s.ProjeId == request.ProjeId)).ToList();
             var guncelSandik = sandiklar.FirstOrDefault(s => s.Id == sandik.Id);
             if (guncelSandik != null)
             {
                 guncelSandik.DurumId = yeniSandikDurum;
-                guncelSandik.SevkOncesiDurumId = null;
+                if (kilitAcmaTipi == SevkiyatKilitAcmaTipi.SevkiyatGeriAlinarakAc)
+                    guncelSandik.SevkOncesiDurumId = null;
             }
 
-            proje.DurumId = ProjeSevkDurumHelper.Hesapla(sandiklar, proje.DurumId);
-            if (sandiklar.All(s => s.DurumId != (int)SandikDurum.Sevkedildi))
-                proje.GerceklesenSevkTarihi = null;
+            if (kilitAcmaTipi == SevkiyatKilitAcmaTipi.SevkiyatKaydiKorunarakAc)
+            {
+                var sandikIdleri = sandiklar.Select(s => s.Id).ToList();
+                var sevkiyatBaglariKorunuyorMu = (await sevkiyatSandikRepo.FindAsync(ss => sandikIdleri.Contains(ss.SandikId))).Any();
+                proje.DurumId = sevkiyatBaglariKorunuyorMu
+                    ? (int)ProjeDurum.EksikSevkEdildi
+                    : ProjeSevkDurumHelper.Hesapla(sandiklar, proje.DurumId);
+            }
+            else
+            {
+                proje.DurumId = ProjeSevkDurumHelper.Hesapla(sandiklar, proje.DurumId);
+                if (sandiklar.All(s => s.DurumId != (int)SandikDurum.Sevkedildi))
+                    proje.GerceklesenSevkTarihi = null;
+            }
             projeRepo.Update(proje);
 
             await _unitOfWork.SaveChangesAsync();
@@ -77,20 +131,31 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 ? "Açıklama yok"
                 : request.Aciklama.Trim();
 
+            var islemAdi = kilitAcmaTipi == SevkiyatKilitAcmaTipi.SevkiyatKaydiKorunarakAc
+                ? "Sandık Kilidi Açıldı - Sevkiyat Kaydı Korundu"
+                : "Sandık Kilidi Açıldı - Sevkiyat Geri Alındı";
+
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {
                 ProjeId = request.ProjeId,
                 KullaniciId = _currentUserService.UserId ?? 0,
                 ReferansTipi = "Sandik",
                 ReferansId = sandik.Id.ToString(),
-                Islem = "Sandık Kilidi Açıldı",
+                Islem = islemAdi,
                 IslemTipiId = null,
                 EskiDeger = $"SandikDurum:{eskiSandikDurum}, ProjeDurum:{eskiProjeDurum}",
                 YeniDeger = $"SandikDurum:{sandik.DurumId}, ProjeDurum:{proje.DurumId}",
-                Aciklama = $"Sandık {sandik.SandikNo} sevk kilidi açıldı. Not: {aciklamaNotu}"
+                Aciklama = $"Sandık {sandik.SandikNo} sevk kilidi açıldı. Mod: {GetKilitAcmaTipiMetni(kilitAcmaTipi)}. Not: {aciklamaNotu}"
             });
 
             return Result.Success();
+        }
+
+        private static string GetKilitAcmaTipiMetni(SevkiyatKilitAcmaTipi tip)
+        {
+            return tip == SevkiyatKilitAcmaTipi.SevkiyatKaydiKorunarakAc
+                ? "Sevkiyat kaydı korundu"
+                : "Sevkiyat geri alındı";
         }
     }
 }

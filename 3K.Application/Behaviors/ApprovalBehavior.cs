@@ -29,6 +29,16 @@ namespace _3K.Application.Behaviors
 
         public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
         {
+            if (request is IAlwaysRequireApproval alwaysApprovalReq)
+            {
+                if (_approvalExecutionContext.IsExecutingApprovedCommand)
+                {
+                    return await next();
+                }
+
+                return await QueueForApprovalAsync(request, alwaysApprovalReq.GetApprovalDescription());
+            }
+
             if (request is IRequireApproval approvalReq)
             {
                 var lookupUcKDurumId = approvalReq.GetApprovalLookupUcKDurumId();
@@ -52,52 +62,51 @@ namespace _3K.Application.Behaviors
                         return await next();
                     }
 
-                    // Instead of processing, create OnayBekleyenIslem
-                    var reqType = typeof(TRequest);
-                    var islemAdi = approvalReq.GetApprovalDescription();
-
-                    var jsonPayload = JsonSerializer.Serialize((object)request); // Need cast to object for polymorphic serialization if needed, though TRequest works.
-
-                    var onay = new OnayBekleyenIslem
-                    {
-                        CommandType = reqType.AssemblyQualifiedName ?? reqType.FullName!,
-                        PayloadJson = jsonPayload,
-                        IslemAciklamasi = islemAdi,
-                        TalepEdenKullaniciId = _currentUserService.UserId ?? 0,
-                        Durum = OnayDurumu.Bekliyor
-                    };
-
-                    var repo = _unitOfWork.GetRepository<OnayBekleyenIslem>();
-                    await repo.AddAsync(onay);
-                    await _unitOfWork.SaveChangesAsync();
-
-                    // Trigger SSE notification
-                    await _sseNotifier.BroadcastApprovalUpdateAsync();
-
-                    // Generate short-circuit Result<T> or Result
-                    var resType = typeof(TResponse);
-
-                    // If it's a generic Result<TValue>
-                    if (resType.IsGenericType && resType.GetGenericTypeDefinition() == typeof(Result<>))
-                    {
-                        var valueType = resType.GetGenericArguments()[0];
-                        var genericSuccess = resType.GetMethod("Success", new[] { valueType, typeof(int) });
-                        if (genericSuccess != null)
-                        {
-                            var resultObj = genericSuccess.Invoke(null, new object?[] { null, StatusConstants.ActionQueuedForApproval });
-                            return (TResponse)resultObj!;
-                        }
-                    }
-                    else if (resType == typeof(Result))
-                    {
-                        return (TResponse)(object)Result.Success(StatusConstants.ActionQueuedForApproval);
-                    }
-
-                    throw new InvalidOperationException("ApprovalBehavior sadece Result veya Result<T> dönen command'lerle çalışır.");
+                    return await QueueForApprovalAsync(request, approvalReq.GetApprovalDescription());
                 }
             }
 
             return await next();
+        }
+
+        private async Task<TResponse> QueueForApprovalAsync(TRequest request, string islemAdi)
+        {
+            var reqType = typeof(TRequest);
+            var jsonPayload = JsonSerializer.Serialize((object)request);
+
+            var onay = new OnayBekleyenIslem
+            {
+                CommandType = reqType.AssemblyQualifiedName ?? reqType.FullName!,
+                PayloadJson = jsonPayload,
+                IslemAciklamasi = islemAdi,
+                TalepEdenKullaniciId = _currentUserService.UserId ?? 0,
+                Durum = OnayDurumu.Bekliyor
+            };
+
+            var repo = _unitOfWork.GetRepository<OnayBekleyenIslem>();
+            await repo.AddAsync(onay);
+            await _unitOfWork.SaveChangesAsync();
+
+            await _sseNotifier.BroadcastApprovalUpdateAsync();
+
+            var resType = typeof(TResponse);
+
+            if (resType.IsGenericType && resType.GetGenericTypeDefinition() == typeof(Result<>))
+            {
+                var valueType = resType.GetGenericArguments()[0];
+                var genericSuccess = resType.GetMethod("Success", new[] { valueType, typeof(int) });
+                if (genericSuccess != null)
+                {
+                    var resultObj = genericSuccess.Invoke(null, new object?[] { null, StatusConstants.ActionQueuedForApproval });
+                    return (TResponse)resultObj!;
+                }
+            }
+            else if (resType == typeof(Result))
+            {
+                return (TResponse)(object)Result.Success(StatusConstants.ActionQueuedForApproval);
+            }
+
+            throw new InvalidOperationException("ApprovalBehavior sadece Result veya Result<T> dönen command'lerle çalışır.");
         }
 
         private string GetIslemAciklamasi(string commandName)

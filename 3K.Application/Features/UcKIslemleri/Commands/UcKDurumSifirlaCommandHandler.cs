@@ -83,6 +83,10 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             var eskiHataliMiktar = satir.HataliMiktar;
             var eskiGeriGonderilenMiktar = satir.GeriGonderilenMiktar;
 
+            var stokGeriAlSonucu = await UcKStokHareketGeriAlHelper.GeriAlAsync(_unitOfWork, satir.Id);
+            if (!stokGeriAlSonucu.IsSuccess)
+                return stokGeriAlSonucu;
+
             // ===== 3K alanlarını sıfırla =====
             satir.UcKDurumuId = (int)UcKDurum.Bekliyor;
             satir.UcKKarsilamaTipiId = (int)UcKDurum.Bekliyor;

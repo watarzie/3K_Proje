@@ -52,20 +52,10 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                     .ToList();
             }
 
-            var eskiSevkDurumleri = new[]
-            {
-                ((int)ProjeDurum.SevkEdildi).ToString(),
-                ((int)ProjeDurum.EksikSevkEdildi).ToString()
-            };
-
             var kilitAcmaKayitlari = _unitOfWork.GetRepository<HareketGecmisi>().Queryable()
                 .Where(h => h.ProjeId == request.ProjeId
-                    && ((h.ReferansTipi == "Proje"
-                            && h.Islem.StartsWith("Proje Kilidi")
-                            && eskiSevkDurumleri.Contains(h.EskiDeger ?? string.Empty)
-                            && h.YeniDeger == ((int)ProjeDurum.Hazirlaniyor).ToString())
-                        || (h.ReferansTipi == "Sandik"
-                            && h.Islem.StartsWith("Sandık Kilidi"))))
+                    && ((h.ReferansTipi == "Proje" && h.Islem.StartsWith("Proje Kilidi"))
+                        || (h.ReferansTipi == "Sandik" && h.Islem.StartsWith("Sandık Kilidi"))))
                 .Select(h => new SevkiyatDto
                 {
                     Id = h.Id,

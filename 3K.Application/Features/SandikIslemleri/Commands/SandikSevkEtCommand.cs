@@ -37,6 +37,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         {
             var sandikRepo = _unitOfWork.GetRepository<Sandik>();
             var projeRepo = _unitOfWork.GetRepository<Proje>();
+            var sevkiyatSandikRepo = _unitOfWork.GetRepository<SevkiyatSandik>();
 
             if (!_currentUserService.UserId.HasValue)
                 return Result.Failure("Oturum acmaniz gerekiyor.", 401);
@@ -51,6 +52,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             int eskiDurum = sandik.DurumId;
             var sevkTarihi = TurkeyTime.Now;
+            var mevcutSevkiyatBagliMi = (await sevkiyatSandikRepo.FindAsync(ss => ss.SandikId == sandik.Id)).Any();
             sandik.SevkOncesiDurumId ??= sandik.DurumId;
             sandik.DurumId = (int)SandikDurum.Sevkedildi;
             sandikRepo.Update(sandik);
@@ -68,14 +70,18 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 projeRepo.Update(proje);
             }
 
-            var sevkiyat = await SevkiyatKayitHelper.OlusturAsync(
-                _unitOfWork,
-                request.ProjeId,
-                new[] { sandik },
-                sevkTarihi,
-                request.Aciklama,
-                request.AracPlaka,
-                _currentUserService.UserId.Value);
+            Sevkiyat? sevkiyat = null;
+            if (!mevcutSevkiyatBagliMi)
+            {
+                sevkiyat = await SevkiyatKayitHelper.OlusturAsync(
+                    _unitOfWork,
+                    request.ProjeId,
+                    new[] { sandik },
+                    sevkTarihi,
+                    request.Aciklama,
+                    request.AracPlaka,
+                    _currentUserService.UserId.Value);
+            }
 
             await _unitOfWork.SaveChangesAsync();
 
@@ -89,7 +95,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 IslemTipiId = (int)IslemTipi.SandikSevkEdildi,
                 EskiDeger = eskiDurum.ToString(),
                 YeniDeger = sandik.DurumId.ToString(),
-                Aciklama = $"Sandık {sandik.SandikNo} {sevkiyat.SevkiyatNo}. sevkiyat ile sevk edildi."
+                Aciklama = mevcutSevkiyatBagliMi
+                    ? $"Sandık {sandik.SandikNo} mevcut sevkiyat kaydı korunarak yeniden kilitlendi."
+                    : $"Sandık {sandik.SandikNo} {sevkiyat!.SevkiyatNo}. sevkiyat ile sevk edildi."
             });
 
             return Result.Success();
