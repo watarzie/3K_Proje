@@ -63,9 +63,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 if (sandik != null)
                 {
                     var tumIcerikler = await sandikIcerikRepo.FindAsync(si => si.SandikId == request.SandikId);
-                    var enAzBiriKonuldu = tumIcerikler.Any(si => si.KonulanAdet > 0);
-
-                    if (enAzBiriKonuldu && sandik.DurumId == (int)SandikDurum.Bos)
+                    if (tumIcerikler.Any() && sandik.DurumId == (int)SandikDurum.Bos)
                     {
                         sandik.DurumId = (int)SandikDurum.Hazirlaniyor;
                         sandikRepo.Update(sandik);
@@ -146,23 +144,20 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 var tumUrunIds = tumIcerikler2.Where(si => si.CekiSatiriId.HasValue).Select(si => si.CekiSatiriId!.Value).ToList();
 
                 bool hepsiTamamlandi = true;
-                bool enAzBiriKonuldu = false;
                 foreach (var urunId in tumUrunIds)
                 {
                     var u = await cekiSatiriRepo.GetByIdAsync(urunId);
                     if (u != null)
                     {
                         if (u.DurumId != (int)UrunDurum.Tamamlandi) hepsiTamamlandi = false;
-                        var uIcerik = tumIcerikler2.FirstOrDefault(si => si.CekiSatiriId == urunId);
-                        if (uIcerik != null && uIcerik.KonulanAdet > 0) enAzBiriKonuldu = true;
                     }
                 }
 
                 var eskiDurumId = sandik2.DurumId;
 
-                if (hepsiTamamlandi && tumUrunIds.Count > 0) sandik2.DurumId = (int)SandikDurum.Kapandi;
-                else if (enAzBiriKonuldu) sandik2.DurumId = (int)SandikDurum.Hazirlaniyor;
-                else sandik2.DurumId = (int)SandikDurum.Bos;
+                if (!tumIcerikler2.Any()) sandik2.DurumId = (int)SandikDurum.Bos;
+                else if (hepsiTamamlandi && tumUrunIds.Count > 0) sandik2.DurumId = (int)SandikDurum.Kapandi;
+                else sandik2.DurumId = (int)SandikDurum.Hazirlaniyor;
 
                 sandikRepo2.Update(sandik2);
 

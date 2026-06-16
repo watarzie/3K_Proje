@@ -259,13 +259,12 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
                 var hepsiTamamlandi = satirIds.Count > 0 &&
                     satirIds.All(id => kalanSatirlar.TryGetValue(id, out var satir) &&
                         satir.DurumId == (int)UrunDurum.Tamamlandi);
-                var enAzBiriKonuldu = sandikIcerikleri.Any(i => i.KonulanAdet > 0);
 
-                var yeniDurumId = hepsiTamamlandi
-                    ? (int)SandikDurum.Kapandi
-                    : enAzBiriKonuldu
-                        ? (int)SandikDurum.Hazirlaniyor
-                        : (int)SandikDurum.Bos;
+                var yeniDurumId = sandikIcerikleri.Count == 0
+                    ? (int)SandikDurum.Bos
+                    : hepsiTamamlandi
+                        ? (int)SandikDurum.Kapandi
+                        : (int)SandikDurum.Hazirlaniyor;
 
                 if (sandik.DurumId == yeniDurumId)
                     continue;

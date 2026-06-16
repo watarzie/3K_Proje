@@ -1229,13 +1229,10 @@ namespace _3K.Infrastructure.Services
                 var cekiIcerikleri = sandik.SandikIcerikleri.Where(i => i.CekiSatiriId.HasValue).ToList();
                 var hepsiTamamlandi = cekiIcerikleri.Count > 0 &&
                     cekiIcerikleri.All(i => i.CekiSatiri?.DurumId == (int)UrunDurum.Tamamlandi);
-                var enAzBiriKonuldu = sandik.SandikIcerikleri.Any(i => i.KonulanAdet > 0);
 
                 sandik.DurumId = hepsiTamamlandi
                     ? (int)SandikDurum.Kapandi
-                    : enAzBiriKonuldu
-                        ? (int)SandikDurum.Hazirlaniyor
-                        : (int)SandikDurum.Bos;
+                    : (int)SandikDurum.Hazirlaniyor;
             }
         }
 

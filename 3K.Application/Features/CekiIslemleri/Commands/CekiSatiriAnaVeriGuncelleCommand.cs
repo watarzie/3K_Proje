@@ -135,7 +135,7 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
                     ProjeId = projeId,
                     SandikNo = sandikNo,
                     TipId = (int)SandikTipi.AhsapKapali,
-                    DurumId = (int)SandikDurum.Bos,
+                    DurumId = (int)SandikDurum.Hazirlaniyor,
                     DepoLokasyonId = (int)DepoLokasyon.Belirsiz
                 };
 
