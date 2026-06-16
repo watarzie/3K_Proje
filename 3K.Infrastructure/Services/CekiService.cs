@@ -668,7 +668,7 @@ namespace _3K.Infrastructure.Services
                     if (satir.IslemGormusMu)
                         RevizyonSatirRiskEkle(satir, "Uyarı", "Satır işlem görmüş. Revizyon uygulanırken geri alınabilir hareketler otomatik temizlenecek ve satır silinecek.");
 
-                    if (mevcutSatir.SandikIcerikleri.Any(i => i.Sandik?.DurumId == (int)SandikDurum.Sevkedildi))
+                    if (mevcutSatir.SandikIcerikleri.Any(i => SandikSevkKilitliMi(i.Sandik)))
                         RevizyonSatirRiskEkle(satir, "Engel", "Satır sevk edilmiş sandıkta. Silmek için önce ilgili sandığın sevk kilidini açın.");
 
                     if (await RevizyonDisariGidenAktifTransferVarMiAsync(mevcutSatir.Id))
@@ -819,7 +819,7 @@ namespace _3K.Infrastructure.Services
 
         private async Task<string?> RevizyonOtomatikGeriAlEngelMesajiAsync(CekiSatiri satir)
         {
-            if (satir.SandikIcerikleri.Any(i => i.Sandik?.DurumId == (int)SandikDurum.Sevkedildi))
+            if (satir.SandikIcerikleri.Any(i => SandikSevkKilitliMi(i.Sandik)))
                 return "Satır sevk edilmiş sandıkta. Otomatik geri alma yapılamaz; önce ilgili sandığın sevk kilidini açın.";
 
             if (await RevizyonDisariGidenAktifTransferVarMiAsync(satir.Id))
@@ -1065,7 +1065,8 @@ namespace _3K.Infrastructure.Services
                 .Include(i => i.Sandik)
                 .Where(i => i.CekiSatiriId.HasValue &&
                     idler.Contains(i.CekiSatiriId.Value) &&
-                    i.Sandik.DurumId == (int)SandikDurum.Sevkedildi)
+                    i.Sandik.DurumId == (int)SandikDurum.Sevkedildi &&
+                    !i.Sandik.SevkiyatDuzeltmeAcikMi)
                 .ToListAsync();
 
             if (kilitliIcerikler.Any())
@@ -1291,12 +1292,17 @@ namespace _3K.Infrastructure.Services
         private static bool RevizyonIcerikleriTasinabilirMi(List<SandikIcerik> icerikler)
         {
             return icerikler.All(i =>
-                i.Sandik.DurumId != (int)SandikDurum.Sevkedildi &&
+                !SandikSevkKilitliMi(i.Sandik) &&
                 i.KonulanAdet == 0 &&
                 i.EksikAdet == 0 &&
                 i.StokKarsilanan == 0 &&
                 i.ProjeKarsilanan == 0 &&
                 i.TedarikciKarsilanan == 0);
+        }
+
+        private static bool SandikSevkKilitliMi(Sandik? sandik)
+        {
+            return sandik?.DurumId == (int)SandikDurum.Sevkedildi && !sandik.SevkiyatDuzeltmeAcikMi;
         }
 
         private static CekiSatiri? EslesenAnaSatiriBul(

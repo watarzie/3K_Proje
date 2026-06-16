@@ -37,7 +37,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 return Result.Failure("Sandık bulunamadı veya projeye ait değil.", 404);
 
             // Sandık "Sevk Edildi" durumundaysa ekleme yapılamaz
-            if (sandik.DurumId == (int)SandikDurum.Sevkedildi)
+            if (SandikSevkKilidiHelper.SandikKilitliMi(sandik))
                 return Result.Failure("Sevk edilmiş sandığa malzeme eklenemez.");
 
             if (request.CekiSatiriId.HasValue && request.CekiSatiriId.Value > 0)

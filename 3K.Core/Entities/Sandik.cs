@@ -17,6 +17,7 @@ namespace _3K.Core.Entities
         /// Sevk edilmeden önceki durum. Kilidi açıldığında bu duruma geri döner.
         /// </summary>
         public int? SevkOncesiDurumId { get; set; }
+        public bool SevkiyatDuzeltmeAcikMi { get; set; }
         public int DepoLokasyonId { get; set; } = (int)DepoLokasyon.Belirsiz;
 
         // Fiziksel Özellikler

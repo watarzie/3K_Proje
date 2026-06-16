@@ -47,7 +47,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 var sandik = await sandikRepo.GetByIdAsync(sandikId);
                 if (sandik == null) continue;
 
-                if (SandikSevkKilidiHelper.SandikKilitliMi(sandik))
+                if (sandik.DurumId == (int)SandikDurum.Sevkedildi)
                 {
                     sevkEdilmisSandiklar.Add(sandik.SandikNo);
                     continue;

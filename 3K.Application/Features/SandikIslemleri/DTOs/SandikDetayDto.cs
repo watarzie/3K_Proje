@@ -7,6 +7,7 @@ namespace _3K.Application.Features.SandikIslemleri.DTOs
         public string? Ad { get; set; }
         public int DurumId { get; set; }
         public string DurumMetni { get; set; } = string.Empty;
+        public bool SevkiyatDuzeltmeAcikMi { get; set; }
         public int DepoLokasyonId { get; set; }
         public string DepoLokasyonMetni { get; set; } = string.Empty;
         

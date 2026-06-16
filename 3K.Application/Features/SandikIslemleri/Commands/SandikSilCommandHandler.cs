@@ -30,7 +30,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (sandik.ProjeId != request.ProjeId)
                 return Result.Failure("Sandık bu projeye ait değil.");
 
-            if (SandikSevkKilidiHelper.SandikKilitliMi(sandik))
+            if (sandik.DurumId == (int)SandikDurum.Sevkedildi)
                 return Result.Failure(SandikSevkKilidiHelper.SandikKilitliMesaji);
 
             // İçinde ürün var mı kontrol et

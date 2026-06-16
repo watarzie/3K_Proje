@@ -85,6 +85,10 @@ namespace _3K.Infrastructure.Data
                 .HasIndex(s => new { s.ProjeId, s.SandikNo })
                 .IsUnique();
 
+            modelBuilder.Entity<Sandik>()
+                .Property(s => s.SevkiyatDuzeltmeAcikMi)
+                .HasDefaultValue(false);
+
             modelBuilder.Entity<Ceki>()
                 .HasIndex(c => new { c.ProjeId, c.CekiTipiId });
 

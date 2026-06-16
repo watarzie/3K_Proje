@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
@@ -21,6 +22,13 @@ namespace _3K.Infrastructure.Data.Interceptors
             typeof(OnayBekleyenIslem)
         };
 
+        private static readonly HashSet<string> SevkiyatDuzeltmeBypassProperties = new()
+        {
+            nameof(Sandik.SevkiyatDuzeltmeAcikMi),
+            nameof(BaseEntity.UpdatedDate),
+            nameof(BaseEntity.UpdatedBy)
+        };
+
         public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
             DbContextEventData eventData,
             InterceptionResult<int> result,
@@ -38,6 +46,7 @@ namespace _3K.Infrastructure.Data.Interceptors
             // Kilit kontrolüne tabi olmayan entry'leri ayır
             var lockableEntries = entries
                 .Where(e => !AuditBypassTypes.Contains(e.Entity.GetType()))
+                .Where(e => !IsSafeSevkiyatDuzeltmeFlagChange(e))
                 .ToList();
 
             if (!lockableEntries.Any()) return await base.SavingChangesAsync(eventData, result, cancellationToken);
@@ -110,6 +119,35 @@ namespace _3K.Infrastructure.Data.Interceptors
             }
 
             return await base.SavingChangesAsync(eventData, result, cancellationToken);
+        }
+
+        private static bool IsSafeSevkiyatDuzeltmeFlagChange(EntityEntry entry)
+        {
+            if (entry.Entity is not Sandik || entry.State != EntityState.Modified)
+                return false;
+
+            var originalDurumId = GetPropertyValue<int>(entry, nameof(Sandik.DurumId), useOriginal: true);
+            var currentDurumId = GetPropertyValue<int>(entry, nameof(Sandik.DurumId), useOriginal: false);
+            if (originalDurumId != (int)SandikDurum.Sevkedildi || currentDurumId != (int)SandikDurum.Sevkedildi)
+                return false;
+
+            var changedProperties = entry.Properties
+                .Where(p => !Equals(p.OriginalValue, p.CurrentValue))
+                .Select(p => p.Metadata.Name)
+                .ToList();
+
+            return changedProperties.Contains(nameof(Sandik.SevkiyatDuzeltmeAcikMi)) &&
+                   changedProperties.All(SevkiyatDuzeltmeBypassProperties.Contains);
+        }
+
+        private static T? GetPropertyValue<T>(EntityEntry entry, string propertyName, bool useOriginal)
+        {
+            var property = entry.Properties.FirstOrDefault(p => p.Metadata.Name == propertyName);
+            if (property == null)
+                return default;
+
+            var value = useOriginal ? property.OriginalValue : property.CurrentValue;
+            return value is T typed ? typed : default;
         }
     }
 }

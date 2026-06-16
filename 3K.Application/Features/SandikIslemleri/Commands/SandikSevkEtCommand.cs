@@ -47,6 +47,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (sandik == null || sandik.ProjeId != request.ProjeId)
                 return Result.Failure("Sandık bulunamadı veya projeye ait değil.", 404);
 
+            if (sandik.DurumId == (int)SandikDurum.Sevkedildi && sandik.SevkiyatDuzeltmeAcikMi)
+                return Result.Failure("Bu sandık zaten sevk edilmiş ve düzeltmeye açık. Düzeltmeyi Tamamla işlemini kullanın.");
+
             if (sandik.DurumId == (int)SandikDurum.Sevkedildi)
                 return Result.Failure("Sandık zaten sevk edilmiş durumda.");
 
@@ -55,6 +58,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             var mevcutSevkiyatBagliMi = (await sevkiyatSandikRepo.FindAsync(ss => ss.SandikId == sandik.Id)).Any();
             sandik.SevkOncesiDurumId ??= sandik.DurumId;
             sandik.DurumId = (int)SandikDurum.Sevkedildi;
+            sandik.SevkiyatDuzeltmeAcikMi = false;
             sandikRepo.Update(sandik);
 
             var proje = await projeRepo.GetByIdAsync(request.ProjeId);
@@ -63,7 +67,10 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 var sandiklar = (await sandikRepo.FindAsync(s => s.ProjeId == request.ProjeId)).ToList();
                 var guncelSandik = sandiklar.FirstOrDefault(s => s.Id == request.SandikId);
                 if (guncelSandik != null)
+                {
                     guncelSandik.DurumId = (int)SandikDurum.Sevkedildi;
+                    guncelSandik.SevkiyatDuzeltmeAcikMi = false;
+                }
 
                 proje.DurumId = ProjeSevkDurumHelper.Hesapla(sandiklar, proje.DurumId);
                 proje.GerceklesenSevkTarihi ??= sevkTarihi;

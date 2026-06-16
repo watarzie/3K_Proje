@@ -38,7 +38,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             }
 
             var sevkEdilmisSandiklar = sandiklar
-                .Where(SandikSevkKilidiHelper.SandikKilitliMi)
+                .Where(s => s.DurumId == (int)SandikDurum.Sevkedildi)
                 .Select(s => s.SandikNo)
                 .ToList();
 

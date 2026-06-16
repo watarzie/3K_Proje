@@ -47,30 +47,38 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             if (proje == null)
                 return Result.Failure("Proje bulunamadı.");
 
-            if (proje.DurumId == (int)ProjeDurum.SevkEdildi)
-                return Result.Failure("Proje zaten sevk edilmiş durumda.");
-
             int eskiDurum = proje.DurumId;
             var sandiklar = (await sandikRepo.FindAsync(s => s.ProjeId == request.ProjeId)).ToList();
 
             if (sandiklar.Count == 0)
                 return Result.Failure("Projeye ait sandık bulunamadı.");
 
+            if (proje.DurumId == (int)ProjeDurum.SevkEdildi)
+                return Result.Failure("Proje zaten sevk edilmiş durumda. Düzeltmeye açık sandıklar için Düzeltmeyi Tamamla işlemini kullanın.");
+
             var secilenSandikIds = request.SandikIds?
                 .Where(id => id > 0)
                 .Distinct()
                 .ToList();
 
-            var sevkEdilecekSandiklar = secilenSandikIds is { Count: > 0 }
-                ? sandiklar.Where(s => secilenSandikIds.Contains(s.Id)).ToList()
-                : sandiklar.Where(s => s.DurumId != (int)SandikDurum.Sevkedildi).ToList();
+            List<Sandik> sevkEdilecekSandiklar;
+            if (secilenSandikIds is { Count: > 0 })
+            {
+                var secilenSandiklar = sandiklar.Where(s => secilenSandikIds.Contains(s.Id)).ToList();
+                if (secilenSandiklar.Count != secilenSandikIds.Count)
+                    return Result.Failure("Seçilen sandıklardan bazıları bu projeye ait değil.");
 
-            if (secilenSandikIds is { Count: > 0 } && sevkEdilecekSandiklar.Count != secilenSandikIds.Count)
-                return Result.Failure("Seçilen sandıklardan bazıları bu projeye ait değil.");
+                if (secilenSandiklar.Any(s => s.DurumId == (int)SandikDurum.Sevkedildi))
+                    return Result.Failure("Seçilen sandıklardan bazıları zaten sevk edilmiş. Düzeltmeye açık sandıklar için Düzeltmeyi Tamamla işlemini kullanın.");
 
-            sevkEdilecekSandiklar = sevkEdilecekSandiklar
-                .Where(s => s.DurumId != (int)SandikDurum.Sevkedildi)
-                .ToList();
+                sevkEdilecekSandiklar = secilenSandiklar;
+            }
+            else
+            {
+                sevkEdilecekSandiklar = sandiklar
+                    .Where(s => s.DurumId != (int)SandikDurum.Sevkedildi)
+                    .ToList();
+            }
 
             if (sevkEdilecekSandiklar.Count == 0)
                 return Result.Failure("Sevk edilecek sandık bulunamadı.");
@@ -87,6 +95,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             {
                 sandik.SevkOncesiDurumId ??= sandik.DurumId;
                 sandik.DurumId = (int)SandikDurum.Sevkedildi;
+                sandik.SevkiyatDuzeltmeAcikMi = false;
                 sandikRepo.Update(sandik);
                 sevkEdilenSandikSayisi++;
             }

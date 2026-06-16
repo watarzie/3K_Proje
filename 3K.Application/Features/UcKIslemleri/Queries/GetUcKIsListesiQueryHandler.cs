@@ -32,9 +32,12 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
 
             var query = _unitOfWork.GetRepository<CekiSatiri>()
                 .Queryable()
-                .Where(cs => cs.Ceki.Proje.DurumId != (int)ProjeDurum.SevkEdildi)
+                .Where(cs => cs.Ceki.Proje.DurumId != (int)ProjeDurum.SevkEdildi ||
+                    cs.SandikIcerikleri.Any(si => si.Sandik.SevkiyatDuzeltmeAcikMi))
                 .Where(cs => !cs.SandikIcerikleri.Any() ||
-                    cs.SandikIcerikleri.Any(si => si.Sandik.DurumId != (int)SandikDurum.Sevkedildi));
+                    cs.SandikIcerikleri.Any(si =>
+                        si.Sandik.DurumId != (int)SandikDurum.Sevkedildi ||
+                        si.Sandik.SevkiyatDuzeltmeAcikMi));
 
             if (request.ProjeId.HasValue)
             {

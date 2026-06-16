@@ -206,7 +206,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             IGenericRepository<SandikIcerik> sandikIcerikRepo,
             Sandik sandik)
         {
-            if (sandik.DurumId == (int)SandikDurum.Sevkedildi)
+            if (SandikSevkKilidiHelper.SandikKilitliMi(sandik))
                 return Result.Failure("Sevk edilmiş sandıkta ürün adedi güncellenemez.");
 
             if (!request.SandikIcerikId.HasValue || request.SandikIcerikId.Value <= 0)

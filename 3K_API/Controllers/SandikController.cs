@@ -214,6 +214,17 @@ namespace _3K_API.Controllers
         }
 
         /// <summary>
+        /// Sevkiyat kaydı korunarak açılan sandığın düzeltme modunu kapatır.
+        /// Yeni sevkiyat oluşturmaz, mevcut sevkiyat geçmişini değiştirmez.
+        /// </summary>
+        [HttpPost("sevkiyat-duzeltme-tamamla")]
+        public async Task<ActionResult> SandikSevkiyatDuzeltmeTamamla([FromBody] SandikSevkiyatDuzeltmeTamamlaCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
+        /// <summary>
         /// Manuel eklenen ürünü siler.
         /// Normal projeler: cekiSatiriId ile, Saha/Yedek: sandikIcerikId ile.
         /// </summary>

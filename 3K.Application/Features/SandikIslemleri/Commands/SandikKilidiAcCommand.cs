@@ -86,11 +86,18 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             var kilitAcmaTipi = (SevkiyatKilitAcmaTipi)request.KilitAcmaTipiId;
             var eskiSandikDurum = sandik.DurumId;
             var eskiProjeDurum = proje.DurumId;
-            var yeniSandikDurum = sandik.SevkOncesiDurumId ?? (int)SandikDurum.Kapandi;
+            var yeniSandikDurum = kilitAcmaTipi == SevkiyatKilitAcmaTipi.SevkiyatKaydiKorunarakAc
+                ? (int)SandikDurum.Sevkedildi
+                : sandik.SevkOncesiDurumId ?? (int)SandikDurum.Kapandi;
 
             sandik.DurumId = yeniSandikDurum;
-            if (kilitAcmaTipi == SevkiyatKilitAcmaTipi.SevkiyatGeriAlinarakAc)
+            if (kilitAcmaTipi == SevkiyatKilitAcmaTipi.SevkiyatKaydiKorunarakAc)
+                sandik.SevkiyatDuzeltmeAcikMi = true;
+            else
+            {
                 sandik.SevkOncesiDurumId = null;
+                sandik.SevkiyatDuzeltmeAcikMi = false;
+            }
             sandikRepo.Update(sandik);
 
             if (kilitAcmaTipi == SevkiyatKilitAcmaTipi.SevkiyatGeriAlinarakAc)
@@ -105,17 +112,18 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (guncelSandik != null)
             {
                 guncelSandik.DurumId = yeniSandikDurum;
-                if (kilitAcmaTipi == SevkiyatKilitAcmaTipi.SevkiyatGeriAlinarakAc)
+                if (kilitAcmaTipi == SevkiyatKilitAcmaTipi.SevkiyatKaydiKorunarakAc)
+                    guncelSandik.SevkiyatDuzeltmeAcikMi = true;
+                else
+                {
                     guncelSandik.SevkOncesiDurumId = null;
+                    guncelSandik.SevkiyatDuzeltmeAcikMi = false;
+                }
             }
 
             if (kilitAcmaTipi == SevkiyatKilitAcmaTipi.SevkiyatKaydiKorunarakAc)
             {
-                var sandikIdleri = sandiklar.Select(s => s.Id).ToList();
-                var sevkiyatBaglariKorunuyorMu = (await sevkiyatSandikRepo.FindAsync(ss => sandikIdleri.Contains(ss.SandikId))).Any();
-                proje.DurumId = sevkiyatBaglariKorunuyorMu
-                    ? (int)ProjeDurum.EksikSevkEdildi
-                    : ProjeSevkDurumHelper.Hesapla(sandiklar, proje.DurumId);
+                proje.DurumId = ProjeSevkDurumHelper.Hesapla(sandiklar, proje.DurumId);
             }
             else
             {

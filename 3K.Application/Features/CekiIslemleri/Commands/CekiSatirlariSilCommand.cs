@@ -244,7 +244,7 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
 
             foreach (var sandik in sandiklar)
             {
-                if (sandik.DurumId == (int)SandikDurum.Sevkedildi)
+                if (SandikSevkKilidiHelper.SandikKilitliMi(sandik))
                     continue;
 
                 var sandikIcerikleri = kalanIcerikler

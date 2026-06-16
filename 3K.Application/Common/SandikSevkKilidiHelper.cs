@@ -11,7 +11,7 @@ namespace _3K.Application.Common
 
         public static bool SandikKilitliMi(Sandik sandik)
         {
-            return sandik.DurumId == (int)SandikDurum.Sevkedildi;
+            return sandik.DurumId == (int)SandikDurum.Sevkedildi && !sandik.SevkiyatDuzeltmeAcikMi;
         }
 
         public static async Task<HashSet<int>> GetSevkEdilmisSandikCekiSatiriIdleriAsync(
@@ -43,7 +43,8 @@ namespace _3K.Application.Common
             var sandikRepo = unitOfWork.GetRepository<Sandik>();
             var sevkEdilenSandikIdleri = (await sandikRepo.FindAsync(s =>
                     sandikIdleri.Contains(s.Id) &&
-                    s.DurumId == (int)SandikDurum.Sevkedildi))
+                    s.DurumId == (int)SandikDurum.Sevkedildi &&
+                    !s.SevkiyatDuzeltmeAcikMi))
                 .Select(s => s.Id)
                 .ToHashSet();
 

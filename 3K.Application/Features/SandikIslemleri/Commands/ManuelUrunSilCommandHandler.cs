@@ -62,7 +62,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (!isSahaYedek && icerik.CekiSatiriId != null)
                 return Result.Failure("Bu ürün çekiden gelmiştir. Saha/Yedek silme ile silinemez.");
 
-            if (sandik.DurumId == (int)SandikDurum.Sevkedildi)
+            if (SandikSevkKilidiHelper.SandikKilitliMi(sandik))
                 return Result.Failure("Sevk edilmiş sandıktan ürün silinemez.");
 
             var urunBilgi = $"{icerik.BarkodNo ?? "-"} - {icerik.Isim ?? "-"} ({icerik.Miktar} adet)";

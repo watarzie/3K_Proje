@@ -33,6 +33,7 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 Ad = sandik.Ad,
                 DurumId = sandik.DurumId,
                 DurumMetni = _lookupCache.GetDeger<LookupSandikDurum>(sandik.DurumId),
+                SevkiyatDuzeltmeAcikMi = sandik.SevkiyatDuzeltmeAcikMi,
                 DepoLokasyonId = sandik.DepoLokasyonId,
                 DepoLokasyonMetni = _lookupCache.GetDeger<LookupDepoLokasyon>(sandik.DepoLokasyonId),
                 En = sandik.En,
