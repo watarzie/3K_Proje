@@ -1,6 +1,7 @@
 using MediatR;
 using _3K.Core.Enums;
 using _3K.Application.Common;
+using _3K.Application.Common.DTOs;
 using _3K.Application.Features.UcKIslemleri.DTOs;
 using _3K.Core.Entities;
 using _3K.Core.Helpers;
@@ -61,6 +62,12 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                     satirlar.Where(s => !s.KaynakCekiSatiriId.HasValue).Select(s => s.Id),
                     cancellationToken)
                 : new Dictionary<int, decimal>();
+            var sahaTamamlamaIzMap = proje.ProjeTipiId == (int)ProjeTipi.Normal
+                ? GetSahaTamamlamaIzMap(satirlar.Where(s => !s.KaynakCekiSatiriId.HasValue).Select(s => s.Id).ToList())
+                : new Dictionary<int, List<SahaTamamlamaIzDto>>();
+            var sahaKaynakIzMap = proje.ProjeTipiId == (int)ProjeTipi.Saha
+                ? GetSahaKaynakIzMap(satirlar.Where(s => s.KaynakCekiSatiriId.HasValue).Select(s => s.KaynakCekiSatiriId!.Value).ToList())
+                : new Dictionary<int, SahaKaynakSatirIzDto>();
 
             var sandikNoMap = projeSandiklari
                 .Where(s => !string.IsNullOrWhiteSpace(s.SandikNo))
@@ -116,10 +123,18 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                             .FirstOrDefault(s => s != null)
                         ?? (sandikNoMap.TryGetValue(sandikNo.Trim(), out var sandikByNo) ? sandikByNo : null);
                     var gorunenSandikNo = sandik?.SandikNo ?? sandikNo;
+                    var kaynakIz = cs.KaynakCekiSatiriId.HasValue
+                        ? sahaKaynakIzMap.GetValueOrDefault(cs.KaynakCekiSatiriId.Value)
+                        : null;
 
                     return new UcKUrunDto
                     {
                         CekiSatiriId = cs.Id,
+                        KaynakCekiSatiriId = cs.KaynakCekiSatiriId,
+                        KaynakProjeNo = kaynakIz?.KaynakProjeNo,
+                        KaynakSandikNo = kaynakIz?.KaynakSandikNo,
+                        KaynakSiraNo = kaynakIz?.KaynakSiraNo,
+                        SahaTamamlamalari = sahaTamamlamaIzMap.GetValueOrDefault(cs.Id) ?? new List<SahaTamamlamaIzDto>(),
                         SiraNo = cs.SiraNo,
                         BarkodNo = cs.BarkodNo,
                         OlcuResmiPozNo = cs.OlcuResmiPozNo,
@@ -254,6 +269,70 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                 Aciklama = transfer.Aciklama,
                 Tarih = transfer.Tarih
             };
+        }
+
+        private Dictionary<int, List<SahaTamamlamaIzDto>> GetSahaTamamlamaIzMap(List<int> kaynakSatirIds)
+        {
+            if (!kaynakSatirIds.Any())
+                return new Dictionary<int, List<SahaTamamlamaIzDto>>();
+
+            var izler = _unitOfWork.GetRepository<SandikIcerik>().Queryable()
+                .Where(i =>
+                    i.CekiSatiriId.HasValue &&
+                    i.CekiSatiri!.KaynakCekiSatiriId.HasValue &&
+                    kaynakSatirIds.Contains(i.CekiSatiri.KaynakCekiSatiriId.Value) &&
+                    i.Sandik.Proje.ProjeTipiId == (int)ProjeTipi.Saha)
+                .Select(i => new SahaTamamlamaIzDto
+                {
+                    KaynakCekiSatiriId = i.CekiSatiri!.KaynakCekiSatiriId!.Value,
+                    KaynakProjeId = i.CekiSatiri.KaynakCekiSatiri!.Ceki.ProjeId,
+                    KaynakProjeNo = i.CekiSatiri.KaynakCekiSatiri.Ceki.Proje.ProjeNo,
+                    KaynakSandikNo = i.CekiSatiri.KaynakCekiSatiri.FiiliSandikNo ?? i.CekiSatiri.KaynakCekiSatiri.CekideGecenSandikNo,
+                    KaynakSiraNo = i.CekiSatiri.KaynakCekiSatiri.SiraNo,
+                    KaynakUrunAdi = i.CekiSatiri.KaynakCekiSatiri.Aciklama,
+                    SahaProjeId = i.Sandik.ProjeId,
+                    SahaProjeNo = i.Sandik.Proje.ProjeNo,
+                    SahaSandikId = i.SandikId,
+                    SahaSandikNo = i.Sandik.SandikNo,
+                    SahaCekiSatiriId = i.CekiSatiriId.GetValueOrDefault(),
+                    Miktar = i.KonulanAdet > 0 ? i.KonulanAdet : i.CekiSatiri.IstenenAdet,
+                    BirimId = i.CekiSatiri.BirimId,
+                    DurumId = i.Sandik.DurumId,
+                    SevkEdildiMi = i.Sandik.DurumId == (int)SandikDurum.Sevkedildi,
+                    SevkTarihi = i.Sandik.Proje.GerceklesenSevkTarihi
+                })
+                .ToList();
+
+            foreach (var iz in izler)
+            {
+                iz.Birim = ((Birim)iz.BirimId).ToString();
+                iz.DurumMetni = _lookupCache.GetDeger<LookupSandikDurum>(iz.DurumId);
+            }
+
+            return izler
+                .OrderBy(i => i.SahaProjeNo)
+                .ThenBy(i => i.SahaSandikNo)
+                .GroupBy(i => i.KaynakCekiSatiriId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+        }
+
+        private Dictionary<int, SahaKaynakSatirIzDto> GetSahaKaynakIzMap(List<int> kaynakSatirIds)
+        {
+            if (!kaynakSatirIds.Any())
+                return new Dictionary<int, SahaKaynakSatirIzDto>();
+
+            return _unitOfWork.GetRepository<CekiSatiri>().Queryable()
+                .Where(cs => kaynakSatirIds.Contains(cs.Id))
+                .Select(cs => new SahaKaynakSatirIzDto
+                {
+                    CekiSatiriId = cs.Id,
+                    KaynakProjeId = cs.Ceki.ProjeId,
+                    KaynakProjeNo = cs.Ceki.Proje.ProjeNo,
+                    KaynakSandikNo = cs.FiiliSandikNo ?? cs.CekideGecenSandikNo,
+                    KaynakSiraNo = cs.SiraNo
+                })
+                .ToList()
+                .ToDictionary(x => x.CekiSatiriId);
         }
 
         private string HesaplaKontrolUyari(CekiSatiri cs)

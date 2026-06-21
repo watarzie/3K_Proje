@@ -1,10 +1,17 @@
 namespace _3K.Application.Features.UcKIslemleri.DTOs
 {
+    using _3K.Application.Common.DTOs;
+
     public class UcKUrunDto
     {
         public int CekiSatiriId { get; set; }
         public int? SandikIcerikId { get; set; }
         public bool IsSahaManuelSandikIcerigi { get; set; }
+        public int? KaynakCekiSatiriId { get; set; }
+        public string? KaynakProjeNo { get; set; }
+        public string? KaynakSandikNo { get; set; }
+        public int? KaynakSiraNo { get; set; }
+        public List<SahaTamamlamaIzDto> SahaTamamlamalari { get; set; } = new();
         public int SiraNo { get; set; }
         public string BarkodNo { get; set; } = string.Empty;
         public string? OlcuResmiPozNo { get; set; }
