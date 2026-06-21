@@ -55,8 +55,8 @@ namespace _3K.Infrastructure.Services
             if (satir.KaynakCekiSatiriId.HasValue)
                 return satir.KalanMiktar;
 
-            var planlananTamamlama = tamamlamaPlanMap.TryGetValue(satir.Id, out var value) ? value : 0;
-            return Math.Max(satir.KalanMiktar - planlananTamamlama, 0);
+            var sevkEdilenSahaTamamlama = tamamlamaPlanMap.TryGetValue(satir.Id, out var value) ? value : 0;
+            return Math.Max(satir.KalanMiktar - sevkEdilenSahaTamamlama, 0);
         }
 
         private async Task<Dictionary<int, decimal>> GetTamamlamaPlanMapAsync(IReadOnlyCollection<CekiSatiri> satirlar)
@@ -73,10 +73,12 @@ namespace _3K.Infrastructure.Services
             return await _context.CekiSatirlari
                 .AsNoTracking()
                 .Where(cs => cs.KaynakCekiSatiriId.HasValue &&
-                    kaynakSatirIds.Contains(cs.KaynakCekiSatiriId.Value))
+                    kaynakSatirIds.Contains(cs.KaynakCekiSatiriId.Value) &&
+                    cs.Ceki.Proje.ProjeTipiId == (int)ProjeTipi.Saha &&
+                    cs.SandikIcerikleri.Any(si => si.Sandik.DurumId == (int)SandikDurum.Sevkedildi))
                 .GroupBy(cs => cs.KaynakCekiSatiriId!.Value)
-                .Select(g => new { CekiSatiriId = g.Key, PlanlananAdet = g.Sum(cs => cs.IstenenAdet) })
-                .ToDictionaryAsync(x => x.CekiSatiriId, x => x.PlanlananAdet);
+                .Select(g => new { CekiSatiriId = g.Key, TamamlananAdet = g.Sum(cs => cs.IstenenAdet) })
+                .ToDictionaryAsync(x => x.CekiSatiriId, x => x.TamamlananAdet);
         }
 
         private async Task<(Dictionary<int, string> ProjedenAlinan, Dictionary<int, string> ProjeyeVerilen)> GetProjeTransferRaporMapleriAsync(

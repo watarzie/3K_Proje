@@ -12,11 +12,16 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
     {
         private readonly IProjeRepository _projeRepository;
         private readonly ILookupCacheService _lookupCache;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
-        public ProjeListeleQueryHandler(IProjeRepository projeRepository, ILookupCacheService lookupCache)
+        public ProjeListeleQueryHandler(
+            IProjeRepository projeRepository,
+            ILookupCacheService lookupCache,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _projeRepository = projeRepository;
             _lookupCache = lookupCache;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result<PaginatedList<ProjeDto>>> Handle(ProjeListeleQuery request, CancellationToken cancellationToken)
@@ -24,6 +29,14 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
             var (projeler, totalCount) = await _projeRepository.GetFilteredPagedAsync(
                 request.ProjeTipiId, request.SearchTerm, request.IsSevkEdilen,
                 request.PageNumber, request.PageSize, cancellationToken);
+
+            var normalKaynakSatirIds = projeler
+                .Where(p => p.ProjeTipiId == (int)ProjeTipi.Normal)
+                .SelectMany(p => p.Cekiler?.SelectMany(c => c.CekiSatirlari) ?? Enumerable.Empty<CekiSatiri>())
+                .Where(cs => !cs.KaynakCekiSatiriId.HasValue)
+                .Select(cs => cs.Id)
+                .ToList();
+            var sahaTamamlamaMap = await _sahaTamamlamaService.GetSevkEdilenTamamlamaMapAsync(normalKaynakSatirIds, cancellationToken);
 
             var result = projeler.Select(p =>
             {
@@ -70,11 +83,15 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                         var istenen = si.CekiSatiri?.IstenenAdet ?? si.Miktar;
                         return istenen > 0 && si.KonulanAdet >= istenen;
                     })
-                    : cekiSatirlari.Count(cs => cs.KalanMiktar <= 0);
+                    : cekiSatirlari.Count(cs => CekiSatiriKalanHelper.HesaplaEtkinKalan(cs, sahaTamamlamaMap) <= 0);
+                var normalUrunlerTamamlandi = !isSahaYedek && toplamUrun > 0 && tamamlananUrun == toplamUrun;
 
                 // Durum hesaplama
                 int durumId;
-                if (p.DurumId == (int)ProjeDurum.SevkEdildi || p.DurumId == (int)ProjeDurum.EksikSevkEdildi)
+                if (p.DurumId == (int)ProjeDurum.SevkEdildi ||
+                    (p.DurumId == (int)ProjeDurum.EksikSevkEdildi && normalUrunlerTamamlandi))
+                    durumId = (int)ProjeDurum.SevkEdildi;
+                else if (p.DurumId == (int)ProjeDurum.EksikSevkEdildi)
                     durumId = p.DurumId; // Kilitli/Sevk edilmiş proje statüsü ezilemez
                 else if (hazirSandik == toplamSandik && toplamSandik > 0)
                     durumId = (int)ProjeDurum.Tamamlandi;

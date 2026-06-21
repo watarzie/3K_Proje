@@ -3,6 +3,7 @@ using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Application.Features.GridIslemleri.DTOs;
 using _3K.Core.Entities;
+using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.GridIslemleri.Queries
@@ -11,11 +12,16 @@ namespace _3K.Application.Features.GridIslemleri.Queries
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILookupCacheService _lookupCache;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
-        public GetGridUrunlerQueryHandler(IUnitOfWork unitOfWork, ILookupCacheService lookupCache)
+        public GetGridUrunlerQueryHandler(
+            IUnitOfWork unitOfWork,
+            ILookupCacheService lookupCache,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
             _lookupCache = lookupCache;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result<List<GridUrunDto>>> Handle(GetGridUrunlerQuery request, CancellationToken cancellationToken)
@@ -50,6 +56,12 @@ namespace _3K.Application.Features.GridIslemleri.Queries
             if (!satirlar.Any() && !manuelSahaIcerikleri.Any())
                 return Result<List<GridUrunDto>>.Failure("Bu projeye ait ürün bulunamadı.", 404);
 
+            var sahaTamamlamaMap = proje.ProjeTipiId == (int)ProjeTipi.Normal
+                ? await _sahaTamamlamaService.GetSevkEdilenTamamlamaMapAsync(
+                    satirlar.Where(s => !s.KaynakCekiSatiriId.HasValue).Select(s => s.Id),
+                    cancellationToken)
+                : new Dictionary<int, decimal>();
+
             var sandikNoMap = projeSandiklari
                 .Where(s => !string.IsNullOrWhiteSpace(s.SandikNo))
                 .GroupBy(s => s.SandikNo.Trim(), StringComparer.OrdinalIgnoreCase)
@@ -62,6 +74,7 @@ namespace _3K.Application.Features.GridIslemleri.Queries
             var result = satirlar
                 .Select(cs =>
                 {
+                    var etkinKalan = CekiSatiriKalanHelper.HesaplaEtkinKalan(cs, sahaTamamlamaMap);
                     var gorunenUcKGelen = Math.Max(cs.GelenMiktar - cs.ProjeGonderilen, 0);
                     var netKullanilabilir = Math.Max(cs.GelenMiktar + cs.ProjeKarsilanan - cs.ProjeGonderilen, 0);
                     var sandikNo = cs.FiiliSandikNo ?? cs.CekideGecenSandikNo ?? string.Empty;
@@ -120,8 +133,8 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                     ProjeGonderilen = cs.ProjeGonderilen,
                     NetKullanilabilir = netKullanilabilir,
                     TedarikciKarsilanan = cs.TedarikciKarsilanan,
-                    EksikMiktar = cs.EksikMiktar,
-                    KalanMiktar = cs.KalanMiktar,
+                    EksikMiktar = etkinKalan,
+                    KalanMiktar = etkinKalan,
                     // Kalite & Süreç
                     KaliteDurumId = cs.KaliteDurumId,
                     KaliteDurumMetni = cs.KaliteDurumId.HasValue ? _lookupCache.GetDeger<LookupKaliteDurum>(cs.KaliteDurumId.Value) : null,

@@ -129,6 +129,7 @@ try
     builder.Services.AddScoped<IRolService, _3K.Infrastructure.Services.RolService>();
     builder.Services.AddScoped<IProjectLockService, ProjectLockService>();
     builder.Services.AddScoped<IDashboardStatsProvider, DashboardStatsProvider>();
+    builder.Services.AddScoped<ISahaTamamlamaService, SahaTamamlamaService>();
 
     // ======= Current User Service (Pipeline Behavior için) =======
     builder.Services.AddHttpContextAccessor();

@@ -3,6 +3,7 @@ using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Application.Features.UcKIslemleri.DTOs;
 using _3K.Core.Entities;
+using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.UcKIslemleri.Queries
@@ -11,11 +12,16 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILookupCacheService _lookupCache;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
-        public GetUcKUrunlerQueryHandler(IUnitOfWork unitOfWork, ILookupCacheService lookupCache)
+        public GetUcKUrunlerQueryHandler(
+            IUnitOfWork unitOfWork,
+            ILookupCacheService lookupCache,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
             _lookupCache = lookupCache;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result<List<UcKUrunDto>>> Handle(GetUcKUrunlerQuery request, CancellationToken cancellationToken)
@@ -50,6 +56,12 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
             if (!satirlar.Any() && !manuelSahaIcerikleri.Any())
                 return Result<List<UcKUrunDto>>.Failure("Bu projeye ait ürün bulunamadı.", 404);
 
+            var sahaTamamlamaMap = proje.ProjeTipiId == (int)ProjeTipi.Normal
+                ? await _sahaTamamlamaService.GetSevkEdilenTamamlamaMapAsync(
+                    satirlar.Where(s => !s.KaynakCekiSatiriId.HasValue).Select(s => s.Id),
+                    cancellationToken)
+                : new Dictionary<int, decimal>();
+
             var sandikNoMap = projeSandiklari
                 .Where(s => !string.IsNullOrWhiteSpace(s.SandikNo))
                 .GroupBy(s => s.SandikNo.Trim(), StringComparer.OrdinalIgnoreCase)
@@ -79,6 +91,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
             var result = satirlar
                 .Select(cs =>
                 {
+                    var etkinKalan = CekiSatiriKalanHelper.HesaplaEtkinKalan(cs, sahaTamamlamaMap);
                     var gelenTransferler = transferler.Where(t => t.HedefCekiSatiriId == cs.Id).ToList();
                     var gidenTransferler = transferler.Where(t => t.KaynakCekiSatiriId == cs.Id).ToList();
                     var projeKarsilanan = gelenTransferler.Any() ? gelenTransferler.Sum(t => t.Miktar) : cs.ProjeKarsilanan;
@@ -138,7 +151,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                         GeriGonderilenMiktar = cs.GeriGonderilenMiktar,
                         UcKAciklama = cs.UcKAciklama,
                         GridAciklama = cs.GridAciklama,
-                        Kalan = cs.KalanMiktar,
+                        Kalan = etkinKalan,
                         KontrolUyari = HesaplaKontrolUyari(cs),
                         GenelDurumId = cs.DurumId,
                         GenelDurumMetni = _lookupCache.GetDeger<LookupUrunDurum>(cs.DurumId),
@@ -150,7 +163,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                         TransferZinciriVar = transferZinciri.Any(),
                         TransferZinciri = transferZinciri,
                         TedarikciKarsilanan = cs.TedarikciKarsilanan,
-                        EksikMiktar = cs.EksikMiktar,
+                        EksikMiktar = etkinKalan,
                         // Kalite & Süreç
                         KaliteDurumId = cs.KaliteDurumId,
                         KaliteDurumMetni = cs.KaliteDurumId.HasValue ? _lookupCache.GetDeger<LookupKaliteDurum>(cs.KaliteDurumId.Value) : null,

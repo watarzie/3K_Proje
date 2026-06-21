@@ -25,12 +25,18 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHareketService _hareketService;
         private readonly ICurrentUserService _currentUserService;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
-        public SandikSevkEtCommandHandler(IUnitOfWork unitOfWork, IHareketService hareketService, ICurrentUserService currentUserService)
+        public SandikSevkEtCommandHandler(
+            IUnitOfWork unitOfWork,
+            IHareketService hareketService,
+            ICurrentUserService currentUserService,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
             _hareketService = hareketService;
             _currentUserService = currentUserService;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result> Handle(SandikSevkEtCommand request, CancellationToken cancellationToken)
@@ -91,6 +97,13 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             }
 
             await _unitOfWork.SaveChangesAsync();
+
+            if (proje?.ProjeTipiId == (int)ProjeTipi.Saha)
+            {
+                await _sahaTamamlamaService.SenkronizeKaynakProjelerBySahaSandikIdsAsync(
+                    new[] { sandik.Id },
+                    cancellationToken);
+            }
 
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {

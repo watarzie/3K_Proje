@@ -25,12 +25,18 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHareketService _hareketService;
         private readonly ICurrentUserService _currentUserService;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
-        public ProjeSevkEtCommandHandler(IUnitOfWork unitOfWork, IHareketService hareketService, ICurrentUserService currentUserService)
+        public ProjeSevkEtCommandHandler(
+            IUnitOfWork unitOfWork,
+            IHareketService hareketService,
+            ICurrentUserService currentUserService,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
             _hareketService = hareketService;
             _currentUserService = currentUserService;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result> Handle(ProjeSevkEtCommand request, CancellationToken cancellationToken)
@@ -123,6 +129,13 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             projeRepo.Update(proje);
 
             await _unitOfWork.SaveChangesAsync();
+
+            if (proje.ProjeTipiId == (int)ProjeTipi.Saha)
+            {
+                await _sahaTamamlamaService.SenkronizeKaynakProjelerBySahaSandikIdsAsync(
+                    sevkEdilecekSandikIdleri,
+                    cancellationToken);
+            }
 
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {

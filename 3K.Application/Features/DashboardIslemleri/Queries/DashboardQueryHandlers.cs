@@ -3,6 +3,7 @@ using _3K.Application.Common;
 using _3K.Application.Features.DashboardIslemleri.DTOs;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
+using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.DashboardIslemleri.Queries
@@ -83,11 +84,16 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
     {
         private readonly IProjeRepository _projeRepository;
         private readonly ILookupCacheService _lookupCache;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
-        public DashboardProjelerQueryHandler(IProjeRepository projeRepository, ILookupCacheService lookupCache)
+        public DashboardProjelerQueryHandler(
+            IProjeRepository projeRepository,
+            ILookupCacheService lookupCache,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _projeRepository = projeRepository;
             _lookupCache = lookupCache;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result<DashboardPagedResultDto<DashboardProjeItemDto>>> Handle(DashboardProjelerQuery request, CancellationToken cancellationToken)
@@ -101,7 +107,14 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                 page,
                 pageSize,
                 cancellationToken);
-            var items = projeler.Select(p => DashboardProjection.ToProjeItem(p, _lookupCache)).ToList();
+            var normalKaynakSatirIds = projeler
+                .Where(p => p.ProjeTipiId == (int)ProjeTipi.Normal)
+                .SelectMany(p => p.Cekiler?.SelectMany(c => c.CekiSatirlari) ?? Enumerable.Empty<CekiSatiri>())
+                .Where(cs => !cs.KaynakCekiSatiriId.HasValue)
+                .Select(cs => cs.Id)
+                .ToList();
+            var sahaTamamlamaMap = await _sahaTamamlamaService.GetSevkEdilenTamamlamaMapAsync(normalKaynakSatirIds, cancellationToken);
+            var items = projeler.Select(p => DashboardProjection.ToProjeItem(p, _lookupCache, sahaTamamlamaMap)).ToList();
 
             return Result<DashboardPagedResultDto<DashboardProjeItemDto>>.Success(new DashboardPagedResultDto<DashboardProjeItemDto>
             {
@@ -117,17 +130,21 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
     public class DashboardKritikEksiklerQueryHandler : IRequestHandler<DashboardKritikEksiklerQuery, Result<DashboardPagedResultDto<DashboardKritikProjeDto>>>
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
-        public DashboardKritikEksiklerQueryHandler(IUnitOfWork unitOfWork)
+        public DashboardKritikEksiklerQueryHandler(
+            IUnitOfWork unitOfWork,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
-        public Task<Result<DashboardPagedResultDto<DashboardKritikProjeDto>>> Handle(DashboardKritikEksiklerQuery request, CancellationToken cancellationToken)
+        public async Task<Result<DashboardPagedResultDto<DashboardKritikProjeDto>>> Handle(DashboardKritikEksiklerQuery request, CancellationToken cancellationToken)
         {
             var page = Math.Max(request.Page, 1);
             var pageSize = Math.Clamp(request.PageSize, 1, 100);
-            var ranked = DashboardRankHelpers.BuildRankRows(_unitOfWork)
+            var ranked = (await DashboardRankHelpers.BuildRankRowsAsync(_unitOfWork, _sahaTamamlamaService, cancellationToken))
                 .Select(r => new DashboardKritikProjeDto
                 {
                     ProjeNo = r.ProjeNo,
@@ -137,24 +154,28 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                 })
                 .ToList();
 
-            return Task.FromResult(Result<DashboardPagedResultDto<DashboardKritikProjeDto>>.Success(DashboardRankHelpers.ToPaged(ranked, page, pageSize)));
+            return Result<DashboardPagedResultDto<DashboardKritikProjeDto>>.Success(DashboardRankHelpers.ToPaged(ranked, page, pageSize));
         }
     }
 
     public class DashboardEksikSiralamaQueryHandler : IRequestHandler<DashboardEksikSiralamaQuery, Result<DashboardPagedResultDto<DashboardEksikSiralamaDto>>>
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
-        public DashboardEksikSiralamaQueryHandler(IUnitOfWork unitOfWork)
+        public DashboardEksikSiralamaQueryHandler(
+            IUnitOfWork unitOfWork,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
-        public Task<Result<DashboardPagedResultDto<DashboardEksikSiralamaDto>>> Handle(DashboardEksikSiralamaQuery request, CancellationToken cancellationToken)
+        public async Task<Result<DashboardPagedResultDto<DashboardEksikSiralamaDto>>> Handle(DashboardEksikSiralamaQuery request, CancellationToken cancellationToken)
         {
             var page = Math.Max(request.Page, 1);
             var pageSize = Math.Clamp(request.PageSize, 1, 100);
-            var ranked = DashboardRankHelpers.BuildRankRows(_unitOfWork)
+            var ranked = (await DashboardRankHelpers.BuildRankRowsAsync(_unitOfWork, _sahaTamamlamaService, cancellationToken))
                 .Select(r => new DashboardEksikSiralamaDto
                 {
                     ProjeNo = r.ProjeNo,
@@ -164,35 +185,82 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                 })
                 .ToList();
 
-            return Task.FromResult(Result<DashboardPagedResultDto<DashboardEksikSiralamaDto>>.Success(DashboardRankHelpers.ToPaged(ranked, page, pageSize)));
+            return Result<DashboardPagedResultDto<DashboardEksikSiralamaDto>>.Success(DashboardRankHelpers.ToPaged(ranked, page, pageSize));
         }
     }
 
     internal static class DashboardRankHelpers
     {
-        public static IReadOnlyList<DashboardRankRow> BuildRankRows(IUnitOfWork unitOfWork)
+        public static async Task<IReadOnlyList<DashboardRankRow>> BuildRankRowsAsync(
+            IUnitOfWork unitOfWork,
+            ISahaTamamlamaService sahaTamamlamaService,
+            CancellationToken cancellationToken)
         {
-            var rows = unitOfWork.GetRepository<Proje>()
+            var projeRows = unitOfWork.GetRepository<Proje>()
                 .Queryable()
                 .Select(p => new DashboardRankSourceRow
                 {
+                    ProjeId = p.Id,
                     ProjeNo = p.ProjeNo,
                     Lokasyon = p.Lokasyon,
                     Sandik = p.Sandiklar.Count,
                     CreatedDate = p.CreatedDate,
+                    ProjeTipiId = p.ProjeTipiId,
                     Toplam = p.ProjeTipiId == (int)ProjeTipi.Saha || p.ProjeTipiId == (int)ProjeTipi.Yedek
                         ? p.Sandiklar.SelectMany(s => s.SandikIcerikleri).Count()
-                        : p.Cekiler.SelectMany(c => c.CekiSatirlari).Count(),
+                        : 0,
                     Tamamlanan = p.ProjeTipiId == (int)ProjeTipi.Saha || p.ProjeTipiId == (int)ProjeTipi.Yedek
                         ? p.Sandiklar.SelectMany(s => s.SandikIcerikleri).Count(si =>
                             (si.CekiSatiriId != null ? si.CekiSatiri!.IstenenAdet : si.Miktar) > 0 &&
                             si.KonulanAdet >= (si.CekiSatiriId != null ? si.CekiSatiri!.IstenenAdet : si.Miktar))
-                        : p.Cekiler.SelectMany(c => c.CekiSatirlari).Count(cs =>
-                            cs.GridDurumuId == (int)GridDurum.GridKapandi ||
-                            cs.GridDurumuId == (int)GridDurum.Iptal ||
-                            (cs.HataliMiktar <= 0 &&
-                             cs.DurumId != (int)UrunDurum.HataliUyumsuzGonderim &&
-                             cs.IstenenAdet - cs.GelenMiktar - cs.StokKarsilanan - cs.ProjeKarsilanan - cs.TedarikciKarsilanan + cs.ProjeGonderilen - cs.TrafoSevkAdet <= 0))
+                        : 0
+                })
+                .ToList();
+
+            var normalSatirRows = unitOfWork.GetRepository<CekiSatiri>()
+                .Queryable()
+                .Where(cs => cs.Ceki.Proje.ProjeTipiId == (int)ProjeTipi.Normal && !cs.KaynakCekiSatiriId.HasValue)
+                .Select(cs => new DashboardRankCekiSatiriRow
+                {
+                    Id = cs.Id,
+                    ProjeId = cs.Ceki.ProjeId,
+                    IstenenAdet = cs.IstenenAdet,
+                    GelenMiktar = cs.GelenMiktar,
+                    StokKarsilanan = cs.StokKarsilanan,
+                    ProjeKarsilanan = cs.ProjeKarsilanan,
+                    TedarikciKarsilanan = cs.TedarikciKarsilanan,
+                    ProjeGonderilen = cs.ProjeGonderilen,
+                    TrafoSevkAdet = cs.TrafoSevkAdet,
+                    HataliMiktar = cs.HataliMiktar,
+                    DurumId = cs.DurumId,
+                    GridDurumuId = cs.GridDurumuId
+                })
+                .ToList();
+
+            var sahaTamamlamaMap = await sahaTamamlamaService.GetSevkEdilenTamamlamaMapAsync(
+                normalSatirRows.Select(r => r.Id),
+                cancellationToken);
+
+            var normalOzet = normalSatirRows
+                .GroupBy(r => r.ProjeId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => new
+                    {
+                        Toplam = g.Count(),
+                        Tamamlanan = g.Count(r => HesaplaEtkinKalan(r, sahaTamamlamaMap) <= 0)
+                    });
+
+            var rows = projeRows
+                .Select(r =>
+                {
+                    if (r.ProjeTipiId == (int)ProjeTipi.Normal && normalOzet.TryGetValue(r.ProjeId, out var ozet))
+                    {
+                        r.Toplam = ozet.Toplam;
+                        r.Tamamlanan = ozet.Tamamlanan;
+                    }
+
+                    return r;
                 })
                 .ToList();
 
@@ -213,6 +281,26 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                 .ToList();
         }
 
+        private static decimal HesaplaEtkinKalan(
+            DashboardRankCekiSatiriRow row,
+            IReadOnlyDictionary<int, decimal> sahaTamamlamaMap)
+        {
+            var hamKalan = CekiSatiriKalanHelper.HesaplaHamKalan(
+                row.IstenenAdet,
+                row.GelenMiktar,
+                row.StokKarsilanan,
+                row.ProjeKarsilanan,
+                row.TedarikciKarsilanan,
+                row.ProjeGonderilen,
+                row.TrafoSevkAdet,
+                row.HataliMiktar,
+                row.DurumId,
+                row.GridDurumuId);
+
+            var sahaTamamlanan = sahaTamamlamaMap.TryGetValue(row.Id, out var value) ? value : 0;
+            return Math.Max(hamKalan - sahaTamamlanan, 0);
+        }
+
         public static DashboardPagedResultDto<T> ToPaged<T>(IReadOnlyList<T> source, int page, int pageSize)
         {
             return new DashboardPagedResultDto<T>
@@ -228,12 +316,30 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
 
     internal class DashboardRankSourceRow
     {
+        public int ProjeId { get; set; }
         public string ProjeNo { get; set; } = string.Empty;
         public string? Lokasyon { get; set; }
         public int Sandik { get; set; }
         public int Toplam { get; set; }
         public int Tamamlanan { get; set; }
+        public int ProjeTipiId { get; set; }
         public DateTime CreatedDate { get; set; }
+    }
+
+    internal class DashboardRankCekiSatiriRow
+    {
+        public int Id { get; set; }
+        public int ProjeId { get; set; }
+        public decimal IstenenAdet { get; set; }
+        public decimal GelenMiktar { get; set; }
+        public decimal StokKarsilanan { get; set; }
+        public decimal ProjeKarsilanan { get; set; }
+        public decimal TedarikciKarsilanan { get; set; }
+        public decimal ProjeGonderilen { get; set; }
+        public decimal TrafoSevkAdet { get; set; }
+        public decimal HataliMiktar { get; set; }
+        public int DurumId { get; set; }
+        public int GridDurumuId { get; set; }
     }
 
     internal class DashboardRankRow

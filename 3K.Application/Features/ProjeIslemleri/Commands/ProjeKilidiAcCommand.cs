@@ -47,12 +47,18 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHareketService _hareketService;
         private readonly ICurrentUserService _currentUserService;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
-        public ProjeKilidiAcCommandHandler(IUnitOfWork unitOfWork, IHareketService hareketService, ICurrentUserService currentUserService)
+        public ProjeKilidiAcCommandHandler(
+            IUnitOfWork unitOfWork,
+            IHareketService hareketService,
+            ICurrentUserService currentUserService,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
             _hareketService = hareketService;
             _currentUserService = currentUserService;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result> Handle(ProjeKilidiAcCommand request, CancellationToken cancellationToken)
@@ -77,10 +83,12 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             // ===== Kilit açma tipine göre sandıkları geri al veya düzeltmeye aç =====
             var sandiklar = (await sandikRepo.FindAsync(s => s.ProjeId == request.ProjeId)).ToList();
             int geriDondurulenSandik = 0;
+            var kilidiAcilanSandikIds = new List<int>();
             foreach (var sandik in sandiklar)
             {
                 if (sandik.DurumId == (int)SandikDurum.Sevkedildi)
                 {
+                    kilidiAcilanSandikIds.Add(sandik.Id);
                     if (kilitAcmaTipi == SevkiyatKilitAcmaTipi.SevkiyatGeriAlinarakAc)
                     {
                         var sevkiyatBaglari = (await sevkiyatSandikRepo.FindAsync(ss => ss.SandikId == sandik.Id)).ToList();
@@ -120,6 +128,13 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             repo.Update(proje);
 
             await _unitOfWork.SaveChangesAsync();
+
+            if (proje.ProjeTipiId == (int)ProjeTipi.Saha)
+            {
+                await _sahaTamamlamaService.SenkronizeKaynakProjelerBySahaSandikIdsAsync(
+                    kilidiAcilanSandikIds,
+                    cancellationToken);
+            }
 
             var aciklamaNotu = string.IsNullOrWhiteSpace(request.Aciklama)
                 ? "Açıklama yok"

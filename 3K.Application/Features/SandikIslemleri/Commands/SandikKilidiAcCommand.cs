@@ -52,15 +52,18 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHareketService _hareketService;
         private readonly ICurrentUserService _currentUserService;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
         public SandikKilidiAcCommandHandler(
             IUnitOfWork unitOfWork,
             IHareketService hareketService,
-            ICurrentUserService currentUserService)
+            ICurrentUserService currentUserService,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
             _hareketService = hareketService;
             _currentUserService = currentUserService;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result> Handle(SandikKilidiAcCommand request, CancellationToken cancellationToken)
@@ -134,6 +137,13 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             projeRepo.Update(proje);
 
             await _unitOfWork.SaveChangesAsync();
+
+            if (proje.ProjeTipiId == (int)ProjeTipi.Saha)
+            {
+                await _sahaTamamlamaService.SenkronizeKaynakProjelerBySahaSandikIdsAsync(
+                    new[] { sandik.Id },
+                    cancellationToken);
+            }
 
             var aciklamaNotu = string.IsNullOrWhiteSpace(request.Aciklama)
                 ? "Açıklama yok"
