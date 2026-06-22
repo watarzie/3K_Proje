@@ -969,7 +969,7 @@ namespace _3K.Infrastructure.Services
             return pdfStream.ToArray();
         }
         /// <summary>
-        /// Normal projelerdeki Grid durumu Eksik/Gelmedi ve Kalan > 0 olan ürünlerin PDF raporu.
+        /// Normal projelerde kalan ürünlerin, saha projelerinde sevk sonrası tüm satırların PDF raporu.
         /// </summary>
         public async Task<byte[]> EksikUrunlerRaporuPdfOlusturAsync(int projeId)
         {
@@ -993,11 +993,12 @@ namespace _3K.Infrastructure.Services
                 .ToListAsync();
 
             var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar);
+            var sahaEksikRaporuMu = proje.ProjeTipiId == (int)ProjeTipi.Saha;
 
-            // Memory'de kalan > 0 filtresi (computed property)
+            // Normal projelerde eksik filtresi korunur; saha sevk sonrası raporunda tamamlananlar da listelenir.
             // Sıralama: Sandık numarasına göre sayısal (1,2,3...10,11), sonra sıra numarasına göre
-            var eksikSatirlar = satirlar
-                .Where(cs => GetEksikRaporKalan(cs, tamamlamaPlanMap) > 0)
+            var raporSatirlari = satirlar
+                .Where(cs => sahaEksikRaporuMu || GetEksikRaporKalan(cs, tamamlamaPlanMap) > 0)
                 .OrderBy(cs =>
                 {
                     var sandikStr = cs.FiiliSandikNo ?? cs.CekideGecenSandikNo ?? "";
@@ -1013,23 +1014,24 @@ namespace _3K.Infrastructure.Services
             // Renk paleti
             var headerBg = Colors.Blue.Darken3;
             var headerText = Colors.White;
-            var summaryBg = "#F0F7FF";
             var dangerColor = "#D32F2F";
             var warningColor = "#F57C00";
             var tableBorderColor = Colors.Grey.Lighten2;
             var altRowBg = "#F8FAFE";
 
-            var sahaEksikRaporuMu = proje.ProjeTipiId == (int)ProjeTipi.Saha;
             var raporBasligi = sahaEksikRaporuMu ? "Sevk Sonrası Eksik Raporu" : "Eksik Ürünler Raporu";
             var raporAltBasligi = sahaEksikRaporuMu
                 ? "3K Sevkiyat Yönetim Sistemi - Saha Sevk Sonrası Eksik Çıktısı"
                 : "3K Sevkiyat Yönetim Sistemi - Proje Eksik Ürün Çıktısı";
             var raporTarihi = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
-            var toplamEksikUrun = eksikSatirlar.Count;
-            var toplamKalanAdet = eksikSatirlar.Sum(s => GetEksikRaporKalan(s, tamamlamaPlanMap));
-            var toplamIstenenAdet = eksikSatirlar.Sum(s => s.IstenenAdet);
-            var toplamGelenAdet = eksikSatirlar.Sum(s => s.GelenMiktar + s.StokKarsilanan + s.ProjeKarsilanan + s.TedarikciKarsilanan);
-            var (projedenAlinanMap, projeyeVerilenMap) = await GetProjeTransferRaporMapleriAsync(eksikSatirlar);
+            var toplamRaporUrun = raporSatirlari.Count;
+            var toplamEksikUrun = raporSatirlari.Count(s => GetEksikRaporKalan(s, tamamlamaPlanMap) > 0);
+            var toplamTamamlananUrun = toplamRaporUrun - toplamEksikUrun;
+            var toplamKalanAdet = raporSatirlari.Sum(s => GetEksikRaporKalan(s, tamamlamaPlanMap));
+            var toplamIstenenAdet = raporSatirlari.Sum(s => s.IstenenAdet);
+            var toplamGelenAdet = raporSatirlari.Sum(s => s.GelenMiktar + s.StokKarsilanan + s.ProjeKarsilanan + s.TedarikciKarsilanan);
+            var summaryAccentColor = sahaEksikRaporuMu ? "#1565C0" : dangerColor;
+            var (projedenAlinanMap, projeyeVerilenMap) = await GetProjeTransferRaporMapleriAsync(raporSatirlari);
 
             var document = Document.Create(container =>
             {
@@ -1076,11 +1078,13 @@ namespace _3K.Infrastructure.Services
 
                             row.ConstantItem(10); // Spacer
 
-                            // Eksik Özet
-                            row.RelativeItem().Border(1).BorderColor(dangerColor).Padding(8).Column(col =>
+                            // Özet
+                            row.RelativeItem().Border(1).BorderColor(summaryAccentColor).Padding(8).Column(col =>
                             {
-                                col.Item().Text("EKSİK ÖZET").Bold().FontSize(7).FontColor(dangerColor);
-                                col.Item().PaddingTop(3).Text($"{toplamEksikUrun} ürün eksik").Bold().FontSize(13).FontColor(dangerColor);
+                                col.Item().Text(sahaEksikRaporuMu ? "DURUM ÖZET" : "EKSİK ÖZET").Bold().FontSize(7).FontColor(summaryAccentColor);
+                                col.Item().PaddingTop(3).Text(sahaEksikRaporuMu ? $"{toplamRaporUrun} ürün listeleniyor" : $"{toplamEksikUrun} ürün eksik").Bold().FontSize(13).FontColor(summaryAccentColor);
+                                if (sahaEksikRaporuMu)
+                                    col.Item().Text($"Eksik: {toplamEksikUrun} / Tamamlanan: {toplamTamamlananUrun}").FontSize(8);
                                 col.Item().Text($"Toplam Kalan: {FormatAdet(toplamKalanAdet)} adet").FontSize(8);
                                 col.Item().Text($"Karşılama Oranı: %{FormatAdet(toplamIstenenAdet > 0 ? (toplamGelenAdet * 100 / toplamIstenenAdet) : 0)}").FontSize(8);
                             });
@@ -1143,12 +1147,13 @@ namespace _3K.Infrastructure.Services
 
                         // Data satırları
                         int sira = 1;
-                        foreach (var cs in eksikSatirlar)
+                        foreach (var cs in raporSatirlari)
                         {
                             var bg = sira % 2 == 0 ? altRowBg : "#FFFFFF";
                             var karsilanan = cs.StokKarsilanan + cs.ProjeKarsilanan + cs.TedarikciKarsilanan;
                             var ucKDurum = cs.UcKDurumLookup?.Deger ?? "-";
                             var sandikNo = cs.FiiliSandikNo ?? cs.CekideGecenSandikNo;
+                            var kalan = GetEksikRaporKalan(cs, tamamlamaPlanMap);
 
                             void DataCell(IContainer c, string text, bool bold = false, string? fontColor = null)
                             {
@@ -1173,7 +1178,7 @@ namespace _3K.Infrastructure.Services
                             var projeyeVerildi = GetProjeyeVerilenRaporMetni(cs, projeyeVerilenMap);
                             DataCell(table.Cell(), projedenAlindi, fontColor: projedenAlindi != "-" ? "#2E7D32" : null);
                             DataCell(table.Cell(), projeyeVerildi, fontColor: projeyeVerildi != "-" ? "#1565C0" : null);
-                            DataCell(table.Cell(), FormatAdet(GetEksikRaporKalan(cs, tamamlamaPlanMap)), bold: true, fontColor: dangerColor);
+                            DataCell(table.Cell(), FormatAdet(kalan), bold: true, fontColor: kalan > 0 ? dangerColor : "#2E7D32");
                             DataCell(table.Cell(), ucKDurum, fontColor: cs.UcKKarsilamaTipiId == (int)_3K.Core.Enums.UcKDurum.Bekliyor ? dangerColor : warningColor);
                             DataCell(table.Cell(), cs.SurecDurumLookup?.Deger ?? "-");
 
@@ -1771,21 +1776,23 @@ namespace _3K.Infrastructure.Services
                 .ToListAsync();
 
             var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar);
+            var sahaEksikRaporuMu = proje.ProjeTipiId == (int)ProjeTipi.Saha;
 
-            var eksikSatirlar = satirlar
-                .Where(cs => GetEksikRaporKalan(cs, tamamlamaPlanMap) > 0)
+            var raporSatirlari = satirlar
+                .Where(cs => sahaEksikRaporuMu || GetEksikRaporKalan(cs, tamamlamaPlanMap) > 0)
                 .OrderBy(cs => GetRaporSandikSortKey(cs.FiiliSandikNo ?? cs.CekideGecenSandikNo))
                 .ThenBy(cs => cs.FiiliSandikNo ?? cs.CekideGecenSandikNo)
                 .ThenBy(cs => cs.SiraNo)
                 .ToList();
 
-            var toplamEksikUrun = eksikSatirlar.Count;
-            var toplamKalanAdet = eksikSatirlar.Sum(s => GetEksikRaporKalan(s, tamamlamaPlanMap));
-            var toplamIstenenAdet = eksikSatirlar.Sum(s => s.IstenenAdet);
-            var toplamGelenAdet = eksikSatirlar.Sum(s => s.GelenMiktar + s.StokKarsilanan + s.ProjeKarsilanan + s.TedarikciKarsilanan);
+            var toplamRaporUrun = raporSatirlari.Count;
+            var toplamEksikUrun = raporSatirlari.Count(s => GetEksikRaporKalan(s, tamamlamaPlanMap) > 0);
+            var toplamTamamlananUrun = toplamRaporUrun - toplamEksikUrun;
+            var toplamKalanAdet = raporSatirlari.Sum(s => GetEksikRaporKalan(s, tamamlamaPlanMap));
+            var toplamIstenenAdet = raporSatirlari.Sum(s => s.IstenenAdet);
+            var toplamGelenAdet = raporSatirlari.Sum(s => s.GelenMiktar + s.StokKarsilanan + s.ProjeKarsilanan + s.TedarikciKarsilanan);
             var karsilamaOrani = toplamIstenenAdet > 0 ? toplamGelenAdet * 100 / toplamIstenenAdet : 0;
-            var (projedenAlinanMap, projeyeVerilenMap) = await GetProjeTransferRaporMapleriAsync(eksikSatirlar);
-            var sahaEksikRaporuMu = proje.ProjeTipiId == (int)ProjeTipi.Saha;
+            var (projedenAlinanMap, projeyeVerilenMap) = await GetProjeTransferRaporMapleriAsync(raporSatirlari);
             var raporBasligi = sahaEksikRaporuMu ? "Sevk Sonrası Eksik Raporu" : "Eksik Ürünler Raporu";
 
             using var workbook = new XLWorkbook();
@@ -1803,12 +1810,26 @@ namespace _3K.Infrastructure.Services
             worksheet.Cell(2, 8).Value = "Rapor Tarihi";
             worksheet.Cell(2, 9).Value = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
 
-            worksheet.Cell(3, 1).Value = "Eksik Ürün";
-            SetDecimalCell(worksheet.Cell(3, 2), toplamEksikUrun);
-            worksheet.Cell(3, 4).Value = "Toplam Kalan";
-            SetDecimalCell(worksheet.Cell(3, 5), toplamKalanAdet);
-            worksheet.Cell(3, 8).Value = "Karşılama Oranı";
-            worksheet.Cell(3, 9).Value = $"%{FormatAdet(karsilamaOrani)}";
+            if (sahaEksikRaporuMu)
+            {
+                worksheet.Cell(3, 1).Value = "Toplam Ürün";
+                SetDecimalCell(worksheet.Cell(3, 2), toplamRaporUrun);
+                worksheet.Cell(3, 4).Value = "Durum";
+                worksheet.Cell(3, 5).Value = $"Eksik: {toplamEksikUrun} / Tamamlanan: {toplamTamamlananUrun}";
+                worksheet.Cell(3, 8).Value = "Toplam Kalan";
+                SetDecimalCell(worksheet.Cell(3, 9), toplamKalanAdet);
+                worksheet.Cell(3, 11).Value = "Karşılama Oranı";
+                worksheet.Cell(3, 12).Value = $"%{FormatAdet(karsilamaOrani)}";
+            }
+            else
+            {
+                worksheet.Cell(3, 1).Value = "Eksik Ürün";
+                SetDecimalCell(worksheet.Cell(3, 2), toplamEksikUrun);
+                worksheet.Cell(3, 4).Value = "Toplam Kalan";
+                SetDecimalCell(worksheet.Cell(3, 5), toplamKalanAdet);
+                worksheet.Cell(3, 8).Value = "Karşılama Oranı";
+                worksheet.Cell(3, 9).Value = $"%{FormatAdet(karsilamaOrani)}";
+            }
             StyleExcelInfoRows(worksheet, lastColumn);
 
             var headers = new[]
@@ -1825,12 +1846,13 @@ namespace _3K.Infrastructure.Services
 
             var row = headerRow + 1;
             var sira = 1;
-            foreach (var cs in eksikSatirlar)
+            foreach (var cs in raporSatirlari)
             {
                 var karsilanan = cs.StokKarsilanan + cs.ProjeKarsilanan + cs.TedarikciKarsilanan;
                 var sandikNo = cs.FiiliSandikNo ?? cs.CekideGecenSandikNo;
                 var projedenAlindi = GetProjedenAlinanRaporMetni(cs, projedenAlinanMap);
                 var projeyeVerildi = GetProjeyeVerilenRaporMetni(cs, projeyeVerilenMap);
+                var kalan = GetEksikRaporKalan(cs, tamamlamaPlanMap);
 
                 worksheet.Cell(row, 1).SetValue(sira);
                 worksheet.Cell(row, 2).SetValue(cs.SiraNo);
@@ -1844,7 +1866,9 @@ namespace _3K.Infrastructure.Services
                 if (cs.GeriGonderilenMiktar > 0) SetDecimalCell(worksheet.Cell(row, 10), cs.GeriGonderilenMiktar); else worksheet.Cell(row, 10).Value = "-";
                 worksheet.Cell(row, 11).Value = projedenAlindi;
                 worksheet.Cell(row, 12).Value = projeyeVerildi;
-                SetDecimalCell(worksheet.Cell(row, 13), GetEksikRaporKalan(cs, tamamlamaPlanMap));
+                SetDecimalCell(worksheet.Cell(row, 13), kalan);
+                worksheet.Cell(row, 13).Style.Font.Bold = true;
+                worksheet.Cell(row, 13).Style.Font.FontColor = XLColor.FromHtml(kalan > 0 ? "#D32F2F" : "#2E7D32");
                 worksheet.Cell(row, 14).Value = cs.UcKDurumLookup?.Deger ?? "-";
                 worksheet.Cell(row, 15).Value = cs.SurecDurumLookup?.Deger ?? "-";
 
