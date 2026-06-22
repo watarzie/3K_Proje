@@ -11,15 +11,18 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserService _currentUserService;
         private readonly IHareketService _hareketService;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
         public SandikKapatCommandHandler(
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUserService,
-            IHareketService hareketService)
+            IHareketService hareketService,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _hareketService = hareketService;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<SandikKapatResult> Handle(SandikKapatCommand request, CancellationToken cancellationToken)
@@ -53,6 +56,30 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             var icerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
             var icerikler = await icerikRepo.FindAsync(si => si.SandikId == request.SandikId);
             
+            var icerikSatirIds = icerikler
+                .Where(i => i.CekiSatiriId.HasValue)
+                .Select(i => i.CekiSatiriId!.Value)
+                .Distinct()
+                .ToList();
+
+            if (icerikSatirIds.Count > 0)
+            {
+                var icerikSatirlari = await cekiSatiriRepo.FindAsync(cs => icerikSatirIds.Contains(cs.Id));
+                var sahayaAktarilanSatirIdleri = await SahaAktarimBlokajHelper.GetAktarilanKaynakSatirIdleriAsync(
+                    _sahaTamamlamaService,
+                    icerikSatirlari,
+                    cancellationToken);
+
+                if (sahayaAktarilanSatirIdleri.Any())
+                {
+                    return new SandikKapatResult
+                    {
+                        IsSuccess = false,
+                        Message = "Bu sandıkta sahaya aktarılmış ürünler var. Kaynak proje sandığı kapatılamaz; işlem saha projesinde yürütülmelidir."
+                    };
+                }
+            }
+
             var hataliVeyaEksikUrunler = new List<object>();
 
             foreach (var icerik in icerikler)

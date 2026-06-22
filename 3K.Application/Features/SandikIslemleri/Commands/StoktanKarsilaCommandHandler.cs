@@ -12,15 +12,18 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHareketService _hareketService;
         private readonly IDurumHesaplaService _durumHesaplaService;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
         public StoktanKarsilaCommandHandler(
             IUnitOfWork unitOfWork,
             IHareketService hareketService,
-            IDurumHesaplaService durumHesaplaService)
+            IDurumHesaplaService durumHesaplaService,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
             _hareketService = hareketService;
             _durumHesaplaService = durumHesaplaService;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result> Handle(StoktanKarsilaCommand request, CancellationToken cancellationToken)
@@ -35,6 +38,10 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             if (urun == null) return Result.Failure("Ürün bulunamadı.", 404);
             if (stok == null) return Result.Failure("Stok kaydı bulunamadı.", 404);
+            if (!urun.KaynakCekiSatiriId.HasValue &&
+                await _sahaTamamlamaService.AktifTamamlamaVarMiAsync(urun.Id, cancellationToken))
+                return Result.Failure("Bu ürün sahaya aktarıldığı için normal proje üzerinden stoktan karşılama yapılamaz. İşlem saha projesinde yürütülmelidir.");
+
             if (await SandikSevkKilidiHelper.CekiSatiriSevkEdilmisSandiktaMiAsync(_unitOfWork, urun))
                 return Result.Failure(SandikSevkKilidiHelper.UrunKilitliMesaji);
             if (stok.Miktar < request.KarsilananAdet)

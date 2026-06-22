@@ -18,17 +18,20 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
         private readonly ICurrentUserService _currentUserService;
         private readonly IDurumHesaplaService _durumHesaplaService;
         private readonly IHareketService _hareketService;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
         public TopluDurumGuncelleCommandHandler(
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUserService,
             IDurumHesaplaService durumHesaplaService,
-            IHareketService hareketService)
+            IHareketService hareketService,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _durumHesaplaService = durumHesaplaService;
             _hareketService = hareketService;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result> Handle(TopluDurumGuncelleCommand request, CancellationToken cancellationToken)
@@ -57,6 +60,12 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 if (kilitliSatirIdleri.Contains(satir.Id))
                 {
                     atlananlar.Add($"#{satir.SiraNo} ({satir.Aciklama}) - {SandikSevkKilidiHelper.UrunKilitliMesaji}");
+                    continue;
+                }
+
+                if (await SahaAktarimBlokajHelper.KaynakSatirAktarildiMiAsync(_sahaTamamlamaService, satir, cancellationToken))
+                {
+                    atlananlar.Add($"#{satir.SiraNo} ({satir.Aciklama}) - {SahaAktarimBlokajHelper.UcKMesaji}");
                     continue;
                 }
 

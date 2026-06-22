@@ -11,21 +11,39 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
     {
         private readonly ISandikService _sandikService;
         private readonly ILookupCacheService _lookupCache;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
-        public GetProjeSandiklariQueryHandler(ISandikService sandikService, ILookupCacheService lookupCache)
+        public GetProjeSandiklariQueryHandler(
+            ISandikService sandikService,
+            ILookupCacheService lookupCache,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _sandikService = sandikService;
             _lookupCache = lookupCache;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result<IEnumerable<SandikDto>>> Handle(GetProjeSandiklariQuery request, CancellationToken cancellationToken)
         {
-            var sandiklar = await _sandikService.GetProjeSandiklariAsync(request.ProjeId);
+            var sandiklar = (await _sandikService.GetProjeSandiklariAsync(request.ProjeId)).ToList();
+            var kaynakSatirIdleri = sandiklar
+                .SelectMany(s => s.SandikIcerikleri ?? new List<SandikIcerik>())
+                .Select(i => i.CekiSatiri)
+                .Where(cs => cs != null && !cs.KaynakCekiSatiriId.HasValue)
+                .Select(cs => cs!.Id)
+                .Distinct()
+                .ToList();
+            var sahaTamamlamaMap = await _sahaTamamlamaService.GetAktifTamamlamaMapAsync(kaynakSatirIdleri, cancellationToken);
 
             var result = sandiklar.Select(s =>
             {
                 var icerikler = s.SandikIcerikleri?.ToList() ?? new List<SandikIcerik>();
                 var isManuelSandik = IsManuelSandik(icerikler);
+                var sahayaAktarilanMiktar = icerikler
+                    .Select(i => i.CekiSatiri)
+                    .Where(cs => cs != null && !cs.KaynakCekiSatiriId.HasValue)
+                    .Select(cs => sahaTamamlamaMap.GetValueOrDefault(cs!.Id))
+                    .Sum();
 
                 return new SandikDto
                 {
@@ -41,6 +59,8 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                     IsManuelSandik = isManuelSandik,
                     SilinebilirMi = icerikler.Count == 0 || (isManuelSandik && icerikler.All(i => !ManuelSatirIslemGormus(i.CekiSatiri!))),
                     DepodaSayilacakMi = s.DepoLokasyonId != (int)DepoLokasyon.Belirsiz && DepodaSayilacakSandik(s, icerikler),
+                    SahayaAktarildiMi = sahayaAktarilanMiktar > 0,
+                    SahayaAktarilanMiktar = sahayaAktarilanMiktar,
                     En = s.En,
                     Boy = s.Boy,
                     Yukseklik = s.Yukseklik,

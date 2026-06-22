@@ -14,6 +14,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
         private readonly IDurumHesaplaService _durumHesaplaService;
         private readonly IHareketService _hareketService;
         private readonly ILookupCacheService _lookupCache;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
         private static readonly int[] GecerliDurumlar =
             { (int)GridDurum.TamGeldi, (int)GridDurum.EksikGeldi, (int)GridDurum.Gelmedi, (int)GridDurum.TrafoSevk, (int)GridDurum.Iptal, (int)GridDurum.Sipariste, (int)GridDurum.Bekliyor, (int)GridDurum.GridKapandi };
@@ -23,13 +24,15 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             ICurrentUserService currentUserService,
             IDurumHesaplaService durumHesaplaService,
             IHareketService hareketService,
-            ILookupCacheService lookupCache)
+            ILookupCacheService lookupCache,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _durumHesaplaService = durumHesaplaService;
             _hareketService = hareketService;
             _lookupCache = lookupCache;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result> Handle(GridDurumGuncelleCommand request, CancellationToken cancellationToken)
@@ -43,6 +46,10 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
             if (satir == null)
                 return Result.Failure("Ürün bulunamadı.", 404);
+
+            if (!satir.KaynakCekiSatiriId.HasValue &&
+                await _sahaTamamlamaService.AktifTamamlamaVarMiAsync(satir.Id, cancellationToken))
+                return Result.Failure("Bu ürün sahaya aktarıldığı için normal proje üzerinden Grid işlemi yapılamaz. İşlem saha projesinde yürütülmelidir.");
 
             if (await SandikSevkKilidiHelper.CekiSatiriSevkEdilmisSandiktaMiAsync(_unitOfWork, satir))
                 return Result.Failure(SandikSevkKilidiHelper.UrunKilitliMesaji);

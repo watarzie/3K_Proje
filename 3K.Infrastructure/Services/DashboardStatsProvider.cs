@@ -93,7 +93,7 @@ namespace _3K.Infrastructure.Services
                 })
                 .ToListAsync(ct);
 
-            var normalSahaTamamlamaMap = await GetSevkEdilenSahaTamamlamaMapAsync(
+            var normalSahaTamamlamaMap = await GetAktifSahaTamamlamaMapAsync(
                 normalSatirStatsRows.Select(r => r.Id),
                 ct);
             var normalEksikUrun = normalSatirStatsRows.Count(r => HesaplaEtkinKalan(r, normalSahaTamamlamaMap) > 0);
@@ -293,7 +293,7 @@ namespace _3K.Infrastructure.Services
             return (int)ProjeDurum.Hazirlaniyor;
         }
 
-        private async Task<Dictionary<int, decimal>> GetSevkEdilenSahaTamamlamaMapAsync(
+        private async Task<Dictionary<int, decimal>> GetAktifSahaTamamlamaMapAsync(
             IEnumerable<int> kaynakCekiSatiriIds,
             CancellationToken cancellationToken)
         {
@@ -310,8 +310,7 @@ namespace _3K.Infrastructure.Services
                 .Where(cs =>
                     cs.KaynakCekiSatiriId.HasValue &&
                     kaynakIds.Contains(cs.KaynakCekiSatiriId.Value) &&
-                    cs.Ceki.Proje.ProjeTipiId == (int)ProjeTipi.Saha &&
-                    cs.SandikIcerikleri.Any(si => si.Sandik.DurumId == (int)SandikDurum.Sevkedildi))
+                    cs.Ceki.Proje.ProjeTipiId == (int)ProjeTipi.Saha)
                 .GroupBy(cs => cs.KaynakCekiSatiriId!.Value)
                 .Select(g => new
                 {

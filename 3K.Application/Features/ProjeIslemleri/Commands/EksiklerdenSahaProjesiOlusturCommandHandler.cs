@@ -139,8 +139,23 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                     return Result<ProjeDto>.Failure($"'{kaynakSatir.Aciklama}' için istenen miktar kalan eksik adetten büyük. Kalan: {FormatAdet(kalanPlanlanabilir)}");
             }
 
+            Proje? hedefSahaProje = null;
+            if (request.HedefSahaProjeId.HasValue)
+            {
+                hedefSahaProje = await projeRepo.GetByIdAsync(request.HedefSahaProjeId.Value);
+                if (hedefSahaProje == null)
+                    return Result<ProjeDto>.Failure("Hedef saha projesi bulunamadı.", 404);
+
+                if (hedefSahaProje.ProjeTipiId != (int)ProjeTipi.Saha)
+                    return Result<ProjeDto>.Failure("Aktarım sadece saha projelerine eklenebilir.");
+
+                if (hedefSahaProje.DurumId == (int)ProjeDurum.SevkEdildi ||
+                    hedefSahaProje.DurumId == (int)ProjeDurum.EksikSevkEdildi)
+                    return Result<ProjeDto>.Failure("Sevk edilmiş veya kısmi sevk edilmiş saha projesine yeni aktarım eklenemez.");
+            }
+
             var projeNoTalebi = string.IsNullOrWhiteSpace(request.ProjeNo) ? null : request.ProjeNo.Trim();
-            if (!string.IsNullOrWhiteSpace(projeNoTalebi))
+            if (hedefSahaProje == null && !string.IsNullOrWhiteSpace(projeNoTalebi))
             {
                 var projeNoKullanimda = (await projeRepo.FindAsync(p => p.ProjeNo == projeNoTalebi)).Any();
                 if (projeNoKullanimda)
@@ -148,64 +163,94 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             }
 
             var tekKaynakMi = kaynakProjeler.Count == 1;
-            var baseSahaProjeNo = tekKaynakMi
-                ? $"{varsayilanKaynakProje.ProjeNo}-SAHA"
-                : $"SAHA-{TurkeyTime.Now:yyyyMMdd}";
-            var sahaProjeNo = projeNoTalebi ?? await GenerateSahaProjeNoAsync(baseSahaProjeNo);
-            var yeniProje = new Proje
+            var yeniProjeOlusturuldu = hedefSahaProje == null;
+            var yeniProje = hedefSahaProje;
+            if (yeniProje == null)
             {
-                ProjeNo = sahaProjeNo,
-                Musteri = string.IsNullOrWhiteSpace(request.Musteri)
-                    ? (tekKaynakMi ? varsayilanKaynakProje.Musteri : "Çoklu Proje")
-                    : request.Musteri.Trim(),
-                DurumId = (int)ProjeDurum.Hazirlaniyor,
-                ProjeTipiId = (int)ProjeTipi.Saha,
-                PlanlananSevkTarihi = tekKaynakMi ? varsayilanKaynakProje.PlanlananSevkTarihi : null,
-                SorumluKisi = tekKaynakMi ? varsayilanKaynakProje.SorumluKisi : string.Empty,
-                Lokasyon = string.IsNullOrWhiteSpace(request.Lokasyon)
-                    ? (tekKaynakMi ? varsayilanKaynakProje.Lokasyon : null)
-                    : request.Lokasyon.Trim(),
-                FBNo = tekKaynakMi ? varsayilanKaynakProje.FBNo : null,
-                Guc = tekKaynakMi ? varsayilanKaynakProje.Guc : null,
-                Gerilim = tekKaynakMi ? varsayilanKaynakProje.Gerilim : null,
-                OlcuResmiNo = tekKaynakMi ? varsayilanKaynakProje.OlcuResmiNo : null,
-                NakilOlcuResmiNo = tekKaynakMi ? varsayilanKaynakProje.NakilOlcuResmiNo : null,
-                SonMontajResmiNo = tekKaynakMi ? varsayilanKaynakProje.SonMontajResmiNo : null,
-                ProjeMuduru = tekKaynakMi ? varsayilanKaynakProje.ProjeMuduru : null
-            };
+                var baseSahaProjeNo = tekKaynakMi
+                    ? $"{varsayilanKaynakProje.ProjeNo}-SAHA"
+                    : $"SAHA-{TurkeyTime.Now:yyyyMMdd}";
+                var sahaProjeNo = projeNoTalebi ?? await GenerateSahaProjeNoAsync(baseSahaProjeNo);
+                yeniProje = new Proje
+                {
+                    ProjeNo = sahaProjeNo,
+                    Musteri = string.IsNullOrWhiteSpace(request.Musteri)
+                        ? (tekKaynakMi ? varsayilanKaynakProje.Musteri : "Çoklu Proje")
+                        : request.Musteri.Trim(),
+                    DurumId = (int)ProjeDurum.Hazirlaniyor,
+                    ProjeTipiId = (int)ProjeTipi.Saha,
+                    PlanlananSevkTarihi = tekKaynakMi ? varsayilanKaynakProje.PlanlananSevkTarihi : null,
+                    SorumluKisi = tekKaynakMi ? varsayilanKaynakProje.SorumluKisi : string.Empty,
+                    Lokasyon = string.IsNullOrWhiteSpace(request.Lokasyon)
+                        ? (tekKaynakMi ? varsayilanKaynakProje.Lokasyon : null)
+                        : request.Lokasyon.Trim(),
+                    FBNo = tekKaynakMi ? varsayilanKaynakProje.FBNo : null,
+                    Guc = tekKaynakMi ? varsayilanKaynakProje.Guc : null,
+                    Gerilim = tekKaynakMi ? varsayilanKaynakProje.Gerilim : null,
+                    OlcuResmiNo = tekKaynakMi ? varsayilanKaynakProje.OlcuResmiNo : null,
+                    NakilOlcuResmiNo = tekKaynakMi ? varsayilanKaynakProje.NakilOlcuResmiNo : null,
+                    SonMontajResmiNo = tekKaynakMi ? varsayilanKaynakProje.SonMontajResmiNo : null,
+                    ProjeMuduru = tekKaynakMi ? varsayilanKaynakProje.ProjeMuduru : null
+                };
 
-            await projeRepo.AddAsync(yeniProje);
-            await _unitOfWork.SaveChangesAsync();
+                await projeRepo.AddAsync(yeniProje);
+                await _unitOfWork.SaveChangesAsync();
+            }
 
             var kaynakCekiId = kaynakCekiIdler.Count == 1 ? kaynakCekiIdler[0] : (int?)null;
-            var sahaCeki = new Ceki
+            Ceki? sahaCeki = null;
+            if (!yeniProjeOlusturuldu)
             {
-                ProjeId = yeniProje.Id,
-                OrijinalDosyaYolu = string.Empty,
-                YuklemeTarihi = TurkeyTime.Now,
-                CekiTipiId = (int)CekiTipi.EksikTamamlama,
-                KaynakCekiId = kaynakCekiId,
-                TamamlamaNo = 1,
-                Aciklama = string.IsNullOrWhiteSpace(request.Aciklama)
-                    ? $"Kaynak projeler: {string.Join(", ", kaynakProjeNolari)}"
-                    : request.Aciklama.Trim()
-            };
+                sahaCeki = (await cekiRepo.FindAsync(c =>
+                        c.ProjeId == yeniProje.Id &&
+                        c.CekiTipiId == (int)CekiTipi.EksikTamamlama))
+                    .OrderBy(c => c.Id)
+                    .FirstOrDefault();
+            }
 
-            await cekiRepo.AddAsync(sahaCeki);
-            await _unitOfWork.SaveChangesAsync();
+            if (sahaCeki == null)
+            {
+                var mevcutTamamlamaNo = (await cekiRepo.FindAsync(c =>
+                        c.ProjeId == yeniProje.Id &&
+                        c.CekiTipiId == (int)CekiTipi.EksikTamamlama))
+                    .Select(c => c.TamamlamaNo ?? 0)
+                    .DefaultIfEmpty(0)
+                    .Max();
+
+                sahaCeki = new Ceki
+                {
+                    ProjeId = yeniProje.Id,
+                    OrijinalDosyaYolu = string.Empty,
+                    YuklemeTarihi = TurkeyTime.Now,
+                    CekiTipiId = (int)CekiTipi.EksikTamamlama,
+                    KaynakCekiId = kaynakCekiId,
+                    TamamlamaNo = mevcutTamamlamaNo + 1,
+                    Aciklama = string.IsNullOrWhiteSpace(request.Aciklama)
+                        ? $"Kaynak projeler: {string.Join(", ", kaynakProjeNolari)}"
+                        : request.Aciklama.Trim()
+                };
+
+                await cekiRepo.AddAsync(sahaCeki);
+                await _unitOfWork.SaveChangesAsync();
+            }
 
             var sandikRepo = _unitOfWork.GetRepository<Sandik>();
             var icerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
-            var siraNo = 1;
+            var mevcutSahaSatirlari = (await cekiSatiriRepo.FindAsync(cs => cs.CekiId == sahaCeki.Id)).ToList();
+            var siraNo = mevcutSahaSatirlari.Any() ? mevcutSahaSatirlari.Max(cs => cs.SiraNo) + 1 : 1;
+            var mevcutSandikNolari = (await sandikRepo.FindAsync(s => s.ProjeId == yeniProje.Id))
+                .Select(s => s.SandikNo)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
             var toplamSatir = 0;
             var toplamAdet = 0m;
 
             foreach (var sandikTaslak in sandikTaslaklari)
             {
+                var sandikNo = GenerateUniqueSandikNo(sandikTaslak.SandikNo, mevcutSandikNolari);
                 var sandik = new Sandik
                 {
                     ProjeId = yeniProje.Id,
-                    SandikNo = sandikTaslak.SandikNo,
+                    SandikNo = sandikNo,
                     Ad = sandikTaslak.SandikIsmi,
                     En = sandikTaslak.En,
                     Boy = sandikTaslak.Boy,
@@ -274,10 +319,12 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 ProjeId = yeniProje.Id,
                 ReferansTipi = "Proje",
                 ReferansId = yeniProje.Id.ToString(),
-                Islem = "Eksiklerden Saha Projesi Oluşturuldu",
+                Islem = yeniProjeOlusturuldu ? "Eksiklerden Saha Projesi Oluşturuldu" : "Saha Projesine Eksik Aktarımı Eklendi",
                 IslemTipiId = (int)IslemTipi.ProjeOlusturuldu,
                 KullaniciId = _currentUserService.UserId ?? 0,
-                Aciklama = $"{string.Join(", ", kaynakProjeNolari)} kaynak projesinden {sandikTaslaklari.Count} sandık, {toplamSatir} satır, {FormatAdet(toplamAdet)} adet için saha projesi oluşturuldu."
+                Aciklama = yeniProjeOlusturuldu
+                    ? $"{string.Join(", ", kaynakProjeNolari)} kaynak projesinden {sandikTaslaklari.Count} sandık, {toplamSatir} satır, {FormatAdet(toplamAdet)} adet için saha projesi oluşturuldu."
+                    : $"{string.Join(", ", kaynakProjeNolari)} kaynak projesinden {sandikTaslaklari.Count} sandık, {toplamSatir} satır, {FormatAdet(toplamAdet)} adet mevcut saha projesine eklendi."
             });
 
             return Result<ProjeDto>.Success(new ProjeDto
@@ -319,6 +366,24 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             return string.IsNullOrWhiteSpace(value)
                 ? string.Empty
                 : value.Trim();
+        }
+
+        private static string GenerateUniqueSandikNo(string baseNo, HashSet<string> usedSandikNos)
+        {
+            var normalized = NormalizeSandikNo(baseNo);
+            if (usedSandikNos.Add(normalized))
+                return normalized;
+
+            var index = 2;
+            string candidate;
+            do
+            {
+                candidate = $"{normalized}-{index}";
+                index++;
+            }
+            while (!usedSandikNos.Add(candidate));
+
+            return candidate;
         }
 
         private static bool IsNegative(decimal? value)

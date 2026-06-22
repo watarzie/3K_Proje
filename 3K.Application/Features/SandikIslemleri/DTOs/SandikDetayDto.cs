@@ -10,6 +10,8 @@ namespace _3K.Application.Features.SandikIslemleri.DTOs
         public bool SevkiyatDuzeltmeAcikMi { get; set; }
         public int DepoLokasyonId { get; set; }
         public string DepoLokasyonMetni { get; set; } = string.Empty;
+        public bool SahayaAktarildiMi { get; set; }
+        public decimal SahayaAktarilanMiktar { get; set; }
         
         // Fiziksel Özellikler
         public decimal? En { get; set; }

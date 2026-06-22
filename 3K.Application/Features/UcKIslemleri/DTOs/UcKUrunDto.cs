@@ -12,6 +12,8 @@ namespace _3K.Application.Features.UcKIslemleri.DTOs
         public string? KaynakSandikNo { get; set; }
         public int? KaynakSiraNo { get; set; }
         public List<SahaTamamlamaIzDto> SahaTamamlamalari { get; set; } = new();
+        public bool SahaAktarildiMi { get; set; }
+        public decimal SahaAktarilanMiktar { get; set; }
         public int SiraNo { get; set; }
         public string BarkodNo { get; set; } = string.Empty;
         public string? OlcuResmiPozNo { get; set; }

@@ -12,15 +12,18 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserService _currentUserService;
         private readonly IHareketService _hareketService;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
         public SandikUrunTasiCommandHandler(
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUserService,
-            IHareketService hareketService)
+            IHareketService hareketService,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _hareketService = hareketService;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result> Handle(SandikUrunTasiCommand request, CancellationToken cancellationToken)
@@ -49,6 +52,14 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 return Result.Failure("Kaynak sandık sevk edildiği için içinden ürün taşınamaz.");
 
             // Hedef sandık var mı?
+            if (kaynakIcerik.CekiSatiriId.HasValue)
+            {
+                var kaynakSatir = await cekiSatiriRepo.GetByIdAsync(kaynakIcerik.CekiSatiriId.Value);
+                if (kaynakSatir != null &&
+                    await SahaAktarimBlokajHelper.KaynakSatirAktarildiMiAsync(_sahaTamamlamaService, kaynakSatir, cancellationToken))
+                    return Result.Failure(SahaAktarimBlokajHelper.SandikMesaji);
+            }
+
             var hedefSandik = await sandikRepo.GetByIdAsync(request.HedefSandikId);
             if (hedefSandik == null)
                 return Result.Failure("Hedef sandık bulunamadı.", 404);

@@ -17,17 +17,20 @@ namespace _3K.Application.Features.GridIslemleri.Commands
         private readonly ICurrentUserService _currentUserService;
         private readonly IDurumHesaplaService _durumHesaplaService;
         private readonly IHareketService _hareketService;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
         public GridDurumSifirlaCommandHandler(
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUserService,
             IDurumHesaplaService durumHesaplaService,
-            IHareketService hareketService)
+            IHareketService hareketService,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _durumHesaplaService = durumHesaplaService;
             _hareketService = hareketService;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result> Handle(GridDurumSifirlaCommand request, CancellationToken cancellationToken)
@@ -37,6 +40,9 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
             if (satir == null)
                 return Result.Failure("Ürün bulunamadı.", 404);
+
+            if (await SahaAktarimBlokajHelper.KaynakSatirAktarildiMiAsync(_sahaTamamlamaService, satir, cancellationToken))
+                return Result.Failure(SahaAktarimBlokajHelper.GridMesaji);
 
             if (await SandikSevkKilidiHelper.CekiSatiriSevkEdilmisSandiktaMiAsync(_unitOfWork, satir))
                 return Result.Failure(SandikSevkKilidiHelper.UrunKilitliMesaji);

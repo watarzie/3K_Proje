@@ -10,11 +10,16 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHareketService _hareketService;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
-        public UrunGuncelleCommandHandler(IUnitOfWork unitOfWork, IHareketService hareketService)
+        public UrunGuncelleCommandHandler(
+            IUnitOfWork unitOfWork,
+            IHareketService hareketService,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
             _hareketService = hareketService;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result> Handle(UrunGuncelleCommand request, CancellationToken cancellationToken)
@@ -89,6 +94,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             // ===== Normal proje akışı (CekiSatiriId var) =====
             urun = await cekiSatiriRepo.GetByIdAsync(request.CekiSatiriId.Value);
             if (urun == null) return Result.Failure("Ürün bulunamadı.", 404);
+
+            if (await SahaAktarimBlokajHelper.KaynakSatirAktarildiMiAsync(_sahaTamamlamaService, urun, cancellationToken))
+                return Result.Failure(SahaAktarimBlokajHelper.SandikMesaji);
 
             var icerikler = await sandikIcerikRepo.FindAsync(si =>
                 si.CekiSatiriId == request.CekiSatiriId.Value && si.SandikId == request.SandikId);

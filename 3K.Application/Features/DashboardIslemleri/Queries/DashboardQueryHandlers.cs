@@ -113,7 +113,7 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                 .Where(cs => !cs.KaynakCekiSatiriId.HasValue)
                 .Select(cs => cs.Id)
                 .ToList();
-            var sahaTamamlamaMap = await _sahaTamamlamaService.GetSevkEdilenTamamlamaMapAsync(normalKaynakSatirIds, cancellationToken);
+            var sahaTamamlamaMap = await _sahaTamamlamaService.GetAktifTamamlamaMapAsync(normalKaynakSatirIds, cancellationToken);
             var items = projeler.Select(p => DashboardProjection.ToProjeItem(p, _lookupCache, sahaTamamlamaMap)).ToList();
 
             return Result<DashboardPagedResultDto<DashboardProjeItemDto>>.Success(new DashboardPagedResultDto<DashboardProjeItemDto>
@@ -237,7 +237,7 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                 })
                 .ToList();
 
-            var sahaTamamlamaMap = await sahaTamamlamaService.GetSevkEdilenTamamlamaMapAsync(
+            var sahaTamamlamaMap = await sahaTamamlamaService.GetAktifTamamlamaMapAsync(
                 normalSatirRows.Select(r => r.Id),
                 cancellationToken);
 

@@ -11,11 +11,16 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
     {
         private readonly ISandikService _sandikService;
         private readonly ILookupCacheService _lookupCache;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
-        public GetSandikIcerikQueryHandler(ISandikService sandikService, ILookupCacheService lookupCache)
+        public GetSandikIcerikQueryHandler(
+            ISandikService sandikService,
+            ILookupCacheService lookupCache,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _sandikService = sandikService;
             _lookupCache = lookupCache;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result<SandikDetayDto>> Handle(GetSandikIcerikQuery request, CancellationToken cancellationToken)
@@ -25,6 +30,16 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 return Result<SandikDetayDto>.Failure($"Sandık bulunamadı: {request.SandikId}", 404);
 
             var icerikler = await _sandikService.GetSandikIcerikAsync(request.SandikId);
+            var kaynakSatirIdleri = icerikler
+                .Select(i => i.CekiSatiri)
+                .Where(cs => cs != null && !cs.KaynakCekiSatiriId.HasValue)
+                .Select(cs => cs!.Id)
+                .Distinct()
+                .ToList();
+            var sahaTamamlamaMap = await _sahaTamamlamaService.GetAktifTamamlamaMapAsync(kaynakSatirIdleri, cancellationToken);
+            var sahayaAktarilanMiktar = kaynakSatirIdleri
+                .Select(id => sahaTamamlamaMap.GetValueOrDefault(id))
+                .Sum();
 
             var dto = new SandikDetayDto
             {
@@ -36,6 +51,8 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 SevkiyatDuzeltmeAcikMi = sandik.SevkiyatDuzeltmeAcikMi,
                 DepoLokasyonId = sandik.DepoLokasyonId,
                 DepoLokasyonMetni = _lookupCache.GetDeger<LookupDepoLokasyon>(sandik.DepoLokasyonId),
+                SahayaAktarildiMi = sahayaAktarilanMiktar > 0,
+                SahayaAktarilanMiktar = sahayaAktarilanMiktar,
                 En = sandik.En,
                 Boy = sandik.Boy,
                 Yukseklik = sandik.Yukseklik,

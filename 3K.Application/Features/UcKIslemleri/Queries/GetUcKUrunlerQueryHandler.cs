@@ -58,7 +58,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                 return Result<List<UcKUrunDto>>.Failure("Bu projeye ait ürün bulunamadı.", 404);
 
             var sahaTamamlamaMap = proje.ProjeTipiId == (int)ProjeTipi.Normal
-                ? await _sahaTamamlamaService.GetSevkEdilenTamamlamaMapAsync(
+                ? await _sahaTamamlamaService.GetAktifTamamlamaMapAsync(
                     satirlar.Where(s => !s.KaynakCekiSatiriId.HasValue).Select(s => s.Id),
                     cancellationToken)
                 : new Dictionary<int, decimal>();
@@ -126,6 +126,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                     var kaynakIz = cs.KaynakCekiSatiriId.HasValue
                         ? sahaKaynakIzMap.GetValueOrDefault(cs.KaynakCekiSatiriId.Value)
                         : null;
+                    var sahaTamamlamalari = sahaTamamlamaIzMap.GetValueOrDefault(cs.Id) ?? new List<SahaTamamlamaIzDto>();
 
                     return new UcKUrunDto
                     {
@@ -134,7 +135,9 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                         KaynakProjeNo = kaynakIz?.KaynakProjeNo,
                         KaynakSandikNo = kaynakIz?.KaynakSandikNo,
                         KaynakSiraNo = kaynakIz?.KaynakSiraNo,
-                        SahaTamamlamalari = sahaTamamlamaIzMap.GetValueOrDefault(cs.Id) ?? new List<SahaTamamlamaIzDto>(),
+                        SahaTamamlamalari = sahaTamamlamalari,
+                        SahaAktarildiMi = sahaTamamlamalari.Any(),
+                        SahaAktarilanMiktar = sahaTamamlamalari.Sum(i => i.Miktar),
                         SiraNo = cs.SiraNo,
                         BarkodNo = cs.BarkodNo,
                         OlcuResmiPozNo = cs.OlcuResmiPozNo,

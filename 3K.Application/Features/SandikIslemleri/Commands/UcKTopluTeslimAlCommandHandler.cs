@@ -13,17 +13,20 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         private readonly ICurrentUserService _currentUserService;
         private readonly IDurumHesaplaService _durumHesaplaService;
         private readonly IHareketService _hareketService;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
         public UcKTopluTeslimAlCommandHandler(
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUserService,
             IDurumHesaplaService durumHesaplaService,
-            IHareketService hareketService)
+            IHareketService hareketService,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _durumHesaplaService = durumHesaplaService;
             _hareketService = hareketService;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result> Handle(UcKTopluTeslimAlCommand request, CancellationToken cancellationToken)
@@ -44,6 +47,10 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             var kilitliSatirIdleri = await SandikSevkKilidiHelper.GetSevkEdilmisSandikCekiSatiriIdleriAsync(
                 _unitOfWork,
                 idler);
+            var sahayaAktarilanSatirIdleri = await SahaAktarimBlokajHelper.GetAktarilanKaynakSatirIdleriAsync(
+                _sahaTamamlamaService,
+                satirlar.Values,
+                cancellationToken);
 
             foreach (var item in request.Urunler)
             {
@@ -51,6 +58,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                     continue;
 
                 if (kilitliSatirIdleri.Contains(item.CekiSatiriId))
+                    continue;
+
+                if (sahayaAktarilanSatirIdleri.Contains(item.CekiSatiriId))
                     continue;
 
                 if (item.GelenMiktar <= 0)

@@ -861,12 +861,14 @@ namespace _3K.Infrastructure.Data
                 new MenuTanimi { Id = 36, Kod = "3k-sandik-durum-raporu", LabelKey = "MENU.3K_SANDIK_DURUM_RAPORU", Icon = "", Route = null, Sira = 11, ParentId = 5 },
                 new MenuTanimi { Id = 37, Kod = "saha-sevk-sonrasi-eksik-raporu", LabelKey = "MENU.SAHA_SEVK_SONRASI_EKSIK_RAPORU", Icon = "", Route = null, Sira = 7, ParentId = 17 },
                 new MenuTanimi { Id = 38, Kod = "saha-3k-sandik-durum-raporu", LabelKey = "MENU.SAHA_3K_SANDIK_DURUM_RAPORU", Icon = "", Route = null, Sira = 8, ParentId = 17 },
+                new MenuTanimi { Id = 40, Kod = "sahaya-aktar", LabelKey = "MENU.SAHAYA_AKTAR", Icon = "", Route = null, Sira = 9, ParentId = 17 },
+                new MenuTanimi { Id = 41, Kod = "saha-aktarim-geri-al", LabelKey = "MENU.SAHA_AKTARIM_GERI_AL", Icon = "", Route = null, Sira = 10, ParentId = 17 },
                 new MenuTanimi { Id = 39, Kod = "stok-sil", LabelKey = "MENU.STOK_SIL", Icon = "", Route = null, Sira = 1, ParentId = 8 }
             );
 
             // ======= ADMIN ROL YETKİLERİ (tüm menülere W=3) =======
-            // Not: MenuTanimi Id'leri: 1,2,3,4,5,7,8,10,11,12,14,15,16,17,18,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,99
-            var menuIds = new[] { 1, 2, 3, 4, 5, 7, 8, 10, 11, 12, 14, 15, 16, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39 };
+            // Not: MenuTanimi Id'leri: 1,2,3,4,5,7,8,10,11,12,14,15,16,17,18,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,99
+            var menuIds = new[] { 1, 2, 3, 4, 5, 7, 8, 10, 11, 12, 14, 15, 16, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41 };
             var adminYetkiler = new List<RolYetki>();
             for (int i = 0; i < menuIds.Length; i++)
             {

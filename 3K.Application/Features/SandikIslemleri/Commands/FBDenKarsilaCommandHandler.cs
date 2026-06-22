@@ -13,17 +13,20 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         private readonly IHareketService _hareketService;
         private readonly ICurrentUserService _currentUserService;
         private readonly IDurumHesaplaService _durumHesaplaService;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
         public FBDenKarsilaCommandHandler(
             IUnitOfWork unitOfWork,
             IHareketService hareketService,
             ICurrentUserService currentUserService,
-            IDurumHesaplaService durumHesaplaService)
+            IDurumHesaplaService durumHesaplaService,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
             _hareketService = hareketService;
             _currentUserService = currentUserService;
             _durumHesaplaService = durumHesaplaService;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result> Handle(FBDenKarsilaCommand request, CancellationToken cancellationToken)
@@ -35,6 +38,10 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             // ===== 1. Hedef ürünü bul =====
             var urun = await urunRepo.GetByIdAsync(request.CekiSatiriId);
             if (urun == null) return Result.Failure("Ürün bulunamadı.", 404);
+            if (!urun.KaynakCekiSatiriId.HasValue &&
+                await _sahaTamamlamaService.AktifTamamlamaVarMiAsync(urun.Id, cancellationToken))
+                return Result.Failure("Bu ürün sahaya aktarıldığı için normal proje üzerinden projeden karşılama yapılamaz. İşlem saha projesinde yürütülmelidir.");
+
             if (await SandikSevkKilidiHelper.CekiSatiriSevkEdilmisSandiktaMiAsync(_unitOfWork, urun))
                 return Result.Failure(SandikSevkKilidiHelper.UrunKilitliMesaji);
 
@@ -60,6 +67,10 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
                 if (await SandikSevkKilidiHelper.CekiSatiriSevkEdilmisSandiktaMiAsync(_unitOfWork, kaynakSatir))
                     return Result.Failure("Kaynak ürün sevk edilmiş bir sandıkta olduğu için bu projeden karşılama yapılamaz.");
+
+                if (!kaynakSatir.KaynakCekiSatiriId.HasValue &&
+                    await _sahaTamamlamaService.AktifTamamlamaVarMiAsync(kaynakSatir.Id, cancellationToken))
+                    return Result.Failure("Kaynak ürün sahaya aktarıldığı için bu projeden karşılama yapılamaz.");
 
                 if (kaynakSatir != null)
                 {

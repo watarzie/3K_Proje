@@ -14,19 +14,22 @@ namespace _3K.Application.Features.GridIslemleri.Commands
         private readonly IDurumHesaplaService _durumHesaplaService;
         private readonly IHareketService _hareketService;
         private readonly ILookupCacheService _lookupCache;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
         public GridTopluSevkCommandHandler(
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUserService,
             IDurumHesaplaService durumHesaplaService,
             IHareketService hareketService,
-            ILookupCacheService lookupCache)
+            ILookupCacheService lookupCache,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _durumHesaplaService = durumHesaplaService;
             _hareketService = hareketService;
             _lookupCache = lookupCache;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result> Handle(GridTopluSevkCommand request, CancellationToken cancellationToken)
@@ -47,6 +50,14 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
             if (kilitliSatirIdleri.Any())
                 return Result.Failure($"Seçili ürünlerden {kilitliSatirIdleri.Count} tanesi sevk edilmiş sandıkta olduğu için Grid sevk işlemi yapılamaz.", 400);
+
+            var sahayaAktarilanSatirIdleri = await SahaAktarimBlokajHelper.GetAktarilanKaynakSatirIdleriAsync(
+                _sahaTamamlamaService,
+                satirlar,
+                cancellationToken);
+
+            if (sahayaAktarilanSatirIdleri.Any())
+                return Result.Failure($"Seçili ürünlerden {sahayaAktarilanSatirIdleri.Count} tanesi sahaya aktarıldığı için normal proje üzerinden Grid sevk işlemi yapılamaz.", 400);
 
             var tadilattakiSatirlar = satirlar
                 .Where(s => s.KaliteDurumId.HasValue

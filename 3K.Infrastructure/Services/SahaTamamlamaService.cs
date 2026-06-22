@@ -20,6 +20,42 @@ namespace _3K.Infrastructure.Services
             IEnumerable<int> kaynakCekiSatiriIds,
             CancellationToken cancellationToken = default)
         {
+            return await GetTamamlamaMapAsync(
+                kaynakCekiSatiriIds,
+                sadeceSevkEdilenSandiklar: true,
+                cancellationToken);
+        }
+
+        public async Task<Dictionary<int, decimal>> GetAktifTamamlamaMapAsync(
+            IEnumerable<int> kaynakCekiSatiriIds,
+            CancellationToken cancellationToken = default)
+        {
+            return await GetTamamlamaMapAsync(
+                kaynakCekiSatiriIds,
+                sadeceSevkEdilenSandiklar: false,
+                cancellationToken);
+        }
+
+        public async Task<bool> AktifTamamlamaVarMiAsync(
+            int kaynakCekiSatiriId,
+            CancellationToken cancellationToken = default)
+        {
+            if (kaynakCekiSatiriId <= 0)
+                return false;
+
+            return await _context.CekiSatirlari
+                .AsNoTracking()
+                .AnyAsync(cs =>
+                    cs.KaynakCekiSatiriId == kaynakCekiSatiriId &&
+                    cs.Ceki.Proje.ProjeTipiId == (int)ProjeTipi.Saha,
+                    cancellationToken);
+        }
+
+        private async Task<Dictionary<int, decimal>> GetTamamlamaMapAsync(
+            IEnumerable<int> kaynakCekiSatiriIds,
+            bool sadeceSevkEdilenSandiklar,
+            CancellationToken cancellationToken)
+        {
             var kaynakIds = kaynakCekiSatiriIds
                 .Where(id => id > 0)
                 .Distinct()
@@ -28,13 +64,17 @@ namespace _3K.Infrastructure.Services
             if (kaynakIds.Count == 0)
                 return new Dictionary<int, decimal>();
 
-            return await _context.CekiSatirlari
+            var query = _context.CekiSatirlari
                 .AsNoTracking()
                 .Where(cs =>
                     cs.KaynakCekiSatiriId.HasValue &&
                     kaynakIds.Contains(cs.KaynakCekiSatiriId.Value) &&
-                    cs.Ceki.Proje.ProjeTipiId == (int)ProjeTipi.Saha &&
-                    cs.SandikIcerikleri.Any(si => si.Sandik.DurumId == (int)SandikDurum.Sevkedildi))
+                    cs.Ceki.Proje.ProjeTipiId == (int)ProjeTipi.Saha);
+
+            if (sadeceSevkEdilenSandiklar)
+                query = query.Where(cs => cs.SandikIcerikleri.Any(si => si.Sandik.DurumId == (int)SandikDurum.Sevkedildi));
+
+            return await query
                 .GroupBy(cs => cs.KaynakCekiSatiriId!.Value)
                 .Select(g => new
                 {

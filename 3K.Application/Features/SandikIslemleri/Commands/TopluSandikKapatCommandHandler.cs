@@ -11,15 +11,18 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserService _currentUserService;
         private readonly IHareketService _hareketService;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
         public TopluSandikKapatCommandHandler(
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUserService,
-            IHareketService hareketService)
+            IHareketService hareketService,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _hareketService = hareketService;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<TopluSandikKapatResult> Handle(TopluSandikKapatCommand request, CancellationToken cancellationToken)
@@ -41,6 +44,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             var uyarilar = new List<SandikUyariDetay>();
             var kapatilacakSandiklar = new List<Sandik>();
             var sevkEdilmisSandiklar = new List<string>();
+            var sahayaAktarilanSandiklar = new List<string>();
 
             foreach (var sandikId in request.SandikIds)
             {
@@ -59,6 +63,27 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 }
 
                 var icerikler = await icerikRepo.FindAsync(si => si.SandikId == sandikId);
+                var icerikSatirIds = icerikler
+                    .Where(i => i.CekiSatiriId.HasValue)
+                    .Select(i => i.CekiSatiriId!.Value)
+                    .Distinct()
+                    .ToList();
+
+                if (icerikSatirIds.Count > 0)
+                {
+                    var icerikSatirlari = await cekiSatiriRepo.FindAsync(cs => icerikSatirIds.Contains(cs.Id));
+                    var sahayaAktarilanSatirIdleri = await SahaAktarimBlokajHelper.GetAktarilanKaynakSatirIdleriAsync(
+                        _sahaTamamlamaService,
+                        icerikSatirlari,
+                        cancellationToken);
+
+                    if (sahayaAktarilanSatirIdleri.Any())
+                    {
+                        sahayaAktarilanSandiklar.Add(sandik.SandikNo);
+                        continue;
+                    }
+                }
+
                 var hataliUrunler = new List<object>();
 
                 foreach (var icerik in icerikler)
@@ -105,6 +130,15 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             }
 
             // Uyarı varsa ve ForceClose değilse işlemi tamamen reddet
+            if (sahayaAktarilanSandiklar.Any())
+            {
+                return new TopluSandikKapatResult
+                {
+                    IsSuccess = false,
+                    Message = $"{string.Join(", ", sahayaAktarilanSandiklar)} numaralı sandık(lar) içinde sahaya aktarılmış ürünler var. Kaynak proje sandıkları kapatılamaz; işlem saha projesinde yürütülmelidir."
+                };
+            }
+
             if (uyarilar.Any() && !request.ForceClose)
             {
                 return new TopluSandikKapatResult

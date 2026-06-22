@@ -13,17 +13,20 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
         private readonly ICurrentUserService _currentUserService;
         private readonly IDurumHesaplaService _durumHesaplaService;
         private readonly IHareketService _hareketService;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
         public UcKTopluTamGeldiCommandHandler(
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUserService,
             IDurumHesaplaService durumHesaplaService,
-            IHareketService hareketService)
+            IHareketService hareketService,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _durumHesaplaService = durumHesaplaService;
             _hareketService = hareketService;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result> Handle(UcKTopluTamGeldiCommand request, CancellationToken cancellationToken)
@@ -44,6 +47,8 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 var satir = await repo.GetByIdAsync(cekiSatiriId);
                 if (satir == null) { hatalar.Add($"ID {cekiSatiriId}: Ürün bulunamadı."); continue; }
                 if (kilitliSatirIdleri.Contains(cekiSatiriId)) { hatalar.Add($"ID {cekiSatiriId}: {SandikSevkKilidiHelper.UrunKilitliMesaji}"); continue; }
+                if (await SahaAktarimBlokajHelper.KaynakSatirAktarildiMiAsync(_sahaTamamlamaService, satir, cancellationToken))
+                { hatalar.Add($"ID {cekiSatiriId}: {SahaAktarimBlokajHelper.UcKMesaji}"); continue; }
 
                 // Grid blokaj kontrolleri
                 if (satir.GridDurumuId == (int)GridDurum.Iptal ||

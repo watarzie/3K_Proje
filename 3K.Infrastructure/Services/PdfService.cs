@@ -59,7 +59,9 @@ namespace _3K.Infrastructure.Services
             return Math.Max(satir.KalanMiktar - sevkEdilenSahaTamamlama, 0);
         }
 
-        private async Task<Dictionary<int, decimal>> GetTamamlamaPlanMapAsync(IReadOnlyCollection<CekiSatiri> satirlar)
+        private async Task<Dictionary<int, decimal>> GetTamamlamaPlanMapAsync(
+            IReadOnlyCollection<CekiSatiri> satirlar,
+            bool sadeceSevkEdilenSandiklar)
         {
             var kaynakSatirIds = satirlar
                 .Where(s => !s.KaynakCekiSatiriId.HasValue)
@@ -70,12 +72,16 @@ namespace _3K.Infrastructure.Services
             if (!kaynakSatirIds.Any())
                 return new Dictionary<int, decimal>();
 
-            return await _context.CekiSatirlari
+            var query = _context.CekiSatirlari
                 .AsNoTracking()
                 .Where(cs => cs.KaynakCekiSatiriId.HasValue &&
                     kaynakSatirIds.Contains(cs.KaynakCekiSatiriId.Value) &&
-                    cs.Ceki.Proje.ProjeTipiId == (int)ProjeTipi.Saha &&
-                    cs.SandikIcerikleri.Any(si => si.Sandik.DurumId == (int)SandikDurum.Sevkedildi))
+                    cs.Ceki.Proje.ProjeTipiId == (int)ProjeTipi.Saha);
+
+            if (sadeceSevkEdilenSandiklar)
+                query = query.Where(cs => cs.SandikIcerikleri.Any(si => si.Sandik.DurumId == (int)SandikDurum.Sevkedildi));
+
+            return await query
                 .GroupBy(cs => cs.KaynakCekiSatiriId!.Value)
                 .Select(g => new { CekiSatiriId = g.Key, TamamlananAdet = g.Sum(cs => cs.IstenenAdet) })
                 .ToDictionaryAsync(x => x.CekiSatiriId, x => x.TamamlananAdet);
@@ -992,7 +998,7 @@ namespace _3K.Infrastructure.Services
                 .OrderBy(cs => cs.SiraNo)
                 .ToListAsync();
 
-            var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar);
+            var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar, sadeceSevkEdilenSandiklar: false);
             var sahaEksikRaporuMu = proje.ProjeTipiId == (int)ProjeTipi.Saha;
 
             // Normal projelerde eksik filtresi korunur; saha sevk sonrası raporunda tamamlananlar da listelenir.
@@ -1267,7 +1273,7 @@ namespace _3K.Infrastructure.Services
             if (!satirlar.Any())
                 throw new KeyNotFoundException($"Projeye ait sevk edilmis ceki satiri bulunamadi: {projeId}");
 
-            var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar);
+            var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar, sadeceSevkEdilenSandiklar: true);
 
             QuestPDF.Settings.License = LicenseType.Community;
 
@@ -1775,7 +1781,7 @@ namespace _3K.Infrastructure.Services
                 .Where(cs => cs.Ceki.ProjeId == projeId)
                 .ToListAsync();
 
-            var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar);
+            var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar, sadeceSevkEdilenSandiklar: false);
             var sahaEksikRaporuMu = proje.ProjeTipiId == (int)ProjeTipi.Saha;
 
             var raporSatirlari = satirlar
@@ -1945,7 +1951,7 @@ namespace _3K.Infrastructure.Services
             if (!satirlar.Any())
                 throw new KeyNotFoundException($"Projeye ait sevk edilmis ceki satiri bulunamadi: {projeId}");
 
-            var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar);
+            var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar, sadeceSevkEdilenSandiklar: true);
 
             projeSandiklari = projeSandiklari
                 .OrderBy(s => GetRaporSandikSortKey(s.SandikNo))

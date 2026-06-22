@@ -36,7 +36,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                 .Where(cs => !cs.KaynakCekiSatiriId.HasValue)
                 .Select(cs => cs.Id)
                 .ToList();
-            var sahaTamamlamaMap = await _sahaTamamlamaService.GetSevkEdilenTamamlamaMapAsync(normalKaynakSatirIds, cancellationToken);
+            var sahaTamamlamaMap = await _sahaTamamlamaService.GetAktifTamamlamaMapAsync(normalKaynakSatirIds, cancellationToken);
 
             var result = projeler.Select(p =>
             {

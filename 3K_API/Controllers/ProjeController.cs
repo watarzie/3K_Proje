@@ -60,6 +60,27 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
 
+        [HttpPost("sandiklardan-saha-olustur")]
+        public async Task<ActionResult> SandiklardanSahaOlustur([FromBody] SandiklardanSahaProjesiOlusturCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
+        [HttpPost("saha-aktarim-geri-al")]
+        public async Task<ActionResult> SahaAktarimGeriAl([FromBody] SahaAktarimGeriAlCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
+        [HttpGet("{id}/saha-aktarimlari")]
+        public async Task<ActionResult> GetSahaAktarimlari(int id)
+        {
+            var result = await _mediator.Send(new GetSahaAktarimlariQuery { ProjeId = id });
+            return result.ToActionResult();
+        }
+
         /// <summary>
         /// Sandık Kapat/Aç
         /// </summary>

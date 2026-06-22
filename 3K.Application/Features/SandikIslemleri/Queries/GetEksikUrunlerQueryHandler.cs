@@ -41,7 +41,7 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 .Where(cs => !cs.KaynakCekiSatiriId.HasValue)
                 .Select(cs => cs.Id)
                 .ToList();
-            var sahaTamamlamaMap = await _sahaTamamlamaService.GetSevkEdilenTamamlamaMapAsync(kaynakSatirIds, cancellationToken);
+            var sahaTamamlamaMap = await _sahaTamamlamaService.GetAktifTamamlamaMapAsync(kaynakSatirIds, cancellationToken);
 
             var eksikler = tumSatirlar
                 .Select(cs => new

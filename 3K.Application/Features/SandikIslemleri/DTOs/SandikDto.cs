@@ -14,6 +14,8 @@ namespace _3K.Application.Features.SandikIslemleri.DTOs
         public bool IsManuelSandik { get; set; }
         public bool SilinebilirMi { get; set; }
         public bool DepodaSayilacakMi { get; set; }
+        public bool SahayaAktarildiMi { get; set; }
+        public decimal SahayaAktarilanMiktar { get; set; }
         
         // Fiziksel Özellikler
         public decimal? En { get; set; }

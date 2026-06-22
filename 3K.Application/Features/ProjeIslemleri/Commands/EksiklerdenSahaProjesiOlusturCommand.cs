@@ -6,9 +6,10 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
 {
     public class EksiklerdenSahaProjesiOlusturCommand : IRequest<Result<ProjeDto>>, ISecuredRequest, IRequiresMenuPermission
     {
-        public string RequiredMenuKod => "eksik-saha-projesi";
+        public string RequiredMenuKod => "sahaya-aktar";
 
         public int? KaynakProjeId { get; set; }
+        public int? HedefSahaProjeId { get; set; }
         public string? ProjeNo { get; set; }
         public string? Musteri { get; set; }
         public string? Lokasyon { get; set; }

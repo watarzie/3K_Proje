@@ -16,6 +16,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
         private readonly IHareketService _hareketService;
         private readonly IStokService _stokService;
         private readonly ILookupCacheService _lookupCache;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
         private static readonly int[] GecerliTipler =
             { (int)UcKDurum.TamGeldi, (int)UcKDurum.EksikGeldi, (int)UcKDurum.Gelmedi, (int)UcKDurum.ProjedenKarsilandi, (int)UcKDurum.StoktanKarsilandi,
@@ -27,7 +28,8 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             IDurumHesaplaService durumHesaplaService,
             IHareketService hareketService,
             IStokService stokService,
-            ILookupCacheService lookupCache)
+            ILookupCacheService lookupCache,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
@@ -35,6 +37,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             _hareketService = hareketService;
             _stokService = stokService;
             _lookupCache = lookupCache;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result> Handle(UcKDurumGuncelleCommand request, CancellationToken cancellationToken)
@@ -46,6 +49,10 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             var satir = await repo.GetByIdAsync(request.CekiSatiriId);
             if (satir == null)
                 return Result.Failure("Ürün bulunamadı.", 404);
+
+            if (!satir.KaynakCekiSatiriId.HasValue &&
+                await _sahaTamamlamaService.AktifTamamlamaVarMiAsync(satir.Id, cancellationToken))
+                return Result.Failure("Bu ürün sahaya aktarıldığı için normal proje üzerinden 3K işlemi yapılamaz. İşlem saha projesinde yürütülmelidir.");
 
             if (await SandikSevkKilidiHelper.CekiSatiriSevkEdilmisSandiktaMiAsync(_unitOfWork, satir))
                 return Result.Failure(SandikSevkKilidiHelper.UrunKilitliMesaji);
@@ -317,7 +324,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             // Toplam kontrol
             var toplam = satir.GelenMiktar + satir.KarsilananMiktar - satir.ProjeGonderilen;
             if (toplam + satir.TrafoSevkAdet > satir.IstenenAdet)
-                return Result.Failure($"Toplam tamamlanan adet ({toplam}) ve trafo sevk ({satir.TrafoSevkAdet}), çeki miktarını ({satir.IstenenAdet}) aşamaz.");
+                return Result.Failure($"Toplam tamamlanan adet ({FormatAdet(toplam)}) ve trafo sevk ({FormatAdet(satir.TrafoSevkAdet)}), çeki miktarını ({FormatAdet(satir.IstenenAdet)}) aşamaz.");
 
             // Genel durumu hesapla
             satir.DurumId = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumuId, satir.UcKDurumuId);
