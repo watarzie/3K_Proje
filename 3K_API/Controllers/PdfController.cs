@@ -160,6 +160,38 @@ namespace _3K_API.Controllers
                 $"{projeNo}_GerceklesenCekiListesi.xlsx");
         }
 
+        [HttpGet("saha-gerceklesen-ceki-listesi/{projeId}")]
+        public async Task<IActionResult> SahaGerceklesenCekiListesiPdfIndir(int projeId)
+        {
+            var result = await _mediator.Send(new _3K.Application.Features.PdfIslemleri.Queries.GetSahaGerceklesenCekiListesiPdfQuery
+            {
+                ProjeId = projeId
+            });
+
+            if (!result.IsSuccess)
+                return result.ToActionResult();
+
+            var projeNo = await GetProjeNo(projeId);
+            return File(result.Value!, "application/pdf", $"{projeNo}_SahaGerceklesenCekiListesi.pdf");
+        }
+
+        [HttpGet("saha-gerceklesen-ceki-listesi/{projeId}/excel")]
+        public async Task<IActionResult> SahaGerceklesenCekiListesiExcelIndir(int projeId)
+        {
+            var result = await _mediator.Send(new _3K.Application.Features.PdfIslemleri.Queries.GetSahaGerceklesenCekiListesiExcelQuery
+            {
+                ProjeId = projeId
+            });
+
+            if (!result.IsSuccess)
+                return result.ToActionResult();
+
+            var projeNo = await GetProjeNo(projeId);
+            return File(result.Value!,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                $"{projeNo}_SahaGerceklesenCekiListesi.xlsx");
+        }
+
         [HttpGet("uck-sandik-durum/{projeId}")]
         public async Task<IActionResult> UcKSandikDurumPdfIndir(int projeId)
         {

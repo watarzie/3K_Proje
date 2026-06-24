@@ -39,6 +39,13 @@ namespace _3K.Infrastructure.Services
             return value.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
         }
 
+        private static bool ProjeSevkEdilmisSayilir(Proje proje, bool sevkiyatKaydiVar)
+        {
+            return proje.DurumId == (int)ProjeDurum.SevkEdildi
+                || proje.DurumId == (int)ProjeDurum.EksikSevkEdildi
+                || sevkiyatKaydiVar;
+        }
+
         private static int GetRaporSandikSortKey(string? sandikNo)
         {
             if (string.IsNullOrWhiteSpace(sandikNo))
@@ -85,6 +92,125 @@ namespace _3K.Infrastructure.Services
                 .GroupBy(cs => cs.KaynakCekiSatiriId!.Value)
                 .Select(g => new { CekiSatiriId = g.Key, TamamlananAdet = g.Sum(cs => cs.IstenenAdet) })
                 .ToDictionaryAsync(x => x.CekiSatiriId, x => x.TamamlananAdet);
+        }
+
+        private async Task<List<CekiSatiri>> LoadGerceklesenRaporSatirlariAsync(int projeId, bool sahaRaporuMu)
+        {
+            var satirlar = await _context.CekiSatirlari
+                .AsNoTracking()
+                .Include(cs => cs.BirimLookup)
+                .Include(cs => cs.SandikIcerikleri)
+                    .ThenInclude(si => si.Sandik)
+                .Where(cs => cs.Ceki.ProjeId == projeId)
+                .ToListAsync();
+
+            if (!sahaRaporuMu)
+                return satirlar;
+
+            var sahaIcerikleri = await _context.SandikIcerikleri
+                .AsNoTracking()
+                .Include(si => si.Sandik)
+                .Include(si => si.BirimLookup)
+                .Include(si => si.CekiSatiri)
+                    .ThenInclude(cs => cs!.BirimLookup)
+                .Where(si => si.Sandik.ProjeId == projeId)
+                .OrderBy(si => si.Sandik.SandikNo)
+                .ThenBy(si => si.Id)
+                .ToListAsync();
+
+            if (!sahaIcerikleri.Any())
+                return satirlar;
+
+            var satirIds = satirlar.Select(s => s.Id).ToHashSet();
+            var icerikMap = sahaIcerikleri
+                .Where(si => si.CekiSatiriId.HasValue && satirIds.Contains(si.CekiSatiriId.Value))
+                .GroupBy(si => si.CekiSatiriId!.Value)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            foreach (var satir in satirlar)
+            {
+                if (icerikMap.TryGetValue(satir.Id, out var projeIcerikleri))
+                {
+                    satir.SandikIcerikleri = projeIcerikleri;
+                    continue;
+                }
+
+                satir.SandikIcerikleri = satir.SandikIcerikleri
+                    .Where(si => si.Sandik?.ProjeId == projeId)
+                    .ToList();
+            }
+
+            var ekSatirlar = new List<CekiSatiri>();
+            var sentetikId = -1;
+            var sentetikSiraNo = satirlar.Any() ? satirlar.Max(s => s.SiraNo) + 1 : 1;
+
+            foreach (var icerik in sahaIcerikleri)
+            {
+                if (icerik.CekiSatiriId.HasValue && satirIds.Contains(icerik.CekiSatiriId.Value))
+                    continue;
+
+                ekSatirlar.Add(BuildSahaIcerikRaporSatiri(icerik, sentetikId--, sentetikSiraNo++));
+            }
+
+            satirlar.AddRange(ekSatirlar);
+            return satirlar;
+        }
+
+        private static CekiSatiri BuildSahaIcerikRaporSatiri(SandikIcerik icerik, int sentetikId, int siraNo)
+        {
+            var kaynakSatir = icerik.CekiSatiri;
+            var miktar = GetSahaIcerikRaporMiktari(icerik, kaynakSatir);
+            var eksikAdet = Math.Min(Math.Max(icerik.EksikAdet, 0), miktar);
+            var tamamlananAdet = Math.Max(miktar - eksikAdet, 0);
+            var sandikNo = icerik.Sandik?.SandikNo ?? "";
+            var birimId = icerik.BirimId ?? kaynakSatir?.BirimId ?? (int)Birim.Adet;
+
+            return new CekiSatiri
+            {
+                Id = sentetikId,
+                CekiId = kaynakSatir?.CekiId ?? 0,
+                KaynakCekiSatiriId = kaynakSatir?.Id,
+                SiraNo = kaynakSatir?.SiraNo ?? siraNo,
+                OlcuResmiPozNo = kaynakSatir?.OlcuResmiPozNo,
+                BarkodNo = !string.IsNullOrWhiteSpace(icerik.BarkodNo) ? icerik.BarkodNo! : kaynakSatir?.BarkodNo ?? "",
+                Aciklama = !string.IsNullOrWhiteSpace(icerik.Isim) ? icerik.Isim! : kaynakSatir?.Aciklama ?? icerik.Aciklama ?? "Saha malzemesi",
+                IstenenAdet = miktar,
+                BirimId = birimId,
+                BirimLookup = icerik.BirimLookup ?? kaynakSatir?.BirimLookup,
+                CekideGecenSandikNo = sandikNo,
+                FiiliSandikNo = sandikNo,
+                Remarks = kaynakSatir?.Remarks,
+                DurumId = eksikAdet > 0 ? (int)UrunDurum.Eksik : (int)UrunDurum.Tamamlandi,
+                GridDurumuId = eksikAdet > 0 ? (int)GridDurum.EksikGeldi : (int)GridDurum.TamGeldi,
+                GridGelenAdet = tamamlananAdet,
+                GridSevkDurumuId = (int)GridSevkDurum.SevkEdildi,
+                GridSevkMiktari = tamamlananAdet,
+                UcKDurumuId = eksikAdet > 0 ? (int)UcKDurum.EksikGeldi : (int)UcKDurum.TamGeldi,
+                UcKKarsilamaTipiId = eksikAdet > 0 ? (int)UcKDurum.EksikGeldi : (int)UcKDurum.TamGeldi,
+                GelenMiktar = tamamlananAdet,
+                KaynakHedefProjeNo = icerik.KaynakProjeNo,
+                UcKAciklama = icerik.Aciklama,
+                IsManuelEklenen = kaynakSatir == null,
+                EklemeNedeni = kaynakSatir == null ? "Saha manuel malzeme" : "Saha kaynak satır bağlantısı",
+                SandikIcerikleri = new List<SandikIcerik> { icerik }
+            };
+        }
+
+        private static decimal GetSahaIcerikRaporMiktari(SandikIcerik icerik, CekiSatiri? kaynakSatir)
+        {
+            if (icerik.Miktar > 0)
+                return icerik.Miktar;
+
+            var icerikToplami = icerik.KonulanAdet
+                + icerik.StokKarsilanan
+                + icerik.ProjeKarsilanan
+                + icerik.TedarikciKarsilanan
+                + icerik.EksikAdet;
+
+            if (icerikToplami > 0)
+                return icerikToplami;
+
+            return kaynakSatir?.IstenenAdet ?? 0;
         }
 
         private async Task<(Dictionary<int, string> ProjedenAlinan, Dictionary<int, string> ProjeyeVerilen)> GetProjeTransferRaporMapleriAsync(
@@ -1222,7 +1348,13 @@ namespace _3K.Infrastructure.Services
         /// <summary>
         /// Stok modülündeki tüm ürünlerin PDF raporunu oluşturur.
         /// </summary>
-        public async Task<byte[]> GerceklesenCekiListesiRaporuPdfOlusturAsync(int projeId)
+        public Task<byte[]> GerceklesenCekiListesiRaporuPdfOlusturAsync(int projeId)
+            => GerceklesenCekiListesiRaporuPdfOlusturAsync(projeId, ProjeTipi.Normal);
+
+        public Task<byte[]> SahaGerceklesenCekiListesiRaporuPdfOlusturAsync(int projeId)
+            => GerceklesenCekiListesiRaporuPdfOlusturAsync(projeId, ProjeTipi.Saha);
+
+        private async Task<byte[]> GerceklesenCekiListesiRaporuPdfOlusturAsync(int projeId, ProjeTipi raporProjeTipi)
         {
             var proje = await _context.Projeler
                 .Include(p => p.DurumLookup)
@@ -1230,6 +1362,14 @@ namespace _3K.Infrastructure.Services
 
             if (proje == null)
                 throw new KeyNotFoundException($"Proje bulunamadi: {projeId}");
+
+            var sahaRaporuMu = raporProjeTipi == ProjeTipi.Saha;
+            if (proje.ProjeTipiId != (int)raporProjeTipi)
+            {
+                var raporAdi = sahaRaporuMu ? "Saha gerçekleşen çeki listesi" : "Gerçekleşen çeki listesi";
+                var beklenenTip = sahaRaporuMu ? "saha" : "normal";
+                throw new InvalidOperationException($"{raporAdi} raporu sadece {beklenenTip} projeleri için alınabilir.");
+            }
 
             var sevkEdilmisSandikIdleri = await _context.SevkiyatSandiklari
                 .AsNoTracking()
@@ -1239,18 +1379,10 @@ namespace _3K.Infrastructure.Services
                 .ToListAsync();
             var sevkiyatKaydiVar = sevkEdilmisSandikIdleri.Any();
 
-            if (proje.DurumId != (int)ProjeDurum.SevkEdildi &&
-                proje.DurumId != (int)ProjeDurum.EksikSevkEdildi &&
-                !sevkiyatKaydiVar)
-                throw new InvalidOperationException("Gerceklesen ceki listesi raporu sadece sevk edilmis projeler icin alinabilir.");
+            if (!sahaRaporuMu && !ProjeSevkEdilmisSayilir(proje, sevkiyatKaydiVar))
+                throw new InvalidOperationException("Gerçekleşen çeki listesi raporu sadece sevk edilmiş projeler için alınabilir.");
 
-            var satirlar = await _context.CekiSatirlari
-                .AsNoTracking()
-                .Include(cs => cs.BirimLookup)
-                .Include(cs => cs.SandikIcerikleri)
-                    .ThenInclude(si => si.Sandik)
-                .Where(cs => cs.Ceki.ProjeId == projeId)
-                .ToListAsync();
+            var satirlar = await LoadGerceklesenRaporSatirlariAsync(projeId, sahaRaporuMu);
 
             // İlk sayfa için sandık bilgilerini çek
             var projeSandiklari = await _context.Sandiklar
@@ -1262,7 +1394,7 @@ namespace _3K.Infrastructure.Services
             if (!satirlar.Any())
                 throw new KeyNotFoundException($"Projeye ait çeki satırı bulunamadı: {projeId}");
 
-            var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar, sadeceSevkEdilenSandiklar: true);
+            var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar, sadeceSevkEdilenSandiklar: !sahaRaporuMu);
 
             QuestPDF.Settings.License = LicenseType.Community;
 
@@ -1882,7 +2014,13 @@ namespace _3K.Infrastructure.Services
             return stream.ToArray();
         }
 
-        public async Task<byte[]> GerceklesenCekiListesiRaporuExcelOlusturAsync(int projeId)
+        public Task<byte[]> GerceklesenCekiListesiRaporuExcelOlusturAsync(int projeId)
+            => GerceklesenCekiListesiRaporuExcelOlusturAsync(projeId, ProjeTipi.Normal);
+
+        public Task<byte[]> SahaGerceklesenCekiListesiRaporuExcelOlusturAsync(int projeId)
+            => GerceklesenCekiListesiRaporuExcelOlusturAsync(projeId, ProjeTipi.Saha);
+
+        private async Task<byte[]> GerceklesenCekiListesiRaporuExcelOlusturAsync(int projeId, ProjeTipi raporProjeTipi)
         {
             var proje = await _context.Projeler
                 .Include(p => p.DurumLookup)
@@ -1890,6 +2028,14 @@ namespace _3K.Infrastructure.Services
 
             if (proje == null)
                 throw new KeyNotFoundException($"Proje bulunamadi: {projeId}");
+
+            var sahaRaporuMu = raporProjeTipi == ProjeTipi.Saha;
+            if (proje.ProjeTipiId != (int)raporProjeTipi)
+            {
+                var raporAdi = sahaRaporuMu ? "Saha gerçekleşen çeki listesi" : "Gerçekleşen çeki listesi";
+                var beklenenTip = sahaRaporuMu ? "saha" : "normal";
+                throw new InvalidOperationException($"{raporAdi} raporu sadece {beklenenTip} projeleri için alınabilir.");
+            }
 
             var sevkEdilmisSandikIdleri = await _context.SevkiyatSandiklari
                 .AsNoTracking()
@@ -1899,18 +2045,10 @@ namespace _3K.Infrastructure.Services
                 .ToListAsync();
             var sevkiyatKaydiVar = sevkEdilmisSandikIdleri.Any();
 
-            if (proje.DurumId != (int)ProjeDurum.SevkEdildi &&
-                proje.DurumId != (int)ProjeDurum.EksikSevkEdildi &&
-                !sevkiyatKaydiVar)
-                throw new InvalidOperationException("Gerceklesen ceki listesi raporu sadece sevk edilmis projeler icin alinabilir.");
+            if (!sahaRaporuMu && !ProjeSevkEdilmisSayilir(proje, sevkiyatKaydiVar))
+                throw new InvalidOperationException("Gerçekleşen çeki listesi raporu sadece sevk edilmiş projeler için alınabilir.");
 
-            var satirlar = await _context.CekiSatirlari
-                .AsNoTracking()
-                .Include(cs => cs.BirimLookup)
-                .Include(cs => cs.SandikIcerikleri)
-                    .ThenInclude(si => si.Sandik)
-                .Where(cs => cs.Ceki.ProjeId == projeId)
-                .ToListAsync();
+            var satirlar = await LoadGerceklesenRaporSatirlariAsync(projeId, sahaRaporuMu);
 
             var projeSandiklari = await _context.Sandiklar
                 .AsNoTracking()
@@ -1921,7 +2059,7 @@ namespace _3K.Infrastructure.Services
             if (!satirlar.Any())
                 throw new KeyNotFoundException($"Projeye ait çeki satırı bulunamadı: {projeId}");
 
-            var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar, sadeceSevkEdilenSandiklar: true);
+            var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar, sadeceSevkEdilenSandiklar: !sahaRaporuMu);
 
             projeSandiklari = projeSandiklari
                 .OrderBy(s => GetRaporSandikSortKey(s.SandikNo))
