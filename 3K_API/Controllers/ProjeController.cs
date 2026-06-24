@@ -40,9 +40,21 @@ namespace _3K_API.Controllers
         /// Dropdown'lar için hafif proje listesi — Include yok, sadece Id/ProjeNo/Musteri.
         /// </summary>
         [HttpGet("dropdown")]
-        public async Task<ActionResult> GetDropdown()
+        public async Task<ActionResult> GetDropdown(
+            [FromQuery] int? projeTipiId = null,
+            [FromQuery] string? searchTerm = null,
+            [FromQuery] bool? isSevkEdilen = null,
+            [FromQuery] int take = 50,
+            [FromQuery] List<int>? includeIds = null)
         {
-            var result = await _mediator.Send(new ProjeDropdownQuery());
+            var result = await _mediator.Send(new ProjeDropdownQuery
+            {
+                ProjeTipiId = projeTipiId,
+                SearchTerm = searchTerm,
+                IsSevkEdilen = isSevkEdilen,
+                Take = take,
+                IncludeIds = includeIds ?? []
+            });
             return result.ToActionResult();
         }
 

@@ -34,6 +34,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 .Where(s => s.Urunler.Any(u => u.CekiSatiriId > 0 && u.Miktar > 0))
                 .Select(s => new EksikSahaSandikDto
                 {
+                    HedefSandikId = s.HedefSandikId,
                     SandikNo = NormalizeSandikNo(s.SandikNo),
                     SandikIsmi = string.IsNullOrWhiteSpace(s.SandikIsmi) ? null : s.SandikIsmi.Trim(),
                     En = s.En,
@@ -60,6 +61,15 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             var bosSandikNoVar = sandikTaslaklari.Any(s => string.IsNullOrWhiteSpace(s.SandikNo));
             if (bosSandikNoVar)
                 return Result<ProjeDto>.Failure("Tüm sandıkların sandık numarası olmalıdır.");
+
+            var hedefSandikIdleri = sandikTaslaklari
+                .Where(s => s.HedefSandikId.HasValue)
+                .Select(s => s.HedefSandikId!.Value)
+                .Distinct()
+                .ToList();
+
+            if (hedefSandikIdleri.Count > 0 && !request.HedefSahaProjeId.HasValue)
+                return Result<ProjeDto>.Failure("Mevcut sandığa ekleme yalnızca mevcut saha projesi seçildiğinde yapılabilir.");
 
             var tekrarEdenSandikNo = sandikTaslaklari
                 .GroupBy(s => s.SandikNo, StringComparer.OrdinalIgnoreCase)
@@ -238,32 +248,51 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             var icerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
             var mevcutSahaSatirlari = (await cekiSatiriRepo.FindAsync(cs => cs.CekiId == sahaCeki.Id)).ToList();
             var siraNo = mevcutSahaSatirlari.Any() ? mevcutSahaSatirlari.Max(cs => cs.SiraNo) + 1 : 1;
-            var mevcutSandikNolari = (await sandikRepo.FindAsync(s => s.ProjeId == yeniProje.Id))
+            var mevcutSahaSandiklari = (await sandikRepo.FindAsync(s => s.ProjeId == yeniProje.Id)).ToList();
+            var mevcutSandikNolari = mevcutSahaSandiklari
                 .Select(s => s.SandikNo)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var hedefSandikMap = mevcutSahaSandiklari
+                .Where(s => hedefSandikIdleri.Contains(s.Id))
+                .ToDictionary(s => s.Id);
+
+            if (hedefSandikIdleri.Count != hedefSandikMap.Count)
+                return Result<ProjeDto>.Failure("Seçilen hedef sandıklardan bazıları saha projesi altında bulunamadı.");
+
+            if (hedefSandikMap.Values.Any(s => s.DurumId == (int)SandikDurum.Sevkedildi))
+                return Result<ProjeDto>.Failure("Sevk edilmiş saha sandığına yeni ürün eklenemez.");
+
             var toplamSatir = 0;
             var toplamAdet = 0m;
 
             foreach (var sandikTaslak in sandikTaslaklari)
             {
-                var sandikNo = GenerateUniqueSandikNo(sandikTaslak.SandikNo, mevcutSandikNolari);
-                var sandik = new Sandik
+                Sandik sandik;
+                if (sandikTaslak.HedefSandikId.HasValue)
                 {
-                    ProjeId = yeniProje.Id,
-                    SandikNo = sandikNo,
-                    Ad = sandikTaslak.SandikIsmi,
-                    En = sandikTaslak.En,
-                    Boy = sandikTaslak.Boy,
-                    Yukseklik = sandikTaslak.Yukseklik,
-                    NetKg = sandikTaslak.NetKg,
-                    GrossKg = sandikTaslak.GrossKg,
-                    TipId = (int)SandikTipi.AhsapKapali,
-                    DurumId = (int)SandikDurum.Hazirlaniyor,
-                    DepoLokasyonId = (int)DepoLokasyon.Belirsiz
-                };
+                    sandik = hedefSandikMap[sandikTaslak.HedefSandikId.Value];
+                }
+                else
+                {
+                    var sandikNo = GenerateUniqueSandikNo(sandikTaslak.SandikNo, mevcutSandikNolari);
+                    sandik = new Sandik
+                    {
+                        ProjeId = yeniProje.Id,
+                        SandikNo = sandikNo,
+                        Ad = sandikTaslak.SandikIsmi,
+                        En = sandikTaslak.En,
+                        Boy = sandikTaslak.Boy,
+                        Yukseklik = sandikTaslak.Yukseklik,
+                        NetKg = sandikTaslak.NetKg,
+                        GrossKg = sandikTaslak.GrossKg,
+                        TipId = (int)SandikTipi.AhsapKapali,
+                        DurumId = (int)SandikDurum.Hazirlaniyor,
+                        DepoLokasyonId = (int)DepoLokasyon.Belirsiz
+                    };
 
-                await sandikRepo.AddAsync(sandik);
-                await _unitOfWork.SaveChangesAsync();
+                    await sandikRepo.AddAsync(sandik);
+                    await _unitOfWork.SaveChangesAsync();
+                }
 
                 foreach (var urunTaslak in sandikTaslak.Urunler)
                 {

@@ -695,13 +695,14 @@ namespace _3K.Infrastructure.Services
                     {
                         table.ColumnsDefinition(columns =>
                         {
-                            columns.RelativeColumn(1.5f); // Proje No
+                            columns.RelativeColumn(1.4f); // Proje No
+                            columns.RelativeColumn(1.5f); // Barkod
                             columns.RelativeColumn(3); // Ürün Adı
                             columns.RelativeColumn(1); // Miktar
                             columns.RelativeColumn(1); // Birim
                             columns.RelativeColumn(2); // Açıklama
-                            columns.RelativeColumn(1.5f); // Ekleyen
-                            columns.RelativeColumn(1.5f); // Tarih
+                            columns.RelativeColumn(1.4f); // Ekleyen
+                            columns.RelativeColumn(1.4f); // Tarih
                         });
 
                         // Header Row (TR + EN)
@@ -718,6 +719,7 @@ namespace _3K.Infrastructure.Services
                             }
 
                             BiHeader(header.Cell(), "Proje No", "Project No");
+                            BiHeader(header.Cell(), "Barkod", "Barcode");
                             BiHeader(header.Cell(), "Ürün Adı / Tanımı", "Product Name");
                             BiHeader(header.Cell(), "Miktar", "Quantity");
                             BiHeader(header.Cell(), "Birim", "Unit");
@@ -730,6 +732,7 @@ namespace _3K.Infrastructure.Services
                         foreach (var icerik in sandik.SandikIcerikleri)
                         {
                             string projeNo = icerik.KaynakProjeNo ?? icerik.CekiSatiri?.Ceki?.Proje?.ProjeNo ?? sandik.Proje?.ProjeNo ?? "-";
+                            string barkod = !string.IsNullOrWhiteSpace(icerik.BarkodNo) ? icerik.BarkodNo! : icerik.CekiSatiri?.BarkodNo ?? "-";
                             string urunAdi = icerik.Isim ?? icerik.CekiSatiri?.Aciklama ?? "-";
                             string miktar = FormatAdet(icerik.CekiSatiriId == null ? icerik.Miktar : icerik.KonulanAdet);
                             string birim = icerik.BirimLookup?.Deger ?? icerik.CekiSatiri?.BirimLookup?.Deger ?? "Adet";
@@ -741,6 +744,7 @@ namespace _3K.Infrastructure.Services
                             string tarih = icerik.CreatedDate.ToString("dd.MM.yyyy HH:mm");
 
                             table.Cell().Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(2).Text(projeNo);
+                            table.Cell().Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(2).Text(barkod);
                             table.Cell().Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(2).Text(urunAdi);
                             table.Cell().Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(2).Text(miktar);
                             table.Cell().Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(2).Text(birim);
@@ -884,7 +888,8 @@ namespace _3K.Infrastructure.Services
                             table.ColumnsDefinition(columns =>
                             {
                                 columns.ConstantColumn(25);   // #
-                                columns.RelativeColumn(1.5f); // Proje No
+                                columns.RelativeColumn(1.35f); // Proje No
+                                columns.RelativeColumn(1.45f); // Barkod
                                 columns.RelativeColumn(3);    // Ürün Adı
                                 columns.ConstantColumn(50);   // Miktar
                                 columns.RelativeColumn(1);    // Birim
@@ -908,6 +913,7 @@ namespace _3K.Infrastructure.Services
 
                                 BiHeader(header.Cell(), "#");
                                 BiHeader(header.Cell(), "PROJE NO", "Project No");
+                                BiHeader(header.Cell(), "BARKOD", "Barcode");
                                 BiHeader(header.Cell(), "ÜRÜN ADI / TANIMI", "Product Name");
                                 BiHeader(header.Cell(), "MİKTAR", "Quantity");
                                 BiHeader(header.Cell(), "BİRİM", "Unit");
@@ -922,6 +928,7 @@ namespace _3K.Infrastructure.Services
                             {
                                 var bg = sira % 2 == 0 ? altRowBg : "#FFFFFF";
                                 string projeNo = icerik.KaynakProjeNo ?? icerik.CekiSatiri?.Ceki?.Proje?.ProjeNo ?? proje.ProjeNo;
+                                string barkod = !string.IsNullOrWhiteSpace(icerik.BarkodNo) ? icerik.BarkodNo! : icerik.CekiSatiri?.BarkodNo ?? "-";
                                 string urunAdi = icerik.Isim ?? icerik.CekiSatiri?.Aciklama ?? "-";
                                 string miktar = FormatAdet(icerik.CekiSatiriId == null ? icerik.Miktar : icerik.KonulanAdet);
                                 string birim = icerik.BirimLookup?.Deger ?? icerik.CekiSatiri?.BirimLookup?.Deger ?? "Adet";
@@ -943,6 +950,7 @@ namespace _3K.Infrastructure.Services
 
                                 DataCell(table.Cell(), sira.ToString());
                                 DataCell(table.Cell(), projeNo, bold: true, fontColor: accentColor);
+                                DataCell(table.Cell(), barkod);
                                 DataCell(table.Cell(), urunAdi);
                                 DataCell(table.Cell(), miktar, bold: true);
                                 DataCell(table.Cell(), birim);
@@ -1251,27 +1259,8 @@ namespace _3K.Infrastructure.Services
                 .OrderBy(s => s.SandikNo)
                 .ToListAsync();
 
-            if (sevkiyatKaydiVar)
-            {
-                var sevkEdilmisSandikNolari = projeSandiklari
-                    .Where(s => sevkEdilmisSandikIdleri.Contains(s.Id))
-                    .Select(s => s.SandikNo.Trim())
-                    .Where(s => !string.IsNullOrWhiteSpace(s))
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-                projeSandiklari = projeSandiklari
-                    .Where(s => sevkEdilmisSandikIdleri.Contains(s.Id))
-                    .ToList();
-
-                satirlar = satirlar
-                    .Where(s => s.SandikIcerikleri.Any(si => sevkEdilmisSandikIdleri.Contains(si.SandikId)) ||
-                        (!string.IsNullOrWhiteSpace(s.FiiliSandikNo) && sevkEdilmisSandikNolari.Contains(s.FiiliSandikNo.Trim())) ||
-                        (!string.IsNullOrWhiteSpace(s.CekideGecenSandikNo) && sevkEdilmisSandikNolari.Contains(s.CekideGecenSandikNo.Trim())))
-                    .ToList();
-            }
-
             if (!satirlar.Any())
-                throw new KeyNotFoundException($"Projeye ait sevk edilmis ceki satiri bulunamadi: {projeId}");
+                throw new KeyNotFoundException($"Projeye ait çeki satırı bulunamadı: {projeId}");
 
             var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar, sadeceSevkEdilenSandiklar: true);
 
@@ -1929,27 +1918,8 @@ namespace _3K.Infrastructure.Services
                 .OrderBy(s => s.SandikNo)
                 .ToListAsync();
 
-            if (sevkiyatKaydiVar)
-            {
-                var sevkEdilmisSandikNolari = projeSandiklari
-                    .Where(s => sevkEdilmisSandikIdleri.Contains(s.Id))
-                    .Select(s => s.SandikNo.Trim())
-                    .Where(s => !string.IsNullOrWhiteSpace(s))
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-                projeSandiklari = projeSandiklari
-                    .Where(s => sevkEdilmisSandikIdleri.Contains(s.Id))
-                    .ToList();
-
-                satirlar = satirlar
-                    .Where(s => s.SandikIcerikleri.Any(si => sevkEdilmisSandikIdleri.Contains(si.SandikId)) ||
-                        (!string.IsNullOrWhiteSpace(s.FiiliSandikNo) && sevkEdilmisSandikNolari.Contains(s.FiiliSandikNo.Trim())) ||
-                        (!string.IsNullOrWhiteSpace(s.CekideGecenSandikNo) && sevkEdilmisSandikNolari.Contains(s.CekideGecenSandikNo.Trim())))
-                    .ToList();
-            }
-
             if (!satirlar.Any())
-                throw new KeyNotFoundException($"Projeye ait sevk edilmis ceki satiri bulunamadi: {projeId}");
+                throw new KeyNotFoundException($"Projeye ait çeki satırı bulunamadı: {projeId}");
 
             var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar, sadeceSevkEdilenSandiklar: true);
 
@@ -2817,11 +2787,11 @@ namespace _3K.Infrastructure.Services
                             HeaderCell(header.Cell(), "Sandık İsmi");
                             HeaderCell(header.Cell(), "Durum");
                             HeaderCell(header.Cell(), "Lokasyon");
-                            HeaderCell(header.Cell(), "En");
-                            HeaderCell(header.Cell(), "Boy");
-                            HeaderCell(header.Cell(), "Yükseklik");
                             HeaderCell(header.Cell(), "Net Kg");
                             HeaderCell(header.Cell(), "Gross Kg");
+                            HeaderCell(header.Cell(), "Boy");
+                            HeaderCell(header.Cell(), "En");
+                            HeaderCell(header.Cell(), "Yükseklik");
                             HeaderCell(header.Cell(), "Ürün");
                         });
 
@@ -2846,11 +2816,11 @@ namespace _3K.Infrastructure.Services
                             DataCell(table.Cell(), string.IsNullOrWhiteSpace(sandik.Ad) ? "-" : sandik.Ad);
                             DataCell(table.Cell(), durum, bold: true);
                             DataCell(table.Cell(), lokasyon);
-                            DataCell(table.Cell(), DecimalMetni(sandik.En));
-                            DataCell(table.Cell(), DecimalMetni(sandik.Boy));
-                            DataCell(table.Cell(), DecimalMetni(sandik.Yukseklik));
                             DataCell(table.Cell(), DecimalMetni(sandik.NetKg));
                             DataCell(table.Cell(), DecimalMetni(sandik.GrossKg));
+                            DataCell(table.Cell(), DecimalMetni(sandik.Boy));
+                            DataCell(table.Cell(), DecimalMetni(sandik.En));
+                            DataCell(table.Cell(), DecimalMetni(sandik.Yukseklik));
                             DataCell(table.Cell(), sandik.SandikIcerikleri.Count.ToString());
 
                             index++;

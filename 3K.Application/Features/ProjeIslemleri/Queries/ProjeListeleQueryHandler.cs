@@ -88,7 +88,9 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
 
                 // Durum hesaplama
                 int durumId;
-                if (p.DurumId == (int)ProjeDurum.SevkEdildi ||
+                var tumSandiklarSevkEdildi = toplamSandik > 0 && sevkEdilmisSandikSayisi == toplamSandik;
+                if (tumSandiklarSevkEdildi ||
+                    p.DurumId == (int)ProjeDurum.SevkEdildi ||
                     (p.DurumId == (int)ProjeDurum.EksikSevkEdildi && normalUrunlerTamamlandi))
                     durumId = (int)ProjeDurum.SevkEdildi;
                 else if (p.DurumId == (int)ProjeDurum.EksikSevkEdildi)

@@ -60,8 +60,10 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 GrossKg = sandik.GrossKg,
                 Icerikler = icerikler.Select(i =>
                 {
-                    var istenen = i.CekiSatiri?.IstenenAdet ?? (int)i.Miktar;
-                    var konulan = i.KonulanAdet;
+                    var istenen = i.CekiSatiri?.IstenenAdet ?? i.Miktar;
+                    var gridKapandi = i.CekiSatiri?.GridDurumuId == (int)GridDurum.GridKapandi;
+                    var konulan = gridKapandi ? istenen : i.KonulanAdet;
+                    var eksik = gridKapandi ? 0 : i.EksikAdet;
 
                     // Durum: konulana göre hesapla
                     string durumMetni;
@@ -81,7 +83,7 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                         Aciklama = i.CekiSatiri?.Aciklama ?? i.Isim ?? "",
                         IstenenAdet = istenen,
                         KonulanAdet = konulan,
-                        EksikAdet = i.EksikAdet,
+                        EksikAdet = eksik,
                         DurumId = i.CekiSatiri?.DurumId ?? 0,
                         DurumMetni = durumMetni,
                         PaketleyenBasHarf = i.CekiSatiri?.Paketleyen?.BasHarf,

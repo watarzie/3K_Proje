@@ -8,5 +8,8 @@ namespace _3K.Application.Features.ProjeIslemleri.DTOs
         public int Id { get; set; }
         public string ProjeNo { get; set; } = string.Empty;
         public string Musteri { get; set; } = string.Empty;
+        public int ProjeTipiId { get; set; }
+        public int DurumId { get; set; }
+        public string? Lokasyon { get; set; }
     }
 }

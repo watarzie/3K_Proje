@@ -138,6 +138,14 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 satir.GridSevkDurumuId == (int)GridSevkDurum.SevkEdildi &&
                 (satir.GridSevkMiktari ?? 0) > 0;
 
+            if (request.KarsilamaTipiId == (int)UcKDurum.Gelmedi &&
+                (satir.GelenMiktar > 0 ||
+                 satir.UcKKarsilamaTipiId == (int)UcKDurum.TamGeldi ||
+                 satir.UcKDurumuId == (int)UcKDurum.TamGeldi))
+            {
+                return Result.Failure("3K gelen miktarı bulunan veya 'Sevk Adeti Tam Geldi' olarak karşılanmış ürün 'Gelmedi' durumuna alınamaz. Önce 3K işlemini geri alın.");
+            }
+
             if ((request.KarsilamaTipiId == (int)UcKDurum.Gelmedi ||
                  request.KarsilamaTipiId == (int)UcKDurum.GeriGonderildi ||
                  request.KarsilamaTipiId == (int)UcKDurum.FazlaGeldi)

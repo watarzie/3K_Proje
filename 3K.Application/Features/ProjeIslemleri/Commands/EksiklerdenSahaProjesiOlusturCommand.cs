@@ -19,6 +19,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
 
     public class EksikSahaSandikDto
     {
+        public int? HedefSandikId { get; set; }
         public string SandikNo { get; set; } = string.Empty;
         public string? SandikIsmi { get; set; }
         public decimal? En { get; set; }

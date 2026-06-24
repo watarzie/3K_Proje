@@ -153,10 +153,10 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
         {
             var gridSevkMiktari = row.GridSevkMiktari ?? 0;
             var teslimBekleyen = Math.Max(gridSevkMiktari - row.GelenMiktar, 0);
-            var gridEksik = CalculateGridEksik(row.GridDurumuId, row.IstenenAdet, row.GridGelenAdet, row.TrafoSevkAdet);
+            var ucKGelenEksik = CalculateUcKGelenEksik(row.GridDurumuId, gridSevkMiktari, row.GelenMiktar);
             var kalan = CalculateKalan(row.GridDurumuId, row.IstenenAdet, row.GelenMiktar, row.StokKarsilanan, row.ProjeKarsilanan, row.ProjeGonderilen, row.TedarikciKarsilanan, row.TrafoSevkAdet);
 
-            var tip = GetIsTipi(row.GridDurumuId, row.GridSevkDurumuId, row.YenidenSevkGerekliAdet, row.TrafoSevkAdet, teslimBekleyen, gridEksik, row.UcKKarsilamaTipiId);
+            var tip = GetIsTipi(row.GridDurumuId, row.GridSevkDurumuId, row.YenidenSevkGerekliAdet, row.TrafoSevkAdet, teslimBekleyen, ucKGelenEksik, row.UcKKarsilamaTipiId);
             if (tip == null)
             {
                 return null;
@@ -204,29 +204,29 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
             decimal yenidenSevkGerekliAdet,
             decimal trafoSevkAdet,
             decimal teslimBekleyen,
-            decimal gridEksik,
+            decimal ucKGelenEksik,
             int ucKKarsilamaTipiId)
         {
             if (yenidenSevkGerekliAdet > 0 || gridSevkDurumuId == (int)GridSevkDurum.YenidenSevkGerekli)
                 return (TipYeniden, "Yeniden sevk gerekli", 1);
 
-            if (teslimBekleyen > 0 && gridSevkDurumuId == (int)GridSevkDurum.SevkEdildi)
-                return (TipTeslim, "3K teslim bekliyor", 2);
-
             if (gridDurumuId == (int)GridDurum.EksikGeldi &&
-                gridEksik > 0 &&
+                ucKGelenEksik > 0 &&
                 gridSevkDurumuId == (int)GridSevkDurum.SevkEdildi)
                 return (TipEksik, "Grid eksik geldi", 3);
+
+            if (teslimBekleyen > 0 && gridSevkDurumuId == (int)GridSevkDurum.SevkEdildi)
+                return (TipTeslim, "3K teslim bekliyor", 2);
 
             return null;
         }
 
-        private static decimal CalculateGridEksik(int gridDurumuId, decimal istenenAdet, decimal gridGelenAdet, decimal trafoSevkAdet)
+        private static decimal CalculateUcKGelenEksik(int gridDurumuId, decimal gridSevkMiktari, decimal gelenMiktar)
         {
             if (gridDurumuId == (int)GridDurum.Iptal || gridDurumuId == (int)GridDurum.GridKapandi)
                 return 0;
 
-            return Math.Max(istenenAdet - gridGelenAdet - trafoSevkAdet, 0);
+            return Math.Max(gridSevkMiktari - gelenMiktar, 0);
         }
 
         private static decimal CalculateKalan(

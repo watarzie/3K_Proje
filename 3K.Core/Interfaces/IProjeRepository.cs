@@ -21,5 +21,13 @@ namespace _3K.Core.Interfaces
         /// Dropdown'lar için hafif proje listesi — Include yok, sadece Proje tablosu.
         /// </summary>
         Task<IEnumerable<Proje>> GetAllLightAsync(CancellationToken cancellationToken = default);
+
+        Task<IEnumerable<Proje>> GetLightFilteredAsync(
+            int? projeTipiId,
+            string? searchTerm,
+            bool? isSevkEdilen,
+            int take,
+            IReadOnlyCollection<int>? includeIds,
+            CancellationToken cancellationToken = default);
     }
 }

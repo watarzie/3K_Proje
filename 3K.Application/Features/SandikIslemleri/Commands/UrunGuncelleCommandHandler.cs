@@ -224,7 +224,14 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (icerik == null || icerik.SandikId != request.SandikId)
                 return Result.Failure("Sandık içeriği bulunamadı.", 404);
 
-            if (request.KonulanAdet.HasValue)
+            var gridKapandiIstendi = request.GridDurumuId == (int)GridDurum.GridKapandi;
+
+            if (gridKapandiIstendi)
+            {
+                icerik.KonulanAdet = icerik.Miktar;
+                icerik.EksikAdet = 0;
+            }
+            else if (request.KonulanAdet.HasValue)
             {
                 if (request.KonulanAdet.Value < 0)
                     return Result.Failure("Konulan adet 0'dan küçük olamaz.");
@@ -236,7 +243,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 icerik.EksikAdet = Math.Max(0, icerik.Miktar - icerik.KonulanAdet);
             }
 
-            if (request.EksikAdet.HasValue)
+            if (!gridKapandiIstendi && request.EksikAdet.HasValue)
                 icerik.EksikAdet = request.EksikAdet.Value;
 
             sandikIcerikRepo.Update(icerik);
@@ -248,30 +255,45 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
                 if (satir != null)
                 {
-                    satir.GelenMiktar = icerik.KonulanAdet;
-                    satir.GridGelenAdet = icerik.KonulanAdet;
-                    satir.GridSevkMiktari = icerik.KonulanAdet;
-
-                    if (icerik.KonulanAdet >= satir.IstenenAdet)
+                    if (gridKapandiIstendi)
                     {
                         satir.DurumId = (int)UrunDurum.Tamamlandi;
-                        satir.GridDurumuId = (int)GridDurum.TamGeldi;
-                        satir.UcKDurumuId = (int)UcKDurum.TamGeldi;
-                        satir.UcKKarsilamaTipiId = (int)UcKDurum.TamGeldi;
-                    }
-                    else if (icerik.KonulanAdet > 0)
-                    {
-                        satir.DurumId = (int)UrunDurum.KismiGeldi;
-                        satir.GridDurumuId = (int)GridDurum.EksikGeldi;
-                        satir.UcKDurumuId = (int)UcKDurum.EksikGeldi;
-                        satir.UcKKarsilamaTipiId = (int)UcKDurum.EksikGeldi;
+                        satir.GridDurumuId = (int)GridDurum.GridKapandi;
+                        satir.GridGelenAdet = 0;
+                        satir.TrafoSevkAdet = 0;
+                        satir.GridSevkDurumuId = (int)GridSevkDurum.SevkEdilmedi;
+                        satir.GridSevkMiktari = null;
+                        satir.GelenMiktar = 0;
+                        satir.UcKDurumuId = (int)UcKDurum.Bekliyor;
+                        satir.UcKKarsilamaTipiId = (int)UcKDurum.Bekliyor;
                     }
                     else
                     {
-                        satir.DurumId = (int)UrunDurum.Bekliyor;
-                        satir.GridDurumuId = (int)GridDurum.Gelmedi;
-                        satir.UcKDurumuId = (int)UcKDurum.Bekliyor;
-                        satir.UcKKarsilamaTipiId = (int)UcKDurum.Bekliyor;
+                        satir.GelenMiktar = icerik.KonulanAdet;
+                        satir.GridGelenAdet = icerik.KonulanAdet;
+                        satir.GridSevkMiktari = icerik.KonulanAdet;
+
+                        if (icerik.KonulanAdet >= satir.IstenenAdet)
+                        {
+                            satir.DurumId = (int)UrunDurum.Tamamlandi;
+                            satir.GridDurumuId = (int)GridDurum.TamGeldi;
+                            satir.UcKDurumuId = (int)UcKDurum.TamGeldi;
+                            satir.UcKKarsilamaTipiId = (int)UcKDurum.TamGeldi;
+                        }
+                        else if (icerik.KonulanAdet > 0)
+                        {
+                            satir.DurumId = (int)UrunDurum.KismiGeldi;
+                            satir.GridDurumuId = (int)GridDurum.EksikGeldi;
+                            satir.UcKDurumuId = (int)UcKDurum.EksikGeldi;
+                            satir.UcKKarsilamaTipiId = (int)UcKDurum.EksikGeldi;
+                        }
+                        else
+                        {
+                            satir.DurumId = (int)UrunDurum.Bekliyor;
+                            satir.GridDurumuId = (int)GridDurum.Gelmedi;
+                            satir.UcKDurumuId = (int)UcKDurum.Bekliyor;
+                            satir.UcKKarsilamaTipiId = (int)UcKDurum.Bekliyor;
+                        }
                     }
 
                     cekiSatiriRepo.Update(satir);
