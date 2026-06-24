@@ -37,9 +37,20 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 .Distinct()
                 .ToList();
             var sahaTamamlamaMap = await _sahaTamamlamaService.GetAktifTamamlamaMapAsync(kaynakSatirIdleri, cancellationToken);
-            var sahayaAktarilanMiktar = kaynakSatirIdleri
-                .Select(id => sahaTamamlamaMap.GetValueOrDefault(id))
-                .Sum();
+            var sandikBazliAktarimSatirIds = await _sahaTamamlamaService.GetAktifSandikBazliAktarimSatirIdsAsync(kaynakSatirIdleri, cancellationToken);
+            var kaynakSatirlar = icerikler
+                .Select(i => i.CekiSatiri)
+                .Where(cs => cs != null && !cs.KaynakCekiSatiriId.HasValue)
+                .Select(cs => cs!)
+                .GroupBy(cs => cs.Id)
+                .Select(g => g.First())
+                .ToList();
+            var sahayaAktarilanMiktar = kaynakSatirlar.Sum(cs => sahaTamamlamaMap.GetValueOrDefault(cs.Id));
+            var aktarilabilirKaynakSatirlar = kaynakSatirlar
+                .Where(cs => cs.KalanMiktar > 0)
+                .ToList();
+            var sandikTamamenSahayaAktarildi = aktarilabilirKaynakSatirlar.Count > 0 &&
+                aktarilabilirKaynakSatirlar.All(cs => sandikBazliAktarimSatirIds.Contains(cs.Id));
 
             var dto = new SandikDetayDto
             {
@@ -51,7 +62,7 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 SevkiyatDuzeltmeAcikMi = sandik.SevkiyatDuzeltmeAcikMi,
                 DepoLokasyonId = sandik.DepoLokasyonId,
                 DepoLokasyonMetni = _lookupCache.GetDeger<LookupDepoLokasyon>(sandik.DepoLokasyonId),
-                SahayaAktarildiMi = sahayaAktarilanMiktar > 0,
+                SahayaAktarildiMi = sandikTamamenSahayaAktarildi,
                 SahayaAktarilanMiktar = sahayaAktarilanMiktar,
                 En = sandik.En,
                 Boy = sandik.Boy,

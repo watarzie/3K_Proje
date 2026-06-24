@@ -1,6 +1,7 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Application.Features.ProjeIslemleri.DTOs;
+using _3K.Core.Constants;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
@@ -125,7 +126,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                                 CekiSatiriId = kaynakSatir.Id,
                                 KaynakProjeId = request.KaynakProjeId,
                                 Miktar = aktarilabilirMiktar,
-                                Aciklama = $"Kaynak sandık: {sandik.SandikNo}"
+                                Aciklama = $"{SahaAktarimConstants.SandikBazliAktarimAciklamaPrefix} {sandik.SandikNo}"
                             };
                     })
                     .Where(u => u != null)

@@ -10,6 +10,10 @@ namespace _3K.Core.Interfaces
             IEnumerable<int> kaynakCekiSatiriIds,
             CancellationToken cancellationToken = default);
 
+        Task<HashSet<int>> GetAktifSandikBazliAktarimSatirIdsAsync(
+            IEnumerable<int> kaynakCekiSatiriIds,
+            CancellationToken cancellationToken = default);
+
         Task<bool> AktifTamamlamaVarMiAsync(
             int kaynakCekiSatiriId,
             CancellationToken cancellationToken = default);

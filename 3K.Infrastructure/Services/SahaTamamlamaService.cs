@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using _3K.Core.Constants;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Helpers;
@@ -49,6 +50,33 @@ namespace _3K.Infrastructure.Services
                     cs.KaynakCekiSatiriId == kaynakCekiSatiriId &&
                     cs.Ceki.Proje.ProjeTipiId == (int)ProjeTipi.Saha,
                     cancellationToken);
+        }
+
+        public async Task<HashSet<int>> GetAktifSandikBazliAktarimSatirIdsAsync(
+            IEnumerable<int> kaynakCekiSatiriIds,
+            CancellationToken cancellationToken = default)
+        {
+            var kaynakIds = kaynakCekiSatiriIds
+                .Where(id => id > 0)
+                .Distinct()
+                .ToList();
+
+            if (kaynakIds.Count == 0)
+                return new HashSet<int>();
+
+            var satirIds = await _context.CekiSatirlari
+                .AsNoTracking()
+                .Where(cs =>
+                    cs.KaynakCekiSatiriId.HasValue &&
+                    kaynakIds.Contains(cs.KaynakCekiSatiriId.Value) &&
+                    cs.Ceki.Proje.ProjeTipiId == (int)ProjeTipi.Saha &&
+                    cs.UcKAciklama != null &&
+                    cs.UcKAciklama.StartsWith(SahaAktarimConstants.SandikBazliAktarimAciklamaPrefix))
+                .Select(cs => cs.KaynakCekiSatiriId!.Value)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            return satirIds.ToHashSet();
         }
 
         private async Task<Dictionary<int, decimal>> GetTamamlamaMapAsync(

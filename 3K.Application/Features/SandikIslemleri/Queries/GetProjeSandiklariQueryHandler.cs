@@ -34,16 +34,25 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 .Distinct()
                 .ToList();
             var sahaTamamlamaMap = await _sahaTamamlamaService.GetAktifTamamlamaMapAsync(kaynakSatirIdleri, cancellationToken);
+            var sandikBazliAktarimSatirIds = await _sahaTamamlamaService.GetAktifSandikBazliAktarimSatirIdsAsync(kaynakSatirIdleri, cancellationToken);
 
             var result = sandiklar.Select(s =>
             {
                 var icerikler = s.SandikIcerikleri?.ToList() ?? new List<SandikIcerik>();
                 var isManuelSandik = IsManuelSandik(icerikler);
-                var sahayaAktarilanMiktar = icerikler
+                var kaynakSatirlar = icerikler
                     .Select(i => i.CekiSatiri)
                     .Where(cs => cs != null && !cs.KaynakCekiSatiriId.HasValue)
-                    .Select(cs => sahaTamamlamaMap.GetValueOrDefault(cs!.Id))
-                    .Sum();
+                    .Select(cs => cs!)
+                    .GroupBy(cs => cs.Id)
+                    .Select(g => g.First())
+                    .ToList();
+                var sahayaAktarilanMiktar = kaynakSatirlar.Sum(cs => sahaTamamlamaMap.GetValueOrDefault(cs.Id));
+                var aktarilabilirKaynakSatirlar = kaynakSatirlar
+                    .Where(cs => cs.KalanMiktar > 0)
+                    .ToList();
+                var sandikTamamenSahayaAktarildi = aktarilabilirKaynakSatirlar.Count > 0 &&
+                    aktarilabilirKaynakSatirlar.All(cs => sandikBazliAktarimSatirIds.Contains(cs.Id));
 
                 return new SandikDto
                 {
@@ -59,7 +68,7 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                     IsManuelSandik = isManuelSandik,
                     SilinebilirMi = icerikler.Count == 0 || (isManuelSandik && icerikler.All(i => !ManuelSatirIslemGormus(i.CekiSatiri!))),
                     DepodaSayilacakMi = s.DepoLokasyonId != (int)DepoLokasyon.Belirsiz && DepodaSayilacakSandik(s, icerikler),
-                    SahayaAktarildiMi = sahayaAktarilanMiktar > 0,
+                    SahayaAktarildiMi = sandikTamamenSahayaAktarildi,
                     SahayaAktarilanMiktar = sahayaAktarilanMiktar,
                     En = s.En,
                     Boy = s.Boy,
