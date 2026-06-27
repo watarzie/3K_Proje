@@ -11,9 +11,11 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
         public static DashboardProjeItemDto ToProjeItem(
             Proje proje,
             ILookupCacheService lookupCache,
-            IReadOnlyDictionary<int, decimal>? sahaTamamlamaMap = null)
+            IReadOnlyDictionary<int, decimal>? sahaTamamlamaMap = null,
+            IReadOnlyDictionary<int, decimal>? sevkEdilenSahaTamamlamaMap = null)
         {
             sahaTamamlamaMap ??= new Dictionary<int, decimal>();
+            sevkEdilenSahaTamamlamaMap ??= new Dictionary<int, decimal>();
             var sandiklar = proje.Sandiklar ?? new List<Sandik>();
             var cekiSatirlari = proje.Cekiler?.SelectMany(c => c.CekiSatirlari).ToList() ?? new List<CekiSatiri>();
             var sandikIcerikleri = sandiklar.SelectMany(s => s.SandikIcerikleri).ToList();
@@ -26,7 +28,16 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                     return istenen > 0 && si.KonulanAdet >= istenen;
                 })
                 : cekiSatirlari.Count(cs => CekiSatiriKalanHelper.HesaplaEtkinKalan(cs, sahaTamamlamaMap) <= 0);
-            var durumId = HesaplaDurumId(proje, sandiklar, !isSahaYedek && toplamUrun > 0 && tamamlananUrun == toplamUrun);
+            var normalUrunlerSevkKapsamindaTamamlandi = !isSahaYedek && toplamUrun > 0 &&
+                cekiSatirlari.All(cs => CekiSatiriKalanHelper.HesaplaEtkinKalan(cs, sevkEdilenSahaTamamlamaMap) <= 0);
+            var sahaSevkiyleTamamlamaVar = !isSahaYedek &&
+                cekiSatirlari.Any(cs => sevkEdilenSahaTamamlamaMap.GetValueOrDefault(cs.Id) > 0);
+            var durumId = HesaplaDurumId(
+                proje,
+                sandiklar,
+                isSahaYedek,
+                normalUrunlerSevkKapsamindaTamamlandi,
+                sahaSevkiyleTamamlamaVar);
 
             return new DashboardProjeItemDto
             {
@@ -69,18 +80,32 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
             });
         }
 
-        private static int HesaplaDurumId(Proje proje, ICollection<Sandik> sandiklar, bool normalUrunlerTamamlandi)
+        private static int HesaplaDurumId(
+            Proje proje,
+            ICollection<Sandik> sandiklar,
+            bool isSahaYedek,
+            bool normalUrunlerSevkKapsamindaTamamlandi,
+            bool sahaSevkiyleTamamlamaVar)
         {
             var toplamSandik = sandiklar.Count;
+            var sevkEdilenSandik = sandiklar.Count(s => s.DurumId == (int)SandikDurum.Sevkedildi);
+            var tumSandiklarSevkEdildi = toplamSandik > 0 && sevkEdilenSandik == toplamSandik;
+            var sevkKaydiVar = sevkEdilenSandik > 0 || sahaSevkiyleTamamlamaVar;
             var hazirSandik = sandiklar.Count(s =>
                 s.DurumId == (int)SandikDurum.Kapandi ||
                 s.DurumId == (int)SandikDurum.Sevkedildi);
 
-            if (proje.DurumId == (int)ProjeDurum.SevkEdildi ||
-                (proje.DurumId == (int)ProjeDurum.EksikSevkEdildi && normalUrunlerTamamlandi))
+            if (!isSahaYedek && sevkKaydiVar && normalUrunlerSevkKapsamindaTamamlandi)
                 return (int)ProjeDurum.SevkEdildi;
 
-            if (proje.DurumId == (int)ProjeDurum.EksikSevkEdildi)
+            if (!isSahaYedek && sevkKaydiVar)
+                return (int)ProjeDurum.EksikSevkEdildi;
+
+            if (isSahaYedek &&
+                (tumSandiklarSevkEdildi || proje.DurumId == (int)ProjeDurum.SevkEdildi))
+                return (int)ProjeDurum.SevkEdildi;
+
+            if (isSahaYedek && proje.DurumId == (int)ProjeDurum.EksikSevkEdildi)
                 return proje.DurumId;
 
             if (hazirSandik == toplamSandik && toplamSandik > 0)

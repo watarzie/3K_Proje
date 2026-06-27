@@ -10,4 +10,9 @@ namespace _3K.Application.Common
     {
         string GetApprovalDescription();
     }
+
+    public interface IApprovalOperation
+    {
+        string GetApprovalOperationCode();
+    }
 }

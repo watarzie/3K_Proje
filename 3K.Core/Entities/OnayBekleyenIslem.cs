@@ -1,9 +1,11 @@
 using _3K.Core.Enums;
+using _3K.Core.Constants;
 
 namespace _3K.Core.Entities
 {
     public class OnayBekleyenIslem : BaseEntity
     {
+        public string IslemKodu { get; set; } = OnayIslemKodlari.Genel;
         public string IslemAciklamasi { get; set; } = string.Empty;
         public string CommandType { get; set; } = string.Empty;
         public string PayloadJson { get; set; } = string.Empty;

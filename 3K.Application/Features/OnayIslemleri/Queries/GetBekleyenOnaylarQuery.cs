@@ -4,7 +4,8 @@ using _3K.Application.Features.OnayIslemleri.DTOs;
 
 namespace _3K.Application.Features.OnayIslemleri.Queries
 {
-    public class GetBekleyenOnaylarQuery : IRequest<Result<List<OnayBekleyenIslemDto>>>, ISecuredRequest
+    public class GetBekleyenOnaylarQuery : IRequest<Result<List<OnayBekleyenIslemDto>>>, ISecuredRequest, IRequiresMenuPermission
     {
+        public string RequiredMenuKod => "islem-onay-merkezi";
     }
 }

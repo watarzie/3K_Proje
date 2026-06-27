@@ -125,6 +125,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                             {
                                 CekiSatiriId = kaynakSatir.Id,
                                 KaynakProjeId = request.KaynakProjeId,
+                                KaynakSandikId = sandik.Id,
                                 Miktar = aktarilabilirMiktar,
                                 Aciklama = $"{SahaAktarimConstants.SandikBazliAktarimAciklamaPrefix} {sandik.SandikNo}"
                             };

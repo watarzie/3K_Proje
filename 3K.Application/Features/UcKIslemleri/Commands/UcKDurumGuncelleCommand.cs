@@ -1,6 +1,7 @@
 using MediatR;
 using _3K.Core.Enums;
 using _3K.Application.Common;
+using _3K.Core.Constants;
 
 namespace _3K.Application.Features.UcKIslemleri.Commands
 {
@@ -9,12 +10,17 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
     /// Karşılama Tipleri (UcKDurum enum Id): TamGeldi, EksikGeldi, Gelmedi, ProjedenKarsilandi, StoktanKarsilandi,
     /// TedarikcidenGeldi, BaskaProyeVerildi, GeriGonderildi, HataliUrun
     /// </summary>
-    public class UcKDurumGuncelleCommand : IRequest<Result>, ISecuredRequest, IRequireApproval
+    public class UcKDurumGuncelleCommand : IRequest<Result>, ISecuredRequest, IRequireApproval, IApprovalOperation
     {
 
         public int GetApprovalLookupUcKDurumId()
         {
             return KarsilamaTipiId;
+        }
+
+        public string GetApprovalOperationCode()
+        {
+            return OnayIslemKodlari.FromUcKDurumId(KarsilamaTipiId);
         }
 
         public string GetApprovalDescription()

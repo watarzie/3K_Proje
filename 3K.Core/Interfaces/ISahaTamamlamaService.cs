@@ -10,6 +10,14 @@ namespace _3K.Core.Interfaces
             IEnumerable<int> kaynakCekiSatiriIds,
             CancellationToken cancellationToken = default);
 
+        Task<Dictionary<int, decimal>> GetAktifGerceklesenTamamlamaMapAsync(
+            IEnumerable<int> kaynakCekiSatiriIds,
+            CancellationToken cancellationToken = default);
+
+        Task<Dictionary<int, decimal>> GetSevkEdilenGerceklesenTamamlamaMapAsync(
+            IEnumerable<int> kaynakCekiSatiriIds,
+            CancellationToken cancellationToken = default);
+
         Task<HashSet<int>> GetAktifSandikBazliAktarimSatirIdsAsync(
             IEnumerable<int> kaynakCekiSatiriIds,
             CancellationToken cancellationToken = default);

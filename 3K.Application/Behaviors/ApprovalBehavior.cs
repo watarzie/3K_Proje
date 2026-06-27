@@ -1,11 +1,11 @@
 using System.Text.Json;
 using MediatR;
-using _3K.Application.Common;
-using _3K.Core.Entities;
-using _3K.Core.Interfaces;
-using _3K.Core.Enums;
-
 using Microsoft.Extensions.Caching.Memory;
+using _3K.Application.Common;
+using _3K.Core.Constants;
+using _3K.Core.Entities;
+using _3K.Core.Enums;
+using _3K.Core.Interfaces;
 
 namespace _3K.Application.Behaviors
 {
@@ -18,7 +18,12 @@ namespace _3K.Application.Behaviors
         private readonly IMemoryCache _cache;
         private readonly IApprovalExecutionContext _approvalExecutionContext;
 
-        public ApprovalBehavior(ICurrentUserService currentUserService, IUnitOfWork unitOfWork, ISseNotifier sseNotifier, IMemoryCache cache, IApprovalExecutionContext approvalExecutionContext)
+        public ApprovalBehavior(
+            ICurrentUserService currentUserService,
+            IUnitOfWork unitOfWork,
+            ISseNotifier sseNotifier,
+            IMemoryCache cache,
+            IApprovalExecutionContext approvalExecutionContext)
         {
             _currentUserService = currentUserService;
             _unitOfWork = unitOfWork;
@@ -27,16 +32,20 @@ namespace _3K.Application.Behaviors
             _approvalExecutionContext = approvalExecutionContext;
         }
 
-        public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
+        public async Task<TResponse> Handle(
+            TRequest request,
+            RequestHandlerDelegate<TResponse> next,
+            CancellationToken cancellationToken)
         {
             if (request is IAlwaysRequireApproval alwaysApprovalReq)
             {
                 if (_approvalExecutionContext.IsExecutingApprovedCommand)
-                {
                     return await next();
-                }
 
-                return await QueueForApprovalAsync(request, alwaysApprovalReq.GetApprovalDescription());
+                return await QueueForApprovalAsync(
+                    request,
+                    alwaysApprovalReq.GetApprovalDescription(),
+                    ResolveApprovalOperationCode(request));
             }
 
             if (request is IRequireApproval approvalReq)
@@ -51,31 +60,33 @@ namespace _3K.Application.Behaviors
                     var ruleRepo = _unitOfWork.GetRepository<IslemOnayKurali>();
                     var ruleList = await ruleRepo.FindAsync(r => r.LookupUcKDurumId == lookupUcKDurumId);
                     var kural = ruleList.FirstOrDefault();
-                    
+
                     return kural?.OnayGerektirirMi ?? false;
                 });
 
                 if (isRuleActive)
                 {
                     if (_approvalExecutionContext.IsExecutingApprovedCommand)
-                    {
                         return await next();
-                    }
 
-                    return await QueueForApprovalAsync(request, approvalReq.GetApprovalDescription());
+                    return await QueueForApprovalAsync(
+                        request,
+                        approvalReq.GetApprovalDescription(),
+                        ResolveApprovalOperationCode(request, lookupUcKDurumId));
                 }
             }
 
             return await next();
         }
 
-        private async Task<TResponse> QueueForApprovalAsync(TRequest request, string islemAdi)
+        private async Task<TResponse> QueueForApprovalAsync(TRequest request, string islemAdi, string islemKodu)
         {
             var reqType = typeof(TRequest);
             var jsonPayload = JsonSerializer.Serialize((object)request);
 
             var onay = new OnayBekleyenIslem
             {
+                IslemKodu = string.IsNullOrWhiteSpace(islemKodu) ? OnayIslemKodlari.Genel : islemKodu,
                 CommandType = reqType.AssemblyQualifiedName ?? reqType.FullName!,
                 PayloadJson = jsonPayload,
                 IslemAciklamasi = islemAdi,
@@ -97,7 +108,9 @@ namespace _3K.Application.Behaviors
                 var genericSuccess = resType.GetMethod("Success", new[] { valueType, typeof(int) });
                 if (genericSuccess != null)
                 {
-                    var resultObj = genericSuccess.Invoke(null, new object?[] { null, StatusConstants.ActionQueuedForApproval });
+                    var resultObj = genericSuccess.Invoke(
+                        null,
+                        new object?[] { null, StatusConstants.ActionQueuedForApproval });
                     return (TResponse)resultObj!;
                 }
             }
@@ -109,11 +122,15 @@ namespace _3K.Application.Behaviors
             throw new InvalidOperationException("ApprovalBehavior sadece Result veya Result<T> dönen command'lerle çalışır.");
         }
 
-        private string GetIslemAciklamasi(string commandName)
+        private static string ResolveApprovalOperationCode(TRequest request, int? lookupUcKDurumId = null)
         {
-            if (commandName.Contains("UcKDurumGuncelle")) return "3K Modülü Ürün Karşılama (Kritik İşlem İşareti)";
-            if (commandName.Contains("Stok")) return "Stok Operasyonu";
-            return "Kritik Kullanıcı İşlemi";
+            if (request is IApprovalOperation operation)
+                return operation.GetApprovalOperationCode();
+
+            if (lookupUcKDurumId.HasValue)
+                return OnayIslemKodlari.FromUcKDurumId(lookupUcKDurumId.Value);
+
+            return OnayIslemKodlari.Genel;
         }
     }
 }

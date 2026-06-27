@@ -129,6 +129,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             await _unitOfWork.SaveChangesAsync();
 
+            if (urun.KaynakCekiSatiriId.HasValue)
+                await _sahaTamamlamaService.SenkronizeKaynakProjelerAsync(new[] { urun.KaynakCekiSatiriId.Value }, cancellationToken);
+
             // ===== 6. Hareket kaydı =====
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {

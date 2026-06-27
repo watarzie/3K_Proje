@@ -36,7 +36,8 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                 .Where(cs => !cs.KaynakCekiSatiriId.HasValue)
                 .Select(cs => cs.Id)
                 .ToList();
-            var sahaTamamlamaMap = await _sahaTamamlamaService.GetAktifTamamlamaMapAsync(normalKaynakSatirIds, cancellationToken);
+            var sahaTamamlamaMap = await _sahaTamamlamaService.GetAktifGerceklesenTamamlamaMapAsync(normalKaynakSatirIds, cancellationToken);
+            var sevkEdilenSahaTamamlamaMap = await _sahaTamamlamaService.GetSevkEdilenGerceklesenTamamlamaMapAsync(normalKaynakSatirIds, cancellationToken);
 
             var result = projeler.Select(p =>
             {
@@ -84,16 +85,21 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                         return istenen > 0 && si.KonulanAdet >= istenen;
                     })
                     : cekiSatirlari.Count(cs => CekiSatiriKalanHelper.HesaplaEtkinKalan(cs, sahaTamamlamaMap) <= 0);
-                var normalUrunlerTamamlandi = !isSahaYedek && toplamUrun > 0 && tamamlananUrun == toplamUrun;
+                var normalUrunlerSevkKapsamindaTamamlandi = !isSahaYedek && toplamUrun > 0 &&
+                    cekiSatirlari.All(cs => CekiSatiriKalanHelper.HesaplaEtkinKalan(cs, sevkEdilenSahaTamamlamaMap) <= 0);
+                var sahaSevkiyleTamamlamaVar = !isSahaYedek &&
+                    cekiSatirlari.Any(cs => sevkEdilenSahaTamamlamaMap.GetValueOrDefault(cs.Id) > 0);
 
                 // Durum hesaplama
                 int durumId;
                 var tumSandiklarSevkEdildi = toplamSandik > 0 && sevkEdilmisSandikSayisi == toplamSandik;
-                if (tumSandiklarSevkEdildi ||
-                    p.DurumId == (int)ProjeDurum.SevkEdildi ||
-                    (p.DurumId == (int)ProjeDurum.EksikSevkEdildi && normalUrunlerTamamlandi))
+                var sevkKaydiVar = sevkEdilmisSandikSayisi > 0 || sahaSevkiyleTamamlamaVar;
+                if ((isSahaYedek && (tumSandiklarSevkEdildi || p.DurumId == (int)ProjeDurum.SevkEdildi)) ||
+                    (!isSahaYedek && sevkKaydiVar && normalUrunlerSevkKapsamindaTamamlandi))
                     durumId = (int)ProjeDurum.SevkEdildi;
-                else if (p.DurumId == (int)ProjeDurum.EksikSevkEdildi)
+                else if (!isSahaYedek && sevkKaydiVar)
+                    durumId = (int)ProjeDurum.EksikSevkEdildi;
+                else if (isSahaYedek && p.DurumId == (int)ProjeDurum.EksikSevkEdildi)
                     durumId = p.DurumId; // Kilitli/Sevk edilmiş proje statüsü ezilemez
                 else if (hazirSandik == toplamSandik && toplamSandik > 0)
                     durumId = (int)ProjeDurum.Tamamlandi;

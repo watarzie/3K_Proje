@@ -45,7 +45,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             if (isSahaYedek)
             {
-                return await SahaYedekIcerikGuncelle(request, sandikIcerikRepo, hedefSandik);
+                return await SahaYedekIcerikGuncelle(request, sandikIcerikRepo, hedefSandik, cancellationToken);
             }
 
             // ===== Saha/Yedek (CekiSatiriId yok) → SandikIcerikId ile bul =====
@@ -212,7 +212,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         private async Task<Result> SahaYedekIcerikGuncelle(
             UrunGuncelleCommand request,
             IGenericRepository<SandikIcerik> sandikIcerikRepo,
-            Sandik sandik)
+            Sandik sandik,
+            CancellationToken cancellationToken)
         {
             if (SandikSevkKilidiHelper.SandikKilitliMi(sandik))
                 return Result.Failure("Sevk edilmiş sandıkta ürün adedi güncellenemez.");
@@ -248,6 +249,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             sandikIcerikRepo.Update(icerik);
 
+            int? kaynakCekiSatiriId = null;
+
             if (icerik.CekiSatiriId.HasValue)
             {
                 var cekiSatiriRepo = _unitOfWork.GetRepository<CekiSatiri>();
@@ -255,6 +258,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
                 if (satir != null)
                 {
+                    kaynakCekiSatiriId = satir.KaynakCekiSatiriId;
+
                     if (gridKapandiIstendi)
                     {
                         satir.DurumId = (int)UrunDurum.Tamamlandi;
@@ -301,6 +306,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             }
 
             await _unitOfWork.SaveChangesAsync();
+
+            if (kaynakCekiSatiriId.HasValue)
+                await _sahaTamamlamaService.SenkronizeKaynakProjelerAsync(new[] { kaynakCekiSatiriId.Value }, cancellationToken);
 
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {

@@ -54,6 +54,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             var kilitliSatirIdleri = await SandikSevkKilidiHelper.GetSevkEdilmisSandikCekiSatiriIdleriAsync(
                 _unitOfWork,
                 satirlar.Select(s => s.Id));
+            var kaynakSatirIds = new HashSet<int>();
 
             foreach (var satir in satirlar)
             {
@@ -124,6 +125,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
                 await SandikLokasyonHelper.VarsayilanUcKDepoLokasyonuAtaAsync(_unitOfWork, ilgiliIcerikler);
 
+                if (satir.KaynakCekiSatiriId.HasValue)
+                    kaynakSatirIds.Add(satir.KaynakCekiSatiriId.Value);
+
                 guncellenen++;
             }
 
@@ -131,6 +135,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 return Result.Failure("Hiçbir ürün güncellenemedi. Tümü Grid sevk/iptal kontrolünü geçemedi.");
 
             await _unitOfWork.SaveChangesAsync();
+
+            if (kaynakSatirIds.Count > 0)
+                await _sahaTamamlamaService.SenkronizeKaynakProjelerAsync(kaynakSatirIds, cancellationToken);
 
             // Toplu hareket kaydı
             var sb = new System.Text.StringBuilder();

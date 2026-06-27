@@ -2,8 +2,8 @@ using System.Text.Json;
 using MediatR;
 using _3K.Application.Common;
 using _3K.Core.Entities;
-using _3K.Core.Interfaces;
 using _3K.Core.Enums;
+using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.OnayIslemleri.Commands
 {
@@ -13,13 +13,20 @@ namespace _3K.Application.Features.OnayIslemleri.Commands
         private readonly IMediator _mediator;
         private readonly ICurrentUserService _currentUserService;
         private readonly IApprovalExecutionContext _approvalExecutionContext;
+        private readonly IOnayYetkiService _onayYetkiService;
 
-        public IslemOnaylaCommandHandler(IUnitOfWork unitOfWork, IMediator mediator, ICurrentUserService currentUserService, IApprovalExecutionContext approvalExecutionContext)
+        public IslemOnaylaCommandHandler(
+            IUnitOfWork unitOfWork,
+            IMediator mediator,
+            ICurrentUserService currentUserService,
+            IApprovalExecutionContext approvalExecutionContext,
+            IOnayYetkiService onayYetkiService)
         {
             _unitOfWork = unitOfWork;
             _mediator = mediator;
             _currentUserService = currentUserService;
             _approvalExecutionContext = approvalExecutionContext;
+            _onayYetkiService = onayYetkiService;
         }
 
         public async Task<Result> Handle(IslemOnaylaCommand request, CancellationToken cancellationToken)
@@ -30,13 +37,21 @@ namespace _3K.Application.Features.OnayIslemleri.Commands
             if (islem == null || islem.Durum != OnayDurumu.Bekliyor)
                 return Result.Failure("Geçerli bir onay bekleyen işlem bulunamadı.");
 
-            // 1. Durumu Onaylandı yap.
+            var kullaniciId = _currentUserService.UserId ?? 0;
+            var onaylayabilir = await _onayYetkiService.KullaniciIslemOnaylayabilirMiAsync(
+                kullaniciId,
+                islem.IslemKodu,
+                islem.TalepEdenKullaniciId,
+                cancellationToken);
+
+            if (!onaylayabilir)
+                return Result.Failure("Bu işlem tipi için onay yetkiniz bulunmuyor.", 403);
+
             islem.Durum = OnayDurumu.Onaylandi;
-            islem.OnaylayanKullaniciId = _currentUserService.UserId ?? 0;
+            islem.OnaylayanKullaniciId = kullaniciId;
             repo.Update(islem);
-            await _unitOfWork.SaveChangesAsync(); // Update state first, so if execution fails it's still logged? Or execution is part of transaction?
-            
-            // 2. JSON Payload'u deserialize et.
+            await _unitOfWork.SaveChangesAsync();
+
             var targetType = Type.GetType(islem.CommandType);
             if (targetType == null)
                 return Result.Failure("Orijinal komut tipi sistemde bulunamadı. Sürüm güncellemesi yapılıp sınıf silinmiş olabilir.");
@@ -45,13 +60,11 @@ namespace _3K.Application.Features.OnayIslemleri.Commands
             if (originalRequest == null)
                 return Result.Failure("JSON datası orijinal komuta dönüştürülemedi.");
 
-            // 3. Asıl komutu MediatR ile onaylı çalıştırma modunda çalıştır.
             using var approvedExecution = _approvalExecutionContext.BeginApprovedExecution();
             var response = await _mediator.Send(originalRequest, cancellationToken);
-            
-            // response could be Result or Result<T>. We check if it was successful.
-            bool isSuccess = false;
-            string errorMsg = "Bilinmeyen asıl işlem hatası.";
+
+            var isSuccess = false;
+            var errorMsg = "Bilinmeyen asıl işlem hatası.";
 
             if (response is Result resObj)
             {
@@ -61,18 +74,16 @@ namespace _3K.Application.Features.OnayIslemleri.Commands
             }
             else
             {
-                // Unlikely, but if it doesn't inherit from Result
                 return Result.Success();
             }
 
             if (!isSuccess)
             {
-                // Asıl komut başarısız olduysa, onay statesini de geri alabiliriz ya da hatayı dönebiliriz.
                 islem.Durum = OnayDurumu.Reddedildi;
                 islem.RedAciklamasi = "Komut çalıştırılırken hata: " + errorMsg;
                 repo.Update(islem);
                 await _unitOfWork.SaveChangesAsync();
-                
+
                 return Result.Failure("İşlem onaylanıp çalıştırıldı fakat asıl komut başarısız oldu: " + errorMsg);
             }
 

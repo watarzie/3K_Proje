@@ -1,17 +1,23 @@
 using MediatR;
 using _3K.Application.Common;
+using _3K.Core.Constants;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.ProjeIslemleri.Commands
 {
-    public class ProjeKilidiAcCommand : IRequest<Result>, ISecuredRequest, IAlwaysRequireApproval
+    public class ProjeKilidiAcCommand : IRequest<Result>, ISecuredRequest, IAlwaysRequireApproval, IApprovalOperation
     {
         public int ProjeId { get; set; }
         public string? ProjeNo { get; set; }
         public int KilitAcmaTipiId { get; set; } = (int)SevkiyatKilitAcmaTipi.SevkiyatGeriAlinarakAc;
         public string? Aciklama { get; set; }
+
+        public string GetApprovalOperationCode()
+        {
+            return OnayIslemKodlari.ProjeKilidiAc;
+        }
 
         public string GetApprovalDescription()
         {

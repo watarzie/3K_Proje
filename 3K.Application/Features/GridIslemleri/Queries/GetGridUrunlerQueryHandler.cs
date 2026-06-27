@@ -58,7 +58,7 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                 return Result<List<GridUrunDto>>.Failure("Bu projeye ait ürün bulunamadı.", 404);
 
             var sahaTamamlamaMap = proje.ProjeTipiId == (int)ProjeTipi.Normal
-                ? await _sahaTamamlamaService.GetAktifTamamlamaMapAsync(
+                ? await _sahaTamamlamaService.GetAktifGerceklesenTamamlamaMapAsync(
                     satirlar.Where(s => !s.KaynakCekiSatiriId.HasValue).Select(s => s.Id),
                     cancellationToken)
                 : new Dictionary<int, decimal>();

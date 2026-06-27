@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using _3K.Core.Constants;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 
@@ -23,9 +24,12 @@ namespace _3K.Infrastructure.Data
         public DbSet<HareketGecmisi> HareketGecmisleri { get; set; } = null!;
         public DbSet<HareketGecmisiArsiv> HareketGecmisleriArsiv { get; set; } = null!;
         public DbSet<ProjeTransfer> ProjeTransferleri { get; set; } = null!;
+        public DbSet<SahaAktarim> SahaAktarimlari { get; set; } = null!;
+        public DbSet<SahaAktarimKalemi> SahaAktarimKalemleri { get; set; } = null!;
         public DbSet<Sevkiyat> Sevkiyatlar { get; set; } = null!;
         public DbSet<SevkiyatSandik> SevkiyatSandiklari { get; set; } = null!;
         public DbSet<OnayBekleyenIslem> OnayBekleyenIslemler { get; set; } = null!;
+        public DbSet<OnayIslemYetki> OnayIslemYetkileri { get; set; } = null!;
 
         // ======= RBAC (Rol Tabanlı Erişim Kontrolü) DbSet'leri =======
         public DbSet<Rol> Roller { get; set; } = null!;
@@ -311,6 +315,77 @@ namespace _3K.Infrastructure.Data
                 .HasForeignKey(pt => pt.KullaniciId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            modelBuilder.Entity<SahaAktarim>(e =>
+            {
+                e.HasIndex(p => p.SahaProjeId);
+                e.HasIndex(p => p.KaynakProjeId);
+
+                e.HasOne(p => p.SahaProje)
+                    .WithMany()
+                    .HasForeignKey(p => p.SahaProjeId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                e.HasOne(p => p.KaynakProje)
+                    .WithMany()
+                    .HasForeignKey(p => p.KaynakProjeId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                e.HasOne(p => p.Kullanici)
+                    .WithMany()
+                    .HasForeignKey(p => p.KullaniciId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<SahaAktarimKalemi>(e =>
+            {
+                e.Property(p => p.Miktar).HasPrecision(18, 4);
+                e.HasIndex(p => p.SahaAktarimId);
+                e.HasIndex(p => p.KaynakProjeId);
+                e.HasIndex(p => p.SahaProjeId);
+                e.HasIndex(p => p.KaynakCekiSatiriId);
+                e.HasIndex(p => p.SahaCekiSatiriId);
+                e.HasIndex(p => p.KaynakSandikId);
+                e.HasIndex(p => p.SahaSandikId);
+                e.HasIndex(p => p.DurumId);
+                e.HasIndex(p => p.AktarimTipiId);
+                e.HasIndex(p => new { p.KaynakCekiSatiriId, p.DurumId });
+
+                e.HasOne(p => p.SahaAktarim)
+                    .WithMany(p => p.Kalemler)
+                    .HasForeignKey(p => p.SahaAktarimId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                e.HasOne(p => p.KaynakProje)
+                    .WithMany()
+                    .HasForeignKey(p => p.KaynakProjeId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                e.HasOne(p => p.SahaProje)
+                    .WithMany()
+                    .HasForeignKey(p => p.SahaProjeId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                e.HasOne(p => p.KaynakCekiSatiri)
+                    .WithMany()
+                    .HasForeignKey(p => p.KaynakCekiSatiriId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                e.HasOne(p => p.SahaCekiSatiri)
+                    .WithMany()
+                    .HasForeignKey(p => p.SahaCekiSatiriId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                e.HasOne(p => p.KaynakSandik)
+                    .WithMany()
+                    .HasForeignKey(p => p.KaynakSandikId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                e.HasOne(p => p.SahaSandik)
+                    .WithMany()
+                    .HasForeignKey(p => p.SahaSandikId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+
             // --- Kullanici.RolId → Rol ---
             modelBuilder.Entity<Kullanici>()
                 .HasOne(k => k.Rol)
@@ -361,6 +436,15 @@ namespace _3K.Infrastructure.Data
                 .IsRequired();
 
             modelBuilder.Entity<OnayBekleyenIslem>()
+                .Property(o => o.IslemKodu)
+                .HasMaxLength(100)
+                .HasDefaultValue(OnayIslemKodlari.Genel)
+                .IsRequired();
+
+            modelBuilder.Entity<OnayBekleyenIslem>()
+                .HasIndex(o => new { o.Durum, o.IslemKodu });
+
+            modelBuilder.Entity<OnayBekleyenIslem>()
                 .HasOne(o => o.TalepEdenKullanici)
                 .WithMany()
                 .HasForeignKey(o => o.TalepEdenKullaniciId)
@@ -371,6 +455,21 @@ namespace _3K.Infrastructure.Data
                 .WithMany()
                 .HasForeignKey(o => o.OnaylayanKullaniciId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OnayIslemYetki>(e =>
+            {
+                e.Property(o => o.IslemKodu)
+                    .HasMaxLength(100)
+                    .IsRequired();
+
+                e.HasIndex(o => o.IslemKodu);
+                e.HasIndex(o => new { o.IslemKodu, o.RolId }).IsUnique();
+
+                e.HasOne(o => o.Rol)
+                    .WithMany()
+                    .HasForeignKey(o => o.RolId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
 
             // ===============================================================
             // 4b. RBAC İLİŞKİLERİ — Rol ↔ MenuTanimi ↔ RolYetki
@@ -837,6 +936,8 @@ namespace _3K.Infrastructure.Data
                 new MenuTanimi { Id = 15, Kod = "3k-modulu", LabelKey = "MENU.3K_MODULU", Icon = "", Route = null, Sira = 2, ParentId = 5 },
                 new MenuTanimi { Id = 16, Kod = "proje-sevk-et", LabelKey = "MENU.PROJE_SEVK_ET", Icon = "", Route = null, Sira = 5, ParentId = 2 },
                 new MenuTanimi { Id = 24, Kod = "proje-sil", LabelKey = "MENU.PROJE_SIL", Icon = "", Route = null, Sira = 6, ParentId = 2 },
+                new MenuTanimi { Id = 44, Kod = "ceki-yukle", LabelKey = "MENU.CEKI_YUKLE", Icon = "", Route = null, Sira = 7, ParentId = 2 },
+                new MenuTanimi { Id = 45, Kod = "planlanan-sevk-tarihi", LabelKey = "MENU.PLANLANAN_SEVK_TARIHI", Icon = "", Route = null, Sira = 8, ParentId = 2 },
                 new MenuTanimi { Id = 28, Kod = "eksik-saha-projesi", LabelKey = "MENU.EKSIK_SAHA_PROJESI", Icon = "", Route = null, Sira = 7, ParentId = 17 },
                 // Saha ve Yedek Menüleri
                 new MenuTanimi { Id = 17, Kod = "saha-yonetimi", LabelKey = "MENU.SAHA_YONETIMI", Icon = "ri-tools-line", Route = "/saha-yonetimi", Sira = 6, ParentId = null },
@@ -849,6 +950,7 @@ namespace _3K.Infrastructure.Data
                 new MenuTanimi { Id = 18, Kod = "yedek-yonetimi", LabelKey = "MENU.YEDEK_YONETIMI", Icon = "ri-box-3-line", Route = "/yedek-yonetimi", Sira = 7, ParentId = null },
                 // Onay Merkezi
                 new MenuTanimi { Id = 99, Kod = "islem-onay-merkezi", LabelKey = "MENU.ISLEM_ONAY", Icon = "ri-check-double-line", Route = "/onay-merkezi", Sira = 11, ParentId = null },
+                new MenuTanimi { Id = 43, Kod = "onay-kurallari-yonet", LabelKey = "MENU.ONAY_KURALLARI_YONET", Icon = "", Route = null, Sira = 1, ParentId = 99 },
                 // Kalite & Süreç — Sandık Yönetimi altında yetki kontrollü butonlar.
                 new MenuTanimi { Id = 20, Kod = "kalite-modulu", LabelKey = "MENU.KALITE_MODULU", Icon = "", Route = null, Sira = 3, ParentId = 5 },
                 new MenuTanimi { Id = 21, Kod = "surec-modulu", LabelKey = "MENU.SUREC_MODULU", Icon = "", Route = null, Sira = 4, ParentId = 5 },
@@ -868,8 +970,8 @@ namespace _3K.Infrastructure.Data
             );
 
             // ======= ADMIN ROL YETKİLERİ (tüm menülere W=3) =======
-            // Not: MenuTanimi Id'leri: 1,2,3,4,5,7,8,10,11,12,14,15,16,17,18,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,99
-            var menuIds = new[] { 1, 2, 3, 4, 5, 7, 8, 10, 11, 12, 14, 15, 16, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42 };
+            // Not: MenuTanimi Id'leri: 1,2,3,4,5,7,8,10,11,12,14,15,16,17,18,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,99
+            var menuIds = new[] { 1, 2, 3, 4, 5, 7, 8, 10, 11, 12, 14, 15, 16, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45 };
             var adminYetkiler = new List<RolYetki>();
             for (int i = 0; i < menuIds.Length; i++)
             {

@@ -365,6 +365,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
             await _unitOfWork.SaveChangesAsync();
 
+            if (satir.KaynakCekiSatiriId.HasValue)
+                await _sahaTamamlamaService.SenkronizeKaynakProjelerAsync(new[] { satir.KaynakCekiSatiriId.Value }, cancellationToken);
+
             // Hareket kaydı
             var hareketAciklama = request.Aciklama ?? "";
             // Geri gönderildi durumunda açıklamaya sebep ve adet bilgisi ekle
@@ -494,6 +497,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 return Result.Failure("Kaynak urun bulunamadi.", 404);
 
             // Kaynak projedeki ürünün fiziksel gelen stoğundan eksilt
+            if (await SahaAktarimBlokajHelper.KaynakSatirAktarildiMiAsync(_sahaTamamlamaService, kaynakSatir))
+                return Result.Failure("Kaynak ürün sahaya aktarıldığı için bu projeden karşılama yapılamaz. İşlem saha projesinde yürütülmelidir.");
+
             var adet = request.GelenAdet ?? 0;
             var kullanilabilir = HesaplaNetKullanilabilir(kaynakSatir);
             if (adet > kullanilabilir)

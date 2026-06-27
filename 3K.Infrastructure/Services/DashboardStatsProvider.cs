@@ -305,19 +305,25 @@ namespace _3K.Infrastructure.Services
             if (kaynakIds.Count == 0)
                 return new Dictionary<int, decimal>();
 
-            return await _context.CekiSatirlari
+            var satirlar = await _context.CekiSatirlari
                 .AsNoTracking()
                 .Where(cs =>
                     cs.KaynakCekiSatiriId.HasValue &&
                     kaynakIds.Contains(cs.KaynakCekiSatiriId.Value) &&
                     cs.Ceki.Proje.ProjeTipiId == (int)ProjeTipi.Saha)
-                .GroupBy(cs => cs.KaynakCekiSatiriId!.Value)
-                .Select(g => new
+                .Select(cs => new SahaTamamlamaStatsRow
                 {
-                    CekiSatiriId = g.Key,
-                    TamamlananAdet = g.Sum(cs => cs.IstenenAdet)
+                    KaynakCekiSatiriId = cs.KaynakCekiSatiriId!.Value,
+                    IstenenAdet = cs.IstenenAdet,
+                    KonulanAdet = cs.SandikIcerikleri.Sum(si => (decimal?)si.KonulanAdet) ?? 0
                 })
-                .ToDictionaryAsync(x => x.CekiSatiriId, x => x.TamamlananAdet, cancellationToken);
+                .ToListAsync(cancellationToken);
+
+            return satirlar
+                .GroupBy(s => s.KaynakCekiSatiriId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Sum(HesaplaGerceklesenSahaTamamlama));
         }
 
         private static decimal HesaplaEtkinKalan(
@@ -340,6 +346,14 @@ namespace _3K.Infrastructure.Services
             return Math.Max(hamKalan - sahaTamamlanan, 0);
         }
 
+        private static decimal HesaplaGerceklesenSahaTamamlama(SahaTamamlamaStatsRow row)
+        {
+            if (row.IstenenAdet <= 0)
+                return 0;
+
+            return Math.Min(Math.Max(row.KonulanAdet, 0), row.IstenenAdet);
+        }
+
         private sealed class NormalTamamlanmaStats
         {
             public int ToplamUrun { get; set; }
@@ -359,6 +373,13 @@ namespace _3K.Infrastructure.Services
             public decimal HataliMiktar { get; set; }
             public int DurumId { get; set; }
             public int GridDurumuId { get; set; }
+        }
+
+        private sealed class SahaTamamlamaStatsRow
+        {
+            public int KaynakCekiSatiriId { get; set; }
+            public decimal IstenenAdet { get; set; }
+            public decimal KonulanAdet { get; set; }
         }
     }
 }

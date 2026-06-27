@@ -127,6 +127,7 @@ try
     builder.Services.AddScoped<IDurumHesaplaService, DurumHesaplaService>();
     builder.Services.AddScoped<ILookupService, _3K.Infrastructure.Services.LookupService>();
     builder.Services.AddScoped<IRolService, _3K.Infrastructure.Services.RolService>();
+    builder.Services.AddScoped<IOnayYetkiService, OnayYetkiService>();
     builder.Services.AddScoped<IProjectLockService, ProjectLockService>();
     builder.Services.AddScoped<IDashboardStatsProvider, DashboardStatsProvider>();
     builder.Services.AddScoped<ISahaTamamlamaService, SahaTamamlamaService>();

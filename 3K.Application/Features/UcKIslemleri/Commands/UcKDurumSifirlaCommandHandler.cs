@@ -151,6 +151,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
             await _unitOfWork.SaveChangesAsync();
 
+            if (satir.KaynakCekiSatiriId.HasValue)
+                await _sahaTamamlamaService.SenkronizeKaynakProjelerAsync(new[] { satir.KaynakCekiSatiriId.Value }, cancellationToken);
+
             // ===== Hareket kaydı =====
             var detay = $"3K Sıfırlandı: " +
                 $"UcKDurum:{eskiDurum}→Bekliyor, " +

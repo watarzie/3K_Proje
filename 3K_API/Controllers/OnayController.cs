@@ -70,6 +70,13 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
 
+        [HttpPut("kural-guncelle")]
+        public async Task<IActionResult> KuralGuncelle([FromBody] UpdateOnayKuraliCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
         [HttpGet("kurallar")]
         public async Task<IActionResult> GetKurallar()
         {

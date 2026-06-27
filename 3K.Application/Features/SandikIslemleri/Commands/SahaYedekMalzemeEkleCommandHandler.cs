@@ -12,15 +12,18 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHareketService _hareketService;
         private readonly ICurrentUserService _currentUserService;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
         public SahaYedekMalzemeEkleCommandHandler(
             IUnitOfWork unitOfWork,
             IHareketService hareketService,
-            ICurrentUserService currentUserService)
+            ICurrentUserService currentUserService,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
             _hareketService = hareketService;
             _currentUserService = currentUserService;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result> Handle(SahaYedekMalzemeEkleCommand request, CancellationToken cancellationToken)
@@ -96,6 +99,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             var projeRepo = _unitOfWork.GetRepository<Proje>();
             var sandikRepo = _unitOfWork.GetRepository<Sandik>();
             var icerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
+            var sahaAktarimRepo = _unitOfWork.GetRepository<SahaAktarim>();
+            var sahaAktarimKalemiRepo = _unitOfWork.GetRepository<SahaAktarimKalemi>();
 
             var kaynakSatir = await cekiSatiriRepo.GetByIdAsync(request.CekiSatiriId!.Value);
             if (kaynakSatir == null)
@@ -207,6 +212,39 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             await icerikRepo.AddAsync(yeniIcerik);
 
+            if (hedefSahaProjesiMi)
+            {
+                var kaynakSandikId = (await icerikRepo.FindAsync(si => si.CekiSatiriId == kaynakSatir.Id))
+                    .Select(si => (int?)si.SandikId)
+                    .FirstOrDefault();
+
+                var sahaAktarim = new SahaAktarim
+                {
+                    SahaProjeId = request.ProjeId,
+                    KaynakProjeId = kaynakProje.Id,
+                    KullaniciId = _currentUserService.UserId ?? 0,
+                    Aciklama = request.Aciklama
+                };
+
+                await sahaAktarimRepo.AddAsync(sahaAktarim);
+                await _unitOfWork.SaveChangesAsync();
+
+                await sahaAktarimKalemiRepo.AddAsync(new SahaAktarimKalemi
+                {
+                    SahaAktarimId = sahaAktarim.Id,
+                    KaynakProjeId = kaynakProje.Id,
+                    SahaProjeId = request.ProjeId,
+                    KaynakCekiSatiriId = kaynakSatir.Id,
+                    SahaCekiSatiriId = yeniSatir.Id,
+                    KaynakSandikId = kaynakSandikId,
+                    SahaSandikId = sandik.Id,
+                    Miktar = request.Miktar,
+                    AktarimTipiId = (int)SahaAktarimTipi.UrunBazli,
+                    DurumId = (int)SahaAktarimDurum.Planlandi,
+                    Aciklama = request.Aciklama
+                });
+            }
+
             if (sandik.DurumId == (int)SandikDurum.Bos || sandik.DurumId == (int)SandikDurum.Kapandi)
             {
                 sandik.DurumId = (int)SandikDurum.Hazirlaniyor;
@@ -215,6 +253,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             await SandikLokasyonHelper.VarsayilanUcKDepoLokasyonuAtaAsync(_unitOfWork, new[] { yeniIcerik });
             await _unitOfWork.SaveChangesAsync();
+
+            if (hedefSahaProjesiMi)
+                await _sahaTamamlamaService.SenkronizeKaynakProjelerAsync(new[] { kaynakSatir.Id }, cancellationToken);
 
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {

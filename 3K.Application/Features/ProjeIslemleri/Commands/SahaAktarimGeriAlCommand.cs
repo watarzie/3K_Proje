@@ -43,6 +43,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             var projeRepo = _unitOfWork.GetRepository<Proje>();
             var sandikIcerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
             var sandikRepo = _unitOfWork.GetRepository<Sandik>();
+            var sahaAktarimKalemiRepo = _unitOfWork.GetRepository<SahaAktarimKalemi>();
 
             var sahaSatir = await cekiSatiriRepo.GetByIdAsync(request.SahaCekiSatiriId);
             if (sahaSatir == null)
@@ -94,6 +95,26 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             var kaynakUrunMetni = string.IsNullOrWhiteSpace(kaynakSatir.Aciklama)
                 ? kaynakSatir.BarkodNo
                 : kaynakSatir.Aciklama;
+            var aciklama = string.IsNullOrWhiteSpace(request.Aciklama)
+                ? "Kullanıcı tarafından saha aktarımı geri alındı."
+                : request.Aciklama.Trim();
+
+            var aktifAktarimKalemleri = (await sahaAktarimKalemiRepo.FindAsync(k =>
+                    k.SahaCekiSatiriId == sahaSatir.Id &&
+                    k.DurumId != (int)SahaAktarimDurum.GeriAlindi &&
+                    k.DurumId != (int)SahaAktarimDurum.Iptal))
+                .ToList();
+
+            foreach (var kalem in aktifAktarimKalemleri)
+            {
+                kalem.DurumId = (int)SahaAktarimDurum.GeriAlindi;
+                kalem.SevkiyatKapsamindaMi = false;
+                kalem.DuzeltmeyeAcikMi = false;
+                kalem.SahaCekiSatiriId = null;
+                kalem.GeriAlmaTarihi = TurkeyTime.Now;
+                kalem.GeriAlmaAciklama = aciklama;
+                sahaAktarimKalemiRepo.Update(kalem);
+            }
 
             foreach (var icerik in sahaIcerikleri)
                 sandikIcerikRepo.Remove(icerik);
@@ -115,10 +136,6 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
 
             await _unitOfWork.SaveChangesAsync();
             await _sahaTamamlamaService.SenkronizeKaynakProjelerAsync(new[] { kaynakSatirId }, cancellationToken);
-
-            var aciklama = string.IsNullOrWhiteSpace(request.Aciklama)
-                ? "Kullanıcı tarafından saha aktarımı geri alındı."
-                : request.Aciklama.Trim();
 
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {

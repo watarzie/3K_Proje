@@ -1,6 +1,7 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Application.Features.ProjeIslemleri.DTOs;
+using _3K.Core.Constants;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Helpers;
@@ -14,17 +15,20 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
         private readonly IHareketService _hareketService;
         private readonly ILookupCacheService _lookupCache;
         private readonly ICurrentUserService _currentUserService;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
         public EksiklerdenSahaProjesiOlusturCommandHandler(
             IUnitOfWork unitOfWork,
             IHareketService hareketService,
             ILookupCacheService lookupCache,
-            ICurrentUserService currentUserService)
+            ICurrentUserService currentUserService,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
             _hareketService = hareketService;
             _lookupCache = lookupCache;
             _currentUserService = currentUserService;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result<ProjeDto>> Handle(EksiklerdenSahaProjesiOlusturCommand request, CancellationToken cancellationToken)
@@ -48,6 +52,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                         {
                             CekiSatiriId = u.CekiSatiriId,
                             KaynakProjeId = u.KaynakProjeId,
+                            KaynakSandikId = u.KaynakSandikId,
                             Miktar = u.Miktar,
                             Aciklama = string.IsNullOrWhiteSpace(u.Aciklama) ? null : u.Aciklama.Trim()
                         })
@@ -246,6 +251,8 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
 
             var sandikRepo = _unitOfWork.GetRepository<Sandik>();
             var icerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
+            var sahaAktarimRepo = _unitOfWork.GetRepository<SahaAktarim>();
+            var sahaAktarimKalemiRepo = _unitOfWork.GetRepository<SahaAktarimKalemi>();
             var mevcutSahaSatirlari = (await cekiSatiriRepo.FindAsync(cs => cs.CekiId == sahaCeki.Id)).ToList();
             var siraNo = mevcutSahaSatirlari.Any() ? mevcutSahaSatirlari.Max(cs => cs.SiraNo) + 1 : 1;
             var mevcutSahaSandiklari = (await sandikRepo.FindAsync(s => s.ProjeId == yeniProje.Id)).ToList();
@@ -264,6 +271,18 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
 
             var toplamSatir = 0;
             var toplamAdet = 0m;
+            var sahaAktarim = new SahaAktarim
+            {
+                SahaProjeId = yeniProje.Id,
+                KaynakProjeId = kaynakProjeler.Count == 1 ? kaynakProjeler.Keys.First() : null,
+                KullaniciId = _currentUserService.UserId ?? 0,
+                Aciklama = string.IsNullOrWhiteSpace(request.Aciklama)
+                    ? $"Kaynak projeler: {string.Join(", ", kaynakProjeNolari)}"
+                    : request.Aciklama.Trim()
+            };
+
+            await sahaAktarimRepo.AddAsync(sahaAktarim);
+            await _unitOfWork.SaveChangesAsync();
 
             foreach (var sandikTaslak in sandikTaslaklari)
             {
@@ -326,13 +345,34 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                     await cekiSatiriRepo.AddAsync(yeniSatir);
                     await _unitOfWork.SaveChangesAsync();
 
-                    await icerikRepo.AddAsync(new SandikIcerik
+                    var yeniIcerik = new SandikIcerik
                     {
                         SandikId = sandik.Id,
                         CekiSatiriId = yeniSatir.Id,
                         KonulanAdet = 0,
                         EksikAdet = 0,
                         KaynakProjeNo = satirKaynakProje.ProjeNo,
+                        Aciklama = urunTaslak.Aciklama
+                    };
+
+                    await icerikRepo.AddAsync(yeniIcerik);
+
+                    await sahaAktarimKalemiRepo.AddAsync(new SahaAktarimKalemi
+                    {
+                        SahaAktarimId = sahaAktarim.Id,
+                        KaynakProjeId = satirKaynakProje.Id,
+                        SahaProjeId = yeniProje.Id,
+                        KaynakCekiSatiriId = kaynakSatir.Id,
+                        SahaCekiSatiriId = yeniSatir.Id,
+                        KaynakSandikId = urunTaslak.KaynakSandikId,
+                        SahaSandikId = sandik.Id,
+                        Miktar = urunTaslak.Miktar,
+                        AktarimTipiId = IsSandikBazliAktarim(urunTaslak.Aciklama)
+                            ? (int)SahaAktarimTipi.SandikBazli
+                            : (int)SahaAktarimTipi.UrunBazli,
+                        DurumId = (int)SahaAktarimDurum.Planlandi,
+                        SevkiyatKapsamindaMi = false,
+                        DuzeltmeyeAcikMi = false,
                         Aciklama = urunTaslak.Aciklama
                     });
 
@@ -342,6 +382,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             }
 
             await _unitOfWork.SaveChangesAsync();
+            await _sahaTamamlamaService.SenkronizeKaynakProjelerAsync(talepCekiSatiriIds, cancellationToken);
 
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {
@@ -418,6 +459,12 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
         private static bool IsNegative(decimal? value)
         {
             return value.HasValue && value.Value < 0;
+        }
+
+        private static bool IsSandikBazliAktarim(string? aciklama)
+        {
+            return !string.IsNullOrWhiteSpace(aciklama) &&
+                aciklama.StartsWith(SahaAktarimConstants.SandikBazliAktarimAciklamaPrefix, StringComparison.OrdinalIgnoreCase);
         }
 
         private static string FormatAdet(decimal value)

@@ -41,6 +41,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 request.CekiSatiriIdler);
             var basarili = 0;
             var hatalar = new List<string>();
+            var kaynakSatirIds = new HashSet<int>();
 
             foreach (var cekiSatiriId in request.CekiSatiriIdler)
             {
@@ -97,6 +98,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
                 await SandikLokasyonHelper.VarsayilanUcKDepoLokasyonuAtaAsync(_unitOfWork, ilgiliIcerikler);
 
+                if (satir.KaynakCekiSatiriId.HasValue)
+                    kaynakSatirIds.Add(satir.KaynakCekiSatiriId.Value);
+
                 basarili++;
 
                 // Hareket kaydı
@@ -115,6 +119,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             }
 
             await _unitOfWork.SaveChangesAsync();
+
+            if (kaynakSatirIds.Count > 0)
+                await _sahaTamamlamaService.SenkronizeKaynakProjelerAsync(kaynakSatirIds, cancellationToken);
 
             if (hatalar.Any())
                 return Result.Failure($"{basarili} ürün güncellendi, {hatalar.Count} hata: {string.Join("; ", hatalar.Take(3))}");

@@ -5,14 +5,14 @@ namespace _3K.Core.Helpers
 {
     public static class CekiSatiriKalanHelper
     {
-        public static decimal HesaplaEtkinKalan(CekiSatiri satir, IReadOnlyDictionary<int, decimal> sevkEdilenSahaTamamlamaMap)
+        public static decimal HesaplaEtkinKalan(CekiSatiri satir, IReadOnlyDictionary<int, decimal> sahaTamamlamaMap)
         {
             var hamKalan = satir.KalanMiktar;
 
             if (satir.KaynakCekiSatiriId.HasValue)
                 return hamKalan;
 
-            var sahaTamamlanan = sevkEdilenSahaTamamlamaMap.TryGetValue(satir.Id, out var value) ? value : 0;
+            var sahaTamamlanan = sahaTamamlamaMap.TryGetValue(satir.Id, out var value) ? value : 0;
             return Math.Max(hamKalan - sahaTamamlanan, 0);
         }
 

@@ -15,17 +15,20 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
         private readonly ICurrentUserService _currentUserService;
         private readonly IDurumHesaplaService _durumHesaplaService;
         private readonly IHareketService _hareketService;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
         public UcKTopluSifirlaCommandHandler(
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUserService,
             IDurumHesaplaService durumHesaplaService,
-            IHareketService hareketService)
+            IHareketService hareketService,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _durumHesaplaService = durumHesaplaService;
             _hareketService = hareketService;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result> Handle(UcKTopluSifirlaCommand request, CancellationToken cancellationToken)
@@ -43,9 +46,18 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             var kullaniciId = _currentUserService.UserId ?? 0;
             int basarili = 0;
             var hatalar = new List<string>();
+            var kaynakSatirIds = new HashSet<int>();
             var kilitliSatirIdleri = await SandikSevkKilidiHelper.GetSevkEdilmisSandikCekiSatiriIdleriAsync(
                 _unitOfWork,
                 satirlar.Select(s => s.Id));
+
+            var sahayaAktarilanSatirIdleri = await SahaAktarimBlokajHelper.GetAktarilanKaynakSatirIdleriAsync(
+                _sahaTamamlamaService,
+                satirlar,
+                cancellationToken);
+
+            if (sahayaAktarilanSatirIdleri.Any())
+                return Result.Failure($"Seçili ürünlerden {sahayaAktarilanSatirIdleri.Count} tanesi sahaya aktarıldığı için normal proje üzerinden 3K geri alma işlemi yapılamaz.");
 
             foreach (var satir in satirlar)
             {
@@ -123,6 +135,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     sandikIcerikRepo.Update(icerik);
                 }
 
+                if (satir.KaynakCekiSatiriId.HasValue)
+                    kaynakSatirIds.Add(satir.KaynakCekiSatiriId.Value);
+
                 basarili++;
 
                 // Hareket kaydı
@@ -144,6 +159,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 return Result.Failure("Hiçbir ürün sıfırlanamadı. " + (hatalar.Any() ? string.Join("; ", hatalar.Take(3)) : ""));
 
             await _unitOfWork.SaveChangesAsync();
+
+            if (kaynakSatirIds.Count > 0)
+                await _sahaTamamlamaService.SenkronizeKaynakProjelerAsync(kaynakSatirIds, cancellationToken);
 
             if (hatalar.Any())
                 return Result.Success();

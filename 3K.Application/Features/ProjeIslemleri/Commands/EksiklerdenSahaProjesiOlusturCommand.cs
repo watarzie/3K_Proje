@@ -34,6 +34,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
     {
         public int CekiSatiriId { get; set; }
         public int? KaynakProjeId { get; set; }
+        public int? KaynakSandikId { get; set; }
         public decimal Miktar { get; set; }
         public string? Aciklama { get; set; }
     }

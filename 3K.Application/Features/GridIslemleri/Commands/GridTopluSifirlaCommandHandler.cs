@@ -15,17 +15,20 @@ namespace _3K.Application.Features.GridIslemleri.Commands
         private readonly ICurrentUserService _currentUserService;
         private readonly IDurumHesaplaService _durumHesaplaService;
         private readonly IHareketService _hareketService;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
         public GridTopluSifirlaCommandHandler(
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUserService,
             IDurumHesaplaService durumHesaplaService,
-            IHareketService hareketService)
+            IHareketService hareketService,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _durumHesaplaService = durumHesaplaService;
             _hareketService = hareketService;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result> Handle(GridTopluSifirlaCommand request, CancellationToken cancellationToken)
@@ -45,6 +48,14 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
             if (kilitliSatirIdleri.Any())
                 return Result.Failure($"Seçili ürünlerden {kilitliSatirIdleri.Count} tanesi sevk edilmiş sandıkta olduğu için Grid geri alma işlemi yapılamaz.");
+
+            var sahayaAktarilanSatirIdleri = await SahaAktarimBlokajHelper.GetAktarilanKaynakSatirIdleriAsync(
+                _sahaTamamlamaService,
+                satirlar,
+                cancellationToken);
+
+            if (sahayaAktarilanSatirIdleri.Any())
+                return Result.Failure($"Seçili ürünlerden {sahayaAktarilanSatirIdleri.Count} tanesi sahaya aktarıldığı için normal proje üzerinden Grid geri alma işlemi yapılamaz.");
 
             var kullaniciId = _currentUserService.UserId ?? 0;
             int basarili = 0;

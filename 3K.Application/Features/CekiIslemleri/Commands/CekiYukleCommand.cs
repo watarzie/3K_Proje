@@ -8,8 +8,9 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
     /// <summary>
     /// İş akışı 2: Excel çeki dosyasını yükle.
     /// </summary>
-    public class CekiYukleCommand : IRequest<Result<CekiYuklemeResultDto>>, ISecuredRequest
+    public class CekiYukleCommand : IRequest<Result<CekiYuklemeResultDto>>, ISecuredRequest, IRequiresMenuPermission
     {
+        public string RequiredMenuKod => "ceki-yukle";
 
         public Stream ExcelDosya { get; set; } = null!;
         public string DosyaAdi { get; set; } = string.Empty;

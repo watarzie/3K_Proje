@@ -1,12 +1,13 @@
 using MediatR;
 using _3K.Application.Common;
+using _3K.Core.Constants;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.SandikIslemleri.Commands
 {
-    public class SandikKilidiAcCommand : IRequest<Result>, ISecuredRequest, IAlwaysRequireApproval
+    public class SandikKilidiAcCommand : IRequest<Result>, ISecuredRequest, IAlwaysRequireApproval, IApprovalOperation
     {
         public int ProjeId { get; set; }
         public int SandikId { get; set; }
@@ -14,6 +15,11 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         public string? SandikNo { get; set; }
         public int KilitAcmaTipiId { get; set; } = (int)SevkiyatKilitAcmaTipi.SevkiyatGeriAlinarakAc;
         public string? Aciklama { get; set; }
+
+        public string GetApprovalOperationCode()
+        {
+            return OnayIslemKodlari.SandikKilidiAc;
+        }
 
         public string GetApprovalDescription()
         {
