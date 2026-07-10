@@ -19,6 +19,7 @@ namespace _3K.Core.Entities
         public int NormalSandik { get; set; }
         public int SahaSandik { get; set; }
         public int YedekSandik { get; set; }
+        public List<DashboardSandikDurumRawStats> SandikDurumOzetleri { get; set; } = new();
 
         // Eksik ürün
         public int EksikUrunSayisi { get; set; }
@@ -61,5 +62,13 @@ namespace _3K.Core.Entities
         public int ToplamDepoSandik { get; set; }
         public int TamamlanmaYuzdesi { get; set; }
         public List<DashboardDepoDagilimRawStats> DepoDagilimlari { get; set; } = new();
+        public List<DashboardSandikDurumRawStats> SandikDurumOzetleri { get; set; } = new();
+    }
+
+    public class DashboardSandikDurumRawStats
+    {
+        public int DurumId { get; set; }
+        public string DurumMetni { get; set; } = string.Empty;
+        public int SandikSayisi { get; set; }
     }
 }

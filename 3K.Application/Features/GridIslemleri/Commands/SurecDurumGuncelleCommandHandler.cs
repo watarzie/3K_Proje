@@ -43,6 +43,14 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             if (!satirlar.Any())
                 return Result.Failure("Belirtilen ürünler bulunamadı.", 404);
 
+            var tamamlanmisSatirSayisi = satirlar.Count(GridSurecDurumHelper.IsTamamlandi);
+            if (tamamlanmisSatirSayisi > 0)
+            {
+                return Result.Failure(
+                    $"Seçili ürünlerden {tamamlanmisSatirSayisi} tanesinin süreci tamamlandığı için süreç durumu güncellenemez.",
+                    409);
+            }
+
             var kilitliSatirIdleri = await SandikSevkKilidiHelper.GetSevkEdilmisSandikCekiSatiriIdleriAsync(
                 _unitOfWork,
                 satirlar.Select(s => s.Id));

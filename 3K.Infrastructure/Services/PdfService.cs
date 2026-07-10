@@ -94,6 +94,33 @@ namespace _3K.Infrastructure.Services
                 .ToDictionaryAsync(x => x.CekiSatiriId, x => x.TamamlananAdet);
         }
 
+        private async Task<HashSet<int>> GetAktifSahaAktarimKaynakSatirIdsAsync(IEnumerable<int> cekiSatiriIds)
+        {
+            var satirIds = cekiSatiriIds.Where(id => id > 0).Distinct().ToList();
+            if (satirIds.Count == 0)
+                return new HashSet<int>();
+
+            var kaynakSatirIds = await _context.SahaAktarimKalemleri
+                .AsNoTracking()
+                .Where(k => satirIds.Contains(k.KaynakCekiSatiriId) &&
+                    k.DurumId != (int)SahaAktarimDurum.GeriAlindi &&
+                    k.DurumId != (int)SahaAktarimDurum.Iptal)
+                .Select(k => k.KaynakCekiSatiriId)
+                .Distinct()
+                .ToListAsync();
+
+            var eskiKaynakSatirIds = await _context.CekiSatirlari
+                .AsNoTracking()
+                .Where(cs => cs.KaynakCekiSatiriId.HasValue &&
+                    satirIds.Contains(cs.KaynakCekiSatiriId.Value) &&
+                    cs.Ceki.Proje.ProjeTipiId == (int)ProjeTipi.Saha)
+                .Select(cs => cs.KaynakCekiSatiriId!.Value)
+                .Distinct()
+                .ToListAsync();
+
+            return kaynakSatirIds.Concat(eskiKaynakSatirIds).ToHashSet();
+        }
+
         private async Task<List<CekiSatiri>> LoadGerceklesenRaporSatirlariAsync(int projeId, bool sahaRaporuMu)
         {
             var satirlar = await _context.CekiSatirlari
@@ -246,6 +273,95 @@ namespace _3K.Infrastructure.Services
             return (projedenAlinan, projeyeVerilen);
         }
 
+        private async Task<(Dictionary<int, string> KaynakProje, Dictionary<int, string> HedefSaha)> GetSahaAktarimRaporMapleriAsync(
+            IReadOnlyCollection<CekiSatiri> satirlar)
+        {
+            var satirIds = satirlar
+                .Where(s => s.Id > 0)
+                .Select(s => s.Id)
+                .Distinct()
+                .ToList();
+
+            if (!satirIds.Any())
+                return (new Dictionary<int, string>(), new Dictionary<int, string>());
+
+            var sahaAktarimlari = await _context.SahaAktarimKalemleri
+                .AsNoTracking()
+                .Include(k => k.KaynakProje)
+                .Include(k => k.SahaProje)
+                .Where(k => k.DurumId != (int)SahaAktarimDurum.GeriAlindi &&
+                    k.DurumId != (int)SahaAktarimDurum.Iptal &&
+                    (satirIds.Contains(k.KaynakCekiSatiriId) ||
+                     (k.SahaCekiSatiriId.HasValue && satirIds.Contains(k.SahaCekiSatiriId.Value))))
+                .ToListAsync();
+
+            var kaynakProje = sahaAktarimlari
+                .Where(k => k.SahaCekiSatiriId.HasValue && satirIds.Contains(k.SahaCekiSatiriId.Value))
+                .GroupBy(k => k.SahaCekiSatiriId!.Value)
+                .ToDictionary(
+                    g => g.Key,
+                    g => BuildSahaAktarimRaporMetni(g, k => k.KaynakProje?.ProjeNo));
+
+            var hedefSaha = sahaAktarimlari
+                .Where(k => satirIds.Contains(k.KaynakCekiSatiriId))
+                .GroupBy(k => k.KaynakCekiSatiriId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => BuildSahaAktarimRaporMetni(g, k => k.SahaProje?.ProjeNo));
+
+            // Eski saha kayıtlarında hareket defteri bulunmasa da hedef satırın kaynak bağlantısı korunur.
+            var eskiSahaKaynaklari = await _context.CekiSatirlari
+                .AsNoTracking()
+                .Where(cs => satirIds.Contains(cs.Id) &&
+                    cs.KaynakCekiSatiriId.HasValue &&
+                    cs.Ceki.Proje.ProjeTipiId == (int)ProjeTipi.Saha)
+                .Select(cs => new
+                {
+                    SahaCekiSatiriId = cs.Id,
+                    KaynakProjeNo = cs.KaynakCekiSatiri!.Ceki.Proje.ProjeNo,
+                    cs.IstenenAdet
+                })
+                .ToListAsync();
+
+            foreach (var grup in eskiSahaKaynaklari.GroupBy(a => a.SahaCekiSatiriId))
+            {
+                if (kaynakProje.ContainsKey(grup.Key))
+                    continue;
+
+                kaynakProje[grup.Key] = string.Join(", ", grup
+                    .GroupBy(a => string.IsNullOrWhiteSpace(a.KaynakProjeNo) ? "?" : a.KaynakProjeNo.Trim())
+                    .OrderBy(g => g.Key)
+                    .Select(g => $"{g.Key} ({FormatAdet(g.Sum(a => a.IstenenAdet))})"));
+            }
+
+            // Kaynak proje raporunda da eski hedef saha satırları geriye dönük iz olarak kullanılır.
+            var eskiSahaAktarimlari = await _context.CekiSatirlari
+                .AsNoTracking()
+                .Where(cs => cs.KaynakCekiSatiriId.HasValue &&
+                    satirIds.Contains(cs.KaynakCekiSatiriId.Value) &&
+                    cs.Ceki.Proje.ProjeTipiId == (int)ProjeTipi.Saha)
+                .Select(cs => new
+                {
+                    KaynakCekiSatiriId = cs.KaynakCekiSatiriId!.Value,
+                    SahaProjeNo = cs.Ceki.Proje.ProjeNo,
+                    cs.IstenenAdet
+                })
+                .ToListAsync();
+
+            foreach (var grup in eskiSahaAktarimlari.GroupBy(a => a.KaynakCekiSatiriId))
+            {
+                if (hedefSaha.ContainsKey(grup.Key))
+                    continue;
+
+                hedefSaha[grup.Key] = string.Join(", ", grup
+                    .GroupBy(a => string.IsNullOrWhiteSpace(a.SahaProjeNo) ? "?" : a.SahaProjeNo.Trim())
+                    .OrderBy(g => g.Key)
+                    .Select(g => $"{g.Key} ({FormatAdet(g.Sum(a => a.IstenenAdet))})"));
+            }
+
+            return (kaynakProje, hedefSaha);
+        }
+
         private static string BuildProjeTransferRaporMetni(
             IEnumerable<ProjeTransfer> transferler,
             Func<ProjeTransfer, string?> projeNoSelector,
@@ -255,6 +371,16 @@ namespace _3K.Infrastructure.Services
                 .GroupBy(t => string.IsNullOrWhiteSpace(projeNoSelector(t)) ? "?" : projeNoSelector(t)!.Trim())
                 .OrderBy(g => g.Key)
                 .Select(g => $"{hareketEtiketi}: {FormatAdet(g.Sum(t => t.Miktar))} ({g.Key})"));
+        }
+
+        private static string BuildSahaAktarimRaporMetni(
+            IEnumerable<SahaAktarimKalemi> aktarimlar,
+            Func<SahaAktarimKalemi, string?> projeNoSelector)
+        {
+            return string.Join(", ", aktarimlar
+                .GroupBy(k => string.IsNullOrWhiteSpace(projeNoSelector(k)) ? "?" : projeNoSelector(k)!.Trim())
+                .OrderBy(g => g.Key)
+                .Select(g => $"{g.Key} ({FormatAdet(g.Sum(k => k.Miktar))})"));
         }
 
         private static string GetProjedenAlinanRaporMetni(CekiSatiri satir, IReadOnlyDictionary<int, string> transferMap)
@@ -279,6 +405,25 @@ namespace _3K.Infrastructure.Services
 
             var projeNo = string.IsNullOrWhiteSpace(satir.KaynakHedefProjeNo) ? "?" : satir.KaynakHedefProjeNo;
             return $"Verilen: {FormatAdet(satir.ProjeGonderilen)} ({projeNo})";
+        }
+
+        private static string GetKaynakProjeRaporMetni(CekiSatiri satir, IReadOnlyDictionary<int, string> sahaAktarimMap)
+        {
+            if (sahaAktarimMap.TryGetValue(satir.Id, out var aktarimMetni) && !string.IsNullOrWhiteSpace(aktarimMetni))
+                return aktarimMetni;
+
+            // Hareket defteri oluşturulmadan önce üretilmiş saha satırlarında kaynak proje bilgisi satır üzerinde tutulur.
+            if (satir.KaynakCekiSatiriId.HasValue && !string.IsNullOrWhiteSpace(satir.KaynakHedefProjeNo))
+                return $"{satir.KaynakHedefProjeNo.Trim()} ({FormatAdet(satir.IstenenAdet)})";
+
+            return "-";
+        }
+
+        private static string GetHedefSahaRaporMetni(CekiSatiri satir, IReadOnlyDictionary<int, string> sahaAktarimMap)
+        {
+            return sahaAktarimMap.TryGetValue(satir.Id, out var aktarimMetni) && !string.IsNullOrWhiteSpace(aktarimMetni)
+                ? aktarimMetni
+                : "-";
         }
 
         private static List<string> GetRaporSandikNoList(CekiSatiri satir)
@@ -381,11 +526,11 @@ namespace _3K.Infrastructure.Services
             var hasUcK = !string.IsNullOrWhiteSpace(ucKAciklama);
 
             if (hasGrid && hasUcK)
-                return $"Not 1: {gridAciklama}\nNot 2: {ucKAciklama}";
+                return $"Grid: {gridAciklama}\n3K: {ucKAciklama}";
             if (hasGrid)
-                return gridAciklama!;
+                return $"Grid: {gridAciklama}";
             if (hasUcK)
-                return ucKAciklama!;
+                return $"3K: {ucKAciklama}";
 
             return "";
         }
@@ -1134,11 +1279,16 @@ namespace _3K.Infrastructure.Services
 
             var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar, sadeceSevkEdilenSandiklar: false);
             var sahaEksikRaporuMu = proje.ProjeTipiId == (int)ProjeTipi.Saha;
+            var aktifSahaAktarimKaynakIds = sahaEksikRaporuMu
+                ? new HashSet<int>()
+                : await GetAktifSahaAktarimKaynakSatirIdsAsync(satirlar.Select(s => s.Id));
 
             // Normal projelerde eksik filtresi korunur; saha sevk sonrası raporunda tamamlananlar da listelenir.
             // Sıralama: Sandık numarasına göre sayısal (1,2,3...10,11), sonra sıra numarasına göre
             var raporSatirlari = satirlar
-                .Where(cs => sahaEksikRaporuMu || GetEksikRaporKalan(cs, tamamlamaPlanMap) > 0)
+                .Where(cs => sahaEksikRaporuMu ||
+                    GetEksikRaporKalan(cs, tamamlamaPlanMap) > 0 ||
+                    aktifSahaAktarimKaynakIds.Contains(cs.Id))
                 .OrderBy(cs =>
                 {
                     var sandikStr = cs.FiiliSandikNo ?? cs.CekideGecenSandikNo ?? "";
@@ -1172,6 +1322,7 @@ namespace _3K.Infrastructure.Services
             var toplamGelenAdet = raporSatirlari.Sum(s => s.GelenMiktar + s.StokKarsilanan + s.ProjeKarsilanan + s.TedarikciKarsilanan);
             var summaryAccentColor = sahaEksikRaporuMu ? "#1565C0" : dangerColor;
             var (projedenAlinanMap, projeyeVerilenMap) = await GetProjeTransferRaporMapleriAsync(raporSatirlari);
+            var (kaynakProjeMap, hedefSahaMap) = await GetSahaAktarimRaporMapleriAsync(raporSatirlari);
 
             var document = Document.Create(container =>
             {
@@ -1248,11 +1399,14 @@ namespace _3K.Infrastructure.Services
                             columns.ConstantColumn(46);   // 3K Gelen
                             columns.ConstantColumn(46);   // Karşılanan
                             columns.ConstantColumn(46);   // Geri Gönd.
+                            columns.ConstantColumn(55);   // Kaynak Proje
+                            columns.ConstantColumn(55);   // Hedef Saha
                             columns.ConstantColumn(52);   // Prj. Alındı
                             columns.ConstantColumn(52);   // Prj. Verildi
                             columns.ConstantColumn(42);   // Kalan
                             columns.RelativeColumn(1.35f); // 3K Durum
                             columns.RelativeColumn(1);    // Sürec
+                            columns.RelativeColumn(1.7f); // Grid / 3K açıklamaları
                         });
 
                         // Başlık satırı (TR + EN)
@@ -1278,11 +1432,14 @@ namespace _3K.Infrastructure.Services
                             BiHeader(header.Cell(), "3K GELEN", "3K Received");
                             BiHeader(header.Cell(), "KARŞI.", "Fulfilled");
                             BiHeader(header.Cell(), "GERİ GÖN.", "Returned");
+                            BiHeader(header.Cell(), "KAYNAK PROJE", "Source Prj.");
+                            BiHeader(header.Cell(), "HEDEF SAHA", "Target Site");
                             BiHeader(header.Cell(), "PRJ. ALINDI", "From Prj.");
                             BiHeader(header.Cell(), "PRJ. VERİLDİ", "Given to Prj.");
                             BiHeader(header.Cell(), "KALAN", "Remaining");
                             BiHeader(header.Cell(), "3K DURUM", "3K Status");
                             BiHeader(header.Cell(), "SÜREÇ", "Process");
+                            BiHeader(header.Cell(), "AÇIKLAMALAR", "Grid / 3K Notes");
                         });
 
                         // Data satırları
@@ -1314,13 +1471,18 @@ namespace _3K.Infrastructure.Services
                             DataCell(table.Cell(), FormatAdet(cs.GelenMiktar));
                             DataCell(table.Cell(), karsilanan > 0 ? FormatAdet(karsilanan) : "-");
                             DataCell(table.Cell(), cs.GeriGonderilenMiktar > 0 ? FormatAdet(cs.GeriGonderilenMiktar) : "-");
+                            var kaynakProje = GetKaynakProjeRaporMetni(cs, kaynakProjeMap);
+                            var hedefSaha = GetHedefSahaRaporMetni(cs, hedefSahaMap);
                             var projedenAlindi = GetProjedenAlinanRaporMetni(cs, projedenAlinanMap);
                             var projeyeVerildi = GetProjeyeVerilenRaporMetni(cs, projeyeVerilenMap);
+                            DataCell(table.Cell(), kaynakProje, fontColor: kaynakProje != "-" ? "#6A1B9A" : null);
+                            DataCell(table.Cell(), hedefSaha, fontColor: hedefSaha != "-" ? "#00897B" : null);
                             DataCell(table.Cell(), projedenAlindi, fontColor: projedenAlindi != "-" ? "#2E7D32" : null);
                             DataCell(table.Cell(), projeyeVerildi, fontColor: projeyeVerildi != "-" ? "#1565C0" : null);
                             DataCell(table.Cell(), FormatAdet(kalan), bold: true, fontColor: kalan > 0 ? dangerColor : "#2E7D32");
                             DataCell(table.Cell(), ucKDurum, fontColor: cs.UcKKarsilamaTipiId == (int)_3K.Core.Enums.UcKDurum.Bekliyor ? dangerColor : warningColor);
                             DataCell(table.Cell(), cs.SurecDurumLookup?.Deger ?? "-");
+                            DataCell(table.Cell(), GetRaporAciklama(cs));
 
                             sira++;
                         }
@@ -1525,11 +1687,11 @@ namespace _3K.Infrastructure.Services
                 var hasUcK = !string.IsNullOrWhiteSpace(ucKAciklama);
 
                 if (hasGrid && hasUcK)
-                    return $"Not 1: {gridAciklama}\nNot 2: {ucKAciklama}";
+                    return $"Grid: {gridAciklama}\n3K: {ucKAciklama}";
                 if (hasGrid)
-                    return gridAciklama!;
+                    return $"Grid: {gridAciklama}";
                 if (hasUcK)
-                    return ucKAciklama!;
+                    return $"3K: {ucKAciklama}";
 
                 return "";
             }
@@ -1904,9 +2066,14 @@ namespace _3K.Infrastructure.Services
 
             var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar, sadeceSevkEdilenSandiklar: false);
             var sahaEksikRaporuMu = proje.ProjeTipiId == (int)ProjeTipi.Saha;
+            var aktifSahaAktarimKaynakIds = sahaEksikRaporuMu
+                ? new HashSet<int>()
+                : await GetAktifSahaAktarimKaynakSatirIdsAsync(satirlar.Select(s => s.Id));
 
             var raporSatirlari = satirlar
-                .Where(cs => sahaEksikRaporuMu || GetEksikRaporKalan(cs, tamamlamaPlanMap) > 0)
+                .Where(cs => sahaEksikRaporuMu ||
+                    GetEksikRaporKalan(cs, tamamlamaPlanMap) > 0 ||
+                    aktifSahaAktarimKaynakIds.Contains(cs.Id))
                 .OrderBy(cs => GetRaporSandikSortKey(cs.FiiliSandikNo ?? cs.CekideGecenSandikNo))
                 .ThenBy(cs => cs.FiiliSandikNo ?? cs.CekideGecenSandikNo)
                 .ThenBy(cs => cs.SiraNo)
@@ -1920,11 +2087,12 @@ namespace _3K.Infrastructure.Services
             var toplamGelenAdet = raporSatirlari.Sum(s => s.GelenMiktar + s.StokKarsilanan + s.ProjeKarsilanan + s.TedarikciKarsilanan);
             var karsilamaOrani = toplamIstenenAdet > 0 ? toplamGelenAdet * 100 / toplamIstenenAdet : 0;
             var (projedenAlinanMap, projeyeVerilenMap) = await GetProjeTransferRaporMapleriAsync(raporSatirlari);
+            var (kaynakProjeMap, hedefSahaMap) = await GetSahaAktarimRaporMapleriAsync(raporSatirlari);
             var raporBasligi = sahaEksikRaporuMu ? "Sevk Sonrası Eksik Raporu" : "Eksik Ürünler Raporu";
 
             using var workbook = new XLWorkbook();
             var worksheet = workbook.Worksheets.Add(sahaEksikRaporuMu ? "Sevk Sonrasi Eksik" : "Eksik Raporu");
-            const int lastColumn = 15;
+            const int lastColumn = 18;
             const int headerRow = 6;
 
             worksheet.Cell(1, 1).Value = raporBasligi;
@@ -1962,8 +2130,9 @@ namespace _3K.Infrastructure.Services
             var headers = new[]
             {
                 "#", "Sıra", "Barkod No", "Poz No", "Ürün Açıklaması", "Sandık",
-                "İstenen", "3K Gelen", "Karşılanan", "Geri Gön.", "Prj. Alındı",
-                "Prj. Verildi", "Kalan", "3K Durum", "Süreç"
+                "İstenen", "3K Gelen", "Karşılanan", "Geri Gön.", "Kaynak Proje",
+                "Hedef Saha", "Prj. Alındı", "Prj. Verildi", "Kalan", "3K Durum",
+                "Süreç", "Grid / 3K Açıklamaları"
             };
 
             for (var i = 0; i < headers.Length; i++)
@@ -1977,6 +2146,8 @@ namespace _3K.Infrastructure.Services
             {
                 var karsilanan = cs.StokKarsilanan + cs.ProjeKarsilanan + cs.TedarikciKarsilanan;
                 var sandikNo = cs.FiiliSandikNo ?? cs.CekideGecenSandikNo;
+                var kaynakProje = GetKaynakProjeRaporMetni(cs, kaynakProjeMap);
+                var hedefSaha = GetHedefSahaRaporMetni(cs, hedefSahaMap);
                 var projedenAlindi = GetProjedenAlinanRaporMetni(cs, projedenAlinanMap);
                 var projeyeVerildi = GetProjeyeVerilenRaporMetni(cs, projeyeVerilenMap);
                 var kalan = GetEksikRaporKalan(cs, tamamlamaPlanMap);
@@ -1991,13 +2162,16 @@ namespace _3K.Infrastructure.Services
                 SetDecimalCell(worksheet.Cell(row, 8), cs.GelenMiktar);
                 if (karsilanan > 0) SetDecimalCell(worksheet.Cell(row, 9), karsilanan); else worksheet.Cell(row, 9).Value = "-";
                 if (cs.GeriGonderilenMiktar > 0) SetDecimalCell(worksheet.Cell(row, 10), cs.GeriGonderilenMiktar); else worksheet.Cell(row, 10).Value = "-";
-                worksheet.Cell(row, 11).Value = projedenAlindi;
-                worksheet.Cell(row, 12).Value = projeyeVerildi;
-                SetDecimalCell(worksheet.Cell(row, 13), kalan);
-                worksheet.Cell(row, 13).Style.Font.Bold = true;
-                worksheet.Cell(row, 13).Style.Font.FontColor = XLColor.FromHtml(kalan > 0 ? "#D32F2F" : "#2E7D32");
-                worksheet.Cell(row, 14).Value = cs.UcKDurumLookup?.Deger ?? "-";
-                worksheet.Cell(row, 15).Value = cs.SurecDurumLookup?.Deger ?? "-";
+                worksheet.Cell(row, 11).Value = kaynakProje;
+                worksheet.Cell(row, 12).Value = hedefSaha;
+                worksheet.Cell(row, 13).Value = projedenAlindi;
+                worksheet.Cell(row, 14).Value = projeyeVerildi;
+                SetDecimalCell(worksheet.Cell(row, 15), kalan);
+                worksheet.Cell(row, 15).Style.Font.Bold = true;
+                worksheet.Cell(row, 15).Style.Font.FontColor = XLColor.FromHtml(kalan > 0 ? "#D32F2F" : "#2E7D32");
+                worksheet.Cell(row, 16).Value = cs.UcKDurumLookup?.Deger ?? "-";
+                worksheet.Cell(row, 17).Value = cs.SurecDurumLookup?.Deger ?? "-";
+                worksheet.Cell(row, 18).Value = GetRaporAciklama(cs);
 
                 if (sira % 2 == 0)
                     worksheet.Range(row, 1, row, lastColumn).Style.Fill.BackgroundColor = XLColor.FromHtml("#F8FAFE");
@@ -2007,6 +2181,7 @@ namespace _3K.Infrastructure.Services
             }
 
             worksheet.Column(5).Style.Alignment.WrapText = true;
+            worksheet.Column(18).Style.Alignment.WrapText = true;
             FinalizeExcelWorksheet(worksheet, headerRow, Math.Max(row - 1, headerRow), lastColumn);
 
             using var stream = new MemoryStream();

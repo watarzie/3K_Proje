@@ -22,6 +22,7 @@ namespace _3K.Application.Features.DashboardIslemleri.DTOs
         public int NormalSandik { get; set; }
         public int SahaSandik { get; set; }
         public int YedekSandik { get; set; }
+        public List<DashboardSandikDurumDto> SandikDurumOzetleri { get; set; } = new();
         public int SahaYuzde { get; set; }
         public int YedekYuzde { get; set; }
         public List<DashboardProjeTipiOzetDto> ProjeTipiOzetleri { get; set; } = new();
@@ -48,6 +49,14 @@ namespace _3K.Application.Features.DashboardIslemleri.DTOs
         public int ToplamDepoSandik { get; set; }
         public int TamamlanmaYuzdesi { get; set; }
         public List<DashboardDepoDagilimDto> DepoDagilimlari { get; set; } = new();
+        public List<DashboardSandikDurumDto> SandikDurumOzetleri { get; set; } = new();
+    }
+
+    public class DashboardSandikDurumDto
+    {
+        public int DurumId { get; set; }
+        public string DurumMetni { get; set; } = string.Empty;
+        public int SandikSayisi { get; set; }
     }
 
     public class DashboardProjeItemDto
@@ -64,6 +73,7 @@ namespace _3K.Application.Features.DashboardIslemleri.DTOs
         public DateTime? GerceklesenSevkTarihi { get; set; }
         public string? Lokasyon { get; set; }
         public int SandikSayisi { get; set; }
+        public List<DashboardSandikDurumDto> SandikDurumOzetleri { get; set; } = new();
         public int ToplamUrunSayisi { get; set; }
         public int TamamlananUrunSayisi { get; set; }
         public int TamamlanmaYuzdesi { get; set; }
@@ -83,6 +93,51 @@ namespace _3K.Application.Features.DashboardIslemleri.DTOs
         public string? Lokasyon { get; set; }
         public int EksikYuzde { get; set; }
         public int EksikAdet { get; set; }
+    }
+
+    public class DashboardSahayaAktarilanSandikDto
+    {
+        public int SahaAktarimId { get; set; }
+        public int KaynakProjeId { get; set; }
+        public string KaynakProjeNo { get; set; } = string.Empty;
+        public int KaynakSandikId { get; set; }
+        public string KaynakSandikNo { get; set; } = string.Empty;
+        public int SahaProjeId { get; set; }
+        public string SahaProjeNo { get; set; } = string.Empty;
+        public int SahaSandikId { get; set; }
+        public string SahaSandikNo { get; set; } = string.Empty;
+        public int SandikDurumId { get; set; }
+        public string SandikDurumMetni { get; set; } = string.Empty;
+        public int ToplamUrunSayisi { get; set; }
+        public decimal ToplamMiktar { get; set; }
+        public DateTime AktarimTarihi { get; set; }
+        public DateTime? SevkTarihi { get; set; }
+        public List<DashboardSahaAktarimDurumDto> AktarimDurumlari { get; set; } = new();
+    }
+
+    public class DashboardSahaAktarimDurumDto
+    {
+        public int DurumId { get; set; }
+        public string DurumMetni { get; set; } = string.Empty;
+        public int UrunSayisi { get; set; }
+    }
+
+    public class DashboardProjeFilterOptionDto
+    {
+        public int Id { get; set; }
+        public string ProjeNo { get; set; } = string.Empty;
+        public string Musteri { get; set; } = string.Empty;
+        public int ProjeTipiId { get; set; }
+    }
+
+    public class DashboardProjeSandikDurumDto
+    {
+        public int ProjeId { get; set; }
+        public string ProjeNo { get; set; } = string.Empty;
+        public string Musteri { get; set; } = string.Empty;
+        public int ProjeTipiId { get; set; }
+        public int ToplamSandik { get; set; }
+        public List<DashboardSandikDurumDto> SandikDurumOzetleri { get; set; } = new();
     }
 
     public class DashboardPagedResultDto<T>

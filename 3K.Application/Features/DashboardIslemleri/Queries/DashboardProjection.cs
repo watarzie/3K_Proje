@@ -53,6 +53,14 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                 GerceklesenSevkTarihi = proje.GerceklesenSevkTarihi,
                 Lokasyon = proje.Lokasyon,
                 SandikSayisi = sandiklar.Count,
+                SandikDurumOzetleri = Enum.GetValues<SandikDurum>()
+                    .Select(durum => new DashboardSandikDurumDto
+                    {
+                        DurumId = (int)durum,
+                        DurumMetni = lookupCache.GetDeger<LookupSandikDurum>((int)durum),
+                        SandikSayisi = sandiklar.Count(s => s.DurumId == (int)durum)
+                    })
+                    .ToList(),
                 ToplamUrunSayisi = toplamUrun,
                 TamamlananUrunSayisi = tamamlananUrun,
                 TamamlanmaYuzdesi = toplamUrun > 0 ? (int)((double)tamamlananUrun / toplamUrun * 100) : 0

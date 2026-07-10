@@ -43,6 +43,7 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                 NormalSandik = stats.NormalSandik,
                 SahaSandik = stats.SahaSandik,
                 YedekSandik = stats.YedekSandik,
+                SandikDurumOzetleri = MapSandikDurumOzetleri(stats.SandikDurumOzetleri),
                 SahaYuzde = stats.SahaYuzde,
                 YedekYuzde = stats.YedekYuzde,
                 ProjeTipiOzetleri = stats.ProjeTipiOzetleri
@@ -59,7 +60,8 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                         EksikUrunSayisi = t.EksikUrunSayisi,
                         ToplamDepoSandik = t.ToplamDepoSandik,
                         TamamlanmaYuzdesi = t.TamamlanmaYuzdesi,
-                        DepoDagilimlari = MapDepoDagilimlari(t.DepoDagilimlari)
+                        DepoDagilimlari = MapDepoDagilimlari(t.DepoDagilimlari),
+                        SandikDurumOzetleri = MapSandikDurumOzetleri(t.SandikDurumOzetleri)
                     })
                     .ToList()
             };
@@ -74,6 +76,19 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                 {
                     DepoLokasyonId = d.DepoLokasyonId,
                     DepoLokasyonMetni = d.DepoLokasyonMetni,
+                    SandikSayisi = d.SandikSayisi
+                })
+                .ToList();
+        }
+
+        private static List<DashboardSandikDurumDto> MapSandikDurumOzetleri(
+            IEnumerable<DashboardSandikDurumRawStats> durumlar)
+        {
+            return durumlar
+                .Select(d => new DashboardSandikDurumDto
+                {
+                    DurumId = d.DurumId,
+                    DurumMetni = d.DurumMetni,
                     SandikSayisi = d.SandikSayisi
                 })
                 .ToList();
@@ -189,6 +204,301 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                 .ToList();
 
             return Result<DashboardPagedResultDto<DashboardEksikSiralamaDto>>.Success(DashboardRankHelpers.ToPaged(ranked, page, pageSize));
+        }
+    }
+
+    public class DashboardSahayaAktarilanSandiklarQueryHandler : IRequestHandler<DashboardSahayaAktarilanSandiklarQuery, Result<DashboardPagedResultDto<DashboardSahayaAktarilanSandikDto>>>
+    {
+        private readonly IUnitOfWork _unitOfWork;
+        private readonly ILookupCacheService _lookupCache;
+
+        public DashboardSahayaAktarilanSandiklarQueryHandler(
+            IUnitOfWork unitOfWork,
+            ILookupCacheService lookupCache)
+        {
+            _unitOfWork = unitOfWork;
+            _lookupCache = lookupCache;
+        }
+
+        public Task<Result<DashboardPagedResultDto<DashboardSahayaAktarilanSandikDto>>> Handle(
+            DashboardSahayaAktarilanSandiklarQuery request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var page = Math.Max(request.Page, 1);
+            var pageSize = Math.Clamp(request.PageSize, 1, 100);
+            var query = _unitOfWork.GetRepository<SahaAktarimKalemi>()
+                .Queryable()
+                .Where(k =>
+                    k.AktarimTipiId == (int)SahaAktarimTipi.SandikBazli &&
+                    k.KaynakSandikId.HasValue &&
+                    k.SahaSandikId.HasValue &&
+                    k.DurumId != (int)SahaAktarimDurum.GeriAlindi &&
+                    k.DurumId != (int)SahaAktarimDurum.Iptal);
+
+            if (request.ProjeId.HasValue)
+            {
+                query = query.Where(k =>
+                    k.KaynakProjeId == request.ProjeId.Value ||
+                    k.SahaProjeId == request.ProjeId.Value);
+            }
+
+            var ozetQuery = query
+                .GroupBy(k => new
+                {
+                    k.SahaAktarimId,
+                    k.KaynakProjeId,
+                    KaynakProjeNo = k.KaynakProje.ProjeNo,
+                    KaynakSandikId = k.KaynakSandikId!.Value,
+                    KaynakSandikNo = k.KaynakSandik!.SandikNo,
+                    k.SahaProjeId,
+                    SahaProjeNo = k.SahaProje.ProjeNo,
+                    SahaSandikId = k.SahaSandikId!.Value,
+                    SahaSandikNo = k.SahaSandik!.SandikNo,
+                    SandikDurumId = k.SahaSandik.DurumId,
+                    AktarimTarihi = k.SahaAktarim.Tarih
+                })
+                .Select(g => new DashboardSahaSandikOzetRow
+                {
+                    SahaAktarimId = g.Key.SahaAktarimId,
+                    KaynakProjeId = g.Key.KaynakProjeId,
+                    KaynakProjeNo = g.Key.KaynakProjeNo,
+                    KaynakSandikId = g.Key.KaynakSandikId,
+                    KaynakSandikNo = g.Key.KaynakSandikNo,
+                    SahaProjeId = g.Key.SahaProjeId,
+                    SahaProjeNo = g.Key.SahaProjeNo,
+                    SahaSandikId = g.Key.SahaSandikId,
+                    SahaSandikNo = g.Key.SahaSandikNo,
+                    SandikDurumId = g.Key.SandikDurumId,
+                    AktarimTarihi = g.Key.AktarimTarihi,
+                    SevkTarihi = g.Max(x => x.SevkTarihi),
+                    ToplamUrunSayisi = g.Select(x => x.KaynakCekiSatiriId).Distinct().Count(),
+                    ToplamMiktar = g.Sum(x => x.Miktar)
+                });
+
+            var totalCount = ozetQuery.Count();
+            var sayfaOzetleri = ozetQuery
+                .OrderByDescending(s => s.AktarimTarihi)
+                .ThenByDescending(s => s.SahaAktarimId)
+                .ThenBy(s => s.KaynakSandikNo)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var sayfaSahaSandikIds = sayfaOzetleri.Select(s => s.SahaSandikId).ToList();
+            var durumSatirlari = sayfaSahaSandikIds.Count == 0
+                ? new List<DashboardSahaSandikDurumRow>()
+                : query
+                    .Where(k => k.SahaSandikId.HasValue && sayfaSahaSandikIds.Contains(k.SahaSandikId.Value))
+                    .Select(k => new DashboardSahaSandikDurumRow
+                    {
+                        SahaSandikId = k.SahaSandikId!.Value,
+                        KaynakCekiSatiriId = k.KaynakCekiSatiriId,
+                        DurumId = k.DurumId
+                    })
+                    .ToList();
+
+            var durumMap = durumSatirlari
+                .GroupBy(s => s.SahaSandikId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.GroupBy(s => s.DurumId)
+                        .OrderBy(d => d.Key)
+                        .Select(d => new DashboardSahaAktarimDurumDto
+                        {
+                            DurumId = d.Key,
+                            DurumMetni = GetSahaAktarimDurumMetni(d.Key),
+                            UrunSayisi = d.Select(x => x.KaynakCekiSatiriId).Distinct().Count()
+                        })
+                        .ToList());
+
+            var items = sayfaOzetleri
+                .Select(s => new DashboardSahayaAktarilanSandikDto
+                {
+                    SahaAktarimId = s.SahaAktarimId,
+                    KaynakProjeId = s.KaynakProjeId,
+                    KaynakProjeNo = s.KaynakProjeNo,
+                    KaynakSandikId = s.KaynakSandikId,
+                    KaynakSandikNo = s.KaynakSandikNo,
+                    SahaProjeId = s.SahaProjeId,
+                    SahaProjeNo = s.SahaProjeNo,
+                    SahaSandikId = s.SahaSandikId,
+                    SahaSandikNo = s.SahaSandikNo,
+                    SandikDurumId = s.SandikDurumId,
+                    SandikDurumMetni = _lookupCache.GetDeger<LookupSandikDurum>(s.SandikDurumId),
+                    ToplamUrunSayisi = s.ToplamUrunSayisi,
+                    ToplamMiktar = s.ToplamMiktar,
+                    AktarimTarihi = s.AktarimTarihi,
+                    SevkTarihi = s.SevkTarihi,
+                    AktarimDurumlari = durumMap.GetValueOrDefault(s.SahaSandikId) ?? new List<DashboardSahaAktarimDurumDto>()
+                })
+                .ToList();
+
+            return Task.FromResult(Result<DashboardPagedResultDto<DashboardSahayaAktarilanSandikDto>>.Success(
+                new DashboardPagedResultDto<DashboardSahayaAktarilanSandikDto>
+                {
+                    Items = items,
+                    TotalCount = totalCount,
+                    Page = page,
+                    PageSize = pageSize,
+                    HasMore = page * pageSize < totalCount
+                }));
+        }
+
+        private static string GetSahaAktarimDurumMetni(int durumId)
+        {
+            return (SahaAktarimDurum)durumId switch
+            {
+                SahaAktarimDurum.Planlandi => "Planlandı",
+                SahaAktarimDurum.Hazirlaniyor => "Hazırlanıyor",
+                SahaAktarimDurum.Tamamlandi => "Tamamlandı",
+                SahaAktarimDurum.SevkiyatDuzeltmede => "Sevkiyat Düzeltmede",
+                SahaAktarimDurum.SevkEdildi => "Sevk Edildi",
+                SahaAktarimDurum.GeriAlindi => "Geri Alındı",
+                SahaAktarimDurum.Iptal => "İptal",
+                _ => $"Durum {durumId}"
+            };
+        }
+    }
+
+    public class DashboardProjeFilterOptionsQueryHandler : IRequestHandler<DashboardProjeFilterOptionsQuery, Result<List<DashboardProjeFilterOptionDto>>>
+    {
+        private readonly IUnitOfWork _unitOfWork;
+
+        public DashboardProjeFilterOptionsQueryHandler(IUnitOfWork unitOfWork)
+        {
+            _unitOfWork = unitOfWork;
+        }
+
+        public Task<Result<List<DashboardProjeFilterOptionDto>>> Handle(
+            DashboardProjeFilterOptionsQuery request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var take = Math.Clamp(request.Take, 1, 50);
+            var searchTerm = request.SearchTerm?.Trim().ToLower();
+            IQueryable<DashboardProjeFilterOptionRow> query;
+
+            if (request.SadeceSandikAktarimli)
+            {
+                var aktarimlar = _unitOfWork.GetRepository<SahaAktarimKalemi>()
+                    .Queryable()
+                    .Where(k =>
+                        k.AktarimTipiId == (int)SahaAktarimTipi.SandikBazli &&
+                        k.DurumId != (int)SahaAktarimDurum.GeriAlindi &&
+                        k.DurumId != (int)SahaAktarimDurum.Iptal);
+
+                var kaynakProjeler = aktarimlar.Select(k => new DashboardProjeFilterOptionRow
+                {
+                    Id = k.KaynakProjeId,
+                    ProjeNo = k.KaynakProje.ProjeNo,
+                    Musteri = k.KaynakProje.Musteri,
+                    ProjeTipiId = k.KaynakProje.ProjeTipiId
+                });
+                var sahaProjeleri = aktarimlar.Select(k => new DashboardProjeFilterOptionRow
+                {
+                    Id = k.SahaProjeId,
+                    ProjeNo = k.SahaProje.ProjeNo,
+                    Musteri = k.SahaProje.Musteri,
+                    ProjeTipiId = k.SahaProje.ProjeTipiId
+                });
+
+                query = kaynakProjeler.Concat(sahaProjeleri).Distinct();
+            }
+            else
+            {
+                query = _unitOfWork.GetRepository<Proje>()
+                    .Queryable()
+                    .Select(p => new DashboardProjeFilterOptionRow
+                    {
+                        Id = p.Id,
+                        ProjeNo = p.ProjeNo,
+                        Musteri = p.Musteri,
+                        ProjeTipiId = p.ProjeTipiId
+                    });
+            }
+
+            if (request.ProjeTipiId.HasValue)
+                query = query.Where(p => p.ProjeTipiId == request.ProjeTipiId.Value);
+
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                query = query.Where(p =>
+                    p.ProjeNo.ToLower().Contains(searchTerm) ||
+                    p.Musteri.ToLower().Contains(searchTerm));
+            }
+
+            var options = query
+                .OrderByDescending(p => p.Id)
+                .Take(take)
+                .Select(p => new DashboardProjeFilterOptionDto
+                {
+                    Id = p.Id,
+                    ProjeNo = p.ProjeNo,
+                    Musteri = p.Musteri,
+                    ProjeTipiId = p.ProjeTipiId
+                })
+                .ToList();
+
+            return Task.FromResult(Result<List<DashboardProjeFilterOptionDto>>.Success(options));
+        }
+    }
+
+    public class DashboardProjeSandikDurumQueryHandler : IRequestHandler<DashboardProjeSandikDurumQuery, Result<DashboardProjeSandikDurumDto>>
+    {
+        private readonly IUnitOfWork _unitOfWork;
+        private readonly ILookupCacheService _lookupCache;
+
+        public DashboardProjeSandikDurumQueryHandler(
+            IUnitOfWork unitOfWork,
+            ILookupCacheService lookupCache)
+        {
+            _unitOfWork = unitOfWork;
+            _lookupCache = lookupCache;
+        }
+
+        public async Task<Result<DashboardProjeSandikDurumDto>> Handle(
+            DashboardProjeSandikDurumQuery request,
+            CancellationToken cancellationToken)
+        {
+            if (request.ProjeId <= 0)
+                return Result<DashboardProjeSandikDurumDto>.Failure("Geçerli bir proje seçilmelidir.", 400);
+
+            var proje = await _unitOfWork.GetRepository<Proje>().GetByIdAsync(request.ProjeId);
+            if (proje == null)
+                return Result<DashboardProjeSandikDurumDto>.Failure("Proje bulunamadı.", 404);
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var durumCounts = _unitOfWork.GetRepository<Sandik>()
+                .Queryable()
+                .Where(s => s.ProjeId == request.ProjeId)
+                .GroupBy(s => s.DurumId)
+                .Select(g => new { DurumId = g.Key, Count = g.Count() })
+                .ToDictionary(x => x.DurumId, x => x.Count);
+
+            var durumlar = Enum.GetValues<SandikDurum>()
+                .Select(durum => new DashboardSandikDurumDto
+                {
+                    DurumId = (int)durum,
+                    DurumMetni = _lookupCache.GetDeger<LookupSandikDurum>((int)durum),
+                    SandikSayisi = durumCounts.GetValueOrDefault((int)durum)
+                })
+                .ToList();
+
+            return Result<DashboardProjeSandikDurumDto>.Success(new DashboardProjeSandikDurumDto
+            {
+                ProjeId = proje.Id,
+                ProjeNo = proje.ProjeNo,
+                Musteri = proje.Musteri,
+                ProjeTipiId = proje.ProjeTipiId,
+                ToplamSandik = durumlar.Sum(d => d.SandikSayisi),
+                SandikDurumOzetleri = durumlar
+            });
         }
     }
 
@@ -353,5 +663,38 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
         public int Toplam { get; set; }
         public int Eksik { get; set; }
         public DateTime CreatedDate { get; set; }
+    }
+
+    internal class DashboardSahaSandikOzetRow
+    {
+        public int SahaAktarimId { get; set; }
+        public int KaynakProjeId { get; set; }
+        public string KaynakProjeNo { get; set; } = string.Empty;
+        public int KaynakSandikId { get; set; }
+        public string KaynakSandikNo { get; set; } = string.Empty;
+        public int SahaProjeId { get; set; }
+        public string SahaProjeNo { get; set; } = string.Empty;
+        public int SahaSandikId { get; set; }
+        public string SahaSandikNo { get; set; } = string.Empty;
+        public int SandikDurumId { get; set; }
+        public DateTime AktarimTarihi { get; set; }
+        public DateTime? SevkTarihi { get; set; }
+        public int ToplamUrunSayisi { get; set; }
+        public decimal ToplamMiktar { get; set; }
+    }
+
+    internal class DashboardSahaSandikDurumRow
+    {
+        public int SahaSandikId { get; set; }
+        public int KaynakCekiSatiriId { get; set; }
+        public int DurumId { get; set; }
+    }
+
+    internal class DashboardProjeFilterOptionRow
+    {
+        public int Id { get; set; }
+        public string ProjeNo { get; set; } = string.Empty;
+        public string Musteri { get; set; } = string.Empty;
+        public int ProjeTipiId { get; set; }
     }
 }

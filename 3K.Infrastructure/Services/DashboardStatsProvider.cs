@@ -61,16 +61,39 @@ namespace _3K.Infrastructure.Services
                 .Select(l => new { l.Id, l.Deger })
                 .ToDictionaryAsync(l => l.Id, l => l.Deger, ct);
 
-            // ── Toplam sandık ──
-            var toplamSandik = await _context.Sandiklar.CountAsync(ct);
-
-            // ── Sandık sayıları proje tipine göre (tek sorgu) ──
-            var sandikProjeTipiCounts = await _context.Sandiklar
-                .GroupBy(s => s.Proje.ProjeTipiId)
-                .Select(g => new { ProjeTipiId = g.Key, Count = g.Count() })
+            // ── Sandık sayıları proje tipi ve durum bazında (tek sorgu) ──
+            var sandikDurumCounts = await _context.Sandiklar
+                .GroupBy(s => new { s.Proje.ProjeTipiId, s.DurumId })
+                .Select(g => new { g.Key.ProjeTipiId, g.Key.DurumId, Count = g.Count() })
                 .ToListAsync(ct);
 
-            int GetSandikByTip(int tipId) => sandikProjeTipiCounts.FirstOrDefault(d => d.ProjeTipiId == tipId)?.Count ?? 0;
+            var sandikDurumlari = await _context.LookupSandikDurumlari
+                .AsNoTracking()
+                .OrderBy(l => l.Anahtar)
+                .Select(l => new { l.Id, l.Deger })
+                .ToListAsync(ct);
+
+            var toplamSandik = sandikDurumCounts.Sum(d => d.Count);
+
+            int GetSandikByTip(int tipId) => sandikDurumCounts
+                .Where(d => d.ProjeTipiId == tipId)
+                .Sum(d => d.Count);
+
+            List<DashboardSandikDurumRawStats> BuildSandikDurumOzetleri(int? tipId = null)
+            {
+                return sandikDurumlari
+                    .Select(durum => new DashboardSandikDurumRawStats
+                    {
+                        DurumId = durum.Id,
+                        DurumMetni = durum.Deger,
+                        SandikSayisi = sandikDurumCounts
+                            .Where(d => d.DurumId == durum.Id && (!tipId.HasValue || d.ProjeTipiId == tipId.Value))
+                            .Sum(d => d.Count)
+                    })
+                    .ToList();
+            }
+
+            var sandikDurumOzetleri = BuildSandikDurumOzetleri();
 
             // ── Eksik ürün sayısı ──
             var normalSatirStatsRows = await _context.CekiSatirlari
@@ -241,7 +264,8 @@ namespace _3K.Infrastructure.Services
                     EksikUrunSayisi = GetEksikUrunByTip(tipId),
                     ToplamDepoSandik = depoDagilimlari.Sum(d => d.SandikSayisi),
                     TamamlanmaYuzdesi = GetTamamlanmaYuzdesi(tipId),
-                    DepoDagilimlari = depoDagilimlari
+                    DepoDagilimlari = depoDagilimlari,
+                    SandikDurumOzetleri = BuildSandikDurumOzetleri(tipId)
                 };
             }
 
@@ -264,6 +288,7 @@ namespace _3K.Infrastructure.Services
                 NormalSandik = GetSandikByTip((int)ProjeTipi.Normal),
                 SahaSandik = GetSandikByTip((int)ProjeTipi.Saha),
                 YedekSandik = GetSandikByTip((int)ProjeTipi.Yedek),
+                SandikDurumOzetleri = sandikDurumOzetleri,
                 EksikUrunSayisi = normalEksikUrun + sahaYedekEksikUrun,
                 ToplamDepoSandik = toplamDepoSandik,
                 DepoUcKSandik = depoUcK,

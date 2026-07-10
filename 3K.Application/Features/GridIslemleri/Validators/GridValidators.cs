@@ -27,4 +27,23 @@ namespace _3K.Application.Features.GridIslemleri.Validators
             RuleFor(x => x.CekiSatiriIdler).NotEmpty().WithMessage("En az bir ürün seçilmeli.");
         }
     }
+
+    public class SurecDurumGuncelleCommandValidator : AbstractValidator<SurecDurumGuncelleCommand>
+    {
+        public SurecDurumGuncelleCommandValidator()
+        {
+            RuleFor(x => x.ProjeId)
+                .GreaterThan(0)
+                .WithMessage("Geçerli bir proje ID belirtilmeli.");
+            RuleFor(x => x.CekiSatiriIdler)
+                .NotEmpty()
+                .WithMessage("En az bir ürün seçilmeli.");
+            RuleForEach(x => x.CekiSatiriIdler)
+                .GreaterThan(0)
+                .WithMessage("Geçersiz ürün ID değeri gönderildi.");
+            RuleFor(x => x.SurecDurumId)
+                .Must(id => Enum.IsDefined(typeof(SurecDurum), id))
+                .WithMessage("Geçerli bir süreç durumu seçilmelidir.");
+        }
+    }
 }

@@ -233,7 +233,8 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             // ===== Alanları göncelle =====
             satir.UcKKarsilamaTipiId = request.KarsilamaTipiId;
             satir.UcKAciklama = request.Aciklama;
-            satir.KaynakHedefProjeNo = request.KaynakHedefProjeNo;
+            if (request.KarsilamaTipiId == (int)UcKDurum.ProjedenKarsilandi)
+                satir.KaynakHedefProjeNo = request.KaynakHedefProjeNo?.Trim();
             decimal? fazlaTeslimStokAdedi = null;
 
             switch (request.KarsilamaTipiId)
