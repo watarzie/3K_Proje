@@ -113,6 +113,8 @@ try
     builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
     builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
     builder.Services.AddScoped<IProjeRepository, ProjeRepository>();
+    builder.Services.AddScoped<IDashboardSandikQueryRepository, DashboardSandikQueryRepository>();
+    builder.Services.AddScoped<IBildirimRepository, BildirimRepository>();
 
     // ======= Services =======
     builder.Services.AddScoped<ICekiService, CekiService>();
@@ -131,6 +133,7 @@ try
     builder.Services.AddScoped<IProjectLockService, ProjectLockService>();
     builder.Services.AddScoped<IDashboardStatsProvider, DashboardStatsProvider>();
     builder.Services.AddScoped<ISahaTamamlamaService, SahaTamamlamaService>();
+    builder.Services.AddScoped<IBildirimService, BildirimService>();
 
     // ======= Current User Service (Pipeline Behavior için) =======
     builder.Services.AddHttpContextAccessor();

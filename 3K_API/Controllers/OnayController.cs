@@ -15,17 +15,29 @@ namespace _3K_API.Controllers
     {
         private readonly IMediator _mediator;
         private readonly ISseNotifier _sseNotifier;
+        private readonly ICurrentUserService _currentUserService;
 
-        public OnayController(IMediator mediator, ISseNotifier sseNotifier)
+        public OnayController(
+            IMediator mediator,
+            ISseNotifier sseNotifier,
+            ICurrentUserService currentUserService)
         {
             _mediator = mediator;
             _sseNotifier = sseNotifier;
+            _currentUserService = currentUserService;
         }
 
         [HttpGet("sse-stream")]
         public async Task SseStream()
         {
-            await _sseNotifier.SubscribeAsync(HttpContext);
+            var kullaniciId = _currentUserService.UserId;
+            if (!kullaniciId.HasValue)
+            {
+                Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return;
+            }
+
+            await _sseNotifier.SubscribeAsync(HttpContext, kullaniciId.Value);
         }
 
         [HttpGet]

@@ -46,4 +46,15 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
     {
         public int ProjeId { get; set; }
     }
+
+    public class DashboardProjeSandiklariDrillDownQuery
+        : IRequest<Result<DashboardPagedResultDto<DashboardSandikDrillDownDto>>>, ISecuredRequest, IRequiresMenuPermission
+    {
+        public string RequiredMenuKod => "dashboard";
+        public int ProjeId { get; set; }
+        public int DurumId { get; set; }
+        public string? SearchTerm { get; set; }
+        public int Page { get; set; } = 1;
+        public int PageSize { get; set; } = 20;
+    }
 }

@@ -90,5 +90,25 @@ namespace _3K_API.Controllers
             var result = await _mediator.Send(new DashboardProjeSandikDurumQuery { ProjeId = projeId });
             return result.ToActionResult();
         }
+
+        [HttpGet("projeler/{projeId:int}/sandiklar")]
+        public async Task<ActionResult> GetProjeSandiklari(
+            int projeId,
+            [FromQuery] int durumId,
+            [FromQuery] string? searchTerm = null,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20,
+            CancellationToken cancellationToken = default)
+        {
+            var result = await _mediator.Send(new DashboardProjeSandiklariDrillDownQuery
+            {
+                ProjeId = projeId,
+                DurumId = durumId,
+                SearchTerm = searchTerm,
+                Page = page,
+                PageSize = pageSize
+            }, cancellationToken);
+            return result.ToActionResult();
+        }
     }
 }

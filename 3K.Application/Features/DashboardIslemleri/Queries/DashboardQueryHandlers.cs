@@ -5,6 +5,7 @@ using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.DashboardIslemleri.Queries
 {
@@ -499,6 +500,61 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                 ToplamSandik = durumlar.Sum(d => d.SandikSayisi),
                 SandikDurumOzetleri = durumlar
             });
+        }
+    }
+
+    public class DashboardProjeSandiklariDrillDownQueryHandler
+        : IRequestHandler<DashboardProjeSandiklariDrillDownQuery, Result<DashboardPagedResultDto<DashboardSandikDrillDownDto>>>
+    {
+        private readonly IDashboardSandikQueryRepository _sandikQueryRepository;
+
+        public DashboardProjeSandiklariDrillDownQueryHandler(
+            IDashboardSandikQueryRepository sandikQueryRepository)
+        {
+            _sandikQueryRepository = sandikQueryRepository;
+        }
+
+        public async Task<Result<DashboardPagedResultDto<DashboardSandikDrillDownDto>>> Handle(
+            DashboardProjeSandiklariDrillDownQuery request,
+            CancellationToken cancellationToken)
+        {
+            var page = Math.Max(request.Page, 1);
+            var pageSize = Math.Clamp(request.PageSize, 1, 100);
+            var sonuc = await _sandikQueryRepository.GetProjeSandiklariAsync(
+                new DashboardSandikDrillDownFiltresi
+                {
+                    ProjeId = request.ProjeId,
+                    DurumId = request.DurumId,
+                    SearchTerm = request.SearchTerm?.Trim(),
+                    Page = page,
+                    PageSize = pageSize
+                },
+                cancellationToken);
+
+            if (!sonuc.ProjeBulundu)
+            {
+                return Result<DashboardPagedResultDto<DashboardSandikDrillDownDto>>
+                    .Failure("Proje bulunamadı.", 404);
+            }
+
+            return Result<DashboardPagedResultDto<DashboardSandikDrillDownDto>>.Success(
+                new DashboardPagedResultDto<DashboardSandikDrillDownDto>
+                {
+                    Items = sonuc.Items.Select(sandik => new DashboardSandikDrillDownDto
+                    {
+                        SandikId = sandik.SandikId,
+                        SandikNo = sandik.SandikNo,
+                        SandikAdi = sandik.SandikAdi,
+                        DurumId = sandik.DurumId,
+                        DurumMetni = sandik.DurumMetni,
+                        DepoLokasyonId = sandik.DepoLokasyonId,
+                        DepoLokasyonMetni = sandik.DepoLokasyonMetni
+                    }).ToList(),
+                    TotalCount = sonuc.TotalCount,
+                    Page = page,
+                    PageSize = pageSize,
+                    HasMore = page * pageSize < sonuc.TotalCount
+                });
         }
     }
 
