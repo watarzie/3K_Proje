@@ -25,6 +25,8 @@ namespace _3K_API.Extensions
                 401 => new UnauthorizedObjectResult(new { message = result.Error.Message }),
                 403 => new ObjectResult(new { message = result.Error.Message }) { StatusCode = 403 },
                 404 => new NotFoundObjectResult(new { message = result.Error.Message }),
+                409 => new ConflictObjectResult(new { message = result.Error.Message }),
+                500 => new ObjectResult(new { message = result.Error.Message }) { StatusCode = 500 },
                 _ => new BadRequestObjectResult(new { message = result.Error.Message })
             };
         }
@@ -45,6 +47,8 @@ namespace _3K_API.Extensions
                 401 => new UnauthorizedObjectResult(new { message = result.Error.Message }),
                 403 => new ObjectResult(new { message = result.Error.Message }) { StatusCode = 403 },
                 404 => new NotFoundObjectResult(new { message = result.Error.Message }),
+                409 => new ConflictObjectResult(new { message = result.Error.Message }),
+                500 => new ObjectResult(new { message = result.Error.Message }) { StatusCode = 500 },
                 _ => new BadRequestObjectResult(new { message = result.Error.Message })
             };
         }

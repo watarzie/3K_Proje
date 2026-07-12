@@ -7,5 +7,9 @@ namespace _3K.Core.Interfaces
             string? islemKodu,
             int talepEdenKullaniciId,
             CancellationToken ct = default);
+
+        Task<_3K.Core.Models.OnayErisimKapsami> GetErisimKapsamiAsync(
+            int kullaniciId,
+            CancellationToken ct = default);
     }
 }

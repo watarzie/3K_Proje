@@ -47,6 +47,26 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
 
+        [HttpGet("gecmis")]
+        public async Task<IActionResult> GetGecmis(
+            [FromQuery] GetOnayGecmisiQuery query,
+            CancellationToken cancellationToken)
+        {
+            var result = await _mediator.Send(query, cancellationToken);
+            return result.ToActionResult();
+        }
+
+        [HttpGet("gecmis/{id:int}")]
+        public async Task<IActionResult> GetGecmisDetayi(
+            int id,
+            CancellationToken cancellationToken)
+        {
+            var result = await _mediator.Send(
+                new GetOnayGecmisiDetayiQuery { Id = id },
+                cancellationToken);
+            return result.ToActionResult();
+        }
+
         [HttpGet("bekleyen-sayisi")]
         public async Task<IActionResult> GetBekleyenSayisi()
         {
@@ -58,7 +78,6 @@ namespace _3K_API.Controllers
         public async Task<IActionResult> Onayla([FromBody] IslemOnaylaCommand command)
         {
             var result = await _mediator.Send(command);
-            if (result.IsSuccess) await _sseNotifier.BroadcastApprovalUpdateAsync();
             return result.ToActionResult();
         }
 
@@ -66,7 +85,6 @@ namespace _3K_API.Controllers
         public async Task<IActionResult> Reddet([FromBody] IslemReddetCommand command)
         {
             var result = await _mediator.Send(command);
-            if (result.IsSuccess) await _sseNotifier.BroadcastApprovalUpdateAsync();
             return result.ToActionResult();
         }
 

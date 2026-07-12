@@ -7,7 +7,7 @@ using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.SandikIslemleri.Commands
 {
-    public class SandikKilidiAcCommand : IRequest<Result>, ISecuredRequest, IAlwaysRequireApproval, IApprovalOperation
+    public class SandikKilidiAcCommand : IRequest<Result>, ISecuredRequest, IAlwaysRequireApproval, IApprovalOperation, IApprovalReference
     {
         public int ProjeId { get; set; }
         public int SandikId { get; set; }
@@ -19,6 +19,15 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         public string GetApprovalOperationCode()
         {
             return OnayIslemKodlari.SandikKilidiAc;
+        }
+
+        public ApprovalReference GetApprovalReference()
+        {
+            return new ApprovalReference(
+                OnayReferansTipleri.Sandik,
+                SandikId,
+                ProjeId,
+                $"/sandik-yonetimi/{ProjeId}");
         }
 
         public string GetApprovalDescription()

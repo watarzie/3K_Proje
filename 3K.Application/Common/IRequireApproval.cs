@@ -15,4 +15,15 @@ namespace _3K.Application.Common
     {
         string GetApprovalOperationCode();
     }
+
+    public interface IApprovalReference
+    {
+        ApprovalReference GetApprovalReference();
+    }
+
+    public sealed record ApprovalReference(
+        string ReferansTipi,
+        int ReferansId,
+        int? ProjeId,
+        string? HedefUrl);
 }

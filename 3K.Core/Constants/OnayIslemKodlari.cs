@@ -46,4 +46,11 @@ namespace _3K.Core.Constants
             };
         }
     }
+
+    public static class OnayReferansTipleri
+    {
+        public const string CekiSatiri = "CekiSatiri";
+        public const string Proje = "Proje";
+        public const string Sandik = "Sandik";
+    }
 }

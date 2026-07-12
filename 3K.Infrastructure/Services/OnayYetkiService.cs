@@ -1,5 +1,6 @@
 using _3K.Core.Constants;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 using _3K.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,12 +8,10 @@ namespace _3K.Infrastructure.Services
 {
     public class OnayYetkiService : IOnayYetkiService
     {
-        private readonly IRolService _rolService;
         private readonly AppDbContext _context;
 
-        public OnayYetkiService(IRolService rolService, AppDbContext context)
+        public OnayYetkiService(AppDbContext context)
         {
-            _rolService = rolService;
             _context = context;
         }
 
@@ -25,29 +24,65 @@ namespace _3K.Infrastructure.Services
             if (kullaniciId <= 0)
                 return false;
 
-            var adminMi = await _rolService.IsAdminAsync(kullaniciId, ct);
-            if (adminMi)
+            var kapsam = await GetErisimKapsamiAsync(kullaniciId, ct);
+            if (kapsam.TumIslemler)
                 return true;
 
-            if (kullaniciId == talepEdenKullaniciId)
+            if (!kapsam.KendiTalepleriniOnaylayabilir && kullaniciId == talepEdenKullaniciId)
                 return false;
 
             var normalizedIslemKodu = string.IsNullOrWhiteSpace(islemKodu)
                 ? OnayIslemKodlari.Genel
                 : islemKodu.Trim();
 
-            var rolId = await _context.Kullanicilar
+            return kapsam.IslemKodlari.Contains(normalizedIslemKodu, StringComparer.Ordinal);
+        }
+
+        public async Task<OnayErisimKapsami> GetErisimKapsamiAsync(
+            int kullaniciId,
+            CancellationToken ct = default)
+        {
+            if (kullaniciId <= 0)
+                return new OnayErisimKapsami();
+
+            var kullanici = await _context.Kullanicilar
                 .AsNoTracking()
                 .Where(k => k.Id == kullaniciId)
-                .Select(k => (int?)k.RolId)
+                .Select(k => new
+                {
+                    k.RolId,
+                    RolAdi = k.Rol != null ? k.Rol.Ad : null
+                })
                 .FirstOrDefaultAsync(ct);
 
-            if (!rolId.HasValue)
-                return false;
+            if (kullanici == null)
+                return new OnayErisimKapsami();
 
-            return await _context.OnayIslemYetkileri
+            var adminMi = kullanici.RolId == 1 ||
+                          string.Equals(kullanici.RolAdi, "Admin", StringComparison.OrdinalIgnoreCase);
+
+            if (adminMi)
+            {
+                return new OnayErisimKapsami
+                {
+                    TumIslemler = true,
+                    KendiTalepleriniOnaylayabilir = true
+                };
+            }
+
+            var islemKodlari = await _context.OnayIslemYetkileri
                 .AsNoTracking()
-                .AnyAsync(y => y.RolId == rolId.Value && y.IslemKodu == normalizedIslemKodu, ct);
+                .Where(y => y.RolId == kullanici.RolId)
+                .Select(y => y.IslemKodu)
+                .Distinct()
+                .ToListAsync(ct);
+
+            return new OnayErisimKapsami
+            {
+                TumIslemler = false,
+                KendiTalepleriniOnaylayabilir = false,
+                IslemKodlari = islemKodlari
+            };
         }
     }
 }

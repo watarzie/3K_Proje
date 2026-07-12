@@ -1,24 +1,23 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Application.Features.OnayIslemleri.DTOs;
-using _3K.Core.Entities;
-using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.OnayIslemleri.Queries
 {
-    public class GetBekleyenOnaylarQueryHandler : IRequestHandler<GetBekleyenOnaylarQuery, Result<List<OnayBekleyenIslemDto>>>
+    public class GetBekleyenOnaylarQueryHandler
+        : IRequestHandler<GetBekleyenOnaylarQuery, Result<List<OnayBekleyenIslemDto>>>
     {
-        private readonly IUnitOfWork _unitOfWork;
+        private readonly IOnayIslemRepository _onayRepository;
         private readonly ICurrentUserService _currentUserService;
         private readonly IOnayYetkiService _onayYetkiService;
 
         public GetBekleyenOnaylarQueryHandler(
-            IUnitOfWork unitOfWork,
+            IOnayIslemRepository onayRepository,
             ICurrentUserService currentUserService,
             IOnayYetkiService onayYetkiService)
         {
-            _unitOfWork = unitOfWork;
+            _onayRepository = onayRepository;
             _currentUserService = currentUserService;
             _onayYetkiService = onayYetkiService;
         }
@@ -27,38 +26,28 @@ namespace _3K.Application.Features.OnayIslemleri.Queries
             GetBekleyenOnaylarQuery request,
             CancellationToken cancellationToken)
         {
-            var kullaniciId = _currentUserService.UserId ?? 0;
-            var repo = _unitOfWork.GetRepository<OnayBekleyenIslem>();
-            var islemList = await repo.GetAllWithIncludeAsync(o => o.TalepEdenKullanici);
-            var bekleyenler = islemList
-                .Where(o => o.Durum == OnayDurumu.Bekliyor)
-                .OrderBy(o => o.CreatedDate)
-                .ToList();
+            var kullaniciId = _currentUserService.UserId;
+            if (!kullaniciId.HasValue)
+                return Result<List<OnayBekleyenIslemDto>>.Failure("Kullanıcı bilgisi alınamadı.", 401);
 
-            var filteredList = new List<OnayBekleyenIslemDto>();
-            foreach (var islem in bekleyenler)
-            {
-                var onaylayabilir = await _onayYetkiService.KullaniciIslemOnaylayabilirMiAsync(
-                    kullaniciId,
-                    islem.IslemKodu,
-                    islem.TalepEdenKullaniciId,
-                    cancellationToken);
+            var erisimKapsami = await _onayYetkiService.GetErisimKapsamiAsync(
+                kullaniciId.Value,
+                cancellationToken);
+            var bekleyenler = await _onayRepository.GetYetkiliBekleyenlerAsync(
+                kullaniciId.Value,
+                erisimKapsami,
+                cancellationToken);
 
-                if (!onaylayabilir)
-                    continue;
-
-                filteredList.Add(new OnayBekleyenIslemDto
+            return Result<List<OnayBekleyenIslemDto>>.Success(
+                bekleyenler.Select(islem => new OnayBekleyenIslemDto
                 {
                     Id = islem.Id,
                     IslemKodu = islem.IslemKodu,
                     IslemAciklamasi = islem.IslemAciklamasi,
-                    TalepEdenKisi = islem.TalepEdenKullanici.AdSoyad,
-                    OlusturulmaTarihi = islem.CreatedDate,
+                    TalepEdenKisi = islem.TalepEdenKisi,
+                    OlusturulmaTarihi = islem.OlusturulmaTarihi,
                     Durum = islem.Durum
-                });
-            }
-
-            return Result<List<OnayBekleyenIslemDto>>.Success(filteredList);
+                }).ToList());
         }
     }
 }

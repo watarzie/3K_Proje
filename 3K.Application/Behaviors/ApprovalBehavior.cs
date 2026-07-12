@@ -1,6 +1,7 @@
 using System.Text.Json;
 using MediatR;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using _3K.Application.Common;
 using _3K.Core.Constants;
 using _3K.Core.Entities;
@@ -17,19 +18,22 @@ namespace _3K.Application.Behaviors
         private readonly ISseNotifier _sseNotifier;
         private readonly IMemoryCache _cache;
         private readonly IApprovalExecutionContext _approvalExecutionContext;
+        private readonly ILogger<ApprovalBehavior<TRequest, TResponse>> _logger;
 
         public ApprovalBehavior(
             ICurrentUserService currentUserService,
             IUnitOfWork unitOfWork,
             ISseNotifier sseNotifier,
             IMemoryCache cache,
-            IApprovalExecutionContext approvalExecutionContext)
+            IApprovalExecutionContext approvalExecutionContext,
+            ILogger<ApprovalBehavior<TRequest, TResponse>> logger)
         {
             _currentUserService = currentUserService;
             _unitOfWork = unitOfWork;
             _sseNotifier = sseNotifier;
             _cache = cache;
             _approvalExecutionContext = approvalExecutionContext;
+            _logger = logger;
         }
 
         public async Task<TResponse> Handle(
@@ -83,6 +87,7 @@ namespace _3K.Application.Behaviors
         {
             var reqType = typeof(TRequest);
             var jsonPayload = JsonSerializer.Serialize((object)request);
+            var referans = (request as IApprovalReference)?.GetApprovalReference();
 
             var onay = new OnayBekleyenIslem
             {
@@ -91,14 +96,30 @@ namespace _3K.Application.Behaviors
                 PayloadJson = jsonPayload,
                 IslemAciklamasi = islemAdi,
                 TalepEdenKullaniciId = _currentUserService.UserId ?? 0,
-                Durum = OnayDurumu.Bekliyor
+                Durum = OnayDurumu.Bekliyor,
+                CalistirmaDurumu = OnayCalistirmaDurumu.Bekliyor,
+                ReferansTipi = referans?.ReferansTipi,
+                ReferansId = referans?.ReferansId,
+                ProjeId = referans?.ProjeId,
+                HedefUrl = GuvenliHedefUrl(referans?.HedefUrl)
             };
 
             var repo = _unitOfWork.GetRepository<OnayBekleyenIslem>();
             await repo.AddAsync(onay);
             await _unitOfWork.SaveChangesAsync();
 
-            await _sseNotifier.BroadcastApprovalUpdateAsync();
+            try
+            {
+                await _sseNotifier.BroadcastApprovalUpdateAsync();
+            }
+            catch (Exception exception)
+            {
+                // Onay kaydı kalıcıdır; geçici SSE hatası istemcinin aynı talebi tekrar göndermesine yol açmamalıdır.
+                _logger.LogWarning(
+                    exception,
+                    "Yeni onay kaydı {OnayId} için SSE yenileme sinyali gönderilemedi.",
+                    onay.Id);
+            }
 
             var resType = typeof(TResponse);
 
@@ -120,6 +141,18 @@ namespace _3K.Application.Behaviors
             }
 
             throw new InvalidOperationException("ApprovalBehavior sadece Result veya Result<T> dönen command'lerle çalışır.");
+        }
+
+        private static string? GuvenliHedefUrl(string? hedefUrl)
+        {
+            if (string.IsNullOrWhiteSpace(hedefUrl))
+                return null;
+
+            var deger = hedefUrl.Trim();
+            return deger.StartsWith("/", StringComparison.Ordinal) &&
+                   !deger.StartsWith("//", StringComparison.Ordinal)
+                ? deger
+                : null;
         }
 
         private static string ResolveApprovalOperationCode(TRequest request, int? lookupUcKDurumId = null)

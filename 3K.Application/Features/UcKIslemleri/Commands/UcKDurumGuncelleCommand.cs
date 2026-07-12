@@ -10,7 +10,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
     /// Karşılama Tipleri (UcKDurum enum Id): TamGeldi, EksikGeldi, Gelmedi, ProjedenKarsilandi, StoktanKarsilandi,
     /// TedarikcidenGeldi, BaskaProyeVerildi, GeriGonderildi, HataliUrun
     /// </summary>
-    public class UcKDurumGuncelleCommand : IRequest<Result>, ISecuredRequest, IRequireApproval, IApprovalOperation
+    public class UcKDurumGuncelleCommand : IRequest<Result>, ISecuredRequest, IRequireApproval, IApprovalOperation, IApprovalReference
     {
 
         public int GetApprovalLookupUcKDurumId()
@@ -21,6 +21,15 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
         public string GetApprovalOperationCode()
         {
             return OnayIslemKodlari.FromUcKDurumId(KarsilamaTipiId);
+        }
+
+        public ApprovalReference GetApprovalReference()
+        {
+            return new ApprovalReference(
+                OnayReferansTipleri.CekiSatiri,
+                CekiSatiriId,
+                ProjeId,
+                $"/sandik-yonetimi/{ProjeId}");
         }
 
         public string GetApprovalDescription()

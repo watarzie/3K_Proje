@@ -115,6 +115,7 @@ try
     builder.Services.AddScoped<IProjeRepository, ProjeRepository>();
     builder.Services.AddScoped<IDashboardSandikQueryRepository, DashboardSandikQueryRepository>();
     builder.Services.AddScoped<IBildirimRepository, BildirimRepository>();
+    builder.Services.AddScoped<IOnayIslemRepository, OnayIslemRepository>();
 
     // ======= Services =======
     builder.Services.AddScoped<ICekiService, CekiService>();

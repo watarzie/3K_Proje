@@ -447,6 +447,23 @@ namespace _3K.Infrastructure.Data
                 .HasDefaultValue(OnayIslemKodlari.Genel)
                 .IsRequired();
 
+            modelBuilder.Entity<OnayBekleyenIslem>(e =>
+            {
+                e.Property(o => o.ReferansTipi).HasMaxLength(80);
+                e.Property(o => o.HedefUrl).HasMaxLength(500);
+                e.Property(o => o.KararAciklamasi).HasMaxLength(1000);
+                e.Property(o => o.CalistirmaHatasi).HasMaxLength(1000);
+                e.Property(o => o.CalistirmaDurumu)
+                    .HasDefaultValue(OnayCalistirmaDurumu.Bekliyor);
+
+                e.HasIndex(o => new { o.TalepEdenKullaniciId, o.CreatedDate })
+                    .IsDescending(false, true);
+                e.HasIndex(o => new { o.OnaylayanKullaniciId, o.KararTarihi })
+                    .IsDescending(false, true);
+                e.HasIndex(o => new { o.Durum, o.CalistirmaDurumu });
+                e.HasIndex(o => o.ProjeId);
+            });
+
             modelBuilder.Entity<OnayBekleyenIslem>()
                 .HasIndex(o => new { o.Durum, o.IslemKodu });
 
@@ -461,6 +478,12 @@ namespace _3K.Infrastructure.Data
                 .WithMany()
                 .HasForeignKey(o => o.OnaylayanKullaniciId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OnayBekleyenIslem>()
+                .HasOne(o => o.Proje)
+                .WithMany()
+                .HasForeignKey(o => o.ProjeId)
+                .OnDelete(DeleteBehavior.SetNull);
 
             modelBuilder.Entity<OnayIslemYetki>(e =>
             {
