@@ -33,6 +33,10 @@ namespace _3K.Infrastructure.Data
         public DbSet<Bildirim> Bildirimler { get; set; } = null!;
         public DbSet<KullaniciBildirimi> KullaniciBildirimleri { get; set; } = null!;
         public DbSet<BildirimAboneligi> BildirimAbonelikleri { get; set; } = null!;
+        public DbSet<AmbalajUretimPlani> AmbalajUretimPlanlari { get; set; } = null!;
+        public DbSet<AmbalajUretimKalemi> AmbalajUretimKalemleri { get; set; } = null!;
+        public DbSet<AmbalajIcSandikSablonu> AmbalajIcSandikSablonlari { get; set; } = null!;
+        public DbSet<AmbalajBagimsizSandik> AmbalajBagimsizSandiklar { get; set; } = null!;
 
         // ======= RBAC (Rol Tabanlı Erişim Kontrolü) DbSet'leri =======
         public DbSet<Rol> Roller { get; set; } = null!;
@@ -104,6 +108,61 @@ namespace _3K.Infrastructure.Data
 
             modelBuilder.Entity<CekiSatiri>()
                 .HasIndex(cs => cs.KaynakCekiSatiriId);
+
+            modelBuilder.Entity<AmbalajUretimPlani>()
+                .HasIndex(p => p.ProjeId)
+                .IsUnique();
+
+            modelBuilder.Entity<AmbalajUretimPlani>(e =>
+            {
+                e.Property(p => p.ProjeSandiklariDurumId).HasDefaultValue(1);
+                e.Property(p => p.IlaveSandiklarDurumId).HasDefaultValue(1);
+                e.Property(p => p.IcSandiklarDurumId).HasDefaultValue(1);
+            });
+
+            modelBuilder.Entity<AmbalajUretimKalemi>()
+                .HasIndex(k => new { k.AmbalajUretimPlaniId, k.KaynakSandikId })
+                .IsUnique()
+                .HasFilter("\"KaynakSandikId\" IS NOT NULL");
+
+            modelBuilder.Entity<AmbalajUretimPlani>()
+                .HasOne(p => p.Proje)
+                .WithOne(p => p.AmbalajUretimPlani)
+                .HasForeignKey<AmbalajUretimPlani>(p => p.ProjeId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<AmbalajUretimKalemi>()
+                .HasOne(k => k.AmbalajUretimPlani)
+                .WithMany(p => p.Kalemler)
+                .HasForeignKey(k => k.AmbalajUretimPlaniId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<AmbalajUretimKalemi>()
+                .HasOne(k => k.KaynakSandik)
+                .WithMany()
+                .HasForeignKey(k => k.KaynakSandikId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<AmbalajUretimKalemi>()
+                .HasOne(k => k.UstKalem)
+                .WithMany(k => k.IcSandiklar)
+                .HasForeignKey(k => k.UstKalemId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<AmbalajUretimKalemi>(e =>
+            {
+                e.Property(k => k.Boy).HasPrecision(18, 4);
+                e.Property(k => k.En).HasPrecision(18, 4);
+                e.Property(k => k.Yukseklik).HasPrecision(18, 4);
+            });
+
+            modelBuilder.Entity<AmbalajIcSandikSablonu>(e =>
+            {
+                e.HasIndex(s => s.Ad).IsUnique();
+                e.Property(s => s.Boy).HasPrecision(18, 4);
+                e.Property(s => s.En).HasPrecision(18, 4);
+                e.Property(s => s.Yukseklik).HasPrecision(18, 4);
+            });
 
             // ===============================================================
             // 3. FK İLİŞKİLERİ — Entity ↔ Lookup Tabloları (ID bazlı)
@@ -998,9 +1057,10 @@ namespace _3K.Infrastructure.Data
                 new MenuTanimi { Id = 5, Kod = "sandik-yonetimi", LabelKey = "MENU.SANDIK_YONETIMI", Icon = "ri-archive-line", Route = "/sandik-yonetimi", Sira = 3, ParentId = null },
                 new MenuTanimi { Id = 7, Kod = "depo-durumu", LabelKey = "MENU.DEPO_DURUMU", Icon = "ri-building-2-line", Route = "/depo-durumu", Sira = 4, ParentId = null },
                 new MenuTanimi { Id = 8, Kod = "stok", LabelKey = "MENU.STOK_MODULU", Icon = "ri-stack-line", Route = "/stok", Sira = 5, ParentId = null },
-                new MenuTanimi { Id = 10, Kod = "hareket-gecmisi", LabelKey = "MENU.HAREKET_GECMISI", Icon = "ri-history-line", Route = "/hareket-gecmisi", Sira = 8, ParentId = null },
-                new MenuTanimi { Id = 11, Kod = "kullanicilar", LabelKey = "MENU.KULLANICI_YETKI", Icon = "ri-user-settings-line", Route = "/kullanicilar", Sira = 9, ParentId = null },
-                new MenuTanimi { Id = 12, Kod = "rol-yonetimi", LabelKey = "MENU.ROL_YONETIMI", Icon = "ri-shield-user-line", Route = "/rol-yonetimi", Sira = 10, ParentId = null }
+                new MenuTanimi { Id = 46, Kod = "ambalaj-uretim-listesi", LabelKey = "MENU.AMBALAJ_URETIM_LISTESI", Icon = "ri-ruler-2-line", Route = "/ambalaj-uretim-listesi", Sira = 8, ParentId = null },
+                new MenuTanimi { Id = 10, Kod = "hareket-gecmisi", LabelKey = "MENU.HAREKET_GECMISI", Icon = "ri-history-line", Route = "/hareket-gecmisi", Sira = 9, ParentId = null },
+                new MenuTanimi { Id = 11, Kod = "kullanicilar", LabelKey = "MENU.KULLANICI_YETKI", Icon = "ri-user-settings-line", Route = "/kullanicilar", Sira = 10, ParentId = null },
+                new MenuTanimi { Id = 12, Kod = "rol-yonetimi", LabelKey = "MENU.ROL_YONETIMI", Icon = "ri-shield-user-line", Route = "/rol-yonetimi", Sira = 11, ParentId = null }
             );
 
             // Alt menüler ve yetki kontrollü modül düğümleri
@@ -1025,7 +1085,7 @@ namespace _3K.Infrastructure.Data
                 new MenuTanimi { Id = 34, Kod = "saha-proje-sil", LabelKey = "MENU.SAHA_PROJE_SIL", Icon = "", Route = null, Sira = 6, ParentId = 17 },
                 new MenuTanimi { Id = 18, Kod = "yedek-yonetimi", LabelKey = "MENU.YEDEK_YONETIMI", Icon = "ri-box-3-line", Route = "/yedek-yonetimi", Sira = 7, ParentId = null },
                 // Onay Merkezi
-                new MenuTanimi { Id = 99, Kod = "islem-onay-merkezi", LabelKey = "MENU.ISLEM_ONAY", Icon = "ri-check-double-line", Route = "/onay-merkezi", Sira = 11, ParentId = null },
+                new MenuTanimi { Id = 99, Kod = "islem-onay-merkezi", LabelKey = "MENU.ISLEM_ONAY", Icon = "ri-check-double-line", Route = "/onay-merkezi", Sira = 12, ParentId = null },
                 new MenuTanimi { Id = 43, Kod = "onay-kurallari-yonet", LabelKey = "MENU.ONAY_KURALLARI_YONET", Icon = "", Route = null, Sira = 1, ParentId = 99 },
                 // Kalite & Süreç — Sandık Yönetimi altında yetki kontrollü butonlar.
                 new MenuTanimi { Id = 20, Kod = "kalite-modulu", LabelKey = "MENU.KALITE_MODULU", Icon = "", Route = null, Sira = 3, ParentId = 5 },
@@ -1046,8 +1106,8 @@ namespace _3K.Infrastructure.Data
             );
 
             // ======= ADMIN ROL YETKİLERİ (tüm menülere W=3) =======
-            // Not: MenuTanimi Id'leri: 1,2,3,4,5,7,8,10,11,12,14,15,16,17,18,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,99
-            var menuIds = new[] { 1, 2, 3, 4, 5, 7, 8, 10, 11, 12, 14, 15, 16, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45 };
+            // Not: MenuTanimi Id'leri: 1,2,3,4,5,7,8,10,11,12,14,15,16,17,18,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,99
+            var menuIds = new[] { 1, 2, 3, 4, 5, 7, 8, 10, 11, 12, 14, 15, 16, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46 };
             var adminYetkiler = new List<RolYetki>();
             for (int i = 0; i < menuIds.Length; i++)
             {

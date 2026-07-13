@@ -63,5 +63,11 @@ namespace _3K.Core.Interfaces
         Task<byte[]> DepoSandikRaporuPdfOlusturAsync(int? projeTipiId = null);
 
         Task<byte[]> ProjeDepoSandikRaporuPdfOlusturAsync(int projeId);
+
+        /// <summary>
+        /// Projedeki sandıkların ahşap hacim hesabını ve üretim formlarını oluşturur.
+        /// Normal, saha ve yedek projelerinde aynı ortak sandık ölçülerini kullanır.
+        /// </summary>
+        Task<byte[]> AmbalajUretimRaporuPdfOlusturAsync(int projeId, int? tur = null);
     }
 }

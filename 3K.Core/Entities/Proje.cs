@@ -30,5 +30,6 @@ namespace _3K.Core.Entities
         public virtual ICollection<Sevkiyat> Sevkiyatlar { get; set; } = new List<Sevkiyat>();
         public virtual ICollection<HareketGecmisi> HareketGecmisleri { get; set; } = new List<HareketGecmisi>();
         public virtual ICollection<StokHareketi> StokHareketleri { get; set; } = new List<StokHareketi>();
+        public virtual AmbalajUretimPlani? AmbalajUretimPlani { get; set; }
     }
 }

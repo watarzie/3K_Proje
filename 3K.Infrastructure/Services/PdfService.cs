@@ -5,6 +5,7 @@ using QuestPDF.Infrastructure;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 using _3K.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -30,6 +31,568 @@ namespace _3K.Infrastructure.Services
         {
             _context = context;
         }
+
+        public async Task<byte[]> AmbalajUretimRaporuPdfOlusturAsync(int projeId, int? tur = null)
+        {
+            QuestPDF.Settings.License = LicenseType.Community;
+
+            var proje = await _context.Projeler
+                .AsNoTracking()
+                .Include(p => p.Sandiklar)
+                .Include(p => p.AmbalajUretimPlani)!
+                    .ThenInclude(plan => plan.Kalemler)
+                .FirstOrDefaultAsync(p => p.Id == projeId);
+
+            if (proje == null)
+                throw new KeyNotFoundException($"Proje bulunamadı: {projeId}");
+
+            var plan = proje.AmbalajUretimPlani;
+            var kaynakKayitlari = plan?.Kalemler
+                .Where(k => k.KaynakSandikId.HasValue)
+                .ToDictionary(k => k.KaynakSandikId!.Value) ?? new Dictionary<int, AmbalajUretimKalemi>();
+            var sandiklar = tur == 3
+                ? new List<Sandik>()
+                : proje.Sandiklar
+                    .Where(s => !kaynakKayitlari.TryGetValue(s.Id, out var kayit) || kayit.UretimeAlindi)
+                    .OrderBy(s => GetRaporSandikSortKey(s.SandikNo))
+                    .ThenBy(s => s.SandikNo)
+                    .ToList();
+
+            var eksikOlculuSandiklar = sandiklar
+                .Where(s => !s.Boy.HasValue || s.Boy <= 0 || !s.En.HasValue || s.En <= 0 || !s.Yukseklik.HasValue || s.Yukseklik <= 0)
+                .Select(s => s.SandikNo)
+                .ToList();
+
+            if (eksikOlculuSandiklar.Count > 0)
+                throw new InvalidOperationException($"İç ölçüleri eksik sandıklar: {string.Join(", ", eksikOlculuSandiklar)}");
+
+            var raporlar = sandiklar.Select(s =>
+            {
+                kaynakKayitlari.TryGetValue(s.Id, out var kayit);
+                var kaynakTur = plan == null ? 1
+                    : kayit?.Tur == 2 || s.CreatedDate > plan.CreatedDate ? 2
+                    : kayit?.Tur ?? 1;
+                return new AmbalajSandikRaporu(
+                    s,
+                    SandikAdediHesapla(s.SandikNo),
+                    AmbalajHesaplayici.Hesapla(s.Boy!.Value, s.En!.Value, s.Yukseklik!.Value),
+                    kaynakTur,
+                    kaynakTur == 2 ? "İLAVE SANDIK" : "KAPALI AHŞAP",
+                    s.Ad,
+                    null,
+                    null,
+                    kaynakTur == 2 ? plan?.IlaveFirinPartiNo : plan?.FirinPartiNo);
+            })
+                .ToList();
+
+            if (plan != null)
+            {
+                raporlar.AddRange(plan.Kalemler
+                    .Where(k => k.Tur is 2 or 3 && k.UretimeAlindi)
+                    .Select(k => new AmbalajSandikRaporu(
+                        new Sandik
+                        {
+                            SandikNo = k.SandikNo,
+                            Ad = k.Ad ?? k.KullanimAmaci,
+                            Boy = k.Boy,
+                            En = k.En,
+                            Yukseklik = k.Yukseklik
+                        },
+                        k.Adet,
+                        AmbalajHesaplayici.Hesapla(k.Boy, k.En, k.Yukseklik),
+                        k.Tur,
+                        k.Tur == 2 ? "İLAVE SANDIK" : "İÇ SANDIK",
+                        k.KullanimAmaci,
+                        k.TalimatVeren,
+                        k.Aciklama,
+                        k.Tur == 2 ? plan.IlaveFirinPartiNo : plan.IcSandikFirinPartiNo)));
+            }
+
+            if (tur is 1 or 2 or 3)
+                raporlar = raporlar.Where(r => r.Tur == tur.Value).ToList();
+
+            if (raporlar.Count == 0)
+                throw new InvalidOperationException("Seçilen filtrede üretime alınmış sandık bulunamadı.");
+
+            raporlar = raporlar
+                .OrderBy(r => r.Tur)
+                .ThenBy(r => GetRaporSandikSortKey(r.Sandik.SandikNo))
+                .ThenBy(r => r.Sandik.SandikNo)
+                .ToList();
+
+            var document = Document.Create(container =>
+            {
+                container.Page(page => AmbalajListeSayfasi(page, proje, raporlar));
+
+                foreach (var rapor in raporlar)
+                {
+                    container.Page(page => AmbalajDetaySayfasi(page, proje, rapor));
+                    container.Page(page => AmbalajCizimSayfasi(page, rapor));
+                }
+            });
+
+            using var stream = new MemoryStream();
+            document.GeneratePdf(stream);
+            return stream.ToArray();
+        }
+
+        private static void AmbalajListeSayfasi(PageDescriptor page, Proje proje, IReadOnlyList<AmbalajSandikRaporu> raporlar)
+        {
+            AmbalajSayfaAyarlari(page);
+            page.Header().Element(header => AmbalajRaporBasligi(header, "AMBALAJ ÜRETİM LİSTESİ", proje, firinPartiNo: raporlar.FirstOrDefault()?.FirinPartiNo));
+
+            page.Content().Table(table =>
+            {
+                table.ColumnsDefinition(columns =>
+                {
+                    columns.ConstantColumn(30);
+                    columns.ConstantColumn(42);
+                    columns.ConstantColumn(34);
+                    columns.ConstantColumn(78);
+                    columns.RelativeColumn(1.5f);
+                    columns.ConstantColumn(70);
+                    columns.ConstantColumn(62);
+                    columns.RelativeColumn(1.8f);
+                });
+
+                table.Header(header =>
+                {
+                    AmbalajBaslikHucre(header.Cell(), "SIRA\nNO");
+                    AmbalajBaslikHucre(header.Cell(), "KOLİ\nNO");
+                    AmbalajBaslikHucre(header.Cell(), "ADET");
+                    AmbalajBaslikHucre(header.Cell(), "AMBALAJ\nCİNSİ");
+                    AmbalajBaslikHucre(header.Cell(), "EBATLAR");
+                    AmbalajBaslikHucre(header.Cell(), "ÇAM\nMİKTARI m³");
+                    AmbalajBaslikHucre(header.Cell(), "AĞIRLIK\nBRÜT KG");
+                    AmbalajBaslikHucre(header.Cell(), "KULLANIM YERİ");
+                });
+
+                for (var index = 0; index < raporlar.Count; index++)
+                {
+                    var rapor = raporlar[index];
+                    var toplamHacim = rapor.Hesap.ToplamHacimM3 * rapor.Adet;
+                    AmbalajVeriHucre(table.Cell(), (index + 1).ToString(), true);
+                    AmbalajVeriHucre(table.Cell(), rapor.Sandik.SandikNo, true);
+                    AmbalajVeriHucre(table.Cell(), rapor.Adet.ToString(), true);
+                    AmbalajVeriHucre(table.Cell(), rapor.TurMetni);
+                    AmbalajVeriHucre(table.Cell(), OlcuMetni(rapor.Hesap.DisOlculer));
+                    AmbalajVeriHucre(table.Cell(), FormatM3(toplamHacim), true);
+                    AmbalajVeriHucre(table.Cell(), rapor.Sandik.GrossKg.HasValue ? FormatAdet(rapor.Sandik.GrossKg.Value) : string.Empty);
+                    AmbalajVeriHucre(table.Cell(), rapor.KullanimAmaci ?? rapor.Sandik.Ad ?? "-");
+                }
+            });
+
+            page.Footer().Column(footer =>
+            {
+                footer.Item().PaddingBottom(5).Background("#EAF0F8").Padding(6).Row(row =>
+                {
+                    row.RelativeItem().Text($"TOPLAM SANDIK: {raporlar.Sum(r => r.Adet)} Ad.").Bold().FontColor(Colors.Blue.Darken3);
+                    row.RelativeItem().AlignRight().Text($"TOPLAM ÇAM: {FormatM3(raporlar.Sum(r => r.Hesap.ToplamHacimM3 * r.Adet))} m³").Bold().FontColor(Colors.Blue.Darken3);
+                });
+                footer.Item().Element(container => AmbalajRaporAltbilgisi(container, proje));
+            });
+        }
+
+        private static void AmbalajCizimSayfasi(PageDescriptor page, AmbalajSandikRaporu rapor)
+        {
+            AmbalajSayfaAyarlari(page);
+            page.Header().Element(header => AmbalajSandikRaporBasligi(header, "TEKNİK ÜRETİM ÇİZİMLERİ", rapor));
+
+            var ap1 = AmbalajParcasi(rapor, "AP_1");
+            var ap2 = AmbalajParcasi(rapor, "AP_2");
+            var ap3 = AmbalajParcasi(rapor, "AP_3");
+            var od4 = AmbalajParcasi(rapor, "OD_4");
+            var od5 = AmbalajParcasi(rapor, "OD_5");
+            var od10 = AmbalajParcasi(rapor, "OD_10");
+            var ut6 = AmbalajParcasi(rapor, "UT_6");
+            var ut7 = AmbalajParcasi(rapor, "UT_7");
+            var ut11 = AmbalajParcasi(rapor, "UT_11");
+            var yd8 = AmbalajParcasi(rapor, "YD_8");
+            var yd9 = AmbalajParcasi(rapor, "YD_9");
+            var yd13 = AmbalajParcasi(rapor, "YD_13");
+
+            page.Content().Column(column =>
+            {
+                column.Spacing(5);
+                column.Item().Element(container => AmbalajTeknikGorsel(
+                    container,
+                    "ÜST TAVAN KUŞAK GÖRÜNÜMÜ",
+                    AmbalajVarligi($"ust-tavan-{AmbalajVaryanti(rapor.Hesap.AyakAdedi, 2, 6)}.jpg"),
+                    190,
+                    new(
+                        Alt: FormatMm(ut7.Uzunluk),
+                        Sol: FormatMm(ut6.Uzunluk),
+                        Sag: FormatMm(ap1.Uzunluk),
+                        AltSag: "325",
+                        Capraz: FormatMm(ut11.Uzunluk)),
+                    2.11f));
+
+                column.Item().Row(row =>
+                {
+                    row.RelativeItem(2).PaddingRight(4).Element(container => AmbalajTeknikGorsel(
+                        container,
+                        "ÖN DUVAR KUŞAK GÖRÜNÜMÜ",
+                        AmbalajVarligi($"on-duvar-{AmbalajVaryanti(rapor.Hesap.AyakAdedi, 2, 6)}.jpg"),
+                        142,
+                        new(
+                            Alt: FormatMm(od4.Uzunluk),
+                            Sol: FormatMm(od5.Uzunluk),
+                            Sag: FormatMm(rapor.Hesap.OnDuvarYuksekligi),
+                            AltSag: "346",
+                            Capraz: FormatMm(od10.Uzunluk))));
+                    row.RelativeItem().Element(container => AmbalajTeknikGorsel(
+                        container,
+                        "YAN DUVAR GÖRÜNÜMÜ",
+                        AmbalajVarligi($"yan-duvar-{AmbalajVaryanti(rapor.Hesap.YanKusakAdedi, 2, 4)}.jpg"),
+                        142,
+                        new(
+                            Alt: FormatMm(yd9.Uzunluk),
+                            Sol: FormatMm(rapor.Hesap.OnDuvarYuksekligi),
+                            Sag: FormatMm(yd8.Uzunluk),
+                            Capraz: FormatMm(yd13.Uzunluk))));
+                });
+
+                column.Item().Row(row =>
+                {
+                    row.RelativeItem().PaddingRight(4).Element(container => AmbalajTeknikGorsel(
+                        container,
+                        "ALT PALET ÖN GÖRÜNÜMÜ",
+                        AmbalajVarligi($"alt-ayak-{AmbalajVaryanti(rapor.Hesap.AyakAdedi, 2, 6)}.jpg"),
+                        82,
+                        new(Ust: FormatMm(ap2.Uzunluk), AltSol: "300")));
+                    row.RelativeItem().Element(container => AmbalajTeknikGorsel(
+                        container,
+                        "ALT PALET YAN GÖRÜNÜMÜ",
+                        AmbalajVarligi($"ust-kizak-{AmbalajVaryanti(rapor.Hesap.UstKizakAdedi, 2, 6)}.jpg"),
+                        82,
+                        new(
+                            Ust: FormatMm(ap3.Uzunluk),
+                            Alt: FormatMm(ap1.Uzunluk),
+                            Sol: "209",
+                            UstSag: "23")));
+                });
+
+                column.Item().Element(container => AmbalajTeknikGorsel(
+                    container,
+                    "ALT PALET ÜST GÖRÜNÜMÜ",
+                    AmbalajVarligi($"palet-ust-{AmbalajVaryanti(rapor.Hesap.AyakAdedi, 2, 6)}.jpg"),
+                    155,
+                    new(Ust: FormatMm(ap2.Uzunluk), Sol: FormatMm(ap1.Uzunluk), Sag: FormatMm(ap3.Uzunluk)),
+                    2.21f));
+            });
+
+            page.Footer().Element(container => AmbalajSandikAltbilgisi(container, rapor));
+        }
+
+        private static void AmbalajDetaySayfasi(PageDescriptor page, Proje proje, AmbalajSandikRaporu rapor)
+        {
+            AmbalajSayfaAyarlari(page);
+            page.Header().Element(header => AmbalajRaporBasligi(header, "AMBALAJ ÜRETİM DETAYI", proje, rapor.Sandik.SandikNo, rapor.FirinPartiNo));
+
+            page.Content().Column(column =>
+            {
+                column.Spacing(8);
+                column.Item().PaddingBottom(8).Background("#EAF0F8").Padding(8).Column(info =>
+                {
+                    info.Item().Text($"SANDIK NO: {rapor.Sandik.SandikNo}   |   ADET: {rapor.Adet}   |   TİP: {rapor.TurMetni}").Bold().FontSize(10).FontColor(Colors.Blue.Darken3);
+                    info.Item().PaddingTop(2).Text($"KULLANIM AMACI: {rapor.KullanimAmaci ?? rapor.Sandik.Ad ?? "-"}").FontSize(8);
+                    if (!string.IsNullOrWhiteSpace(rapor.TalimatVeren))
+                        info.Item().Text($"TALİMAT VEREN: {rapor.TalimatVeren}   |   AÇIKLAMA: {rapor.Aciklama ?? "-"}").FontSize(7);
+                });
+
+                column.Item().Table(table =>
+                {
+                    table.ColumnsDefinition(columns =>
+                    {
+                        columns.RelativeColumn(1.25f);
+                        columns.RelativeColumn(1f);
+                        columns.RelativeColumn(1.35f);
+                        columns.ConstantColumn(50);
+                        columns.ConstantColumn(75);
+                    });
+                    AmbalajBaslikHucre(table.Cell(), string.Empty);
+                    AmbalajBaslikHucre(table.Cell(), "ÖLÇÜ");
+                    AmbalajBaslikHucre(table.Cell(), "AÇIKLAMA");
+                    AmbalajBaslikHucre(table.Cell(), "ADET");
+                    AmbalajBaslikHucre(table.Cell(), "MALZEME");
+
+                    AmbalajVeriHucre(table.Cell(), "SANDIK İÇ EBATLARI", true);
+                    AmbalajVeriHucre(table.Cell(), OlcuMetni(rapor.Hesap.IcOlculer), true);
+                    AmbalajVeriHucre(table.Cell(), "BOY × EN × YÜK.");
+                    AmbalajVeriHucre(table.Cell(), rapor.Adet.ToString(), true);
+                    AmbalajVeriHucre(table.Cell(), "ÇAM");
+
+                    AmbalajVeriHucre(table.Cell(), "SANDIK DIŞ EBATLARI", true);
+                    AmbalajVeriHucre(table.Cell(), OlcuMetni(rapor.Hesap.DisOlculer), true);
+                    AmbalajVeriHucre(table.Cell(), "TOPLAM ÇAM HACMİ");
+                    AmbalajVeriHucre(table.Cell(), FormatM3(rapor.Hesap.ToplamHacimM3 * rapor.Adet), true);
+                    AmbalajVeriHucre(table.Cell(), "m³");
+
+                    foreach (var grup in new[] { "AP", "OD", "UT", "YD" })
+                    {
+                        if (grup == "OD")
+                        {
+                            AmbalajVeriHucre(table.Cell(), "ON_H1", true);
+                            AmbalajVeriHucre(table.Cell(), $"{FormatMm(rapor.Hesap.OnDuvarYuksekligi)} mm", true);
+                            AmbalajVeriHucre(table.Cell(), "ÖN DUVAR YÜKSEKLİĞİ");
+                            AmbalajVeriHucre(table.Cell(), string.Empty);
+                            AmbalajVeriHucre(table.Cell(), string.Empty);
+                        }
+
+                        foreach (var parca in rapor.Hesap.Parcalar.Where(p => p.Grup == grup))
+                        {
+                            AmbalajVeriHucre(table.Cell(), parca.Kod, true);
+                            AmbalajVeriHucre(table.Cell(), $"{FormatMm(parca.KesitEn)}×{FormatMm(parca.KesitYukseklik)}×{FormatMm(parca.Uzunluk)} mm", true);
+                            AmbalajVeriHucre(table.Cell(), parca.Aciklama);
+                            AmbalajVeriHucre(table.Cell(), FormatAdet(parca.Adet * rapor.Adet));
+                            AmbalajVeriHucre(table.Cell(), parca.Malzeme);
+                        }
+
+                        AmbalajVeriHucre(table.Cell(), $"{grup}_HACİM", true);
+                        AmbalajVeriHucre(table.Cell(), FormatM3(rapor.Hesap.Parcalar.Where(p => p.Grup == grup).Sum(p => p.HacimM3) * rapor.Adet), true);
+                        AmbalajVeriHucre(table.Cell(), "m³");
+                        AmbalajVeriHucre(table.Cell(), string.Empty);
+                        AmbalajVeriHucre(table.Cell(), string.Empty);
+                    }
+                });
+
+                column.Item().PaddingTop(7).ShowEntire()
+                    .Element(container => AmbalajUcBoyutluGorsel(container, rapor));
+            });
+
+            page.Footer().Element(container => AmbalajRaporAltbilgisi(container, proje));
+        }
+
+        private static void AmbalajBaslikHucre(IContainer container, string text) =>
+            container.Border(0.5f).BorderColor(Colors.Blue.Darken3).Background(Colors.Blue.Darken3).Padding(4).AlignCenter().AlignMiddle().Text(text).Bold().FontColor(Colors.White).FontSize(7);
+
+        private static void AmbalajVeriHucre(IContainer container, string text, bool bold = false)
+        {
+            var cell = container.Border(0.5f).Padding(3).AlignMiddle();
+            if (bold)
+                cell.Text(text).Bold().FontSize(7);
+            else
+                cell.Text(text).FontSize(7);
+        }
+
+        private static void AmbalajSayfaAyarlari(PageDescriptor page)
+        {
+            page.Size(PageSizes.A4);
+            page.Margin(24);
+            page.DefaultTextStyle(style => style.FontSize(8).FontColor("#172033"));
+        }
+
+        private static void AmbalajRaporBasligi(IContainer container, string baslik, Proje proje, string? sandikNo = null, string? firinPartiNo = null)
+        {
+            container.Column(column =>
+            {
+                column.Item().Background(Colors.Blue.Darken3).Padding(8).Row(row =>
+                {
+                    row.ConstantItem(145).Height(38).AlignMiddle().Column(brand =>
+                    {
+                        brand.Item().Text("3K").Bold().FontSize(22).FontColor(Colors.White);
+                        brand.Item().Text("All Processes. One Flow.").FontSize(7).Italic().FontColor(Colors.Grey.Lighten3);
+                    });
+                    row.RelativeItem().PaddingLeft(12).AlignMiddle().Column(title =>
+                    {
+                        title.Item().Text(baslik).Bold().FontSize(14).FontColor(Colors.White);
+                        title.Item().Text($"Proje: {proje.ProjeNo}  |  FB: {proje.FBNo ?? "-"}")
+                            .FontSize(7).FontColor("#DCE8F8");
+                    });
+                });
+
+                column.Item().PaddingTop(6).PaddingBottom(8).Row(row =>
+                {
+                    row.RelativeItem().Text($"FİRMA: {proje.Musteri}").Bold().FontSize(8);
+                    if (!string.IsNullOrWhiteSpace(sandikNo))
+                        row.AutoItem().PaddingRight(18).Text($"SANDIK: {sandikNo}").Bold().FontSize(8);
+                    row.AutoItem().PaddingRight(18).Text($"FIRIN PARTİ NO: {firinPartiNo ?? "-"}").Bold().FontSize(8).FontColor(Colors.Blue.Darken2);
+                    row.AutoItem().Text($"RAPOR TARİHİ: {DateTime.Now:dd.MM.yyyy HH:mm}").FontSize(7).FontColor(Colors.Grey.Darken1);
+                });
+            });
+        }
+
+        private static void AmbalajSandikRaporBasligi(IContainer container, string baslik, AmbalajSandikRaporu rapor)
+        {
+            container.Column(column =>
+            {
+                column.Item().Background(Colors.Blue.Darken3).Padding(8).Row(row =>
+                {
+                    row.ConstantItem(145).Height(38).AlignMiddle().Column(brand =>
+                    {
+                        brand.Item().Text("3K").Bold().FontSize(22).FontColor(Colors.White);
+                        brand.Item().Text("All Processes. One Flow.").FontSize(7).Italic().FontColor(Colors.Grey.Lighten3);
+                    });
+                    row.RelativeItem().PaddingLeft(12).AlignMiddle().Column(title =>
+                    {
+                        title.Item().Text(baslik).Bold().FontSize(14).FontColor(Colors.White);
+                        title.Item().Text($"Sandık: {rapor.Sandik.SandikNo}  |  Kapalı Ahşap  |  {rapor.Adet} Ad.")
+                            .FontSize(7).FontColor("#DCE8F8");
+                        title.Item().Text($"Fırın Parti No: {rapor.FirinPartiNo ?? "-"}  |  {rapor.TurMetni}")
+                            .FontSize(6.5f).FontColor("#DCE8F8");
+                    });
+                });
+
+                column.Item().PaddingTop(6).PaddingBottom(6).Background("#EAF0F8").Padding(6).Row(row =>
+                {
+                    row.RelativeItem().Text($"İÇ ÖLÇÜ: {OlcuMetni(rapor.Hesap.IcOlculer)}").Bold().FontSize(8);
+                    row.RelativeItem().AlignRight().Text($"DIŞ ÖLÇÜ: {OlcuMetni(rapor.Hesap.DisOlculer)}").Bold().FontSize(8);
+                });
+            });
+        }
+
+        private static void AmbalajTeknikGorsel(
+            IContainer container,
+            string baslik,
+            byte[] gorsel,
+            float yukseklik,
+            AmbalajGorselOlculeri olculer,
+            float? enBoyOrani = null)
+        {
+            container.Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(4).Column(column =>
+            {
+                column.Item().Background("#EAF0F8").PaddingVertical(3).AlignCenter()
+                    .Text(baslik).Bold().FontSize(7).FontColor(Colors.Blue.Darken3);
+
+                var gorselAlani = column.Item().Height(yukseklik).Padding(3);
+                if (enBoyOrani.HasValue)
+                    gorselAlani = gorselAlani.AlignCenter().Width(yukseklik * enBoyOrani.Value);
+
+                gorselAlani.Layers(layers =>
+                {
+                    layers.PrimaryLayer().Image(gorsel).FitArea();
+
+                    if (!string.IsNullOrWhiteSpace(olculer.Capraz))
+                        layers.Layer().AlignTop().AlignCenter().PaddingTop(2)
+                            .Element(c => AmbalajOlcuEtiketi(c, $"ÇAPRAZ: {olculer.Capraz}"));
+                    if (!string.IsNullOrWhiteSpace(olculer.Ust))
+                        layers.Layer().AlignTop().AlignCenter().Element(c => AmbalajOlcuEtiketi(c, olculer.Ust));
+                    if (!string.IsNullOrWhiteSpace(olculer.Alt))
+                        layers.Layer().AlignBottom().AlignCenter().Element(c => AmbalajOlcuEtiketi(c, olculer.Alt));
+                    if (!string.IsNullOrWhiteSpace(olculer.Sol))
+                        layers.Layer().AlignLeft().AlignMiddle().RotateLeft().Element(c => AmbalajOlcuEtiketi(c, olculer.Sol));
+                    if (!string.IsNullOrWhiteSpace(olculer.Sag))
+                        layers.Layer().AlignRight().AlignMiddle().RotateLeft().Element(c => AmbalajOlcuEtiketi(c, olculer.Sag));
+                    if (!string.IsNullOrWhiteSpace(olculer.UstSag))
+                        layers.Layer().AlignTop().AlignRight().PaddingTop(2).Element(c => AmbalajOlcuEtiketi(c, olculer.UstSag));
+                    if (!string.IsNullOrWhiteSpace(olculer.AltSol))
+                        layers.Layer().AlignBottom().AlignLeft().PaddingBottom(2).Element(c => AmbalajOlcuEtiketi(c, olculer.AltSol));
+                    if (!string.IsNullOrWhiteSpace(olculer.AltSag))
+                        layers.Layer().AlignBottom().AlignRight().PaddingBottom(2).Element(c => AmbalajOlcuEtiketi(c, olculer.AltSag));
+                });
+            });
+        }
+
+        private static void AmbalajUcBoyutluGorsel(IContainer container, AmbalajSandikRaporu rapor)
+        {
+            container.Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(4).Column(column =>
+            {
+                column.Item().Background("#EAF0F8").PaddingVertical(3).AlignCenter()
+                    .Text("NUMARALI 3B SANDIK MONTAJ GÖRÜNÜMÜ").Bold().FontSize(7).FontColor(Colors.Blue.Darken3);
+                column.Item().Height(185).AlignCenter().Width(396).Layers(layers =>
+                {
+                    layers.PrimaryLayer()
+                        .Image(AmbalajVarligi($"3d-{AmbalajVaryanti(rapor.Hesap.AyakAdedi, 2, 4)}.png"))
+                        .FitArea();
+                    layers.Layer().AlignTop().AlignLeft().PaddingLeft(72).PaddingTop(3)
+                        .Element(c => AmbalajOlcuEtiketi(c, FormatMm(rapor.Hesap.DisOlculer.En)));
+                    layers.Layer().AlignLeft().AlignMiddle().RotateLeft()
+                        .Element(c => AmbalajOlcuEtiketi(c, FormatMm(rapor.Hesap.DisOlculer.Yukseklik)));
+                    layers.Layer().AlignBottom().AlignCenter().PaddingBottom(1)
+                        .Element(c => AmbalajOlcuEtiketi(c, FormatMm(rapor.Hesap.DisOlculer.Boy)));
+                    layers.Layer().AlignRight().AlignMiddle().PaddingRight(2)
+                        .Element(c => AmbalajOlcuEtiketi(c, FormatMm(rapor.Hesap.OnDuvarYuksekligi)));
+                });
+            });
+        }
+
+        private static void AmbalajOlcuEtiketi(IContainer container, string deger) =>
+            container.Background(Colors.White).Border(0.7f).BorderColor("#1E6EAF").PaddingHorizontal(4).PaddingVertical(2)
+                .Text($"{deger} mm").ExtraBold().FontSize(8.5f).FontColor("#145487");
+
+        private static void AmbalajRaporAltbilgisi(IContainer container, Proje proje)
+        {
+            container.BorderTop(0.5f).BorderColor(Colors.Grey.Lighten2).PaddingTop(5).Row(row =>
+            {
+                row.RelativeItem().Text($"3K Ambalaj | {proje.ProjeNo} | {proje.Musteri}").FontSize(6.5f).FontColor(Colors.Grey.Darken1);
+                row.AutoItem().Text(text =>
+                {
+                    text.Span("Sayfa ").FontSize(6.5f);
+                    text.CurrentPageNumber().FontSize(6.5f);
+                    text.Span(" / ").FontSize(6.5f);
+                    text.TotalPages().FontSize(6.5f);
+                });
+            });
+        }
+
+        private static void AmbalajSandikAltbilgisi(IContainer container, AmbalajSandikRaporu rapor)
+        {
+            container.BorderTop(0.5f).BorderColor(Colors.Grey.Lighten2).PaddingTop(5).Row(row =>
+            {
+                row.RelativeItem().Text($"3K Ambalaj | Teknik Üretim Çizimleri | Sandık {rapor.Sandik.SandikNo}")
+                    .FontSize(6.5f).FontColor(Colors.Grey.Darken1);
+                row.AutoItem().Text(text =>
+                {
+                    text.Span("Sayfa ").FontSize(6.5f);
+                    text.CurrentPageNumber().FontSize(6.5f);
+                    text.Span(" / ").FontSize(6.5f);
+                    text.TotalPages().FontSize(6.5f);
+                });
+            });
+        }
+
+        private static byte[] AmbalajVarligi(string dosyaAdi)
+        {
+            var path = Path.Combine(AppContext.BaseDirectory, "Assets", "Ambalaj", dosyaAdi);
+            if (!File.Exists(path))
+                throw new FileNotFoundException($"Ambalaj rapor varlığı bulunamadı: {dosyaAdi}", path);
+
+            return File.ReadAllBytes(path);
+        }
+
+        private static int AmbalajVaryanti(int deger, int minimum, int maksimum) => Math.Clamp(deger, minimum, maksimum);
+
+        private static AmbalajParcasi AmbalajParcasi(AmbalajSandikRaporu rapor, string kod) =>
+            rapor.Hesap.Parcalar.Single(parca => parca.Kod == kod);
+
+        private static int SandikAdediHesapla(string sandikNo)
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(sandikNo ?? string.Empty, @"^(\d+)\s*-\s*(\d+)$");
+            if (!match.Success)
+                return 1;
+
+            var baslangic = int.Parse(match.Groups[1].Value);
+            var bitis = int.Parse(match.Groups[2].Value);
+            return bitis >= baslangic ? bitis - baslangic + 1 : 1;
+        }
+
+        private static string OlcuMetni(AmbalajOlculeri olculer) =>
+            $"{FormatMm(olculer.Boy)} × {FormatMm(olculer.En)} × {FormatMm(olculer.Yukseklik)} mm";
+
+        private static string FormatMm(decimal value) => Math.Round(value, 0).ToString("0", System.Globalization.CultureInfo.InvariantCulture);
+
+        private static string FormatM3(decimal value) => value.ToString("0.000", new System.Globalization.CultureInfo("tr-TR"));
+
+        private sealed record AmbalajSandikRaporu(
+            Sandik Sandik,
+            int Adet,
+            AmbalajHesapSonucu Hesap,
+            int Tur,
+            string TurMetni,
+            string? KullanimAmaci,
+            string? TalimatVeren,
+            string? Aciklama,
+            string? FirinPartiNo);
+
+        private sealed record AmbalajGorselOlculeri(
+            string? Ust = null,
+            string? Alt = null,
+            string? Sol = null,
+            string? Sag = null,
+            string? UstSag = null,
+            string? AltSol = null,
+            string? AltSag = null,
+            string? Capraz = null);
 
         private static string FormatAdet(decimal value)
         {

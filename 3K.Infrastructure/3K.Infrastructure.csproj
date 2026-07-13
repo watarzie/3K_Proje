@@ -20,4 +20,11 @@
     <ProjectReference Include="..\3K.Core\3K.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="Assets\Ambalaj\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

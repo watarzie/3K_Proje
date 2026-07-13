@@ -257,6 +257,23 @@ namespace _3K_API.Controllers
             return File(result.Value!, "application/pdf", $"{projeNo}_DepoSandikRaporu_{tarih}.pdf");
         }
 
+        [HttpGet("ambalaj-uretim/{projeId}")]
+        public async Task<IActionResult> AmbalajUretimPdfIndir(int projeId, [FromQuery] int? tur = null)
+        {
+            var result = await _mediator.Send(new _3K.Application.Features.PdfIslemleri.Queries.GetAmbalajUretimPdfQuery
+            {
+                ProjeId = projeId,
+                Tur = tur
+            });
+
+            if (!result.IsSuccess)
+                return result.ToActionResult();
+
+            var projeNo = await GetProjeNo(projeId);
+            var turMetni = tur switch { 1 => "ProjeSandiklari", 2 => "IlaveSandiklar", 3 => "IcSandiklar", _ => "TumSandiklar" };
+            return File(result.Value!, "application/pdf", $"{projeNo}_{turMetni}_AmbalajUretimFormu.pdf");
+        }
+
         private int GetKullaniciId()
         {
             var claim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
