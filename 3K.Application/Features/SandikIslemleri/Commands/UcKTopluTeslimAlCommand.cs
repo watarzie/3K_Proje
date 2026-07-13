@@ -17,6 +17,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
     public class TopluTeslimItem
     {
         public int CekiSatiriId { get; set; }
+        public int? SandikIcerikId { get; set; }
         public int GelenMiktar { get; set; }
     }
 }

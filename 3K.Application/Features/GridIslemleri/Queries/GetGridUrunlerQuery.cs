@@ -10,5 +10,7 @@ namespace _3K.Application.Features.GridIslemleri.Queries
     public class GetGridUrunlerQuery : IRequest<Result<List<GridUrunDto>>>, ISecuredRequest
     {
         public int ProjeId { get; set; }
+        public int? SandikId { get; set; }
+        public string? SandikNo { get; set; }
     }
 }

@@ -84,6 +84,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             {
                 SandikId = sandik.Id,
                 CekiSatiriId = yeniUrun.Id,
+                TahsisMiktari = request.IstenenAdet,
                 KonulanAdet = request.IstenenAdet,
                 EksikAdet = 0
             });

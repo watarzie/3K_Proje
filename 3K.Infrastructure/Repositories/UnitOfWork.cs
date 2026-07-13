@@ -1,5 +1,8 @@
 using System.Collections;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using _3K.Core.Entities;
+using _3K.Core.Exceptions;
 using _3K.Core.Interfaces;
 using _3K.Infrastructure.Data;
 
@@ -31,9 +34,26 @@ namespace _3K.Infrastructure.Repositories
             return (IGenericRepository<T>)_repositories[type]!;
         }
 
-        public async Task<int> SaveChangesAsync()
+        public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
-            return await _context.SaveChangesAsync();
+            try
+            {
+                return await _context.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                throw new ConcurrencyConflictException(
+                    "Kayıt başka bir işlem tarafından değiştirildi.",
+                    ex);
+            }
+            catch (DbUpdateException ex)
+                when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } postgresException)
+            {
+                throw new UniqueConstraintViolationException(
+                    postgresException.ConstraintName,
+                    "Benzersizlik kuralı ihlal edildi.",
+                    ex);
+            }
         }
 
         public void Dispose()

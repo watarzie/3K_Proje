@@ -349,6 +349,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                     {
                         SandikId = sandik.Id,
                         CekiSatiriId = yeniSatir.Id,
+                        TahsisMiktari = urunTaslak.Miktar,
                         KonulanAdet = 0,
                         EksikAdet = 0,
                         KaynakProjeNo = satirKaynakProje.ProjeNo,

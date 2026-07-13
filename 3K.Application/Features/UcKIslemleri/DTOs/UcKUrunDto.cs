@@ -22,6 +22,11 @@ namespace _3K.Application.Features.UcKIslemleri.DTOs
         public int? SandikDurumId { get; set; }
         public string? SandikDurumMetni { get; set; }
         public bool SandikSevkEdildiMi { get; set; }
+        /// <summary>Ana çeki satırındaki proje toplamıdır.</summary>
+        public decimal AnaIstenenAdet { get; set; }
+        /// <summary>Bu sandık içeriğine tahsis edilen miktardır.</summary>
+        public decimal SandikMiktari { get; set; }
+        public bool SandikBazliDagitim { get; set; }
         public decimal IstenenAdet { get; set; }
         public int BirimId { get; set; }
         public string Birim { get; set; } = string.Empty;
@@ -30,6 +35,7 @@ namespace _3K.Application.Features.UcKIslemleri.DTOs
         public int GridDurumuId { get; set; }
         public string GridDurumuMetni { get; set; } = string.Empty;
         public decimal GridGelenAdet { get; set; }
+        public decimal ToplamGridGelenAdet { get; set; }
         public decimal TrafoSevkAdet { get; set; }
         public int GridSevkDurumuId { get; set; }
         public string GridSevkDurumuMetni { get; set; } = string.Empty;
@@ -39,6 +45,7 @@ namespace _3K.Application.Features.UcKIslemleri.DTOs
         public int UcKKarsilamaTipiId { get; set; }
         public string UcKKarsilamaTipiMetni { get; set; } = string.Empty;
         public decimal GelenMiktar { get; set; }
+        public decimal ToplamUcKGelenMiktar { get; set; }
         public decimal KarsilananMiktar { get; set; }
         public decimal HataliMiktar { get; set; }
         public string? KaynakHedefProjeNo { get; set; }
@@ -62,6 +69,10 @@ namespace _3K.Application.Features.UcKIslemleri.DTOs
 
         // Hesaplanan
         public decimal Kalan { get; set; }
+        public decimal ToplamKalanMiktar { get; set; }
+        public decimal SandikAktarilanGiris { get; set; }
+        public decimal SandikAktarilanCikis { get; set; }
+        public string? SandikTransferOzeti { get; set; }
         public string KontrolUyari { get; set; } = string.Empty;
         public int GenelDurumId { get; set; }
         public string GenelDurumMetni { get; set; } = string.Empty;

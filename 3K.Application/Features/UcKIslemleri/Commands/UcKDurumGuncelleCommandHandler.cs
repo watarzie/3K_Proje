@@ -50,6 +50,20 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             if (satir == null)
                 return Result.Failure("Ürün bulunamadı.", 404);
 
+            var seciliIcerikResult = await UcKSandikIcerikSenkronizasyonHelper.GetSeciliIcerikAsync(
+                _unitOfWork,
+                satir.Id,
+                request.SandikIcerikId);
+            if (!seciliIcerikResult.IsSuccess)
+                return Result.Failure(seciliIcerikResult.Error!.Message, seciliIcerikResult.StatusCode);
+
+            var seciliIcerik = seciliIcerikResult.Value;
+            var sandikIslemMiktari = seciliIcerik == null
+                ? satir.IstenenAdet
+                : seciliIcerik.TahsisMiktari > 0
+                    ? seciliIcerik.TahsisMiktari
+                    : Math.Max(seciliIcerik.KonulanAdet, satir.IstenenAdet);
+
             if (!satir.KaynakCekiSatiriId.HasValue &&
                 await _sahaTamamlamaService.AktifTamamlamaVarMiAsync(satir.Id, cancellationToken))
                 return Result.Failure("Bu ürün sahaya aktarıldığı için normal proje üzerinden 3K işlemi yapılamaz. İşlem saha projesinde yürütülmelidir.");
@@ -160,8 +174,8 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 case (int)UcKDurum.EksikGeldi:
                     if (request.GelenAdet == null || request.GelenAdet <= 0)
                         return Result.Failure("Eksik geldi durumunda gelen adet girilmelidir.");
-                    if (request.GelenAdet >= satir.IstenenAdet)
-                        return Result.Failure("Gelen adet miktardan küçük olmalıdır.");
+                    if (request.GelenAdet >= sandikIslemMiktari)
+                        return Result.Failure("Gelen adet sandığa tahsis edilen miktardan küçük olmalıdır.");
                     break;
 
                 case (int)UcKDurum.ProjedenKarsilandi:
@@ -225,8 +239,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                         return Result.Failure("Geri gönderilme sebebi seçilmelidir.");
                     if (request.GelenAdet == null || request.GelenAdet <= 0)
                         return Result.Failure("Geri gönderilen adet girilmelidir.");
-                    if (request.GelenAdet > satir.GelenMiktar)
-                        return Result.Failure($"Geri gönderilen adet ({request.GelenAdet}), 3K gelen miktardan ({satir.GelenMiktar}) büyük olamaz.");
+                    var geriGonderimUstSiniri = seciliIcerik?.KonulanAdet ?? satir.GelenMiktar;
+                    if (request.GelenAdet > geriGonderimUstSiniri)
+                        return Result.Failure($"Geri gönderilen adet ({request.GelenAdet}), seçili sandıktaki miktardan ({geriGonderimUstSiniri}) büyük olamaz.");
                     break;
             }
 
@@ -242,7 +257,23 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 case (int)UcKDurum.TamGeldi:
                     // KURAL 1: Tam Geldi - Grid'in sevk ettiği miktar kadar teslim al (sandık bütünlüğü)
                     // çeki hedefinin tamamını DEĞİL, o sevkiyattaki fiziksel miktarı alır
-                    var sevkMiktari = satir.GridSevkMiktari ?? (satir.IstenenAdet - satir.GelenMiktar - satir.StokKarsilanan - satir.ProjeKarsilanan - satir.TedarikciKarsilanan);
+                    var sandikKalan = seciliIcerik == null
+                        ? satir.IstenenAdet - satir.GelenMiktar - satir.StokKarsilanan - satir.ProjeKarsilanan - satir.TedarikciKarsilanan
+                        : Math.Max(sandikIslemMiktari - seciliIcerik.KonulanAdet, 0);
+                    var sandikSevkKalan = sandikKalan;
+                    if (seciliIcerik != null)
+                    {
+                        var sandikSevkPayi = UcKSandikIcerikSenkronizasyonHelper.ToplamdanSeciliTahsisPayi(
+                            _unitOfWork,
+                            satir,
+                            seciliIcerik,
+                            satir.GridSevkMiktari ?? satir.GridGelenAdet);
+                        var sandikGridKaynakliKonulan = Math.Max(
+                            seciliIcerik.KonulanAdet - seciliIcerik.StokKarsilanan - seciliIcerik.ProjeKarsilanan - seciliIcerik.TedarikciKarsilanan,
+                            0);
+                        sandikSevkKalan = Math.Max(sandikSevkPayi - sandikGridKaynakliKonulan, 0);
+                    }
+                    var sevkMiktari = Math.Min(Math.Max(sandikKalan, 0), sandikSevkKalan);
                     satir.GelenMiktar += Math.Max(sevkMiktari, 0);
                     satir.UcKDurumuId = (int)UcKDurum.TamGeldi;
                     satir.TeslimTarihi = TurkeyTime.Now;
@@ -344,20 +375,14 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
             // ===== SANDIK İÇERİK SENKRONİZASYONU =====
             // 3K'da "Tam Geldi" veya karşılandı olarak işaretlenen ürünler doğrudan sandığa konmuş sayılır.
-            var sandikIcerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
-            var ilgiliIcerikler = await sandikIcerikRepo.FindAsync(x => x.CekiSatiriId == satir.Id);
-            var ilgiliIcerikListesi = ilgiliIcerikler.ToList();
-            
-            if (ilgiliIcerikListesi.Any())
-            {
-                var anaIcerik = ilgiliIcerikListesi.First();
-                anaIcerik.KonulanAdet = Math.Max(toplam, 0); // Kumulatif net toplami konulan adete esitle
-                // Madde 2: Parçalı karşılama SandikIcerik senkronizasyonu
-                anaIcerik.StokKarsilanan = satir.StokKarsilanan;
-                anaIcerik.ProjeKarsilanan = satir.ProjeKarsilanan;
-                anaIcerik.TedarikciKarsilanan = satir.TedarikciKarsilanan;
-                sandikIcerikRepo.Update(anaIcerik);
-            }
+            var senkronizasyonResult = await UcKSandikIcerikSenkronizasyonHelper.SenkronizeAsync(
+                _unitOfWork,
+                satir,
+                request.SandikIcerikId);
+            if (!senkronizasyonResult.IsSuccess)
+                return Result.Failure(senkronizasyonResult.Error!.Message, senkronizasyonResult.StatusCode);
+
+            var ilgiliIcerikListesi = senkronizasyonResult.Value ?? new List<SandikIcerik>();
 
             await VarsayilanUcKDepoLokasyonuAtaAsync(ilgiliIcerikListesi, request.KarsilamaTipiId);
 

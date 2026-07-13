@@ -11,6 +11,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
     {
 
         public int CekiSatiriId { get; set; }
+        public int? SandikIcerikId { get; set; }
         public int ProjeId { get; set; }
         public string? Aciklama { get; set; }
     }

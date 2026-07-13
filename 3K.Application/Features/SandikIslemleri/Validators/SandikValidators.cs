@@ -111,4 +111,25 @@ namespace _3K.Application.Features.SandikIslemleri.Validators
             RuleFor(x => x.SandikId).GreaterThan(0).WithMessage("Geçerli bir sandık ID belirtilmeli.");
         }
     }
+
+    public class SandikUrunTasiCommandValidator : AbstractValidator<SandikUrunTasiCommand>
+    {
+        public SandikUrunTasiCommandValidator()
+        {
+            RuleFor(x => x.KaynakSandikIcerikId)
+                .GreaterThan(0).WithMessage("Geçerli bir kaynak sandık içeriği belirtilmeli.");
+            RuleFor(x => x.HedefSandikId)
+                .GreaterThan(0).WithMessage("Geçerli bir hedef sandık belirtilmeli.");
+            RuleFor(x => x.ProjeId)
+                .GreaterThan(0).WithMessage("Geçerli bir proje belirtilmeli.");
+            RuleFor(x => x.TasinanAdet)
+                .GreaterThan(0).WithMessage("Taşınan miktar 0'dan büyük olmalıdır.");
+            RuleFor(x => x.TasinanAdet)
+                .PrecisionScale(18, 4, false)
+                .WithMessage("Taşınan miktar en fazla 14 tam ve 4 ondalık basamak içerebilir.");
+            RuleFor(x => x.IslemAnahtari)
+                .NotEmpty()
+                .WithMessage("İşlem anahtarı zorunludur.");
+        }
+    }
 }

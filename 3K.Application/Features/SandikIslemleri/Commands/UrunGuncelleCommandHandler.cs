@@ -58,6 +58,16 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 if (icerik == null)
                     return Result.Failure("Sandık içeriği bulunamadı.", 404);
 
+                var manuelTahsis = icerik.TahsisMiktari > 0
+                    ? icerik.TahsisMiktari
+                    : Math.Max(icerik.Miktar, icerik.KonulanAdet);
+                if (request.KonulanAdet is < 0)
+                    return Result.Failure("Konulan adet 0'dan küçük olamaz.");
+                if (request.KonulanAdet > manuelTahsis)
+                    return Result.Failure($"Konulan adet bu sandığa tahsis edilen miktarı aşamaz. Maksimum: {manuelTahsis}");
+
+                icerik.TahsisMiktari = manuelTahsis;
+
                 // KonulanAdet güncelle
                 if (request.KonulanAdet.HasValue) icerik.KonulanAdet = request.KonulanAdet.Value;
                 if (request.EksikAdet.HasValue) icerik.EksikAdet = request.EksikAdet.Value;
@@ -108,10 +118,22 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 {
                     SandikId = request.SandikId,
                     CekiSatiriId = request.CekiSatiriId.Value,
+                    TahsisMiktari = urun.IstenenAdet,
                     KonulanAdet = 0,
                     EksikAdet = 0
                 };
                 await sandikIcerikRepo.AddAsync(icerik);
+            }
+
+            if (icerik.TahsisMiktari <= 0)
+                icerik.TahsisMiktari = Math.Max(urun.IstenenAdet, icerik.KonulanAdet);
+
+            if (request.KonulanAdet is < 0)
+                return Result.Failure("Konulan adet 0'dan küçük olamaz.");
+            if (request.KonulanAdet > icerik.TahsisMiktari)
+            {
+                return Result.Failure(
+                    $"Konulan adet bu sandığa tahsis edilen miktarı aşamaz. Maksimum: {icerik.TahsisMiktari}");
             }
 
             if (request.KonulanAdet.HasValue) icerik.KonulanAdet = request.KonulanAdet.Value;
@@ -224,6 +246,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             var icerik = await sandikIcerikRepo.GetByIdAsync(request.SandikIcerikId.Value);
             if (icerik == null || icerik.SandikId != request.SandikId)
                 return Result.Failure("Sandık içeriği bulunamadı.", 404);
+
+            if (icerik.TahsisMiktari <= 0)
+                icerik.TahsisMiktari = Math.Max(icerik.Miktar, icerik.KonulanAdet);
 
             var gridKapandiIstendi = request.GridDurumuId == (int)GridDurum.GridKapandi;
 

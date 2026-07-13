@@ -56,8 +56,18 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 await _unitOfWork.SaveChangesAsync();
             }
 
-            var eskiIcerikler = await sandikIcerikRepo.FindAsync(si => si.CekiSatiriId == request.CekiSatiriId);
-            var eskiIcerik = eskiIcerikler.FirstOrDefault();
+            var eskiIcerikler = (await sandikIcerikRepo.FindAsync(
+                    si => si.CekiSatiriId == request.CekiSatiriId))
+                .ToList();
+
+            if (eskiIcerikler.Count > 1)
+            {
+                return Result.Failure(
+                    "Ürün birden fazla sandığa parçalı olarak tahsis edilmiş. Tamamını tek seferde değiştirmek yerine sandık yönetimindeki miktarlı taşıma işlemini kullanın.",
+                    409);
+            }
+
+            var eskiIcerik = eskiIcerikler.SingleOrDefault();
 
             decimal konulanAdet = eskiIcerik?.KonulanAdet ?? urun.IstenenAdet;
             decimal eksikAdet = eskiIcerik?.EksikAdet ?? 0;
@@ -68,6 +78,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             {
                 SandikId = hedefSandik.Id,
                 CekiSatiriId = request.CekiSatiriId,
+                TahsisMiktari = eskiIcerik?.TahsisMiktari > 0
+                    ? eskiIcerik.TahsisMiktari
+                    : urun.IstenenAdet,
                 KonulanAdet = konulanAdet,
                 EksikAdet = eksikAdet
             });

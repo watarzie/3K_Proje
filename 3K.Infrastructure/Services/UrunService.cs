@@ -34,10 +34,23 @@ namespace _3K.Infrastructure.Services
             if (urun == null) return false;
 
             var siRepo = _unitOfWork.GetRepository<SandikIcerik>();
-            var icerikler = await siRepo.FindAsync(si => si.CekiSatiriId == cekiSatiriId);
-            var icerik = icerikler.FirstOrDefault();
+            var icerikler = (await siRepo.FindAsync(si => si.CekiSatiriId == cekiSatiriId)).ToList();
+
+            // Eski servis miktar parametresini sandık bazında taşımıyor. Parçalı tahsiste
+            // yanlış sandığı güncellememek için çağrıyı güvenli biçimde reddeder.
+            if (icerikler.Count > 1)
+                return false;
+
+            var icerik = icerikler.SingleOrDefault();
             if (icerik != null)
             {
+                var tahsis = icerik.TahsisMiktari > 0
+                    ? icerik.TahsisMiktari
+                    : Math.Max(urun.IstenenAdet, icerik.KonulanAdet);
+                if (konulanAdet < 0 || konulanAdet > tahsis)
+                    return false;
+
+                icerik.TahsisMiktari = tahsis;
                 icerik.KonulanAdet = konulanAdet;
                 icerik.EksikAdet = eksikAdet;
                 siRepo.Update(icerik);

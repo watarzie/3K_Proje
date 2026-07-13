@@ -57,6 +57,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 BarkodNo = request.BarkodNo,
                 Isim = request.Isim,
                 Miktar = request.Miktar,
+                TahsisMiktari = request.Miktar,
                 BirimId = request.BirimId,
                 KonulanAdet = request.Miktar,
                 EksikAdet = 0,
@@ -204,6 +205,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             {
                 SandikId = sandik.Id,
                 CekiSatiriId = yeniSatir.Id,
+                TahsisMiktari = request.Miktar,
                 KonulanAdet = hedefSahaProjesiMi ? 0 : request.Miktar,
                 EksikAdet = 0,
                 KaynakProjeNo = kaynakProje.ProjeNo,

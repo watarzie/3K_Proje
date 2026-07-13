@@ -13,7 +13,13 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
         public int KaynakSandikIcerikId { get; set; }
         public int HedefSandikId { get; set; }
-        public int TasinanAdet { get; set; }
+        public decimal TasinanAdet { get; set; }
         public int ProjeId { get; set; }
+
+        /// <summary>
+        /// Ağ/istemci tekrarlarında aynı taşımanın ikinci kez uygulanmasını engelleyen zorunlu anahtar.
+        /// İstemci her kullanıcı işlemi için yeni bir değer üretmeli, tekrar denemelerde aynı değeri kullanmalıdır.
+        /// </summary>
+        public Guid IslemAnahtari { get; set; }
     }
 }

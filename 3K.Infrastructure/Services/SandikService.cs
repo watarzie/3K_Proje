@@ -71,8 +71,18 @@ namespace _3K.Infrastructure.Services
             var sandikIcerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
             var cekiSatiriRepo = _unitOfWork.GetRepository<CekiSatiri>();
 
-            var eskiIcerikler = await sandikIcerikRepo.FindAsync(si => si.CekiSatiriId == cekiSatiriId);
-            var eskiIcerik = eskiIcerikler.FirstOrDefault();
+            var eskiIcerikler = (await sandikIcerikRepo.FindAsync(
+                    si => si.CekiSatiriId == cekiSatiriId))
+                .ToList();
+
+            // Bu eski metot yalnızca ürünün tamamını taşır. Parçalı tahsislerde hangi
+            // miktarın taşınacağı belirsiz olduğundan veri kaybı yerine güvenli biçimde durur.
+            if (eskiIcerikler.Count > 1)
+                return false;
+
+            var eskiIcerik = eskiIcerikler.SingleOrDefault();
+
+            var cekiSatiri = await cekiSatiriRepo.GetByIdAsync(cekiSatiriId);
 
             if (eskiIcerik != null)
                 sandikIcerikRepo.Remove(eskiIcerik);
@@ -81,6 +91,9 @@ namespace _3K.Infrastructure.Services
             {
                 SandikId = yeniSandikId,
                 CekiSatiriId = cekiSatiriId,
+                TahsisMiktari = eskiIcerik?.TahsisMiktari > 0
+                    ? eskiIcerik.TahsisMiktari
+                    : cekiSatiri?.IstenenAdet ?? eskiIcerik?.KonulanAdet ?? 0,
                 KonulanAdet = eskiIcerik?.KonulanAdet ?? 0,
                 EksikAdet = eskiIcerik?.EksikAdet ?? 0
             };
@@ -183,6 +196,7 @@ namespace _3K.Infrastructure.Services
                 SandikId = sandikId,
                 CekiSatiriId = satir.Id,
                 CekiSatiri = satir,
+                TahsisMiktari = satir.IstenenAdet,
                 KonulanAdet = konulanAdet,
                 EksikAdet = satir.KalanMiktar,
                 BarkodNo = satir.BarkodNo,

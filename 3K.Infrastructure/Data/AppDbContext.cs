@@ -17,6 +17,7 @@ namespace _3K.Infrastructure.Data
         public DbSet<CekiSatiri> CekiSatirlari { get; set; } = null!;
         public DbSet<Sandik> Sandiklar { get; set; } = null!;
         public DbSet<SandikIcerik> SandikIcerikleri { get; set; } = null!;
+        public DbSet<SandikUrunTransferi> SandikUrunTransferleri { get; set; } = null!;
         public DbSet<Kullanici> Kullanicilar { get; set; } = null!;
         public DbSet<IslemOnayKurali> IslemOnayKurallari { get; set; } = null!;
         public DbSet<StokKaydi> StokKayitlari { get; set; } = null!;
@@ -98,6 +99,16 @@ namespace _3K.Infrastructure.Data
             modelBuilder.Entity<Sandik>()
                 .Property(s => s.SevkiyatDuzeltmeAcikMi)
                 .HasDefaultValue(false);
+
+            modelBuilder.Entity<Sandik>()
+                .Property(s => s.DurumId)
+                .IsConcurrencyToken();
+
+            // Sandık durumu ile içerik taşımasının eşzamanlı değişmesini engeller.
+            // Npgsql, uint + IsRowVersion eşleşmesini PostgreSQL xmin kolonuna map eder.
+            modelBuilder.Entity<Sandik>()
+                .Property(s => s.Version)
+                .IsRowVersion();
 
             modelBuilder.Entity<Ceki>()
                 .HasIndex(c => new { c.ProjeId, c.CekiTipiId });
@@ -199,12 +210,95 @@ namespace _3K.Infrastructure.Data
 
             modelBuilder.Entity<SandikIcerik>(e =>
             {
+                e.ToTable("SandikIcerikleri", table =>
+                {
+                    table.HasCheckConstraint(
+                        "CK_SandikIcerikleri_TahsisMiktari_NonNegative",
+                        "\"TahsisMiktari\" >= 0");
+                    table.HasCheckConstraint(
+                        "CK_SandikIcerikleri_KonulanAdet_TahsisAraliginda",
+                        "\"KonulanAdet\" >= 0 AND \"KonulanAdet\" <= \"TahsisMiktari\"");
+                });
+
+                e.Property(p => p.TahsisMiktari)
+                    .HasPrecision(18, 4)
+                    .HasDefaultValue(0m);
                 e.Property(p => p.KonulanAdet).HasPrecision(18, 4);
                 e.Property(p => p.EksikAdet).HasPrecision(18, 4);
                 e.Property(p => p.StokKarsilanan).HasPrecision(18, 4);
                 e.Property(p => p.ProjeKarsilanan).HasPrecision(18, 4);
                 e.Property(p => p.TedarikciKarsilanan).HasPrecision(18, 4);
                 e.Property(p => p.Miktar).HasPrecision(18, 4);
+
+                // Npgsql, uint + IsRowVersion eşleşmesini PostgreSQL'in xmin sistem
+                // kolonuna map eder; ayrıca fiziksel bir Version kolonu gerekmez.
+                e.Property(p => p.Version).IsRowVersion();
+
+                // Çeki satırına bağlı ürün aynı sandıkta tek tahsis kaydı olmalıdır.
+                // CekiSatiriId null olan manuel ürünler birbirinden bağımsızdır.
+                e.HasIndex(p => new { p.SandikId, p.CekiSatiriId })
+                    .IsUnique()
+                    .HasFilter("\"CekiSatiriId\" IS NOT NULL");
+            });
+
+            modelBuilder.Entity<SandikUrunTransferi>(e =>
+            {
+                e.ToTable("SandikUrunTransferleri", table =>
+                {
+                    table.HasCheckConstraint(
+                        "CK_SandikUrunTransferleri_Miktar",
+                        "\"Miktar\" > 0");
+                    table.HasCheckConstraint(
+                        "CK_SandikUrunTransferleri_Kirilimlar",
+                        "\"StokKarsilanan\" >= 0 AND " +
+                        "\"ProjeKarsilanan\" >= 0 AND " +
+                        "\"TedarikciKarsilanan\" >= 0 AND " +
+                        "\"StokKarsilanan\" + \"ProjeKarsilanan\" + \"TedarikciKarsilanan\" <= \"Miktar\"");
+                });
+                e.Property(p => p.Miktar).HasPrecision(18, 4);
+                e.Property(p => p.StokKarsilanan).HasPrecision(18, 4);
+                e.Property(p => p.ProjeKarsilanan).HasPrecision(18, 4);
+                e.Property(p => p.TedarikciKarsilanan).HasPrecision(18, 4);
+                e.Property(p => p.KaynakSandikNo).HasMaxLength(100);
+                e.Property(p => p.HedefSandikNo).HasMaxLength(100);
+                e.Property(p => p.BarkodNo).HasMaxLength(200);
+                e.Property(p => p.UrunAdi).HasMaxLength(1000);
+
+                e.HasIndex(p => p.IslemAnahtari).IsUnique();
+                e.HasIndex(p => new { p.ProjeId, p.CreatedDate });
+                e.HasIndex(p => new { p.CekiSatiriId, p.CreatedDate });
+                e.HasIndex(p => new { p.KaynakSandikId, p.CreatedDate });
+                e.HasIndex(p => new { p.HedefSandikId, p.CreatedDate });
+
+                e.HasOne(p => p.Proje)
+                    .WithMany()
+                    .HasForeignKey(p => p.ProjeId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                e.HasOne(p => p.CekiSatiri)
+                    .WithMany()
+                    .HasForeignKey(p => p.CekiSatiriId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                e.HasOne(p => p.KaynakSandik)
+                    .WithMany()
+                    .HasForeignKey(p => p.KaynakSandikId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                e.HasOne(p => p.HedefSandik)
+                    .WithMany()
+                    .HasForeignKey(p => p.HedefSandikId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                e.HasOne(p => p.BirimLookup)
+                    .WithMany()
+                    .HasForeignKey(p => p.BirimId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                e.HasOne(p => p.Kullanici)
+                    .WithMany()
+                    .HasForeignKey(p => p.KullaniciId)
+                    .OnDelete(DeleteBehavior.SetNull);
             });
 
             // --- Computed properties — DB'de kolon değil ---

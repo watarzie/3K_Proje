@@ -12,6 +12,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
         public int ProjeId { get; set; }
         public List<int> CekiSatiriIdler { get; set; } = new();
+        public List<UcKSandikSecimDto> Secimler { get; set; } = new();
         public string? Aciklama { get; set; }
     }
 }

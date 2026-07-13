@@ -7,6 +7,10 @@ namespace _3K.Application.Features.SandikIslemleri.DTOs
         public string? OlcuResmiPozNo { get; set; }
         public string BarkodNo { get; set; } = string.Empty;
         public string Aciklama { get; set; } = string.Empty;
+        /// <summary>Ana çeki satırındaki toplam talep miktarıdır.</summary>
+        public decimal AnaIstenenAdet { get; set; }
+        /// <summary>Bu sandığa planlanan/tahsis edilen miktardır.</summary>
+        public decimal SandikMiktari { get; set; }
         public decimal IstenenAdet { get; set; }
         public decimal KonulanAdet { get; set; }
         public decimal EksikAdet { get; set; }
@@ -30,6 +34,11 @@ namespace _3K.Application.Features.SandikIslemleri.DTOs
 
         // Kaynak proje bilgisi (Saha/Yedek sandıklara projeden eklenen ürünler için)
         public string? KaynakProjeNo { get; set; }
+
+        // Sandıklar arası yapılandırılmış transfer özeti
+        public decimal SandikAktarilanGiris { get; set; }
+        public decimal SandikAktarilanCikis { get; set; }
+        public string? SandikTransferOzeti { get; set; }
 
         // Backend-hesaplanan alanlar (Dumb UI — KURAL 3)
         public decimal KalanMiktar { get; set; }

@@ -7,5 +7,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
     public class GetUcKUrunlerQuery : IRequest<Result<List<UcKUrunDto>>>, ISecuredRequest
     {
         public int ProjeId { get; set; }
+        public int? SandikId { get; set; }
+        public string? SandikNo { get; set; }
     }
 }

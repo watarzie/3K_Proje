@@ -86,6 +86,19 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                     .ToList()
                 : new List<ProjeTransfer>();
 
+            var sandikTransferleri = satirIdler.Any()
+                ? (await _unitOfWork.GetRepository<SandikUrunTransferi>()
+                    .FindAsync(t =>
+                        t.ProjeId == request.ProjeId &&
+                        t.CekiSatiriId.HasValue &&
+                        satirIdler.Contains(t.CekiSatiriId.Value)))
+                    .ToList()
+                : new List<SandikUrunTransferi>();
+            var sandikTransferleriBySatirId = sandikTransferleri
+                .Where(t => t.CekiSatiriId.HasValue)
+                .GroupBy(t => t.CekiSatiriId!.Value)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
             var transferProjeIdler = transferler
                 .SelectMany(t => new[] { t.KaynakProjeId, t.HedefProjeId })
                 .Distinct()
@@ -95,42 +108,83 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                 : Enumerable.Empty<Proje>();
             var projeNoMap = transferProjeler.ToDictionary(p => p.Id, p => p.ProjeNo);
 
-            var result = satirlar
-                .Select(cs =>
-                {
-                    var etkinKalan = CekiSatiriKalanHelper.HesaplaEtkinKalan(cs, sahaTamamlamaMap);
-                    var gelenTransferler = transferler.Where(t => t.HedefCekiSatiriId == cs.Id).ToList();
-                    var gidenTransferler = transferler.Where(t => t.KaynakCekiSatiriId == cs.Id).ToList();
-                    var projeKarsilanan = gelenTransferler.Any() ? gelenTransferler.Sum(t => t.Miktar) : cs.ProjeKarsilanan;
-                    var projeGonderilen = gidenTransferler.Any() ? gidenTransferler.Sum(t => t.Miktar) : cs.ProjeGonderilen;
-                    var gorunenUcKGelen = Math.Max(cs.GelenMiktar - projeGonderilen, 0);
-                    var netKullanilabilir = Math.Max(cs.GelenMiktar + projeKarsilanan - projeGonderilen, 0);
-                    var transferZinciri = gelenTransferler
-                        .Select(t => MapTransferZincir("Gelen", t, projeNoMap))
-                        .Concat(gidenTransferler.Select(t => MapTransferZincir("Giden", t, projeNoMap)))
-                        .OrderBy(t => t.ZincirSeviyesi)
-                        .ThenBy(t => t.Tarih)
-                        .ToList();
-                    var sandikNo = cs.FiiliSandikNo ?? cs.CekideGecenSandikNo ?? string.Empty;
-                    var satirIcerikleri = sandikIcerikleriBySatirId.GetValueOrDefault(cs.Id) ?? new List<SandikIcerik>();
-                    var sandik = satirIcerikleri
-                        .Select(i => sandikMap.GetValueOrDefault(i.SandikId))
-                        .Where(s => s != null)
-                        .Select(s => s!)
-                        .FirstOrDefault(s => string.Equals(s.SandikNo, sandikNo, StringComparison.OrdinalIgnoreCase))
-                        ?? satirIcerikleri
-                            .Select(i => sandikMap.GetValueOrDefault(i.SandikId))
-                            .FirstOrDefault(s => s != null)
-                        ?? (sandikNoMap.TryGetValue(sandikNo.Trim(), out var sandikByNo) ? sandikByNo : null);
-                    var gorunenSandikNo = sandik?.SandikNo ?? sandikNo;
-                    var kaynakIz = cs.KaynakCekiSatiriId.HasValue
-                        ? sahaKaynakIzMap.GetValueOrDefault(cs.KaynakCekiSatiriId.Value)
-                        : null;
-                    var sahaTamamlamalari = sahaTamamlamaIzMap.GetValueOrDefault(cs.Id) ?? new List<SahaTamamlamaIzDto>();
+            var result = new List<UcKUrunDto>();
 
-                    return new UcKUrunDto
+            foreach (var cs in satirlar)
+            {
+                var etkinKalan = CekiSatiriKalanHelper.HesaplaEtkinKalan(cs, sahaTamamlamaMap);
+                var gelenTransferler = transferler.Where(t => t.HedefCekiSatiriId == cs.Id).ToList();
+                var gidenTransferler = transferler.Where(t => t.KaynakCekiSatiriId == cs.Id).ToList();
+                var projeKarsilanan = gelenTransferler.Any() ? gelenTransferler.Sum(t => t.Miktar) : cs.ProjeKarsilanan;
+                var projeGonderilen = gidenTransferler.Any() ? gidenTransferler.Sum(t => t.Miktar) : cs.ProjeGonderilen;
+                var gorunenUcKGelen = Math.Max(cs.GelenMiktar - projeGonderilen, 0);
+                var transferZinciri = gelenTransferler
+                    .Select(t => MapTransferZincir("Gelen", t, projeNoMap))
+                    .Concat(gidenTransferler.Select(t => MapTransferZincir("Giden", t, projeNoMap)))
+                    .OrderBy(t => t.ZincirSeviyesi)
+                    .ThenBy(t => t.Tarih)
+                    .ToList();
+                var sandikNo = cs.FiiliSandikNo ?? cs.CekideGecenSandikNo ?? string.Empty;
+                var satirIcerikleri = sandikIcerikleriBySatirId.GetValueOrDefault(cs.Id) ?? new List<SandikIcerik>();
+                var kaynakIz = cs.KaynakCekiSatiriId.HasValue
+                    ? sahaKaynakIzMap.GetValueOrDefault(cs.KaynakCekiSatiriId.Value)
+                    : null;
+                var sahaTamamlamalari = sahaTamamlamaIzMap.GetValueOrDefault(cs.Id) ?? new List<SahaTamamlamaIzDto>();
+
+                var tahsisler = satirIcerikleri
+                    .Select(i => (Icerik: (SandikIcerik?)i, Sandik: sandikMap.GetValueOrDefault(i.SandikId)))
+                    .ToList();
+
+                if (!tahsisler.Any())
+                {
+                    var fallbackSandik = sandikNoMap.TryGetValue(sandikNo.Trim(), out var sandikByNo)
+                        ? sandikByNo
+                        : null;
+                    tahsisler.Add((null, fallbackSandik));
+                }
+
+                var tahsisMiktarlari = tahsisler
+                    .Select(t => SandikTahsisHelper.HesaplaSandikMiktari(cs, t.Icerik, tahsisler.Count))
+                    .ToList();
+                var toplamTahsisMiktari = tahsisMiktarlari.Sum();
+
+                for (var tahsisIndex = 0; tahsisIndex < tahsisler.Count; tahsisIndex++)
+                {
+                    var (icerik, sandik) = tahsisler[tahsisIndex];
+                    if (!SandikFiltresineUyar(request, sandik))
+                        continue;
+
+                    var sandikMiktari = tahsisMiktarlari[tahsisIndex];
+                    var tekTahsis = tahsisler.Count == 1;
+                    var sandikKonulan = icerik?.KonulanAdet ?? Math.Max(cs.KumulatifToplam, 0);
+                    var sandikStok = tekTahsis
+                        ? cs.StokKarsilanan
+                        : Math.Min(icerik?.StokKarsilanan ?? 0, sandikMiktari);
+                    var sandikProje = tekTahsis
+                        ? projeKarsilanan
+                        : Math.Min(icerik?.ProjeKarsilanan ?? 0, sandikMiktari);
+                    var sandikTedarikci = tekTahsis
+                        ? cs.TedarikciKarsilanan
+                        : Math.Min(icerik?.TedarikciKarsilanan ?? 0, sandikMiktari);
+                    var sandikGelen = tekTahsis
+                        ? gorunenUcKGelen
+                        : Math.Max(sandikKonulan - sandikStok - sandikProje - sandikTedarikci, 0);
+                    var sandikProjeGonderilen = SandikTahsisHelper.ToplamdanTahsisPayi(
+                        projeGonderilen,
+                        sandikMiktari,
+                        toplamTahsisMiktari);
+                    // KonulanAdet proje çıkışları düşülmüş fiziksel net miktardır; çıkışı ikinci kez ekleme.
+                    var sandikKalan = Math.Max(sandikMiktari - sandikKonulan, 0);
+                    var satirSandikTransferleri = sandikTransferleriBySatirId.GetValueOrDefault(cs.Id)
+                        ?? new List<SandikUrunTransferi>();
+                    var sandikTransferOzeti = sandik == null
+                        ? new SandikTransferOzeti(0, 0, string.Empty)
+                        : SandikTransferOzetiHelper.Hesapla(satirSandikTransferleri, sandik.Id);
+
+                    result.Add(new UcKUrunDto
                     {
                         CekiSatiriId = cs.Id,
+                        SandikIcerikId = icerik?.Id,
                         KaynakCekiSatiriId = cs.KaynakCekiSatiriId,
                         KaynakProjeNo = kaynakIz?.KaynakProjeNo,
                         KaynakSandikNo = kaynakIz?.KaynakSandikNo,
@@ -142,58 +196,71 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                         BarkodNo = cs.BarkodNo,
                         OlcuResmiPozNo = cs.OlcuResmiPozNo,
                         Aciklama = cs.Aciklama,
-                        SandikNo = gorunenSandikNo,
+                        SandikNo = sandik?.SandikNo ?? sandikNo,
                         SandikDurumId = sandik?.DurumId,
                         SandikDurumMetni = sandik != null ? _lookupCache.GetDeger<LookupSandikDurum>(sandik.DurumId) : null,
                         SandikSevkEdildiMi = sandik != null && SandikSevkKilidiHelper.SandikKilitliMi(sandik),
-                        IstenenAdet = cs.IstenenAdet,
+                        AnaIstenenAdet = cs.IstenenAdet,
+                        SandikMiktari = sandikMiktari,
+                        SandikBazliDagitim = tahsisler.Count > 1,
+                        IstenenAdet = sandikMiktari,
                         BirimId = cs.BirimId,
                         Birim = ((Birim)cs.BirimId).ToString(),
                         GridDurumuId = cs.GridDurumuId,
                         GridDurumuMetni = _lookupCache.GetDeger<LookupGridDurum>(cs.GridDurumuId),
-                        GridGelenAdet = cs.GridGelenAdet,
-                        TrafoSevkAdet = cs.TrafoSevkAdet,
+                        GridGelenAdet = SandikTahsisHelper.ToplamdanTahsisPayi(cs.GridGelenAdet, sandikMiktari, toplamTahsisMiktari),
+                        ToplamGridGelenAdet = cs.GridGelenAdet,
+                        TrafoSevkAdet = SandikTahsisHelper.ToplamdanTahsisPayi(cs.TrafoSevkAdet, sandikMiktari, toplamTahsisMiktari),
                         GridSevkDurumuId = cs.GridSevkDurumuId,
                         GridSevkDurumuMetni = _lookupCache.GetDeger<LookupGridSevkDurum>(cs.GridSevkDurumuId),
-                        GridSevkMiktari = cs.GridSevkMiktari,
+                        GridSevkMiktari = cs.GridSevkMiktari.HasValue
+                        ? SandikTahsisHelper.ToplamdanTahsisPayi(cs.GridSevkMiktari.Value, sandikMiktari, toplamTahsisMiktari)
+                        : null,
                         UcKKarsilamaTipiId = cs.UcKKarsilamaTipiId,
                         UcKKarsilamaTipiMetni = _lookupCache.GetDeger<LookupUcKDurum>(cs.UcKKarsilamaTipiId),
-                        GelenMiktar = gorunenUcKGelen,
-                        KarsilananMiktar = cs.KarsilananMiktar,
-                        HataliMiktar = cs.HataliMiktar,
+                        GelenMiktar = sandikGelen,
+                        ToplamUcKGelenMiktar = gorunenUcKGelen,
+                        KarsilananMiktar = sandikStok + sandikProje + sandikTedarikci,
+                        HataliMiktar = SandikTahsisHelper.ToplamdanTahsisPayi(cs.HataliMiktar, sandikMiktari, toplamTahsisMiktari),
                         KaynakHedefProjeNo = cs.KaynakHedefProjeNo,
                         GeriGonderilmeSebebiId = cs.GeriGonderilmeSebebiId,
                         GeriGonderilmeSebebiMetni = cs.GeriGonderilmeSebebiId.HasValue
-                            ? _lookupCache.GetDeger<LookupGeriGonderilmeSebebi>(cs.GeriGonderilmeSebebiId.Value)
-                            : null,
-                        GeriGonderilenMiktar = cs.GeriGonderilenMiktar,
+                        ? _lookupCache.GetDeger<LookupGeriGonderilmeSebebi>(cs.GeriGonderilmeSebebiId.Value)
+                        : null,
+                        GeriGonderilenMiktar = SandikTahsisHelper.ToplamdanTahsisPayi(cs.GeriGonderilenMiktar, sandikMiktari, toplamTahsisMiktari),
                         UcKAciklama = cs.UcKAciklama,
                         GridAciklama = cs.GridAciklama,
-                        Kalan = etkinKalan,
+                        Kalan = sandikKalan,
+                        ToplamKalanMiktar = etkinKalan,
+                        SandikAktarilanGiris = sandikTransferOzeti.Giris,
+                        SandikAktarilanCikis = sandikTransferOzeti.Cikis,
+                        SandikTransferOzeti = string.IsNullOrWhiteSpace(sandikTransferOzeti.Metin) ? null : sandikTransferOzeti.Metin,
                         KontrolUyari = HesaplaKontrolUyari(cs),
                         GenelDurumId = cs.DurumId,
                         GenelDurumMetni = _lookupCache.GetDeger<LookupUrunDurum>(cs.DurumId),
                         // Madde 2: Parçalı karşılama
-                        StokKarsilanan = cs.StokKarsilanan,
-                        ProjeKarsilanan = projeKarsilanan,
-                        ProjeGonderilen = projeGonderilen,
-                        NetKullanilabilir = netKullanilabilir,
+                        StokKarsilanan = sandikStok,
+                        ProjeKarsilanan = sandikProje,
+                        ProjeGonderilen = sandikProjeGonderilen,
+                        NetKullanilabilir = sandikKonulan,
                         TransferZinciriVar = transferZinciri.Any(),
                         TransferZinciri = transferZinciri,
-                        TedarikciKarsilanan = cs.TedarikciKarsilanan,
-                        EksikMiktar = etkinKalan,
+                        TedarikciKarsilanan = sandikTedarikci,
+                        EksikMiktar = sandikKalan,
                         // Kalite & Süreç
                         KaliteDurumId = cs.KaliteDurumId,
                         KaliteDurumMetni = cs.KaliteDurumId.HasValue ? _lookupCache.GetDeger<LookupKaliteDurum>(cs.KaliteDurumId.Value) : null,
                         SurecDurumId = cs.SurecDurumId,
                         SurecDurumMetni = cs.SurecDurumId.HasValue ? _lookupCache.GetDeger<LookupSurecDurum>(cs.SurecDurumId.Value) : null,
                         IsManuelEklenen = cs.IsManuelEklenen
-                    };
-                })
-                .ToList();
+                    });
+                }
+            }
 
             var manuelSiraNo = satirlar.Any() ? satirlar.Max(s => s.SiraNo) : 0;
-            result.AddRange(manuelSahaIcerikleri.Select((icerik, index) =>
+            result.AddRange(manuelSahaIcerikleri
+                .Where(icerik => SandikFiltresineUyar(request, sandikMap.GetValueOrDefault(icerik.SandikId)))
+                .Select((icerik, index) =>
                 MapSahaManuelIcerik(icerik, sandikMap.GetValueOrDefault(icerik.SandikId), manuelSiraNo + index + 1)));
 
             return Result<List<UcKUrunDto>>.Success(result);
@@ -220,12 +287,15 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                 SandikDurumId = sandik?.DurumId,
                 SandikDurumMetni = sandik != null ? _lookupCache.GetDeger<LookupSandikDurum>(sandik.DurumId) : null,
                 SandikSevkEdildiMi = sandik != null && SandikSevkKilidiHelper.SandikKilitliMi(sandik),
+                AnaIstenenAdet = miktar,
+                SandikMiktari = miktar,
                 IstenenAdet = miktar,
                 BirimId = birimId,
                 Birim = ((Birim)birimId).ToString(),
                 GridDurumuId = (int)GridDurum.TamGeldi,
                 GridDurumuMetni = _lookupCache.GetDeger<LookupGridDurum>((int)GridDurum.TamGeldi),
                 GridGelenAdet = miktar,
+                ToplamGridGelenAdet = miktar,
                 TrafoSevkAdet = 0,
                 GridSevkDurumuId = (int)GridSevkDurum.SevkEdildi,
                 GridSevkDurumuMetni = _lookupCache.GetDeger<LookupGridSevkDurum>((int)GridSevkDurum.SevkEdildi),
@@ -233,6 +303,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                 UcKKarsilamaTipiId = (int)UcKDurum.TamGeldi,
                 UcKKarsilamaTipiMetni = _lookupCache.GetDeger<LookupUcKDurum>((int)UcKDurum.TamGeldi),
                 GelenMiktar = miktar,
+                ToplamUcKGelenMiktar = miktar,
                 KarsilananMiktar = miktar,
                 HataliMiktar = 0,
                 KaynakHedefProjeNo = icerik.KaynakProjeNo,
@@ -240,6 +311,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                 UcKAciklama = icerik.Aciklama,
                 GridAciklama = null,
                 Kalan = 0,
+                ToplamKalanMiktar = 0,
                 KontrolUyari = "MANUEL SAHA ÜRÜNÜ",
                 GenelDurumId = (int)UrunDurum.Tamamlandi,
                 GenelDurumMetni = _lookupCache.GetDeger<LookupUrunDurum>((int)UrunDurum.Tamamlandi),
@@ -251,6 +323,15 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                 EksikMiktar = 0,
                 IsManuelEklenen = true
             };
+        }
+
+        private static bool SandikFiltresineUyar(GetUcKUrunlerQuery request, Sandik? sandik)
+        {
+            if (request.SandikId.HasValue && sandik?.Id != request.SandikId.Value)
+                return false;
+
+            return string.IsNullOrWhiteSpace(request.SandikNo) ||
+                   string.Equals(sandik?.SandikNo?.Trim(), request.SandikNo.Trim(), StringComparison.OrdinalIgnoreCase);
         }
 
         private static ProjeTransferZincirDto MapTransferZincir(string yon, ProjeTransfer transfer, Dictionary<int, string> projeNoMap)

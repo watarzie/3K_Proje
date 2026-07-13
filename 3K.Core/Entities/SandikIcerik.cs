@@ -8,8 +8,20 @@ namespace _3K.Core.Entities
         /// Normal projeler için CekiSatiri referansı. Saha/Yedek projelerinde null olabilir.
         /// </summary>
         public int? CekiSatiriId { get; set; }
+
+        /// <summary>
+        /// Ürünün bu sandığa planlanan/tahsis edilen miktarıdır.
+        /// KonulanAdet fiziksel olarak sandığa konulan miktarı ifade eder.
+        /// </summary>
+        public decimal TahsisMiktari { get; set; }
         public decimal KonulanAdet { get; set; }
         public decimal EksikAdet { get; set; }
+
+        /// <summary>
+        /// PostgreSQL xmin sistem kolonu üzerinden iyimser eşzamanlılık kontrolü sağlar.
+        /// Aynı içerikten eşzamanlı taşımalarda miktar kaybını/çift taşımayı engeller.
+        /// </summary>
+        public uint Version { get; set; }
 
         // ===== Madde 2: Parçalı Karşılama Detay Kolonları =====
         /// <summary>

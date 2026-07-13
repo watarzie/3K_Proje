@@ -312,6 +312,7 @@ namespace _3K.Infrastructure.Services
                         {
                             SandikId = sandik.Id,
                             CekiSatiriId = satir.Id,
+                            TahsisMiktari = satir.IstenenAdet,
                             KonulanAdet = 0,
                             EksikAdet = 0
                         };
@@ -966,6 +967,7 @@ namespace _3K.Infrastructure.Services
             {
                 Sandik = sandik,
                 CekiSatiri = satir,
+                TahsisMiktari = satir.IstenenAdet,
                 KonulanAdet = 0,
                 EksikAdet = 0
             });
@@ -994,6 +996,7 @@ namespace _3K.Infrastructure.Services
             var eskiOzet = CekiSatiriOzeti(mevcutSatir);
             var eskiKoliNo = NormalizeKoliNo(mevcutSatir.CekideGecenSandikNo);
             var eskiFiiliKoliNo = NormalizeKoliNo(mevcutSatir.FiiliSandikNo);
+            var eskiIstenenAdet = mevcutSatir.IstenenAdet;
             var yeniKoliNo = NormalizeKoliNo(revizyonSatiri.KoliNo);
 
             var fiiliPlanlaAyni = string.IsNullOrWhiteSpace(eskiFiiliKoliNo) ||
@@ -1021,12 +1024,25 @@ namespace _3K.Infrastructure.Services
                 .Where(i => i.CekiSatiriId == mevcutSatir.Id)
                 .ToListAsync();
 
+            if (icerikler.Count == 1)
+            {
+                var tekIcerik = icerikler[0];
+                if (tekIcerik.TahsisMiktari <= 0 || tekIcerik.TahsisMiktari == eskiIstenenAdet)
+                {
+                    // Revizyon miktarı fiziksel olarak sandığa konulmuş adedin altına inse
+                    // bile mevcut malzemeyi sessizce yok sayma; tahsis fiziksel alt sınırı korur.
+                    tekIcerik.TahsisMiktari = Math.Max(revizyonSatiri.IstenenAdet, tekIcerik.KonulanAdet);
+                    tekIcerik.EksikAdet = Math.Max(tekIcerik.TahsisMiktari - tekIcerik.KonulanAdet, 0);
+                }
+            }
+
             if (icerikler.Count == 0)
             {
                 _context.SandikIcerikleri.Add(new SandikIcerik
                 {
                     Sandik = hedefSandik,
                     CekiSatiriId = mevcutSatir.Id,
+                    TahsisMiktari = mevcutSatir.IstenenAdet,
                     KonulanAdet = 0,
                     EksikAdet = 0
                 });

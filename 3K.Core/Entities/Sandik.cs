@@ -20,6 +20,12 @@ namespace _3K.Core.Entities
         public bool SevkiyatDuzeltmeAcikMi { get; set; }
         public int DepoLokasyonId { get; set; } = (int)DepoLokasyon.Belirsiz;
 
+        /// <summary>
+        /// PostgreSQL xmin sistem kolonu üzerinden iyimser eşzamanlılık kontrolü sağlar.
+        /// Taşıma ile sevkiyatın aynı sandık üzerinde eşzamanlı çalışmasını engeller.
+        /// </summary>
+        public uint Version { get; set; }
+
         // Fiziksel Özellikler
         public decimal? En { get; set; }
         public decimal? Boy { get; set; }

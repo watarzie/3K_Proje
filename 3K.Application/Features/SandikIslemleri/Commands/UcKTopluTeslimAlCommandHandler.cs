@@ -4,6 +4,7 @@ using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
 using _3K.Core.Helpers;
+using _3K.Application.Features.UcKIslemleri.Commands;
 
 namespace _3K.Application.Features.SandikIslemleri.Commands
 {
@@ -35,7 +36,6 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 return Result.Failure("En az bir ürün seçilmelidir.", 400);
 
             var repo = _unitOfWork.GetRepository<CekiSatiri>();
-            var sandikIcerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
             var idler = request.Urunler.Select(u => u.CekiSatiriId).ToList();
             var satirlar = (await repo.FindAsync(cs => idler.Contains(cs.Id))).ToDictionary(s => s.Id);
 
@@ -68,7 +68,22 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 if (item.GelenMiktar <= 0)
                     continue;
 
-                satir.GelenMiktar += item.GelenMiktar;
+                var seciliIcerikResult = await UcKSandikIcerikSenkronizasyonHelper.GetSeciliIcerikAsync(
+                    _unitOfWork,
+                    satir.Id,
+                    item.SandikIcerikId);
+                if (!seciliIcerikResult.IsSuccess)
+                    continue;
+
+                var seciliIcerik = seciliIcerikResult.Value;
+                var sandikKalan = seciliIcerik == null
+                    ? satir.KalanMiktar
+                    : Math.Max((seciliIcerik.TahsisMiktari > 0 ? seciliIcerik.TahsisMiktari : satir.IstenenAdet) - seciliIcerik.KonulanAdet, 0);
+                var gelenMiktar = Math.Min(item.GelenMiktar, sandikKalan);
+                if (gelenMiktar <= 0)
+                    continue;
+
+                satir.GelenMiktar += gelenMiktar;
                 satir.TeslimTarihi = now;
                 satir.UcKAciklama = request.Aciklama;
 
@@ -85,16 +100,12 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
                 repo.Update(satir);
 
-                var ilgiliIcerikler = (await sandikIcerikRepo.FindAsync(x => x.CekiSatiriId == satir.Id)).ToList();
-                if (ilgiliIcerikler.Any())
-                {
-                    var anaIcerik = ilgiliIcerikler.First();
-                    anaIcerik.KonulanAdet = Math.Max(satir.GelenMiktar + satir.KarsilananMiktar - satir.ProjeGonderilen, 0);
-                    anaIcerik.StokKarsilanan = satir.StokKarsilanan;
-                    anaIcerik.ProjeKarsilanan = satir.ProjeKarsilanan;
-                    anaIcerik.TedarikciKarsilanan = satir.TedarikciKarsilanan;
-                    sandikIcerikRepo.Update(anaIcerik);
-                }
+                var senkronizasyonResult = await UcKSandikIcerikSenkronizasyonHelper.SenkronizeAsync(
+                    _unitOfWork,
+                    satir,
+                    item.SandikIcerikId);
+                if (!senkronizasyonResult.IsSuccess)
+                    return Result.Failure(senkronizasyonResult.Error!.Message, senkronizasyonResult.StatusCode);
 
                 await SandikLokasyonHelper.VarsayilanUcKDepoLokasyonuAtaAsync(_unitOfWork, satir.Id);
 
