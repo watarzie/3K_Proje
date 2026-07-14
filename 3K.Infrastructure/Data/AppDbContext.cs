@@ -217,7 +217,8 @@ namespace _3K.Infrastructure.Data
                         "\"TahsisMiktari\" >= 0");
                     table.HasCheckConstraint(
                         "CK_SandikIcerikleri_KonulanAdet_TahsisAraliginda",
-                        "\"KonulanAdet\" >= 0 AND \"KonulanAdet\" <= \"TahsisMiktari\"");
+                        "\"TahsisMiktari\" = 0 OR " +
+                        "(\"KonulanAdet\" >= 0 AND \"KonulanAdet\" <= \"TahsisMiktari\")");
                 });
 
                 e.Property(p => p.TahsisMiktari)
@@ -238,7 +239,7 @@ namespace _3K.Infrastructure.Data
                 // CekiSatiriId null olan manuel ürünler birbirinden bağımsızdır.
                 e.HasIndex(p => new { p.SandikId, p.CekiSatiriId })
                     .IsUnique()
-                    .HasFilter("\"CekiSatiriId\" IS NOT NULL");
+                    .HasFilter("\"CekiSatiriId\" IS NOT NULL AND \"TahsisMiktari\" > 0");
             });
 
             modelBuilder.Entity<SandikUrunTransferi>(e =>
