@@ -6,10 +6,8 @@ using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.ProjeIslemleri.Commands
 {
-    public class ProjeSevkTarihiGuncelleCommand : IRequest<Result>, ISecuredRequest, IRequiresMenuPermission
+    public class ProjeSevkTarihiGuncelleCommand : IRequest<Result>, ISecuredRequest
     {
-        public string RequiredMenuKod => "planlanan-sevk-tarihi";
-
         public int ProjeId { get; set; }
         public DateTime? PlanlananSevkTarihi { get; set; }
     }

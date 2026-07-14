@@ -31,7 +31,12 @@ namespace _3K.Application.Features.BildirimIslemleri.Events
                 ? $"{notification.ProjeNo} projesinin revizyon çekisi yüklendi. Eklenen: {notification.EklenenSatirSayisi}, güncellenen: {notification.GuncellenenSatirSayisi}, silinen: {notification.SilinenSatirSayisi}."
                 : $"{notification.ProjeNo} projesinin çekisi yüklendi. {notification.SatirSayisi} ürün satırı ve {notification.SandikSayisi} sandık işlendi.";
             var hedefUrl = notification.ProjeId > 0
-                ? $"/sandik-yonetimi/{notification.ProjeId}"
+                ? notification.ProjeTipiId switch
+                {
+                    (int)ProjeTipi.Saha => $"/saha-yonetimi/{notification.ProjeId}",
+                    (int)ProjeTipi.Yedek => $"/yedek-yonetimi/{notification.ProjeId}",
+                    _ => $"/sandik-yonetimi/{notification.ProjeId}"
+                }
                 : "/projeler";
 
             try

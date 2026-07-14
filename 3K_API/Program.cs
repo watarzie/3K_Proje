@@ -119,6 +119,7 @@ try
 
     // ======= Services =======
     builder.Services.AddScoped<ICekiService, CekiService>();
+    builder.Services.AddScoped<IYedekCekiImportService, YedekCekiImportService>();
     builder.Services.AddScoped<ISandikService, SandikService>();
     builder.Services.AddScoped<IUrunService, UrunService>();
     builder.Services.AddScoped<IStokService, StokService>();

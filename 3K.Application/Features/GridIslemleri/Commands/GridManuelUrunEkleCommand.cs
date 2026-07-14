@@ -16,4 +16,3 @@ namespace _3K.Application.Features.GridIslemleri.Commands
         public string? SandikIsmi { get; set; }
     }
 }
-

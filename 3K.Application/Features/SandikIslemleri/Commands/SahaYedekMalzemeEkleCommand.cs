@@ -24,4 +24,3 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         public string? Aciklama { get; set; }
     }
 }
-

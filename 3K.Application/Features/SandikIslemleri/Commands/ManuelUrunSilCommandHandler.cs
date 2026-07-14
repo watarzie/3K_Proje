@@ -24,13 +24,13 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             // ===== CASE 1: Saha/Yedek ürünleri — SandikIcerikId ile silme =====
             if (request.SandikIcerikId.HasValue && request.SandikIcerikId.Value > 0)
             {
-                return await SahaYedekUrunSil(request);
+                return await SahaYedekUrunSil(request, cancellationToken);
             }
 
             // ===== CASE 2: Normal proje manuel ürünleri — CekiSatiriId ile silme =====
             if (request.CekiSatiriId.HasValue && request.CekiSatiriId.Value > 0)
             {
-                return await NormalManuelUrunSil(request);
+                return await NormalManuelUrunSil(request, cancellationToken);
             }
 
             return Result.Failure("CekiSatiriId veya SandikIcerikId belirtilmelidir.");
@@ -38,9 +38,12 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
         /// <summary>
         /// Saha/Yedek projelerindeki ürünleri siler.
-        /// Bu ürünlerin CekiSatiri bağlantısı yoktur, doğrudan SandikIcerik tablosundadır.
+        /// Yalnız gerçekten manuel eklenen kayıtları siler. ÇEKİ/import kaynaklı bağlı
+        /// satırlar aynı endpoint çağrılsa bile silinemez.
         /// </summary>
-        private async Task<Result> SahaYedekUrunSil(ManuelUrunSilCommand request)
+        private async Task<Result> SahaYedekUrunSil(
+            ManuelUrunSilCommand request,
+            CancellationToken cancellationToken)
         {
             var sandikIcerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
             var icerik = await sandikIcerikRepo.GetByIdAsync(request.SandikIcerikId!.Value);
@@ -59,8 +62,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             var isSahaYedek = proje != null &&
                 (proje.ProjeTipiId == (int)ProjeTipi.Saha || proje.ProjeTipiId == (int)ProjeTipi.Yedek);
 
-            if (!isSahaYedek && icerik.CekiSatiriId != null)
-                return Result.Failure("Bu ürün çekiden gelmiştir. Saha/Yedek silme ile silinemez.");
+            if (!isSahaYedek)
+                return Result.Failure("Bu silme işlemi yalnızca Saha/Yedek projelerinde kullanılabilir.", 409);
 
             if (SandikSevkKilidiHelper.SandikKilitliMi(sandik))
                 return Result.Failure("Sevk edilmiş sandıktan ürün silinemez.");
@@ -72,11 +75,29 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (icerik.CekiSatiriId.HasValue)
                 bagliSatir = await cekiSatiriRepo.GetByIdAsync(icerik.CekiSatiriId.Value);
 
+            if (icerik.CekiSatiriId.HasValue && bagliSatir == null)
+            {
+                return Result.Failure(
+                    "Ürünün bağlı çeki satırı bulunamadı. Veri bütünlüğü kontrol edilmeden ürün silinemez.",
+                    409);
+            }
+
+            if (bagliSatir is { IsManuelEklenen: false })
+            {
+                return Result.Failure(
+                    "Bu ürün ÇEKİ dosyasından gelmiştir. Yalnızca manuel eklenen ürünler silinebilir.",
+                    409);
+            }
+
             if (bagliSatir != null)
             {
                 var bagliIcerikler = await sandikIcerikRepo.FindAsync(x => x.CekiSatiriId == bagliSatir.Id);
                 foreach (var bagliIcerik in bagliIcerikler)
-                    sandikIcerikRepo.Remove(bagliIcerik);
+                {
+                    // Seçili içerik GetByIdAsync ile zaten tracked. FindAsync AsNoTracking
+                    // kopyasını aynı anahtarla attach etmek yerine tracked örneği sileriz.
+                    sandikIcerikRepo.Remove(bagliIcerik.Id == icerik.Id ? icerik : bagliIcerik);
+                }
 
                 cekiSatiriRepo.Remove(bagliSatir);
             }
@@ -85,7 +106,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 sandikIcerikRepo.Remove(icerik);
             }
 
-            await _unitOfWork.SaveChangesAsync();
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {
@@ -106,7 +127,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         /// Normal projelerdeki manuel eklenen ürünleri siler.
         /// IsManuelEklenen=true ve üzerinde işlem yapılmamış olmalıdır.
         /// </summary>
-        private async Task<Result> NormalManuelUrunSil(ManuelUrunSilCommand request)
+        private async Task<Result> NormalManuelUrunSil(
+            ManuelUrunSilCommand request,
+            CancellationToken cancellationToken)
         {
             var cekiSatiriRepo = _unitOfWork.GetRepository<CekiSatiri>();
             var satir = await cekiSatiriRepo.GetByIdAsync(request.CekiSatiriId!.Value);
@@ -138,7 +161,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             // CekiSatiri'ni sil
             cekiSatiriRepo.Remove(satir);
 
-            await _unitOfWork.SaveChangesAsync();
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             // Hareket kaydı
             await _hareketService.HareketKaydetAsync(new HareketGecmisi

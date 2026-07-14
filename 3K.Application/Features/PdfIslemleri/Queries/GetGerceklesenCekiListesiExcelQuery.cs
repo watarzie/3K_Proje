@@ -3,10 +3,8 @@ using _3K.Application.Common;
 
 namespace _3K.Application.Features.PdfIslemleri.Queries
 {
-    public class GetGerceklesenCekiListesiExcelQuery : IRequest<Result<byte[]>>, ISecuredRequest, IRequiresMenuPermission
+    public class GetGerceklesenCekiListesiExcelQuery : IRequest<Result<byte[]>>, ISecuredRequest
     {
-        public string RequiredMenuKod => "gerceklesen-ceki-raporu";
-
         public int ProjeId { get; set; }
     }
 }

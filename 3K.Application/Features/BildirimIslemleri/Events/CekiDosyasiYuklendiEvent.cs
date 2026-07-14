@@ -1,4 +1,5 @@
 using MediatR;
+using _3K.Core.Enums;
 
 namespace _3K.Application.Features.BildirimIslemleri.Events
 {
@@ -13,5 +14,6 @@ namespace _3K.Application.Features.BildirimIslemleri.Events
         int SandikSayisi,
         int EklenenSatirSayisi = 0,
         int GuncellenenSatirSayisi = 0,
-        int SilinenSatirSayisi = 0) : INotification;
+        int SilinenSatirSayisi = 0,
+        int ProjeTipiId = (int)ProjeTipi.Normal) : INotification;
 }
