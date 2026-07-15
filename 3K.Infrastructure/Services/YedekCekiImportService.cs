@@ -171,8 +171,8 @@ public sealed class YedekCekiImportService : IYedekCekiImportService
                 var cekiSatiri = new CekiSatiri
                 {
                     Ceki = ceki,
-                    SiraNo = importSatiri.SiraNo,
-                    OlcuResmiPozNo = importSatiri.KalemNo,
+                    SiraNo = importSatiri.SistemSiraNo,
+                    OlcuResmiPozNo = importSatiri.SistemSiraNo.ToString(CultureInfo.InvariantCulture),
                     BarkodNo = importSatiri.BarkodNo,
                     Aciklama = importSatiri.Aciklama,
                     IstenenAdet = importSatiri.Miktar,
@@ -323,21 +323,18 @@ public sealed class YedekCekiImportService : IYedekCekiImportService
             }
 
             var satirlar = new List<YedekCekiSatirBilgisi>();
-            var kalemNolari = new HashSet<int>();
 
             for (var rowNumber = 2; rowNumber <= lastRow; rowNumber++)
             {
                 if ((rowNumber & 0x7F) == 0)
                     cancellationToken.ThrowIfCancellationRequested();
 
-                var kalemNo = HucreMetni(worksheet.Cell(rowNumber, 1));
                 var barkodNo = HucreMetni(worksheet.Cell(rowNumber, 2));
                 var aciklama = HucreMetni(worksheet.Cell(rowNumber, 3));
                 var miktarMetni = HucreMetni(worksheet.Cell(rowNumber, 4));
                 var uretimDepoYeri = HucreMetni(worksheet.Cell(rowNumber, 5));
 
-                if (string.IsNullOrWhiteSpace(kalemNo)
-                    && string.IsNullOrWhiteSpace(barkodNo)
+                if (string.IsNullOrWhiteSpace(barkodNo)
                     && string.IsNullOrWhiteSpace(aciklama)
                     && string.IsNullOrWhiteSpace(miktarMetni)
                     && string.IsNullOrWhiteSpace(uretimDepoYeri))
@@ -345,18 +342,13 @@ public sealed class YedekCekiImportService : IYedekCekiImportService
                     continue;
                 }
 
-                if (!int.TryParse(kalemNo, NumberStyles.None, CultureInfo.InvariantCulture, out var siraNo) || siraNo <= 0)
-                    throw SatirHatasi(rowNumber, "Kalem no pozitif bir tam sayı olmalıdır.");
-                if (!kalemNolari.Add(siraNo))
-                    throw SatirHatasi(rowNumber, $"{kalemNo} kalem numarası dosyada birden fazla kez kullanılmış.");
-
                 if (string.IsNullOrWhiteSpace(barkodNo))
                     throw SatirHatasi(rowNumber, "Bileşen numarası boş olamaz.");
                 if (barkodNo.Length > 200)
                     throw SatirHatasi(rowNumber, "Bileşen numarası 200 karakterden uzun olamaz.");
 
-                // SAP/BOM listelerinde aynı bileşen farklı Kalem No satırlarında yer alabilir.
-                // Kimlik/duplicate kuralı Barkod değil, benzersiz Kalem No üzerinden uygulanır.
+                // Dış sistemdeki Kalem No tekrar edebildiği için iç kimlik olarak kullanılmaz.
+                // Sistem sıra numarası yalnızca geçerli ürün satırlarının dosyadaki sırasına göre üretilir.
 
                 if (string.IsNullOrWhiteSpace(aciklama))
                     throw SatirHatasi(rowNumber, "Bileşen açıklaması boş olamaz.");
@@ -366,9 +358,9 @@ public sealed class YedekCekiImportService : IYedekCekiImportService
                     throw SatirHatasi(rowNumber, "Üretim depo yeri 250 karakterden uzun olamaz.");
 
                 var miktar = MiktariOku(worksheet.Cell(rowNumber, 4), rowNumber);
+                var sistemSiraNo = satirlar.Count + 1;
                 satirlar.Add(new YedekCekiSatirBilgisi(
-                    siraNo,
-                    kalemNo,
+                    sistemSiraNo,
                     barkodNo,
                     aciklama,
                     miktar,
@@ -689,8 +681,7 @@ public sealed class YedekCekiImportService : IYedekCekiImportService
         List<YedekCekiSatirBilgisi> Satirlar);
 
     private sealed record YedekCekiSatirBilgisi(
-        int SiraNo,
-        string KalemNo,
+        int SistemSiraNo,
         string BarkodNo,
         string Aciklama,
         decimal Miktar,
