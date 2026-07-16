@@ -12,15 +12,18 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
         private readonly ISandikService _sandikService;
         private readonly ILookupCacheService _lookupCache;
         private readonly ISahaTamamlamaService _sahaTamamlamaService;
+        private readonly ISahaAktarimSilmeKorumaService _sahaAktarimSilmeKorumaService;
 
         public GetProjeSandiklariQueryHandler(
             ISandikService sandikService,
             ILookupCacheService lookupCache,
-            ISahaTamamlamaService sahaTamamlamaService)
+            ISahaTamamlamaService sahaTamamlamaService,
+            ISahaAktarimSilmeKorumaService sahaAktarimSilmeKorumaService)
         {
             _sandikService = sandikService;
             _lookupCache = lookupCache;
             _sahaTamamlamaService = sahaTamamlamaService;
+            _sahaAktarimSilmeKorumaService = sahaAktarimSilmeKorumaService;
         }
 
         public async Task<Result<IEnumerable<SandikDto>>> Handle(GetProjeSandiklariQuery request, CancellationToken cancellationToken)
@@ -35,6 +38,8 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 .ToList();
             var sahaTamamlamaMap = await _sahaTamamlamaService.GetAktifTamamlamaMapAsync(kaynakSatirIdleri, cancellationToken);
             var sandikBazliAktarimSatirIds = await _sahaTamamlamaService.GetAktifSandikBazliAktarimSatirIdsAsync(kaynakSatirIdleri, cancellationToken);
+            var aktifAktarimBagliSandikIds = await _sahaAktarimSilmeKorumaService
+                .GetAktifAktarimBagliSandikIdsAsync(sandiklar.Select(s => s.Id), cancellationToken);
 
             var result = sandiklar.Select(s =>
             {
@@ -66,7 +71,9 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                     DepoLokasyonMetni = _lookupCache.GetDeger<LookupDepoLokasyon>(s.DepoLokasyonId),
                     UrunSayisi = icerikler.Count,
                     IsManuelSandik = isManuelSandik,
-                    SilinebilirMi = icerikler.Count == 0 || (isManuelSandik && icerikler.All(i => !ManuelSatirIslemGormus(i.CekiSatiri!))),
+                    SilinebilirMi = !aktifAktarimBagliSandikIds.Contains(s.Id) &&
+                        (icerikler.Count == 0 ||
+                            (isManuelSandik && icerikler.All(i => !ManuelSatirIslemGormus(i.CekiSatiri!)))),
                     DepodaSayilacakMi = s.DepoLokasyonId != (int)DepoLokasyon.Belirsiz && DepodaSayilacakSandik(s, icerikler),
                     SahayaAktarildiMi = sandikTamamenSahayaAktarildi,
                     SahayaAktarilanMiktar = sahayaAktarilanMiktar,

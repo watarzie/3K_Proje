@@ -1,8 +1,9 @@
 using MediatR;
-using _3K.Core.Entities;
-using _3K.Core.Interfaces;
-using _3K.Core.Enums;
 using _3K.Application.Common;
+using _3K.Core.Constants;
+using _3K.Core.Entities;
+using _3K.Core.Enums;
+using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.SandikIslemleri.Commands
 {
@@ -11,12 +12,18 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHareketService _hareketService;
         private readonly ICurrentUserService _currentUserService;
+        private readonly ISahaAktarimSilmeKorumaService _sahaAktarimSilmeKorumaService;
 
-        public SandikSilCommandHandler(IUnitOfWork unitOfWork, IHareketService hareketService, ICurrentUserService currentUserService)
+        public SandikSilCommandHandler(
+            IUnitOfWork unitOfWork,
+            IHareketService hareketService,
+            ICurrentUserService currentUserService,
+            ISahaAktarimSilmeKorumaService sahaAktarimSilmeKorumaService)
         {
             _unitOfWork = unitOfWork;
             _hareketService = hareketService;
             _currentUserService = currentUserService;
+            _sahaAktarimSilmeKorumaService = sahaAktarimSilmeKorumaService;
         }
 
         public async Task<Result> Handle(SandikSilCommand request, CancellationToken cancellationToken)
@@ -33,7 +40,12 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (sandik.DurumId == (int)SandikDurum.Sevkedildi)
                 return Result.Failure(SandikSevkKilidiHelper.SandikKilitliMesaji);
 
-            // İçinde ürün var mı kontrol et
+            var aktarimBagliSandikIds = await _sahaAktarimSilmeKorumaService
+                .GetAktifAktarimBagliSandikIdsAsync(new[] { sandik.Id }, cancellationToken);
+
+            if (aktarimBagliSandikIds.Contains(sandik.Id))
+                return Result.Failure(SahaAktarimSilmeKorumaMesajlari.Sandik, 409);
+
             var sandikIcerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
             var icerikler = (await sandikIcerikRepo.FindAsync(x => x.SandikId == sandik.Id)).ToList();
             var manuelSatirlar = new List<CekiSatiri>();
@@ -76,21 +88,16 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (icerikler.Any())
             {
                 foreach (var icerik in icerikler)
-                {
                     sandikIcerikRepo.Remove(icerik);
-                }
 
                 var cekiSatiriRepo = _unitOfWork.GetRepository<CekiSatiri>();
                 foreach (var satir in manuelSatirlar.GroupBy(x => x.Id).Select(x => x.First()))
-                {
                     cekiSatiriRepo.Remove(satir);
-                }
             }
 
             sandikRepo.Remove(sandik);
-            await _unitOfWork.SaveChangesAsync();
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            // Hareket kaydı
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {
                 ProjeId = request.ProjeId,

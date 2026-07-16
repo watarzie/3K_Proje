@@ -38,6 +38,15 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             if (request.SahaCekiSatiriId <= 0)
                 return Result.Failure("Geri alınacak saha aktarım satırı seçilmelidir.", 400);
 
+            return await _unitOfWork.ExecuteInTransactionAsync(
+                transactionCancellationToken => GeriAlAsync(request, transactionCancellationToken),
+                cancellationToken);
+        }
+
+        private async Task<Result> GeriAlAsync(
+            SahaAktarimGeriAlCommand request,
+            CancellationToken cancellationToken)
+        {
             var cekiSatiriRepo = _unitOfWork.GetRepository<CekiSatiri>();
             var cekiRepo = _unitOfWork.GetRepository<Ceki>();
             var projeRepo = _unitOfWork.GetRepository<Proje>();
@@ -82,7 +91,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             if (sandiklar.Any(s => s.DurumId == (int)SandikDurum.Sevkedildi))
                 return Result.Failure("Bu aktarım sevk edilmiş bir saha sandığında olduğu için geri alınamaz.", 400);
 
-            if (SahaSatiriIslemGormusMu(sahaSatir, sahaIcerikleri))
+            if (SahaAktarimGeriAlmaPolicy.IslemGormusMu(sahaSatir, sahaIcerikleri))
             {
                 return Result.Failure(
                     "Bu saha aktarımında işlem başladığı için geri alınamaz. Önce saha projesindeki Grid/3K işlemlerini geri alın.",
@@ -99,20 +108,28 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 ? "Kullanıcı tarafından saha aktarımı geri alındı."
                 : request.Aciklama.Trim();
 
-            var aktifAktarimKalemleri = (await sahaAktarimKalemiRepo.FindAsync(k =>
-                    k.SahaCekiSatiriId == sahaSatir.Id &&
-                    k.DurumId != (int)SahaAktarimDurum.GeriAlindi &&
-                    k.DurumId != (int)SahaAktarimDurum.Iptal))
+            var aktarimKalemleri = (await sahaAktarimKalemiRepo.FindAsync(k =>
+                    k.SahaCekiSatiriId == sahaSatir.Id))
                 .ToList();
 
-            foreach (var kalem in aktifAktarimKalemleri)
+            foreach (var kalem in aktarimKalemleri)
             {
-                kalem.DurumId = (int)SahaAktarimDurum.GeriAlindi;
-                kalem.SevkiyatKapsamindaMi = false;
-                kalem.DuzeltmeyeAcikMi = false;
+                var aktifMi = kalem.DurumId != (int)SahaAktarimDurum.GeriAlindi &&
+                    kalem.DurumId != (int)SahaAktarimDurum.Iptal;
+
+                if (aktifMi)
+                {
+                    kalem.DurumId = (int)SahaAktarimDurum.GeriAlindi;
+                    kalem.SevkiyatKapsamindaMi = false;
+                    kalem.DuzeltmeyeAcikMi = false;
+                    kalem.GeriAlmaTarihi = TurkeyTime.Now;
+                    kalem.GeriAlmaAciklama = aciklama;
+                }
+
+                // Hedef satır aynı SaveChanges içinde silineceği için tüm tarihsel
+                // defter bağları önce açıkça koparılır. DB'deki RESTRICT invariantı
+                // generic silmeyi engellerken yetkili geri alma akışına izin verir.
                 kalem.SahaCekiSatiriId = null;
-                kalem.GeriAlmaTarihi = TurkeyTime.Now;
-                kalem.GeriAlmaAciklama = aciklama;
                 sahaAktarimKalemiRepo.Update(kalem);
             }
 
@@ -134,7 +151,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 }
             }
 
-            await _unitOfWork.SaveChangesAsync();
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
             await _sahaTamamlamaService.SenkronizeKaynakProjelerAsync(new[] { kaynakSatirId }, cancellationToken);
 
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
@@ -164,32 +181,6 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             });
 
             return Result.Success();
-        }
-
-        private static bool SahaSatiriIslemGormusMu(CekiSatiri satir, IEnumerable<SandikIcerik> sahaIcerikleri)
-        {
-            return satir.GridDurumuId != (int)GridDurum.Gelmedi ||
-                satir.GridGelenAdet > 0 ||
-                satir.TrafoSevkAdet > 0 ||
-                satir.GridSevkDurumuId != (int)GridSevkDurum.SevkEdilmedi ||
-                (satir.GridSevkMiktari ?? 0) > 0 ||
-                satir.YenidenSevkGerekliAdet > 0 ||
-                satir.GelenMiktar > 0 ||
-                satir.KarsilananMiktar > 0 ||
-                satir.StokKarsilanan > 0 ||
-                satir.ProjeKarsilanan > 0 ||
-                satir.ProjeGonderilen > 0 ||
-                satir.TedarikciKarsilanan > 0 ||
-                satir.HataliMiktar > 0 ||
-                satir.GeriGonderilenMiktar > 0 ||
-                satir.UcKDurumuId != (int)UcKDurum.Bekliyor ||
-                satir.UcKKarsilamaTipiId != (int)UcKDurum.Bekliyor ||
-                sahaIcerikleri.Any(si =>
-                    si.KonulanAdet > 0 ||
-                    si.EksikAdet > 0 ||
-                    si.StokKarsilanan > 0 ||
-                    si.ProjeKarsilanan > 0 ||
-                    si.TedarikciKarsilanan > 0);
         }
 
         private static string FormatAdet(decimal value)

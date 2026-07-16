@@ -122,7 +122,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                     .Select(si => si.SandikId)
                     .Distinct()
                     .Any(id => sahaSandiklar.TryGetValue(id, out var sandik) && sandik.DurumId == (int)SandikDurum.Sevkedildi);
-                var islemGormusMu = SahaSatiriIslemGormusMu(sahaSatir, satirIcerikleri);
+                var islemGormusMu = SahaAktarimGeriAlmaPolicy.IslemGormusMu(sahaSatir, satirIcerikleri);
                 var geriAlinabilirMi = !sevkEdildiMi && !islemGormusMu;
 
                 result.Add(new SahaAktarimDto
@@ -162,30 +162,5 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                     .ToList());
         }
 
-        private static bool SahaSatiriIslemGormusMu(CekiSatiri satir, IEnumerable<SandikIcerik> sahaIcerikleri)
-        {
-            return satir.GridDurumuId != (int)GridDurum.Gelmedi ||
-                satir.GridGelenAdet > 0 ||
-                satir.TrafoSevkAdet > 0 ||
-                satir.GridSevkDurumuId != (int)GridSevkDurum.SevkEdilmedi ||
-                (satir.GridSevkMiktari ?? 0) > 0 ||
-                satir.YenidenSevkGerekliAdet > 0 ||
-                satir.GelenMiktar > 0 ||
-                satir.KarsilananMiktar > 0 ||
-                satir.StokKarsilanan > 0 ||
-                satir.ProjeKarsilanan > 0 ||
-                satir.ProjeGonderilen > 0 ||
-                satir.TedarikciKarsilanan > 0 ||
-                satir.HataliMiktar > 0 ||
-                satir.GeriGonderilenMiktar > 0 ||
-                satir.UcKDurumuId != (int)UcKDurum.Bekliyor ||
-                satir.UcKKarsilamaTipiId != (int)UcKDurum.Bekliyor ||
-                sahaIcerikleri.Any(si =>
-                    si.KonulanAdet > 0 ||
-                    si.EksikAdet > 0 ||
-                    si.StokKarsilanan > 0 ||
-                    si.ProjeKarsilanan > 0 ||
-                    si.TedarikciKarsilanan > 0);
-        }
     }
 }

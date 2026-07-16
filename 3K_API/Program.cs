@@ -134,6 +134,7 @@ try
     builder.Services.AddScoped<IProjectLockService, ProjectLockService>();
     builder.Services.AddScoped<IDashboardStatsProvider, DashboardStatsProvider>();
     builder.Services.AddScoped<ISahaTamamlamaService, SahaTamamlamaService>();
+    builder.Services.AddScoped<ISahaAktarimSilmeKorumaService, SahaAktarimSilmeKorumaService>();
     builder.Services.AddScoped<IBildirimService, BildirimService>();
 
     // ======= Current User Service (Pipeline Behavior için) =======

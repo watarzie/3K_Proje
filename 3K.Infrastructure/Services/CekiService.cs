@@ -1,6 +1,8 @@
 using ClosedXML.Excel;
+using _3K.Core.Constants;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
+using _3K.Core.Exceptions;
 using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
@@ -19,17 +21,20 @@ namespace _3K.Infrastructure.Services
         private readonly AppDbContext _context;
         private readonly IHareketService _hareketService;
         private readonly IDurumHesaplaService _durumHesaplaService;
+        private readonly ISahaAktarimSilmeKorumaService _sahaAktarimSilmeKorumaService;
 
         public CekiService(
             IUnitOfWork unitOfWork,
             AppDbContext context,
             IHareketService hareketService,
-            IDurumHesaplaService durumHesaplaService)
+            IDurumHesaplaService durumHesaplaService,
+            ISahaAktarimSilmeKorumaService sahaAktarimSilmeKorumaService)
         {
             _unitOfWork = unitOfWork;
             _context = context;
             _hareketService = hareketService;
             _durumHesaplaService = durumHesaplaService;
+            _sahaAktarimSilmeKorumaService = sahaAktarimSilmeKorumaService;
         }
 
         public async Task<Ceki> CekiYukleAsync(Stream excelDosya, string dosyaAdi)
@@ -679,6 +684,8 @@ namespace _3K.Infrastructure.Services
                 sonuc.Satirlar.Add(satir);
             }
 
+            await RevizyonSahaAktarimRiskleriniEkleAsync(sonuc.Satirlar);
+
             sonuc.RiskliSatirSayisi = sonuc.Satirlar.Count(s => s.RiskSeviyesi != "Güvenli");
             sonuc.EngelliSatirSayisi = sonuc.Satirlar.Count(s => !s.UygulanabilirMi);
             sonuc.UygulanabilirMi = sonuc.EngelliSatirSayisi == 0;
@@ -690,6 +697,32 @@ namespace _3K.Infrastructure.Services
                 sonuc.Uyarilar.Add($"{sonuc.RiskliSatirSayisi} satırda uyarı/engel var. Uygulamadan önce detayları kontrol edin.");
 
             return sonuc;
+        }
+
+        private async Task RevizyonSahaAktarimRiskleriniEkleAsync(
+            IReadOnlyCollection<CekiRevizyonOnizlemeSatiri> satirlar)
+        {
+            var silinecekSatirlar = satirlar
+                .Where(s =>
+                    s.CheckKodu == "D" &&
+                    s.MevcutCekiSatiriId.HasValue)
+                .ToList();
+
+            if (silinecekSatirlar.Count == 0)
+                return;
+
+            var aktifAktarimBagliSatirIds = await _sahaAktarimSilmeKorumaService
+                .GetAktifAktarimBagliCekiSatiriIdsAsync(
+                    silinecekSatirlar.Select(s => s.MevcutCekiSatiriId!.Value));
+
+            foreach (var satir in silinecekSatirlar.Where(s =>
+                         aktifAktarimBagliSatirIds.Contains(s.MevcutCekiSatiriId!.Value)))
+            {
+                RevizyonSatirRiskEkle(
+                    satir,
+                    "Engel",
+                    SahaAktarimSilmeKorumaMesajlari.RevizyonCekiSatiriDetay);
+            }
         }
 
         private static void RevizyonEskiSatirBilgileriniDoldur(CekiRevizyonOnizlemeSatiri onizlemeSatiri, CekiSatiri mevcutSatir)
@@ -1077,6 +1110,15 @@ namespace _3K.Infrastructure.Services
             if (idler.Count == 0)
                 return 0;
 
+            var aktifAktarimBagliSatirIds = await _sahaAktarimSilmeKorumaService
+                .GetAktifAktarimBagliCekiSatiriIdsAsync(idler);
+
+            if (aktifAktarimBagliSatirIds.Count > 0)
+            {
+                throw new ReferentialIntegrityConflictException(
+                    SahaAktarimSilmeKorumaMesajlari.RevizyonCekiSatiri);
+            }
+
             var kilitliIcerikler = await _context.SandikIcerikleri
                 .Include(i => i.Sandik)
                 .Where(i => i.CekiSatiriId.HasValue &&
@@ -1231,6 +1273,22 @@ namespace _3K.Infrastructure.Services
                 .ThenInclude(i => i.CekiSatiri)
                 .Where(s => s.ProjeId == projeId)
                 .ToListAsync();
+
+            var bosSandikIds = sandiklar
+                .Where(s =>
+                    s.DurumId != (int)SandikDurum.Sevkedildi &&
+                    s.SandikIcerikleri.Count == 0)
+                .Select(s => s.Id)
+                .ToList();
+
+            var aktifAktarimBagliBosSandikIds = await _sahaAktarimSilmeKorumaService
+                .GetAktifAktarimBagliSandikIdsAsync(bosSandikIds);
+
+            if (aktifAktarimBagliBosSandikIds.Count > 0)
+            {
+                throw new ReferentialIntegrityConflictException(
+                    SahaAktarimSilmeKorumaMesajlari.RevizyonBosSandik);
+            }
 
             foreach (var sandik in sandiklar)
             {

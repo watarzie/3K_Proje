@@ -86,6 +86,14 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
 
+        [HttpPost("saha-sandik-aktarimlari-geri-al")]
+        public async Task<ActionResult> SahaSandikAktarimlariGeriAl(
+            [FromBody] SahaSandikAktarimlariGeriAlCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
         [HttpGet("{id}/saha-aktarimlari")]
         public async Task<ActionResult> GetSahaAktarimlari(int id)
         {

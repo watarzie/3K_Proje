@@ -34,6 +34,10 @@ namespace _3K.Application.Behaviors
             {
                 return CreateFailureResult(ex.Message, 409);
             }
+            catch (ReferentialIntegrityConflictException ex)
+            {
+                return CreateFailureResult(ex.Message, 409);
+            }
             catch (ProjectLockedException ex)
             {
                 // İş kuralı hatası olarak yakala ve 400 ile dön
