@@ -1,6 +1,7 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Application.Features.UcKIslemleri.Commands;
+using _3K.Core.Constants;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Helpers;
@@ -27,15 +28,18 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserService _currentUserService;
         private readonly IDurumHesaplaService _durumHesaplaService;
+        private readonly ISahaAktarimSilmeKorumaService _sahaAktarimSilmeKorumaService;
 
         public CekiSatirlariSilCommandHandler(
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUserService,
-            IDurumHesaplaService durumHesaplaService)
+            IDurumHesaplaService durumHesaplaService,
+            ISahaAktarimSilmeKorumaService sahaAktarimSilmeKorumaService)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _durumHesaplaService = durumHesaplaService;
+            _sahaAktarimSilmeKorumaService = sahaAktarimSilmeKorumaService;
         }
 
         public async Task<Result<CekiSatirlariSilDto>> Handle(CekiSatirlariSilCommand request, CancellationToken cancellationToken)
@@ -53,6 +57,16 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
 
             if (satirlar.Count != idler.Count)
                 return Result<CekiSatirlariSilDto>.Failure("Çeki satırı bulunamadı.", 404);
+
+            var aktarimBagliSatirIds = await _sahaAktarimSilmeKorumaService
+                .GetAktifAktarimBagliCekiSatiriIdsAsync(idler, cancellationToken);
+
+            if (aktarimBagliSatirIds.Count > 0)
+            {
+                return Result<CekiSatirlariSilDto>.Failure(
+                    SahaAktarimSilmeKorumaMesajlari.CekiSatiri,
+                    409);
+            }
 
             var kilitliSatirIdleri = await SandikSevkKilidiHelper.GetSevkEdilmisSandikCekiSatiriIdleriAsync(_unitOfWork, idler);
             if (kilitliSatirIdleri.Any())

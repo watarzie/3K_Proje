@@ -474,7 +474,7 @@ namespace _3K.Infrastructure.Data
                 e.HasOne(p => p.SahaCekiSatiri)
                     .WithMany()
                     .HasForeignKey(p => p.SahaCekiSatiriId)
-                    .OnDelete(DeleteBehavior.SetNull);
+                    .OnDelete(DeleteBehavior.Restrict);
 
                 e.HasOne(p => p.KaynakSandik)
                     .WithMany()
