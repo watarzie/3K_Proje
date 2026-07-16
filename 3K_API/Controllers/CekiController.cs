@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using _3K.Application.Features.CekiIslemleri.Commands;
 using _3K.Application.Features.CekiIslemleri.Queries;
@@ -32,6 +33,29 @@ namespace _3K_API.Controllers
             };
 
             var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
+        /// <summary>
+        /// Yedek proje formatındaki .xlsx çekisini yükler.
+        /// Proje numarası C1 hücresinden okunur ve tüm ürünler 1 numaralı sandığa tahsis edilir.
+        /// </summary>
+        [Authorize]
+        [HttpPost("yedek-yukle")]
+        public async Task<ActionResult> YedekYukle(IFormFile dosya)
+        {
+            if (dosya == null || dosya.Length == 0)
+                return BadRequest(new { message = "Dosya seçilmedi." });
+
+            using var stream = dosya.OpenReadStream();
+            var command = new YedekCekiYukleCommand
+            {
+                ExcelDosya = stream,
+                DosyaAdi = dosya.FileName,
+                KullaniciId = GetKullaniciId()
+            };
+
+            var result = await _mediator.Send(command, HttpContext.RequestAborted);
             return result.ToActionResult();
         }
 

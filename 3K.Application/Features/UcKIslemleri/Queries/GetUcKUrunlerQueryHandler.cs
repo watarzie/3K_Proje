@@ -46,7 +46,8 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
             var sandikIcerikleri = (await _unitOfWork.GetRepository<SandikIcerik>()
                     .FindAsync(i => i.CekiSatiriId.HasValue && satirIdler.Contains(i.CekiSatiriId.Value)))
                 .ToList();
-            var manuelSahaIcerikleri = proje.ProjeTipiId == (int)ProjeTipi.Saha && sandikIdler.Any()
+            var sahaYedekProjesi = proje.ProjeTipiId is (int)ProjeTipi.Saha or (int)ProjeTipi.Yedek;
+            var manuelSahaYedekIcerikleri = sahaYedekProjesi && sandikIdler.Any()
                 ? (await _unitOfWork.GetRepository<SandikIcerik>()
                     .FindAsync(i => !i.CekiSatiriId.HasValue && sandikIdler.Contains(i.SandikId)))
                     .OrderBy(i => sandikMap.GetValueOrDefault(i.SandikId)?.SandikNo)
@@ -54,7 +55,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                     .ToList()
                 : new List<SandikIcerik>();
 
-            if (!satirlar.Any() && !manuelSahaIcerikleri.Any())
+            if (!satirlar.Any() && !manuelSahaYedekIcerikleri.Any())
                 return Result<List<UcKUrunDto>>.Failure("Bu projeye ait ürün bulunamadı.", 404);
 
             var sahaTamamlamaMap = proje.ProjeTipiId == (int)ProjeTipi.Normal
@@ -258,15 +259,15 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
             }
 
             var manuelSiraNo = satirlar.Any() ? satirlar.Max(s => s.SiraNo) : 0;
-            result.AddRange(manuelSahaIcerikleri
+            result.AddRange(manuelSahaYedekIcerikleri
                 .Where(icerik => SandikFiltresineUyar(request, sandikMap.GetValueOrDefault(icerik.SandikId)))
                 .Select((icerik, index) =>
-                MapSahaManuelIcerik(icerik, sandikMap.GetValueOrDefault(icerik.SandikId), manuelSiraNo + index + 1)));
+                MapSahaYedekManuelIcerik(icerik, sandikMap.GetValueOrDefault(icerik.SandikId), manuelSiraNo + index + 1)));
 
             return Result<List<UcKUrunDto>>.Success(result);
         }
 
-        private UcKUrunDto MapSahaManuelIcerik(SandikIcerik icerik, Sandik? sandik, int siraNo)
+        private UcKUrunDto MapSahaYedekManuelIcerik(SandikIcerik icerik, Sandik? sandik, int siraNo)
         {
             var birimId = icerik.BirimId ?? (int)Birim.Adet;
             var miktar = icerik.Miktar > 0 ? icerik.Miktar : icerik.KonulanAdet;
@@ -312,7 +313,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                 GridAciklama = null,
                 Kalan = 0,
                 ToplamKalanMiktar = 0,
-                KontrolUyari = "MANUEL SAHA ÜRÜNÜ",
+                KontrolUyari = "MANUEL SAHA/YEDEK ÜRÜNÜ",
                 GenelDurumId = (int)UrunDurum.Tamamlandi,
                 GenelDurumMetni = _lookupCache.GetDeger<LookupUrunDurum>((int)UrunDurum.Tamamlandi),
                 StokKarsilanan = 0,

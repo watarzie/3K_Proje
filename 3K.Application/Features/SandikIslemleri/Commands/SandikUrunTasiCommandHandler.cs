@@ -118,14 +118,14 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 satirIcerikleri = (await icerikRepo.FindAsync(i => i.CekiSatiriId == cekiSatiri.Id)).ToList();
             }
 
-            kaynakIcerik.TahsisMiktari = EtkinTahsisMiktariniBul(kaynakIcerik, cekiSatiri, satirIcerikleri);
-
-            if (request.TasinanAdet > kaynakIcerik.KonulanAdet)
+            if (IcerikteNegatifMiktarVar(kaynakIcerik))
             {
                 return Result.Failure(
-                    $"Taşınan miktar ({FormatAdet(request.TasinanAdet)}), fiziksel mevcut miktardan " +
-                    $"({FormatAdet(kaynakIcerik.KonulanAdet)}) büyük olamaz.");
+                    "Kaynak sandık içeriğinde negatif miktar bulundu. Veri düzeltilmeden taşıma yapılamaz.",
+                    409);
             }
+
+            kaynakIcerik.TahsisMiktari = EtkinTahsisMiktariniBul(kaynakIcerik, cekiSatiri, satirIcerikleri);
 
             if (request.TasinanAdet > kaynakIcerik.TahsisMiktari)
             {
@@ -145,30 +145,43 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 return hedefSonucu.Hata;
 
             var hedefIcerik = hedefSonucu.Icerik!;
+            if (IcerikteNegatifMiktarVar(hedefIcerik))
+            {
+                return Result.Failure(
+                    "Hedef sandık içeriğinde negatif miktar bulundu. Veri düzeltilmeden taşıma yapılamaz.",
+                    409);
+            }
+
+            var kaynakTahsisOnce = kaynakIcerik.TahsisMiktari;
             var kaynakKonulanOnce = kaynakIcerik.KonulanAdet;
-            var kaynakKirilimlari = KaynakKirilimlariniBol(kaynakIcerik, request.TasinanAdet, kaynakKonulanOnce);
+            var fizikselTasinanAdet = Math.Min(request.TasinanAdet, kaynakKonulanOnce);
+            var tasinanEksikAdet = EksikMiktariniBol(
+                kaynakIcerik.EksikAdet,
+                request.TasinanAdet,
+                kaynakTahsisOnce);
+            var kaynakKirilimlari = KaynakKirilimlariniBol(
+                kaynakIcerik,
+                fizikselTasinanAdet,
+                kaynakKonulanOnce);
 
             kaynakIcerik.TahsisMiktari -= request.TasinanAdet;
-            kaynakIcerik.KonulanAdet -= request.TasinanAdet;
+            kaynakIcerik.KonulanAdet -= fizikselTasinanAdet;
             kaynakIcerik.StokKarsilanan -= kaynakKirilimlari.Stok;
             kaynakIcerik.ProjeKarsilanan -= kaynakKirilimlari.Proje;
             kaynakIcerik.TedarikciKarsilanan -= kaynakKirilimlari.Tedarikci;
-            kaynakIcerik.EksikAdet = Math.Max(kaynakIcerik.TahsisMiktari - kaynakIcerik.KonulanAdet, 0);
+            kaynakIcerik.EksikAdet -= tasinanEksikAdet;
 
             hedefIcerik.TahsisMiktari += request.TasinanAdet;
-            hedefIcerik.KonulanAdet += request.TasinanAdet;
+            hedefIcerik.KonulanAdet += fizikselTasinanAdet;
             hedefIcerik.StokKarsilanan += kaynakKirilimlari.Stok;
             hedefIcerik.ProjeKarsilanan += kaynakKirilimlari.Proje;
             hedefIcerik.TedarikciKarsilanan += kaynakKirilimlari.Tedarikci;
-            hedefIcerik.EksikAdet = Math.Max(hedefIcerik.TahsisMiktari - hedefIcerik.KonulanAdet, 0);
+            hedefIcerik.EksikAdet += tasinanEksikAdet;
 
-            if (!kaynakIcerik.CekiSatiriId.HasValue)
-            {
-                // Manuel satırların ana CekiSatiri kaydı yoktur; Miktar toplamını da bölerek
-                // iki sandıktaki planlanan miktarların toplamını değişmez tutarız.
-                kaynakIcerik.Miktar = kaynakIcerik.TahsisMiktari;
-                hedefIcerik.Miktar = hedefIcerik.TahsisMiktari;
-            }
+            // Miktar alanı Saha/Yedek raporlarında kullanılan tahsis gölgesidir. ÇEKİ bağlantısı
+            // olsa da olmasa da parçalı taşıma sonrasında iki sandığın gerçek tahsisini izler.
+            kaynakIcerik.Miktar = kaynakIcerik.TahsisMiktari;
+            hedefIcerik.Miktar = hedefIcerik.TahsisMiktari;
 
             if (kaynakIcerik.TahsisMiktari <= 0 && kaynakIcerik.KonulanAdet <= 0)
                 icerikRepo.Remove(kaynakIcerik);
@@ -221,8 +234,12 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             var urunAdi = cekiSatiri?.Aciklama ?? kaynakIcerik.Isim ?? "malzeme";
             var barkodNo = cekiSatiri?.BarkodNo ?? kaynakIcerik.BarkodNo;
             var birimId = kaynakIcerik.BirimId ?? cekiSatiri?.BirimId;
-            var aciklama = $"{FormatAdet(request.TasinanAdet)} adet '{urunAdi}', " +
-                           $"Sandık {kaynakSandik.SandikNo}'den Sandık {hedefSandik.SandikNo}'e taşındı.";
+            var aciklama = fizikselTasinanAdet == request.TasinanAdet
+                ? $"{FormatAdet(request.TasinanAdet)} adet '{urunAdi}', " +
+                  $"Sandık {kaynakSandik.SandikNo}'den Sandık {hedefSandik.SandikNo}'e taşındı."
+                : $"'{urunAdi}' için {FormatAdet(request.TasinanAdet)} adet tahsis " +
+                  $"Sandık {kaynakSandik.SandikNo}'den Sandık {hedefSandik.SandikNo}'e aktarıldı; " +
+                  $"fiziksel taşınan miktar {FormatAdet(fizikselTasinanAdet)} adettir.";
 
             await transferRepo.AddAsync(new SandikUrunTransferi
             {
@@ -339,6 +356,33 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             return scale <= 4 && miktar <= EnYuksekTasinabilirMiktar;
         }
 
+        private static bool IcerikteNegatifMiktarVar(SandikIcerik icerik)
+        {
+            return icerik.TahsisMiktari < 0 ||
+                   icerik.KonulanAdet < 0 ||
+                   icerik.EksikAdet < 0 ||
+                   icerik.Miktar < 0 ||
+                   icerik.StokKarsilanan < 0 ||
+                   icerik.ProjeKarsilanan < 0 ||
+                   icerik.TedarikciKarsilanan < 0;
+        }
+
+        private static decimal EksikMiktariniBol(
+            decimal kaynakEksikAdet,
+            decimal tasinanTahsis,
+            decimal kaynakTahsis)
+        {
+            if (kaynakEksikAdet <= 0 || tasinanTahsis <= 0 || kaynakTahsis <= 0)
+                return 0;
+
+            // Tahsisin tamamı taşınıyorsa yuvarlama artığını kaynakta bırakmayız.
+            if (tasinanTahsis >= kaynakTahsis)
+                return kaynakEksikAdet;
+
+            var pay = DortHaneyeAsagiYuvarla(kaynakEksikAdet * tasinanTahsis / kaynakTahsis);
+            return Math.Min(pay, kaynakEksikAdet);
+        }
+
         private static bool IcerikAktifMi(SandikIcerik icerik)
         {
             return icerik.TahsisMiktari > 0 ||
@@ -420,6 +464,12 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                     var hedefIcerik = await icerikRepo.GetByIdAsync(hedefAdaylari[0].Id);
                     if (hedefIcerik == null)
                         return (null, false, Result.Failure("Hedef sandık içeriği bulunamadı.", 404));
+                    if (IcerikteNegatifMiktarVar(hedefIcerik))
+                    {
+                        return (null, false, Result.Failure(
+                            "Hedef sandık içeriğinde negatif miktar bulundu. Veri düzeltilmeden taşıma yapılamaz.",
+                            409));
+                    }
 
                     hedefIcerik.TahsisMiktari = hedefIcerik.TahsisMiktari > 0
                         ? hedefIcerik.TahsisMiktari

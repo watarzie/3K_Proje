@@ -100,4 +100,3 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
     }
 }
 
-

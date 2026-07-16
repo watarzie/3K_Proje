@@ -37,12 +37,12 @@ namespace _3K.Core.Interfaces
         Task<byte[]> EksikUrunlerRaporuPdfOlusturAsync(int projeId);
 
         /// <summary>
-        /// Sevk edilmis normal projeler icin gerceklesen ceki listesi PDF raporunu olusturur.
+        /// Projenin gerçek tipini doğrulayarak gerçekleşen çeki listesi PDF raporunu oluşturur.
         /// </summary>
         Task<byte[]> GerceklesenCekiListesiRaporuPdfOlusturAsync(int projeId);
 
         /// <summary>
-        /// Saha projeleri icin gerceklesen ceki listesi PDF raporunu olusturur.
+        /// Yalnız saha projeleri için gerçekleşen çeki listesi PDF raporunu oluşturur.
         /// </summary>
         Task<byte[]> SahaGerceklesenCekiListesiRaporuPdfOlusturAsync(int projeId);
 

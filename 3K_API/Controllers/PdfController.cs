@@ -68,10 +68,21 @@ namespace _3K_API.Controllers
             if (!result.IsSuccess)
                 return result.ToActionResult();
 
-            // Sandıktan projeNo'yu çek
-            var sandik = await _context.Sandiklar.Include(s => s.Proje).FirstOrDefaultAsync(s => s.Id == sandikId);
-            var projeNo = sandik?.Proje?.ProjeNo ?? sandikId.ToString();
-            var tipStr = sandik?.Proje?.ProjeTipiId == 3 ? "YedekRaporu" : "SahaRaporu";
+            var sandikBilgisi = await _context.Sandiklar
+                .AsNoTracking()
+                .Where(s => s.Id == sandikId)
+                .Select(s => new
+                {
+                    s.Proje.ProjeNo,
+                    s.Proje.ProjeTipiId
+                })
+                .SingleOrDefaultAsync();
+
+            if (sandikBilgisi == null)
+                return NotFound(new { message = "Sandık bulunamadı." });
+
+            var projeNo = sandikBilgisi.ProjeNo;
+            var tipStr = sandikBilgisi.ProjeTipiId == (int)ProjeTipi.Yedek ? "YedekRaporu" : "SahaRaporu";
             return File(result.Value!, "application/pdf", $"{projeNo}_{tipStr}.pdf");
         }
 
@@ -88,7 +99,7 @@ namespace _3K_API.Controllers
 
             var proje = await _context.Projeler.FindAsync(projeId);
             var projeNo = proje?.ProjeNo ?? projeId.ToString();
-            var tipStr = proje?.ProjeTipiId == 3 ? "YedekRaporu" : "SahaRaporu";
+            var tipStr = proje?.ProjeTipiId == (int)ProjeTipi.Yedek ? "YedekRaporu" : "SahaRaporu";
             return File(result.Value!, "application/pdf", $"{projeNo}_{tipStr}.pdf");
         }
 
@@ -139,8 +150,9 @@ namespace _3K_API.Controllers
             if (!result.IsSuccess)
                 return result.ToActionResult();
 
-            var projeNo = await GetProjeNo(projeId);
-            return File(result.Value!, "application/pdf", $"{projeNo}_GerceklesenCekiListesi.pdf");
+            var projeBilgisi = await GetProjeDosyaBilgisi(projeId);
+            var tipEki = projeBilgisi.ProjeTipiId == (int)ProjeTipi.Yedek ? "_Yedek" : string.Empty;
+            return File(result.Value!, "application/pdf", $"{projeBilgisi.ProjeNo}{tipEki}_GerceklesenCekiListesi.pdf");
         }
 
         [HttpGet("gerceklesen-ceki-listesi/{projeId}/excel")]
@@ -154,10 +166,11 @@ namespace _3K_API.Controllers
             if (!result.IsSuccess)
                 return result.ToActionResult();
 
-            var projeNo = await GetProjeNo(projeId);
+            var projeBilgisi = await GetProjeDosyaBilgisi(projeId);
+            var tipEki = projeBilgisi.ProjeTipiId == (int)ProjeTipi.Yedek ? "_Yedek" : string.Empty;
             return File(result.Value!,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                $"{projeNo}_GerceklesenCekiListesi.xlsx");
+                $"{projeBilgisi.ProjeNo}{tipEki}_GerceklesenCekiListesi.xlsx");
         }
 
         [HttpGet("saha-gerceklesen-ceki-listesi/{projeId}")]
@@ -267,6 +280,19 @@ namespace _3K_API.Controllers
         {
             var proje = await _context.Projeler.FindAsync(projeId);
             return proje?.ProjeNo ?? projeId.ToString();
+        }
+
+        private async Task<(string ProjeNo, int ProjeTipiId)> GetProjeDosyaBilgisi(int projeId)
+        {
+            var proje = await _context.Projeler
+                .AsNoTracking()
+                .Where(p => p.Id == projeId)
+                .Select(p => new { p.ProjeNo, p.ProjeTipiId })
+                .SingleOrDefaultAsync();
+
+            return proje == null
+                ? (projeId.ToString(), 0)
+                : (proje.ProjeNo, proje.ProjeTipiId);
         }
     }
 }
