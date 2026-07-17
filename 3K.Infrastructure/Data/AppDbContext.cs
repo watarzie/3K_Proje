@@ -100,12 +100,11 @@ namespace _3K.Infrastructure.Data
                 .Property(s => s.SevkiyatDuzeltmeAcikMi)
                 .HasDefaultValue(false);
 
-            modelBuilder.Entity<Sandik>()
-                .Property(s => s.DurumId)
-                .IsConcurrencyToken();
-
-            // Sandık durumu ile içerik taşımasının eşzamanlı değişmesini engeller.
+            // Sandık satırının tamamını tek bir iyimser eşzamanlılık belirteciyle korur.
             // Npgsql, uint + IsRowVersion eşleşmesini PostgreSQL xmin kolonuna map eder.
+            // DurumId gibi değiştirilebilir alanlar ayrıca concurrency token yapılmamalıdır;
+            // aksi halde detached entity güncellemelerinde yeni değer yanlışlıkla eski değer
+            // kabul edilerek yalancı concurrency conflict üretilebilir.
             modelBuilder.Entity<Sandik>()
                 .Property(s => s.Version)
                 .IsRowVersion();
