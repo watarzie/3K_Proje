@@ -15,6 +15,8 @@ namespace _3K.Infrastructure.Repositories
         private readonly AppDbContext _context;
         private readonly ILogger<UnitOfWork> _logger;
         private Hashtable? _repositories;
+        private readonly List<Func<CancellationToken, Task>> _afterCommitCallbacks = new();
+        private readonly List<Func<CancellationToken, Task>> _afterRollbackCallbacks = new();
 
         public UnitOfWork(
             AppDbContext context,
@@ -23,6 +25,8 @@ namespace _3K.Infrastructure.Repositories
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
+
+        public bool HasActiveTransaction => _context.Database.CurrentTransaction != null;
 
         public IGenericRepository<T> GetRepository<T>() where T : BaseEntity
         {
@@ -91,29 +95,121 @@ namespace _3K.Infrastructure.Repositories
             var executionStrategy = _context.Database.CreateExecutionStrategy();
             return await executionStrategy.ExecuteAsync(async () =>
             {
-                await using var transaction = await _context.Database.BeginTransactionAsync(
-                    IsolationLevel.Serializable,
-                    cancellationToken);
+                var committed = false;
+                TResult result = default!;
 
                 try
                 {
-                    var result = await operation(cancellationToken);
-                    await transaction.CommitAsync(cancellationToken);
+                    await using (var transaction = await _context.Database.BeginTransactionAsync(
+                                     IsolationLevel.Serializable,
+                                     cancellationToken))
+                    {
+                        try
+                        {
+                            result = await operation(cancellationToken);
+                            await transaction.CommitAsync(cancellationToken);
+                            committed = true;
+                        }
+                        catch
+                        {
+                            try
+                            {
+                                await transaction.RollbackAsync(CancellationToken.None);
+                            }
+                            catch (Exception rollbackException)
+                            {
+                                _logger.LogError(
+                                    rollbackException,
+                                    "Transaction geri alınırken ek bir hata oluştu.");
+                            }
+
+                            throw;
+                        }
+                    }
+
+                    // Transaction nesnesi dispose edildikten sonra çalıştırılır;
+                    // callback'ler yeni sorgu/SaveChanges işlemi yapabilir.
+                    await CompleteTransactionCallbacksAsync(committed: true);
+                    return result;
+                }
+                catch (Exception exception) when (committed)
+                {
+                    // Commit sunucu tarafından başarıyla onaylandıktan sonra
+                    // transaction dispose işlemi hata verse bile veri kalıcıdır.
+                    // Rollback telafisini çalıştırmak veya operasyonu retry etmek
+                    // bu noktada veri/dosya tutarsızlığı oluşturur.
+                    _logger.LogError(
+                        exception,
+                        "Commit edilen transaction kapatılırken hata oluştu; işlem yeniden çalıştırılmayacak.");
+                    await CompleteTransactionCallbacksAsync(committed: true);
                     return result;
                 }
                 catch (Exception ex) when (IsTransactionConcurrencyConflict(ex))
                 {
-                    await transaction.RollbackAsync(CancellationToken.None);
+                    await CompleteTransactionCallbacksAsync(committed: false);
                     throw new ConcurrencyConflictException(
                         "Kayıtlar eşzamanlı başka bir işlem tarafından değiştirildi. Lütfen ekranı yenileyip tekrar deneyin.",
                         ex);
                 }
                 catch
                 {
-                    await transaction.RollbackAsync(CancellationToken.None);
+                    await CompleteTransactionCallbacksAsync(committed: false);
                     throw;
                 }
             });
+        }
+
+        public void RegisterAfterCommit(Func<CancellationToken, Task> callback)
+        {
+            RegisterTransactionCallback(callback, _afterCommitCallbacks);
+        }
+
+        public void RegisterAfterRollback(Func<CancellationToken, Task> callback)
+        {
+            RegisterTransactionCallback(callback, _afterRollbackCallbacks);
+        }
+
+        private void RegisterTransactionCallback(
+            Func<CancellationToken, Task> callback,
+            ICollection<Func<CancellationToken, Task>> callbacks)
+        {
+            ArgumentNullException.ThrowIfNull(callback);
+
+            if (_context.Database.CurrentTransaction == null)
+            {
+                throw new InvalidOperationException(
+                    "Transaction callback'i yalnızca aktif transaction içinde kaydedilebilir.");
+            }
+
+            callbacks.Add(callback);
+        }
+
+        private async Task CompleteTransactionCallbacksAsync(bool committed)
+        {
+            var callbacks = (committed ? _afterCommitCallbacks : _afterRollbackCallbacks)
+                .ToArray();
+
+            // Callback içinden yeni bir transaction açılabilmesi ve eski
+            // callback'lerin sonraki işlemlere taşınmaması için önce temizle.
+            _afterCommitCallbacks.Clear();
+            _afterRollbackCallbacks.Clear();
+
+            foreach (var callback in callbacks)
+            {
+                try
+                {
+                    await callback(CancellationToken.None);
+                }
+                catch (Exception exception)
+                {
+                    // Commit/rollback tamamlandıktan sonraki ikincil bir yan etki,
+                    // ana işlemin sonucunu tersine çeviremez.
+                    _logger.LogError(
+                        exception,
+                        "Transaction {TransactionState} callback'i çalıştırılamadı.",
+                        committed ? "commit" : "rollback");
+                }
+            }
         }
 
         private static bool IsTransactionConcurrencyConflict(Exception exception)

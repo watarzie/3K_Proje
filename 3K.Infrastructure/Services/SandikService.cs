@@ -21,13 +21,20 @@ namespace _3K.Infrastructure.Services
         {
             var sandiklar = await _context.Sandiklar
                 .AsNoTracking()
-                .Include(s => s.SandikIcerikleri)
-                    .ThenInclude(si => si.CekiSatiri)
                 .Where(s => s.ProjeId == projeId)
                 .OrderBy(s => s.SandikNo)
                 .ToListAsync();
 
-            await CekiSatirlariniSandikIcerigineYansitAsync(projeId, sandiklar);
+            var etkinIcerikler = await GetEtkinSandikIcerikleriAsync(
+                sandiklar,
+                personelDetaylariniYukle: false,
+                projeSandiklari: sandiklar);
+
+            foreach (var sandik in sandiklar)
+            {
+                sandik.SandikIcerikleri = etkinIcerikler
+                    .GetValueOrDefault(sandik.Id, new List<SandikIcerik>());
+            }
 
             return sandiklar;
         }
@@ -111,77 +118,135 @@ namespace _3K.Infrastructure.Services
             if (sandik == null)
                 return Enumerable.Empty<SandikIcerik>();
 
-            var icerikler = await _context.SandikIcerikleri
-                .AsNoTracking()
-                .Include(si => si.CekiSatiri)
-                    .ThenInclude(cs => cs.Paketleyen)
-                .Include(si => si.CekiSatiri)
-                    .ThenInclude(cs => cs.KontrolEden)
-                .Where(si => si.SandikId == sandikId)
-                .ToListAsync();
+            var etkinIcerikler = await GetEtkinSandikIcerikleriAsync(
+                new[] { sandik },
+                personelDetaylariniYukle: true);
 
-            var projeIcerikliCekiSatiriIds = await _context.SandikIcerikleri
-                .AsNoTracking()
-                .Where(i => i.CekiSatiriId.HasValue && i.Sandik.ProjeId == sandik.ProjeId)
-                .Select(i => i.CekiSatiriId!.Value)
-                .Distinct()
-                .ToListAsync();
-
-            var sandikNo = NormalizeSandikNo(sandik.SandikNo);
-            if (string.IsNullOrWhiteSpace(sandikNo))
-                return icerikler;
-
-            var baglantisizSatirlar = await _context.CekiSatirlari
-                .AsNoTracking()
-                .Include(cs => cs.Paketleyen)
-                .Include(cs => cs.KontrolEden)
-                .Where(cs => cs.Ceki.ProjeId == sandik.ProjeId)
-                .Where(cs => !projeIcerikliCekiSatiriIds.Contains(cs.Id))
-                .ToListAsync();
-
-            icerikler.AddRange(baglantisizSatirlar
-                .Where(cs => string.Equals(GetCekiSatiriSandikNo(cs), sandikNo, StringComparison.OrdinalIgnoreCase))
-                .Select(cs => CekiSatirindanOkumaIcerigiOlustur(sandik.Id, cs)));
-
-            return icerikler
+            return etkinIcerikler.GetValueOrDefault(sandik.Id, new List<SandikIcerik>())
                 .OrderBy(i => i.CekiSatiri?.SiraNo ?? int.MaxValue)
                 .ThenBy(i => i.Id)
                 .ToList();
         }
 
-        private async Task CekiSatirlariniSandikIcerigineYansitAsync(int projeId, List<Sandik> sandiklar)
+        public async Task<IReadOnlyDictionary<int, IReadOnlyCollection<SandikIcerik>>> GetEtkinSandikIcerikleriAsync(
+            IEnumerable<int> sandikIds,
+            CancellationToken cancellationToken = default)
         {
-            if (sandiklar.Count == 0)
-                return;
+            var tekilSandikIds = sandikIds.Distinct().ToList();
+            if (tekilSandikIds.Count == 0)
+                return new Dictionary<int, IReadOnlyCollection<SandikIcerik>>();
 
-            var sandikMap = sandiklar
-                .Where(s => !string.IsNullOrWhiteSpace(s.SandikNo))
-                .GroupBy(s => NormalizeSandikNo(s.SandikNo), StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
-
-            if (sandikMap.Count == 0)
-                return;
-
-            var mevcutCekiSatiriIds = sandiklar
-                .SelectMany(s => s.SandikIcerikleri)
-                .Where(i => i.CekiSatiriId.HasValue)
-                .Select(i => i.CekiSatiriId!.Value)
-                .ToHashSet();
-
-            var baglantisizSatirlar = await _context.CekiSatirlari
+            var sandiklar = await _context.Sandiklar
                 .AsNoTracking()
-                .Where(cs => cs.Ceki.ProjeId == projeId)
-                .Where(cs => !mevcutCekiSatiriIds.Contains(cs.Id))
-                .ToListAsync();
+                .Where(s => tekilSandikIds.Contains(s.Id))
+                .ToListAsync(cancellationToken);
+
+            var etkinIcerikler = await GetEtkinSandikIcerikleriAsync(
+                sandiklar,
+                personelDetaylariniYukle: false,
+                cancellationToken: cancellationToken);
+
+            return etkinIcerikler.ToDictionary(
+                pair => pair.Key,
+                pair => (IReadOnlyCollection<SandikIcerik>)pair.Value);
+        }
+
+        /// <summary>
+        /// Yeni kayıtlardaki fiziksel SandikIcerik tahsislerini korur. Eski kayıtlarda tahsis
+        /// hiç oluşmamışsa, benzersiz proje + sandık numarası eşleşmesini yalnız okuma amacıyla
+        /// sentetik içerik olarak ekler; veritabanında örtük bir tahsis oluşturmaz.
+        /// </summary>
+        private async Task<Dictionary<int, List<SandikIcerik>>> GetEtkinSandikIcerikleriAsync(
+            IReadOnlyCollection<Sandik> sandiklar,
+            bool personelDetaylariniYukle,
+            IReadOnlyCollection<Sandik>? projeSandiklari = null,
+            CancellationToken cancellationToken = default)
+        {
+            var sonuc = sandiklar.ToDictionary(s => s.Id, _ => new List<SandikIcerik>());
+            if (sandiklar.Count == 0)
+                return sonuc;
+
+            var sandikIds = sandiklar.Select(s => s.Id).ToList();
+            IQueryable<SandikIcerik> icerikQuery = _context.SandikIcerikleri
+                .AsNoTracking()
+                .Where(i => sandikIds.Contains(i.SandikId));
+
+            icerikQuery = personelDetaylariniYukle
+                ? icerikQuery
+                    .Include(i => i.CekiSatiri)
+                        .ThenInclude(cs => cs!.Paketleyen)
+                    .Include(i => i.CekiSatiri)
+                        .ThenInclude(cs => cs!.KontrolEden)
+                : icerikQuery.Include(i => i.CekiSatiri);
+
+            var fizikselIcerikler = await icerikQuery.ToListAsync(cancellationToken);
+            foreach (var icerik in fizikselIcerikler)
+                sonuc[icerik.SandikId].Add(icerik);
+
+            var projeIds = sandiklar.Select(s => s.ProjeId).Distinct().ToList();
+            var seciliSandikNolari = sandiklar
+                .Select(s => NormalizeSandikNo(s.SandikNo).ToUpperInvariant())
+                .Where(sandikNo => !string.IsNullOrWhiteSpace(sandikNo))
+                .Distinct()
+                .ToList();
+
+            if (seciliSandikNolari.Count == 0)
+                return sonuc;
+
+            IQueryable<CekiSatiri> baglantisizSatirQuery = _context.CekiSatirlari
+                .AsNoTracking()
+                .Include(cs => cs.Ceki)
+                .Where(cs => projeIds.Contains(cs.Ceki.ProjeId))
+                .Where(cs => !_context.SandikIcerikleri.Any(i => i.CekiSatiriId == cs.Id))
+                .Where(cs => seciliSandikNolari.Contains(
+                    (cs.FiiliSandikNo != null && cs.FiiliSandikNo.Trim() != string.Empty
+                        ? cs.FiiliSandikNo
+                        : cs.CekideGecenSandikNo ?? string.Empty)
+                    .Trim()
+                    .ToUpper()));
+
+            if (personelDetaylariniYukle)
+            {
+                baglantisizSatirQuery = baglantisizSatirQuery
+                    .Include(cs => cs.Paketleyen)
+                    .Include(cs => cs.KontrolEden);
+            }
+
+            var baglantisizSatirlar = await baglantisizSatirQuery.ToListAsync(cancellationToken);
+            var benzersizlikAdaylari = projeSandiklari?.Select(s => new SandikKimligi(s.Id, s.ProjeId, s.SandikNo)).ToList();
+            if (benzersizlikAdaylari == null)
+            {
+                var projeSandikKayitlari = await _context.Sandiklar
+                    .AsNoTracking()
+                    .Where(s => projeIds.Contains(s.ProjeId))
+                    .Select(s => new { s.Id, s.ProjeId, s.SandikNo })
+                    .ToListAsync(cancellationToken);
+                benzersizlikAdaylari = projeSandikKayitlari
+                    .Select(s => new SandikKimligi(s.Id, s.ProjeId, s.SandikNo))
+                    .ToList();
+            }
+
+            var seciliSandikIds = sandikIds.ToHashSet();
+            var benzersizSandikIdsByKey = benzersizlikAdaylari
+                .Where(s => !string.IsNullOrWhiteSpace(s.SandikNo))
+                .GroupBy(s => GetSandikAnahtari(s.ProjeId, s.SandikNo))
+                .Where(group => group.Count() == 1)
+                .Select(group => new { group.Key, SandikId = group.Single().Id })
+                .Where(item => seciliSandikIds.Contains(item.SandikId))
+                .ToDictionary(item => item.Key, item => item.SandikId);
 
             foreach (var satir in baglantisizSatirlar)
             {
                 var sandikNo = GetCekiSatiriSandikNo(satir);
-                if (string.IsNullOrWhiteSpace(sandikNo) || !sandikMap.TryGetValue(sandikNo, out var sandik))
+                var sandikAnahtari = GetSandikAnahtari(satir.Ceki.ProjeId, sandikNo);
+                if (string.IsNullOrWhiteSpace(sandikNo) ||
+                    !benzersizSandikIdsByKey.TryGetValue(sandikAnahtari, out var sandikId))
                     continue;
 
-                sandik.SandikIcerikleri.Add(CekiSatirindanOkumaIcerigiOlustur(sandik.Id, satir));
+                sonuc[sandikId].Add(CekiSatirindanOkumaIcerigiOlustur(sandikId, satir));
             }
+
+            return sonuc;
         }
 
         private static SandikIcerik CekiSatirindanOkumaIcerigiOlustur(int sandikId, CekiSatiri satir)
@@ -217,5 +282,12 @@ namespace _3K.Infrastructure.Services
         {
             return string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
         }
+
+        private static string GetSandikAnahtari(int projeId, string? sandikNo)
+        {
+            return $"{projeId}:{NormalizeSandikNo(sandikNo).ToUpperInvariant()}";
+        }
+
+        private sealed record SandikKimligi(int Id, int ProjeId, string SandikNo);
     }
 }

@@ -43,6 +43,15 @@ namespace _3K.Application.Features.OnayIslemleri.Queries
                     g => g.Key,
                     g => g.Select(y => y.RolId).Distinct().OrderBy(id => id).ToList());
 
+            var operasyonKuralRepo = _unitOfWork.GetRepository<OnayOperasyonKurali>();
+            var operasyonKurallari = await operasyonKuralRepo.GetAllAsync();
+            var operasyonKuralMap = operasyonKurallari
+                .GroupBy(kural => kural.IslemKodu)
+                .ToDictionary(
+                    grup => grup.Key,
+                    grup => grup.First().OnayGerektirirMi,
+                    StringComparer.Ordinal);
+
             var list = rules
                 .Select(r =>
                 {
@@ -73,6 +82,27 @@ namespace _3K.Application.Features.OnayIslemleri.Queries
                     YetkiliRolIdleri = rolMap.TryGetValue(sabitIslem.IslemKodu, out var rolIdleri)
                         ? rolIdleri
                         : new List<int>()
+                });
+            }
+
+            foreach (var ayarlanabilirIslem in OnayIslemKodlari.AyarlanabilirOnayIslemleri)
+            {
+                list.Add(new OnayKuraliDto
+                {
+                    LookupUcKDurumId = null,
+                    IslemKodu = ayarlanabilirIslem.IslemKodu,
+                    IslemAdi = ayarlanabilirIslem.IslemAdi,
+                    OnayGerektirirMi = operasyonKuralMap.TryGetValue(
+                        ayarlanabilirIslem.IslemKodu,
+                        out var onayGerektirirMi)
+                            ? onayGerektirirMi
+                            : true,
+                    OnayGerektirirMiDegistirilebilir = true,
+                    YetkiliRolIdleri = rolMap.TryGetValue(
+                        ayarlanabilirIslem.IslemKodu,
+                        out var rolIdleri)
+                            ? rolIdleri
+                            : new List<int>()
                 });
             }
 

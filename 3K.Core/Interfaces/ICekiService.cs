@@ -10,7 +10,15 @@ namespace _3K.Core.Interfaces
     {
         Task<Ceki> CekiYukleAsync(Stream excelDosya, string dosyaAdi);
         Task<CekiRevizyonOnizlemeSonuc> CekiRevizyonOnizleAsync(Stream excelDosya, string dosyaAdi);
-        Task<CekiRevizyonSonuc> CekiRevizyonYukleAsync(Stream excelDosya, string dosyaAdi, int kullaniciId);
+        Task<CekiRevizyonOnayTalebiSonuc> CekiRevizyonOnayaSunAsync(
+            Stream excelDosya,
+            string dosyaAdi,
+            int kullaniciId,
+            CancellationToken cancellationToken = default);
+        Task<CekiRevizyonSonuc> OnayliCekiRevizyonunuUygulaAsync(
+            int talepId,
+            int uygulayanKullaniciId,
+            CancellationToken cancellationToken = default);
         Task<IEnumerable<CekiSatiri>> GetCekiSatirlariAsync(int cekiId);
         Task<Ceki?> GetCekiByIdAsync(int cekiId);
         Task<IEnumerable<Ceki>> GetProjeCekileriAsync(int projeId);

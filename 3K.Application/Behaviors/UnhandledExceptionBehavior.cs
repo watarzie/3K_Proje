@@ -6,9 +6,9 @@ using _3K.Core.Exceptions;
 namespace _3K.Application.Behaviors
 {
     /// <summary>
-    /// MediatR Pipeline Behavior: Beklenmedik hataları merkezi olarak yakalar.
-    /// İş kuralları zaten Result dönecek; bu behavior sadece sistem seviyesi Exception'ları yakalar,
-    /// loglar ve kullanıcıya detay sızdırmadan güvenli bir Result.Failure döner.
+    /// MediatR Pipeline Behavior: Merkezi exception → Result dönüşümünü sağlar.
+    /// Bilinen iş kuralı hatalarını uygun HTTP kodu ve yapılandırılmış detaylarla döndürür;
+    /// beklenmeyen hataları loglayıp kullanıcıya teknik ayrıntı sızdırmaz.
     /// </summary>
     public class UnhandledExceptionBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
         where TRequest : notnull
@@ -25,6 +25,14 @@ namespace _3K.Application.Behaviors
             try
             {
                 return await next();
+            }
+            catch (CekiRevizyonValidationException ex)
+            {
+                return CreateFailureResult(ex.Message, 400, ex.Sorunlar);
+            }
+            catch (CekiRevizyonConflictException ex)
+            {
+                return CreateFailureResult(ex.Message, 409, ex.Sorunlar);
             }
             catch (ConcurrencyConflictException ex)
             {
@@ -59,23 +67,38 @@ namespace _3K.Application.Behaviors
         /// <summary>
         /// TResponse tipinden uygun Failure Result'ı üretir.
         /// </summary>
-        private static TResponse CreateFailureResult(string message, int code)
+        private static TResponse CreateFailureResult(string message, int code, object? issues = null)
         {
             var responseType = typeof(TResponse);
 
             // TResponse doğrudan Result ise
             if (responseType == typeof(Result))
             {
-                return (TResponse)(object)Result.Failure(message, code);
+                return (TResponse)(object)(issues == null
+                    ? Result.Failure(message, code)
+                    : Result.Failure(message, code, issues));
             }
 
             // TResponse generic Result<T> ise
             if (responseType.IsGenericType && responseType.GetGenericTypeDefinition() == typeof(Result<>))
             {
-                var failureMethod = responseType.GetMethod("Failure", new[] { typeof(string), typeof(int) });
+                var parameterTypes = issues == null
+                    ? new[] { typeof(string), typeof(int) }
+                    : new[] { typeof(string), typeof(int), typeof(object) };
+                var failureMethod = responseType.GetMethod(
+                    "Failure",
+                    System.Reflection.BindingFlags.Public |
+                    System.Reflection.BindingFlags.Static |
+                    System.Reflection.BindingFlags.DeclaredOnly,
+                    binder: null,
+                    types: parameterTypes,
+                    modifiers: null);
                 if (failureMethod != null)
                 {
-                    return (TResponse)failureMethod.Invoke(null, new object[] { message, code })!;
+                    var arguments = issues == null
+                        ? new object[] { message, code }
+                        : new[] { (object)message, code, issues };
+                    return (TResponse)failureMethod.Invoke(null, arguments)!;
                 }
             }
 

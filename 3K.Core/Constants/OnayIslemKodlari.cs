@@ -12,6 +12,7 @@ namespace _3K.Core.Constants
         public const string UcKTedarikcidenGeldi = "UCK_TEDARIKCIDEN_GELDI";
         public const string SandikKilidiAc = "SANDIK_KILIDI_AC";
         public const string ProjeKilidiAc = "PROJE_KILIDI_AC";
+        public const string CekiRevizyonuUygula = "CEKI_REVIZYONU_UYGULA";
 
         public static string FromUcKDurumId(int lookupUcKDurumId)
         {
@@ -31,6 +32,20 @@ namespace _3K.Core.Constants
             new(ProjeKilidiAc, "Proje Kilidi Açma")
         ];
 
+        /// <summary>
+        /// Onay zorunluluğu yönetim ekranından açılıp kapatılabilen operasyonlar.
+        /// Yeni bir ayarlanabilir operasyon eklendiğinde güvenli varsayılan true'dur.
+        /// </summary>
+        public static IReadOnlyList<OnayIslemTanim> AyarlanabilirOnayIslemleri { get; } =
+        [
+            new(CekiRevizyonuUygula, "Çeki Revizyonu Uygulama")
+        ];
+
+        public static bool AyarlanabilirMi(string? islemKodu) =>
+            !string.IsNullOrWhiteSpace(islemKodu) &&
+            AyarlanabilirOnayIslemleri.Any(tanim =>
+                string.Equals(tanim.IslemKodu, islemKodu.Trim(), StringComparison.Ordinal));
+
         public static string DisplayName(string? islemKodu)
         {
             return islemKodu switch
@@ -40,6 +55,7 @@ namespace _3K.Core.Constants
                 UcKTedarikcidenGeldi => "Tedarikçiden Geldi",
                 SandikKilidiAc => "Sandık Kilidi Açma",
                 ProjeKilidiAc => "Proje Kilidi Açma",
+                CekiRevizyonuUygula => "Çeki Revizyonu Uygulama",
                 Genel => "Genel İşlem",
                 _ when !string.IsNullOrWhiteSpace(islemKodu) => islemKodu,
                 _ => "Genel İşlem"
@@ -52,5 +68,6 @@ namespace _3K.Core.Constants
         public const string CekiSatiri = "CekiSatiri";
         public const string Proje = "Proje";
         public const string Sandik = "Sandik";
+        public const string CekiRevizyonTalebi = "CekiRevizyonTalebi";
     }
 }

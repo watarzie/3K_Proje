@@ -52,6 +52,42 @@ namespace _3K.Application.Behaviors
                     ResolveApprovalOperationCode(request));
             }
 
+            if (request is IConfigurableApproval configurableApprovalReq)
+            {
+                // Daha önce kuyruğa alınmış ve yetkili tarafından onaylanmış bir
+                // komut, kural sonradan değişse bile tam olarak bir kez çalışmalıdır.
+                if (_approvalExecutionContext.IsExecutingApprovedCommand)
+                    return await next();
+
+                var islemKodu = ResolveApprovalOperationCode(request);
+                if (string.IsNullOrWhiteSpace(islemKodu) ||
+                    string.Equals(islemKodu, OnayIslemKodlari.Genel, StringComparison.Ordinal))
+                {
+                    throw new InvalidOperationException(
+                        "Ayarlanabilir onay komutu geçerli bir operasyon kodu sağlamalıdır.");
+                }
+
+                var operasyonKuralRepo = _unitOfWork.GetRepository<OnayOperasyonKurali>();
+                var operasyonKurallari = await operasyonKuralRepo.FindAsync(kural =>
+                    kural.IslemKodu == islemKodu);
+
+                // Kural kaydı bulunamazsa onayı atlamak yerine güvenli varsayılanı
+                // uygula. Şema scripti tanımlı operasyonları kalıcı olarak seed eder.
+                var onayGerektirirMi = operasyonKurallari
+                    .FirstOrDefault()?
+                    .OnayGerektirirMi ?? true;
+
+                if (onayGerektirirMi)
+                {
+                    return await QueueForApprovalAsync(
+                        request,
+                        configurableApprovalReq.GetApprovalDescription(),
+                        islemKodu);
+                }
+
+                return await next();
+            }
+
             if (request is IRequireApproval approvalReq)
             {
                 var lookupUcKDurumId = approvalReq.GetApprovalLookupUcKDurumId();

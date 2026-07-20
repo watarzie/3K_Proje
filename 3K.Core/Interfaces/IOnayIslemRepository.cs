@@ -54,5 +54,11 @@ namespace _3K.Core.Interfaces
             int kullaniciId,
             OnayErisimKapsami erisimKapsami,
             CancellationToken cancellationToken = default);
+
+        Task<CekiRevizyonOnizlemeKaydi?> GetRevizyonOnizlemeKaydiAsync(
+            int talepId,
+            int talepEdenKullaniciId,
+            int? projeId,
+            CancellationToken cancellationToken = default);
     }
 }

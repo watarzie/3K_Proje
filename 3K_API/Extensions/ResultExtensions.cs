@@ -20,14 +20,15 @@ namespace _3K_API.Extensions
                 return new OkObjectResult(new { message = "İşlem başarılı." });
             }
 
+            var errorBody = CreateErrorBody(result.Error!);
             return result.Error!.Code switch
             {
-                401 => new UnauthorizedObjectResult(new { message = result.Error.Message }),
-                403 => new ObjectResult(new { message = result.Error.Message }) { StatusCode = 403 },
-                404 => new NotFoundObjectResult(new { message = result.Error.Message }),
-                409 => new ConflictObjectResult(new { message = result.Error.Message }),
-                500 => new ObjectResult(new { message = result.Error.Message }) { StatusCode = 500 },
-                _ => new BadRequestObjectResult(new { message = result.Error.Message })
+                401 => new UnauthorizedObjectResult(errorBody),
+                403 => new ObjectResult(errorBody) { StatusCode = 403 },
+                404 => new NotFoundObjectResult(errorBody),
+                409 => new ConflictObjectResult(errorBody),
+                500 => new ObjectResult(errorBody) { StatusCode = 500 },
+                _ => new BadRequestObjectResult(errorBody)
             };
         }
 
@@ -42,15 +43,23 @@ namespace _3K_API.Extensions
                 return new OkObjectResult(result.Value);
             }
 
+            var errorBody = CreateErrorBody(result.Error!);
             return result.Error!.Code switch
             {
-                401 => new UnauthorizedObjectResult(new { message = result.Error.Message }),
-                403 => new ObjectResult(new { message = result.Error.Message }) { StatusCode = 403 },
-                404 => new NotFoundObjectResult(new { message = result.Error.Message }),
-                409 => new ConflictObjectResult(new { message = result.Error.Message }),
-                500 => new ObjectResult(new { message = result.Error.Message }) { StatusCode = 500 },
-                _ => new BadRequestObjectResult(new { message = result.Error.Message })
+                401 => new UnauthorizedObjectResult(errorBody),
+                403 => new ObjectResult(errorBody) { StatusCode = 403 },
+                404 => new NotFoundObjectResult(errorBody),
+                409 => new ConflictObjectResult(errorBody),
+                500 => new ObjectResult(errorBody) { StatusCode = 500 },
+                _ => new BadRequestObjectResult(errorBody)
             };
+        }
+
+        private static object CreateErrorBody(Error error)
+        {
+            return error.Issues == null
+                ? new { message = error.Message }
+                : new { message = error.Message, issues = error.Issues };
         }
     }
 }

@@ -32,7 +32,7 @@ namespace _3K_API.Controllers
                 KullaniciId = GetKullaniciId()
             };
 
-            var result = await _mediator.Send(command);
+            var result = await _mediator.Send(command, HttpContext.RequestAborted);
             return result.ToActionResult();
         }
 
@@ -73,7 +73,7 @@ namespace _3K_API.Controllers
                 KullaniciId = GetKullaniciId()
             };
 
-            var result = await _mediator.Send(command);
+            var result = await _mediator.Send(command, HttpContext.RequestAborted);
             return result.ToActionResult();
         }
 
@@ -90,7 +90,7 @@ namespace _3K_API.Controllers
                 DosyaAdi = dosya.FileName
             };
 
-            var result = await _mediator.Send(command);
+            var result = await _mediator.Send(command, HttpContext.RequestAborted);
             return result.ToActionResult();
         }
 

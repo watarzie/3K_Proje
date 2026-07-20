@@ -8,10 +8,14 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
     public class SandikOzellikGuncelleCommandHandler : IRequestHandler<SandikOzellikGuncelleCommand, Result>
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly ISandikService _sandikService;
 
-        public SandikOzellikGuncelleCommandHandler(IUnitOfWork unitOfWork)
+        public SandikOzellikGuncelleCommandHandler(
+            IUnitOfWork unitOfWork,
+            ISandikService sandikService)
         {
             _unitOfWork = unitOfWork;
+            _sandikService = sandikService;
         }
 
         public async Task<Result> Handle(SandikOzellikGuncelleCommand request, CancellationToken cancellationToken)
@@ -36,21 +40,12 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 if (request.DepoLokasyonId.Value != sandik.DepoLokasyonId &&
                     !SandikDepoKurali.BelirsizLokasyonMu(request.DepoLokasyonId.Value))
                 {
-                    var icerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
-                    var cekiSatiriRepo = _unitOfWork.GetRepository<CekiSatiri>();
+                    var etkinIceriklerBySandik = await _sandikService
+                        .GetEtkinSandikIcerikleriAsync(new[] { sandik.Id }, cancellationToken);
+                    var etkinIcerikler = etkinIceriklerBySandik
+                        .GetValueOrDefault(sandik.Id) ?? Array.Empty<SandikIcerik>();
 
-                    var icerikler = (await icerikRepo.FindAsync(i => i.SandikId == sandik.Id)).ToList();
-                    var cekiSatiriIdler = icerikler
-                        .Where(i => i.CekiSatiriId.HasValue)
-                        .Select(i => i.CekiSatiriId!.Value)
-                        .Distinct()
-                        .ToList();
-
-                    var cekiSatirlari = cekiSatiriIdler.Count == 0
-                        ? new Dictionary<int, CekiSatiri>()
-                        : (await cekiSatiriRepo.FindAsync(c => cekiSatiriIdler.Contains(c.Id))).ToDictionary(c => c.Id);
-
-                    if (!SandikDepoKurali.DepoLokasyonuAtanabilir(sandik, icerikler, cekiSatirlari))
+                    if (!SandikDepoKurali.DepoLokasyonuAtanabilir(sandik, etkinIcerikler))
                     {
                         return Result.Failure(SandikDepoKurali.LokasyonAtamaUyariMesaji);
                     }

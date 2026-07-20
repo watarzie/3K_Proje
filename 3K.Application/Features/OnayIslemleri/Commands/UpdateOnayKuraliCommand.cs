@@ -36,6 +36,16 @@ namespace _3K.Application.Features.OnayIslemleri.Commands
                 return Result.Failure("İşlem kodu belirlenemedi.", 400);
             }
 
+            if (request.LookupUcKDurumId.HasValue &&
+                !string.IsNullOrWhiteSpace(request.IslemKodu) &&
+                !string.Equals(
+                    islemKodu,
+                    OnayIslemKodlari.FromUcKDurumId(request.LookupUcKDurumId.Value),
+                    StringComparison.Ordinal))
+            {
+                return Result.Failure("Onay kuralı ile işlem kodu birbiriyle eşleşmiyor.", 400);
+            }
+
             if (request.LookupUcKDurumId.HasValue)
             {
                 var repo = _unitOfWork.GetRepository<IslemOnayKurali>();
@@ -61,6 +71,12 @@ namespace _3K.Application.Features.OnayIslemleri.Commands
                     _cache.Remove($"ApprovalRule_UcK_{lookup.Deger}");
                 }
             }
+            else if (OnayIslemKodlari.AyarlanabilirMi(islemKodu))
+            {
+                await OperasyonKuraliniGuncelleAsync(
+                    islemKodu,
+                    request.OnayGerektirirMi);
+            }
 
             if (request.YetkiliRolIdleri != null)
             {
@@ -74,6 +90,29 @@ namespace _3K.Application.Features.OnayIslemleri.Commands
             await _unitOfWork.SaveChangesAsync();
 
             return Result.Success();
+        }
+
+        private async Task OperasyonKuraliniGuncelleAsync(
+            string islemKodu,
+            bool onayGerektirirMi)
+        {
+            var kuralRepo = _unitOfWork.GetRepository<OnayOperasyonKurali>();
+            var mevcutKurallar = await kuralRepo.FindAsync(kural =>
+                kural.IslemKodu == islemKodu);
+            var kural = mevcutKurallar.FirstOrDefault();
+
+            if (kural == null)
+            {
+                await kuralRepo.AddAsync(new OnayOperasyonKurali
+                {
+                    IslemKodu = islemKodu,
+                    OnayGerektirirMi = onayGerektirirMi
+                });
+                return;
+            }
+
+            kural.OnayGerektirirMi = onayGerektirirMi;
+            kuralRepo.Update(kural);
         }
 
         private static string ResolveIslemKodu(UpdateOnayKuraliCommand request)

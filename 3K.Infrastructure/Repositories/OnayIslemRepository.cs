@@ -236,6 +236,27 @@ namespace _3K.Infrastructure.Repositories
                 .CountAsync(cancellationToken);
         }
 
+        public Task<CekiRevizyonOnizlemeKaydi?> GetRevizyonOnizlemeKaydiAsync(
+            int talepId,
+            int talepEdenKullaniciId,
+            int? projeId,
+            CancellationToken cancellationToken = default)
+        {
+            return _context.CekiRevizyonTalepleri
+                .AsNoTracking()
+                .Where(talep =>
+                    talep.Id == talepId &&
+                    talep.TalepEdenKullaniciId == talepEdenKullaniciId &&
+                    (!projeId.HasValue || talep.ProjeId == projeId.Value))
+                .Select(talep => new CekiRevizyonOnizlemeKaydi
+                {
+                    OnizlemeJson = talep.OnizlemeJson,
+                    OnizlemeHash = talep.OnizlemeHash,
+                    OnizlemeSurumu = talep.OnizlemeSurumu
+                })
+                .SingleOrDefaultAsync(cancellationToken);
+        }
+
         private static IQueryable<OnayBekleyenIslem> KapsamaGoreFiltrele(
             IQueryable<OnayBekleyenIslem> query,
             int kullaniciId,

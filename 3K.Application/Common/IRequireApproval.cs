@@ -11,6 +11,16 @@ namespace _3K.Application.Common
         string GetApprovalDescription();
     }
 
+    /// <summary>
+    /// Onay zorunluluğu operasyon bazında yönetilebilen komutları işaretler.
+    /// Operasyon için kalıcı bir kural bulunamazsa güvenli varsayılan olarak
+    /// onay zorunlu kabul edilir.
+    /// </summary>
+    public interface IConfigurableApproval : IApprovalOperation
+    {
+        string GetApprovalDescription();
+    }
+
     public interface IApprovalOperation
     {
         string GetApprovalOperationCode();

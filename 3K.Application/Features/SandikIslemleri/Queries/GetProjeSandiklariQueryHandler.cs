@@ -74,7 +74,8 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                     SilinebilirMi = !aktifAktarimBagliSandikIds.Contains(s.Id) &&
                         (icerikler.Count == 0 ||
                             (isManuelSandik && icerikler.All(i => !ManuelSatirIslemGormus(i.CekiSatiri!)))),
-                    DepodaSayilacakMi = s.DepoLokasyonId != (int)DepoLokasyon.Belirsiz && DepodaSayilacakSandik(s, icerikler),
+                    DepodaSayilacakMi = s.DepoLokasyonId != (int)DepoLokasyon.Belirsiz &&
+                        SandikDepoKurali.DepoLokasyonuAtanabilir(s, icerikler),
                     SahayaAktarildiMi = sandikTamamenSahayaAktarildi,
                     SahayaAktarilanMiktar = sahayaAktarilanMiktar,
                     En = s.En,
@@ -105,30 +106,5 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 || satir.GeriGonderilenMiktar > 0;
         }
 
-        private static bool DepodaSayilacakSandik(Sandik sandik, IReadOnlyCollection<SandikIcerik> icerikler)
-        {
-            if (sandik.DurumId == (int)SandikDurum.Sevkedildi)
-                return false;
-
-            if (SandiktaGridKapandiUrunVar(icerikler))
-                return true;
-
-            return icerikler.Any(i =>
-            {
-                var satir = i.CekiSatiri;
-                if (satir == null)
-                    return i.Miktar > 0 || i.KonulanAdet > 0 || i.StokKarsilanan > 0 || i.ProjeKarsilanan > 0 || i.TedarikciKarsilanan > 0;
-
-                return satir.GelenMiktar > 0
-                    || satir.ProjeKarsilanan > 0
-                    || satir.StokKarsilanan > 0
-                    || satir.TedarikciKarsilanan > 0;
-            });
-        }
-
-        private static bool SandiktaGridKapandiUrunVar(IReadOnlyCollection<SandikIcerik> icerikler)
-        {
-            return icerikler.Any(i => i.CekiSatiri?.GridDurumuId == (int)GridDurum.GridKapandi);
-        }
     }
 }

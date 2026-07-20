@@ -31,6 +31,8 @@ namespace _3K.Infrastructure.Data
         public DbSet<SevkiyatSandik> SevkiyatSandiklari { get; set; } = null!;
         public DbSet<OnayBekleyenIslem> OnayBekleyenIslemler { get; set; } = null!;
         public DbSet<OnayIslemYetki> OnayIslemYetkileri { get; set; } = null!;
+        public DbSet<OnayOperasyonKurali> OnayOperasyonKurallari { get; set; } = null!;
+        public DbSet<CekiRevizyonTalebi> CekiRevizyonTalepleri { get; set; } = null!;
         public DbSet<Bildirim> Bildirimler { get; set; } = null!;
         public DbSet<KullaniciBildirimi> KullaniciBildirimleri { get; set; } = null!;
         public DbSet<BildirimAboneligi> BildirimAbonelikleri { get; set; } = null!;
@@ -592,6 +594,106 @@ namespace _3K.Infrastructure.Data
                     .WithMany()
                     .HasForeignKey(o => o.RolId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<OnayOperasyonKurali>(e =>
+            {
+                e.ToTable("OnayOperasyonKurallari", table =>
+                    table.HasCheckConstraint(
+                        "CK_OnayOperasyonKurallari_IslemKodu_Dolu",
+                        "length(btrim(\"IslemKodu\")) > 0"));
+
+                e.Property(kural => kural.IslemKodu)
+                    .HasMaxLength(100)
+                    .IsRequired();
+
+                e.Property(kural => kural.OnayGerektirirMi)
+                    .HasDefaultValue(true);
+
+                e.HasIndex(kural => kural.IslemKodu)
+                    .IsUnique();
+            });
+
+            modelBuilder.Entity<CekiRevizyonTalebi>(e =>
+            {
+                e.ToTable("CekiRevizyonTalepleri", table =>
+                {
+                    table.HasCheckConstraint(
+                        "CK_CekiRevizyonTalepleri_DosyaIcerigi_Dolu",
+                        "octet_length(\"DosyaIcerigi\") > 0");
+                    table.HasCheckConstraint(
+                        "CK_CekiRevizyonTalepleri_DosyaIcerigi_Boyut",
+                        "octet_length(\"DosyaIcerigi\") <= 20971520");
+                    table.HasCheckConstraint(
+                        "CK_CekiRevizyonTalepleri_DosyaSha256_Format",
+                        "\"DosyaSha256\" ~ '^[0-9A-Fa-f]{64}$'");
+                    table.HasCheckConstraint(
+                        "CK_CekiRevizyonTalepleri_OnizlemeJson_Dolu",
+                        "jsonb_typeof(\"OnizlemeJson\") = 'object' AND \"OnizlemeJson\" <> '{}'::jsonb");
+                    table.HasCheckConstraint(
+                        "CK_CekiRevizyonTalepleri_OnizlemeJson_Boyut",
+                        "octet_length(\"OnizlemeJson\"::text) <= 10485760");
+                    table.HasCheckConstraint(
+                        "CK_CekiRevizyonTalepleri_OnizlemeHash_Format",
+                        "\"OnizlemeHash\" ~ '^[0-9A-Fa-f]{64}$'");
+                    table.HasCheckConstraint(
+                        "CK_CekiRevizyonTalepleri_Sayilar_NonNegative",
+                        "\"OnizlemeSurumu\" > 0 AND " +
+                        "\"EklenenSatirSayisi\" >= 0 AND " +
+                        "\"GuncellenenSatirSayisi\" >= 0 AND " +
+                        "\"SilinenSatirSayisi\" >= 0");
+                });
+
+                e.Property(talep => talep.DosyaAdi)
+                    .HasMaxLength(255)
+                    .IsRequired();
+                e.Property(talep => talep.DosyaIcerigi)
+                    .HasColumnType("bytea")
+                    .IsRequired();
+                e.Property(talep => talep.DosyaSha256)
+                    .HasMaxLength(64)
+                    .IsFixedLength()
+                    .IsRequired();
+                e.Property(talep => talep.OnizlemeJson)
+                    .HasColumnType("jsonb")
+                    .IsRequired();
+                e.Property(talep => talep.OnizlemeHash)
+                    .HasMaxLength(64)
+                    .IsFixedLength()
+                    .IsRequired();
+                e.Property(talep => talep.OnizlemeSurumu)
+                    .HasDefaultValue(1);
+                e.Property(talep => talep.EklenenSatirSayisi)
+                    .HasDefaultValue(0);
+                e.Property(talep => talep.GuncellenenSatirSayisi)
+                    .HasDefaultValue(0);
+                e.Property(talep => talep.SilinenSatirSayisi)
+                    .HasDefaultValue(0);
+
+                e.HasIndex(talep => new { talep.ProjeId, talep.CreatedDate })
+                    .IsDescending(false, true);
+                e.HasIndex(talep => new { talep.TalepEdenKullaniciId, talep.CreatedDate })
+                    .IsDescending(false, true);
+                e.HasIndex(talep => talep.UygulananRevizyonCekiId)
+                    .IsUnique()
+                    .HasFilter("\"UygulananRevizyonCekiId\" IS NOT NULL");
+
+                e.HasOne(talep => talep.Proje)
+                    .WithMany()
+                    .HasForeignKey(talep => talep.ProjeId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(talep => talep.AnaCeki)
+                    .WithMany()
+                    .HasForeignKey(talep => talep.AnaCekiId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(talep => talep.TalepEdenKullanici)
+                    .WithMany()
+                    .HasForeignKey(talep => talep.TalepEdenKullaniciId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(talep => talep.UygulananRevizyonCeki)
+                    .WithMany()
+                    .HasForeignKey(talep => talep.UygulananRevizyonCekiId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             modelBuilder.Entity<Bildirim>(e =>

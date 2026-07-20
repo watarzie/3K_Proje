@@ -30,6 +30,18 @@ namespace _3K.Application.Features.OnayIslemleri.DTOs
         public string? ProjeNo { get; set; }
         public string? HedefUrl { get; set; }
         public bool AksiyonAktifMi { get; set; }
+        public CekiRevizyonOnayDetayiDto? RevizyonDetayi { get; set; }
+    }
+
+    /// <summary>
+    /// Onay kaydında kullanıcıya gösterilebilecek güvenli revizyon snapshot'ı.
+    /// Çalıştırılabilir command payload'ı, dosya içeriği ve doğrulama hash'leri
+    /// bu DTO'ya bilinçli olarak dahil edilmez.
+    /// </summary>
+    public sealed class CekiRevizyonOnayDetayiDto
+    {
+        public int TalepId { get; set; }
+        public CekiRevizyonOnizlemeSonuc Onizleme { get; set; } = new();
     }
 
     public sealed class OnayGecmisiListeDto

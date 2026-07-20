@@ -3,7 +3,7 @@ namespace _3K.Application.Common
     /// <summary>
     /// Hata bilgisini taşıyan record. Message: açıklama, Code: HTTP status code.
     /// </summary>
-    public record Error(string Message, int Code);
+    public record Error(string Message, int Code, object? Issues = null);
 
     /// <summary>
     /// Operasyon sonucunu taşıyan non-generic Result sınıfı.
@@ -24,6 +24,7 @@ namespace _3K.Application.Common
 
         public static Result Success(int statusCode = 200) => new(true, null, statusCode);
         public static Result Failure(string message, int code = 400) => new(false, new Error(message, code), code);
+        public static Result Failure(string message, int code, object issues) => new(false, new Error(message, code, issues), code);
     }
 
     /// <summary>
@@ -41,5 +42,6 @@ namespace _3K.Application.Common
 
         public static Result<T> Success(T value, int statusCode = 200) => new(true, value, null, statusCode);
         public new static Result<T> Failure(string message, int code = 400) => new(false, default, new Error(message, code), code);
+        public new static Result<T> Failure(string message, int code, object issues) => new(false, default, new Error(message, code, issues), code);
     }
 }

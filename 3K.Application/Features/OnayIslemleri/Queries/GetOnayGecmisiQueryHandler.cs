@@ -1,7 +1,11 @@
+using System.Text.Json;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using _3K.Application.Common;
 using _3K.Application.Features.OnayIslemleri.DTOs;
+using _3K.Core.Constants;
 using _3K.Core.Enums;
+using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
 
@@ -138,22 +142,31 @@ namespace _3K.Application.Features.OnayIslemleri.Queries
     public sealed class GetOnayGecmisiDetayiQueryHandler
         : IRequestHandler<GetOnayGecmisiDetayiQuery, Result<OnayGecmisiKayitDto>>
     {
+        private static readonly JsonSerializerOptions OnizlemeSerializerOptions = new()
+        {
+            PropertyNameCaseInsensitive = true,
+            MaxDepth = 64
+        };
+
         private const string OnayMerkeziMenuKodu = "islem-onay-merkezi";
         private readonly IOnayIslemRepository _onayRepository;
         private readonly ICurrentUserService _currentUserService;
         private readonly IOnayYetkiService _onayYetkiService;
         private readonly IRolService _rolService;
+        private readonly ILogger<GetOnayGecmisiDetayiQueryHandler> _logger;
 
         public GetOnayGecmisiDetayiQueryHandler(
             IOnayIslemRepository onayRepository,
             ICurrentUserService currentUserService,
             IOnayYetkiService onayYetkiService,
-            IRolService rolService)
+            IRolService rolService,
+            ILogger<GetOnayGecmisiDetayiQueryHandler> logger)
         {
             _onayRepository = onayRepository;
             _currentUserService = currentUserService;
             _onayYetkiService = onayYetkiService;
             _rolService = rolService;
+            _logger = logger;
         }
 
         public async Task<Result<OnayGecmisiKayitDto>> Handle(
@@ -180,9 +193,73 @@ namespace _3K.Application.Features.OnayIslemleri.Queries
                 erisimKapsami,
                 cancellationToken);
 
-            return kayit == null
-                ? Result<OnayGecmisiKayitDto>.Failure("Onay kaydı bulunamadı.", 404)
-                : Result<OnayGecmisiKayitDto>.Success(kayit.ToDto());
+            if (kayit == null)
+                return Result<OnayGecmisiKayitDto>.Failure("Onay kaydı bulunamadı.", 404);
+
+            var dto = kayit.ToDto();
+            if (kayit.IslemKodu != OnayIslemKodlari.CekiRevizyonuUygula ||
+                kayit.ReferansTipi != OnayReferansTipleri.CekiRevizyonTalebi ||
+                !kayit.ReferansId.HasValue)
+            {
+                return Result<OnayGecmisiKayitDto>.Success(dto);
+            }
+
+            var revizyonDetayi = await RevizyonDetayiniYukleAsync(kayit, cancellationToken);
+            if (revizyonDetayi == null)
+            {
+                return Result<OnayGecmisiKayitDto>.Failure(
+                    "Revizyon talebinin ön izleme bilgisi okunamadı.",
+                    500);
+            }
+
+            dto.RevizyonDetayi = revizyonDetayi;
+            return Result<OnayGecmisiKayitDto>.Success(dto);
+        }
+
+        private async Task<CekiRevizyonOnayDetayiDto?> RevizyonDetayiniYukleAsync(
+            OnayGecmisiKaydi yetkilendirilmisOnayKaydi,
+            CancellationToken cancellationToken)
+        {
+            var talepId = yetkilendirilmisOnayKaydi.ReferansId!.Value;
+            var snapshot = await _onayRepository.GetRevizyonOnizlemeKaydiAsync(
+                talepId,
+                yetkilendirilmisOnayKaydi.TalepEdenKullaniciId,
+                yetkilendirilmisOnayKaydi.ProjeId,
+                cancellationToken);
+
+            if (snapshot == null || string.IsNullOrWhiteSpace(snapshot.OnizlemeJson))
+                return null;
+
+            try
+            {
+                var onizleme = JsonSerializer.Deserialize<CekiRevizyonOnizlemeSonuc>(
+                    snapshot.OnizlemeJson,
+                    OnizlemeSerializerOptions);
+
+                if (onizleme == null ||
+                    snapshot.OnizlemeSurumu != CekiRevizyonOnizlemeButunlugu.Surum ||
+                    !CekiRevizyonOnizlemeButunlugu.HashDogrula(onizleme, snapshot.OnizlemeHash))
+                {
+                    _logger.LogError(
+                        "Revizyon talebi {RevizyonTalepId} ön izleme bütünlük doğrulamasından geçemedi.",
+                        talepId);
+                    return null;
+                }
+
+                return new CekiRevizyonOnayDetayiDto
+                {
+                    TalepId = talepId,
+                    Onizleme = onizleme
+                };
+            }
+            catch (JsonException exception)
+            {
+                _logger.LogError(
+                    exception,
+                    "Revizyon talebi {RevizyonTalepId} için güvenli ön izleme snapshot'ı okunamadı.",
+                    talepId);
+                return null;
+            }
         }
     }
 }

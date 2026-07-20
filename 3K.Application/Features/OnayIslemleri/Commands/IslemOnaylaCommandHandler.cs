@@ -2,6 +2,7 @@ using System.Text.Json;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using _3K.Application.Common;
+using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
@@ -125,6 +126,21 @@ namespace _3K.Application.Features.OnayIslemleri.Commands
                         islem.Id,
                         kullaniciId.Value,
                         "Onaylanan işlemin kayıtlı verisi boş.",
+                        cancellationToken);
+                }
+
+                if (!OnayMetaVerisiEslesiyor(originalRequest, islem))
+                {
+                    _logger.LogWarning(
+                        "Onay kaydı {OnayId} komut meta verisiyle eşleşmedi. İşlemKodu: {IslemKodu}, CommandType: {CommandType}",
+                        islem.Id,
+                        islem.IslemKodu,
+                        islem.CommandType);
+
+                    return await BasarisizTamamlaAsync(
+                        islem.Id,
+                        kullaniciId.Value,
+                        "Onay kaydının işlem veya referans bilgileri kayıtlı komutla eşleşmiyor. Güvenlik nedeniyle işlem çalıştırılmadı.",
                         cancellationToken);
                 }
 
@@ -338,9 +354,46 @@ namespace _3K.Application.Features.OnayIslemleri.Commands
 
             var onayliKomutMu = typeof(IApprovalOperation).IsAssignableFrom(targetType) &&
                 (typeof(IRequireApproval).IsAssignableFrom(targetType) ||
-                 typeof(IAlwaysRequireApproval).IsAssignableFrom(targetType));
+                 typeof(IAlwaysRequireApproval).IsAssignableFrom(targetType) ||
+                 typeof(IConfigurableApproval).IsAssignableFrom(targetType));
 
             return mediatRRequestMi && onayliKomutMu ? targetType : null;
+        }
+
+        private static bool OnayMetaVerisiEslesiyor(
+            object originalRequest,
+            OnayBekleyenIslem islem)
+        {
+            if (originalRequest is not IApprovalOperation operation)
+                return false;
+
+            var komutIslemKodu = operation.GetApprovalOperationCode()?.Trim();
+            var kayitliIslemKodu = islem.IslemKodu?.Trim();
+
+            if (string.IsNullOrWhiteSpace(komutIslemKodu) ||
+                string.IsNullOrWhiteSpace(kayitliIslemKodu) ||
+                !string.Equals(komutIslemKodu, kayitliIslemKodu, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            if (originalRequest is not IApprovalReference referenceProvider)
+            {
+                return string.IsNullOrWhiteSpace(islem.ReferansTipi) &&
+                       !islem.ReferansId.HasValue &&
+                       !islem.ProjeId.HasValue;
+            }
+
+            var commandReference = referenceProvider.GetApprovalReference();
+            if (commandReference == null)
+                return false;
+
+            return string.Equals(
+                       commandReference.ReferansTipi?.Trim(),
+                       islem.ReferansTipi?.Trim(),
+                       StringComparison.Ordinal) &&
+                   commandReference.ReferansId == islem.ReferansId &&
+                   commandReference.ProjeId == islem.ProjeId;
         }
 
         private static string GuvenliMetin(string? metin, string varsayilan)
