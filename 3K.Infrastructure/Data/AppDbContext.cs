@@ -36,7 +36,22 @@ namespace _3K.Infrastructure.Data
         public DbSet<AmbalajUretimPlani> AmbalajUretimPlanlari { get; set; } = null!;
         public DbSet<AmbalajUretimKalemi> AmbalajUretimKalemleri { get; set; } = null!;
         public DbSet<AmbalajIcSandikSablonu> AmbalajIcSandikSablonlari { get; set; } = null!;
+        public DbSet<AmbalajTalepEden> AmbalajTalepEdenler { get; set; } = null!;
         public DbSet<AmbalajBagimsizSandik> AmbalajBagimsizSandiklar { get; set; } = null!;
+        public DbSet<FinansIsKaydi> FinansIsKayitlari { get; set; } = null!;
+        public DbSet<FinansSiparis> FinansSiparisleri { get; set; } = null!;
+        public DbSet<FinansSiparisKalemi> FinansSiparisKalemleri { get; set; } = null!;
+        public DbSet<FinansUrun> FinansUrunleri { get; set; } = null!;
+        public DbSet<FinansUrunEslesmesi> FinansUrunEslesmeleri { get; set; } = null!;
+        public DbSet<FinansFatura> FinansFaturalari { get; set; } = null!;
+        public DbSet<FinansFaturaKalemi> FinansFaturaKalemleri { get; set; } = null!;
+        public DbSet<FinansOzelIs> FinansOzelIsleri { get; set; } = null!;
+        public DbSet<FinansDuzenliIs> FinansDuzenliIsleri { get; set; } = null!;
+        public DbSet<FinansIsTuruTanimi> FinansIsTuruTanimlari { get; set; } = null!;
+        public DbSet<FinansGiderKategorisi> FinansGiderKategorileri { get; set; } = null!;
+        public DbSet<FinansGider> FinansGiderleri { get; set; } = null!;
+        public DbSet<FinansBelge> FinansBelgeleri { get; set; } = null!;
+        public DbSet<FinansIslemGecmisi> FinansIslemGecmisleri { get; set; } = null!;
 
         // ======= RBAC (Rol Tabanlı Erişim Kontrolü) DbSet'leri =======
         public DbSet<Rol> Roller { get; set; } = null!;
@@ -163,6 +178,162 @@ namespace _3K.Infrastructure.Data
                 e.Property(s => s.En).HasPrecision(18, 4);
                 e.Property(s => s.Yukseklik).HasPrecision(18, 4);
             });
+
+            modelBuilder.Entity<AmbalajTalepEden>(e =>
+            {
+                e.Property(t => t.Ad).HasMaxLength(150).IsRequired();
+                e.HasIndex(t => t.Ad).IsUnique();
+            });
+
+            modelBuilder.Entity<AmbalajBagimsizSandik>()
+                .HasOne(s => s.Proje)
+                .WithMany()
+                .HasForeignKey(s => s.ProjeId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<AmbalajBagimsizSandik>()
+                .HasOne(s => s.KaynakSandik)
+                .WithMany()
+                .HasForeignKey(s => s.KaynakSandikId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<AmbalajBagimsizSandik>()
+                .HasOne(s => s.UstKaynakSandik)
+                .WithMany()
+                .HasForeignKey(s => s.UstKaynakSandikId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<FinansIsKaydi>(e =>
+            {
+                e.HasIndex(k => new { k.KaynakModul, k.KaynakKayitId })
+                    .IsUnique()
+                    .HasFilter("\"KaynakKayitId\" IS NOT NULL");
+                e.HasIndex(k => new { k.ProjeId, k.IsTuru });
+                e.Property(k => k.Adet).HasPrecision(18, 4);
+                e.Property(k => k.BirimM3).HasPrecision(18, 6);
+                e.Property(k => k.Boy).HasPrecision(18, 2);
+                e.Property(k => k.En).HasPrecision(18, 2);
+                e.Property(k => k.Yukseklik).HasPrecision(18, 2);
+                e.HasOne(k => k.Proje).WithMany().HasForeignKey(k => k.ProjeId).OnDelete(DeleteBehavior.SetNull);
+                e.HasOne(k => k.OzelIs).WithOne(o => o.FinansKaydi).HasForeignKey<FinansIsKaydi>(k => k.OzelIsId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<FinansSiparis>(e =>
+            {
+                e.HasIndex(s => s.KayitNo).IsUnique();
+                e.HasIndex(s => s.PoNumarasi);
+                e.HasOne(s => s.Proje).WithMany().HasForeignKey(s => s.ProjeId).OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<FinansSiparisKalemi>(e =>
+            {
+                e.HasIndex(k => new { k.SiparisId, k.IsKaydiId }).IsUnique();
+                e.Property(k => k.Adet).HasPrecision(18, 4);
+                e.Property(k => k.M3).HasPrecision(18, 6);
+                e.Property(k => k.FiyatlandirmaMiktari).HasPrecision(18, 6);
+                e.Property(k => k.BirimFiyat).HasPrecision(18, 4);
+                e.Property(k => k.KdvOrani).HasPrecision(5, 2);
+                e.Property(k => k.NetTutar).HasPrecision(18, 2);
+                e.Property(k => k.KdvTutari).HasPrecision(18, 2);
+                e.Property(k => k.ToplamTutar).HasPrecision(18, 2);
+                e.Property(k => k.ParaBirimi).HasMaxLength(3);
+                e.HasOne(k => k.Siparis).WithMany(s => s.Kalemler).HasForeignKey(k => k.SiparisId).OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(k => k.IsKaydi).WithMany(i => i.SiparisKalemleri).HasForeignKey(k => k.IsKaydiId).OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(k => k.Urun).WithMany(u => u.SiparisKalemleri).HasForeignKey(k => k.UrunId).OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<FinansUrun>(e =>
+            {
+                e.HasIndex(u => u.Kod).IsUnique();
+                e.Property(u => u.Kod).HasMaxLength(50).IsRequired();
+                e.Property(u => u.Ad).HasMaxLength(150).IsRequired();
+                e.Property(u => u.BirimFiyat).HasPrecision(18, 4);
+                e.Property(u => u.KdvOrani).HasPrecision(5, 2);
+                e.Property(u => u.ParaBirimi).HasMaxLength(3).IsRequired();
+            });
+
+            modelBuilder.Entity<FinansUrunEslesmesi>(e =>
+            {
+                e.HasIndex(x => new { x.IsTuru, x.SandikAdi }).IsUnique();
+                e.Property(x => x.SandikAdi).HasMaxLength(150);
+                e.Property(x => x.SandikTipi).HasMaxLength(50);
+                e.Property(x => x.Boy).HasPrecision(18, 2);
+                e.Property(x => x.En).HasPrecision(18, 2);
+                e.Property(x => x.Yukseklik).HasPrecision(18, 2);
+                e.HasOne(x => x.Urun).WithMany(u => u.Eslesmeler).HasForeignKey(x => x.UrunId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<FinansFatura>(e =>
+            {
+                e.HasIndex(f => f.KayitNo).IsUnique();
+                e.HasIndex(f => f.FaturaNumarasi);
+                e.HasOne(f => f.Siparis).WithMany().HasForeignKey(f => f.SiparisId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<FinansFaturaKalemi>(e =>
+            {
+                e.HasIndex(k => new { k.FaturaId, k.SiparisKalemiId }).IsUnique();
+                e.Property(k => k.Adet).HasPrecision(18, 4);
+                e.Property(k => k.M3).HasPrecision(18, 6);
+                e.HasOne(k => k.Fatura).WithMany(f => f.Kalemler).HasForeignKey(k => k.FaturaId).OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(k => k.SiparisKalemi).WithMany(s => s.FaturaKalemleri).HasForeignKey(k => k.SiparisKalemiId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<FinansOzelIs>(e =>
+            {
+                e.HasIndex(o => o.KayitNo).IsUnique();
+                e.HasIndex(o => new { o.DuzenliIsId, o.DonemAnahtari }).IsUnique().HasFilter("\"DuzenliIsId\" IS NOT NULL AND \"DonemAnahtari\" IS NOT NULL");
+                e.Property(o => o.Miktar).HasPrecision(18, 4);
+                e.Property(o => o.BirimFiyat).HasPrecision(18, 4);
+                e.Property(o => o.KdvOrani).HasPrecision(5, 2);
+                e.Property(o => o.ParaBirimi).HasMaxLength(3).IsRequired();
+                e.Property(o => o.RaporGrubu).HasMaxLength(100).IsRequired();
+                e.HasOne(o => o.Proje).WithMany().HasForeignKey(o => o.ProjeId).OnDelete(DeleteBehavior.SetNull);
+                e.HasOne(o => o.DuzenliIs).WithMany(d => d.DonemKayitlari).HasForeignKey(o => o.DuzenliIsId).OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<FinansDuzenliIs>(e =>
+            {
+                e.Property(d => d.Miktar).HasPrecision(18, 4);
+                e.Property(d => d.BirimFiyat).HasPrecision(18, 4);
+                e.Property(d => d.KdvOrani).HasPrecision(5, 2);
+                e.Property(d => d.ParaBirimi).HasMaxLength(3).IsRequired();
+                e.Property(d => d.RaporGrubu).HasMaxLength(100).IsRequired();
+                e.HasOne(d => d.Proje).WithMany().HasForeignKey(d => d.ProjeId).OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<FinansIsTuruTanimi>(e =>
+            {
+                e.HasIndex(t => t.Ad).IsUnique();
+                e.Property(t => t.Ad).HasMaxLength(120).IsRequired();
+            });
+
+            modelBuilder.Entity<FinansGiderKategorisi>()
+                .HasIndex(k => k.Ad)
+                .IsUnique();
+
+            modelBuilder.Entity<FinansGider>(e =>
+            {
+                e.Property(g => g.Tutar).HasPrecision(18, 2);
+                e.Property(g => g.ParaBirimi).HasMaxLength(3).IsRequired();
+                e.Property(g => g.KdvOrani).HasPrecision(5, 2);
+                e.Property(g => g.Matrah).HasPrecision(18, 2);
+                e.Property(g => g.KdvTutari).HasPrecision(18, 2);
+                e.Property(g => g.ToplamTutar).HasPrecision(18, 2);
+                e.HasOne(g => g.Kategori).WithMany(k => k.Giderler).HasForeignKey(g => g.KategoriId).OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(g => g.Proje).WithMany().HasForeignKey(g => g.ProjeId).OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<FinansBelge>(e =>
+            {
+                e.HasOne(b => b.Siparis).WithMany(s => s.Belgeler).HasForeignKey(b => b.SiparisId).OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(b => b.Fatura).WithMany(f => f.Belgeler).HasForeignKey(b => b.FaturaId).OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(b => b.OzelIs).WithMany(o => o.Belgeler).HasForeignKey(b => b.OzelIsId).OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(b => b.Gider).WithMany(g => g.Belgeler).HasForeignKey(b => b.GiderId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<FinansIslemGecmisi>()
+                .HasIndex(g => new { g.ReferansTipi, g.ReferansId, g.IslemTarihi });
 
             // ===============================================================
             // 3. FK İLİŞKİLERİ — Entity ↔ Lookup Tabloları (ID bazlı)
@@ -1058,9 +1229,10 @@ namespace _3K.Infrastructure.Data
                 new MenuTanimi { Id = 7, Kod = "depo-durumu", LabelKey = "MENU.DEPO_DURUMU", Icon = "ri-building-2-line", Route = "/depo-durumu", Sira = 4, ParentId = null },
                 new MenuTanimi { Id = 8, Kod = "stok", LabelKey = "MENU.STOK_MODULU", Icon = "ri-stack-line", Route = "/stok", Sira = 5, ParentId = null },
                 new MenuTanimi { Id = 46, Kod = "ambalaj-uretim-listesi", LabelKey = "MENU.AMBALAJ_URETIM_LISTESI", Icon = "ri-ruler-2-line", Route = "/ambalaj-uretim-listesi", Sira = 8, ParentId = null },
-                new MenuTanimi { Id = 10, Kod = "hareket-gecmisi", LabelKey = "MENU.HAREKET_GECMISI", Icon = "ri-history-line", Route = "/hareket-gecmisi", Sira = 9, ParentId = null },
-                new MenuTanimi { Id = 11, Kod = "kullanicilar", LabelKey = "MENU.KULLANICI_YETKI", Icon = "ri-user-settings-line", Route = "/kullanicilar", Sira = 10, ParentId = null },
-                new MenuTanimi { Id = 12, Kod = "rol-yonetimi", LabelKey = "MENU.ROL_YONETIMI", Icon = "ri-shield-user-line", Route = "/rol-yonetimi", Sira = 11, ParentId = null }
+                new MenuTanimi { Id = 47, Kod = "finans-yonetimi", LabelKey = "MENU.FINANS_YONETIMI", Icon = "ri-bank-card-line", Route = "/finans-yonetimi", Sira = 9, ParentId = null },
+                new MenuTanimi { Id = 10, Kod = "hareket-gecmisi", LabelKey = "MENU.HAREKET_GECMISI", Icon = "ri-history-line", Route = "/hareket-gecmisi", Sira = 10, ParentId = null },
+                new MenuTanimi { Id = 11, Kod = "kullanicilar", LabelKey = "MENU.KULLANICI_YETKI", Icon = "ri-user-settings-line", Route = "/kullanicilar", Sira = 11, ParentId = null },
+                new MenuTanimi { Id = 12, Kod = "rol-yonetimi", LabelKey = "MENU.ROL_YONETIMI", Icon = "ri-shield-user-line", Route = "/rol-yonetimi", Sira = 12, ParentId = null }
             );
 
             // Alt menüler ve yetki kontrollü modül düğümleri
@@ -1085,7 +1257,7 @@ namespace _3K.Infrastructure.Data
                 new MenuTanimi { Id = 34, Kod = "saha-proje-sil", LabelKey = "MENU.SAHA_PROJE_SIL", Icon = "", Route = null, Sira = 6, ParentId = 17 },
                 new MenuTanimi { Id = 18, Kod = "yedek-yonetimi", LabelKey = "MENU.YEDEK_YONETIMI", Icon = "ri-box-3-line", Route = "/yedek-yonetimi", Sira = 7, ParentId = null },
                 // Onay Merkezi
-                new MenuTanimi { Id = 99, Kod = "islem-onay-merkezi", LabelKey = "MENU.ISLEM_ONAY", Icon = "ri-check-double-line", Route = "/onay-merkezi", Sira = 12, ParentId = null },
+                new MenuTanimi { Id = 99, Kod = "islem-onay-merkezi", LabelKey = "MENU.ISLEM_ONAY", Icon = "ri-check-double-line", Route = "/onay-merkezi", Sira = 13, ParentId = null },
                 new MenuTanimi { Id = 43, Kod = "onay-kurallari-yonet", LabelKey = "MENU.ONAY_KURALLARI_YONET", Icon = "", Route = null, Sira = 1, ParentId = 99 },
                 // Kalite & Süreç — Sandık Yönetimi altında yetki kontrollü butonlar.
                 new MenuTanimi { Id = 20, Kod = "kalite-modulu", LabelKey = "MENU.KALITE_MODULU", Icon = "", Route = null, Sira = 3, ParentId = 5 },
@@ -1106,8 +1278,8 @@ namespace _3K.Infrastructure.Data
             );
 
             // ======= ADMIN ROL YETKİLERİ (tüm menülere W=3) =======
-            // Not: MenuTanimi Id'leri: 1,2,3,4,5,7,8,10,11,12,14,15,16,17,18,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,99
-            var menuIds = new[] { 1, 2, 3, 4, 5, 7, 8, 10, 11, 12, 14, 15, 16, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46 };
+            // Not: MenuTanimi Id'leri: 1,2,3,4,5,7,8,10,11,12,14,15,16,17,18,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,99
+            var menuIds = new[] { 1, 2, 3, 4, 5, 7, 8, 10, 11, 12, 14, 15, 16, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47 };
             var adminYetkiler = new List<RolYetki>();
             for (int i = 0; i < menuIds.Length; i++)
             {

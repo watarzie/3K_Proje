@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using _3K.Infrastructure.Data;
@@ -11,9 +12,11 @@ using _3K.Infrastructure.Data;
 namespace _3K.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260718175842_FinansDuzenliIsTarifeleri")]
+    partial class FinansDuzenliIsTarifeleri
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -57,9 +60,6 @@ namespace _3K.Infrastructure.Migrations
 
                     b.Property<string>("FirinPartiNo")
                         .HasColumnType("text");
-
-                    b.Property<int?>("IcSandikSablonId")
-                        .HasColumnType("integer");
 
                     b.Property<int?>("KaynakSandikId")
                         .HasColumnType("integer");
@@ -224,9 +224,6 @@ namespace _3K.Infrastructure.Migrations
                     b.Property<decimal>("En")
                         .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)");
-
-                    b.Property<int?>("IcSandikSablonId")
-                        .HasColumnType("integer");
 
                     b.Property<int?>("KaynakSandikId")
                         .HasColumnType("integer");
@@ -775,8 +772,7 @@ namespace _3K.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<decimal>("BirimFiyat")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
+                        .HasColumnType("numeric");
 
                     b.Property<DateTime?>("BitisTarihi")
                         .HasColumnType("timestamp without time zone");
@@ -787,9 +783,6 @@ namespace _3K.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("timestamp without time zone");
 
-                    b.Property<int>("HesaplamaYontemi")
-                        .HasColumnType("integer");
-
                     b.Property<string>("IsAdi")
                         .IsRequired()
                         .HasColumnType("text");
@@ -799,8 +792,7 @@ namespace _3K.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<decimal>("KdvOrani")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)");
+                        .HasColumnType("numeric");
 
                     b.Property<decimal>("Miktar")
                         .HasPrecision(18, 4)
@@ -815,16 +807,10 @@ namespace _3K.Infrastructure.Migrations
 
                     b.Property<string>("ParaBirimi")
                         .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("character varying(3)");
+                        .HasColumnType("text");
 
                     b.Property<int?>("ProjeId")
                         .HasColumnType("integer");
-
-                    b.Property<string>("RaporGrubu")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
 
                     b.Property<DateTime?>("SonOlusturulanDonem")
                         .HasColumnType("timestamp without time zone");
@@ -1002,11 +988,6 @@ namespace _3K.Infrastructure.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
-                    b.Property<string>("ParaBirimi")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("character varying(3)");
-
                     b.Property<int?>("ProjeId")
                         .HasColumnType("integer");
 
@@ -1090,22 +1071,11 @@ namespace _3K.Infrastructure.Migrations
                         .HasPrecision(18, 6)
                         .HasColumnType("numeric(18,6)");
 
-                    b.Property<decimal?>("Boy")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
                     b.Property<string>("CreatedBy")
                         .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("timestamp without time zone");
-
-                    b.Property<decimal?>("En")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<int?>("IcSandikSablonId")
-                        .HasColumnType("integer");
 
                     b.Property<int>("IsTuru")
                         .HasColumnType("integer");
@@ -1142,9 +1112,6 @@ namespace _3K.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("SandikTipi")
-                        .HasColumnType("text");
-
                     b.Property<string>("UpdatedBy")
                         .HasColumnType("text");
 
@@ -1160,10 +1127,6 @@ namespace _3K.Infrastructure.Migrations
 
                     b.Property<DateTime>("UretimeAlinmaTarihi")
                         .HasColumnType("timestamp without time zone");
-
-                    b.Property<decimal?>("Yukseklik")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
 
                     b.HasKey("Id");
 
@@ -1284,8 +1247,7 @@ namespace _3K.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<decimal>("BirimFiyat")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
+                        .HasColumnType("numeric");
 
                     b.Property<string>("CreatedBy")
                         .HasColumnType("text");
@@ -1297,9 +1259,6 @@ namespace _3K.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<int?>("DuzenliIsId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("HesaplamaYontemi")
                         .HasColumnType("integer");
 
                     b.Property<string>("IptalAciklamasi")
@@ -1327,8 +1286,7 @@ namespace _3K.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<decimal>("KdvOrani")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)");
+                        .HasColumnType("numeric");
 
                     b.Property<decimal>("Miktar")
                         .HasPrecision(18, 4)
@@ -1340,16 +1298,10 @@ namespace _3K.Infrastructure.Migrations
 
                     b.Property<string>("ParaBirimi")
                         .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("character varying(3)");
+                        .HasColumnType("text");
 
                     b.Property<int?>("ProjeId")
                         .HasColumnType("integer");
-
-                    b.Property<string>("RaporGrubu")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
 
                     b.Property<string>("UpdatedBy")
                         .HasColumnType("text");
@@ -1596,22 +1548,11 @@ namespace _3K.Infrastructure.Migrations
                     b.Property<bool>("Aktif")
                         .HasColumnType("boolean");
 
-                    b.Property<decimal?>("Boy")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
                     b.Property<string>("CreatedBy")
                         .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("timestamp without time zone");
-
-                    b.Property<decimal?>("En")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<int?>("IcSandikSablonId")
-                        .HasColumnType("integer");
 
                     b.Property<int>("IsTuru")
                         .HasColumnType("integer");
@@ -1619,10 +1560,6 @@ namespace _3K.Infrastructure.Migrations
                     b.Property<string>("SandikAdi")
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
-
-                    b.Property<string>("SandikTipi")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
 
                     b.Property<string>("UpdatedBy")
                         .HasColumnType("text");
@@ -1632,10 +1569,6 @@ namespace _3K.Infrastructure.Migrations
 
                     b.Property<int>("UrunId")
                         .HasColumnType("integer");
-
-                    b.Property<decimal?>("Yukseklik")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
 
                     b.HasKey("Id");
 

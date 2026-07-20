@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using _3K.Infrastructure.Data;
@@ -11,9 +12,11 @@ using _3K.Infrastructure.Data;
 namespace _3K.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260715114822_FinansDonemVeIsTuruButunlugu")]
+    partial class FinansDonemVeIsTuruButunlugu
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -57,9 +60,6 @@ namespace _3K.Infrastructure.Migrations
 
                     b.Property<string>("FirinPartiNo")
                         .HasColumnType("text");
-
-                    b.Property<int?>("IcSandikSablonId")
-                        .HasColumnType("integer");
 
                     b.Property<int?>("KaynakSandikId")
                         .HasColumnType("integer");
@@ -224,9 +224,6 @@ namespace _3K.Infrastructure.Migrations
                     b.Property<decimal>("En")
                         .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)");
-
-                    b.Property<int?>("IcSandikSablonId")
-                        .HasColumnType("integer");
 
                     b.Property<int?>("KaynakSandikId")
                         .HasColumnType("integer");
@@ -774,10 +771,6 @@ namespace _3K.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<decimal>("BirimFiyat")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
                     b.Property<DateTime?>("BitisTarihi")
                         .HasColumnType("timestamp without time zone");
 
@@ -787,9 +780,6 @@ namespace _3K.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("timestamp without time zone");
 
-                    b.Property<int>("HesaplamaYontemi")
-                        .HasColumnType("integer");
-
                     b.Property<string>("IsAdi")
                         .IsRequired()
                         .HasColumnType("text");
@@ -797,10 +787,6 @@ namespace _3K.Infrastructure.Migrations
                     b.Property<string>("IsTuru")
                         .IsRequired()
                         .HasColumnType("text");
-
-                    b.Property<decimal>("KdvOrani")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)");
 
                     b.Property<decimal>("Miktar")
                         .HasPrecision(18, 4)
@@ -813,18 +799,8 @@ namespace _3K.Infrastructure.Migrations
                     b.Property<int>("OlusturmaGunu")
                         .HasColumnType("integer");
 
-                    b.Property<string>("ParaBirimi")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("character varying(3)");
-
                     b.Property<int?>("ProjeId")
                         .HasColumnType("integer");
-
-                    b.Property<string>("RaporGrubu")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
 
                     b.Property<DateTime?>("SonOlusturulanDonem")
                         .HasColumnType("timestamp without time zone");
@@ -1002,11 +978,6 @@ namespace _3K.Infrastructure.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
-                    b.Property<string>("ParaBirimi")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("character varying(3)");
-
                     b.Property<int?>("ProjeId")
                         .HasColumnType("integer");
 
@@ -1090,22 +1061,11 @@ namespace _3K.Infrastructure.Migrations
                         .HasPrecision(18, 6)
                         .HasColumnType("numeric(18,6)");
 
-                    b.Property<decimal?>("Boy")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
                     b.Property<string>("CreatedBy")
                         .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("timestamp without time zone");
-
-                    b.Property<decimal?>("En")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<int?>("IcSandikSablonId")
-                        .HasColumnType("integer");
 
                     b.Property<int>("IsTuru")
                         .HasColumnType("integer");
@@ -1142,9 +1102,6 @@ namespace _3K.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("SandikTipi")
-                        .HasColumnType("text");
-
                     b.Property<string>("UpdatedBy")
                         .HasColumnType("text");
 
@@ -1160,10 +1117,6 @@ namespace _3K.Infrastructure.Migrations
 
                     b.Property<DateTime>("UretimeAlinmaTarihi")
                         .HasColumnType("timestamp without time zone");
-
-                    b.Property<decimal?>("Yukseklik")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
 
                     b.HasKey("Id");
 
@@ -1283,10 +1236,6 @@ namespace _3K.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<decimal>("BirimFiyat")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
                     b.Property<string>("CreatedBy")
                         .HasColumnType("text");
 
@@ -1297,9 +1246,6 @@ namespace _3K.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<int?>("DuzenliIsId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("HesaplamaYontemi")
                         .HasColumnType("integer");
 
                     b.Property<string>("IptalAciklamasi")
@@ -1326,10 +1272,6 @@ namespace _3K.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<decimal>("KdvOrani")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)");
-
                     b.Property<decimal>("Miktar")
                         .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)");
@@ -1338,18 +1280,8 @@ namespace _3K.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("ParaBirimi")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("character varying(3)");
-
                     b.Property<int?>("ProjeId")
                         .HasColumnType("integer");
-
-                    b.Property<string>("RaporGrubu")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
 
                     b.Property<string>("UpdatedBy")
                         .HasColumnType("text");
@@ -1445,206 +1377,36 @@ namespace _3K.Infrastructure.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)");
 
-                    b.Property<decimal>("BirimFiyat")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
                     b.Property<string>("CreatedBy")
                         .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("timestamp without time zone");
 
-                    b.Property<bool>("FiyatManuelDegistirildi")
-                        .HasColumnType("boolean");
-
-                    b.Property<int>("FiyatlandirmaBirimi")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("FiyatlandirmaMiktari")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("numeric(18,6)");
-
                     b.Property<int>("IsKaydiId")
                         .HasColumnType("integer");
-
-                    b.Property<decimal>("KdvOrani")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)");
-
-                    b.Property<decimal>("KdvTutari")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
 
                     b.Property<decimal>("M3")
                         .HasPrecision(18, 6)
                         .HasColumnType("numeric(18,6)");
 
-                    b.Property<decimal>("NetTutar")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<string>("ParaBirimi")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("character varying(3)");
-
                     b.Property<int>("SiparisId")
                         .HasColumnType("integer");
-
-                    b.Property<decimal>("ToplamTutar")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
 
                     b.Property<string>("UpdatedBy")
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("UrunAdi")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int?>("UrunId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("UrunKodu")
-                        .IsRequired()
-                        .HasColumnType("text");
 
                     b.HasKey("Id");
 
                     b.HasIndex("IsKaydiId");
 
-                    b.HasIndex("UrunId");
-
                     b.HasIndex("SiparisId", "IsKaydiId")
                         .IsUnique();
 
                     b.ToTable("FinansSiparisKalemleri");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansUrun", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Ad")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<bool>("Aktif")
-                        .HasColumnType("boolean");
-
-                    b.Property<decimal>("BirimFiyat")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<int>("FiyatlandirmaBirimi")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("KdvOrani")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)");
-
-                    b.Property<string>("Kod")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("ParaBirimi")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("character varying(3)");
-
-                    b.Property<int>("Sira")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Kod")
-                        .IsUnique();
-
-                    b.ToTable("FinansUrunleri");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansUrunEslesmesi", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<bool>("Aktif")
-                        .HasColumnType("boolean");
-
-                    b.Property<decimal?>("Boy")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<decimal?>("En")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<int?>("IcSandikSablonId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("IsTuru")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("SandikAdi")
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<string>("SandikTipi")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<int>("UrunId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal?>("Yukseklik")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UrunId");
-
-                    b.HasIndex("IsTuru", "SandikAdi")
-                        .IsUnique();
-
-                    b.ToTable("FinansUrunEslesmeleri");
                 });
 
             modelBuilder.Entity("_3K.Core.Entities.HareketGecmisi", b =>
@@ -5635,27 +5397,9 @@ namespace _3K.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("_3K.Core.Entities.FinansUrun", "Urun")
-                        .WithMany("SiparisKalemleri")
-                        .HasForeignKey("UrunId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.Navigation("IsKaydi");
 
                     b.Navigation("Siparis");
-
-                    b.Navigation("Urun");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansUrunEslesmesi", b =>
-                {
-                    b.HasOne("_3K.Core.Entities.FinansUrun", "Urun")
-                        .WithMany("Eslesmeler")
-                        .HasForeignKey("UrunId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Urun");
                 });
 
             modelBuilder.Entity("_3K.Core.Entities.HareketGecmisi", b =>
@@ -6181,13 +5925,6 @@ namespace _3K.Infrastructure.Migrations
             modelBuilder.Entity("_3K.Core.Entities.FinansSiparisKalemi", b =>
                 {
                     b.Navigation("FaturaKalemleri");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansUrun", b =>
-                {
-                    b.Navigation("Eslesmeler");
-
-                    b.Navigation("SiparisKalemleri");
                 });
 
             modelBuilder.Entity("_3K.Core.Entities.Kullanici", b =>

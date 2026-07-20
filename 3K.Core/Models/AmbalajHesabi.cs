@@ -100,9 +100,10 @@ namespace _3K.Core.Models
 
         private static int AyakAdediHesapla(decimal boy) => boy switch
         {
-            <= 2500m => 2,
-            <= 4000m => 3,
-            _ => 4
+            < 2500m => 2,
+            < 4000m => 3,
+            < 5000m => 4,
+            _ => 5
         };
 
         private static decimal Hipotenus(decimal yatay, decimal dikey) =>

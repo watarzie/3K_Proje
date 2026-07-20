@@ -135,6 +135,11 @@ try
     builder.Services.AddScoped<IDashboardStatsProvider, DashboardStatsProvider>();
     builder.Services.AddScoped<ISahaTamamlamaService, SahaTamamlamaService>();
     builder.Services.AddScoped<IBildirimService, BildirimService>();
+    builder.Services.AddScoped<IFinansSenkronService, FinansSenkronService>();
+    builder.Services.AddScoped<IFinansAylikService, FinansAylikService>();
+    builder.Services.AddScoped<IFinansRaporService, FinansRaporService>();
+    builder.Services.AddScoped<IFinansBelgeService, FinansBelgeService>();
+    builder.Services.AddScoped<IFinansDonemService, FinansDonemService>();
 
     // ======= Current User Service (Pipeline Behavior için) =======
     builder.Services.AddHttpContextAccessor();

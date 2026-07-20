@@ -26,6 +26,7 @@ namespace _3K.Core.Entities
         public decimal? Yukseklik { get; set; }
         public decimal? NetKg { get; set; }
         public decimal? GrossKg { get; set; }
+        public bool? AmbalajaDahilMi { get; set; }
 
         // Navigation Properties
         public virtual Proje Proje { get; set; } = null!;

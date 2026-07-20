@@ -19,6 +19,7 @@ namespace _3K.Core.Entities
         public int AmbalajUretimPlaniId { get; set; }
         public int? KaynakSandikId { get; set; }
         public int? UstKalemId { get; set; }
+        public int? IcSandikSablonId { get; set; }
         public int Tur { get; set; }
         public bool UretimeAlindi { get; set; } = true;
         public string SandikNo { get; set; } = string.Empty;
@@ -47,8 +48,17 @@ namespace _3K.Core.Entities
         public decimal Yukseklik { get; set; }
     }
 
+    public class AmbalajTalepEden : BaseEntity
+    {
+        public string Ad { get; set; } = string.Empty;
+    }
+
     public class AmbalajBagimsizSandik : BaseEntity
     {
+        public int? ProjeId { get; set; }
+        public int? KaynakSandikId { get; set; }
+        public int? UstKaynakSandikId { get; set; }
+        public int? IcSandikSablonId { get; set; }
         public int Tur { get; set; }
         public int DurumId { get; set; } = 1;
         public bool UretimeAlindi { get; set; } = true;
@@ -63,5 +73,9 @@ namespace _3K.Core.Entities
         public string? KullanimAmaci { get; set; }
         public string? TalimatVeren { get; set; }
         public string? Aciklama { get; set; }
+
+        public virtual Proje? Proje { get; set; }
+        public virtual Sandik? KaynakSandik { get; set; }
+        public virtual Sandik? UstKaynakSandik { get; set; }
     }
 }

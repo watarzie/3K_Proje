@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using _3K.Infrastructure.Data;
@@ -11,9 +12,11 @@ using _3K.Infrastructure.Data;
 namespace _3K.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260714110849_AddSpecialCrateSource")]
+    partial class AddSpecialCrateSource
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -57,9 +60,6 @@ namespace _3K.Infrastructure.Migrations
 
                     b.Property<string>("FirinPartiNo")
                         .HasColumnType("text");
-
-                    b.Property<int?>("IcSandikSablonId")
-                        .HasColumnType("integer");
 
                     b.Property<int?>("KaynakSandikId")
                         .HasColumnType("integer");
@@ -158,39 +158,6 @@ namespace _3K.Infrastructure.Migrations
                     b.ToTable("AmbalajIcSandikSablonlari");
                 });
 
-            modelBuilder.Entity("_3K.Core.Entities.AmbalajTalepEden", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Ad")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Ad")
-                        .IsUnique();
-
-                    b.ToTable("AmbalajTalepEdenler");
-                });
-
             modelBuilder.Entity("_3K.Core.Entities.AmbalajUretimKalemi", b =>
                 {
                     b.Property<int>("Id")
@@ -224,9 +191,6 @@ namespace _3K.Infrastructure.Migrations
                     b.Property<decimal>("En")
                         .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)");
-
-                    b.Property<int?>("IcSandikSablonId")
-                        .HasColumnType("integer");
 
                     b.Property<int?>("KaynakSandikId")
                         .HasColumnType("integer");
@@ -678,975 +642,6 @@ namespace _3K.Infrastructure.Migrations
                     b.ToTable("CekiSatirlari");
                 });
 
-            modelBuilder.Entity("_3K.Core.Entities.FinansBelge", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("BelgeTuru")
-                        .HasColumnType("integer");
-
-                    b.Property<long>("Boyut")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("DosyaAdi")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("DosyaUzantisi")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("DosyaYolu")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int?>("FaturaId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("GiderId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("IcerikTuru")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int?>("OzelIsId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("SaklananDosyaAdi")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int?>("SiparisId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("YukleyenKullanici")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FaturaId");
-
-                    b.HasIndex("GiderId");
-
-                    b.HasIndex("OzelIsId");
-
-                    b.HasIndex("SiparisId");
-
-                    b.ToTable("FinansBelgeleri");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansDuzenliIs", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Aciklama")
-                        .HasColumnType("text");
-
-                    b.Property<bool>("Aktif")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime>("BaslangicTarihi")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("Birim")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<decimal>("BirimFiyat")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<DateTime?>("BitisTarihi")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<int>("HesaplamaYontemi")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("IsAdi")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("IsTuru")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<decimal>("KdvOrani")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)");
-
-                    b.Property<decimal>("Miktar")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<string>("Musteri")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("OlusturmaGunu")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("ParaBirimi")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("character varying(3)");
-
-                    b.Property<int?>("ProjeId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("RaporGrubu")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<DateTime?>("SonOlusturulanDonem")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("TekrarSikligi")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProjeId");
-
-                    b.ToTable("FinansDuzenliIsleri");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansFatura", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Aciklama")
-                        .HasColumnType("text");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<int>("Durum")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("FaturaNumarasi")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("FaturaTarihi")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("IptalAciklamasi")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("IptalTarihi")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("KayitNo")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("SiparisId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FaturaNumarasi");
-
-                    b.HasIndex("KayitNo")
-                        .IsUnique();
-
-                    b.HasIndex("SiparisId");
-
-                    b.ToTable("FinansFaturalari");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansFaturaKalemi", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("Adet")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<int>("FaturaId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("M3")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("numeric(18,6)");
-
-                    b.Property<int>("SiparisKalemiId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SiparisKalemiId");
-
-                    b.HasIndex("FaturaId", "SiparisKalemiId")
-                        .IsUnique();
-
-                    b.ToTable("FinansFaturaKalemleri");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansGider", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Aciklama")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("AltKategori")
-                        .HasColumnType("text");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("FirmaVeyaKisi")
-                        .HasColumnType("text");
-
-                    b.Property<string>("IptalAciklamasi")
-                        .HasColumnType("text");
-
-                    b.Property<bool>("IptalEdildi")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("IptalTarihi")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<int?>("IsTuru")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("KategoriId")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("KdvDahil")
-                        .HasColumnType("boolean");
-
-                    b.Property<decimal>("KdvOrani")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)");
-
-                    b.Property<decimal>("KdvTutari")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("Matrah")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<string>("ParaBirimi")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("character varying(3)");
-
-                    b.Property<int?>("ProjeId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("Tarih")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<decimal>("ToplamTutar")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("Tutar")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("KategoriId");
-
-                    b.HasIndex("ProjeId");
-
-                    b.ToTable("FinansGiderleri");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansGiderKategorisi", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Ad")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<bool>("Aktif")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Ad")
-                        .IsUnique();
-
-                    b.ToTable("FinansGiderKategorileri");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansIsKaydi", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("Adet")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<DateTime>("AktarimTarihi")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<decimal>("BirimM3")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("numeric(18,6)");
-
-                    b.Property<decimal?>("Boy")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<decimal?>("En")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<int?>("IcSandikSablonId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("IsTuru")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("KaynakAktif")
-                        .HasColumnType("boolean");
-
-                    b.Property<int?>("KaynakKayitId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("KaynakModul")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Musteri")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int?>("OzelIsId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("ProjeId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("ProjeNo")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("SandikAdi")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("SandikNo")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("SandikTipi")
-                        .HasColumnType("text");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("UretimDurumu")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("UretimTamamlanmaTarihi")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<DateTime>("UretimeAlinmaTarihi")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<decimal?>("Yukseklik")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OzelIsId")
-                        .IsUnique();
-
-                    b.HasIndex("KaynakModul", "KaynakKayitId")
-                        .IsUnique()
-                        .HasFilter("\"KaynakKayitId\" IS NOT NULL");
-
-                    b.HasIndex("ProjeId", "IsTuru");
-
-                    b.ToTable("FinansIsKayitlari");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansIsTuruTanimi", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Ad")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
-
-                    b.Property<bool>("Aktif")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<int>("Sira")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Ad")
-                        .IsUnique();
-
-                    b.ToTable("FinansIsTuruTanimlari");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansIslemGecmisi", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Aciklama")
-                        .HasColumnType("text");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("EskiDeger")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Islem")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("IslemTarihi")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<int>("ReferansId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("ReferansTipi")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("YeniDeger")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ReferansTipi", "ReferansId", "IslemTarihi");
-
-                    b.ToTable("FinansIslemGecmisleri");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansOzelIs", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Aciklama")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Birim")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<decimal>("BirimFiyat")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("DonemAnahtari")
-                        .HasColumnType("text");
-
-                    b.Property<int?>("DuzenliIsId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("HesaplamaYontemi")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("IptalAciklamasi")
-                        .HasColumnType("text");
-
-                    b.Property<bool>("IptalEdildi")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("IptalTarihi")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("IsAdi")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("IsTarihi")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("IsTuru")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("KayitNo")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<decimal>("KdvOrani")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)");
-
-                    b.Property<decimal>("Miktar")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<string>("Musteri")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("ParaBirimi")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("character varying(3)");
-
-                    b.Property<int?>("ProjeId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("RaporGrubu")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("KayitNo")
-                        .IsUnique();
-
-                    b.HasIndex("ProjeId");
-
-                    b.HasIndex("DuzenliIsId", "DonemAnahtari")
-                        .IsUnique()
-                        .HasFilter("\"DuzenliIsId\" IS NOT NULL AND \"DonemAnahtari\" IS NOT NULL");
-
-                    b.ToTable("FinansOzelIsleri");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansSiparis", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Aciklama")
-                        .HasColumnType("text");
-
-                    b.Property<string>("AnaProjeNo")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<int>("Durum")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("IptalAciklamasi")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("IptalTarihi")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("KayitNo")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("PoNumarasi")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int?>("ProjeId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("SiparisTarihi")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("KayitNo")
-                        .IsUnique();
-
-                    b.HasIndex("PoNumarasi");
-
-                    b.HasIndex("ProjeId");
-
-                    b.ToTable("FinansSiparisleri");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansSiparisKalemi", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("Adet")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<decimal>("BirimFiyat")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<bool>("FiyatManuelDegistirildi")
-                        .HasColumnType("boolean");
-
-                    b.Property<int>("FiyatlandirmaBirimi")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("FiyatlandirmaMiktari")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("numeric(18,6)");
-
-                    b.Property<int>("IsKaydiId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("KdvOrani")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)");
-
-                    b.Property<decimal>("KdvTutari")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("M3")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("numeric(18,6)");
-
-                    b.Property<decimal>("NetTutar")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<string>("ParaBirimi")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("character varying(3)");
-
-                    b.Property<int>("SiparisId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("ToplamTutar")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("UrunAdi")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int?>("UrunId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("UrunKodu")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("IsKaydiId");
-
-                    b.HasIndex("UrunId");
-
-                    b.HasIndex("SiparisId", "IsKaydiId")
-                        .IsUnique();
-
-                    b.ToTable("FinansSiparisKalemleri");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansUrun", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Ad")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<bool>("Aktif")
-                        .HasColumnType("boolean");
-
-                    b.Property<decimal>("BirimFiyat")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<int>("FiyatlandirmaBirimi")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("KdvOrani")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)");
-
-                    b.Property<string>("Kod")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("ParaBirimi")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("character varying(3)");
-
-                    b.Property<int>("Sira")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Kod")
-                        .IsUnique();
-
-                    b.ToTable("FinansUrunleri");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansUrunEslesmesi", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<bool>("Aktif")
-                        .HasColumnType("boolean");
-
-                    b.Property<decimal?>("Boy")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<decimal?>("En")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<int?>("IcSandikSablonId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("IsTuru")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("SandikAdi")
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<string>("SandikTipi")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<int>("UrunId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal?>("Yukseklik")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UrunId");
-
-                    b.HasIndex("IsTuru", "SandikAdi")
-                        .IsUnique();
-
-                    b.ToTable("FinansUrunEslesmeleri");
-                });
-
             modelBuilder.Entity("_3K.Core.Entities.HareketGecmisi", b =>
                 {
                     b.Property<int>("Id")
@@ -1823,70 +818,70 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 1,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(9176),
                             LookupUcKDurumId = 8,
                             OnayGerektirirMi = true
                         },
                         new
                         {
                             Id = 2,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(9613),
                             LookupUcKDurumId = 9,
                             OnayGerektirirMi = true
                         },
                         new
                         {
                             Id = 3,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(9617),
                             LookupUcKDurumId = 10,
                             OnayGerektirirMi = true
                         },
                         new
                         {
                             Id = 4,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(9619),
                             LookupUcKDurumId = 2,
                             OnayGerektirirMi = false
                         },
                         new
                         {
                             Id = 5,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(9620),
                             LookupUcKDurumId = 3,
                             OnayGerektirirMi = false
                         },
                         new
                         {
                             Id = 6,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(9621),
                             LookupUcKDurumId = 4,
                             OnayGerektirirMi = false
                         },
                         new
                         {
                             Id = 7,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(9622),
                             LookupUcKDurumId = 11,
                             OnayGerektirirMi = false
                         },
                         new
                         {
                             Id = 8,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(9623),
                             LookupUcKDurumId = 12,
                             OnayGerektirirMi = false
                         },
                         new
                         {
                             Id = 9,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(9624),
                             LookupUcKDurumId = 13,
                             OnayGerektirirMi = false
                         },
                         new
                         {
                             Id = 10,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(9626),
                             LookupUcKDurumId = 14,
                             OnayGerektirirMi = false
                         });
@@ -2025,70 +1020,70 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 1,
                             Anahtar = 1,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6534),
                             Deger = "Adet"
                         },
                         new
                         {
                             Id = 2,
                             Anahtar = 2,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6537),
                             Deger = "Set"
                         },
                         new
                         {
                             Id = 3,
                             Anahtar = 3,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6538),
                             Deger = "Metre"
                         },
                         new
                         {
                             Id = 4,
                             Anahtar = 4,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6539),
                             Deger = "Kg"
                         },
                         new
                         {
                             Id = 5,
                             Anahtar = 5,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6540),
                             Deger = "Litre"
                         },
                         new
                         {
                             Id = 6,
                             Anahtar = 6,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6542),
                             Deger = "Takım"
                         },
                         new
                         {
                             Id = 7,
                             Anahtar = 7,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6543),
                             Deger = "Paket"
                         },
                         new
                         {
                             Id = 8,
                             Anahtar = 8,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6544),
                             Deger = "Ton"
                         },
                         new
                         {
                             Id = 9,
                             Anahtar = 9,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6545),
                             Deger = "Metrekare"
                         },
                         new
                         {
                             Id = 10,
                             Anahtar = 10,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6546),
                             Deger = "Metreküp"
                         });
                 });
@@ -2132,28 +1127,28 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 1,
                             Anahtar = 1,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4469),
                             Deger = "Belirsiz"
                         },
                         new
                         {
                             Id = 2,
                             Anahtar = 2,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4472),
                             Deger = "3K"
                         },
                         new
                         {
                             Id = 4,
                             Anahtar = 4,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4473),
                             Deger = "Seymen"
                         },
                         new
                         {
                             Id = 5,
                             Anahtar = 5,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4474),
                             Deger = "Grid"
                         });
                 });
@@ -2197,28 +1192,28 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 1,
                             Anahtar = 1,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5507),
                             Deger = "Tadilat"
                         },
                         new
                         {
                             Id = 2,
                             Anahtar = 2,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5510),
                             Deger = "Iptal"
                         },
                         new
                         {
                             Id = 3,
                             Anahtar = 3,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5511),
                             Deger = "Projeye Geri Dönüş"
                         },
                         new
                         {
                             Id = 4,
                             Anahtar = 4,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5513),
                             Deger = "Hatalı Ürün"
                         });
                 });
@@ -2262,91 +1257,91 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 1,
                             Anahtar = 1,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4890),
                             Deger = "Bekliyor"
                         },
                         new
                         {
                             Id = 2,
                             Anahtar = 2,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4893),
                             Deger = "Üretimde"
                         },
                         new
                         {
                             Id = 3,
                             Anahtar = 3,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4894),
                             Deger = "Stok Hazır"
                         },
                         new
                         {
                             Id = 4,
                             Anahtar = 4,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4895),
                             Deger = "Sevk Edildi"
                         },
                         new
                         {
                             Id = 5,
                             Anahtar = 5,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4897),
                             Deger = "Kısmi Sevk Edildi"
                         },
                         new
                         {
                             Id = 6,
                             Anahtar = 6,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4898),
                             Deger = "Bekletiliyor"
                         },
                         new
                         {
                             Id = 7,
                             Anahtar = 7,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4899),
                             Deger = "İptal Edildi"
                         },
                         new
                         {
                             Id = 8,
                             Anahtar = 8,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4910),
                             Deger = "Tam Geldi"
                         },
                         new
                         {
                             Id = 9,
                             Anahtar = 9,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4912),
                             Deger = "Eksik Geldi"
                         },
                         new
                         {
                             Id = 10,
                             Anahtar = 10,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4913),
                             Deger = "Gelmedi"
                         },
                         new
                         {
                             Id = 11,
                             Anahtar = 11,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4914),
                             Deger = "Trafo Sevk"
                         },
                         new
                         {
                             Id = 12,
                             Anahtar = 12,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4915),
                             Deger = "İptal"
                         },
                         new
                         {
                             Id = 14,
                             Anahtar = 14,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4916),
                             Deger = "Grid Kapandı"
                         });
                 });
@@ -2390,28 +1385,28 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 1,
                             Anahtar = 1,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5104),
                             Deger = "Sevk Edildi"
                         },
                         new
                         {
                             Id = 2,
                             Anahtar = 2,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5107),
                             Deger = "Bekliyor"
                         },
                         new
                         {
                             Id = 3,
                             Anahtar = 3,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5109),
                             Deger = "Sevk Edilmedi"
                         },
                         new
                         {
                             Id = 4,
                             Anahtar = 4,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5110),
                             Deger = "Yeniden Sevk Gerekli"
                         });
                 });
@@ -2455,238 +1450,238 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 1,
                             Anahtar = 1,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6099),
                             Deger = "Çeki Yüklendi"
                         },
                         new
                         {
                             Id = 2,
                             Anahtar = 2,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6102),
                             Deger = "Proje Oluşturuldu"
                         },
                         new
                         {
                             Id = 3,
                             Anahtar = 3,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6103),
                             Deger = "Grid Durum Güncellendi"
                         },
                         new
                         {
                             Id = 4,
                             Anahtar = 4,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6104),
                             Deger = "Grid Toplu Sevk Edildi"
                         },
                         new
                         {
                             Id = 5,
                             Anahtar = 5,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6105),
                             Deger = "3K Durum Güncellendi"
                         },
                         new
                         {
                             Id = 6,
                             Anahtar = 6,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6107),
                             Deger = "3K Teslim Alındı"
                         },
                         new
                         {
                             Id = 7,
                             Anahtar = 7,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6108),
                             Deger = "3K Toplu Teslim Alındı"
                         },
                         new
                         {
                             Id = 8,
                             Anahtar = 8,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6109),
                             Deger = "Manuel Ürün Eklendi"
                         },
                         new
                         {
                             Id = 9,
                             Anahtar = 9,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6110),
                             Deger = "Sandık Ürün Taşıma"
                         },
                         new
                         {
                             Id = 10,
                             Anahtar = 10,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6111),
                             Deger = "Ürün Güncellendi"
                         },
                         new
                         {
                             Id = 11,
                             Anahtar = 11,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6120),
                             Deger = "Ürün İptal Edildi"
                         },
                         new
                         {
                             Id = 12,
                             Anahtar = 12,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6121),
                             Deger = "Stoktan Karşılandı"
                         },
                         new
                         {
                             Id = 13,
                             Anahtar = 13,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6122),
                             Deger = "F.B.'den Karşılandı"
                         },
                         new
                         {
                             Id = 14,
                             Anahtar = 14,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6123),
                             Deger = "Sandık Manuel Kapatma"
                         },
                         new
                         {
                             Id = 15,
                             Anahtar = 15,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6124),
                             Deger = "Toplu Sandık Kapatıldı"
                         },
                         new
                         {
                             Id = 16,
                             Anahtar = 16,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6126),
                             Deger = "Fiili Sandık Değiştirildi"
                         },
                         new
                         {
                             Id = 17,
                             Anahtar = 17,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6127),
                             Deger = "Lokasyon Güncelleme"
                         },
                         new
                         {
                             Id = 18,
                             Anahtar = 18,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6128),
                             Deger = "Sandık Otomatik Hazırlandı"
                         },
                         new
                         {
                             Id = 19,
                             Anahtar = 19,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6129),
                             Deger = "Excel İndirildi"
                         },
                         new
                         {
                             Id = 20,
                             Anahtar = 20,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6130),
                             Deger = "PDF İndirildi"
                         },
                         new
                         {
                             Id = 21,
                             Anahtar = 21,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6131),
                             Deger = "Sandık Oluşturuldu"
                         },
                         new
                         {
                             Id = 22,
                             Anahtar = 22,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6132),
                             Deger = "Kullanıcı Oluşturuldu"
                         },
                         new
                         {
                             Id = 23,
                             Anahtar = 23,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6133),
                             Deger = "Proje Sevk Edildi"
                         },
                         new
                         {
                             Id = 24,
                             Anahtar = 24,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6134),
                             Deger = "Sandık Sevk Edildi"
                         },
                         new
                         {
                             Id = 25,
                             Anahtar = 25,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6135),
                             Deger = "Saha/Yedek Malzeme Eklendi"
                         },
                         new
                         {
                             Id = 26,
                             Anahtar = 26,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6136),
                             Deger = "Toplu Durum Güncellendi"
                         },
                         new
                         {
                             Id = 27,
                             Anahtar = 27,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6137),
                             Deger = "Not Eklendi"
                         },
                         new
                         {
                             Id = 28,
                             Anahtar = 28,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6138),
                             Deger = "Manuel Ürün Sandığa Eklendi"
                         },
                         new
                         {
                             Id = 29,
                             Anahtar = 29,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6138),
                             Deger = "Sandık Kapandı"
                         },
                         new
                         {
                             Id = 30,
                             Anahtar = 30,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6139),
                             Deger = "3K Durum Sıfırlandı"
                         },
                         new
                         {
                             Id = 31,
                             Anahtar = 31,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6140),
                             Deger = "Grid Durum Sıfırlandı"
                         },
                         new
                         {
                             Id = 32,
                             Anahtar = 32,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6142),
                             Deger = "Manuel Ürün Silindi"
                         },
                         new
                         {
                             Id = 33,
                             Anahtar = 33,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6143),
                             Deger = "Sandık Silindi"
                         },
                         new
                         {
                             Id = 34,
                             Anahtar = 34,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6144),
                             Deger = "Fazla Teslim Stoka Aktarıldı"
                         });
                 });
@@ -2730,14 +1725,14 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 1,
                             Anahtar = 1,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6730),
                             Deger = "Onaylandı"
                         },
                         new
                         {
                             Id = 2,
                             Anahtar = 2,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6732),
                             Deger = "Tadilatta"
                         });
                 });
@@ -2781,42 +1776,42 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 1,
                             Anahtar = 1,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 318, DateTimeKind.Unspecified).AddTicks(7846),
                             Deger = "Hazırlanıyor"
                         },
                         new
                         {
                             Id = 2,
                             Anahtar = 2,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 318, DateTimeKind.Unspecified).AddTicks(9587),
                             Deger = "Devam"
                         },
                         new
                         {
                             Id = 3,
                             Anahtar = 3,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 318, DateTimeKind.Unspecified).AddTicks(9598),
                             Deger = "Tamamlandı"
                         },
                         new
                         {
                             Id = 4,
                             Anahtar = 4,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 318, DateTimeKind.Unspecified).AddTicks(9600),
                             Deger = "Beklemede"
                         },
                         new
                         {
                             Id = 5,
                             Anahtar = 5,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 318, DateTimeKind.Unspecified).AddTicks(9602),
                             Deger = "Sevk Edildi"
                         },
                         new
                         {
                             Id = 6,
                             Anahtar = 6,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 318, DateTimeKind.Unspecified).AddTicks(9603),
                             Deger = "Eksik Sevk Edildi"
                         });
                 });
@@ -2860,21 +1855,21 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 1,
                             Anahtar = 1,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6348),
                             Deger = "Normal"
                         },
                         new
                         {
                             Id = 2,
                             Anahtar = 2,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6351),
                             Deger = "Saha"
                         },
                         new
                         {
                             Id = 3,
                             Anahtar = 3,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6352),
                             Deger = "Yedek"
                         });
                 });
@@ -2918,28 +1913,28 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 1,
                             Anahtar = 1,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(3976),
                             Deger = "Boş"
                         },
                         new
                         {
                             Id = 2,
                             Anahtar = 2,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(3988),
                             Deger = "Hazırlanıyor"
                         },
                         new
                         {
                             Id = 3,
                             Anahtar = 3,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(3990),
                             Deger = "Kapandı"
                         },
                         new
                         {
                             Id = 4,
                             Anahtar = 4,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(3991),
                             Deger = "Sevk Edildi"
                         });
                 });
@@ -2983,14 +1978,14 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 1,
                             Anahtar = 1,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4257),
                             Deger = "Ahşap Kapalı"
                         },
                         new
                         {
                             Id = 2,
                             Anahtar = 2,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4260),
                             Deger = "Katlanır Sandık"
                         });
                 });
@@ -3034,21 +2029,21 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 1,
                             Anahtar = 1,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5912),
                             Deger = "Aktif"
                         },
                         new
                         {
                             Id = 2,
                             Anahtar = 2,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5915),
                             Deger = "Tukendi"
                         },
                         new
                         {
                             Id = 3,
                             Anahtar = 3,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5917),
                             Deger = "Rezerve"
                         });
                 });
@@ -3092,42 +2087,42 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 1,
                             Anahtar = 1,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6915),
                             Deger = "Ambar"
                         },
                         new
                         {
                             Id = 2,
                             Anahtar = 2,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6918),
                             Deger = "İmalat"
                         },
                         new
                         {
                             Id = 3,
                             Anahtar = 3,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6919),
                             Deger = "Tedarik"
                         },
                         new
                         {
                             Id = 4,
                             Anahtar = 4,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6920),
                             Deger = "Tedarik 3K Teslim"
                         },
                         new
                         {
                             Id = 5,
                             Anahtar = 5,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6921),
                             Deger = "Siparişte"
                         },
                         new
                         {
                             Id = 6,
                             Anahtar = 6,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(6922),
                             Deger = "Tamamlandı"
                         });
                 });
@@ -3171,98 +2166,98 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 1,
                             Anahtar = 1,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5295),
                             Deger = "Bekliyor"
                         },
                         new
                         {
                             Id = 2,
                             Anahtar = 2,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5298),
                             Deger = "Sevk Adeti Tam Geldi"
                         },
                         new
                         {
                             Id = 3,
                             Anahtar = 3,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5299),
                             Deger = "Sevk Adeti Eksik Geldi"
                         },
                         new
                         {
                             Id = 4,
                             Anahtar = 4,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5300),
                             Deger = "Gelmedi"
                         },
                         new
                         {
                             Id = 5,
                             Anahtar = 5,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5301),
                             Deger = "Tamamlandı"
                         },
                         new
                         {
                             Id = 6,
                             Anahtar = 6,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5302),
                             Deger = "Kontrol Edildi"
                         },
                         new
                         {
                             Id = 7,
                             Anahtar = 7,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5303),
                             Deger = "İade Edildi"
                         },
                         new
                         {
                             Id = 8,
                             Anahtar = 8,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5304),
                             Deger = "Projeden Karşılandı"
                         },
                         new
                         {
                             Id = 9,
                             Anahtar = 9,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5315),
                             Deger = "Stoktan Karşılandı"
                         },
                         new
                         {
                             Id = 10,
                             Anahtar = 10,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5317),
                             Deger = "Tedarikçiden Geldi"
                         },
                         new
                         {
                             Id = 11,
                             Anahtar = 11,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5318),
                             Deger = "Başka Projeye Verildi"
                         },
                         new
                         {
                             Id = 12,
                             Anahtar = 12,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5319),
                             Deger = "Geri Gönderildi"
                         },
                         new
                         {
                             Id = 13,
                             Anahtar = 13,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5320),
                             Deger = "Hatalı Ürün"
                         },
                         new
                         {
                             Id = 14,
                             Anahtar = 14,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5321),
                             Deger = "Fazla Geldi"
                         });
                 });
@@ -3306,147 +2301,147 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 1,
                             Anahtar = 1,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4658),
                             Deger = "Bekliyor"
                         },
                         new
                         {
                             Id = 2,
                             Anahtar = 2,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4661),
                             Deger = "Kısmi Geldi"
                         },
                         new
                         {
                             Id = 3,
                             Anahtar = 3,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4662),
                             Deger = "Tamamlandı"
                         },
                         new
                         {
                             Id = 4,
                             Anahtar = 4,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4663),
                             Deger = "Eksik"
                         },
                         new
                         {
                             Id = 5,
                             Anahtar = 5,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4665),
                             Deger = "Stoktan Karşılandı"
                         },
                         new
                         {
                             Id = 6,
                             Anahtar = 6,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4666),
                             Deger = "FB'den Karşılandı"
                         },
                         new
                         {
                             Id = 7,
                             Anahtar = 7,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4667),
                             Deger = "Sonra Gidecek"
                         },
                         new
                         {
                             Id = 8,
                             Anahtar = 8,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4668),
                             Deger = "Sandık Değişti"
                         },
                         new
                         {
                             Id = 9,
                             Anahtar = 9,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4669),
                             Deger = "İptal/Pasif"
                         },
                         new
                         {
                             Id = 10,
                             Anahtar = 10,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4670),
                             Deger = "Teslim Alındı"
                         },
                         new
                         {
                             Id = 11,
                             Anahtar = 11,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4671),
                             Deger = "Geri Gönderildi"
                         },
                         new
                         {
                             Id = 12,
                             Anahtar = 12,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4672),
                             Deger = "Kısmi Tamamlandı"
                         },
                         new
                         {
                             Id = 13,
                             Anahtar = 13,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4673),
                             Deger = "Kayıp"
                         },
                         new
                         {
                             Id = 14,
                             Anahtar = 14,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4674),
                             Deger = "Grid'de Hazır"
                         },
                         new
                         {
                             Id = 15,
                             Anahtar = 15,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4675),
                             Deger = "Grid'de Eksik"
                         },
                         new
                         {
                             Id = 16,
                             Anahtar = 16,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4676),
                             Deger = "Siparişte"
                         },
                         new
                         {
                             Id = 17,
                             Anahtar = 17,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4677),
                             Deger = "Gelmedi"
                         },
                         new
                         {
                             Id = 18,
                             Anahtar = 18,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4678),
                             Deger = "Trafo Sevk"
                         },
                         new
                         {
                             Id = 19,
                             Anahtar = 19,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4679),
                             Deger = "Başka Projeye Verildi"
                         },
                         new
                         {
                             Id = 20,
                             Anahtar = 20,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4680),
                             Deger = "Hatalı Ürün"
                         },
                         new
                         {
                             Id = 21,
                             Anahtar = 21,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(4691),
                             Deger = "Hatalı/Uyumsuz Gönderim"
                         });
                 });
@@ -3490,21 +2485,21 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 1,
                             Anahtar = 1,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5712),
                             Deger = "N"
                         },
                         new
                         {
                             Id = 2,
                             Anahtar = 2,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5715),
                             Deger = "R"
                         },
                         new
                         {
                             Id = 3,
                             Anahtar = 3,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 319, DateTimeKind.Unspecified).AddTicks(5716),
                             Deger = "W"
                         });
                 });
@@ -3563,7 +2558,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 1,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(2188),
                             Icon = "ri-dashboard-line",
                             Kod = "dashboard",
                             LabelKey = "MENU.DASHBOARD",
@@ -3573,7 +2568,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 2,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3079),
                             Icon = "ri-folder-line",
                             Kod = "projeler",
                             LabelKey = "MENU.PROJELER",
@@ -3582,7 +2577,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 5,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3092),
                             Icon = "ri-archive-line",
                             Kod = "sandik-yonetimi",
                             LabelKey = "MENU.SANDIK_YONETIMI",
@@ -3592,7 +2587,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 7,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3094),
                             Icon = "ri-building-2-line",
                             Kod = "depo-durumu",
                             LabelKey = "MENU.DEPO_DURUMU",
@@ -3602,7 +2597,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 8,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3096),
                             Icon = "ri-stack-line",
                             Kod = "stok",
                             LabelKey = "MENU.STOK_MODULU",
@@ -3612,7 +2607,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 46,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3098),
                             Icon = "ri-ruler-2-line",
                             Kod = "ambalaj-uretim-listesi",
                             LabelKey = "MENU.AMBALAJ_URETIM_LISTESI",
@@ -3621,48 +2616,38 @@ namespace _3K.Infrastructure.Migrations
                         },
                         new
                         {
-                            Id = 47,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Icon = "ri-bank-card-line",
-                            Kod = "finans-yonetimi",
-                            LabelKey = "MENU.FINANS_YONETIMI",
-                            Route = "/finans-yonetimi",
-                            Sira = 9
-                        },
-                        new
-                        {
                             Id = 10,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3099),
                             Icon = "ri-history-line",
                             Kod = "hareket-gecmisi",
                             LabelKey = "MENU.HAREKET_GECMISI",
                             Route = "/hareket-gecmisi",
-                            Sira = 10
+                            Sira = 9
                         },
                         new
                         {
                             Id = 11,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3101),
                             Icon = "ri-user-settings-line",
                             Kod = "kullanicilar",
                             LabelKey = "MENU.KULLANICI_YETKI",
                             Route = "/kullanicilar",
-                            Sira = 11
+                            Sira = 10
                         },
                         new
                         {
                             Id = 12,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3102),
                             Icon = "ri-shield-user-line",
                             Kod = "rol-yonetimi",
                             LabelKey = "MENU.ROL_YONETIMI",
                             Route = "/rol-yonetimi",
-                            Sira = 12
+                            Sira = 11
                         },
                         new
                         {
                             Id = 3,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3214),
                             Icon = "",
                             Kod = "aktif-projeler",
                             LabelKey = "MENU.AKTIF_PROJELER",
@@ -3673,7 +2658,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 4,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3216),
                             Icon = "",
                             Kod = "sevk-edilen",
                             LabelKey = "MENU.SEVK_EDILEN",
@@ -3684,7 +2669,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 14,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3218),
                             Icon = "",
                             Kod = "grid-modulu",
                             LabelKey = "MENU.GRID_MODULU",
@@ -3694,7 +2679,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 15,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3234),
                             Icon = "",
                             Kod = "3k-modulu",
                             LabelKey = "MENU.3K_MODULU",
@@ -3704,7 +2689,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 16,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3236),
                             Icon = "",
                             Kod = "proje-sevk-et",
                             LabelKey = "MENU.PROJE_SEVK_ET",
@@ -3714,7 +2699,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 24,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3238),
                             Icon = "",
                             Kod = "proje-sil",
                             LabelKey = "MENU.PROJE_SIL",
@@ -3724,7 +2709,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 44,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3240),
                             Icon = "",
                             Kod = "ceki-yukle",
                             LabelKey = "MENU.CEKI_YUKLE",
@@ -3734,7 +2719,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 45,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3242),
                             Icon = "",
                             Kod = "planlanan-sevk-tarihi",
                             LabelKey = "MENU.PLANLANAN_SEVK_TARIHI",
@@ -3744,7 +2729,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 28,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3244),
                             Icon = "",
                             Kod = "eksik-saha-projesi",
                             LabelKey = "MENU.EKSIK_SAHA_PROJESI",
@@ -3754,7 +2739,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 17,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3245),
                             Icon = "ri-tools-line",
                             Kod = "saha-yonetimi",
                             LabelKey = "MENU.SAHA_YONETIMI",
@@ -3764,7 +2749,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 29,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3247),
                             Icon = "",
                             Kod = "saha-grid-modulu",
                             LabelKey = "MENU.SAHA_GRID_MODULU",
@@ -3774,7 +2759,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 30,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3248),
                             Icon = "",
                             Kod = "saha-3k-modulu",
                             LabelKey = "MENU.SAHA_3K_MODULU",
@@ -3784,7 +2769,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 31,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3250),
                             Icon = "",
                             Kod = "saha-raporu",
                             LabelKey = "MENU.SAHA_RAPORU",
@@ -3794,7 +2779,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 32,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3252),
                             Icon = "",
                             Kod = "saha-sandiklar",
                             LabelKey = "MENU.SAHA_SANDIKLAR",
@@ -3804,7 +2789,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 33,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3253),
                             Icon = "",
                             Kod = "saha-sevk-et",
                             LabelKey = "MENU.SAHA_SEVK_ET",
@@ -3814,7 +2799,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 34,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3255),
                             Icon = "",
                             Kod = "saha-proje-sil",
                             LabelKey = "MENU.SAHA_PROJE_SIL",
@@ -3824,7 +2809,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 18,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3256),
                             Icon = "ri-box-3-line",
                             Kod = "yedek-yonetimi",
                             LabelKey = "MENU.YEDEK_YONETIMI",
@@ -3834,17 +2819,17 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 99,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3258),
                             Icon = "ri-check-double-line",
                             Kod = "islem-onay-merkezi",
                             LabelKey = "MENU.ISLEM_ONAY",
                             Route = "/onay-merkezi",
-                            Sira = 13
+                            Sira = 12
                         },
                         new
                         {
                             Id = 43,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3259),
                             Icon = "",
                             Kod = "onay-kurallari-yonet",
                             LabelKey = "MENU.ONAY_KURALLARI_YONET",
@@ -3854,7 +2839,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 20,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3269),
                             Icon = "",
                             Kod = "kalite-modulu",
                             LabelKey = "MENU.KALITE_MODULU",
@@ -3864,7 +2849,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 21,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3271),
                             Icon = "",
                             Kod = "surec-modulu",
                             LabelKey = "MENU.SUREC_MODULU",
@@ -3874,7 +2859,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 22,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3273),
                             Icon = "",
                             Kod = "eksik-raporu",
                             LabelKey = "MENU.EKSIK_RAPORU",
@@ -3884,7 +2869,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 23,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3274),
                             Icon = "",
                             Kod = "gerceklesen-ceki-raporu",
                             LabelKey = "MENU.GERCEKLESEN_CEKI_RAPORU",
@@ -3894,7 +2879,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 25,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3276),
                             Icon = "",
                             Kod = "ceki-verisi-duzenle",
                             LabelKey = "MENU.CEKI_VERISI_DUZENLE",
@@ -3904,7 +2889,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 26,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3278),
                             Icon = "ri-list-check-3-line",
                             Kod = "3k-is-listesi",
                             LabelKey = "MENU.3K_IS_LISTESI",
@@ -3915,7 +2900,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 27,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3279),
                             Icon = "",
                             Kod = "ceki-verisi-sil",
                             LabelKey = "MENU.CEKI_VERISI_SIL",
@@ -3925,7 +2910,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 35,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3281),
                             Icon = "",
                             Kod = "ceki-revizyon-yukle",
                             LabelKey = "MENU.CEKI_REVIZYON_YUKLE",
@@ -3935,7 +2920,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 36,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3282),
                             Icon = "",
                             Kod = "3k-sandik-durum-raporu",
                             LabelKey = "MENU.3K_SANDIK_DURUM_RAPORU",
@@ -3945,7 +2930,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 37,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3284),
                             Icon = "",
                             Kod = "saha-sevk-sonrasi-eksik-raporu",
                             LabelKey = "MENU.SAHA_SEVK_SONRASI_EKSIK_RAPORU",
@@ -3955,7 +2940,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 38,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3285),
                             Icon = "",
                             Kod = "saha-3k-sandik-durum-raporu",
                             LabelKey = "MENU.SAHA_3K_SANDIK_DURUM_RAPORU",
@@ -3965,7 +2950,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 42,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3291),
                             Icon = "",
                             Kod = "saha-gerceklesen-ceki-raporu",
                             LabelKey = "MENU.SAHA_GERCEKLESEN_CEKI_RAPORU",
@@ -3975,7 +2960,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 40,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3294),
                             Icon = "",
                             Kod = "sahaya-aktar",
                             LabelKey = "MENU.SAHAYA_AKTAR",
@@ -3985,7 +2970,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 41,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3296),
                             Icon = "",
                             Kod = "saha-aktarim-geri-al",
                             LabelKey = "MENU.SAHA_AKTARIM_GERI_AL",
@@ -3995,7 +2980,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 39,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3297),
                             Icon = "",
                             Kod = "stok-sil",
                             LabelKey = "MENU.STOK_SIL",
@@ -4355,37 +3340,37 @@ namespace _3K.Infrastructure.Migrations
                         {
                             Id = 1,
                             Ad = "Admin",
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified)
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(1281)
                         },
                         new
                         {
                             Id = 2,
                             Ad = "Personel3K",
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified)
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(1576)
                         },
                         new
                         {
                             Id = 3,
                             Ad = "PersonelGrid",
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified)
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(1580)
                         },
                         new
                         {
                             Id = 4,
                             Ad = "Yonetici",
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified)
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(1581)
                         },
                         new
                         {
                             Id = 5,
                             Ad = "Kalite",
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified)
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(1582)
                         },
                         new
                         {
                             Id = 6,
                             Ad = "Surec",
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified)
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(1584)
                         });
                 });
 
@@ -4433,7 +3418,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 1,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(3675),
                             MenuTanimiId = 1,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4441,7 +3426,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 2,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4070),
                             MenuTanimiId = 2,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4449,7 +3434,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 3,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4073),
                             MenuTanimiId = 3,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4457,7 +3442,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 4,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4074),
                             MenuTanimiId = 4,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4465,7 +3450,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 5,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4075),
                             MenuTanimiId = 5,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4473,7 +3458,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 6,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4077),
                             MenuTanimiId = 7,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4481,7 +3466,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 7,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4078),
                             MenuTanimiId = 8,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4489,7 +3474,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 8,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4079),
                             MenuTanimiId = 10,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4497,7 +3482,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 9,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4080),
                             MenuTanimiId = 11,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4505,7 +3490,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 10,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4081),
                             MenuTanimiId = 12,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4513,7 +3498,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 11,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4082),
                             MenuTanimiId = 14,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4521,7 +3506,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 12,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4083),
                             MenuTanimiId = 15,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4529,7 +3514,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 13,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4083),
                             MenuTanimiId = 16,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4537,7 +3522,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 14,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4084),
                             MenuTanimiId = 17,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4545,7 +3530,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 15,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4085),
                             MenuTanimiId = 18,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4553,7 +3538,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 16,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4085),
                             MenuTanimiId = 20,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4561,7 +3546,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 17,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4086),
                             MenuTanimiId = 21,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4569,7 +3554,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 18,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4087),
                             MenuTanimiId = 22,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4577,7 +3562,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 19,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4088),
                             MenuTanimiId = 23,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4585,7 +3570,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 20,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4088),
                             MenuTanimiId = 24,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4593,7 +3578,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 21,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4089),
                             MenuTanimiId = 25,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4601,7 +3586,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 22,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4090),
                             MenuTanimiId = 26,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4609,7 +3594,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 23,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4090),
                             MenuTanimiId = 27,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4617,7 +3602,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 24,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4091),
                             MenuTanimiId = 28,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4625,7 +3610,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 25,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4091),
                             MenuTanimiId = 29,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4633,7 +3618,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 26,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4092),
                             MenuTanimiId = 30,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4641,7 +3626,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 27,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4092),
                             MenuTanimiId = 31,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4649,7 +3634,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 28,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4093),
                             MenuTanimiId = 32,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4657,7 +3642,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 29,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4094),
                             MenuTanimiId = 33,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4665,7 +3650,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 30,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4094),
                             MenuTanimiId = 34,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4673,7 +3658,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 31,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4095),
                             MenuTanimiId = 35,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4681,7 +3666,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 32,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4095),
                             MenuTanimiId = 36,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4689,7 +3674,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 33,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4096),
                             MenuTanimiId = 37,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4697,7 +3682,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 34,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4097),
                             MenuTanimiId = 38,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4705,7 +3690,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 35,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4098),
                             MenuTanimiId = 39,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4713,7 +3698,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 36,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4098),
                             MenuTanimiId = 40,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4721,7 +3706,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 37,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4099),
                             MenuTanimiId = 41,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4729,7 +3714,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 38,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4099),
                             MenuTanimiId = 42,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4737,7 +3722,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 39,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4100),
                             MenuTanimiId = 43,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4745,7 +3730,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 40,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4101),
                             MenuTanimiId = 44,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4753,7 +3738,7 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 41,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4101),
                             MenuTanimiId = 45,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -4761,23 +3746,15 @@ namespace _3K.Infrastructure.Migrations
                         new
                         {
                             Id = 42,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4102),
                             MenuTanimiId = 46,
                             RolId = 1,
                             YetkiTipiId = 3
                         },
                         new
                         {
-                            Id = 43,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            MenuTanimiId = 47,
-                            RolId = 1,
-                            YetkiTipiId = 3
-                        },
-                        new
-                        {
                             Id = 99,
-                            CreatedDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedDate = new DateTime(2026, 7, 14, 14, 8, 48, 321, DateTimeKind.Unspecified).AddTicks(4103),
                             MenuTanimiId = 99,
                             RolId = 1,
                             YetkiTipiId = 3
@@ -5488,176 +4465,6 @@ namespace _3K.Infrastructure.Migrations
                     b.Navigation("UcKDurumLookup");
                 });
 
-            modelBuilder.Entity("_3K.Core.Entities.FinansBelge", b =>
-                {
-                    b.HasOne("_3K.Core.Entities.FinansFatura", "Fatura")
-                        .WithMany("Belgeler")
-                        .HasForeignKey("FaturaId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("_3K.Core.Entities.FinansGider", "Gider")
-                        .WithMany("Belgeler")
-                        .HasForeignKey("GiderId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("_3K.Core.Entities.FinansOzelIs", "OzelIs")
-                        .WithMany("Belgeler")
-                        .HasForeignKey("OzelIsId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("_3K.Core.Entities.FinansSiparis", "Siparis")
-                        .WithMany("Belgeler")
-                        .HasForeignKey("SiparisId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Fatura");
-
-                    b.Navigation("Gider");
-
-                    b.Navigation("OzelIs");
-
-                    b.Navigation("Siparis");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansDuzenliIs", b =>
-                {
-                    b.HasOne("_3K.Core.Entities.Proje", "Proje")
-                        .WithMany()
-                        .HasForeignKey("ProjeId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Proje");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansFatura", b =>
-                {
-                    b.HasOne("_3K.Core.Entities.FinansSiparis", "Siparis")
-                        .WithMany()
-                        .HasForeignKey("SiparisId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Siparis");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansFaturaKalemi", b =>
-                {
-                    b.HasOne("_3K.Core.Entities.FinansFatura", "Fatura")
-                        .WithMany("Kalemler")
-                        .HasForeignKey("FaturaId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("_3K.Core.Entities.FinansSiparisKalemi", "SiparisKalemi")
-                        .WithMany("FaturaKalemleri")
-                        .HasForeignKey("SiparisKalemiId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Fatura");
-
-                    b.Navigation("SiparisKalemi");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansGider", b =>
-                {
-                    b.HasOne("_3K.Core.Entities.FinansGiderKategorisi", "Kategori")
-                        .WithMany("Giderler")
-                        .HasForeignKey("KategoriId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("_3K.Core.Entities.Proje", "Proje")
-                        .WithMany()
-                        .HasForeignKey("ProjeId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Kategori");
-
-                    b.Navigation("Proje");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansIsKaydi", b =>
-                {
-                    b.HasOne("_3K.Core.Entities.FinansOzelIs", "OzelIs")
-                        .WithOne("FinansKaydi")
-                        .HasForeignKey("_3K.Core.Entities.FinansIsKaydi", "OzelIsId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("_3K.Core.Entities.Proje", "Proje")
-                        .WithMany()
-                        .HasForeignKey("ProjeId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("OzelIs");
-
-                    b.Navigation("Proje");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansOzelIs", b =>
-                {
-                    b.HasOne("_3K.Core.Entities.FinansDuzenliIs", "DuzenliIs")
-                        .WithMany("DonemKayitlari")
-                        .HasForeignKey("DuzenliIsId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("_3K.Core.Entities.Proje", "Proje")
-                        .WithMany()
-                        .HasForeignKey("ProjeId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("DuzenliIs");
-
-                    b.Navigation("Proje");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansSiparis", b =>
-                {
-                    b.HasOne("_3K.Core.Entities.Proje", "Proje")
-                        .WithMany()
-                        .HasForeignKey("ProjeId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Proje");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansSiparisKalemi", b =>
-                {
-                    b.HasOne("_3K.Core.Entities.FinansIsKaydi", "IsKaydi")
-                        .WithMany("SiparisKalemleri")
-                        .HasForeignKey("IsKaydiId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("_3K.Core.Entities.FinansSiparis", "Siparis")
-                        .WithMany("Kalemler")
-                        .HasForeignKey("SiparisId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("_3K.Core.Entities.FinansUrun", "Urun")
-                        .WithMany("SiparisKalemleri")
-                        .HasForeignKey("UrunId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("IsKaydi");
-
-                    b.Navigation("Siparis");
-
-                    b.Navigation("Urun");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansUrunEslesmesi", b =>
-                {
-                    b.HasOne("_3K.Core.Entities.FinansUrun", "Urun")
-                        .WithMany("Eslesmeler")
-                        .HasForeignKey("UrunId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Urun");
-                });
-
             modelBuilder.Entity("_3K.Core.Entities.HareketGecmisi", b =>
                 {
                     b.HasOne("_3K.Core.Entities.LookupIslemTipi", "IslemTipiLookup")
@@ -6135,59 +4942,6 @@ namespace _3K.Infrastructure.Migrations
                     b.Navigation("StokHareketleri");
 
                     b.Navigation("TamamlamaSatirlari");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansDuzenliIs", b =>
-                {
-                    b.Navigation("DonemKayitlari");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansFatura", b =>
-                {
-                    b.Navigation("Belgeler");
-
-                    b.Navigation("Kalemler");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansGider", b =>
-                {
-                    b.Navigation("Belgeler");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansGiderKategorisi", b =>
-                {
-                    b.Navigation("Giderler");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansIsKaydi", b =>
-                {
-                    b.Navigation("SiparisKalemleri");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansOzelIs", b =>
-                {
-                    b.Navigation("Belgeler");
-
-                    b.Navigation("FinansKaydi");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansSiparis", b =>
-                {
-                    b.Navigation("Belgeler");
-
-                    b.Navigation("Kalemler");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansSiparisKalemi", b =>
-                {
-                    b.Navigation("FaturaKalemleri");
-                });
-
-            modelBuilder.Entity("_3K.Core.Entities.FinansUrun", b =>
-                {
-                    b.Navigation("Eslesmeler");
-
-                    b.Navigation("SiparisKalemleri");
                 });
 
             modelBuilder.Entity("_3K.Core.Entities.Kullanici", b =>

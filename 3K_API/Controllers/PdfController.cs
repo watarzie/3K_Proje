@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using _3K.Application.Features.PdfIslemleri.Commands;
 using _3K.Core.Enums;
+using _3K.Core.Interfaces;
 using _3K.Infrastructure.Data;
 using _3K_API.Extensions;
 
@@ -14,11 +15,13 @@ namespace _3K_API.Controllers
     {
         private readonly IMediator _mediator;
         private readonly AppDbContext _context;
+        private readonly IFinansSenkronService _finansSenkronService;
 
-        public PdfController(IMediator mediator, AppDbContext context)
+        public PdfController(IMediator mediator, AppDbContext context, IFinansSenkronService finansSenkronService)
         {
             _mediator = mediator;
             _context = context;
+            _finansSenkronService = finansSenkronService;
         }
 
         [HttpGet("{projeId}/indir")]
@@ -269,9 +272,45 @@ namespace _3K_API.Controllers
             if (!result.IsSuccess)
                 return result.ToActionResult();
 
+            await _finansSenkronService.UretimFormuAlindiAsync(projeId, tur, HttpContext.RequestAborted);
             var projeNo = await GetProjeNo(projeId);
             var turMetni = tur switch { 1 => "ProjeSandiklari", 2 => "IlaveSandiklar", 3 => "IcSandiklar", _ => "TumSandiklar" };
             return File(result.Value!, "application/pdf", $"{projeNo}_{turMetni}_AmbalajUretimFormu.pdf");
+        }
+
+        [HttpGet("ozel-sandik/{tur:int}")]
+        public async Task<IActionResult> OzelSandikPdfIndir(int tur)
+        {
+            var result = await _mediator.Send(new _3K.Application.Features.PdfIslemleri.Queries.GetOzelSandikPdfQuery
+            {
+                Tur = tur
+            });
+
+            if (!result.IsSuccess)
+                return result.ToActionResult();
+
+            var turMetni = tur switch { 4 => "SahaSandik", 5 => "YedekSandik", 2 => "IlaveSandik", 3 => "IcSandik", _ => "OzelSandik" };
+            var tarih = DateTime.Now.ToString("yyyyMMdd");
+            return File(result.Value!, "application/pdf", $"{turMetni}Raporu_{tarih}.pdf");
+        }
+
+        [HttpGet("ozel-sandik/{tur:int}/proje/{projeId:int}")]
+        public async Task<IActionResult> OzelSandikUretimFormuIndir(int tur, int projeId)
+        {
+            var result = await _mediator.Send(new _3K.Application.Features.PdfIslemleri.Queries.GetOzelSandikPdfQuery
+            {
+                Tur = tur,
+                ProjeId = projeId,
+                UretimFormu = true
+            });
+
+            if (!result.IsSuccess)
+                return result.ToActionResult();
+
+            await _finansSenkronService.OzelUretimFormuAlindiAsync(projeId, tur, HttpContext.RequestAborted);
+            var projeNo = await GetProjeNo(projeId);
+            var turMetni = tur switch { 4 => "SahaSandik", 5 => "YedekSandik", 2 => "IlaveSandik", 3 => "IcSandik", _ => "OzelSandik" };
+            return File(result.Value!, "application/pdf", $"{projeNo}_{turMetni}_UretimFormu.pdf");
         }
 
         private int GetKullaniciId()

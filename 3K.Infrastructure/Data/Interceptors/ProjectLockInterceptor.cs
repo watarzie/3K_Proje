@@ -29,6 +29,13 @@ namespace _3K.Infrastructure.Data.Interceptors
             nameof(BaseEntity.UpdatedBy)
         };
 
+        private static readonly HashSet<string> AmbalajKarariBypassProperties = new()
+        {
+            nameof(Sandik.AmbalajaDahilMi),
+            nameof(BaseEntity.UpdatedDate),
+            nameof(BaseEntity.UpdatedBy)
+        };
+
         public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
             DbContextEventData eventData,
             InterceptionResult<int> result,
@@ -47,6 +54,7 @@ namespace _3K.Infrastructure.Data.Interceptors
             var lockableEntries = entries
                 .Where(e => !AuditBypassTypes.Contains(e.Entity.GetType()))
                 .Where(e => !IsSafeSevkiyatDuzeltmeFlagChange(e))
+                .Where(e => !IsSafeAmbalajKarariChange(e))
                 .ToList();
 
             if (!lockableEntries.Any()) return await base.SavingChangesAsync(eventData, result, cancellationToken);
@@ -138,6 +146,20 @@ namespace _3K.Infrastructure.Data.Interceptors
 
             return changedProperties.Contains(nameof(Sandik.SevkiyatDuzeltmeAcikMi)) &&
                    changedProperties.All(SevkiyatDuzeltmeBypassProperties.Contains);
+        }
+
+        private static bool IsSafeAmbalajKarariChange(EntityEntry entry)
+        {
+            if (entry.Entity is not Sandik || entry.State != EntityState.Modified)
+                return false;
+
+            var changedProperties = entry.Properties
+                .Where(p => !Equals(p.OriginalValue, p.CurrentValue))
+                .Select(p => p.Metadata.Name)
+                .ToList();
+
+            return changedProperties.Contains(nameof(Sandik.AmbalajaDahilMi)) &&
+                   changedProperties.All(AmbalajKarariBypassProperties.Contains);
         }
 
         private static T? GetPropertyValue<T>(EntityEntry entry, string propertyName, bool useOriginal)

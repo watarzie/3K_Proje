@@ -15,11 +15,16 @@ namespace _3K_API.Controllers
     {
         private readonly AppDbContext _context;
         private readonly ICurrentUserService _currentUserService;
+        private readonly IFinansSenkronService _finansSenkronService;
 
-        public AmbalajController(AppDbContext context, ICurrentUserService currentUserService)
+        public AmbalajController(
+            AppDbContext context,
+            ICurrentUserService currentUserService,
+            IFinansSenkronService finansSenkronService)
         {
             _context = context;
             _currentUserService = currentUserService;
+            _finansSenkronService = finansSenkronService;
         }
 
         [HttpGet("projeler")]
@@ -27,6 +32,7 @@ namespace _3K_API.Controllers
         {
             var projeler = await _context.Projeler
                 .AsNoTracking()
+                .Where(p => p.ProjeTipiId == 1)
                 .Include(p => p.ProjeTipiLookup)
                 .Include(p => p.Sandiklar)
                 .Include(p => p.AmbalajUretimPlani)!
@@ -36,30 +42,36 @@ namespace _3K_API.Controllers
 
             var sonuc = projeler.Select(proje =>
             {
-                var olculuSandiklar = proje.Sandiklar
-                    .Where(s => s.Boy > 0 && s.En > 0 && s.Yukseklik > 0)
-                    .ToList();
-                var eksikSandiklar = proje.Sandiklar
-                    .Where(s => !s.Boy.HasValue || s.Boy <= 0 || !s.En.HasValue || s.En <= 0 || !s.Yukseklik.HasValue || s.Yukseklik <= 0)
-                    .Select(s => s.SandikNo)
-                    .ToList();
-                var toplamHacim = olculuSandiklar.Sum(s =>
-                    AmbalajHesaplayici.Hesapla(s.Boy!.Value, s.En!.Value, s.Yukseklik!.Value).ToplamHacimM3 * SandikAdediHesapla(s.SandikNo));
                 var plan = proje.AmbalajUretimPlani;
                 var kaynakKayitlari = plan?.Kalemler
                     .Where(k => k.KaynakSandikId.HasValue)
                     .ToDictionary(k => k.KaynakSandikId!.Value) ?? new Dictionary<int, AmbalajUretimKalemi>();
-                var seciliKaynaklar = olculuSandiklar
+                var ambalajKaynaklari = proje.Sandiklar.Where(s => s.AmbalajaDahilMi != false).ToList();
+                var seciliKaynaklar = ambalajKaynaklari
                     .Where(s => !kaynakKayitlari.TryGetValue(s.Id, out var kayit) || kayit.UretimeAlindi)
                     .ToList();
-                var ilaveKaynaklar = proje.Sandiklar
+                var olculuSandiklar = ambalajKaynaklari
+                    .Where(s => s.Boy > 0 && s.En > 0 && s.Yukseklik > 0)
+                    .ToList();
+                var eksikSandiklar = seciliKaynaklar
+                    .Where(s => !s.Boy.HasValue || s.Boy <= 0 || !s.En.HasValue || s.En <= 0 || !s.Yukseklik.HasValue || s.Yukseklik <= 0)
+                    .Select(s => s.SandikNo)
+                    .ToList();
+                var toplamHacim = olculuSandiklar.Sum(s =>
+                    KaynakSandikHacmi(s.Boy!.Value, s.En!.Value, s.Yukseklik!.Value) * SandikAdediHesapla(s.SandikNo));
+                var seciliOlculuKaynaklar = seciliKaynaklar
+                    .Where(s => s.Boy > 0 && s.En > 0 && s.Yukseklik > 0)
+                    .ToList();
+                var ilaveKaynaklar = ambalajKaynaklari
                     .Where(s => KaynakTuru(s, plan, kaynakKayitlari.GetValueOrDefault(s.Id)) == 2)
                     .ToList();
-                var projeKaynaklar = proje.Sandiklar.Except(ilaveKaynaklar).ToList();
+                var projeKaynaklar = ambalajKaynaklari.Except(ilaveKaynaklar).ToList();
+                var seciliIlaveKaynaklar = seciliOlculuKaynaklar.Intersect(ilaveKaynaklar).ToList();
+                var seciliProjeKaynaklar = seciliOlculuKaynaklar.Intersect(projeKaynaklar).ToList();
                 var manuelKalemler = plan?.Kalemler.Where(k => !k.KaynakSandikId.HasValue && k.UretimeAlindi).ToList()
                     ?? new List<AmbalajUretimKalemi>();
-                var uretimHacmi = seciliKaynaklar.Sum(s =>
-                        AmbalajHesaplayici.Hesapla(s.Boy!.Value, s.En!.Value, s.Yukseklik!.Value).ToplamHacimM3 * SandikAdediHesapla(s.SandikNo))
+                var uretimHacmi = seciliOlculuKaynaklar.Sum(s =>
+                    KaynakSandikHacmi(s.Boy!.Value, s.En!.Value, s.Yukseklik!.Value) * SandikAdediHesapla(s.SandikNo))
                     + manuelKalemler.Where(Olculu).Sum(KalemHacmi);
 
                 return new AmbalajProjeOzetDto(
@@ -69,7 +81,7 @@ namespace _3K_API.Controllers
                     proje.Musteri,
                     proje.ProjeTipiId,
                     proje.ProjeTipiLookup?.Deger ?? "-",
-                    proje.Sandiklar.Sum(s => SandikAdediHesapla(s.SandikNo)),
+                    ambalajKaynaklari.Sum(s => SandikAdediHesapla(s.SandikNo)),
                     olculuSandiklar.Count,
                     eksikSandiklar.Count,
                     eksikSandiklar,
@@ -85,8 +97,8 @@ namespace _3K_API.Controllers
                         plan?.IlaveFirinPartiNo,
                         plan?.IcSandikFirinPartiNo,
                         projeKaynaklar.Sum(s => SandikAdediHesapla(s.SandikNo)) + manuelKalemler.Where(k => k.Tur == 1).Sum(k => k.Adet),
-                        KaynakHacmi(projeKaynaklar) + manuelKalemler.Where(k => k.Tur == 1 && Olculu(k)).Sum(KalemHacmi),
-                        KaynakHacmi(ilaveKaynaklar) + manuelKalemler.Where(k => k.Tur == 2 && Olculu(k)).Sum(KalemHacmi),
+                        KaynakHacmi(seciliProjeKaynaklar) + manuelKalemler.Where(k => k.Tur == 1 && Olculu(k)).Sum(KalemHacmi),
+                        KaynakHacmi(seciliIlaveKaynaklar) + manuelKalemler.Where(k => k.Tur == 2 && Olculu(k)).Sum(KalemHacmi),
                         manuelKalemler.Where(k => k.Tur == 3 && Olculu(k)).Sum(KalemHacmi));
             }).ToList();
 
@@ -110,6 +122,8 @@ namespace _3K_API.Controllers
 
             if (proje == null)
                 return NotFound(new { message = "Proje bulunamadı." });
+            if (proje.ProjeTipiId != 1)
+                return BadRequest(new { message = "Ambalaj üretim planı yalnız normal projeler için kullanılabilir." });
             if (kaynakProjeTipiId.HasValue && proje.ProjeTipiId != kaynakProjeTipiId)
                 return BadRequest(new { message = "Proje seçilen yönetim kaynağına ait değil." });
             if (grup.HasValue && grup is not (1 or 2 or 3))
@@ -134,6 +148,8 @@ namespace _3K_API.Controllers
 
             if (proje == null)
                 return NotFound(new { message = "Proje bulunamadı." });
+            if (proje.ProjeTipiId != 1)
+                return BadRequest(new { message = "Ambalaj üretim planı yalnız normal projeler için kullanılabilir." });
             if (kaynakProjeTipiId.HasValue && proje.ProjeTipiId != kaynakProjeTipiId)
                 return BadRequest(new { message = "Proje seçilen yönetim kaynağına ait değil." });
 
@@ -146,7 +162,7 @@ namespace _3K_API.Controllers
                 .ToDictionary(k => k.KaynakSandikId!.Value) ?? new Dictionary<int, AmbalajUretimKalemi>();
             var hedefTur = request.Grup == 3 ? 3 : request.Grup;
             var gecerliSandikIds = proje.Sandiklar
-                .Where(s => KaynakTuru(s, proje.AmbalajUretimPlani, mevcutKayitlar.GetValueOrDefault(s.Id)) == hedefTur)
+                .Where(s => s.AmbalajaDahilMi != false && KaynakTuru(s, proje.AmbalajUretimPlani, mevcutKayitlar.GetValueOrDefault(s.Id)) == hedefTur)
                 .Select(s => s.Id)
                 .ToHashSet();
             if (request.SeciliKaynakSandikIds.Any(id => !gecerliSandikIds.Contains(id)))
@@ -188,7 +204,41 @@ namespace _3K_API.Controllers
             }
 
             await _context.SaveChangesAsync(cancellationToken);
+            await _finansSenkronService.ProjeyiSenkronizeEtAsync(projeId, cancellationToken);
             return Ok(PlanDtoOlustur(proje, request.Grup));
+        }
+
+        [HttpPut("sandiklar/{sandikId:int}/ambalaj-karari")]
+        public async Task<ActionResult<AmbalajUretimPlanDto>> AmbalajKarariKaydet(
+            int sandikId,
+            [FromBody] AmbalajKarariKaydetRequest request,
+            CancellationToken cancellationToken)
+        {
+            var sandik = await _context.Sandiklar
+                .Include(s => s.Proje)
+                    .ThenInclude(p => p.ProjeTipiLookup)
+                .Include(s => s.Proje)
+                    .ThenInclude(p => p.Sandiklar)
+                .Include(s => s.Proje)
+                    .ThenInclude(p => p.AmbalajUretimPlani)!
+                        .ThenInclude(plan => plan.Kalemler)
+                .FirstOrDefaultAsync(s => s.Id == sandikId, cancellationToken);
+
+            if (sandik == null)
+                return NotFound(new { message = "Sandık bulunamadı." });
+
+            sandik.AmbalajaDahilMi = request.AmbalajaDahilMi;
+            if (!request.AmbalajaDahilMi)
+            {
+                var kalem = sandik.Proje.AmbalajUretimPlani?.Kalemler
+                    .FirstOrDefault(k => k.KaynakSandikId == sandik.Id);
+                if (kalem != null)
+                    kalem.UretimeAlindi = false;
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+            await _finansSenkronService.ProjeyiSenkronizeEtAsync(sandik.ProjeId, cancellationToken);
+            return Ok(PlanDtoOlustur(sandik.Proje, null));
         }
 
         [HttpPost("projeler/{projeId:int}/kalemler")]
@@ -200,6 +250,9 @@ namespace _3K_API.Controllers
             var validation = KalemDogrula(request);
             if (validation != null)
                 return BadRequest(new { message = validation });
+            if (request.IcSandikSablonId.HasValue && !await _context.AmbalajIcSandikSablonlari.AsNoTracking()
+                .AnyAsync(s => s.Id == request.IcSandikSablonId.Value, cancellationToken))
+                return BadRequest(new { message = "Seçilen kayıtlı iç sandık tipi bulunamadı." });
 
             var proje = await _context.Projeler
                 .Include(p => p.AmbalajUretimPlani)!
@@ -221,6 +274,7 @@ namespace _3K_API.Controllers
             KalemGuncelle(kalem, request, null, sandikNo);
             plan.Kalemler.Add(kalem);
             await _context.SaveChangesAsync(cancellationToken);
+            await _finansSenkronService.ProjeyiSenkronizeEtAsync(projeId, cancellationToken);
             return Ok(KalemDtoOlustur(kalem));
         }
 
@@ -233,6 +287,9 @@ namespace _3K_API.Controllers
             var validation = KalemDogrula(request);
             if (validation != null)
                 return BadRequest(new { message = validation });
+            if (request.IcSandikSablonId.HasValue && !await _context.AmbalajIcSandikSablonlari.AsNoTracking()
+                .AnyAsync(s => s.Id == request.IcSandikSablonId.Value, cancellationToken))
+                return BadRequest(new { message = "Seçilen kayıtlı iç sandık tipi bulunamadı." });
 
             var kalem = await _context.AmbalajUretimKalemleri
                 .Include(k => k.AmbalajUretimPlani)
@@ -247,6 +304,7 @@ namespace _3K_API.Controllers
             kalem.UpdatedDate = DateTime.Now;
             kalem.UpdatedBy = KullaniciMetni();
             await _context.SaveChangesAsync(cancellationToken);
+            await _finansSenkronService.ProjeyiSenkronizeEtAsync(kalem.AmbalajUretimPlani.ProjeId, cancellationToken);
             return Ok(KalemDtoOlustur(kalem));
         }
 
@@ -261,8 +319,13 @@ namespace _3K_API.Controllers
             if (kalem.IcSandiklar.Count > 0)
                 return BadRequest(new { message = "Bu sandığa bağlı iç sandıklar silinmeden ana sandık silinemez." });
 
+            var projeId = await _context.AmbalajUretimPlanlari
+                .Where(p => p.Id == kalem.AmbalajUretimPlaniId)
+                .Select(p => p.ProjeId)
+                .SingleAsync(cancellationToken);
             _context.AmbalajUretimKalemleri.Remove(kalem);
             await _context.SaveChangesAsync(cancellationToken);
+            await _finansSenkronService.ProjeyiSenkronizeEtAsync(projeId, cancellationToken);
             return NoContent();
         }
 
@@ -311,55 +374,118 @@ namespace _3K_API.Controllers
             return NoContent();
         }
 
-        [HttpGet("bagimsiz-sandiklar")]
-        public async Task<ActionResult<IReadOnlyList<AmbalajBagimsizSandikDto>>> GetBagimsizSandiklar(
-            [FromQuery] int tur,
+        [HttpGet("talep-edenler")]
+        public async Task<ActionResult<IReadOnlyList<AmbalajTalepEdenDto>>> GetTalepEdenler(CancellationToken cancellationToken)
+        {
+            var kisiler = await _context.AmbalajTalepEdenler.AsNoTracking()
+                .OrderBy(t => t.Ad)
+                .Select(t => new AmbalajTalepEdenDto(t.Id, t.Ad))
+                .ToListAsync(cancellationToken);
+            return Ok(kisiler);
+        }
+
+        [HttpPost("talep-edenler")]
+        public async Task<ActionResult<AmbalajTalepEdenDto>> TalepEdenEkle(
+            [FromBody] AmbalajTalepEdenKaydetRequest request,
             CancellationToken cancellationToken)
         {
-            if (tur is not (2 or 3))
-                return BadRequest(new { message = "Bağımsız sandık grubu geçersiz." });
+            var ad = request.Ad?.Trim();
+            if (string.IsNullOrWhiteSpace(ad))
+                return BadRequest(new { message = "Talep eden adı zorunludur." });
+            if (ad.Length > 150)
+                return BadRequest(new { message = "Talep eden adı en fazla 150 karakter olabilir." });
+            if (await _context.AmbalajTalepEdenler.AnyAsync(t => t.Ad.ToLower() == ad.ToLower(), cancellationToken))
+                return BadRequest(new { message = "Bu talep eden zaten kayıtlıdır." });
 
-            var sandiklar = await _context.AmbalajBagimsizSandiklar
+            var kisi = new AmbalajTalepEden { Ad = ad, CreatedBy = KullaniciMetni() };
+            _context.AmbalajTalepEdenler.Add(kisi);
+            await _context.SaveChangesAsync(cancellationToken);
+            return Ok(new AmbalajTalepEdenDto(kisi.Id, kisi.Ad));
+        }
+
+        [HttpGet("bagimsiz-sandiklar")]
+        public async Task<ActionResult<IReadOnlyList<AmbalajBagimsizSandikDto>>> GetBagimsizSandiklar(
+            [FromQuery] int? tur,
+            CancellationToken cancellationToken)
+        {
+            if (tur.HasValue && tur is not (2 or 3 or 4 or 5))
+                return BadRequest(new { message = "Özel sandık türü geçersiz." });
+
+            var sorgu = _context.AmbalajBagimsizSandiklar
                 .AsNoTracking()
-                .Where(s => s.Tur == tur)
+                .Include(s => s.Proje)
+                .Include(s => s.KaynakSandik)
+                .Include(s => s.UstKaynakSandik)
+                .AsQueryable();
+            if (tur.HasValue)
+                sorgu = sorgu.Where(s => s.Tur == tur.Value);
+
+            var sandiklar = await sorgu
                 .OrderByDescending(s => s.Id)
                 .ToListAsync(cancellationToken);
             return Ok(sandiklar.Select(BagimsizSandikDtoOlustur).ToList());
         }
 
-        [HttpPost("bagimsiz-sandiklar")]
-        public async Task<ActionResult<AmbalajBagimsizSandikDto>> BagimsizSandikEkle(
-            [FromBody] AmbalajKalemKaydetRequest request,
+        [HttpGet("projeler/{projeId:int}/ilave-sandik-adaylari")]
+        public async Task<ActionResult<IReadOnlyList<AmbalajIlaveSandikAdayDto>>> GetIlaveSandikAdaylari(
+            int projeId,
+            [FromQuery] int? mevcutKayitId,
             CancellationToken cancellationToken)
         {
-            var validation = BagimsizSandikDogrula(request);
+            var kullanilanKaynakIdleri = _context.AmbalajBagimsizSandiklar.AsNoTracking()
+                .Where(s => s.Tur == 2 && s.KaynakSandikId.HasValue && s.Id != mevcutKayitId)
+                .Select(s => s.KaynakSandikId!.Value);
+
+            var adaylar = await _context.Sandiklar.AsNoTracking()
+                .Where(s => s.ProjeId == projeId && s.AmbalajaDahilMi == false)
+                .Where(s => !kullanilanKaynakIdleri.Contains(s.Id))
+                .OrderBy(s => s.SandikNo)
+                .Select(s => new AmbalajIlaveSandikAdayDto(s.Id, s.SandikNo, s.Ad, s.Boy, s.En, s.Yukseklik))
+                .ToListAsync(cancellationToken);
+
+            return Ok(adaylar);
+        }
+
+        [HttpPost("bagimsiz-sandiklar")]
+        public async Task<ActionResult<AmbalajBagimsizSandikDto>> BagimsizSandikEkle(
+            [FromBody] AmbalajOzelSandikKaydetRequest request,
+            CancellationToken cancellationToken)
+        {
+            var validation = await BagimsizSandikDogrula(request, null, cancellationToken);
             if (validation != null)
                 return BadRequest(new { message = validation });
 
             var sandik = new AmbalajBagimsizSandik
             {
                 CreatedBy = KullaniciMetni(),
-                SandikNo = string.IsNullOrWhiteSpace(request.SandikNo)
+                SandikNo = request.Tur == 3
+                    ? await SonrakiIcSandikNo(request.UstKaynakSandikId!.Value, cancellationToken)
+                    : string.IsNullOrWhiteSpace(request.SandikNo)
                     ? await SonrakiBagimsizSandikNo(request.Tur, cancellationToken)
                     : request.SandikNo.Trim()
             };
             BagimsizSandikGuncelle(sandik, request);
             _context.AmbalajBagimsizSandiklar.Add(sandik);
             await _context.SaveChangesAsync(cancellationToken);
+            await _finansSenkronService.BagimsizSandigiSenkronizeEtAsync(sandik.Id, cancellationToken);
             return Ok(BagimsizSandikDtoOlustur(sandik));
         }
 
         [HttpPut("bagimsiz-sandiklar/{sandikId:int}")]
         public async Task<ActionResult<AmbalajBagimsizSandikDto>> BagimsizSandikGuncelle(
             int sandikId,
-            [FromBody] AmbalajKalemKaydetRequest request,
+            [FromBody] AmbalajOzelSandikKaydetRequest request,
             CancellationToken cancellationToken)
         {
-            var validation = BagimsizSandikDogrula(request);
+            var validation = await BagimsizSandikDogrula(request, sandikId, cancellationToken);
             if (validation != null)
                 return BadRequest(new { message = validation });
 
-            var sandik = await _context.AmbalajBagimsizSandiklar.FindAsync([sandikId], cancellationToken);
+            var sandik = await _context.AmbalajBagimsizSandiklar
+                .Include(s => s.Proje)
+                .Include(s => s.KaynakSandik)
+                .Include(s => s.UstKaynakSandik)
+                .FirstOrDefaultAsync(s => s.Id == sandikId, cancellationToken);
             if (sandik == null)
                 return NotFound(new { message = "Sandık bulunamadı." });
 
@@ -368,6 +494,7 @@ namespace _3K_API.Controllers
             sandik.UpdatedBy = KullaniciMetni();
             sandik.UpdatedDate = DateTime.Now;
             await _context.SaveChangesAsync(cancellationToken);
+            await _finansSenkronService.BagimsizSandigiSenkronizeEtAsync(sandik.Id, cancellationToken);
             return Ok(BagimsizSandikDtoOlustur(sandik));
         }
 
@@ -379,6 +506,7 @@ namespace _3K_API.Controllers
                 return NotFound(new { message = "Sandık bulunamadı." });
             _context.AmbalajBagimsizSandiklar.Remove(sandik);
             await _context.SaveChangesAsync(cancellationToken);
+            await _finansSenkronService.BagimsizSandigiSenkronizeEtAsync(sandikId, cancellationToken);
             return NoContent();
         }
 
@@ -390,19 +518,26 @@ namespace _3K_API.Controllers
             var kaynaklar = grup == 3
                 ? new List<AmbalajUretimKalemDto>()
                 : proje.Sandiklar
-                    .OrderBy(s => s.SandikNo)
+                    .OrderBy(s => SandikSiraAnahtari(s.SandikNo))
+                    .ThenBy(s => s.SandikNo, StringComparer.OrdinalIgnoreCase)
                     .Select(s =>
                     {
                         kayitMap.TryGetValue(s.Id, out var kayit);
                         var adet = SandikAdediHesapla(s.SandikNo);
                         var tur = KaynakTuru(s, plan, kayit);
-                        var hacim = s.Boy > 0 && s.En > 0 && s.Yukseklik > 0
-                            ? AmbalajHesaplayici.Hesapla(s.Boy.Value, s.En.Value, s.Yukseklik.Value).ToplamHacimM3 * adet
+                        var sandikTipi = kayit?.SandikTipi ?? "Ahşap Kapalı";
+                        var hacim = sandikTipi != "Kontrplak Sandık" && s.Boy > 0 && s.En > 0 && s.Yukseklik > 0
+                            ? KaynakSandikHacmi(s.Boy.Value, s.En.Value, s.Yukseklik.Value) * adet
                             : 0;
-                        return new AmbalajUretimKalemDto(kayit?.Id ?? 0, s.Id, null, tur, tur == 2 ? "İlave Sandık" : "Proje Sandığı", kayit?.UretimeAlindi ?? true,
-                            s.SandikNo, s.Ad, kayit?.SandikTipi ?? "Ahşap Kapalı", adet, s.Boy ?? 0, s.En ?? 0, s.Yukseklik ?? 0, null, null, null, hacim);
+                        return new AmbalajUretimKalemDto(kayit?.Id ?? 0, s.Id, null, null, tur, tur == 2 ? "İlave Sandık" : "Proje Sandığı",
+                            s.AmbalajaDahilMi != false && (kayit?.UretimeAlindi ?? true),
+                            s.SandikNo, s.Ad, sandikTipi, adet, s.Boy ?? 0, s.En ?? 0, s.Yukseklik ?? 0, null, null, null, hacim,
+                            s.AmbalajaDahilMi, AmbalajKarariOneriliyor(s));
                     }).ToList();
-            var manueller = plan?.Kalemler.Where(k => !k.KaynakSandikId.HasValue).OrderBy(k => k.Tur).ThenBy(k => k.SandikNo)
+            var manueller = plan?.Kalemler.Where(k => !k.KaynakSandikId.HasValue)
+                .OrderBy(k => k.Tur)
+                .ThenBy(k => SandikSiraAnahtari(k.SandikNo))
+                .ThenBy(k => k.SandikNo, StringComparer.OrdinalIgnoreCase)
                 .Select(KalemDtoOlustur).ToList() ?? new List<AmbalajUretimKalemDto>();
             var tumKalemler = kaynaklar.Concat(manueller).ToList();
 
@@ -435,16 +570,21 @@ namespace _3K_API.Controllers
         }
 
         private static AmbalajUretimKalemDto KalemDtoOlustur(AmbalajUretimKalemi k) =>
-            new(k.Id, k.KaynakSandikId, k.UstKalemId, k.Tur, k.Tur == 1 ? "Manuel Proje Sandığı" : k.Tur == 2 ? "İlave Sandık" : "İç Sandık", k.UretimeAlindi,
+            new(k.Id, k.KaynakSandikId, k.UstKalemId, k.IcSandikSablonId, k.Tur, k.Tur == 1 ? "Manuel Proje Sandığı" : k.Tur == 2 ? "İlave Sandık" : "İç Sandık", k.UretimeAlindi,
                 k.SandikNo, k.Ad, k.SandikTipi, k.Adet, k.Boy, k.En, k.Yukseklik, k.KullanimAmaci, k.TalimatVeren, k.Aciklama,
                 Olculu(k) ? KalemHacmi(k) : 0);
 
         private static bool Olculu(AmbalajUretimKalemi k) => k.Boy > 0 && k.En > 0 && k.Yukseklik > 0;
-        private static decimal KalemHacmi(AmbalajUretimKalemi k) =>
-            AmbalajHesaplayici.Hesapla(k.Boy, k.En, k.Yukseklik).ToplamHacimM3 * k.Adet;
+        private static decimal KalemHacmi(AmbalajUretimKalemi k) => k.SandikTipi == "Kontrplak Sandık"
+            ? 0
+            : AmbalajHesaplayici.Hesapla(k.Boy, k.En, k.Yukseklik).ToplamHacimM3 * k.Adet;
         private static decimal KaynakHacmi(IEnumerable<Sandik> sandiklar) => sandiklar
             .Where(s => s.Boy > 0 && s.En > 0 && s.Yukseklik > 0)
-            .Sum(s => AmbalajHesaplayici.Hesapla(s.Boy!.Value, s.En!.Value, s.Yukseklik!.Value).ToplamHacimM3 * SandikAdediHesapla(s.SandikNo));
+            .Sum(s => KaynakSandikHacmi(s.Boy!.Value, s.En!.Value, s.Yukseklik!.Value) * SandikAdediHesapla(s.SandikNo));
+        private static decimal KaynakSandikHacmi(decimal disBoy, decimal disEn, decimal disYukseklik) =>
+            disBoy > 92m && disEn > 92m && disYukseklik > 255m
+                ? AmbalajHesaplayici.Hesapla(disBoy - 92m, disEn - 92m, disYukseklik - 255m).ToplamHacimM3
+                : 0;
         private static int KaynakTuru(Sandik sandik, AmbalajUretimPlani? plan, AmbalajUretimKalemi? kayit)
         {
             if (plan == null)
@@ -457,6 +597,7 @@ namespace _3K_API.Controllers
         private static string? KalemDogrula(AmbalajKalemKaydetRequest request)
         {
             if (request.Tur is not (1 or 2 or 3)) return "Sandık grubu geçersizdir.";
+            if (request.Tur != 3 && request.IcSandikSablonId.HasValue) return "Kayıtlı iç sandık tipi yalnız İç Sandık grubunda kullanılabilir.";
             if (string.IsNullOrWhiteSpace(request.Ad)) return "Sandık adı zorunludur.";
             if (!GecerliSandikTipleri.Contains(request.SandikTipi)) return "Sandık tipi geçersizdir.";
             if (request.Adet <= 0) return "Adet sıfırdan büyük olmalıdır.";
@@ -473,35 +614,101 @@ namespace _3K_API.Controllers
             return null;
         }
 
-        private static string? BagimsizSandikDogrula(AmbalajKalemKaydetRequest request)
+        private async Task<string?> BagimsizSandikDogrula(
+            AmbalajOzelSandikKaydetRequest request,
+            int? mevcutKayitId,
+            CancellationToken cancellationToken)
         {
-            if (request.Tur is not (2 or 3)) return "Bağımsız sandık grubu geçersizdir.";
-            return KalemDogrula(request);
+            if (request.Tur is not (2 or 3 or 4 or 5)) return "Özel sandık türü geçersizdir.";
+            if (request.Tur != 3 && request.IcSandikSablonId.HasValue) return "Kayıtlı iç sandık tipi yalnız İç Sandık türünde kullanılabilir.";
+            if (request.ProjeId <= 0) return "Proje seçimi zorunludur.";
+            var proje = await _context.Projeler.AsNoTracking().FirstOrDefaultAsync(p => p.Id == request.ProjeId, cancellationToken);
+            if (proje == null) return "Seçilen proje bulunamadı.";
+            if (request.Tur == 2 && proje.ProjeTipiId != 1) return "İlave sandık yalnız normal projeye bağlanabilir.";
+            if (request.Tur == 4 && proje.ProjeTipiId != 2) return "Saha sandığı yalnız saha projesine bağlanabilir.";
+            if (request.Tur == 5 && proje.ProjeTipiId != 3) return "Yedek sandığı yalnız yedek projesine bağlanabilir.";
+            if (request.Tur is 4 or 5 && request.KaynakSandikId.HasValue)
+                return "Saha ve yedek sandıkları mevcut sandıklardan çekilemez; bilgileri manuel girilmelidir.";
+            if (request.KaynakSandikId.HasValue)
+            {
+                if (request.Tur != 2) return "Kaynak sandık yalnız ilave sandık kaydında seçilebilir.";
+                var kaynakUygun = await _context.Sandiklar.AsNoTracking().AnyAsync(s =>
+                    s.Id == request.KaynakSandikId &&
+                    s.ProjeId == request.ProjeId &&
+                    (request.Tur != 2 || s.AmbalajaDahilMi == false), cancellationToken);
+                if (!kaynakUygun) return "Seçilen kaynak sandık bu projeye ait değildir.";
+                if (request.Tur == 2 && await _context.AmbalajBagimsizSandiklar.AsNoTracking().AnyAsync(s =>
+                        s.Tur == 2 && s.KaynakSandikId == request.KaynakSandikId && s.Id != mevcutKayitId,
+                        cancellationToken))
+                    return "Seçilen sandık daha önce İlave sandık olarak kullanılmıştır.";
+            }
+            if (request.Tur == 3)
+            {
+                if (!request.UstKaynakSandikId.HasValue) return "İç sandığın gireceği dış koli seçilmelidir.";
+                if (request.IcSandikSablonId.HasValue && !await _context.AmbalajIcSandikSablonlari.AsNoTracking()
+                    .AnyAsync(s => s.Id == request.IcSandikSablonId.Value, cancellationToken))
+                    return "Seçilen kayıtlı iç sandık tipi bulunamadı.";
+                var ustSandikUygun = await _context.Sandiklar.AsNoTracking()
+                    .AnyAsync(s => s.Id == request.UstKaynakSandikId && s.ProjeId == request.ProjeId, cancellationToken);
+                if (!ustSandikUygun) return "Seçilen dış koli bu projeye ait değildir.";
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Ad)) return "Sandık adı zorunludur.";
+            if (!GecerliSandikTipleri.Contains(request.SandikTipi)) return "Sandık tipi geçersizdir.";
+            if (request.Adet <= 0) return "Adet sıfırdan büyük olmalıdır.";
+            if (request.Boy <= 0 || request.En <= 0 || request.Yukseklik <= 0) return "Boy, en ve yükseklik zorunludur.";
+            if (string.IsNullOrWhiteSpace(request.TalimatVeren)) return "Talimat veren kişi zorunludur.";
+            return null;
         }
 
-        private static void BagimsizSandikGuncelle(AmbalajBagimsizSandik sandik, AmbalajKalemKaydetRequest request)
+        private static void BagimsizSandikGuncelle(AmbalajBagimsizSandik sandik, AmbalajOzelSandikKaydetRequest request)
         {
+            sandik.ProjeId = request.ProjeId;
+            sandik.KaynakSandikId = request.Tur == 2 ? request.KaynakSandikId : null;
+            sandik.UstKaynakSandikId = request.Tur == 3 ? request.UstKaynakSandikId : null;
+            sandik.IcSandikSablonId = request.Tur == 3 ? request.IcSandikSablonId : null;
             sandik.Tur = request.Tur;
-            sandik.UretimeAlindi = request.UretimeAlindi;
+            sandik.UretimeAlindi = true;
             sandik.Ad = request.Ad!.Trim();
             sandik.SandikTipi = request.SandikTipi;
             sandik.Adet = request.Adet;
             sandik.Boy = request.Boy;
             sandik.En = request.En;
             sandik.Yukseklik = request.Yukseklik;
-            sandik.KullanimAmaci = Temizle(request.KullanimAmaci);
+            sandik.KullanimAmaci = null;
             sandik.TalimatVeren = Temizle(request.TalimatVeren);
             sandik.Aciklama = Temizle(request.Aciklama);
         }
 
         private static AmbalajBagimsizSandikDto BagimsizSandikDtoOlustur(AmbalajBagimsizSandik sandik) =>
-            new(sandik.Id, sandik.Tur, sandik.UretimeAlindi, sandik.SandikNo, sandik.Ad, sandik.SandikTipi,
+            new(sandik.Id, sandik.Tur, OzelSandikTurMetni(sandik.Tur), sandik.ProjeId, sandik.Proje?.ProjeNo,
+                sandik.Proje?.Musteri, sandik.KaynakSandikId, sandik.KaynakSandik?.SandikNo, sandik.KaynakSandik?.Ad,
+                sandik.UstKaynakSandikId, sandik.IcSandikSablonId, sandik.UstKaynakSandik?.SandikNo, sandik.UstKaynakSandik?.Ad,
+                true, sandik.SandikNo, sandik.Ad, sandik.SandikTipi,
                 sandik.Adet, sandik.Boy, sandik.En, sandik.Yukseklik, sandik.KullanimAmaci, sandik.TalimatVeren,
-                sandik.Aciklama, AmbalajHesaplayici.Hesapla(sandik.Boy, sandik.En, sandik.Yukseklik).ToplamHacimM3 * sandik.Adet);
+                sandik.Aciklama, sandik.SandikTipi == "Kontrplak Sandık"
+                    ? 0
+                    : AmbalajHesaplayici.Hesapla(sandik.Boy, sandik.En, sandik.Yukseklik).ToplamHacimM3 * sandik.Adet);
+
+        private async Task<string> SonrakiIcSandikNo(int ustKaynakSandikId, CancellationToken cancellationToken)
+        {
+            var ustSandikNo = await _context.Sandiklar.AsNoTracking()
+                .Where(s => s.Id == ustKaynakSandikId)
+                .Select(s => s.SandikNo)
+                .SingleAsync(cancellationToken);
+            var onEk = $"{ustSandikNo}.";
+            var numaralar = await _context.AmbalajBagimsizSandiklar.AsNoTracking()
+                .Where(s => s.Tur == 3 && s.UstKaynakSandikId == ustKaynakSandikId && s.SandikNo.StartsWith(onEk))
+                .Select(s => s.SandikNo)
+                .ToListAsync(cancellationToken);
+            var sonSira = numaralar.Select(no => int.TryParse(no[onEk.Length..], out var sira) ? sira : 0)
+                .DefaultIfEmpty(0).Max();
+            return $"{onEk}{sonSira + 1}";
+        }
 
         private async Task<string> SonrakiBagimsizSandikNo(int tur, CancellationToken cancellationToken)
         {
-            var onEk = tur == 2 ? "ILV-" : "IC-";
+            var onEk = tur == 2 ? "ILV-" : tur == 3 ? "IC-" : tur == 4 ? "SAH-" : "YDK-";
             var numaralar = await _context.AmbalajBagimsizSandiklar
                 .AsNoTracking()
                 .Where(s => s.Tur == tur && s.SandikNo.StartsWith(onEk))
@@ -516,6 +723,7 @@ namespace _3K_API.Controllers
         {
             kalem.Tur = request.Tur;
             kalem.UstKalemId = ustKalemId;
+            kalem.IcSandikSablonId = request.Tur == 3 ? request.IcSandikSablonId : null;
             kalem.UretimeAlindi = request.UretimeAlindi;
             kalem.SandikNo = sandikNo;
             kalem.Ad = request.Ad.Trim();
@@ -541,11 +749,34 @@ namespace _3K_API.Controllers
 
         private static readonly HashSet<string> GecerliSandikTipleri = new(StringComparer.OrdinalIgnoreCase)
         {
-            "Ahşap Kapalı", "Kafes Sandık", "Kontrplak Sandık"
+            "Ahşap Kapalı", "Kafes Sandık", "Kontrplak Sandık", "Katlanır Sandık"
+        };
+
+        private static string OzelSandikTurMetni(int tur) => tur switch
+        {
+            2 => "İlave",
+            3 => "İç Sandık",
+            4 => "Saha",
+            5 => "Yedek",
+            _ => "Bilinmiyor"
         };
 
         private string KullaniciMetni() => _currentUserService.UserId?.ToString() ?? "system";
         private static string? Temizle(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+        private static bool AmbalajKarariOneriliyor(Sandik sandik)
+        {
+            if (int.TryParse(sandik.SandikNo.Trim(), out var sandikNo) && sandikNo == 1)
+                return true;
+
+            var ad = $"{sandik.Ad} {sandik.AdIngilizce}".ToUpperInvariant()
+                .Replace('İ', 'I')
+                .Replace('Ş', 'S');
+            return ad.Contains("BUSHING", StringComparison.Ordinal)
+                || ad.Contains("BUSING", StringComparison.Ordinal)
+                || ad.Contains("PARAFUD", StringComparison.Ordinal)
+                || ad.Contains("SURGE ARRESTER", StringComparison.Ordinal);
+        }
 
         private static int SandikAdediHesapla(string sandikNo)
         {
@@ -556,6 +787,12 @@ namespace _3K_API.Controllers
             var baslangic = int.Parse(match.Groups[1].Value);
             var bitis = int.Parse(match.Groups[2].Value);
             return bitis >= baslangic ? bitis - baslangic + 1 : 1;
+        }
+
+        private static int SandikSiraAnahtari(string? sandikNo)
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(sandikNo ?? string.Empty, @"\d+");
+            return match.Success && int.TryParse(match.Value, out var sayi) ? sayi : int.MaxValue;
         }
     }
 
@@ -591,20 +828,32 @@ namespace _3K_API.Controllers
         int ProjeSandiklariDurumId, int IlaveSandiklarDurumId, int IcSandiklarDurumId, IReadOnlyList<AmbalajUretimKalemDto> Kalemler,
         int SeciliSandikAdedi, decimal SeciliHacimM3);
 
-    public sealed record AmbalajUretimKalemDto(int Id, int? KaynakSandikId, int? UstKalemId, int Tur, string TurMetni,
+    public sealed record AmbalajUretimKalemDto(int Id, int? KaynakSandikId, int? UstKalemId, int? IcSandikSablonId, int Tur, string TurMetni,
         bool UretimeAlindi, string SandikNo, string? Ad, string SandikTipi, int Adet, decimal Boy, decimal En, decimal Yukseklik,
-        string? KullanimAmaci, string? TalimatVeren, string? Aciklama, decimal HacimM3);
+        string? KullanimAmaci, string? TalimatVeren, string? Aciklama, decimal HacimM3,
+        bool? AmbalajaDahilMi = true, bool AmbalajKarariOneriliyor = false);
 
     public sealed record AmbalajPlanKaydetRequest(string? FirinPartiNo, IReadOnlyList<int> SeciliKaynakSandikIds,
         int Grup = 1, int DurumId = 1);
 
-    public sealed record AmbalajKalemKaydetRequest(int Tur, int? UstKalemId, int? UstKaynakSandikId,
+    public sealed record AmbalajKarariKaydetRequest(bool AmbalajaDahilMi);
+
+    public sealed record AmbalajKalemKaydetRequest(int Tur, int? UstKalemId, int? UstKaynakSandikId, int? IcSandikSablonId,
         bool UretimeAlindi, string SandikNo, string? Ad, string SandikTipi, int Adet, decimal Boy, decimal En, decimal Yukseklik,
         string? KullanimAmaci, string? TalimatVeren, string? Aciklama);
 
     public sealed record AmbalajIcSandikSablonDto(int Id, string Ad, string SandikTipi, decimal Boy, decimal En, decimal Yukseklik);
     public sealed record AmbalajIcSandikSablonKaydetRequest(string Ad, string SandikTipi, decimal Boy, decimal En, decimal Yukseklik);
-    public sealed record AmbalajBagimsizSandikDto(int Id, int Tur, bool UretimeAlindi, string SandikNo, string Ad,
+    public sealed record AmbalajTalepEdenDto(int Id, string Ad);
+    public sealed record AmbalajTalepEdenKaydetRequest(string? Ad);
+    public sealed record AmbalajIlaveSandikAdayDto(int Id, string SandikNo, string? Ad,
+        decimal? Boy, decimal? En, decimal? Yukseklik);
+    public sealed record AmbalajOzelSandikKaydetRequest(int Tur, int ProjeId, int? KaynakSandikId, int? UstKaynakSandikId, int? IcSandikSablonId,
+        bool UretimeAlindi, string SandikNo, string? Ad, string SandikTipi, int Adet, decimal Boy, decimal En, decimal Yukseklik,
+        string? TalimatVeren, string? Aciklama);
+    public sealed record AmbalajBagimsizSandikDto(int Id, int Tur, string TurMetni, int? ProjeId, string? ProjeNo,
+        string? Musteri, int? KaynakSandikId, string? KaynakSandikNo, string? KaynakSandikAdi,
+        int? UstKaynakSandikId, int? IcSandikSablonId, string? UstSandikNo, string? UstSandikAdi, bool UretimeAlindi, string SandikNo, string Ad,
         string SandikTipi, int Adet, decimal Boy, decimal En, decimal Yukseklik, string? KullanimAmaci,
         string? TalimatVeren, string? Aciklama, decimal HacimM3);
 }
