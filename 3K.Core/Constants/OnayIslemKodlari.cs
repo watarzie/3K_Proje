@@ -13,6 +13,7 @@ namespace _3K.Core.Constants
         public const string SandikKilidiAc = "SANDIK_KILIDI_AC";
         public const string ProjeKilidiAc = "PROJE_KILIDI_AC";
         public const string CekiRevizyonuUygula = "CEKI_REVIZYONU_UYGULA";
+        public const string SandikLokasyonGuncelle = "SANDIK_LOKASYON_GUNCELLE";
 
         public static string FromUcKDurumId(int lookupUcKDurumId)
         {
@@ -38,7 +39,8 @@ namespace _3K.Core.Constants
         /// </summary>
         public static IReadOnlyList<OnayIslemTanim> AyarlanabilirOnayIslemleri { get; } =
         [
-            new(CekiRevizyonuUygula, "Çeki Revizyonu Uygulama")
+            new(CekiRevizyonuUygula, "Çeki Revizyonu Uygulama"),
+            new(SandikLokasyonGuncelle, "Manuel Sandık Lokasyonu Atama")
         ];
 
         public static bool AyarlanabilirMi(string? islemKodu) =>
@@ -56,6 +58,7 @@ namespace _3K.Core.Constants
                 SandikKilidiAc => "Sandık Kilidi Açma",
                 ProjeKilidiAc => "Proje Kilidi Açma",
                 CekiRevizyonuUygula => "Çeki Revizyonu Uygulama",
+                SandikLokasyonGuncelle => "Manuel Sandık Lokasyonu Atama",
                 Genel => "Genel İşlem",
                 _ when !string.IsNullOrWhiteSpace(islemKodu) => islemKodu,
                 _ => "Genel İşlem"

@@ -12,6 +12,7 @@ using _3K_API.Middleware;
 using _3K.Core.Interfaces;
 using _3K.Application.Behaviors;
 using _3K.Application.Common;
+using _3K.Application.Features.SandikIslemleri.Services;
 using _3K.Infrastructure.Data;
 using _3K.Infrastructure.Repositories;
 using _3K.Infrastructure.Services;
@@ -137,6 +138,7 @@ try
     builder.Services.AddScoped<ISahaTamamlamaService, SahaTamamlamaService>();
     builder.Services.AddScoped<ISahaAktarimSilmeKorumaService, SahaAktarimSilmeKorumaService>();
     builder.Services.AddScoped<IBildirimService, BildirimService>();
+    builder.Services.AddScoped<ISandikLokasyonGuncellemeService, SandikLokasyonGuncellemeService>();
 
     // ======= Current User Service (Pipeline Behavior için) =======
     builder.Services.AddHttpContextAccessor();

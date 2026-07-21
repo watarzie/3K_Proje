@@ -1,114 +1,59 @@
 using MediatR;
 using _3K.Application.Common;
-using _3K.Application.Features.SandikIslemleri.DTOs;
-using _3K.Core.Entities;
-using _3K.Core.Enums;
+using _3K.Application.Features.SandikIslemleri.Services;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.SandikIslemleri.Commands
 {
     public class SandikLokasyonGuncelleCommandHandler : IRequestHandler<SandikLokasyonGuncelleCommand, Result<bool>>
     {
-        private readonly IUnitOfWork _unitOfWork;
-        private readonly ISandikService _sandikService;
         private readonly ICurrentUserService _currentUserService;
-        private readonly IHareketService _hareketService;
+        private readonly ISandikLokasyonGuncellemeService _lokasyonGuncellemeService;
+        private readonly IMediator _mediator;
 
         public SandikLokasyonGuncelleCommandHandler(
-            IUnitOfWork unitOfWork,
-            ISandikService sandikService,
             ICurrentUserService currentUserService,
-            IHareketService hareketService)
+            ISandikLokasyonGuncellemeService lokasyonGuncellemeService,
+            IMediator mediator)
         {
-            _unitOfWork = unitOfWork;
-            _sandikService = sandikService;
             _currentUserService = currentUserService;
-            _hareketService = hareketService;
+            _lokasyonGuncellemeService = lokasyonGuncellemeService;
+            _mediator = mediator;
         }
 
         public async Task<Result<bool>> Handle(SandikLokasyonGuncelleCommand request, CancellationToken cancellationToken)
         {
-            if (!_currentUserService.IsAuthenticated) return Result<bool>.Failure("Oturum açmanız gerekiyor.");
+            if (!_currentUserService.IsAuthenticated)
+                return Result<bool>.Failure("Oturum açmanız gerekiyor.", 401);
 
-            if (request.SandikIds == null || !request.SandikIds.Any())
-            {
-                return Result<bool>.Failure("Güncellenecek sandık seçilmedi.");
-            }
+            var planSonucu = await _lokasyonGuncellemeService.PlanlaAsync(
+                request.SandikIds,
+                request.DepoLokasyonId,
+                cancellationToken);
 
-            var repo = _unitOfWork.GetRepository<Sandik>();
-            var sandiklar = (await repo.FindAsync(s => request.SandikIds.Contains(s.Id))).ToList();
+            if (!planSonucu.IsSuccess || planSonucu.Value == null)
+                return BasarisizSonucuDonustur(planSonucu);
 
-            if (!sandiklar.Any())
-            {
-                return Result<bool>.Failure("Sandıklar bulunamadı.");
-            }
+            // Seçilen sandıkların tamamı zaten hedef lokasyondaysa ne veri
+            // değişikliği ne de gereksiz bir onay/audit kaydı oluşturulur.
+            if (planSonucu.Value.Kalemler.Count == 0)
+                return Result<bool>.Success(true);
 
-            var sevkEdilmisSandiklar = sandiklar
-                .Where(s => s.DurumId == (int)SandikDurum.Sevkedildi)
-                .Select(s => s.SandikNo)
-                .ToList();
+            // Ham HTTP isteği onay kuyruğuna yazılmaz. Sunucunun doğrulayıp
+            // zenginleştirdiği değişmez plan mevcut onay motoruna gönderilir.
+            return await _mediator.Send(planSonucu.Value, cancellationToken);
+        }
 
-            if (sevkEdilmisSandiklar.Any())
-            {
-                return Result<bool>.Failure(
-                    $"{string.Join(", ", sevkEdilmisSandiklar)} numaralı sandık(lar) sevk edildiği için lokasyon değiştirilemez.");
-            }
+        private static Result<bool> BasarisizSonucuDonustur(
+            Result<SandikLokasyonOnayliUygulaCommand> sonuc)
+        {
+            var hata = sonuc.Error;
+            if (hata?.Issues != null)
+                return Result<bool>.Failure(hata.Message, sonuc.StatusCode, hata.Issues);
 
-            var lokasyonRepo = _unitOfWork.GetRepository<LookupDepoLokasyon>();
-            var lokasyonlar = (await lokasyonRepo.FindAsync(l => true))
-                .ToDictionary(l => l.Id, l => l.Deger);
-
-            if (!lokasyonlar.ContainsKey(request.DepoLokasyonId))
-            {
-                return Result<bool>.Failure("Seçilen depo lokasyonu bulunamadı.");
-            }
-
-            if (!SandikDepoKurali.BelirsizLokasyonMu(request.DepoLokasyonId))
-            {
-                var sandikIdler = sandiklar.Select(s => s.Id).ToHashSet();
-                var etkinIceriklerBySandik = await _sandikService
-                    .GetEtkinSandikIcerikleriAsync(sandikIdler, cancellationToken);
-
-                var atanamayanSandiklar = sandiklar
-                    .Where(s => s.DepoLokasyonId != request.DepoLokasyonId)
-                    .Where(s => !SandikDepoKurali.DepoLokasyonuAtanabilir(
-                        s,
-                        etkinIceriklerBySandik.GetValueOrDefault(s.Id) ?? Array.Empty<SandikIcerik>()))
-                    .Select(s => s.SandikNo)
-                    .ToList();
-
-                if (atanamayanSandiklar.Any())
-                {
-                    var sandikNoListesi = string.Join(", ", atanamayanSandiklar);
-                    return Result<bool>.Failure($"{sandikNoListesi} numaralı sandık(lar) için lokasyon atanamaz. {SandikDepoKurali.LokasyonAtamaUyariMesaji}");
-                }
-            }
-
-            foreach (var sandik in sandiklar)
-            {
-                var eskiLokasyon = sandik.DepoLokasyonId;
-                sandik.DepoLokasyonId = request.DepoLokasyonId;
-                repo.Update(sandik);
-
-                var eskiLokasyonMetni = lokasyonlar.GetValueOrDefault(eskiLokasyon, eskiLokasyon.ToString());
-                var yeniLokasyonMetni = lokasyonlar.GetValueOrDefault(sandik.DepoLokasyonId, sandik.DepoLokasyonId.ToString());
-
-                await _hareketService.HareketKaydetAsync(new HareketGecmisi
-                {
-                    ProjeId = sandik.ProjeId,
-                    KullaniciId = _currentUserService.UserId ?? 0,
-                    ReferansTipi = "Sandik",
-                    ReferansId = sandik.Id.ToString(),
-                    Islem = "Lokasyon Güncelleme",
-                    IslemTipiId = (int)IslemTipi.SandikLokasyonGuncellendi,
-                    EskiDeger = eskiLokasyonMetni,
-                    YeniDeger = yeniLokasyonMetni,
-                    Aciklama = $"Sandık lokasyonu '{eskiLokasyonMetni}' değerinden '{yeniLokasyonMetni}' olarak değiştirildi."
-                });
-            }
-
-            await _unitOfWork.SaveChangesAsync();
-            return Result<bool>.Success(true);
+            return Result<bool>.Failure(
+                hata?.Message ?? "Lokasyon güncelleme planı oluşturulamadı.",
+                sonuc.StatusCode);
         }
     }
 }

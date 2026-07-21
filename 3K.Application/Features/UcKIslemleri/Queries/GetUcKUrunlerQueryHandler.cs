@@ -77,7 +77,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
             var sandikIcerikleriBySatirId = sandikIcerikleri
                 .Where(i => i.CekiSatiriId.HasValue)
                 .GroupBy(i => i.CekiSatiriId!.Value)
-                .ToDictionary(g => g.Key, g => g.ToList());
+                .ToDictionary(g => g.Key, g => g.OrderBy(i => i.Id).ToList());
 
             var transferler = satirIdler.Any()
                 ? (await _unitOfWork.GetRepository<ProjeTransfer>()
@@ -148,6 +148,23 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                     .Select(t => SandikTahsisHelper.HesaplaSandikMiktari(cs, t.Icerik, tahsisler.Count))
                     .ToList();
                 var toplamTahsisMiktari = tahsisMiktarlari.Sum();
+                var sandikKonulanMiktarlari = tahsisler
+                    .Select(t => t.Icerik?.KonulanAdet ?? Math.Max(cs.KumulatifToplam, 0))
+                    .ToList();
+                var sandikTrafoSevkMiktarlari = tahsisMiktarlari
+                    .Select(miktar => SandikTahsisHelper.ToplamdanTahsisPayi(
+                        cs.TrafoSevkAdet,
+                        miktar,
+                        toplamTahsisMiktari))
+                    .ToList();
+                var sandikTamamlananMiktarlari = sandikKonulanMiktarlari
+                    .Select((konulan, index) =>
+                        Math.Max(konulan, 0) + Math.Max(sandikTrafoSevkMiktarlari[index], 0))
+                    .ToList();
+                var sandikKalanMiktarlari = SandikTahsisHelper.HesaplaKalanPaylari(
+                    etkinKalan,
+                    tahsisMiktarlari,
+                    sandikTamamlananMiktarlari);
 
                 for (var tahsisIndex = 0; tahsisIndex < tahsisler.Count; tahsisIndex++)
                 {
@@ -157,7 +174,8 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
 
                     var sandikMiktari = tahsisMiktarlari[tahsisIndex];
                     var tekTahsis = tahsisler.Count == 1;
-                    var sandikKonulan = icerik?.KonulanAdet ?? Math.Max(cs.KumulatifToplam, 0);
+                    var sandikKonulan = sandikKonulanMiktarlari[tahsisIndex];
+                    var sandikTrafoSevk = sandikTrafoSevkMiktarlari[tahsisIndex];
                     var sandikStok = tekTahsis
                         ? cs.StokKarsilanan
                         : Math.Min(icerik?.StokKarsilanan ?? 0, sandikMiktari);
@@ -174,8 +192,10 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                         projeGonderilen,
                         sandikMiktari,
                         toplamTahsisMiktari);
-                    // KonulanAdet proje çıkışları düşülmüş fiziksel net miktardır; çıkışı ikinci kez ekleme.
-                    var sandikKalan = Math.Max(sandikMiktari - sandikKonulan, 0);
+                    // Merkezi kalan; Grid Kapandı/İptal, Trafo Sevk, saha tamamlama,
+                    // hatalı ürün ve transfer kurallarını içerir. Burada yalnızca bu
+                    // toplamın sandık payı gösterilir; iş kuralı yeniden hesaplanmaz.
+                    var sandikKalan = sandikKalanMiktarlari[tahsisIndex];
                     var satirSandikTransferleri = sandikTransferleriBySatirId.GetValueOrDefault(cs.Id)
                         ?? new List<SandikUrunTransferi>();
                     var sandikTransferOzeti = sandik == null
@@ -211,7 +231,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                         GridDurumuMetni = _lookupCache.GetDeger<LookupGridDurum>(cs.GridDurumuId),
                         GridGelenAdet = SandikTahsisHelper.ToplamdanTahsisPayi(cs.GridGelenAdet, sandikMiktari, toplamTahsisMiktari),
                         ToplamGridGelenAdet = cs.GridGelenAdet,
-                        TrafoSevkAdet = SandikTahsisHelper.ToplamdanTahsisPayi(cs.TrafoSevkAdet, sandikMiktari, toplamTahsisMiktari),
+                        TrafoSevkAdet = sandikTrafoSevk,
                         GridSevkDurumuId = cs.GridSevkDurumuId,
                         GridSevkDurumuMetni = _lookupCache.GetDeger<LookupGridSevkDurum>(cs.GridSevkDurumuId),
                         GridSevkMiktari = cs.GridSevkMiktari.HasValue
