@@ -104,39 +104,65 @@ namespace _3K_API.Controllers
         }
 
         [HttpGet("eksik-urunler/{projeId}")]
-        public async Task<IActionResult> EksikUrunlerPdfIndir(int projeId)
+        public async Task<IActionResult> EksikUrunlerPdfIndir(
+            int projeId,
+            CancellationToken cancellationToken)
         {
+            var projeBilgisi = await GetProjeDosyaBilgisi(projeId, cancellationToken);
             var result = await _mediator.Send(new _3K.Application.Features.PdfIslemleri.Queries.GetEksikUrunlerPdfQuery
             {
-                ProjeId = projeId
-            });
+                ProjeId = projeId,
+                ProjeTipi = (ProjeTipi)projeBilgisi.ProjeTipiId
+            }, cancellationToken);
 
             if (!result.IsSuccess)
                 return result.ToActionResult();
 
-            var proje = await _context.Projeler.FindAsync(projeId);
-            var projeNo = proje?.ProjeNo ?? projeId.ToString();
-            var raporAdi = proje?.ProjeTipiId == (int)ProjeTipi.Saha ? "SevkSonrasiEksikRaporu" : "EksikRaporu";
-            return File(result.Value!, "application/pdf", $"{projeNo}_{raporAdi}.pdf");
+            var raporAdi = projeBilgisi.ProjeTipiId == (int)ProjeTipi.Saha ? "SevkSonrasiEksikRaporu" : "EksikRaporu";
+            return File(result.Value!, "application/pdf", $"{projeBilgisi.ProjeNo}_{raporAdi}.pdf");
         }
 
         [HttpGet("eksik-urunler/{projeId}/excel")]
-        public async Task<IActionResult> EksikUrunlerExcelIndir(int projeId)
+        public async Task<IActionResult> EksikUrunlerExcelIndir(
+            int projeId,
+            CancellationToken cancellationToken)
         {
+            var projeBilgisi = await GetProjeDosyaBilgisi(projeId, cancellationToken);
             var result = await _mediator.Send(new _3K.Application.Features.PdfIslemleri.Queries.GetEksikUrunlerExcelQuery
             {
-                ProjeId = projeId
-            });
+                ProjeId = projeId,
+                ProjeTipi = (ProjeTipi)projeBilgisi.ProjeTipiId
+            }, cancellationToken);
 
             if (!result.IsSuccess)
                 return result.ToActionResult();
 
-            var proje = await _context.Projeler.FindAsync(projeId);
-            var projeNo = proje?.ProjeNo ?? projeId.ToString();
-            var raporAdi = proje?.ProjeTipiId == (int)ProjeTipi.Saha ? "SevkSonrasiEksikRaporu" : "EksikRaporu";
+            var raporAdi = projeBilgisi.ProjeTipiId == (int)ProjeTipi.Saha ? "SevkSonrasiEksikRaporu" : "EksikRaporu";
             return File(result.Value!,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                $"{projeNo}_{raporAdi}.xlsx");
+                $"{projeBilgisi.ProjeNo}_{raporAdi}.xlsx");
+        }
+
+        [HttpPost("eksik-urunler/toplu/pdf")]
+        public Task<IActionResult> TopluEksikUrunlerPdfIndir(
+            [FromBody] TopluEksikUrunlerRaporuRequest? request,
+            CancellationToken cancellationToken)
+        {
+            return TopluEksikUrunlerRaporuIndir(
+                request,
+                _3K.Application.Features.PdfIslemleri.Queries.EksikUrunlerRaporDosyaTuru.Pdf,
+                cancellationToken);
+        }
+
+        [HttpPost("eksik-urunler/toplu/excel")]
+        public Task<IActionResult> TopluEksikUrunlerExcelIndir(
+            [FromBody] TopluEksikUrunlerRaporuRequest? request,
+            CancellationToken cancellationToken)
+        {
+            return TopluEksikUrunlerRaporuIndir(
+                request,
+                _3K.Application.Features.PdfIslemleri.Queries.EksikUrunlerRaporDosyaTuru.Excel,
+                cancellationToken);
         }
 
         [HttpGet("gerceklesen-ceki-listesi/{projeId}")]
@@ -282,17 +308,50 @@ namespace _3K_API.Controllers
             return proje?.ProjeNo ?? projeId.ToString();
         }
 
-        private async Task<(string ProjeNo, int ProjeTipiId)> GetProjeDosyaBilgisi(int projeId)
+        private async Task<(string ProjeNo, int ProjeTipiId)> GetProjeDosyaBilgisi(
+            int projeId,
+            CancellationToken cancellationToken = default)
         {
             var proje = await _context.Projeler
                 .AsNoTracking()
                 .Where(p => p.Id == projeId)
                 .Select(p => new { p.ProjeNo, p.ProjeTipiId })
-                .SingleOrDefaultAsync();
+                .SingleOrDefaultAsync(cancellationToken);
 
             return proje == null
                 ? (projeId.ToString(), 0)
                 : (proje.ProjeNo, proje.ProjeTipiId);
         }
+
+        private async Task<IActionResult> TopluEksikUrunlerRaporuIndir(
+            TopluEksikUrunlerRaporuRequest? request,
+            _3K.Application.Features.PdfIslemleri.Queries.EksikUrunlerRaporDosyaTuru dosyaTuru,
+            CancellationToken cancellationToken)
+        {
+            var result = await _mediator.Send(
+                new _3K.Application.Features.PdfIslemleri.Queries.GetTopluEksikUrunlerRaporuQuery
+                {
+                    ProjeIds = (IReadOnlyCollection<int>?)request?.ProjeIds ?? Array.Empty<int>(),
+                    DosyaTuru = dosyaTuru
+                },
+                cancellationToken);
+
+            if (!result.IsSuccess)
+                return result.ToActionResult();
+
+            var format = dosyaTuru == _3K.Application.Features.PdfIslemleri.Queries.EksikUrunlerRaporDosyaTuru.Pdf
+                ? "PDF"
+                : "Excel";
+            var tarih = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            return File(
+                result.Value!,
+                "application/zip",
+                $"TopluEksikRaporlari_{format}_{tarih}.zip");
+        }
+    }
+
+    public sealed class TopluEksikUrunlerRaporuRequest
+    {
+        public List<int> ProjeIds { get; set; } = new();
     }
 }

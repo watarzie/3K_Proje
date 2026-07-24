@@ -72,6 +72,7 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                     UrunSayisi = icerikler.Count,
                     IsManuelSandik = isManuelSandik,
                     SilinebilirMi = !aktifAktarimBagliSandikIds.Contains(s.Id) &&
+                        icerikler.All(i => i.Id > 0) &&
                         (icerikler.Count == 0 ||
                             (isManuelSandik && icerikler.All(i => !ManuelSatirIslemGormus(i.CekiSatiri!)))),
                     DepodaSayilacakMi = s.DepoLokasyonId != (int)DepoLokasyon.Belirsiz &&
@@ -91,7 +92,10 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
 
         private static bool IsManuelSandik(IReadOnlyCollection<SandikIcerik> icerikler)
         {
-            return icerikler.Count > 0 && icerikler.All(i => i.CekiSatiri?.IsManuelEklenen == true);
+            return icerikler.Count > 0 &&
+                icerikler.All(i =>
+                    i.CekiSatiri?.IsManuelEklenen == true &&
+                    !i.CekiSatiri.KaynakCekiSatiriId.HasValue);
         }
 
         private static bool ManuelSatirIslemGormus(CekiSatiri satir)

@@ -8,14 +8,10 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
     public class SandikOzellikGuncelleCommandHandler : IRequestHandler<SandikOzellikGuncelleCommand, Result>
     {
         private readonly IUnitOfWork _unitOfWork;
-        private readonly ISandikService _sandikService;
 
-        public SandikOzellikGuncelleCommandHandler(
-            IUnitOfWork unitOfWork,
-            ISandikService sandikService)
+        public SandikOzellikGuncelleCommandHandler(IUnitOfWork unitOfWork)
         {
             _unitOfWork = unitOfWork;
-            _sandikService = sandikService;
         }
 
         public async Task<Result> Handle(SandikOzellikGuncelleCommand request, CancellationToken cancellationToken)
@@ -29,30 +25,23 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (SandikSevkKilidiHelper.SandikKilitliMi(sandik))
                 return Result.Failure(SandikSevkKilidiHelper.SandikKilitliMesaji);
 
+            // Manuel lokasyon değişikliği yalnızca kendine ait yetki ve onay
+            // akışı üzerinden yapılabilir. İstemci geriye uyumluluk nedeniyle
+            // mevcut değeri gönderebilir; yalnızca gerçek değişiklik reddedilir.
+            if (request.DepoLokasyonId.HasValue &&
+                request.DepoLokasyonId.Value != sandik.DepoLokasyonId)
+            {
+                return Result.Failure(
+                    "Sandık lokasyonu özellik güncelleme ekranından değiştirilemez. Lokasyon Atama işlemini kullanın.",
+                    400);
+            }
+
             sandik.Ad = request.SandikIsmi;
             sandik.En = request.En;
             sandik.Boy = request.Boy;
             sandik.Yukseklik = request.Yukseklik;
             sandik.NetKg = request.NetKg;
             sandik.GrossKg = request.GrossKg;
-            if (request.DepoLokasyonId.HasValue)
-            {
-                if (request.DepoLokasyonId.Value != sandik.DepoLokasyonId &&
-                    !SandikDepoKurali.BelirsizLokasyonMu(request.DepoLokasyonId.Value))
-                {
-                    var etkinIceriklerBySandik = await _sandikService
-                        .GetEtkinSandikIcerikleriAsync(new[] { sandik.Id }, cancellationToken);
-                    var etkinIcerikler = etkinIceriklerBySandik
-                        .GetValueOrDefault(sandik.Id) ?? Array.Empty<SandikIcerik>();
-
-                    if (!SandikDepoKurali.DepoLokasyonuAtanabilir(sandik, etkinIcerikler))
-                    {
-                        return Result.Failure(SandikDepoKurali.LokasyonAtamaUyariMesaji);
-                    }
-                }
-
-                sandik.DepoLokasyonId = request.DepoLokasyonId.Value;
-            }
 
             repo.Update(sandik);
             await _unitOfWork.SaveChangesAsync();

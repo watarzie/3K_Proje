@@ -570,15 +570,34 @@ namespace _3K.Infrastructure.Services
 
         private static int HesaplaSahaAktarimDurumu(SahaAktarimKalemi kalem)
         {
-            if (kalem.SahaSandik?.DurumId == (int)SandikDurum.Sevkedildi)
+            var sahaSatir = kalem.SahaCekiSatiri;
+            var icerikler = sahaSatir?.SandikIcerikleri ?? new List<SandikIcerik>();
+            var aktifSandiklar = icerikler
+                .Where(i =>
+                    i.TahsisMiktari > 0 ||
+                    i.KonulanAdet > 0 ||
+                    (!i.CekiSatiriId.HasValue && i.Miktar > 0))
+                .Select(i => i.Sandik)
+                .GroupBy(s => s.Id)
+                .Select(g => g.First())
+                .ToList();
+
+            if (aktifSandiklar.Count > 0 &&
+                aktifSandiklar.All(s => s.DurumId == (int)SandikDurum.Sevkedildi))
+            {
+                return aktifSandiklar.Any(s => s.SevkiyatDuzeltmeAcikMi)
+                    ? (int)SahaAktarimDurum.SevkiyatDuzeltmede
+                    : (int)SahaAktarimDurum.SevkEdildi;
+            }
+
+            if (aktifSandiklar.Count == 0 &&
+                kalem.SahaSandik?.DurumId == (int)SandikDurum.Sevkedildi)
             {
                 return kalem.SahaSandik.SevkiyatDuzeltmeAcikMi
                     ? (int)SahaAktarimDurum.SevkiyatDuzeltmede
                     : (int)SahaAktarimDurum.SevkEdildi;
             }
 
-            var sahaSatir = kalem.SahaCekiSatiri;
-            var icerikler = sahaSatir?.SandikIcerikleri ?? new List<SandikIcerik>();
             var konulanAdet = icerikler.Sum(i => i.KonulanAdet);
 
             if (kalem.Miktar > 0 && konulanAdet >= kalem.Miktar)

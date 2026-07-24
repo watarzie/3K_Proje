@@ -13,17 +13,20 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         private readonly IHareketService _hareketService;
         private readonly ICurrentUserService _currentUserService;
         private readonly ISahaAktarimSilmeKorumaService _sahaAktarimSilmeKorumaService;
+        private readonly ISandikService _sandikService;
 
         public SandikSilCommandHandler(
             IUnitOfWork unitOfWork,
             IHareketService hareketService,
             ICurrentUserService currentUserService,
-            ISahaAktarimSilmeKorumaService sahaAktarimSilmeKorumaService)
+            ISahaAktarimSilmeKorumaService sahaAktarimSilmeKorumaService,
+            ISandikService sandikService)
         {
             _unitOfWork = unitOfWork;
             _hareketService = hareketService;
             _currentUserService = currentUserService;
             _sahaAktarimSilmeKorumaService = sahaAktarimSilmeKorumaService;
+            _sandikService = sandikService;
         }
 
         public async Task<Result> Handle(SandikSilCommand request, CancellationToken cancellationToken)
@@ -46,6 +49,19 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (aktarimBagliSandikIds.Contains(sandik.Id))
                 return Result.Failure(SahaAktarimSilmeKorumaMesajlari.Sandik, 409);
 
+            var etkinIcerikMap = await _sandikService.GetEtkinSandikIcerikleriAsync(
+                new[] { sandik.Id },
+                cancellationToken);
+            var etkinIcerikler = etkinIcerikMap.GetValueOrDefault(sandik.Id)
+                ?? Array.Empty<SandikIcerik>();
+
+            if (etkinIcerikler.Any(i => i.Id <= 0))
+            {
+                return Result.Failure(
+                    "Bu sandık eski çeki satırlarıyla ilişkilidir. Ürün bağlantıları düzeltilmeden sandık silinemez.",
+                    409);
+            }
+
             var sandikIcerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
             var icerikler = (await sandikIcerikRepo.FindAsync(x => x.SandikId == sandik.Id)).ToList();
             var manuelSatirlar = new List<CekiSatiri>();
@@ -66,7 +82,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 {
                     if (!icerik.CekiSatiriId.HasValue
                         || !cekiSatirlari.TryGetValue(icerik.CekiSatiriId.Value, out var satir)
-                        || !satir.IsManuelEklenen)
+                        || !satir.IsManuelEklenen
+                        || satir.KaynakCekiSatiriId.HasValue)
                     {
                         return Result.Failure($"Bu sandıkta {icerikler.Count} ürün bulunuyor. Önce ürünleri silin veya taşıyın.");
                     }
