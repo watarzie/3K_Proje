@@ -56,7 +56,8 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 && satir.GridGelenAdet == 0
                 && satir.TrafoSevkAdet == 0
                 && satir.GridSevkDurumuId == (int)GridSevkDurum.SevkEdilmedi
-                && satir.YenidenSevkGerekliAdet == 0)
+                && satir.YenidenSevkGerekliAdet == 0
+                && !satir.SurecDurumId.HasValue)
                 return Result.Failure("Bu ürün zaten sıfırlanmış durumda.");
 
             // ===== Eski değerleri kaydet (hareket logu için) =====
@@ -65,6 +66,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             var eskiTrafoSevkAdet = satir.TrafoSevkAdet;
             var eskiSevkDurum = satir.GridSevkDurumuId;
             var eskiSevkMiktari = satir.GridSevkMiktari;
+            var eskiSurecDurumId = satir.SurecDurumId;
 
             // ===== Grid alanlarını sıfırla (çeki yüklendiğindeki ham durum) =====
             satir.GridDurumuId = (int)GridDurum.Gelmedi;
@@ -76,11 +78,11 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             satir.GridSevkTarihi = null;
             satir.GridPersonelId = null;
             satir.GridAciklama = null;
+            satir.SurecDurumId = null;
 
             // ===== Genel durumu yeniden hesapla =====
             satir.DurumId = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumuId, satir.UcKDurumuId);
             _durumHesaplaService.HesaplaKalanVeDurum(satir);
-            GridSurecDurumHelper.SyncSurecTamamlandi(satir);
 
             repo.Update(satir);
             await _unitOfWork.SaveChangesAsync();
@@ -91,7 +93,8 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 $"GridGelenAdet:{(int)eskiGridGelenAdet}→0, " +
                 $"TrafoSevkAdet:{(int)eskiTrafoSevkAdet}→0, " +
                 $"SevkDurum:{Enum.GetName(typeof(GridSevkDurum), eskiSevkDurum) ?? eskiSevkDurum.ToString()}→SevkEdilmedi, " +
-                $"SevkMiktari:{eskiSevkMiktari?.ToString() ?? "null"}→null";
+                $"SevkMiktari:{eskiSevkMiktari?.ToString() ?? "null"}→null, " +
+                $"SurecDurum:{eskiSurecDurumId?.ToString() ?? "null"}→null";
 
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {

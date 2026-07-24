@@ -137,6 +137,7 @@ try
     builder.Services.AddScoped<IDashboardStatsProvider, DashboardStatsProvider>();
     builder.Services.AddScoped<ISahaTamamlamaService, SahaTamamlamaService>();
     builder.Services.AddScoped<ISahaAktarimSilmeKorumaService, SahaAktarimSilmeKorumaService>();
+    builder.Services.AddScoped<IProjeSilmeService, ProjeSilmeService>();
     builder.Services.AddScoped<IBildirimService, BildirimService>();
     builder.Services.AddScoped<ISandikLokasyonGuncellemeService, SandikLokasyonGuncellemeService>();
 

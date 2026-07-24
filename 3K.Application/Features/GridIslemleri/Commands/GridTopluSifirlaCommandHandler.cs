@@ -75,12 +75,14 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                     && satir.GridGelenAdet == 0
                     && satir.TrafoSevkAdet == 0
                     && satir.GridSevkDurumuId == (int)GridSevkDurum.SevkEdilmedi
-                    && satir.YenidenSevkGerekliAdet == 0)
+                    && satir.YenidenSevkGerekliAdet == 0
+                    && !satir.SurecDurumId.HasValue)
                 {
                     continue; // Zaten sıfır, sessizce atla
                 }
 
                 var eskiGridDurum = satir.GridDurumuId;
+                var eskiSurecDurumId = satir.SurecDurumId;
 
                 // Sıfırla
                 satir.GridDurumuId = (int)GridDurum.Gelmedi;
@@ -92,11 +94,11 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 satir.GridSevkTarihi = null;
                 satir.GridPersonelId = null;
                 satir.GridAciklama = null;
+                satir.SurecDurumId = null;
 
                 // Genel durumu hesapla
                 satir.DurumId = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumuId, satir.UcKDurumuId);
                 _durumHesaplaService.HesaplaKalanVeDurum(satir);
-                GridSurecDurumHelper.SyncSurecTamamlandi(satir);
 
                 repo.Update(satir);
                 basarili++;
@@ -110,7 +112,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                     ReferansId = satir.Id.ToString(),
                     Islem = "Grid Toplu Sıfırlandı",
                     IslemTipiId = (int)IslemTipi.GridDurumSifirlandi,
-                    EskiDeger = $"GridDurum:{Enum.GetName(typeof(GridDurum), eskiGridDurum) ?? eskiGridDurum.ToString()}",
+                    EskiDeger = $"GridDurum:{Enum.GetName(typeof(GridDurum), eskiGridDurum) ?? eskiGridDurum.ToString()}, SurecDurum:{eskiSurecDurumId?.ToString() ?? "null"}",
                     YeniDeger = "Bekliyor (Sıfırlandı)",
                     Aciklama = $"Toplu Grid sıfırlama — {(string.IsNullOrWhiteSpace(request.Aciklama) ? "Açıklama yok" : request.Aciklama)}"
                 });
