@@ -98,16 +98,21 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
             var toplamSandik = sandiklar.Count;
             var sevkEdilenSandik = sandiklar.Count(s => s.DurumId == (int)SandikDurum.Sevkedildi);
             var tumSandiklarSevkEdildi = toplamSandik > 0 && sevkEdilenSandik == toplamSandik;
-            var sevkKaydiVar = sevkEdilenSandik > 0 || sahaSevkiyleTamamlamaVar;
             var hazirSandik = sandiklar.Count(s =>
                 s.DurumId == (int)SandikDurum.Kapandi ||
                 s.DurumId == (int)SandikDurum.Sevkedildi);
 
-            if (!isSahaYedek && sevkKaydiVar && normalUrunlerSevkKapsamindaTamamlandi)
-                return (int)ProjeDurum.SevkEdildi;
+            if (!isSahaYedek)
+            {
+                var normalProjeSevkDurumu = NormalProjeSevkDurumHelper.Hesapla(
+                    toplamSandik,
+                    sevkEdilenSandik,
+                    sahaSevkiyleTamamlamaVar,
+                    normalUrunlerSevkKapsamindaTamamlandi);
 
-            if (!isSahaYedek && sevkKaydiVar)
-                return (int)ProjeDurum.EksikSevkEdildi;
+                if (normalProjeSevkDurumu.HasValue)
+                    return normalProjeSevkDurumu.Value;
+            }
 
             if (isSahaYedek &&
                 (tumSandiklarSevkEdildi || proje.DurumId == (int)ProjeDurum.SevkEdildi))

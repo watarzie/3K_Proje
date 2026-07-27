@@ -93,12 +93,17 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                 // Durum hesaplama
                 int durumId;
                 var tumSandiklarSevkEdildi = toplamSandik > 0 && sevkEdilmisSandikSayisi == toplamSandik;
-                var sevkKaydiVar = sevkEdilmisSandikSayisi > 0 || sahaSevkiyleTamamlamaVar;
-                if ((isSahaYedek && (tumSandiklarSevkEdildi || p.DurumId == (int)ProjeDurum.SevkEdildi)) ||
-                    (!isSahaYedek && sevkKaydiVar && normalUrunlerSevkKapsamindaTamamlandi))
+                var normalProjeSevkDurumu = !isSahaYedek
+                    ? NormalProjeSevkDurumHelper.Hesapla(
+                        toplamSandik,
+                        sevkEdilmisSandikSayisi,
+                        sahaSevkiyleTamamlamaVar,
+                        normalUrunlerSevkKapsamindaTamamlandi)
+                    : null;
+                if (isSahaYedek && (tumSandiklarSevkEdildi || p.DurumId == (int)ProjeDurum.SevkEdildi))
                     durumId = (int)ProjeDurum.SevkEdildi;
-                else if (!isSahaYedek && sevkKaydiVar)
-                    durumId = (int)ProjeDurum.EksikSevkEdildi;
+                else if (normalProjeSevkDurumu.HasValue)
+                    durumId = normalProjeSevkDurumu.Value;
                 else if (isSahaYedek && p.DurumId == (int)ProjeDurum.EksikSevkEdildi)
                     durumId = p.DurumId; // Kilitli/Sevk edilmiş proje statüsü ezilemez
                 else if (hazirSandik == toplamSandik && toplamSandik > 0)

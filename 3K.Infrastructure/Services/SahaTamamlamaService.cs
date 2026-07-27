@@ -495,17 +495,16 @@ namespace _3K.Infrastructure.Services
                 var sahaSevkiyleTamamlamaVar = projeSatirlari.Any(s => sevkEdilenGerceklesenTamamlamaMap.GetValueOrDefault(s.Id) > 0);
                 var tumUrunlerTamamlandi = projeSatirlari.All(s => HesaplaEtkinKalan(s, aktifGerceklesenTamamlamaMap) <= 0);
                 var tumUrunlerSevkKapsamindaTamamlandi = projeSatirlari.All(s => HesaplaEtkinKalan(s, sevkEdilenGerceklesenTamamlamaMap) <= 0);
-                var normalSandikSevkiVar = (stats?.SevkEdilenSandik ?? 0) > 0;
-                var sevkKaydiVar = normalSandikSevkiVar || sahaSevkiyleTamamlamaVar;
+                var normalProjeSevkDurumu = NormalProjeSevkDurumHelper.Hesapla(
+                    stats?.ToplamSandik ?? 0,
+                    stats?.SevkEdilenSandik ?? 0,
+                    sahaSevkiyleTamamlamaVar,
+                    tumUrunlerSevkKapsamindaTamamlandi);
                 var eskiDurum = proje.DurumId;
 
-                if (sevkKaydiVar && tumUrunlerSevkKapsamindaTamamlandi)
+                if (normalProjeSevkDurumu.HasValue)
                 {
-                    proje.DurumId = (int)ProjeDurum.SevkEdildi;
-                }
-                else if (sevkKaydiVar)
-                {
-                    proje.DurumId = (int)ProjeDurum.EksikSevkEdildi;
+                    proje.DurumId = normalProjeSevkDurumu.Value;
                 }
                 else if (tumUrunlerTamamlandi &&
                          stats is { ToplamSandik: > 0 } &&
