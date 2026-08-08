@@ -2,6 +2,7 @@ using MediatR;
 using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
+using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.UcKIslemleri.Commands
@@ -38,6 +39,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 return Result.Failure("En az bir ürün seçilmelidir.", 400);
 
             var repo = _unitOfWork.GetRepository<CekiSatiri>();
+            var transferRepo = _unitOfWork.GetRepository<ProjeTransfer>();
             var seciliSatirIdleri = secimler.Select(s => s.CekiSatiriId).Distinct().ToList();
             var satirlar = (await repo.FindAsync(cs => seciliSatirIdleri.Contains(cs.Id)))
                 .ToDictionary(cs => cs.Id);
@@ -80,16 +82,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 }
 
                 // Zaten başlangıç durumundaysa atla
-                if (satir.UcKDurumuId == (int)UcKDurum.Bekliyor
-                    && satir.UcKKarsilamaTipiId == (int)UcKDurum.Bekliyor
-                    && satir.GelenMiktar == 0
-                    && satir.KarsilananMiktar == 0
-                    && satir.StokKarsilanan == 0
-                    && satir.ProjeKarsilanan == 0
-                    && satir.TedarikciKarsilanan == 0
-                    && satir.HataliMiktar == 0
-                    && satir.GeriGonderilenMiktar == 0
-                    && satir.YenidenSevkGerekliAdet == 0)
+                if (UcKDurumSifirlamaHelper.TamamenBaslangicDurumunda(satir))
                 {
                     continue; // Zaten sıfır, atla
                 }
@@ -111,7 +104,27 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     continue;
                 }
 
+                var aktifTransferler = (await transferRepo.FindAsync(t =>
+                    t.DurumId == (int)ProjeTransferDurum.Aktif &&
+                    (t.KaynakCekiSatiriId == satir.Id || t.HedefCekiSatiriId == satir.Id)))
+                    .Where(t => t.DurumId == (int)ProjeTransferDurum.Aktif)
+                    .ToList();
+                var aktifGidenTransferler = aktifTransferler
+                    .Where(t => t.KaynakCekiSatiriId == satir.Id)
+                    .ToList();
+                if (aktifGidenTransferler.Any())
+                {
+                    hatalar.Add($"#{satir.SiraNo}: Bu ürün başka projeye kaynak olarak verilmiş. Önce hedef projedeki karşılamayı geri alın.");
+                    continue;
+                }
+
+                var aktifGelenTransferler = aktifTransferler
+                    .Where(t => t.HedefCekiSatiriId == satir.Id)
+                    .ToList();
+
                 var eskiDurum = satir.UcKDurumuId;
+                var eskiKaliteDurumId = satir.KaliteDurumId;
+                var eskiSurecDurumId = satir.SurecDurumId;
 
                 if (seciliIcerik == null)
                 {
@@ -132,6 +145,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     satir.KarsilananMiktar = 0;
                     satir.StokKarsilanan = 0;
                     satir.ProjeKarsilanan = 0;
+                    satir.ProjeGonderilen = 0;
                     satir.TedarikciKarsilanan = 0;
                     satir.HataliMiktar = 0;
                     satir.GeriGonderilenMiktar = 0;
@@ -153,15 +167,39 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     var kalanTamamlanan = satir.GelenMiktar + satir.KarsilananMiktar - satir.ProjeGonderilen;
                     satir.UcKDurumuId = kalanTamamlanan > 0 ? (int)UcKDurum.EksikGeldi : (int)UcKDurum.Bekliyor;
                     satir.UcKKarsilamaTipiId = satir.UcKDurumuId;
+                    if (kalanTamamlanan <= 0)
+                    {
+                        satir.TeslimTarihi = null;
+                        satir.UcKAciklama = null;
+                    }
                 }
                 if (satir.GridSevkDurumuId == (int)GridSevkDurum.YenidenSevkGerekli)
                     satir.GridSevkDurumuId = (int)GridSevkDurum.SevkEdildi;
+
+                UcKDurumSifirlamaHelper.KaliteVeSureciSifirlaEgerBaslangicta(satir);
 
                 // Genel durumu hesapla
                 satir.DurumId = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumuId, satir.UcKDurumuId);
                 _durumHesaplaService.HesaplaKalanVeDurum(satir);
 
                 repo.Update(satir);
+
+                foreach (var transfer in seciliIcerik == null ? aktifGelenTransferler : Enumerable.Empty<ProjeTransfer>())
+                {
+                    var kaynakSatir = await repo.GetByIdAsync(transfer.KaynakCekiSatiriId);
+                    if (kaynakSatir != null)
+                    {
+                        kaynakSatir.ProjeGonderilen = Math.Max(kaynakSatir.ProjeGonderilen - transfer.Miktar, 0);
+                        kaynakSatir.DurumId = _durumHesaplaService.HesaplaGenelDurum(kaynakSatir.GridDurumuId, kaynakSatir.UcKDurumuId);
+                        _durumHesaplaService.HesaplaKalanVeDurum(kaynakSatir);
+                        repo.Update(kaynakSatir);
+                    }
+
+                    transfer.DurumId = (int)ProjeTransferDurum.GeriAlindi;
+                    transfer.IptalTarihi = TurkeyTime.Now;
+                    transfer.IptalAciklama = "3K durumu geri alındığı için transfer pasife çekildi.";
+                    transferRepo.Update(transfer);
+                }
 
                 // SandıkIçerik senkronizasyonu
                 var senkronizasyonResult = await UcKSandikIcerikSenkronizasyonHelper.SenkronizeAsync(
@@ -185,9 +223,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     ReferansId = satir.Id.ToString(),
                     Islem = "3K Toplu Sıfırlandı",
                     IslemTipiId = (int)IslemTipi.UcKDurumSifirlandi,
-                    EskiDeger = $"UcKDurum:{eskiDurum}",
+                    EskiDeger = $"UcKDurum:{eskiDurum}, KaliteDurum:{eskiKaliteDurumId?.ToString() ?? "null"}, SurecDurum:{eskiSurecDurumId?.ToString() ?? "null"}",
                     YeniDeger = "Bekliyor (Sıfırlandı)",
-                    Aciklama = $"Toplu 3K sıfırlama — {(string.IsNullOrWhiteSpace(request.Aciklama) ? "Açıklama yok" : request.Aciklama)}"
+                    Aciklama = $"Toplu 3K sıfırlama — KaliteDurum:{eskiKaliteDurumId?.ToString() ?? "null"}→{satir.KaliteDurumId?.ToString() ?? "null"}, SurecDurum:{eskiSurecDurumId?.ToString() ?? "null"}→{satir.SurecDurumId?.ToString() ?? "null"}. {(string.IsNullOrWhiteSpace(request.Aciklama) ? "Açıklama yok" : request.Aciklama)}"
                 });
             }
 

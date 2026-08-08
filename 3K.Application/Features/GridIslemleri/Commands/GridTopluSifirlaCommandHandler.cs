@@ -76,12 +76,14 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                     && satir.TrafoSevkAdet == 0
                     && satir.GridSevkDurumuId == (int)GridSevkDurum.SevkEdilmedi
                     && satir.YenidenSevkGerekliAdet == 0
+                    && !satir.KaliteDurumId.HasValue
                     && !satir.SurecDurumId.HasValue)
                 {
                     continue; // Zaten sıfır, sessizce atla
                 }
 
                 var eskiGridDurum = satir.GridDurumuId;
+                var eskiKaliteDurumId = satir.KaliteDurumId;
                 var eskiSurecDurumId = satir.SurecDurumId;
 
                 // Sıfırla
@@ -94,6 +96,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 satir.GridSevkTarihi = null;
                 satir.GridPersonelId = null;
                 satir.GridAciklama = null;
+                satir.KaliteDurumId = null;
                 satir.SurecDurumId = null;
 
                 // Genel durumu hesapla
@@ -112,7 +115,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                     ReferansId = satir.Id.ToString(),
                     Islem = "Grid Toplu Sıfırlandı",
                     IslemTipiId = (int)IslemTipi.GridDurumSifirlandi,
-                    EskiDeger = $"GridDurum:{Enum.GetName(typeof(GridDurum), eskiGridDurum) ?? eskiGridDurum.ToString()}, SurecDurum:{eskiSurecDurumId?.ToString() ?? "null"}",
+                    EskiDeger = $"GridDurum:{Enum.GetName(typeof(GridDurum), eskiGridDurum) ?? eskiGridDurum.ToString()}, KaliteDurum:{eskiKaliteDurumId?.ToString() ?? "null"}, SurecDurum:{eskiSurecDurumId?.ToString() ?? "null"}",
                     YeniDeger = "Bekliyor (Sıfırlandı)",
                     Aciklama = $"Toplu Grid sıfırlama — {(string.IsNullOrWhiteSpace(request.Aciklama) ? "Açıklama yok" : request.Aciklama)}"
                 });

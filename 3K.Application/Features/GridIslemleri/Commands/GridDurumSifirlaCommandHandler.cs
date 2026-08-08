@@ -57,6 +57,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 && satir.TrafoSevkAdet == 0
                 && satir.GridSevkDurumuId == (int)GridSevkDurum.SevkEdilmedi
                 && satir.YenidenSevkGerekliAdet == 0
+                && !satir.KaliteDurumId.HasValue
                 && !satir.SurecDurumId.HasValue)
                 return Result.Failure("Bu ürün zaten sıfırlanmış durumda.");
 
@@ -66,6 +67,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             var eskiTrafoSevkAdet = satir.TrafoSevkAdet;
             var eskiSevkDurum = satir.GridSevkDurumuId;
             var eskiSevkMiktari = satir.GridSevkMiktari;
+            var eskiKaliteDurumId = satir.KaliteDurumId;
             var eskiSurecDurumId = satir.SurecDurumId;
 
             // ===== Grid alanlarını sıfırla (çeki yüklendiğindeki ham durum) =====
@@ -78,6 +80,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             satir.GridSevkTarihi = null;
             satir.GridPersonelId = null;
             satir.GridAciklama = null;
+            satir.KaliteDurumId = null;
             satir.SurecDurumId = null;
 
             // ===== Genel durumu yeniden hesapla =====
@@ -94,6 +97,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 $"TrafoSevkAdet:{(int)eskiTrafoSevkAdet}→0, " +
                 $"SevkDurum:{Enum.GetName(typeof(GridSevkDurum), eskiSevkDurum) ?? eskiSevkDurum.ToString()}→SevkEdilmedi, " +
                 $"SevkMiktari:{eskiSevkMiktari?.ToString() ?? "null"}→null, " +
+                $"KaliteDurum:{eskiKaliteDurumId?.ToString() ?? "null"}→null, " +
                 $"SurecDurum:{eskiSurecDurumId?.ToString() ?? "null"}→null";
 
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
@@ -104,7 +108,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 ReferansId = satir.Id.ToString(),
                 Islem = "Grid Durum Sıfırlandı",
                 IslemTipiId = (int)IslemTipi.GridDurumSifirlandi,
-                EskiDeger = $"GridDurum:{Enum.GetName(typeof(GridDurum), eskiGridDurum) ?? eskiGridDurum.ToString()}, GridGelenAdet:{(int)eskiGridGelenAdet}, SevkDurum:{Enum.GetName(typeof(GridSevkDurum), eskiSevkDurum) ?? eskiSevkDurum.ToString()}",
+                EskiDeger = $"GridDurum:{Enum.GetName(typeof(GridDurum), eskiGridDurum) ?? eskiGridDurum.ToString()}, GridGelenAdet:{(int)eskiGridGelenAdet}, SevkDurum:{Enum.GetName(typeof(GridSevkDurum), eskiSevkDurum) ?? eskiSevkDurum.ToString()}, KaliteDurum:{eskiKaliteDurumId?.ToString() ?? "null"}, SurecDurum:{eskiSurecDurumId?.ToString() ?? "null"}",
                 YeniDeger = "Bekliyor (Sıfırlandı)",
                 Aciklama = string.IsNullOrWhiteSpace(request.Aciklama)
                     ? detay

@@ -67,17 +67,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 return Result.Failure("Bu ürün Grid tarafından iptal edildiği için sıfırlama yapılamaz.");
 
             // Zaten ham/başlangıç durumundaysa → sıfırlanacak bir şey yok
-            if (satir.UcKDurumuId == (int)UcKDurum.Bekliyor
-                && satir.UcKKarsilamaTipiId == (int)UcKDurum.Bekliyor
-                && satir.GelenMiktar == 0
-                && satir.KarsilananMiktar == 0
-                && satir.StokKarsilanan == 0
-                && satir.ProjeKarsilanan == 0
-                && satir.ProjeGonderilen == 0
-                && satir.TedarikciKarsilanan == 0
-                && satir.HataliMiktar == 0
-                && satir.GeriGonderilenMiktar == 0
-                && satir.YenidenSevkGerekliAdet == 0)
+            if (UcKDurumSifirlamaHelper.TamamenBaslangicDurumunda(satir))
                 return Result.Failure("Bu ürün zaten başlangıç durumunda.");
 
             // ===== Eski değerleri kaydet (hareket logu için) =====
@@ -102,6 +92,8 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             var eskiTedarikciKarsilanan = satir.TedarikciKarsilanan;
             var eskiHataliMiktar = satir.HataliMiktar;
             var eskiGeriGonderilenMiktar = satir.GeriGonderilenMiktar;
+            var eskiKaliteDurumId = satir.KaliteDurumId;
+            var eskiSurecDurumId = satir.SurecDurumId;
 
             if (seciliIcerik == null)
             {
@@ -151,6 +143,8 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             if (satir.GridSevkDurumuId == (int)GridSevkDurum.YenidenSevkGerekli)
                 satir.GridSevkDurumuId = (int)GridSevkDurum.SevkEdildi;
 
+            UcKDurumSifirlamaHelper.KaliteVeSureciSifirlaEgerBaslangicta(satir);
+
             // ===== Genel durumu yeniden hesapla =====
             satir.DurumId = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumuId, satir.UcKDurumuId);
             _durumHesaplaService.HesaplaKalanVeDurum(satir);
@@ -192,9 +186,13 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 ? $"3K Sıfırlandı: UcKDurum:{eskiDurum}→Bekliyor, " +
                   $"GelenMiktar:{eskiGelenMiktar}→0, StokKarsilanan:{eskiStokKarsilanan}→0, " +
                   $"ProjeKarsilanan:{eskiProjeKarsilanan}→0, TedarikciKarsilanan:{eskiTedarikciKarsilanan}→0, " +
-                  $"GeriGonderilen:{eskiGeriGonderilenMiktar}→0, HataliMiktar:{eskiHataliMiktar}→0"
+                  $"GeriGonderilen:{eskiGeriGonderilenMiktar}→0, HataliMiktar:{eskiHataliMiktar}→0, " +
+                  $"KaliteDurum:{eskiKaliteDurumId?.ToString() ?? "null"}→{satir.KaliteDurumId?.ToString() ?? "null"}, " +
+                  $"SurecDurum:{eskiSurecDurumId?.ToString() ?? "null"}→{satir.SurecDurumId?.ToString() ?? "null"}"
                 : $"Sandık bazlı 3K sıfırlandı: SandikIcerikId:{seciliIcerik.Id}, " +
-                  $"SandıkMiktarı:{seciliIcerik.TahsisMiktari}, Konulan:{seciliIcerik.KonulanAdet}→0";
+                  $"SandıkMiktarı:{seciliIcerik.TahsisMiktari}, Konulan:{seciliIcerik.KonulanAdet}→0, " +
+                  $"KaliteDurum:{eskiKaliteDurumId?.ToString() ?? "null"}→{satir.KaliteDurumId?.ToString() ?? "null"}, " +
+                  $"SurecDurum:{eskiSurecDurumId?.ToString() ?? "null"}→{satir.SurecDurumId?.ToString() ?? "null"}";
 
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {
@@ -204,7 +202,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 ReferansId = (seciliIcerik?.Id ?? satir.Id).ToString(),
                 Islem = seciliIcerik == null ? "3K Durum Sıfırlandı" : "Sandık Bazlı 3K Durum Sıfırlandı",
                 IslemTipiId = (int)IslemTipi.UcKDurumSifirlandi,
-                EskiDeger = $"KarsilamaTipi:{eskiKarsilamaTipi}, UcKDurum:{eskiDurum}, GelenMiktar:{eskiGelenMiktar}",
+                EskiDeger = $"KarsilamaTipi:{eskiKarsilamaTipi}, UcKDurum:{eskiDurum}, GelenMiktar:{eskiGelenMiktar}, KaliteDurum:{eskiKaliteDurumId?.ToString() ?? "null"}, SurecDurum:{eskiSurecDurumId?.ToString() ?? "null"}",
                 YeniDeger = seciliIcerik == null ? "Bekliyor (Sıfırlandı)" : "Seçili sandık tahsisi sıfırlandı",
                 Aciklama = string.IsNullOrWhiteSpace(request.Aciklama)
                     ? detay
@@ -212,6 +210,40 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             });
 
             return Result.Success();
+        }
+    }
+
+    internal static class UcKDurumSifirlamaHelper
+    {
+        public static bool AggregateBaslangicDurumunda(CekiSatiri satir)
+        {
+            return satir.UcKDurumuId == (int)UcKDurum.Bekliyor
+                && satir.UcKKarsilamaTipiId == (int)UcKDurum.Bekliyor
+                && satir.GelenMiktar == 0
+                && satir.KarsilananMiktar == 0
+                && satir.StokKarsilanan == 0
+                && satir.ProjeKarsilanan == 0
+                && satir.ProjeGonderilen == 0
+                && satir.TedarikciKarsilanan == 0
+                && satir.HataliMiktar == 0
+                && satir.GeriGonderilenMiktar == 0
+                && satir.YenidenSevkGerekliAdet == 0;
+        }
+
+        public static bool TamamenBaslangicDurumunda(CekiSatiri satir)
+        {
+            return AggregateBaslangicDurumunda(satir)
+                && !satir.KaliteDurumId.HasValue
+                && !satir.SurecDurumId.HasValue;
+        }
+
+        public static void KaliteVeSureciSifirlaEgerBaslangicta(CekiSatiri satir)
+        {
+            if (!AggregateBaslangicDurumunda(satir))
+                return;
+
+            satir.KaliteDurumId = null;
+            satir.SurecDurumId = null;
         }
     }
 }
