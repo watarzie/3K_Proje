@@ -7,6 +7,7 @@ namespace _3K.Core.Models
         public string? SearchTerm { get; init; }
         public int Page { get; init; }
         public int PageSize { get; init; }
+        public IReadOnlyCollection<int> SahaUzerindenSevkEdilenSandikIds { get; init; } = [];
     }
 
     public sealed class DashboardSandikDrillDownSatiri

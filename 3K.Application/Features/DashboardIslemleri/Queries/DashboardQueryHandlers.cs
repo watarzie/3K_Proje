@@ -131,8 +131,21 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                 .ToList();
             var sahaTamamlamaMap = await _sahaTamamlamaService.GetAktifGerceklesenTamamlamaMapAsync(normalKaynakSatirIds, cancellationToken);
             var sevkEdilenSahaTamamlamaMap = await _sahaTamamlamaService.GetSevkEdilenGerceklesenTamamlamaMapAsync(normalKaynakSatirIds, cancellationToken);
+            var normalKaynakSandikIds = projeler
+                .Where(p => p.ProjeTipiId == (int)ProjeTipi.Normal)
+                .SelectMany(p => p.Sandiklar ?? Enumerable.Empty<Sandik>())
+                .Select(s => s.Id)
+                .ToList();
+            var kaynakSandikSahaDurumu = await _sahaTamamlamaService.GetKaynakSandikSahaAktarimDurumuAsync(
+                normalKaynakSandikIds,
+                cancellationToken);
             var items = projeler
-                .Select(p => DashboardProjection.ToProjeItem(p, _lookupCache, sahaTamamlamaMap, sevkEdilenSahaTamamlamaMap))
+                .Select(p => DashboardProjection.ToProjeItem(
+                    p,
+                    _lookupCache,
+                    sahaTamamlamaMap,
+                    sevkEdilenSahaTamamlamaMap,
+                    kaynakSandikSahaDurumu.SahaUzerindenSevkEdilenSandikIds))
                 .ToList();
 
             return Result<DashboardPagedResultDto<DashboardProjeItemDto>>.Success(new DashboardPagedResultDto<DashboardProjeItemDto>
@@ -453,13 +466,16 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILookupCacheService _lookupCache;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
         public DashboardProjeSandikDurumQueryHandler(
             IUnitOfWork unitOfWork,
-            ILookupCacheService lookupCache)
+            ILookupCacheService lookupCache,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
             _lookupCache = lookupCache;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result<DashboardProjeSandikDurumDto>> Handle(
@@ -475,12 +491,26 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            var durumCounts = _unitOfWork.GetRepository<Sandik>()
+            var sandiklar = _unitOfWork.GetRepository<Sandik>()
                 .Queryable()
                 .Where(s => s.ProjeId == request.ProjeId)
-                .GroupBy(s => s.DurumId)
-                .Select(g => new { DurumId = g.Key, Count = g.Count() })
-                .ToDictionary(x => x.DurumId, x => x.Count);
+                .Select(s => new { s.Id, s.DurumId })
+                .ToList();
+
+            IReadOnlySet<int> sahaUzerindenSevkEdilenSandikIds = new HashSet<int>();
+            if (proje.ProjeTipiId == (int)ProjeTipi.Normal && sandiklar.Count > 0)
+            {
+                var sahaDurumu = await _sahaTamamlamaService.GetKaynakSandikSahaAktarimDurumuAsync(
+                    sandiklar.Select(s => s.Id),
+                    cancellationToken);
+                sahaUzerindenSevkEdilenSandikIds = sahaDurumu.SahaUzerindenSevkEdilenSandikIds;
+            }
+
+            var durumCounts = sandiklar
+                .GroupBy(s => sahaUzerindenSevkEdilenSandikIds.Contains(s.Id)
+                    ? (int)SandikDurum.Sevkedildi
+                    : s.DurumId)
+                .ToDictionary(g => g.Key, g => g.Count());
 
             var durumlar = Enum.GetValues<SandikDurum>()
                 .Select(durum => new DashboardSandikDurumDto
@@ -507,11 +537,17 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
         : IRequestHandler<DashboardProjeSandiklariDrillDownQuery, Result<DashboardPagedResultDto<DashboardSandikDrillDownDto>>>
     {
         private readonly IDashboardSandikQueryRepository _sandikQueryRepository;
+        private readonly IUnitOfWork _unitOfWork;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
         public DashboardProjeSandiklariDrillDownQueryHandler(
-            IDashboardSandikQueryRepository sandikQueryRepository)
+            IDashboardSandikQueryRepository sandikQueryRepository,
+            IUnitOfWork unitOfWork,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _sandikQueryRepository = sandikQueryRepository;
+            _unitOfWork = unitOfWork;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result<DashboardPagedResultDto<DashboardSandikDrillDownDto>>> Handle(
@@ -520,6 +556,27 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
         {
             var page = Math.Max(request.Page, 1);
             var pageSize = Math.Clamp(request.PageSize, 1, 100);
+            var proje = await _unitOfWork.GetRepository<Proje>().GetByIdAsync(request.ProjeId);
+            if (proje == null)
+            {
+                return Result<DashboardPagedResultDto<DashboardSandikDrillDownDto>>
+                    .Failure("Proje bulunamadı.", 404);
+            }
+
+            IReadOnlySet<int> sahaUzerindenSevkEdilenSandikIds = new HashSet<int>();
+            if (proje.ProjeTipiId == (int)ProjeTipi.Normal)
+            {
+                var kaynakSandikIds = _unitOfWork.GetRepository<Sandik>()
+                    .Queryable()
+                    .Where(s => s.ProjeId == request.ProjeId)
+                    .Select(s => s.Id)
+                    .ToList();
+                var sahaDurumu = await _sahaTamamlamaService.GetKaynakSandikSahaAktarimDurumuAsync(
+                    kaynakSandikIds,
+                    cancellationToken);
+                sahaUzerindenSevkEdilenSandikIds = sahaDurumu.SahaUzerindenSevkEdilenSandikIds;
+            }
+
             var sonuc = await _sandikQueryRepository.GetProjeSandiklariAsync(
                 new DashboardSandikDrillDownFiltresi
                 {
@@ -527,7 +584,8 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                     DurumId = request.DurumId,
                     SearchTerm = request.SearchTerm?.Trim(),
                     Page = page,
-                    PageSize = pageSize
+                    PageSize = pageSize,
+                    SahaUzerindenSevkEdilenSandikIds = sahaUzerindenSevkEdilenSandikIds
                 },
                 cancellationToken);
 

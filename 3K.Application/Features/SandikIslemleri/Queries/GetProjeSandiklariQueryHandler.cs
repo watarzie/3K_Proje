@@ -37,7 +37,9 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 .Distinct()
                 .ToList();
             var sahaTamamlamaMap = await _sahaTamamlamaService.GetAktifTamamlamaMapAsync(kaynakSatirIdleri, cancellationToken);
-            var sandikBazliAktarimSatirIds = await _sahaTamamlamaService.GetAktifSandikBazliAktarimSatirIdsAsync(kaynakSatirIdleri, cancellationToken);
+            var kaynakSandikSahaDurumu = await _sahaTamamlamaService.GetKaynakSandikSahaAktarimDurumuAsync(
+                sandiklar.Select(s => s.Id),
+                cancellationToken);
             var aktifAktarimBagliSandikIds = await _sahaAktarimSilmeKorumaService
                 .GetAktifAktarimBagliSandikIdsAsync(sandiklar.Select(s => s.Id), cancellationToken);
 
@@ -53,11 +55,12 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                     .Select(g => g.First())
                     .ToList();
                 var sahayaAktarilanMiktar = kaynakSatirlar.Sum(cs => sahaTamamlamaMap.GetValueOrDefault(cs.Id));
-                var aktarilabilirKaynakSatirlar = kaynakSatirlar
-                    .Where(cs => cs.KalanMiktar > 0)
-                    .ToList();
-                var sandikTamamenSahayaAktarildi = aktarilabilirKaynakSatirlar.Count > 0 &&
-                    aktarilabilirKaynakSatirlar.All(cs => sandikBazliAktarimSatirIds.Contains(cs.Id));
+                var fizikselSevkEdildi = s.DurumId == (int)SandikDurum.Sevkedildi;
+                var sahaUzerindenSevkEdildi = !fizikselSevkEdildi &&
+                    kaynakSandikSahaDurumu.SahaUzerindenSevkEdilenSandikIds.Contains(s.Id);
+                var sandikSahaAktariminda = !fizikselSevkEdildi &&
+                    !sahaUzerindenSevkEdildi &&
+                    kaynakSandikSahaDurumu.AktifAktarimaBagliSandikIds.Contains(s.Id);
 
                 return new SandikDto
                 {
@@ -77,7 +80,8 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                             (isManuelSandik && icerikler.All(i => !ManuelSatirIslemGormus(i.CekiSatiri!)))),
                     DepodaSayilacakMi = s.DepoLokasyonId != (int)DepoLokasyon.Belirsiz &&
                         SandikDepoKurali.DepoLokasyonuAtanabilir(s, icerikler),
-                    SahayaAktarildiMi = sandikTamamenSahayaAktarildi,
+                    SahayaAktarildiMi = sandikSahaAktariminda,
+                    SahaUzerindenSevkEdildiMi = sahaUzerindenSevkEdildi,
                     SahayaAktarilanMiktar = sahayaAktarilanMiktar,
                     En = s.En,
                     Boy = s.Boy,

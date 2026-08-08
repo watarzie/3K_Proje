@@ -126,6 +126,11 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             }
 
             var sandiklar = (await sandikRepo.FindAsync(s => s.ProjeId == request.ProjeId)).ToList();
+            var kaynakSandikSahaDurumu = proje.ProjeTipiId == (int)ProjeTipi.Normal
+                ? await _sahaTamamlamaService.GetKaynakSandikSahaAktarimDurumuAsync(
+                    sandiklar.Select(s => s.Id),
+                    cancellationToken)
+                : new _3K.Core.Models.KaynakSandikSahaAktarimDurumu();
             var guncelSandik = sandiklar.FirstOrDefault(s => s.Id == sandik.Id);
             if (guncelSandik != null)
             {
@@ -139,15 +144,31 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 }
             }
 
-            if (kilitAcmaTipi == SevkiyatKilitAcmaTipi.SevkiyatKaydiKorunarakAc)
+            if (proje.ProjeTipiId == (int)ProjeTipi.Normal)
             {
-                proje.DurumId = ProjeSevkDurumHelper.Hesapla(sandiklar, proje.DurumId);
+                var sahaUzerindenSevkEdilenSandikIds = kaynakSandikSahaDurumu.SahaUzerindenSevkEdilenSandikIds;
+                var etkinSevkEdilenSandikSayisi = sandiklar.Count(s =>
+                    s.DurumId == (int)SandikDurum.Sevkedildi ||
+                    sahaUzerindenSevkEdilenSandikIds.Contains(s.Id));
+                proje.DurumId = ProjeSevkDurumHelper.Hesapla(
+                    sandiklar.Count,
+                    etkinSevkEdilenSandikSayisi,
+                    proje.DurumId);
+
+                if (kilitAcmaTipi == SevkiyatKilitAcmaTipi.SevkiyatGeriAlinarakAc &&
+                    etkinSevkEdilenSandikSayisi == 0)
+                {
+                    proje.GerceklesenSevkTarihi = null;
+                }
             }
             else
             {
                 proje.DurumId = ProjeSevkDurumHelper.Hesapla(sandiklar, proje.DurumId);
-                if (sandiklar.All(s => s.DurumId != (int)SandikDurum.Sevkedildi))
+                if (kilitAcmaTipi == SevkiyatKilitAcmaTipi.SevkiyatGeriAlinarakAc &&
+                    sandiklar.All(s => s.DurumId != (int)SandikDurum.Sevkedildi))
+                {
                     proje.GerceklesenSevkTarihi = null;
+                }
             }
             projeRepo.Update(proje);
 

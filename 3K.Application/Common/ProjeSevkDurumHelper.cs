@@ -13,8 +13,15 @@ namespace _3K.Application.Common
                 return mevcutDurumId;
 
             var sevkEdilenSayisi = sandiklar.Count(s => s.DurumId == (int)SandikDurum.Sevkedildi);
+            return Hesapla(sandiklar.Count, sevkEdilenSayisi, mevcutDurumId);
+        }
 
-            if (sevkEdilenSayisi == 0)
+        public static int Hesapla(int toplamSandik, int sevkEdilenSandik, int mevcutDurumId)
+        {
+            if (toplamSandik == 0)
+                return mevcutDurumId;
+
+            if (sevkEdilenSandik == 0)
             {
                 if (mevcutDurumId == (int)ProjeDurum.SevkEdildi || mevcutDurumId == (int)ProjeDurum.EksikSevkEdildi)
                     return (int)ProjeDurum.Hazirlaniyor;
@@ -22,7 +29,7 @@ namespace _3K.Application.Common
                 return mevcutDurumId;
             }
 
-            return sevkEdilenSayisi == sandiklar.Count
+            return sevkEdilenSandik >= toplamSandik
                 ? (int)ProjeDurum.SevkEdildi
                 : (int)ProjeDurum.EksikSevkEdildi;
         }

@@ -97,6 +97,26 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
 
             // ===== Kilit açma tipine göre sandıkları geri al veya düzeltmeye aç =====
             var sandiklar = (await sandikRepo.FindAsync(s => s.ProjeId == request.ProjeId)).ToList();
+            var kaynakSandikSahaDurumu = proje.ProjeTipiId == (int)ProjeTipi.Normal
+                ? await _sahaTamamlamaService.GetKaynakSandikSahaAktarimDurumuAsync(
+                    sandiklar.Select(s => s.Id),
+                    cancellationToken)
+                : new _3K.Core.Models.KaynakSandikSahaAktarimDurumu();
+
+            var fizikselSevkEdilmisSandikVarMi = sandiklar.Any(s =>
+                s.DurumId == (int)SandikDurum.Sevkedildi);
+            var yalnizSahaUzerindenSevkEdilmisNormalProje =
+                proje.ProjeTipiId == (int)ProjeTipi.Normal &&
+                !fizikselSevkEdilmisSandikVarMi &&
+                kaynakSandikSahaDurumu.SahaUzerindenSevkEdilenSandikIds.Count > 0;
+
+            if (yalnizSahaUzerindenSevkEdilmisNormalProje)
+            {
+                return Result.Failure(
+                    "Bu projenin sevkiyatı yalnızca saha projesi üzerinden gerçekleşti. Ana proje kilidi açılamaz; önce ilgili saha sevkiyatını geri alın.",
+                    409);
+            }
+
             int geriDondurulenSandik = 0;
             var kilidiAcilanSandikIds = new List<int>();
             foreach (var sandik in sandiklar)
@@ -130,15 +150,31 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             if (geriDondurulenSandik == 0)
                 return Result.Failure("Kilidi açılacak sevk edilmiş sandık bulunamadı.");
 
-            if (kilitAcmaTipi == SevkiyatKilitAcmaTipi.SevkiyatKaydiKorunarakAc)
+            if (proje.ProjeTipiId == (int)ProjeTipi.Normal)
             {
-                proje.DurumId = ProjeSevkDurumHelper.Hesapla(sandiklar, proje.DurumId);
+                var sahaUzerindenSevkEdilenSandikIds = kaynakSandikSahaDurumu.SahaUzerindenSevkEdilenSandikIds;
+                var etkinSevkEdilenSandikSayisi = sandiklar.Count(s =>
+                    s.DurumId == (int)SandikDurum.Sevkedildi ||
+                    sahaUzerindenSevkEdilenSandikIds.Contains(s.Id));
+                proje.DurumId = ProjeSevkDurumHelper.Hesapla(
+                    sandiklar.Count,
+                    etkinSevkEdilenSandikSayisi,
+                    proje.DurumId);
+
+                if (kilitAcmaTipi == SevkiyatKilitAcmaTipi.SevkiyatGeriAlinarakAc &&
+                    etkinSevkEdilenSandikSayisi == 0)
+                {
+                    proje.GerceklesenSevkTarihi = null;
+                }
             }
             else
             {
                 proje.DurumId = ProjeSevkDurumHelper.Hesapla(sandiklar, proje.DurumId);
-                if (sandiklar.All(s => s.DurumId != (int)SandikDurum.Sevkedildi))
+                if (kilitAcmaTipi == SevkiyatKilitAcmaTipi.SevkiyatGeriAlinarakAc &&
+                    sandiklar.All(s => s.DurumId != (int)SandikDurum.Sevkedildi))
+                {
                     proje.GerceklesenSevkTarihi = null;
+                }
             }
             repo.Update(proje);
 

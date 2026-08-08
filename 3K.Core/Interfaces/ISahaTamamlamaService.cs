@@ -1,3 +1,5 @@
+using _3K.Core.Models;
+
 namespace _3K.Core.Interfaces
 {
     public interface ISahaTamamlamaService
@@ -20,6 +22,10 @@ namespace _3K.Core.Interfaces
 
         Task<HashSet<int>> GetAktifSandikBazliAktarimSatirIdsAsync(
             IEnumerable<int> kaynakCekiSatiriIds,
+            CancellationToken cancellationToken = default);
+
+        Task<KaynakSandikSahaAktarimDurumu> GetKaynakSandikSahaAktarimDurumuAsync(
+            IEnumerable<int> kaynakSandikIds,
             CancellationToken cancellationToken = default);
 
         Task<bool> AktifTamamlamaVarMiAsync(

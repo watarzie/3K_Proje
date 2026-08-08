@@ -1,5 +1,6 @@
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
+using _3K.Core.Enums;
 using _3K.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -30,11 +31,29 @@ namespace _3K.Infrastructure.Repositories
                 };
             }
 
+            var sahaUzerindenSevkEdilenSandikIds = filtre.SahaUzerindenSevkEdilenSandikIds
+                .Distinct()
+                .ToList();
             var query = _context.Sandiklar
                 .AsNoTracking()
-                .Where(sandik =>
-                    sandik.ProjeId == filtre.ProjeId &&
-                    sandik.DurumId == filtre.DurumId);
+                .Where(sandik => sandik.ProjeId == filtre.ProjeId);
+
+            if (sahaUzerindenSevkEdilenSandikIds.Count == 0)
+            {
+                query = query.Where(sandik => sandik.DurumId == filtre.DurumId);
+            }
+            else if (filtre.DurumId == (int)SandikDurum.Sevkedildi)
+            {
+                query = query.Where(sandik =>
+                    sandik.DurumId == (int)SandikDurum.Sevkedildi ||
+                    sahaUzerindenSevkEdilenSandikIds.Contains(sandik.Id));
+            }
+            else
+            {
+                query = query.Where(sandik =>
+                    sandik.DurumId == filtre.DurumId &&
+                    !sahaUzerindenSevkEdilenSandikIds.Contains(sandik.Id));
+            }
 
             if (!string.IsNullOrWhiteSpace(filtre.SearchTerm))
             {
@@ -44,6 +63,11 @@ namespace _3K.Infrastructure.Repositories
             }
 
             var totalCount = await query.CountAsync(cancellationToken);
+            var etkinDurumMetni = await _context.LookupSandikDurumlari
+                .AsNoTracking()
+                .Where(durum => durum.Id == filtre.DurumId)
+                .Select(durum => durum.Deger)
+                .FirstOrDefaultAsync(cancellationToken) ?? string.Empty;
             var items = await query
                 .OrderBy(sandik => sandik.SandikNo)
                 .ThenBy(sandik => sandik.Id)
@@ -54,10 +78,8 @@ namespace _3K.Infrastructure.Repositories
                     SandikId = sandik.Id,
                     SandikNo = sandik.SandikNo,
                     SandikAdi = sandik.Ad,
-                    DurumId = sandik.DurumId,
-                    DurumMetni = sandik.DurumLookup != null
-                        ? sandik.DurumLookup.Deger
-                        : string.Empty,
+                    DurumId = filtre.DurumId,
+                    DurumMetni = etkinDurumMetni,
                     DepoLokasyonId = sandik.DepoLokasyonId,
                     DepoLokasyonMetni = sandik.DepoLokasyonLookup != null
                         ? sandik.DepoLokasyonLookup.Deger

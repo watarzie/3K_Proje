@@ -38,6 +38,15 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                 .ToList();
             var sahaTamamlamaMap = await _sahaTamamlamaService.GetAktifGerceklesenTamamlamaMapAsync(normalKaynakSatirIds, cancellationToken);
             var sevkEdilenSahaTamamlamaMap = await _sahaTamamlamaService.GetSevkEdilenGerceklesenTamamlamaMapAsync(normalKaynakSatirIds, cancellationToken);
+            var normalKaynakSandikIds = projeler
+                .Where(p => p.ProjeTipiId == (int)ProjeTipi.Normal)
+                .SelectMany(p => p.Sandiklar ?? Enumerable.Empty<Sandik>())
+                .Select(s => s.Id)
+                .ToList();
+            var kaynakSandikSahaDurumu = await _sahaTamamlamaService.GetKaynakSandikSahaAktarimDurumuAsync(
+                normalKaynakSandikIds,
+                cancellationToken);
+            var sahaUzerindenSevkEdilenSandikIds = kaynakSandikSahaDurumu.SahaUzerindenSevkEdilenSandikIds;
 
             var result = projeler.Select(p =>
             {
@@ -52,10 +61,20 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
                 var toplamSandik = sandiklar.Count;
-                var sevkEdilmisSandikSayisi = sandiklar.Count(s => s.DurumId == (int)SandikDurum.Sevkedildi);
+                var fizikselSevkEdilmisSandikSayisi = sandiklar.Count(s =>
+                    s.DurumId == (int)SandikDurum.Sevkedildi);
+                var sevkEdilmisSandikSayisi = sandiklar.Count(s =>
+                    s.DurumId == (int)SandikDurum.Sevkedildi ||
+                    sahaUzerindenSevkEdilenSandikIds.Contains(s.Id));
+                var sahaUzerindenSevkEdilmisSandikSayisi = sandiklar.Count(s =>
+                    sahaUzerindenSevkEdilenSandikIds.Contains(s.Id));
+                var fizikselOlmadanSahaUzerindenSevkEdilmisSandikSayisi = sandiklar.Count(s =>
+                    s.DurumId != (int)SandikDurum.Sevkedildi &&
+                    sahaUzerindenSevkEdilenSandikIds.Contains(s.Id));
                 var hazirSandik = sandiklar.Count(s => 
                     s.DurumId == (int)SandikDurum.Kapandi || 
-                    s.DurumId == (int)SandikDurum.Sevkedildi);
+                    s.DurumId == (int)SandikDurum.Sevkedildi ||
+                    sahaUzerindenSevkEdilenSandikIds.Contains(s.Id));
                 var depoSandiklar = sandiklar
                     .Where(s => DepodaSayilacakSandik(s, gridKapandiSandikNolari))
                     .Where(s => s.DepoLokasyonId != (int)DepoLokasyon.Belirsiz)
@@ -88,7 +107,8 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                 var normalUrunlerSevkKapsamindaTamamlandi = !isSahaYedek && toplamUrun > 0 &&
                     cekiSatirlari.All(cs => CekiSatiriKalanHelper.HesaplaEtkinKalan(cs, sevkEdilenSahaTamamlamaMap) <= 0);
                 var sahaSevkiyleTamamlamaVar = !isSahaYedek &&
-                    cekiSatirlari.Any(cs => sevkEdilenSahaTamamlamaMap.GetValueOrDefault(cs.Id) > 0);
+                    (cekiSatirlari.Any(cs => sevkEdilenSahaTamamlamaMap.GetValueOrDefault(cs.Id) > 0) ||
+                     sahaUzerindenSevkEdilmisSandikSayisi > 0);
 
                 // Durum hesaplama
                 int durumId;
@@ -96,9 +116,13 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                 var normalProjeSevkDurumu = !isSahaYedek
                     ? NormalProjeSevkDurumHelper.Hesapla(
                         toplamSandik,
-                        sevkEdilmisSandikSayisi,
+                        fizikselSevkEdilmisSandikSayisi,
                         sahaSevkiyleTamamlamaVar,
-                        normalUrunlerSevkKapsamindaTamamlandi)
+                        normalUrunlerSevkKapsamindaTamamlandi,
+                        sahaSandiklariylaTumSandiklarEtkinSevkEdildi:
+                            toplamSandik > 0 &&
+                            fizikselOlmadanSahaUzerindenSevkEdilmisSandikSayisi > 0 &&
+                            sevkEdilmisSandikSayisi == toplamSandik)
                     : null;
                 if (isSahaYedek && (tumSandiklarSevkEdildi || p.DurumId == (int)ProjeDurum.SevkEdildi))
                     durumId = (int)ProjeDurum.SevkEdildi;
@@ -129,6 +153,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                     CalismaGunSayisi = HesaplaCalismaGunSayisi(p.CreatedDate, gerceklesenSevkTarihi),
                     PlanlananSevkTarihi = p.PlanlananSevkTarihi,
                     GerceklesenSevkTarihi = gerceklesenSevkTarihi,
+                    FizikselSevkEdilmisSandikVarMi = fizikselSevkEdilmisSandikSayisi > 0,
                     SorumluKisi = p.SorumluKisi,
                     SandikSayisi = toplamSandik,
                     HazirSandikSayisi = hazirSandik,

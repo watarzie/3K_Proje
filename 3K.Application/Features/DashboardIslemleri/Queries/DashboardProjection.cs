@@ -12,10 +12,12 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
             Proje proje,
             ILookupCacheService lookupCache,
             IReadOnlyDictionary<int, decimal>? sahaTamamlamaMap = null,
-            IReadOnlyDictionary<int, decimal>? sevkEdilenSahaTamamlamaMap = null)
+            IReadOnlyDictionary<int, decimal>? sevkEdilenSahaTamamlamaMap = null,
+            IReadOnlySet<int>? sahaUzerindenSevkEdilenSandikIds = null)
         {
             sahaTamamlamaMap ??= new Dictionary<int, decimal>();
             sevkEdilenSahaTamamlamaMap ??= new Dictionary<int, decimal>();
+            sahaUzerindenSevkEdilenSandikIds ??= new HashSet<int>();
             var sandiklar = proje.Sandiklar ?? new List<Sandik>();
             var cekiSatirlari = proje.Cekiler?.SelectMany(c => c.CekiSatirlari).ToList() ?? new List<CekiSatiri>();
             var sandikIcerikleri = sandiklar.SelectMany(s => s.SandikIcerikleri).ToList();
@@ -37,7 +39,8 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                 sandiklar,
                 isSahaYedek,
                 normalUrunlerSevkKapsamindaTamamlandi,
-                sahaSevkiyleTamamlamaVar);
+                sahaSevkiyleTamamlamaVar,
+                sahaUzerindenSevkEdilenSandikIds);
 
             return new DashboardProjeItemDto
             {
@@ -58,7 +61,8 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                     {
                         DurumId = (int)durum,
                         DurumMetni = lookupCache.GetDeger<LookupSandikDurum>((int)durum),
-                        SandikSayisi = sandiklar.Count(s => s.DurumId == (int)durum)
+                        SandikSayisi = sandiklar.Count(s =>
+                            GetEtkinSandikDurumId(s, isSahaYedek, sahaUzerindenSevkEdilenSandikIds) == (int)durum)
                     })
                     .ToList(),
                 ToplamUrunSayisi = toplamUrun,
@@ -93,22 +97,37 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
             ICollection<Sandik> sandiklar,
             bool isSahaYedek,
             bool normalUrunlerSevkKapsamindaTamamlandi,
-            bool sahaSevkiyleTamamlamaVar)
+            bool sahaSevkiyleTamamlamaVar,
+            IReadOnlySet<int> sahaUzerindenSevkEdilenSandikIds)
         {
             var toplamSandik = sandiklar.Count;
-            var sevkEdilenSandik = sandiklar.Count(s => s.DurumId == (int)SandikDurum.Sevkedildi);
+            var fizikselSevkEdilenSandik = sandiklar.Count(s =>
+                s.DurumId == (int)SandikDurum.Sevkedildi);
+            var sevkEdilenSandik = sandiklar.Count(s =>
+                s.DurumId == (int)SandikDurum.Sevkedildi ||
+                sahaUzerindenSevkEdilenSandikIds.Contains(s.Id));
+            var sahaUzerindenSevkEdilenSandik = sandiklar.Count(s =>
+                sahaUzerindenSevkEdilenSandikIds.Contains(s.Id));
+            var fizikselOlmadanSahaUzerindenSevkEdilenSandik = sandiklar.Count(s =>
+                s.DurumId != (int)SandikDurum.Sevkedildi &&
+                sahaUzerindenSevkEdilenSandikIds.Contains(s.Id));
             var tumSandiklarSevkEdildi = toplamSandik > 0 && sevkEdilenSandik == toplamSandik;
             var hazirSandik = sandiklar.Count(s =>
                 s.DurumId == (int)SandikDurum.Kapandi ||
-                s.DurumId == (int)SandikDurum.Sevkedildi);
+                s.DurumId == (int)SandikDurum.Sevkedildi ||
+                sahaUzerindenSevkEdilenSandikIds.Contains(s.Id));
 
             if (!isSahaYedek)
             {
                 var normalProjeSevkDurumu = NormalProjeSevkDurumHelper.Hesapla(
                     toplamSandik,
-                    sevkEdilenSandik,
-                    sahaSevkiyleTamamlamaVar,
-                    normalUrunlerSevkKapsamindaTamamlandi);
+                    fizikselSevkEdilenSandik,
+                    sahaSevkiyleTamamlamaVar || sahaUzerindenSevkEdilenSandik > 0,
+                    normalUrunlerSevkKapsamindaTamamlandi,
+                    sahaSandiklariylaTumSandiklarEtkinSevkEdildi:
+                        toplamSandik > 0 &&
+                        fizikselOlmadanSahaUzerindenSevkEdilenSandik > 0 &&
+                        sevkEdilenSandik == toplamSandik);
 
                 if (normalProjeSevkDurumu.HasValue)
                     return normalProjeSevkDurumu.Value;
@@ -131,6 +150,16 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
         {
             return gridKapandiSandikNolari.Contains(sandik.SandikNo.Trim())
                 || sandik.SandikIcerikleri.Any(i => i.CekiSatiri?.GridDurumuId == (int)GridDurum.GridKapandi);
+        }
+
+        private static int GetEtkinSandikDurumId(
+            Sandik sandik,
+            bool isSahaYedek,
+            IReadOnlySet<int> sahaUzerindenSevkEdilenSandikIds)
+        {
+            return !isSahaYedek && sahaUzerindenSevkEdilenSandikIds.Contains(sandik.Id)
+                ? (int)SandikDurum.Sevkedildi
+                : sandik.DurumId;
         }
 
         private static int HesaplaCalismaGunSayisi(DateTime baslamaTarihi, DateTime? bitisTarihi)

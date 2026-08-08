@@ -56,6 +56,13 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             int eskiDurum = proje.DurumId;
             var sandiklar = (await sandikRepo.FindAsync(s => s.ProjeId == request.ProjeId)).ToList();
 
+            var kaynakSandikSahaDurumu = proje.ProjeTipiId == (int)ProjeTipi.Normal
+                ? await _sahaTamamlamaService.GetKaynakSandikSahaAktarimDurumuAsync(
+                    sandiklar.Select(s => s.Id),
+                    cancellationToken)
+                : new _3K.Core.Models.KaynakSandikSahaAktarimDurumu();
+            var aktifSahaAktarimliSandikIds = kaynakSandikSahaDurumu.AktifAktarimaBagliSandikIds;
+
             if (sandiklar.Count == 0)
                 return Result.Failure("Projeye ait sandık bulunamadı.");
 
@@ -77,12 +84,17 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 if (secilenSandiklar.Any(s => s.DurumId == (int)SandikDurum.Sevkedildi))
                     return Result.Failure("Seçilen sandıklardan bazıları zaten sevk edilmiş. Düzeltmeye açık sandıklar için Düzeltmeyi Tamamla işlemini kullanın.");
 
+                if (secilenSandiklar.Any(s => aktifSahaAktarimliSandikIds.Contains(s.Id)))
+                    return Result.Failure("Seçilen sandıklardan bazıları aktif saha aktarımına bağlı. Bu sandıklar ana projeden yeniden sevk edilemez; gerekirse aktarımı saha projesinden geri alın.", 409);
+
                 sevkEdilecekSandiklar = secilenSandiklar;
             }
             else
             {
                 sevkEdilecekSandiklar = sandiklar
-                    .Where(s => s.DurumId != (int)SandikDurum.Sevkedildi)
+                    .Where(s =>
+                        s.DurumId != (int)SandikDurum.Sevkedildi &&
+                        !aktifSahaAktarimliSandikIds.Contains(s.Id))
                     .ToList();
             }
 
@@ -124,7 +136,21 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                     _currentUserService.UserId.Value);
             }
 
-            proje.DurumId = ProjeSevkDurumHelper.Hesapla(sandiklar, proje.DurumId);
+            if (proje.ProjeTipiId == (int)ProjeTipi.Normal)
+            {
+                var sahaUzerindenSevkEdilenSandikIds = kaynakSandikSahaDurumu.SahaUzerindenSevkEdilenSandikIds;
+                var etkinSevkEdilenSandikSayisi = sandiklar.Count(s =>
+                    s.DurumId == (int)SandikDurum.Sevkedildi ||
+                    sahaUzerindenSevkEdilenSandikIds.Contains(s.Id));
+                proje.DurumId = ProjeSevkDurumHelper.Hesapla(
+                    sandiklar.Count,
+                    etkinSevkEdilenSandikSayisi,
+                    proje.DurumId);
+            }
+            else
+            {
+                proje.DurumId = ProjeSevkDurumHelper.Hesapla(sandiklar, proje.DurumId);
+            }
             proje.GerceklesenSevkTarihi ??= sevkTarihi;
             projeRepo.Update(proje);
 

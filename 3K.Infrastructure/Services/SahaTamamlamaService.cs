@@ -4,6 +4,7 @@ using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 using _3K.Infrastructure.Data;
 
 namespace _3K.Infrastructure.Services
@@ -122,6 +123,121 @@ namespace _3K.Infrastructure.Services
                 .Concat(legacySatirIds)
                 .Distinct()
                 .ToHashSet();
+        }
+
+        public async Task<KaynakSandikSahaAktarimDurumu> GetKaynakSandikSahaAktarimDurumuAsync(
+            IEnumerable<int> kaynakSandikIds,
+            CancellationToken cancellationToken = default)
+        {
+            var sandikIds = kaynakSandikIds
+                .Where(id => id > 0)
+                .Distinct()
+                .ToList();
+
+            if (sandikIds.Count == 0)
+                return new KaynakSandikSahaAktarimDurumu();
+
+            // Yalnizca sandigin kendisinin sahaya aktarildigi yeni defter kayitlari bu hesaba girer.
+            // Urun-bazli saha tamamlamalari kaynak sandigi fiziksel olarak sevk edilmis saymaz.
+            var aktifKalemler = await _context.SahaAktarimKalemleri
+                .AsNoTracking()
+                .Where(k =>
+                    k.KaynakSandikId.HasValue &&
+                    sandikIds.Contains(k.KaynakSandikId.Value) &&
+                    k.AktarimTipiId == (int)SahaAktarimTipi.SandikBazli &&
+                    k.DurumId != (int)SahaAktarimDurum.GeriAlindi &&
+                    k.DurumId != (int)SahaAktarimDurum.Iptal)
+                .Select(k => new KaynakSandikAktarimRow
+                {
+                    KaynakSandikId = k.KaynakSandikId!.Value,
+                    KaynakCekiSatiriId = k.KaynakCekiSatiriId,
+                    Miktar = k.Miktar,
+                    DurumId = k.DurumId,
+                    SevkiyatKapsamindaMi = k.SevkiyatKapsamindaMi
+                })
+                .ToListAsync(cancellationToken);
+
+            if (aktifKalemler.Count == 0)
+                return new KaynakSandikSahaAktarimDurumu();
+
+            var aktifAktarimGruplari = aktifKalemler
+                .GroupBy(k => k.KaynakSandikId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+            var aktifKaynakSandikIds = aktifAktarimGruplari.Keys.ToList();
+
+            // Tarihsel veya parsiyel bir defter anomalisi, eksik aktarilmis bir kaynak sandigi
+            // tamamen sevk edilmis gostermesin: kaynak sandigin kalan tum satirlari ayni
+            // KaynakSandikId ile aktif defterde temsil edilmelidir.
+            var kaynakSatirlar = await _context.SandikIcerikleri
+                .AsNoTracking()
+                .Where(i =>
+                    aktifKaynakSandikIds.Contains(i.SandikId) &&
+                    i.CekiSatiriId.HasValue &&
+                    i.CekiSatiri != null &&
+                    !i.CekiSatiri.KaynakCekiSatiriId.HasValue)
+                .Select(i => new KaynakSandikSatirRow
+                {
+                    KaynakSandikId = i.SandikId,
+                    KaynakCekiSatiriId = i.CekiSatiriId!.Value,
+                    IstenenAdet = i.CekiSatiri!.IstenenAdet,
+                    GelenMiktar = i.CekiSatiri.GelenMiktar,
+                    StokKarsilanan = i.CekiSatiri.StokKarsilanan,
+                    ProjeKarsilanan = i.CekiSatiri.ProjeKarsilanan,
+                    TedarikciKarsilanan = i.CekiSatiri.TedarikciKarsilanan,
+                    ProjeGonderilen = i.CekiSatiri.ProjeGonderilen,
+                    TrafoSevkAdet = i.CekiSatiri.TrafoSevkAdet,
+                    HataliMiktar = i.CekiSatiri.HataliMiktar,
+                    DurumId = i.CekiSatiri.DurumId,
+                    GridDurumuId = i.CekiSatiri.GridDurumuId
+                })
+                .ToListAsync(cancellationToken);
+
+            var aktarilmasiGerekenMiktarlarBySandik = kaynakSatirlar
+                .Where(s => HesaplaHamKalan(s) > 0)
+                .GroupBy(s => s.KaynakSandikId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g
+                        .GroupBy(s => s.KaynakCekiSatiriId)
+                        .ToDictionary(
+                            satirGrubu => satirGrubu.Key,
+                            satirGrubu => satirGrubu.Max(HesaplaHamKalan)));
+
+            var aktifAktarimaBagliSandikIds = aktifAktarimGruplari.Keys.ToHashSet();
+            var tamamenSahayaAktarilanSandikIds = new HashSet<int>();
+            var sahaUzerindenSevkEdilenSandikIds = new HashSet<int>();
+
+            foreach (var (kaynakSandikId, kalemler) in aktifAktarimGruplari)
+            {
+                var aktifAktarimMiktarlari = kalemler
+                    .GroupBy(k => k.KaynakCekiSatiriId)
+                    .ToDictionary(g => g.Key, g => g.Sum(k => k.Miktar));
+                var tumKaynakSatirlarTemsilEdiliyor =
+                    aktarilmasiGerekenMiktarlarBySandik.TryGetValue(kaynakSandikId, out var gerekliMiktarlar) &&
+                    gerekliMiktarlar.Count > 0 &&
+                    gerekliMiktarlar.All(gerekli =>
+                        aktifAktarimMiktarlari.GetValueOrDefault(gerekli.Key) >= gerekli.Value);
+
+                if (!tumKaynakSatirlarTemsilEdiliyor)
+                    continue;
+
+                tamamenSahayaAktarilanSandikIds.Add(kaynakSandikId);
+
+                var tumAktifKalemlerSevkiyatKapsaminda = kalemler.All(k =>
+                    k.SevkiyatKapsamindaMi ||
+                    k.DurumId == (int)SahaAktarimDurum.SevkiyatDuzeltmede ||
+                    k.DurumId == (int)SahaAktarimDurum.SevkEdildi);
+
+                if (tumAktifKalemlerSevkiyatKapsaminda)
+                    sahaUzerindenSevkEdilenSandikIds.Add(kaynakSandikId);
+            }
+
+            return new KaynakSandikSahaAktarimDurumu
+            {
+                AktifAktarimaBagliSandikIds = aktifAktarimaBagliSandikIds,
+                TamamenSahayaAktarilanSandikIds = tamamenSahayaAktarilanSandikIds,
+                SahaUzerindenSevkEdilenSandikIds = sahaUzerindenSevkEdilenSandikIds
+            };
         }
 
         private async Task<Dictionary<int, decimal>> GetTamamlamaMapAsync(
@@ -466,20 +582,44 @@ namespace _3K.Infrastructure.Services
             var aktifGerceklesenTamamlamaMap = await GetAktifGerceklesenTamamlamaMapAsync(tumKaynakSatirIds, cancellationToken);
             var sevkEdilenGerceklesenTamamlamaMap = await GetSevkEdilenGerceklesenTamamlamaMapAsync(tumKaynakSatirIds, cancellationToken);
 
-            var sandikStats = await _context.Sandiklar
+            var kaynakSandiklar = await _context.Sandiklar
                 .AsNoTracking()
                 .Where(s => kaynakProjeIds.Contains(s.ProjeId))
-                .GroupBy(s => s.ProjeId)
-                .Select(g => new KaynakProjeSandikStats
+                .Select(s => new KaynakProjeSandikRow
                 {
-                    ProjeId = g.Key,
-                    ToplamSandik = g.Count(),
-                    SevkEdilenSandik = g.Count(s => s.DurumId == (int)SandikDurum.Sevkedildi),
-                    HazirSandik = g.Count(s =>
-                        s.DurumId == (int)SandikDurum.Kapandi ||
-                        s.DurumId == (int)SandikDurum.Sevkedildi)
+                    Id = s.Id,
+                    ProjeId = s.ProjeId,
+                    DurumId = s.DurumId
                 })
-                .ToDictionaryAsync(x => x.ProjeId, cancellationToken);
+                .ToListAsync(cancellationToken);
+
+            var kaynakSandikSahaDurumu = await GetKaynakSandikSahaAktarimDurumuAsync(
+                kaynakSandiklar.Select(s => s.Id),
+                cancellationToken);
+            var sahaUzerindenSevkEdilenSandikIds = kaynakSandikSahaDurumu.SahaUzerindenSevkEdilenSandikIds;
+            var sandikStats = kaynakSandiklar
+                .GroupBy(s => s.ProjeId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => new KaynakProjeSandikStats
+                    {
+                        ProjeId = g.Key,
+                        ToplamSandik = g.Count(),
+                        FizikselSevkEdilenSandik = g.Count(s =>
+                            s.DurumId == (int)SandikDurum.Sevkedildi),
+                        EtkinSevkEdilenSandik = g.Count(s =>
+                            s.DurumId == (int)SandikDurum.Sevkedildi ||
+                            sahaUzerindenSevkEdilenSandikIds.Contains(s.Id)),
+                        SahaUzerindenSevkEdilenSandik = g.Count(s =>
+                            sahaUzerindenSevkEdilenSandikIds.Contains(s.Id)),
+                        FizikselOlmadanSahaUzerindenSevkEdilenSandik = g.Count(s =>
+                            s.DurumId != (int)SandikDurum.Sevkedildi &&
+                            sahaUzerindenSevkEdilenSandikIds.Contains(s.Id)),
+                        HazirSandik = g.Count(s =>
+                            s.DurumId == (int)SandikDurum.Kapandi ||
+                            s.DurumId == (int)SandikDurum.Sevkedildi ||
+                            sahaUzerindenSevkEdilenSandikIds.Contains(s.Id))
+                    });
 
             var projeler = await _context.Projeler
                 .Where(p => kaynakProjeIds.Contains(p.Id))
@@ -492,14 +632,19 @@ namespace _3K.Infrastructure.Services
                     continue;
 
                 sandikStats.TryGetValue(proje.Id, out var stats);
-                var sahaSevkiyleTamamlamaVar = projeSatirlari.Any(s => sevkEdilenGerceklesenTamamlamaMap.GetValueOrDefault(s.Id) > 0);
+                var sahaSevkiyleTamamlamaVar =
+                    projeSatirlari.Any(s => sevkEdilenGerceklesenTamamlamaMap.GetValueOrDefault(s.Id) > 0) ||
+                    stats is { SahaUzerindenSevkEdilenSandik: > 0 };
                 var tumUrunlerTamamlandi = projeSatirlari.All(s => HesaplaEtkinKalan(s, aktifGerceklesenTamamlamaMap) <= 0);
                 var tumUrunlerSevkKapsamindaTamamlandi = projeSatirlari.All(s => HesaplaEtkinKalan(s, sevkEdilenGerceklesenTamamlamaMap) <= 0);
                 var normalProjeSevkDurumu = NormalProjeSevkDurumHelper.Hesapla(
                     stats?.ToplamSandik ?? 0,
-                    stats?.SevkEdilenSandik ?? 0,
+                    stats?.FizikselSevkEdilenSandik ?? 0,
                     sahaSevkiyleTamamlamaVar,
-                    tumUrunlerSevkKapsamindaTamamlandi);
+                    tumUrunlerSevkKapsamindaTamamlandi,
+                    sahaSandiklariylaTumSandiklarEtkinSevkEdildi:
+                        stats is { ToplamSandik: > 0, FizikselOlmadanSahaUzerindenSevkEdilenSandik: > 0 } &&
+                        stats.EtkinSevkEdilenSandik == stats.ToplamSandik);
                 var eskiDurum = proje.DurumId;
 
                 if (normalProjeSevkDurumu.HasValue)
@@ -544,6 +689,21 @@ namespace _3K.Infrastructure.Services
 
             var sahaTamamlanan = sevkEdilenTamamlamaMap.TryGetValue(satir.Id, out var value) ? value : 0;
             return Math.Max(hamKalan - sahaTamamlanan, 0);
+        }
+
+        private static decimal HesaplaHamKalan(KaynakSandikSatirRow satir)
+        {
+            return CekiSatiriKalanHelper.HesaplaHamKalan(
+                satir.IstenenAdet,
+                satir.GelenMiktar,
+                satir.StokKarsilanan,
+                satir.ProjeKarsilanan,
+                satir.TedarikciKarsilanan,
+                satir.ProjeGonderilen,
+                satir.TrafoSevkAdet,
+                satir.HataliMiktar,
+                satir.DurumId,
+                satir.GridDurumuId);
         }
 
         private static decimal HesaplaGerceklesenTamamlama(SahaTamamlamaSatirRow satir)
@@ -658,8 +818,18 @@ namespace _3K.Infrastructure.Services
         {
             public int ProjeId { get; set; }
             public int ToplamSandik { get; set; }
-            public int SevkEdilenSandik { get; set; }
+            public int FizikselSevkEdilenSandik { get; set; }
+            public int EtkinSevkEdilenSandik { get; set; }
+            public int SahaUzerindenSevkEdilenSandik { get; set; }
+            public int FizikselOlmadanSahaUzerindenSevkEdilenSandik { get; set; }
             public int HazirSandik { get; set; }
+        }
+
+        private sealed class KaynakProjeSandikRow
+        {
+            public int Id { get; set; }
+            public int ProjeId { get; set; }
+            public int DurumId { get; set; }
         }
 
         private sealed class SahaTamamlamaSatirRow
@@ -667,6 +837,31 @@ namespace _3K.Infrastructure.Services
             public int KaynakCekiSatiriId { get; set; }
             public decimal IstenenAdet { get; set; }
             public decimal KonulanAdet { get; set; }
+        }
+
+        private sealed class KaynakSandikAktarimRow
+        {
+            public int KaynakSandikId { get; set; }
+            public int KaynakCekiSatiriId { get; set; }
+            public decimal Miktar { get; set; }
+            public int DurumId { get; set; }
+            public bool SevkiyatKapsamindaMi { get; set; }
+        }
+
+        private sealed class KaynakSandikSatirRow
+        {
+            public int KaynakSandikId { get; set; }
+            public int KaynakCekiSatiriId { get; set; }
+            public decimal IstenenAdet { get; set; }
+            public decimal GelenMiktar { get; set; }
+            public decimal StokKarsilanan { get; set; }
+            public decimal ProjeKarsilanan { get; set; }
+            public decimal TedarikciKarsilanan { get; set; }
+            public decimal ProjeGonderilen { get; set; }
+            public decimal TrafoSevkAdet { get; set; }
+            public decimal HataliMiktar { get; set; }
+            public int DurumId { get; set; }
+            public int GridDurumuId { get; set; }
         }
     }
 }
