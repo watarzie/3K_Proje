@@ -27,6 +27,13 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (proje == null)
                 return Result<SandikDto>.Failure("Proje bulunamadı.", 404);
 
+            if (proje.DurumId == (int)ProjeDurum.SevkEdildi)
+            {
+                return Result<SandikDto>.Failure(
+                    "Tamamen sevk edilmiş projeye yeni sandık eklenemez. Önce sevkiyatı geri alın.",
+                    409);
+            }
+
             if (string.IsNullOrWhiteSpace(request.SandikNo))
                 return Result<SandikDto>.Failure("Sandık numarası boş olamaz.", 400);
 
@@ -50,6 +57,13 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 GrossKg = request.GrossKg
             };
             await sandikRepo.AddAsync(sandik);
+
+            if (proje.DurumId == (int)ProjeDurum.Tamamlandi)
+            {
+                proje.DurumId = (int)ProjeDurum.Hazirlaniyor;
+                projeRepo.Update(proje);
+            }
+
             await _unitOfWork.SaveChangesAsync();
 
             var dto = new SandikDto

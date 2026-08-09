@@ -176,7 +176,7 @@ public sealed class YedekCekiImportService : IYedekCekiImportService
                     BarkodNo = importSatiri.BarkodNo,
                     Aciklama = importSatiri.Aciklama,
                     IstenenAdet = importSatiri.Miktar,
-                    BirimId = (int)Birim.Adet,
+                    BirimId = importSatiri.BirimId,
                     CekideGecenSandikNo = BaslangicSandikNo,
                     FiiliSandikNo = BaslangicSandikNo,
                     Remarks = depoYeriAciklamasi,
@@ -197,7 +197,7 @@ public sealed class YedekCekiImportService : IYedekCekiImportService
                     Miktar = importSatiri.Miktar,
                     BarkodNo = importSatiri.BarkodNo,
                     Isim = importSatiri.Aciklama,
-                    BirimId = (int)Birim.Adet,
+                    BirimId = importSatiri.BirimId,
                     Aciklama = depoYeriAciklamasi
                 });
             }
@@ -291,7 +291,7 @@ public sealed class YedekCekiImportService : IYedekCekiImportService
         }
     }
 
-    private static YedekCekiImportBilgisi ExceliOkuVeDogrula(
+    internal static YedekCekiImportBilgisi ExceliOkuVeDogrula(
         byte[] dosyaBytes,
         CancellationToken cancellationToken)
     {
@@ -302,18 +302,32 @@ public sealed class YedekCekiImportService : IYedekCekiImportService
             using var workbook = new XLWorkbook(stream);
             cancellationToken.ThrowIfCancellationRequested();
 
-            var worksheet = workbook.Worksheets.FirstOrDefault(BasliklarGecerliMi);
-            if (worksheet == null)
+            IXLWorksheet? worksheet = null;
+            YedekCekiExcelFormati? excelFormati = null;
+            foreach (var adaySayfa in workbook.Worksheets)
             {
-                throw new CekiImportValidationException(
-                    "Yedek çeki başlıkları bulunamadı. Beklenen format: A Kalem no, B Bileşen numarası, C1 Proje No/C2+ Açıklama, D Bileşen miktarı (BÖB), E Üretim depo yeri.");
+                var adayFormat = ExcelFormatiniBul(adaySayfa);
+                if (adayFormat == null)
+                    continue;
+
+                worksheet = adaySayfa;
+                excelFormati = adayFormat;
+                break;
             }
 
-            var projeNo = HucreMetni(worksheet.Cell(1, 3));
+            if (worksheet == null || excelFormati == null)
+            {
+                throw new CekiImportValidationException(
+                    "Yedek çeki başlıkları bulunamadı. Yeni formatta B1 Proje No; A-D sütunları sırasıyla " +
+                    "Bileşen numarası, Açıklama, Bileşen miktarı ve Bileşen ölçü birimi olmalıdır. " +
+                    "Eski A-E yedek çeki formatı da desteklenir.");
+            }
+
+            var projeNo = HucreMetni(worksheet.Cell(1, excelFormati.ProjeNoKolonu));
             if (string.IsNullOrWhiteSpace(projeNo))
-                throw new CekiImportValidationException("C1 hücresinde yedek proje numarası bulunamadı.");
+                throw new CekiImportValidationException($"{excelFormati.ProjeNoHucreAdresi} hücresinde yedek proje numarası bulunamadı.");
             if (projeNo.Length > 100)
-                throw new CekiImportValidationException("C1 hücresindeki proje numarası 100 karakterden uzun olamaz.");
+                throw new CekiImportValidationException($"{excelFormati.ProjeNoHucreAdresi} hücresindeki proje numarası 100 karakterden uzun olamaz.");
 
             var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? 1;
             if (lastRow - 1 > MaksimumSatirSayisi)
@@ -329,14 +343,20 @@ public sealed class YedekCekiImportService : IYedekCekiImportService
                 if ((rowNumber & 0x7F) == 0)
                     cancellationToken.ThrowIfCancellationRequested();
 
-                var barkodNo = HucreMetni(worksheet.Cell(rowNumber, 2));
-                var aciklama = HucreMetni(worksheet.Cell(rowNumber, 3));
-                var miktarMetni = HucreMetni(worksheet.Cell(rowNumber, 4));
-                var uretimDepoYeri = HucreMetni(worksheet.Cell(rowNumber, 5));
+                var barkodNo = HucreMetni(worksheet.Cell(rowNumber, excelFormati.BarkodNoKolonu));
+                var aciklama = HucreMetni(worksheet.Cell(rowNumber, excelFormati.AciklamaKolonu));
+                var miktarMetni = HucreMetni(worksheet.Cell(rowNumber, excelFormati.MiktarKolonu));
+                var birimMetni = excelFormati.BirimKolonu.HasValue
+                    ? HucreMetni(worksheet.Cell(rowNumber, excelFormati.BirimKolonu.Value))
+                    : string.Empty;
+                var uretimDepoYeri = excelFormati.UretimDepoYeriKolonu.HasValue
+                    ? HucreMetni(worksheet.Cell(rowNumber, excelFormati.UretimDepoYeriKolonu.Value))
+                    : string.Empty;
 
                 if (string.IsNullOrWhiteSpace(barkodNo)
                     && string.IsNullOrWhiteSpace(aciklama)
                     && string.IsNullOrWhiteSpace(miktarMetni)
+                    && string.IsNullOrWhiteSpace(birimMetni)
                     && string.IsNullOrWhiteSpace(uretimDepoYeri))
                 {
                     continue;
@@ -357,13 +377,17 @@ public sealed class YedekCekiImportService : IYedekCekiImportService
                 if (uretimDepoYeri.Length > 250)
                     throw SatirHatasi(rowNumber, "Üretim depo yeri 250 karakterden uzun olamaz.");
 
-                var miktar = MiktariOku(worksheet.Cell(rowNumber, 4), rowNumber);
+                var miktar = MiktariOku(worksheet.Cell(rowNumber, excelFormati.MiktarKolonu), rowNumber);
+                var birimId = excelFormati.BirimKolonu.HasValue
+                    ? BirimiOku(birimMetni, rowNumber)
+                    : (int)Birim.Adet;
                 var sistemSiraNo = satirlar.Count + 1;
                 satirlar.Add(new YedekCekiSatirBilgisi(
                     sistemSiraNo,
                     barkodNo,
                     aciklama,
                     miktar,
+                    birimId,
                     uretimDepoYeri));
             }
 
@@ -420,22 +444,72 @@ public sealed class YedekCekiImportService : IYedekCekiImportService
         return miktar;
     }
 
-    private static bool BasliklarGecerliMi(IXLWorksheet worksheet)
+    private static YedekCekiExcelFormati? ExcelFormatiniBul(IXLWorksheet worksheet)
     {
-        var kalemNo = NormalizeExcelText(worksheet.Cell(1, 1).GetString());
-        var bilesenNo = NormalizeExcelText(worksheet.Cell(1, 2).GetString());
-        var miktar = NormalizeExcelText(worksheet.Cell(1, 4).GetString());
-        var depoYeri = NormalizeExcelText(worksheet.Cell(1, 5).GetString());
+        var a1 = NormalizeExcelText(worksheet.Cell(1, 1).GetString());
+        var b1 = NormalizeExcelText(worksheet.Cell(1, 2).GetString());
+        var c1 = NormalizeExcelText(worksheet.Cell(1, 3).GetString());
+        var d1 = NormalizeExcelText(worksheet.Cell(1, 4).GetString());
+        var e1 = NormalizeExcelText(worksheet.Cell(1, 5).GetString());
 
-        return kalemNo.Contains("KALEM", StringComparison.Ordinal)
-            && kalemNo.Contains("NO", StringComparison.Ordinal)
-            && bilesenNo.Contains("BILESEN", StringComparison.Ordinal)
-            && bilesenNo.Contains("NUMARA", StringComparison.Ordinal)
-            && miktar.Contains("BILESEN", StringComparison.Ordinal)
-            && miktar.Contains("MIKTAR", StringComparison.Ordinal)
-            && depoYeri.Contains("URETIM", StringComparison.Ordinal)
-            && depoYeri.Contains("DEPO", StringComparison.Ordinal)
-            && depoYeri.Contains("YER", StringComparison.Ordinal);
+        var eskiFormatMi = TumunuIceriyor(a1, "KALEM", "NO")
+            && TumunuIceriyor(b1, "BILESEN", "NUMARA")
+            && TumunuIceriyor(d1, "BILESEN", "MIKTAR")
+            && TumunuIceriyor(e1, "URETIM", "DEPO", "YER");
+
+        if (eskiFormatMi)
+        {
+            return new YedekCekiExcelFormati(
+                ProjeNoKolonu: 3,
+                ProjeNoHucreAdresi: "C1",
+                BarkodNoKolonu: 2,
+                AciklamaKolonu: 3,
+                MiktarKolonu: 4,
+                BirimKolonu: null,
+                UretimDepoYeriKolonu: 5);
+        }
+
+        var yeniFormatMi = TumunuIceriyor(a1, "BILESEN", "NUMARA")
+            && TumunuIceriyor(c1, "BILESEN", "MIKTAR")
+            && TumunuIceriyor(d1, "BILESEN", "OLCU", "BIRIM");
+
+        return yeniFormatMi
+            ? new YedekCekiExcelFormati(
+                ProjeNoKolonu: 2,
+                ProjeNoHucreAdresi: "B1",
+                BarkodNoKolonu: 1,
+                AciklamaKolonu: 2,
+                MiktarKolonu: 3,
+                BirimKolonu: 4,
+                UretimDepoYeriKolonu: null)
+            : null;
+    }
+
+    private static bool TumunuIceriyor(string metin, params string[] arananlar)
+    {
+        return arananlar.All(aranan => metin.Contains(aranan, StringComparison.Ordinal));
+    }
+
+    private static int BirimiOku(string birimMetni, int rowNumber)
+    {
+        if (string.IsNullOrWhiteSpace(birimMetni))
+            throw SatirHatasi(rowNumber, "Bileşen ölçü birimi boş olamaz.");
+
+        var normalized = NormalizeExcelText(birimMetni);
+        return normalized switch
+        {
+            "ADET" or "AD" or "PCS" or "PC" => (int)Birim.Adet,
+            "SET" or "ST" => (int)Birim.Set,
+            "METRE" or "MT" or "M" => (int)Birim.Metre,
+            "KG" or "KILOGRAM" => (int)Birim.Kg,
+            "LT" or "LITRE" => (int)Birim.Litre,
+            "TAKIM" or "TK" or "TKM" => (int)Birim.Takim,
+            "PAKET" or "PKT" or "PK" => (int)Birim.Paket,
+            "TON" or "TN" => (int)Birim.Ton,
+            "M2" or "M²" or "METREKARE" => (int)Birim.Metrekare,
+            "M3" or "M³" or "METREKUP" => (int)Birim.Metrekup,
+            _ => throw SatirHatasi(rowNumber, $"'{birimMetni}' ölçü birimi desteklenmiyor.")
+        };
     }
 
     private static void MevcutProjeyiDogrula(Proje proje)
@@ -676,14 +750,24 @@ public sealed class YedekCekiImportService : IYedekCekiImportService
         }
     }
 
-    private sealed record YedekCekiImportBilgisi(
+    internal sealed record YedekCekiImportBilgisi(
         string ProjeNo,
         List<YedekCekiSatirBilgisi> Satirlar);
 
-    private sealed record YedekCekiSatirBilgisi(
+    internal sealed record YedekCekiSatirBilgisi(
         int SistemSiraNo,
         string BarkodNo,
         string Aciklama,
         decimal Miktar,
+        int BirimId,
         string UretimDepoYeri);
+
+    private sealed record YedekCekiExcelFormati(
+        int ProjeNoKolonu,
+        string ProjeNoHucreAdresi,
+        int BarkodNoKolonu,
+        int AciklamaKolonu,
+        int MiktarKolonu,
+        int? BirimKolonu,
+        int? UretimDepoYeriKolonu);
 }

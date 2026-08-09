@@ -87,13 +87,24 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 if (secilenSandiklar.Any(s => aktifSahaAktarimliSandikIds.Contains(s.Id)))
                     return Result.Failure("Seçilen sandıklardan bazıları aktif saha aktarımına bağlı. Bu sandıklar ana projeden yeniden sevk edilemez; gerekirse aktarımı saha projesinden geri alın.", 409);
 
+                if (secilenSandiklar.Any(s => !SandikSevkKilidiHelper.SandikSevkeHazirMi(s)))
+                    return Result.Failure(SandikSevkKilidiHelper.SandikSevkeHazirDegilMesaji, 409);
+
                 sevkEdilecekSandiklar = secilenSandiklar;
             }
             else
             {
+                var sevkeHazirOlmayanAdayVar = sandiklar.Any(s =>
+                    s.DurumId != (int)SandikDurum.Sevkedildi &&
+                    !aktifSahaAktarimliSandikIds.Contains(s.Id) &&
+                    !SandikSevkKilidiHelper.SandikSevkeHazirMi(s));
+
+                if (sevkeHazirOlmayanAdayVar)
+                    return Result.Failure(SandikSevkKilidiHelper.SandikSevkeHazirDegilMesaji, 409);
+
                 sevkEdilecekSandiklar = sandiklar
                     .Where(s =>
-                        s.DurumId != (int)SandikDurum.Sevkedildi &&
+                        SandikSevkKilidiHelper.SandikSevkeHazirMi(s) &&
                         !aktifSahaAktarimliSandikIds.Contains(s.Id))
                     .ToList();
             }
@@ -102,81 +113,84 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 return Result.Failure("Sevk edilecek sandık bulunamadı.");
 
             var sevkEdilecekSandikIdleri = sevkEdilecekSandiklar.Select(s => s.Id).ToList();
-            var mevcutSevkiyatBagliSandikIdleri = (await sevkiyatSandikRepo.FindAsync(ss =>
-                    sevkEdilecekSandikIdleri.Contains(ss.SandikId)))
-                .Select(ss => ss.SandikId)
-                .ToHashSet();
-
-            var sevkTarihi = request.SevkTarihi ?? TurkeyTime.Now;
-            int sevkEdilenSandikSayisi = 0;
-            foreach (var sandik in sevkEdilecekSandiklar)
+            return await _unitOfWork.ExecuteInTransactionAsync(async transactionCancellationToken =>
             {
-                sandik.SevkOncesiDurumId ??= sandik.DurumId;
-                sandik.DurumId = (int)SandikDurum.Sevkedildi;
-                sandik.SevkiyatDuzeltmeAcikMi = false;
-                sandikRepo.Update(sandik);
-                sevkEdilenSandikSayisi++;
-            }
+                var mevcutSevkiyatBagliSandikIdleri = (await sevkiyatSandikRepo.FindAsync(ss =>
+                        sevkEdilecekSandikIdleri.Contains(ss.SandikId)))
+                    .Select(ss => ss.SandikId)
+                    .ToHashSet();
 
-            var yeniSevkiyatSandiklari = sevkEdilecekSandiklar
-                .Where(s => !mevcutSevkiyatBagliSandikIdleri.Contains(s.Id))
-                .ToList();
-            var duzeltmeSonrasiKilitlenenSayisi = sevkEdilecekSandiklar.Count - yeniSevkiyatSandiklari.Count;
+                var sevkTarihi = request.SevkTarihi ?? TurkeyTime.Now;
+                int sevkEdilenSandikSayisi = 0;
+                foreach (var sandik in sevkEdilecekSandiklar)
+                {
+                    sandik.SevkOncesiDurumId ??= sandik.DurumId;
+                    sandik.DurumId = (int)SandikDurum.Sevkedildi;
+                    sandik.SevkiyatDuzeltmeAcikMi = false;
+                    sandikRepo.Update(sandik);
+                    sevkEdilenSandikSayisi++;
+                }
 
-            Sevkiyat? sevkiyat = null;
-            if (yeniSevkiyatSandiklari.Count > 0)
-            {
-                sevkiyat = await SevkiyatKayitHelper.OlusturAsync(
-                    _unitOfWork,
-                    proje.Id,
-                    yeniSevkiyatSandiklari,
-                    sevkTarihi,
-                    request.Aciklama,
-                    request.AracPlaka,
-                    _currentUserService.UserId.Value);
-            }
+                var yeniSevkiyatSandiklari = sevkEdilecekSandiklar
+                    .Where(s => !mevcutSevkiyatBagliSandikIdleri.Contains(s.Id))
+                    .ToList();
+                var duzeltmeSonrasiKilitlenenSayisi = sevkEdilecekSandiklar.Count - yeniSevkiyatSandiklari.Count;
 
-            if (proje.ProjeTipiId == (int)ProjeTipi.Normal)
-            {
-                var sahaUzerindenSevkEdilenSandikIds = kaynakSandikSahaDurumu.SahaUzerindenSevkEdilenSandikIds;
-                var etkinSevkEdilenSandikSayisi = sandiklar.Count(s =>
-                    s.DurumId == (int)SandikDurum.Sevkedildi ||
-                    sahaUzerindenSevkEdilenSandikIds.Contains(s.Id));
-                proje.DurumId = ProjeSevkDurumHelper.Hesapla(
-                    sandiklar.Count,
-                    etkinSevkEdilenSandikSayisi,
-                    proje.DurumId);
-            }
-            else
-            {
-                proje.DurumId = ProjeSevkDurumHelper.Hesapla(sandiklar, proje.DurumId);
-            }
-            proje.GerceklesenSevkTarihi ??= sevkTarihi;
-            projeRepo.Update(proje);
+                Sevkiyat? sevkiyat = null;
+                if (yeniSevkiyatSandiklari.Count > 0)
+                {
+                    sevkiyat = await SevkiyatKayitHelper.OlusturAsync(
+                        _unitOfWork,
+                        proje.Id,
+                        yeniSevkiyatSandiklari,
+                        sevkTarihi,
+                        request.Aciklama,
+                        request.AracPlaka,
+                        _currentUserService.UserId.Value);
+                }
 
-            await _unitOfWork.SaveChangesAsync();
+                if (proje.ProjeTipiId == (int)ProjeTipi.Normal)
+                {
+                    var sahaUzerindenSevkEdilenSandikIds = kaynakSandikSahaDurumu.SahaUzerindenSevkEdilenSandikIds;
+                    var etkinSevkEdilenSandikSayisi = sandiklar.Count(s =>
+                        s.DurumId == (int)SandikDurum.Sevkedildi ||
+                        sahaUzerindenSevkEdilenSandikIds.Contains(s.Id));
+                    proje.DurumId = ProjeSevkDurumHelper.Hesapla(
+                        sandiklar.Count,
+                        etkinSevkEdilenSandikSayisi,
+                        proje.DurumId);
+                }
+                else
+                {
+                    proje.DurumId = ProjeSevkDurumHelper.Hesapla(sandiklar, proje.DurumId);
+                }
+                proje.GerceklesenSevkTarihi ??= sevkTarihi;
+                projeRepo.Update(proje);
 
-            if (proje.ProjeTipiId == (int)ProjeTipi.Saha)
-            {
-                await _sahaTamamlamaService.SenkronizeKaynakProjelerBySahaSandikIdsAsync(
-                    sevkEdilecekSandikIdleri,
-                    cancellationToken);
-            }
+                await _unitOfWork.SaveChangesAsync(transactionCancellationToken);
 
-            await _hareketService.HareketKaydetAsync(new HareketGecmisi
-            {
-                ProjeId = proje.Id,
-                KullaniciId = _currentUserService.UserId.Value,
-                ReferansTipi = "Proje",
-                ReferansId = proje.Id.ToString(),
-                Islem = "Proje Sevk Edildi",
-                IslemTipiId = (int)IslemTipi.ProjeSevkEdildi,
-                EskiDeger = eskiDurum.ToString(),
-                YeniDeger = proje.DurumId.ToString(),
-                Aciklama = GetSevkAciklamasi(sevkEdilenSandikSayisi, yeniSevkiyatSandiklari.Count, duzeltmeSonrasiKilitlenenSayisi, sevkiyat)
-            });
+                if (proje.ProjeTipiId == (int)ProjeTipi.Saha)
+                {
+                    await _sahaTamamlamaService.SenkronizeKaynakProjelerBySahaSandikIdsAsync(
+                        sevkEdilecekSandikIdleri,
+                        transactionCancellationToken);
+                }
 
-            return Result.Success();
+                await _hareketService.HareketKaydetAsync(new HareketGecmisi
+                {
+                    ProjeId = proje.Id,
+                    KullaniciId = _currentUserService.UserId.Value,
+                    ReferansTipi = "Proje",
+                    ReferansId = proje.Id.ToString(),
+                    Islem = "Proje Sevk Edildi",
+                    IslemTipiId = (int)IslemTipi.ProjeSevkEdildi,
+                    EskiDeger = eskiDurum.ToString(),
+                    YeniDeger = proje.DurumId.ToString(),
+                    Aciklama = GetSevkAciklamasi(sevkEdilenSandikSayisi, yeniSevkiyatSandiklari.Count, duzeltmeSonrasiKilitlenenSayisi, sevkiyat)
+                });
+
+                return Result.Success();
+            }, cancellationToken);
         }
 
         private static string GetSevkAciklamasi(int toplamSandik, int yeniSevkSandikSayisi, int duzeltmeSonrasiKilitlenenSayisi, Sevkiyat? sevkiyat)

@@ -24,18 +24,44 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMediator _mediator;
         private readonly ISahaTamamlamaService _sahaTamamlamaService;
+        private readonly ISandikService _sandikService;
 
         public SandiklardanSahaProjesiOlusturCommandHandler(
             IUnitOfWork unitOfWork,
             IMediator mediator,
-            ISahaTamamlamaService sahaTamamlamaService)
+            ISahaTamamlamaService sahaTamamlamaService,
+            ISandikService sandikService)
         {
             _unitOfWork = unitOfWork;
             _mediator = mediator;
             _sahaTamamlamaService = sahaTamamlamaService;
+            _sandikService = sandikService;
         }
 
         public async Task<Result<ProjeDto>> Handle(SandiklardanSahaProjesiOlusturCommand request, CancellationToken cancellationToken)
+        {
+            try
+            {
+                return await _unitOfWork.ExecuteInTransactionAsync(
+                    async transactionCancellationToken =>
+                    {
+                        var result = await HandleInTransactionAsync(request, transactionCancellationToken);
+                        if (!result.IsSuccess)
+                            throw new SandikBazliSahaAktarimRollbackException(result);
+
+                        return result;
+                    },
+                    cancellationToken);
+            }
+            catch (SandikBazliSahaAktarimRollbackException exception)
+            {
+                return exception.Result;
+            }
+        }
+
+        private async Task<Result<ProjeDto>> HandleInTransactionAsync(
+            SandiklardanSahaProjesiOlusturCommand request,
+            CancellationToken cancellationToken)
         {
             var sandikIds = request.SandikIds
                 .Where(id => id > 0)
@@ -71,28 +97,39 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             if (sandiklar.Any(s => s.DurumId == (int)SandikDurum.Sevkedildi))
                 return Result<ProjeDto>.Failure("Sevk edilmiş sandıklar sahaya aktarılamaz.");
 
-            var icerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
-            var icerikler = (await icerikRepo.FindAsync(i =>
-                    sandikIds.Contains(i.SandikId) &&
-                    i.CekiSatiriId.HasValue))
+            var etkinIcerikMap = await _sandikService.GetEtkinSandikIcerikleriAsync(
+                sandikIds,
+                cancellationToken);
+            var etkinIcerikler = sandiklar
+                .SelectMany(s => etkinIcerikMap
+                    .GetValueOrDefault(s.Id, Array.Empty<SandikIcerik>())
+                    .Where(SandikBazliSahaAktarimGuvenlikKural.IncelenecekIcerikMi))
                 .ToList();
 
-            if (icerikler.Count == 0)
+            if (etkinIcerikler.Count == 0)
                 return Result<ProjeDto>.Failure("Seçilen sandıklarda sahaya aktarılabilecek ürün bulunamadı.");
 
-            var cekiSatiriIds = icerikler
+            var cekiSatiriIds = etkinIcerikler
+                .Where(i => i.CekiSatiriId.HasValue)
                 .Select(i => i.CekiSatiriId!.Value)
                 .Distinct()
                 .ToList();
 
             var cekiSatiriRepo = _unitOfWork.GetRepository<CekiSatiri>();
-            var satirlar = (await cekiSatiriRepo.FindAsync(cs =>
-                    cekiSatiriIds.Contains(cs.Id) &&
-                    !cs.KaynakCekiSatiriId.HasValue))
-                .ToDictionary(cs => cs.Id);
+            var satirlar = cekiSatiriIds.Count == 0
+                ? new Dictionary<int, CekiSatiri>()
+                : (await cekiSatiriRepo.FindAsync(cs =>
+                        cekiSatiriIds.Contains(cs.Id) &&
+                        !cs.KaynakCekiSatiriId.HasValue))
+                    .ToDictionary(cs => cs.Id);
 
-            if (satirlar.Count == 0)
-                return Result<ProjeDto>.Failure("Seçilen sandıklarda normal proje kaynaklı aktarılabilir ürün bulunamadı.");
+            var icerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
+            var tumFizikselIcerikler = cekiSatiriIds.Count == 0
+                ? new List<SandikIcerik>()
+                : (await icerikRepo.FindAsync(i =>
+                        i.CekiSatiriId.HasValue &&
+                        cekiSatiriIds.Contains(i.CekiSatiriId.Value)))
+                    .ToList();
 
             var cekiRepo = _unitOfWork.GetRepository<Ceki>();
             var cekiIds = satirlar.Values.Select(s => s.CekiId).Distinct().ToList();
@@ -105,33 +142,42 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             if (projeDisiSatirVar)
                 return Result<ProjeDto>.Failure("Seçilen sandıklarda kaynak proje ile eşleşmeyen ürünler var.");
 
-            var aktifTamamlamaMap = await _sahaTamamlamaService.GetAktifTamamlamaMapAsync(satirlar.Keys, cancellationToken);
+            var aktifTamamlamaMap = satirlar.Count == 0
+                ? new Dictionary<int, decimal>()
+                : await _sahaTamamlamaService.GetAktifTamamlamaMapAsync(satirlar.Keys, cancellationToken);
+            var dogrulama = SandikBazliSahaAktarimGuvenlikKural.Dogrula(
+                sandiklar,
+                etkinIcerikMap,
+                satirlar,
+                tumFizikselIcerikler,
+                aktifTamamlamaMap);
+
+            if (!dogrulama.Basarili)
+            {
+                var hataMesaji =
+                    "Seçili sandıklar sahaya aktarılamadı. Geri alınması gereken ürün/saha işlemleri veya uygun olmayan " +
+                    "sandık tahsisleri bulunuyor. İşlemleri geri alıp tahsisleri kontrol ederek tekrar deneyin.";
+
+                return Result<ProjeDto>.Failure(hataMesaji, 409, dogrulama.Engeller);
+            }
+
+            var adaylarBySandik = dogrulama.Adaylar
+                .GroupBy(a => a.SandikId)
+                .ToDictionary(g => g.Key, g => g.ToList());
             var sandikTaslaklari = new List<EksikSahaSandikDto>();
 
             foreach (var sandik in sandiklar)
             {
-                var urunler = icerikler
-                    .Where(i => i.SandikId == sandik.Id && i.CekiSatiriId.HasValue && satirlar.ContainsKey(i.CekiSatiriId.Value))
-                    .GroupBy(i => i.CekiSatiriId!.Value)
-                    .Select(g =>
+                var urunler = adaylarBySandik
+                    .GetValueOrDefault(sandik.Id, new List<SandikBazliSahaAktarimAdayi>())
+                    .Select(aday => new EksikSahaUrunDto
                     {
-                        var kaynakSatir = satirlar[g.Key];
-                        var planlanan = aktifTamamlamaMap.GetValueOrDefault(kaynakSatir.Id);
-                        var aktarilabilirMiktar = Math.Max(kaynakSatir.KalanMiktar - planlanan, 0);
-
-                        return aktarilabilirMiktar <= 0
-                            ? null
-                            : new EksikSahaUrunDto
-                            {
-                                CekiSatiriId = kaynakSatir.Id,
-                                KaynakProjeId = request.KaynakProjeId,
-                                KaynakSandikId = sandik.Id,
-                                Miktar = aktarilabilirMiktar,
-                                Aciklama = $"{SahaAktarimConstants.SandikBazliAktarimAciklamaPrefix} {sandik.SandikNo}"
-                            };
+                        CekiSatiriId = aday.CekiSatiriId,
+                        KaynakProjeId = request.KaynakProjeId,
+                        KaynakSandikId = sandik.Id,
+                        Miktar = aday.Miktar,
+                        Aciklama = $"{SahaAktarimConstants.SandikBazliAktarimAciklamaPrefix} {sandik.SandikNo}"
                     })
-                    .Where(u => u != null)
-                    .Select(u => u!)
                     .ToList();
 
                 if (urunler.Count == 0)
@@ -172,6 +218,17 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
         {
             var digits = new string((value ?? string.Empty).Where(char.IsDigit).ToArray());
             return int.TryParse(digits, out var number) ? number : int.MaxValue;
+        }
+
+        private sealed class SandikBazliSahaAktarimRollbackException : Exception
+        {
+            public SandikBazliSahaAktarimRollbackException(Result<ProjeDto> result)
+                : base(result.Error?.Message ?? "Sandik bazli saha aktarimi geri alindi.")
+            {
+                Result = result;
+            }
+
+            public Result<ProjeDto> Result { get; }
         }
     }
 }

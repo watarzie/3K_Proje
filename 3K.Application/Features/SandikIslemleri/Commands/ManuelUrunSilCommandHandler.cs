@@ -91,13 +91,34 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                     409);
             }
 
+            if (bagliSatir?.KaynakCekiSatiriId.HasValue == true)
+            {
+                return Result.Failure(
+                    "Bu ürün saha aktarımıyla oluşturulmuştur. Ürünü tek başına silmek yerine resmi saha aktarımını geri alın.",
+                    409);
+            }
+
+            if (bagliSatir != null && ManuelUrunSilmeKurali.IslemGormusMu(bagliSatir))
+            {
+                return Result.Failure(
+                    "Bu manuel ürün üzerinde Grid, 3K, kalite veya süreç işlemi var. Silmeden önce işlemleri geri alın.",
+                    409);
+            }
+
             if (bagliSatir != null && await AktifSahaAktariminaBagliMiAsync(bagliSatir.Id, cancellationToken))
                 return Result.Failure(SahaAktarimSilmeKorumaMesajlari.Urun, 409);
 
             if (bagliSatir != null)
             {
                 var bagliIcerikler = await sandikIcerikRepo.FindAsync(x => x.CekiSatiriId == bagliSatir.Id);
-                foreach (var bagliIcerik in bagliIcerikler)
+                var bagliIcerikListesi = bagliIcerikler.ToList();
+                var bagliSandikIds = bagliIcerikListesi.Select(x => x.SandikId).Distinct().ToList();
+                var bagliSandiklar = (await sandikRepo.FindAsync(x => bagliSandikIds.Contains(x.Id))).ToList();
+
+                if (bagliSandiklar.Any(SandikSevkKilidiHelper.SandikKilitliMi))
+                    return Result.Failure(SandikSevkKilidiHelper.UrunKilitliMesaji, 409);
+
+                foreach (var bagliIcerik in bagliIcerikListesi)
                 {
                     // Seçili içerik GetByIdAsync ile zaten tracked. FindAsync AsNoTracking
                     // kopyasını aynı anahtarla attach etmek yerine tracked örneği sileriz.
@@ -105,10 +126,26 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 }
 
                 cekiSatiriRepo.Remove(bagliSatir);
+                await SandikDurumlariniSilmeSonrasiHazirlaAsync(
+                    sandikIcerikRepo,
+                    sandikRepo,
+                    bagliIcerikListesi,
+                    sandik);
             }
             else
             {
                 sandikIcerikRepo.Remove(icerik);
+                await SandikDurumlariniSilmeSonrasiHazirlaAsync(
+                    sandikIcerikRepo,
+                    sandikRepo,
+                    new[] { icerik },
+                    sandik);
+            }
+
+            if (proje!.DurumId == (int)ProjeDurum.Tamamlandi)
+            {
+                proje.DurumId = (int)ProjeDurum.Hazirlaniyor;
+                projeRepo.Update(proje);
             }
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -142,6 +179,26 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (satir == null)
                 return Result.Failure("Ürün bulunamadı.", 404);
 
+            var ceki = await _unitOfWork.GetRepository<Ceki>().GetByIdAsync(satir.CekiId);
+            if (ceki == null || ceki.ProjeId != request.ProjeId)
+                return Result.Failure("Ürün bulunamadı veya belirtilen projeye ait değil.", 404);
+
+            var projeRepo = _unitOfWork.GetRepository<Proje>();
+            var proje = await projeRepo.GetByIdAsync(request.ProjeId);
+            if (proje?.ProjeTipiId != (int)ProjeTipi.Normal)
+            {
+                return Result.Failure(
+                    "Bu silme yolu yalnızca normal projelerdeki manuel ürünler için kullanılabilir.",
+                    409);
+            }
+
+            if (satir.KaynakCekiSatiriId.HasValue)
+            {
+                return Result.Failure(
+                    "Kaynak bağlantısı bulunan ürün doğrudan silinemez. İlgili aktarım veya karşılama geri alma akışını kullanın.",
+                    409);
+            }
+
             if (await SandikSevkKilidiHelper.CekiSatiriSevkEdilmisSandiktaMiAsync(_unitOfWork, satir))
                 return Result.Failure(SandikSevkKilidiHelper.UrunKilitliMesaji);
 
@@ -151,16 +208,27 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (await AktifSahaAktariminaBagliMiAsync(satir.Id, cancellationToken))
                 return Result.Failure(SahaAktarimSilmeKorumaMesajlari.Urun, 409);
 
-            if (satir.GelenMiktar > 0 || satir.KarsilananMiktar > 0 || satir.HataliMiktar > 0)
+            if (ManuelUrunSilmeKurali.IslemGormusMu(satir))
             {
                 return Result.Failure(
-                    "Bu ürün üzerinde işlem yapılmış (gelen/karşılanan/hatalı miktar mevcut). Silmeden önce işlemleri geri alın.");
+                    "Bu ürün üzerinde Grid, 3K, kalite veya süreç işlemi var. Silmeden önce işlemleri geri alın.");
             }
 
             var sandikIcerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
-            var ilgiliIcerikler = await sandikIcerikRepo.FindAsync(x => x.CekiSatiriId == satir.Id);
+            var ilgiliIcerikler = (await sandikIcerikRepo.FindAsync(x => x.CekiSatiriId == satir.Id)).ToList();
             foreach (var icerik in ilgiliIcerikler)
                 sandikIcerikRepo.Remove(icerik);
+
+            await SandikDurumlariniSilmeSonrasiHazirlaAsync(
+                sandikIcerikRepo,
+                _unitOfWork.GetRepository<Sandik>(),
+                ilgiliIcerikler);
+
+            if (proje?.DurumId == (int)ProjeDurum.Tamamlandi)
+            {
+                proje.DurumId = (int)ProjeDurum.Hazirlaniyor;
+                projeRepo.Update(proje);
+            }
 
             var urunBilgi = $"{satir.BarkodNo} - {satir.Aciklama} ({satir.IstenenAdet} adet)";
             cekiSatiriRepo.Remove(satir);
@@ -180,6 +248,56 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             });
 
             return Result.Success();
+        }
+
+        private static async Task SandikDurumlariniSilmeSonrasiHazirlaAsync(
+            IGenericRepository<SandikIcerik> sandikIcerikRepo,
+            IGenericRepository<Sandik> sandikRepo,
+            IReadOnlyCollection<SandikIcerik> silinecekIcerikler,
+            Sandik? bilinenSandik = null)
+        {
+            var etkilenenSandikIds = silinecekIcerikler
+                .Select(i => i.SandikId)
+                .Where(id => id > 0)
+                .Distinct()
+                .ToList();
+
+            if (etkilenenSandikIds.Count == 0)
+                return;
+
+            var silinecekIcerikIds = silinecekIcerikler.Select(i => i.Id).ToHashSet();
+            var kalanIcerikler = (await sandikIcerikRepo.FindAsync(i =>
+                    etkilenenSandikIds.Contains(i.SandikId) &&
+                    !silinecekIcerikIds.Contains(i.Id)))
+                .ToList();
+
+            foreach (var sandikId in etkilenenSandikIds)
+            {
+                var sandik = bilinenSandik?.Id == sandikId
+                    ? bilinenSandik
+                    : await sandikRepo.GetByIdAsync(sandikId);
+
+                if (sandik == null || sandik.DurumId == (int)SandikDurum.Sevkedildi)
+                    continue;
+
+                var yeniDurumId = kalanIcerikler.Any(i =>
+                        i.SandikId == sandikId &&
+                        (i.TahsisMiktari != 0 ||
+                         i.KonulanAdet != 0 ||
+                         i.EksikAdet != 0 ||
+                         i.StokKarsilanan != 0 ||
+                         i.ProjeKarsilanan != 0 ||
+                         i.TedarikciKarsilanan != 0 ||
+                         i.Miktar != 0))
+                    ? (int)SandikDurum.Hazirlaniyor
+                    : (int)SandikDurum.Bos;
+
+                if (sandik.DurumId == yeniDurumId)
+                    continue;
+
+                sandik.DurumId = yeniDurumId;
+                sandikRepo.Update(sandik);
+            }
         }
 
         private async Task<bool> AktifSahaAktariminaBagliMiAsync(

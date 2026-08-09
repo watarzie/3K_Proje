@@ -12,17 +12,20 @@ namespace _3K.Application.Features.GridIslemleri.Commands
         private readonly IHareketService _hareketService;
         private readonly ICurrentUserService _currentUserService;
         private readonly ILookupCacheService _lookupCache;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
         public KaliteDurumGuncelleCommandHandler(
             IUnitOfWork unitOfWork,
             IHareketService hareketService,
             ICurrentUserService currentUserService,
-            ILookupCacheService lookupCache)
+            ILookupCacheService lookupCache,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
             _hareketService = hareketService;
             _currentUserService = currentUserService;
             _lookupCache = lookupCache;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result> Handle(KaliteDurumGuncelleCommand request, CancellationToken cancellationToken)
@@ -42,6 +45,19 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
             if (!satirlar.Any())
                 return Result.Failure("Belirtilen ürünler bulunamadı.", 404);
+
+            var aktarilanKaynakSatirIdleri = await SahaAktarimBlokajHelper.GetAktarilanKaynakSatirIdleriAsync(
+                _sahaTamamlamaService,
+                satirlar,
+                cancellationToken);
+
+            if (aktarilanKaynakSatirIdleri.Count > 0)
+            {
+                return Result.Failure(
+                    $"Seçili ürünlerden {aktarilanKaynakSatirIdleri.Count} tanesi aktif saha aktarımına bağlı. " +
+                    "Kalite işlemini saha projesindeki ürün üzerinden yapın; kaynak ürünü değiştirmek için önce saha aktarımını geri alın.",
+                    409);
+            }
 
             var kilitliSatirIdleri = await SandikSevkKilidiHelper.GetSevkEdilmisSandikCekiSatiriIdleriAsync(
                 _unitOfWork,

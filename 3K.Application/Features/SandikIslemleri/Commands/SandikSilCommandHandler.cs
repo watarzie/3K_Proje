@@ -14,22 +14,34 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         private readonly ICurrentUserService _currentUserService;
         private readonly ISahaAktarimSilmeKorumaService _sahaAktarimSilmeKorumaService;
         private readonly ISandikService _sandikService;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
         public SandikSilCommandHandler(
             IUnitOfWork unitOfWork,
             IHareketService hareketService,
             ICurrentUserService currentUserService,
             ISahaAktarimSilmeKorumaService sahaAktarimSilmeKorumaService,
-            ISandikService sandikService)
+            ISandikService sandikService,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
             _hareketService = hareketService;
             _currentUserService = currentUserService;
             _sahaAktarimSilmeKorumaService = sahaAktarimSilmeKorumaService;
             _sandikService = sandikService;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result> Handle(SandikSilCommand request, CancellationToken cancellationToken)
+        {
+            return await _unitOfWork.ExecuteInTransactionAsync(
+                transactionCancellationToken => HandleInTransactionAsync(request, transactionCancellationToken),
+                cancellationToken);
+        }
+
+        private async Task<Result> HandleInTransactionAsync(
+            SandikSilCommand request,
+            CancellationToken cancellationToken)
         {
             var sandikRepo = _unitOfWork.GetRepository<Sandik>();
             var sandik = await sandikRepo.GetByIdAsync(request.SandikId);
@@ -77,6 +89,19 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 var cekiSatiriRepo = _unitOfWork.GetRepository<CekiSatiri>();
                 var cekiSatirlari = (await cekiSatiriRepo.FindAsync(x => cekiSatiriIds.Contains(x.Id)))
                     .ToDictionary(x => x.Id);
+                var digerSandikTahsisleri = (await sandikIcerikRepo.FindAsync(x =>
+                        x.CekiSatiriId.HasValue &&
+                        cekiSatiriIds.Contains(x.CekiSatiriId.Value) &&
+                        x.SandikId != sandik.Id))
+                    .ToList();
+
+                if (digerSandikTahsisleri.Any())
+                {
+                    return Result.Failure(
+                        "Bu sandiktaki manuel urunlerden en az biri baska bir sandiga da tahsis edilmis. " +
+                        "Once urunun tum tahsislerini tek sandikta birlestirin veya urunu resmi silme akisiyla kaldirin.",
+                        409);
+                }
 
                 foreach (var icerik in icerikler)
                 {
@@ -91,7 +116,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                     manuelSatirlar.Add(satir);
                 }
 
-                var islemGormusSatir = manuelSatirlar.FirstOrDefault(ManuelSatirIslemGormus);
+                var islemGormusSatir = manuelSatirlar.FirstOrDefault(ManuelUrunSilmeKurali.IslemGormusMu);
                 if (islemGormusSatir != null)
                 {
                     return Result.Failure(
@@ -113,7 +138,53 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             }
 
             sandikRepo.Remove(sandik);
+
+            var projeRepo = _unitOfWork.GetRepository<Proje>();
+            var proje = await projeRepo.GetByIdAsync(request.ProjeId);
+            if (proje?.ProjeTipiId is (int)ProjeTipi.Saha or (int)ProjeTipi.Yedek)
+            {
+                var kalanSandiklar = (await sandikRepo.FindAsync(s =>
+                        s.ProjeId == request.ProjeId && s.Id != sandik.Id))
+                    .ToList();
+
+                var sevkDurumuYenidenHesaplanmali =
+                    proje.DurumId is (int)ProjeDurum.Tamamlandi or
+                        (int)ProjeDurum.SevkEdildi or
+                        (int)ProjeDurum.EksikSevkEdildi ||
+                    kalanSandiklar.Any(s => s.DurumId == (int)SandikDurum.Sevkedildi);
+
+                if (sevkDurumuYenidenHesaplanmali)
+                {
+                    proje.DurumId = SahaYedekProjeDurumunuHesapla(kalanSandiklar);
+                    projeRepo.Update(proje);
+                }
+            }
+
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            if (proje?.ProjeTipiId == (int)ProjeTipi.Normal)
+            {
+                var kalanKaynakSatirIds = (await _unitOfWork.GetRepository<CekiSatiri>().FindAsync(cs =>
+                        cs.Ceki.ProjeId == request.ProjeId &&
+                        !cs.KaynakCekiSatiriId.HasValue))
+                    .Select(cs => cs.Id)
+                    .Distinct()
+                    .ToList();
+
+                if (kalanKaynakSatirIds.Count > 0)
+                {
+                    await _sahaTamamlamaService.SenkronizeKaynakProjelerAsync(
+                        kalanKaynakSatirIds,
+                        cancellationToken);
+                }
+                else
+                {
+                    var kalanSandiklar = (await sandikRepo.FindAsync(s => s.ProjeId == request.ProjeId)).ToList();
+                    proje.DurumId = SahaYedekProjeDurumunuHesapla(kalanSandiklar);
+                    projeRepo.Update(proje);
+                    await _unitOfWork.SaveChangesAsync(cancellationToken);
+                }
+            }
 
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {
@@ -132,16 +203,21 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             return Result.Success();
         }
 
-        private static bool ManuelSatirIslemGormus(CekiSatiri satir)
+        private static int SahaYedekProjeDurumunuHesapla(IReadOnlyCollection<Sandik> sandiklar)
         {
-            return satir.GelenMiktar > 0
-                || satir.KarsilananMiktar > 0
-                || satir.HataliMiktar > 0
-                || satir.StokKarsilanan > 0
-                || satir.ProjeKarsilanan > 0
-                || satir.ProjeGonderilen > 0
-                || satir.TedarikciKarsilanan > 0
-                || satir.GeriGonderilenMiktar > 0;
+            if (sandiklar.Count == 0)
+                return (int)ProjeDurum.Hazirlaniyor;
+
+            var sevkEdilenSayisi = sandiklar.Count(s => s.DurumId == (int)SandikDurum.Sevkedildi);
+            if (sevkEdilenSayisi == sandiklar.Count)
+                return (int)ProjeDurum.SevkEdildi;
+            if (sevkEdilenSayisi > 0)
+                return (int)ProjeDurum.EksikSevkEdildi;
+
+            return sandiklar.All(s => s.DurumId == (int)SandikDurum.Kapandi)
+                ? (int)ProjeDurum.Tamamlandi
+                : (int)ProjeDurum.Hazirlaniyor;
         }
+
     }
 }

@@ -28,6 +28,29 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
         public async Task<Result> Handle(SahaYedekMalzemeEkleCommand request, CancellationToken cancellationToken)
         {
+            try
+            {
+                return await _unitOfWork.ExecuteInTransactionAsync(
+                    async transactionCancellationToken =>
+                    {
+                        var result = await HandleInTransactionAsync(request, transactionCancellationToken);
+                        if (!result.IsSuccess)
+                            throw new SahaYedekMalzemeEkleRollbackException(result);
+
+                        return result;
+                    },
+                    cancellationToken);
+            }
+            catch (SahaYedekMalzemeEkleRollbackException exception)
+            {
+                return exception.Result;
+            }
+        }
+
+        private async Task<Result> HandleInTransactionAsync(
+            SahaYedekMalzemeEkleCommand request,
+            CancellationToken cancellationToken)
+        {
             var sandikRepo = _unitOfWork.GetRepository<Sandik>();
             var icerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
             var projeRepo = _unitOfWork.GetRepository<Proje>();
@@ -36,8 +59,21 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             var proje = await projeRepo.GetByIdAsync(request.ProjeId);
             if (proje == null)
                 return Result.Failure("Proje bulunamadı.", 404);
+            if (proje.ProjeTipiId != (int)ProjeTipi.Saha &&
+                proje.ProjeTipiId != (int)ProjeTipi.Yedek)
+                return Result.Failure("Bu işlem yalnızca Saha veya Yedek projelerinde kullanılabilir.", 409);
             if (sandik == null || sandik.ProjeId != request.ProjeId)
                 return Result.Failure("Sandık bulunamadı veya projeye ait değil.", 404);
+
+            var sevkiyatDuzeltmeIstisnasi =
+                sandik.DurumId == (int)SandikDurum.Sevkedildi &&
+                sandik.SevkiyatDuzeltmeAcikMi;
+            if (proje.DurumId == (int)ProjeDurum.SevkEdildi && !sevkiyatDuzeltmeIstisnasi)
+            {
+                return Result.Failure(
+                    "Tamamen sevk edilmiş projeye yeni malzeme eklenemez. Önce sevkiyatı geri alın veya ilgili sandığı sevkiyat düzeltmesine açın.",
+                    409);
+            }
 
             // Sandık "Sevk Edildi" durumundaysa ekleme yapılamaz
             if (SandikSevkKilidiHelper.SandikKilitliMi(sandik))
@@ -46,8 +82,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (request.CekiSatiriId.HasValue && request.CekiSatiriId.Value > 0)
             {
                 var tamamlamaResult = await EksikTamamlamaSatiriEkleAsync(request, sandik, cancellationToken);
-                if (tamamlamaResult != null)
-                    return tamamlamaResult;
+                return tamamlamaResult ?? Result.Failure(
+                    "Seçilen ürün bu projeye aktarılmaya uygun değil. Projeden Seç yalnızca Saha projelerinde normal proje eksikleri için kullanılabilir.",
+                    409);
             }
 
             var icerik = new SandikIcerik
@@ -67,11 +104,17 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             await icerikRepo.AddAsync(icerik);
 
-            // Sandık durumu Boş ise Hazırlanıyor'a geçir
-            if (sandik.DurumId == (int)SandikDurum.Bos)
+            // İçeriği değişen boş veya daha önce kapatılmış sandık yeniden hazırlanmalıdır.
+            if (sandik.DurumId is (int)SandikDurum.Bos or (int)SandikDurum.Kapandi)
             {
                 sandik.DurumId = (int)SandikDurum.Hazirlaniyor;
                 sandikRepo.Update(sandik);
+            }
+
+            if (proje.DurumId == (int)ProjeDurum.Tamamlandi)
+            {
+                proje.DurumId = (int)ProjeDurum.Hazirlaniyor;
+                projeRepo.Update(proje);
             }
 
             await _unitOfWork.SaveChangesAsync();
@@ -88,6 +131,17 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             });
 
             return Result.Success();
+        }
+
+        private sealed class SahaYedekMalzemeEkleRollbackException : Exception
+        {
+            public SahaYedekMalzemeEkleRollbackException(Result result)
+                : base(result.Error?.Message ?? "Saha/Yedek malzeme ekleme işlemi geri alındı.")
+            {
+                Result = result;
+            }
+
+            public Result Result { get; }
         }
 
         private async Task<Result?> EksikTamamlamaSatiriEkleAsync(
@@ -251,6 +305,12 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             {
                 sandik.DurumId = (int)SandikDurum.Hazirlaniyor;
                 sandikRepo.Update(sandik);
+            }
+
+            if (proje.DurumId == (int)ProjeDurum.Tamamlandi)
+            {
+                proje.DurumId = (int)ProjeDurum.Hazirlaniyor;
+                projeRepo.Update(proje);
             }
 
             await SandikLokasyonHelper.VarsayilanUcKDepoLokasyonuAtaAsync(_unitOfWork, new[] { yeniIcerik });

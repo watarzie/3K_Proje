@@ -35,6 +35,15 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
         public async Task<Result> Handle(GridDurumSifirlaCommand request, CancellationToken cancellationToken)
         {
+            return await _unitOfWork.ExecuteInTransactionAsync(
+                transactionCancellationToken => HandleInTransactionAsync(request, transactionCancellationToken),
+                cancellationToken);
+        }
+
+        private async Task<Result> HandleInTransactionAsync(
+            GridDurumSifirlaCommand request,
+            CancellationToken cancellationToken)
+        {
             var repo = _unitOfWork.GetRepository<CekiSatiri>();
             var satir = await repo.GetByIdAsync(request.CekiSatiriId);
 
@@ -88,6 +97,9 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             _durumHesaplaService.HesaplaKalanVeDurum(satir);
 
             repo.Update(satir);
+            await SandikDurumSenkronizasyonHelper.IslemGeriAlindigindaSandiklariYenidenAcAsync(
+                _unitOfWork,
+                new[] { satir.Id });
             await _unitOfWork.SaveChangesAsync();
 
             // ===== Hareket kaydı =====

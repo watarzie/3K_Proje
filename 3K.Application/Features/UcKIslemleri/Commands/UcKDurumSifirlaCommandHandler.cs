@@ -36,6 +36,15 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
         public async Task<Result> Handle(UcKDurumSifirlaCommand request, CancellationToken cancellationToken)
         {
+            return await _unitOfWork.ExecuteInTransactionAsync(
+                transactionCancellationToken => HandleInTransactionAsync(request, transactionCancellationToken),
+                cancellationToken);
+        }
+
+        private async Task<Result> HandleInTransactionAsync(
+            UcKDurumSifirlaCommand request,
+            CancellationToken cancellationToken)
+        {
             var repo = _unitOfWork.GetRepository<CekiSatiri>();
             var satir = await repo.GetByIdAsync(request.CekiSatiriId);
 
@@ -175,6 +184,11 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 request.SandikIcerikId);
             if (!senkronizasyonResult.IsSuccess)
                 return Result.Failure(senkronizasyonResult.Error!.Message, senkronizasyonResult.StatusCode);
+
+            await SandikDurumSenkronizasyonHelper.IslemGeriAlindigindaSandiklariYenidenAcAsync(
+                _unitOfWork,
+                new[] { satir.Id },
+                seciliIcerik == null ? null : new[] { seciliIcerik.SandikId });
 
             await _unitOfWork.SaveChangesAsync();
 

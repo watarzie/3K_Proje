@@ -34,6 +34,29 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
         public async Task<Result> Handle(UcKTopluSifirlaCommand request, CancellationToken cancellationToken)
         {
+            try
+            {
+                return await _unitOfWork.ExecuteInTransactionAsync(
+                    async transactionCancellationToken =>
+                    {
+                        var result = await HandleInTransactionAsync(request, transactionCancellationToken);
+                        if (!result.IsSuccess)
+                            throw new UcKTopluSifirlamaRollbackException(result);
+
+                        return result;
+                    },
+                    cancellationToken);
+            }
+            catch (UcKTopluSifirlamaRollbackException exception)
+            {
+                return exception.Result;
+            }
+        }
+
+        private async Task<Result> HandleInTransactionAsync(
+            UcKTopluSifirlaCommand request,
+            CancellationToken cancellationToken)
+        {
             var secimler = UcKSandikSecimHelper.Olustur(request.CekiSatiriIdler, request.Secimler);
             if (!secimler.Any())
                 return Result.Failure("En az bir ürün seçilmelidir.", 400);
@@ -51,6 +74,8 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             int basarili = 0;
             var hatalar = new List<string>();
             var kaynakSatirIds = new HashSet<int>();
+            var tamamenGeriAlinanSatirIds = new HashSet<int>();
+            var sandikBazliGeriAlinanlar = new Dictionary<int, HashSet<int>>();
             var kilitliSatirIdleri = await SandikSevkKilidiHelper.GetSevkEdilmisSandikCekiSatiriIdleriAsync(
                 _unitOfWork,
                 satirlar.Keys);
@@ -212,6 +237,21 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 if (satir.KaynakCekiSatiriId.HasValue)
                     kaynakSatirIds.Add(satir.KaynakCekiSatiriId.Value);
 
+                if (seciliIcerik == null)
+                {
+                    tamamenGeriAlinanSatirIds.Add(satir.Id);
+                }
+                else
+                {
+                    if (!sandikBazliGeriAlinanlar.TryGetValue(satir.Id, out var sandikIds))
+                    {
+                        sandikIds = new HashSet<int>();
+                        sandikBazliGeriAlinanlar[satir.Id] = sandikIds;
+                    }
+
+                    sandikIds.Add(seciliIcerik.SandikId);
+                }
+
                 basarili++;
 
                 // Hareket kaydı
@@ -232,6 +272,18 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             if (basarili == 0)
                 return Result.Failure("Hiçbir ürün sıfırlanamadı. " + (hatalar.Any() ? string.Join("; ", hatalar.Take(3)) : ""));
 
+            await SandikDurumSenkronizasyonHelper.IslemGeriAlindigindaSandiklariYenidenAcAsync(
+                _unitOfWork,
+                tamamenGeriAlinanSatirIds);
+
+            foreach (var (satirId, sandikIds) in sandikBazliGeriAlinanlar)
+            {
+                await SandikDurumSenkronizasyonHelper.IslemGeriAlindigindaSandiklariYenidenAcAsync(
+                    _unitOfWork,
+                    new[] { satirId },
+                    sandikIds);
+            }
+
             await _unitOfWork.SaveChangesAsync();
 
             if (kaynakSatirIds.Count > 0)
@@ -241,6 +293,17 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 return Result.Success();
 
             return Result.Success();
+        }
+
+        private sealed class UcKTopluSifirlamaRollbackException : Exception
+        {
+            public UcKTopluSifirlamaRollbackException(Result result)
+                : base(result.Error?.Message ?? "Toplu 3K geri alma islemi geri alindi.")
+            {
+                Result = result;
+            }
+
+            public Result Result { get; }
         }
     }
 }

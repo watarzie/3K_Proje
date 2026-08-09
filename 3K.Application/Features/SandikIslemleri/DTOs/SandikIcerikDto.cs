@@ -20,6 +20,11 @@ namespace _3K.Application.Features.SandikIslemleri.DTOs
         public string? KontrolEdenBasHarf { get; set; }
         public string? Remarks { get; set; }
         public bool IsManuelEklenen { get; set; }
+        /// <summary>
+        /// Aktif saha aktarımı, aktarım kökeni, sevk kilidi ve işlem durumu dikkate
+        /// alınarak manuel silme aksiyonunun güvenle gösterilip gösterilemeyeceğini belirtir.
+        /// </summary>
+        public bool ManuelSilinebilirMi { get; set; }
 
         // Saha/Yedek manuel malzeme alanları
         public string? Isim { get; set; }

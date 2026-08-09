@@ -33,6 +33,13 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             var tumIlgiliStokHareketleri = (await stokHareketRepo.FindAsync(h => stokIdler.Contains(h.StokKaydiId))).ToList();
             var geriAlinacakHareketIdleri = stokHareketleri.Select(h => h.Id).ToHashSet();
 
+            var geriAlmaPlanlari = new List<(
+                StokKaydi Stok,
+                decimal StoktanKarsilanan,
+                decimal FazlaTeslimdenAktarilan)>();
+
+            // Once butun stok gruplarini dogrula. Bir grupta engel varsa daha onceki
+            // gruplarin tracked state'ini degistirmeden islemi fail-closed sonlandir.
             foreach (var grup in stokHareketleri.GroupBy(h => h.StokKaydiId))
             {
                 if (!stoklar.TryGetValue(grup.Key, out var stok))
@@ -66,17 +73,28 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                             400);
                     }
 
-                    stok.Miktar = Math.Max(stok.Miktar - fazlaTeslimdenAktarilan, 0);
                 }
 
-                if (stoktanKarsilanan > 0)
-                    stok.Miktar += stoktanKarsilanan;
+                geriAlmaPlanlari.Add((stok, stoktanKarsilanan, fazlaTeslimdenAktarilan));
+            }
 
-                stok.DurumId = stok.Miktar > 0
+            foreach (var plan in geriAlmaPlanlari)
+            {
+                if (plan.FazlaTeslimdenAktarilan > 0)
+                {
+                    plan.Stok.Miktar = Math.Max(
+                        plan.Stok.Miktar - plan.FazlaTeslimdenAktarilan,
+                        0);
+                }
+
+                if (plan.StoktanKarsilanan > 0)
+                    plan.Stok.Miktar += plan.StoktanKarsilanan;
+
+                plan.Stok.DurumId = plan.Stok.Miktar > 0
                     ? (int)StokDurum.Aktif
                     : (int)StokDurum.Tukendi;
 
-                stokRepo.Update(stok);
+                stokRepo.Update(plan.Stok);
             }
 
             foreach (var hareket in stokHareketleri)

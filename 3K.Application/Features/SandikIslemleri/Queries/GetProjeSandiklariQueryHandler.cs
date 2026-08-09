@@ -13,17 +13,20 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
         private readonly ILookupCacheService _lookupCache;
         private readonly ISahaTamamlamaService _sahaTamamlamaService;
         private readonly ISahaAktarimSilmeKorumaService _sahaAktarimSilmeKorumaService;
+        private readonly IUnitOfWork _unitOfWork;
 
         public GetProjeSandiklariQueryHandler(
             ISandikService sandikService,
             ILookupCacheService lookupCache,
             ISahaTamamlamaService sahaTamamlamaService,
-            ISahaAktarimSilmeKorumaService sahaAktarimSilmeKorumaService)
+            ISahaAktarimSilmeKorumaService sahaAktarimSilmeKorumaService,
+            IUnitOfWork unitOfWork)
         {
             _sandikService = sandikService;
             _lookupCache = lookupCache;
             _sahaTamamlamaService = sahaTamamlamaService;
             _sahaAktarimSilmeKorumaService = sahaAktarimSilmeKorumaService;
+            _unitOfWork = unitOfWork;
         }
 
         public async Task<Result<IEnumerable<SandikDto>>> Handle(GetProjeSandiklariQuery request, CancellationToken cancellationToken)
@@ -42,6 +45,20 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 cancellationToken);
             var aktifAktarimBagliSandikIds = await _sahaAktarimSilmeKorumaService
                 .GetAktifAktarimBagliSandikIdsAsync(sandiklar.Select(s => s.Id), cancellationToken);
+            var tumCekiSatiriIds = sandiklar
+                .SelectMany(s => s.SandikIcerikleri ?? new List<SandikIcerik>())
+                .Where(i => i.CekiSatiriId.HasValue)
+                .Select(i => i.CekiSatiriId!.Value)
+                .Distinct()
+                .ToList();
+            var birdenFazlaSandigaTahsisliSatirIds = tumCekiSatiriIds.Count == 0
+                ? new HashSet<int>()
+                : (await _unitOfWork.GetRepository<SandikIcerik>().FindAsync(i =>
+                        i.CekiSatiriId.HasValue && tumCekiSatiriIds.Contains(i.CekiSatiriId.Value)))
+                    .GroupBy(i => i.CekiSatiriId!.Value)
+                    .Where(g => g.Select(i => i.SandikId).Distinct().Count() > 1)
+                    .Select(g => g.Key)
+                    .ToHashSet();
 
             var result = sandiklar.Select(s =>
             {
@@ -74,10 +91,14 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                     DepoLokasyonMetni = _lookupCache.GetDeger<LookupDepoLokasyon>(s.DepoLokasyonId),
                     UrunSayisi = icerikler.Count,
                     IsManuelSandik = isManuelSandik,
-                    SilinebilirMi = !aktifAktarimBagliSandikIds.Contains(s.Id) &&
+                    SilinebilirMi = s.DurumId != (int)SandikDurum.Sevkedildi &&
+                        !aktifAktarimBagliSandikIds.Contains(s.Id) &&
                         icerikler.All(i => i.Id > 0) &&
                         (icerikler.Count == 0 ||
-                            (isManuelSandik && icerikler.All(i => !ManuelSatirIslemGormus(i.CekiSatiri!)))),
+                            (isManuelSandik &&
+                             icerikler.All(i =>
+                                 !birdenFazlaSandigaTahsisliSatirIds.Contains(i.CekiSatiriId!.Value) &&
+                                 !ManuelUrunSilmeKurali.IslemGormusMu(i.CekiSatiri!)))),
                     DepodaSayilacakMi = s.DepoLokasyonId != (int)DepoLokasyon.Belirsiz &&
                         SandikDepoKurali.DepoLokasyonuAtanabilir(s, icerikler),
                     SahayaAktarildiMi = sandikSahaAktariminda,
@@ -100,18 +121,6 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 icerikler.All(i =>
                     i.CekiSatiri?.IsManuelEklenen == true &&
                     !i.CekiSatiri.KaynakCekiSatiriId.HasValue);
-        }
-
-        private static bool ManuelSatirIslemGormus(CekiSatiri satir)
-        {
-            return satir.GelenMiktar > 0
-                || satir.KarsilananMiktar > 0
-                || satir.HataliMiktar > 0
-                || satir.StokKarsilanan > 0
-                || satir.ProjeKarsilanan > 0
-                || satir.ProjeGonderilen > 0
-                || satir.TedarikciKarsilanan > 0
-                || satir.GeriGonderilenMiktar > 0;
         }
 
     }

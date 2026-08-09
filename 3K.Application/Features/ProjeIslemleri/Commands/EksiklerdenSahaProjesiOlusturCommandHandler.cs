@@ -33,6 +33,29 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
 
         public async Task<Result<ProjeDto>> Handle(EksiklerdenSahaProjesiOlusturCommand request, CancellationToken cancellationToken)
         {
+            try
+            {
+                return await _unitOfWork.ExecuteInTransactionAsync(
+                    async transactionCancellationToken =>
+                    {
+                        var result = await HandleInTransactionAsync(request, transactionCancellationToken);
+                        if (!result.IsSuccess)
+                            throw new EksikSahaAktarimRollbackException(result);
+
+                        return result;
+                    },
+                    cancellationToken);
+            }
+            catch (EksikSahaAktarimRollbackException exception)
+            {
+                return exception.Result;
+            }
+        }
+
+        private async Task<Result<ProjeDto>> HandleInTransactionAsync(
+            EksiklerdenSahaProjesiOlusturCommand request,
+            CancellationToken cancellationToken)
+        {
             var projeRepo = _unitOfWork.GetRepository<Proje>();
             var sandikTaslaklari = request.Sandiklar
                 .Where(s => s.Urunler.Any(u => u.CekiSatiriId > 0 && u.Miktar > 0))
@@ -167,6 +190,12 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 if (hedefSahaProje.DurumId == (int)ProjeDurum.SevkEdildi ||
                     hedefSahaProje.DurumId == (int)ProjeDurum.EksikSevkEdildi)
                     return Result<ProjeDto>.Failure("Sevk edilmiş veya kısmi sevk edilmiş saha projesine yeni aktarım eklenemez.");
+
+                if (hedefSahaProje.DurumId == (int)ProjeDurum.Tamamlandi)
+                {
+                    hedefSahaProje.DurumId = (int)ProjeDurum.Hazirlaniyor;
+                    projeRepo.Update(hedefSahaProje);
+                }
             }
 
             var projeNoTalebi = string.IsNullOrWhiteSpace(request.ProjeNo) ? null : request.ProjeNo.Trim();
@@ -415,6 +444,17 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 ToplamUrunSayisi = toplamSatir,
                 Lokasyon = yeniProje.Lokasyon
             });
+        }
+
+        private sealed class EksikSahaAktarimRollbackException : Exception
+        {
+            public EksikSahaAktarimRollbackException(Result<ProjeDto> result)
+                : base(result.Error?.Message ?? "Eksik saha aktarımı geri alındı.")
+            {
+                Result = result;
+            }
+
+            public Result<ProjeDto> Result { get; }
         }
 
         private async Task<string> GenerateSahaProjeNoAsync(string baseNo)

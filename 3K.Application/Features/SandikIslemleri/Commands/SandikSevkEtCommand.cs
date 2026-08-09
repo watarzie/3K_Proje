@@ -73,16 +73,19 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (sandik.DurumId == (int)SandikDurum.Sevkedildi)
                 return Result.Failure("Sandık zaten sevk edilmiş durumda.");
 
-            int eskiDurum = sandik.DurumId;
-            var sevkTarihi = TurkeyTime.Now;
-            var mevcutSevkiyatBagliMi = (await sevkiyatSandikRepo.FindAsync(ss => ss.SandikId == sandik.Id)).Any();
-            sandik.SevkOncesiDurumId ??= sandik.DurumId;
-            sandik.DurumId = (int)SandikDurum.Sevkedildi;
-            sandik.SevkiyatDuzeltmeAcikMi = false;
-            sandikRepo.Update(sandik);
+            if (!SandikSevkKilidiHelper.SandikSevkeHazirMi(sandik))
+                return Result.Failure(SandikSevkKilidiHelper.SandikSevkeHazirDegilMesaji, 409);
 
-            if (proje != null)
+            int eskiDurum = sandik.DurumId;
+            return await _unitOfWork.ExecuteInTransactionAsync(async transactionCancellationToken =>
             {
+                var sevkTarihi = TurkeyTime.Now;
+                var mevcutSevkiyatBagliMi = (await sevkiyatSandikRepo.FindAsync(ss => ss.SandikId == sandik.Id)).Any();
+                sandik.SevkOncesiDurumId ??= sandik.DurumId;
+                sandik.DurumId = (int)SandikDurum.Sevkedildi;
+                sandik.SevkiyatDuzeltmeAcikMi = false;
+                sandikRepo.Update(sandik);
+
                 var sandiklar = projeSandiklari;
                 var guncelSandik = sandiklar.FirstOrDefault(s => s.Id == request.SandikId);
                 if (guncelSandik != null)
@@ -108,46 +111,46 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 }
                 proje.GerceklesenSevkTarihi ??= sevkTarihi;
                 projeRepo.Update(proje);
-            }
 
-            Sevkiyat? sevkiyat = null;
-            if (!mevcutSevkiyatBagliMi)
-            {
-                sevkiyat = await SevkiyatKayitHelper.OlusturAsync(
-                    _unitOfWork,
-                    request.ProjeId,
-                    new[] { sandik },
-                    sevkTarihi,
-                    request.Aciklama,
-                    request.AracPlaka,
-                    _currentUserService.UserId.Value);
-            }
+                Sevkiyat? sevkiyat = null;
+                if (!mevcutSevkiyatBagliMi)
+                {
+                    sevkiyat = await SevkiyatKayitHelper.OlusturAsync(
+                        _unitOfWork,
+                        request.ProjeId,
+                        new[] { sandik },
+                        sevkTarihi,
+                        request.Aciklama,
+                        request.AracPlaka,
+                        _currentUserService.UserId.Value);
+                }
 
-            await _unitOfWork.SaveChangesAsync();
+                await _unitOfWork.SaveChangesAsync(transactionCancellationToken);
 
-            if (proje?.ProjeTipiId == (int)ProjeTipi.Saha)
-            {
-                await _sahaTamamlamaService.SenkronizeKaynakProjelerBySahaSandikIdsAsync(
-                    new[] { sandik.Id },
-                    cancellationToken);
-            }
+                if (proje.ProjeTipiId == (int)ProjeTipi.Saha)
+                {
+                    await _sahaTamamlamaService.SenkronizeKaynakProjelerBySahaSandikIdsAsync(
+                        new[] { sandik.Id },
+                        transactionCancellationToken);
+                }
 
-            await _hareketService.HareketKaydetAsync(new HareketGecmisi
-            {
-                ProjeId = request.ProjeId,
-                KullaniciId = _currentUserService.UserId.Value,
-                ReferansTipi = "Sandik",
-                ReferansId = sandik.Id.ToString(),
-                Islem = "Sandık Sevk Edildi",
-                IslemTipiId = (int)IslemTipi.SandikSevkEdildi,
-                EskiDeger = eskiDurum.ToString(),
-                YeniDeger = sandik.DurumId.ToString(),
-                Aciklama = mevcutSevkiyatBagliMi
-                    ? $"Sandık {sandik.SandikNo} mevcut sevkiyat kaydı korunarak yeniden kilitlendi."
-                    : $"Sandık {sandik.SandikNo} {sevkiyat!.SevkiyatNo}. sevkiyat ile sevk edildi."
-            });
+                await _hareketService.HareketKaydetAsync(new HareketGecmisi
+                {
+                    ProjeId = request.ProjeId,
+                    KullaniciId = _currentUserService.UserId.Value,
+                    ReferansTipi = "Sandik",
+                    ReferansId = sandik.Id.ToString(),
+                    Islem = "Sandık Sevk Edildi",
+                    IslemTipiId = (int)IslemTipi.SandikSevkEdildi,
+                    EskiDeger = eskiDurum.ToString(),
+                    YeniDeger = sandik.DurumId.ToString(),
+                    Aciklama = mevcutSevkiyatBagliMi
+                        ? $"Sandık {sandik.SandikNo} mevcut sevkiyat kaydı korunarak yeniden kilitlendi."
+                        : $"Sandık {sandik.SandikNo} {sevkiyat!.SevkiyatNo}. sevkiyat ile sevk edildi."
+                });
 
-            return Result.Success();
+                return Result.Success();
+            }, cancellationToken);
         }
     }
 }

@@ -12,17 +12,20 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
         private readonly ISandikService _sandikService;
         private readonly ILookupCacheService _lookupCache;
         private readonly ISahaTamamlamaService _sahaTamamlamaService;
+        private readonly ISahaAktarimSilmeKorumaService _sahaAktarimSilmeKorumaService;
         private readonly IUnitOfWork _unitOfWork;
 
         public GetSandikIcerikQueryHandler(
             ISandikService sandikService,
             ILookupCacheService lookupCache,
             ISahaTamamlamaService sahaTamamlamaService,
+            ISahaAktarimSilmeKorumaService sahaAktarimSilmeKorumaService,
             IUnitOfWork unitOfWork)
         {
             _sandikService = sandikService;
             _lookupCache = lookupCache;
             _sahaTamamlamaService = sahaTamamlamaService;
+            _sahaAktarimSilmeKorumaService = sahaAktarimSilmeKorumaService;
             _unitOfWork = unitOfWork;
         }
 
@@ -38,6 +41,11 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 .Select(i => i.CekiSatiriId!.Value)
                 .Distinct()
                 .ToList();
+            var aktifAktarimBagliSatirIds = await _sahaAktarimSilmeKorumaService
+                .GetAktifAktarimBagliCekiSatiriIdsAsync(cekiSatiriIdleri, cancellationToken);
+            var proje = await _unitOfWork.GetRepository<Proje>().GetByIdAsync(sandik.ProjeId);
+            var isSahaYedek = proje?.ProjeTipiId is (int)ProjeTipi.Saha or (int)ProjeTipi.Yedek;
+            var sandikManuelIslemeAcik = !SandikSevkKilidiHelper.SandikKilitliMi(sandik);
             var projeTahsisleri = cekiSatiriIdleri.Count == 0
                 ? new List<SandikIcerik>()
                 : (await _unitOfWork.GetRepository<SandikIcerik>()
@@ -139,6 +147,11 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                         KontrolEdenBasHarf = i.CekiSatiri?.KontrolEden?.BasHarf,
                         Remarks = i.CekiSatiri?.Remarks,
                         IsManuelEklenen = i.CekiSatiri == null || (i.CekiSatiri?.IsManuelEklenen ?? false),
+                        ManuelSilinebilirMi = ManuelSilinebilirMi(
+                            i,
+                            isSahaYedek,
+                            sandikManuelIslemeAcik,
+                            aktifAktarimBagliSatirIds),
                         // Saha/Yedek + Birim
                         Isim = i.Isim,
                         Miktar = i.Miktar,
@@ -163,6 +176,29 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
             };
 
             return Result<SandikDetayDto>.Success(dto);
+        }
+
+        private static bool ManuelSilinebilirMi(
+            SandikIcerik icerik,
+            bool isSahaYedek,
+            bool sandikManuelIslemeAcik,
+            IReadOnlySet<int> aktifAktarimBagliSatirIds)
+        {
+            if (!sandikManuelIslemeAcik || icerik.Id <= 0)
+                return false;
+
+            if (icerik.CekiSatiri == null)
+                return isSahaYedek && !icerik.CekiSatiriId.HasValue;
+
+            var satir = icerik.CekiSatiri;
+            if (!satir.IsManuelEklenen ||
+                satir.KaynakCekiSatiriId.HasValue ||
+                aktifAktarimBagliSatirIds.Contains(satir.Id))
+            {
+                return false;
+            }
+
+            return !ManuelUrunSilmeKurali.IslemGormusMu(satir);
         }
     }
 }

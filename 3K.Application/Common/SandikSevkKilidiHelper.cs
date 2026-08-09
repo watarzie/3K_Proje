@@ -8,10 +8,17 @@ namespace _3K.Application.Common
     {
         public const string SandikKilitliMesaji = "Bu sandık sevk edildiği için üzerinde işlem yapılamaz.";
         public const string UrunKilitliMesaji = "Bu ürün sevk edilmiş bir sandıkta olduğu için üzerinde işlem yapılamaz.";
+        public const string SandikSevkeHazirDegilMesaji =
+            "Boş veya hazırlanıyor durumundaki sandık sevk edilemez. Önce sandığı kapatın.";
 
         public static bool SandikKilitliMi(Sandik sandik)
         {
             return sandik.DurumId == (int)SandikDurum.Sevkedildi && !sandik.SevkiyatDuzeltmeAcikMi;
+        }
+
+        public static bool SandikSevkeHazirMi(Sandik sandik)
+        {
+            return sandik.DurumId == (int)SandikDurum.Kapandi;
         }
 
         public static async Task<HashSet<int>> GetSevkEdilmisSandikCekiSatiriIdleriAsync(

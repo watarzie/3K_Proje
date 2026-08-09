@@ -84,11 +84,29 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                     if (projeKontrolu != null)
                         return projeKontrolu;
 
+                    if (kaynakSandik.DurumId == (int)SandikDurum.Sevkedildi)
+                    {
+                        return Result.Failure(
+                            "Sevkiyat kaydı bulunan kaynak sandıktan başka sandığa ürün taşınamaz. " +
+                            "Önce sevkiyatı resmi geri alma akışıyla geri alın.",
+                            409);
+                    }
+
+                    if (hedefSandik.DurumId == (int)SandikDurum.Sevkedildi)
+                    {
+                        return Result.Failure(
+                            "Sevkiyat kaydı bulunan hedef sandığa ürün taşınamaz. " +
+                            "Önce sevkiyatı resmi geri alma akışıyla geri alın.",
+                            409);
+                    }
+
                     if (SandikSevkKilidiHelper.SandikKilitliMi(kaynakSandik))
                         return Result.Failure("Kaynak sandık sevk edildiği için içinden ürün taşınamaz.");
 
                     if (SandikSevkKilidiHelper.SandikKilitliMi(hedefSandik))
                         return Result.Failure("Hedef sandık sevk edildiği için içine ürün taşınamaz.");
+
+                    var kaynakEskiDurumId = kaynakSandik.DurumId;
 
                     CekiSatiri? cekiSatiri = null;
                     List<SandikIcerik> satirIcerikleri = new();
@@ -210,6 +228,13 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
                         if (!kaynaktaAktifDigerIcerikVar)
                             kaynakSandik.DurumId = (int)SandikDurum.Bos;
+                        else if (kaynakSandik.DurumId == (int)SandikDurum.Kapandi)
+                            kaynakSandik.DurumId = (int)SandikDurum.Hazirlaniyor;
+                    }
+                    else if (kaynakSandik.DurumId == (int)SandikDurum.Kapandi)
+                    {
+                        // Kapatılmış bir sandığın tahsisi değişti; yeniden kontrol edilmeden sevk edilemez.
+                        kaynakSandik.DurumId = (int)SandikDurum.Hazirlaniyor;
                     }
 
                     if (cekiSatiri != null)
@@ -242,6 +267,18 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                     // Böylece kontrol sonrasında başlayan bir sevkiyat, taşıma ile sessizce yarışamaz.
                     sandikRepo.Update(kaynakSandik);
                     sandikRepo.Update(hedefSandik);
+
+                    if ((kaynakEskiDurumId != kaynakSandik.DurumId ||
+                         hedefEskiDurumId != hedefSandik.DurumId))
+                    {
+                        var projeRepo = _unitOfWork.GetRepository<Proje>();
+                        var proje = await projeRepo.GetByIdAsync(request.ProjeId);
+                        if (proje?.DurumId == (int)ProjeDurum.Tamamlandi)
+                        {
+                            proje.DurumId = (int)ProjeDurum.Hazirlaniyor;
+                            projeRepo.Update(proje);
+                        }
+                    }
 
                     var urunAdi = cekiSatiri?.Aciklama ?? kaynakIcerik.Isim ?? "malzeme";
                     var barkodNo = cekiSatiri?.BarkodNo ?? kaynakIcerik.BarkodNo;

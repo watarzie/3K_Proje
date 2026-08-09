@@ -38,7 +38,8 @@ namespace _3K_API.Controllers
 
         /// <summary>
         /// Yedek proje formatındaki .xlsx çekisini yükler.
-        /// Proje numarası C1 hücresinden okunur ve tüm ürünler 1 numaralı sandığa tahsis edilir.
+        /// Proje numarası yeni formatta B1, eski formatta C1 hücresinden okunur;
+        /// tüm ürünler 1 numaralı sandığa tahsis edilir.
         /// </summary>
         [Authorize]
         [HttpPost("yedek-yukle")]

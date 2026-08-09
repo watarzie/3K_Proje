@@ -33,6 +33,15 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
         public async Task<Result> Handle(GridTopluSifirlaCommand request, CancellationToken cancellationToken)
         {
+            return await _unitOfWork.ExecuteInTransactionAsync(
+                transactionCancellationToken => HandleInTransactionAsync(request, transactionCancellationToken),
+                cancellationToken);
+        }
+
+        private async Task<Result> HandleInTransactionAsync(
+            GridTopluSifirlaCommand request,
+            CancellationToken cancellationToken)
+        {
             if (request.CekiSatiriIdler == null || request.CekiSatiriIdler.Count == 0)
                 return Result.Failure("En az bir ürün seçilmelidir.", 400);
 
@@ -60,6 +69,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             var kullaniciId = _currentUserService.UserId ?? 0;
             int basarili = 0;
             var hatalar = new List<string>();
+            var sifirlananSatirIds = new HashSet<int>();
 
             foreach (var satir in satirlar)
             {
@@ -105,6 +115,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
                 repo.Update(satir);
                 basarili++;
+                sifirlananSatirIds.Add(satir.Id);
 
                 // Hareket kaydı
                 await _hareketService.HareketKaydetAsync(new HareketGecmisi
@@ -124,6 +135,9 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             if (basarili == 0)
                 return Result.Failure("Hiçbir ürün sıfırlanamadı. " + (hatalar.Any() ? string.Join("; ", hatalar.Take(3)) : ""));
 
+            await SandikDurumSenkronizasyonHelper.IslemGeriAlindigindaSandiklariYenidenAcAsync(
+                _unitOfWork,
+                sifirlananSatirIds);
             await _unitOfWork.SaveChangesAsync();
 
             if (hatalar.Any())
