@@ -150,6 +150,7 @@ try
     builder.Services.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
     builder.Services.AddHostedService<BackgroundTaskProcessor>();
     builder.Services.AddHostedService<ArsivBackgroundService>();
+    builder.Services.AddHostedService<CekiRevizyonTalebiTemizlemeBackgroundService>();
 
     // ======= In-Memory Cache + Lookup Cache =======
     builder.Services.AddMemoryCache();

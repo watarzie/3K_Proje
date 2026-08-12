@@ -12,7 +12,7 @@ namespace _3K.Core.Entities
         public int TalepEdenKullaniciId { get; set; }
 
         public string DosyaAdi { get; set; } = string.Empty;
-        public byte[] DosyaIcerigi { get; set; } = Array.Empty<byte>();
+        public byte[]? DosyaIcerigi { get; set; }
         public string DosyaSha256 { get; set; } = string.Empty;
 
         public string OnizlemeJson { get; set; } = string.Empty;

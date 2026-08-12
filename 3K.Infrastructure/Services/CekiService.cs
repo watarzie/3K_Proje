@@ -474,9 +474,9 @@ namespace _3K.Infrastructure.Services
                     if (talep.UygulananRevizyonCekiId.HasValue)
                         return UygulanmisRevizyonSonucunuOlustur(talep, projeNo);
 
-                    RevizyonTalepDosyasiniDogrula(talep);
+                    var talepDosyaIcerigi = RevizyonTalepDosyasiniDogrula(talep);
 
-                    using var excelStream = new MemoryStream(talep.DosyaIcerigi, writable: false);
+                    using var excelStream = new MemoryStream(talepDosyaIcerigi, writable: false);
                     var dosya = await RevizyonDosyasiniOkuAsync(
                         excelStream,
                         talep.DosyaAdi,
@@ -509,7 +509,7 @@ namespace _3K.Infrastructure.Services
 
                     RevizyonOnizlemesininUygulanabilirOldugunuDogrula(guncelOnizleme);
 
-                    using var uygulamaStream = new MemoryStream(talep.DosyaIcerigi, writable: false);
+                    using var uygulamaStream = new MemoryStream(talepDosyaIcerigi, writable: false);
                     var sonuc = await CekiRevizyonunuUygulaAsync(
                         uygulamaStream,
                         talep.DosyaAdi,
@@ -804,7 +804,7 @@ namespace _3K.Infrastructure.Services
                 .SingleOrDefaultAsync(cancellationToken);
         }
 
-        private static void RevizyonTalepDosyasiniDogrula(CekiRevizyonTalebi talep)
+        private static byte[] RevizyonTalepDosyasiniDogrula(CekiRevizyonTalebi talep)
         {
             var dosyaIcerigi = talep.DosyaIcerigi ?? Array.Empty<byte>();
             if (dosyaIcerigi.Length == 0)
@@ -828,6 +828,8 @@ namespace _3K.Infrastructure.Services
                     "Onaya sunulan revizyon dosyasının bütünlük doğrulaması başarısız oldu. İşlem uygulanmadı.",
                     CekiRevizyonSorunKodlari.OnayDosyasiDegisti);
             }
+
+            return dosyaIcerigi;
         }
 
         private static CekiRevizyonSonuc UygulanmisRevizyonSonucunuOlustur(

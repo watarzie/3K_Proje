@@ -625,6 +625,10 @@ namespace _3K.Infrastructure.Data
                         "CK_CekiRevizyonTalepleri_DosyaIcerigi_Boyut",
                         "octet_length(\"DosyaIcerigi\") <= 20971520");
                     table.HasCheckConstraint(
+                        "CK_CekiRevizyonTalepleri_DosyaIcerigi_Temizlenebilir",
+                        "\"DosyaIcerigi\" IS NOT NULL OR " +
+                        "(\"UygulananRevizyonCekiId\" IS NOT NULL AND \"UygulamaTarihi\" IS NOT NULL)");
+                    table.HasCheckConstraint(
                         "CK_CekiRevizyonTalepleri_DosyaSha256_Format",
                         "\"DosyaSha256\" ~ '^[0-9A-Fa-f]{64}$'");
                     table.HasCheckConstraint(
@@ -649,7 +653,7 @@ namespace _3K.Infrastructure.Data
                     .IsRequired();
                 e.Property(talep => talep.DosyaIcerigi)
                     .HasColumnType("bytea")
-                    .IsRequired();
+                    .IsRequired(false);
                 e.Property(talep => talep.DosyaSha256)
                     .HasMaxLength(64)
                     .IsFixedLength()
