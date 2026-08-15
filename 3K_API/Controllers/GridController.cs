@@ -18,6 +18,16 @@ namespace _3K_API.Controllers
         }
 
         /// <summary>
+        /// Grid personelinin yeniden sevk ve eksik gelen işlerini proje bazında listeler.
+        /// </summary>
+        [HttpGet("is-listesi")]
+        public async Task<ActionResult> GetIsListesi([FromQuery] GetGridIsListesiQuery query)
+        {
+            var result = await _mediator.Send(query);
+            return result.ToActionResult();
+        }
+
+        /// <summary>
         /// Grid ürün listesi — proje bazında tüm ürünler ve durumları.
         /// </summary>
         [HttpGet("{projeId}/urunler")]
