@@ -9,26 +9,33 @@ namespace _3K.Application.Features.KullaniciIslemleri.Queries
     public class KullaniciListeleQueryHandler : IRequestHandler<KullaniciListeleQuery, Result<IEnumerable<KullaniciDto>>>
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IIkiFaktorService _ikiFaktorService;
 
-        public KullaniciListeleQueryHandler(IUnitOfWork unitOfWork)
+        public KullaniciListeleQueryHandler(
+            IUnitOfWork unitOfWork,
+            IIkiFaktorService ikiFaktorService)
         {
             _unitOfWork = unitOfWork;
+            _ikiFaktorService = ikiFaktorService;
         }
 
         public async Task<Result<IEnumerable<KullaniciDto>>> Handle(KullaniciListeleQuery request, CancellationToken cancellationToken)
         {
             var kullaniciRepo = _unitOfWork.GetRepository<Kullanici>();
             var kullanicilar = await kullaniciRepo.GetAllWithIncludeAsync(k => k.Rol);
+            var kullaniciListesi = kullanicilar.ToList();
+            var ayarDurumlari = await _ikiFaktorService.AyarDurumlariniGetirAsync(
+                kullaniciListesi.Select(x => x.Id).ToArray(),
+                cancellationToken);
 
-            var result = kullanicilar.Select(k => new KullaniciDto
+            var result = kullaniciListesi.Select(k =>
             {
-                Id = k.Id,
-                AdSoyad = k.AdSoyad,
-                BasHarf = k.BasHarf,
-                RolId = k.RolId,
-                Rol = k.Rol?.Ad ?? "Belirtilmemiş",
-                Email = k.Email
-            });
+                ayarDurumlari.TryGetValue(k.Id, out var ayarDurumu);
+                return AuthDtoFactory.Kullanici(
+                    k,
+                    ayarDurumu,
+                    varsayilanRolAdi: "Belirtilmemiş");
+            }).ToList();
 
             return Result<IEnumerable<KullaniciDto>>.Success(result);
         }

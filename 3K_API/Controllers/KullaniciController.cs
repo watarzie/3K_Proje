@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using _3K.Application.Features.KullaniciIslemleri.Queries;
 using _3K.Application.Features.KullaniciIslemleri.Commands;
 using _3K.Application.Features.AuthIslemleri.Commands;
+using _3K.Application.Features.KullaniciIslemleri.DTOs;
 using _3K_API.Extensions;
 
 namespace _3K_API.Controllers
@@ -65,6 +66,40 @@ namespace _3K_API.Controllers
         public async Task<ActionResult> SifreDegistir([FromBody] KullaniciSifreDegistirCommand command)
         {
             var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
+        /// <summary>
+        /// Kullanıcının authenticator eşleşmesini, kurtarma kodlarını ve açık
+        /// 2FA giriş taleplerini sıfırlar. Bir sonraki zorunlu girişte yeniden
+        /// QR kurulumu gerekir.
+        /// </summary>
+        [HttpDelete("{id}/2fa")]
+        public async Task<ActionResult> IkiFaktorSifirla(int id)
+        {
+            var result = await _mediator.Send(new KullaniciIkiFaktorSifirlaCommand
+            {
+                KullaniciId = id
+            });
+            return result.ToActionResult();
+        }
+
+        /// <summary>
+        /// Kullanıcı için girişte 2FA zorunluluğunu açar veya kapatır.
+        /// Kapatmak mevcut authenticator eşleşmesini silmez; sıfırlama ayrı
+        /// DELETE endpointiyle yapılır.
+        /// </summary>
+        [HttpPut("{id}/iki-faktor-zorunlulugu")]
+        public async Task<ActionResult> IkiFaktorZorunluluguGuncelle(
+            int id,
+            [FromBody] KullaniciIkiFaktorZorunluluguDto dto)
+        {
+            var result = await _mediator.Send(
+                new KullaniciIkiFaktorZorunluluguGuncelleCommand
+                {
+                    KullaniciId = id,
+                    ZorunluMu = dto.ZorunluMu
+                });
             return result.ToActionResult();
         }
     }

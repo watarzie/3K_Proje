@@ -1,4 +1,6 @@
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using _3K.Application.Features.AuthIslemleri.Commands;
 using _3K.Core.Entities;
@@ -86,7 +88,49 @@ namespace _3K_API.Controllers
         }
 
         [HttpPost("login")]
+        [AllowAnonymous]
+        [EnableRateLimiting("auth-login")]
         public async Task<ActionResult> Login([FromBody] LoginCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
+        [HttpPost("2fa/setup/start")]
+        [AllowAnonymous]
+        [EnableRateLimiting("two-factor")]
+        public async Task<ActionResult> IkiFaktorKurulumBaslat(
+            [FromBody] IkiFaktorKurulumBaslatCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
+        [HttpPost("2fa/setup/confirm")]
+        [AllowAnonymous]
+        [EnableRateLimiting("two-factor")]
+        public async Task<ActionResult> IkiFaktorKurulumDogrula(
+            [FromBody] IkiFaktorKurulumDogrulaCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
+        [HttpPost("2fa/verify")]
+        [AllowAnonymous]
+        [EnableRateLimiting("two-factor")]
+        public async Task<ActionResult> IkiFaktorGirisDogrula(
+            [FromBody] IkiFaktorGirisDogrulaCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
+        [HttpPost("2fa/recovery/verify")]
+        [AllowAnonymous]
+        [EnableRateLimiting("two-factor")]
+        public async Task<ActionResult> IkiFaktorKurtarmaKoduDogrula(
+            [FromBody] IkiFaktorKurtarmaKoduDogrulaCommand command)
         {
             var result = await _mediator.Send(command);
             return result.ToActionResult();
@@ -97,21 +141,28 @@ namespace _3K_API.Controllers
         /// Frontend 401 aldığında bu endpoint'i çağırır.
         /// </summary>
         [HttpPost("refresh-token")]
-        [Microsoft.AspNetCore.Authorization.Authorize]
+        [Authorize]
         public async Task<ActionResult> RefreshToken()
         {
             var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
-                return Unauthorized(new { isSuccess = false, error = "Geçersiz token." });
+                return Unauthorized(new { message = "Geçersiz token." });
 
             try
             {
-                var newToken = await _authService.RefreshTokenAsync(userId);
-                return Ok(new { isSuccess = true, value = new { token = newToken } });
+                var ikiFaktorDogrulandi = string.Equals(
+                    User.FindFirst("mfa")?.Value,
+                    "true",
+                    StringComparison.OrdinalIgnoreCase);
+                var newToken = await _authService.RefreshTokenAsync(
+                    userId,
+                    ikiFaktorDogrulandi,
+                    HttpContext.RequestAborted);
+                return Ok(new { token = newToken });
             }
             catch (UnauthorizedAccessException)
             {
-                return Unauthorized(new { isSuccess = false, error = "Kullanıcı bulunamadı." });
+                return Unauthorized(new { message = "Oturum yenilenemedi. Lütfen tekrar giriş yapın." });
             }
         }
     }

@@ -9,10 +9,14 @@ namespace _3K.Application.Features.KullaniciIslemleri.Commands
     public class KullaniciGuncelleCommandHandler : IRequestHandler<KullaniciGuncelleCommand, Result<KullaniciDto>>
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IIkiFaktorService _ikiFaktorService;
 
-        public KullaniciGuncelleCommandHandler(IUnitOfWork unitOfWork)
+        public KullaniciGuncelleCommandHandler(
+            IUnitOfWork unitOfWork,
+            IIkiFaktorService ikiFaktorService)
         {
             _unitOfWork = unitOfWork;
+            _ikiFaktorService = ikiFaktorService;
         }
 
         public async Task<Result<KullaniciDto>> Handle(KullaniciGuncelleCommand request, CancellationToken cancellationToken)
@@ -29,22 +33,21 @@ namespace _3K.Application.Features.KullaniciIslemleri.Commands
                 : request.AdSoyad.ToUpper();
             kullanici.RolId = request.RolId;
 
-            repo.Update(kullanici);
-            await _unitOfWork.SaveChangesAsync();
+            // GetByIdAsync tracked entity döndürür. Update çağrısı bütün kolonları
+            // modified işaretleyip eşzamanlı 2FA flag değişikliğini ezebilirdi.
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             // Rol navigation'ını yeniden yükle
             var rolRepo = _unitOfWork.GetRepository<Rol>();
             var rol = await rolRepo.GetByIdAsync(kullanici.RolId);
+            kullanici.Rol = rol!;
+            var ayarDurumlari = await _ikiFaktorService.AyarDurumlariniGetirAsync(
+                new[] { kullanici.Id },
+                cancellationToken);
+            ayarDurumlari.TryGetValue(kullanici.Id, out var ayarDurumu);
 
-            return Result<KullaniciDto>.Success(new KullaniciDto
-            {
-                Id = kullanici.Id,
-                AdSoyad = kullanici.AdSoyad,
-                BasHarf = kullanici.BasHarf,
-                RolId = kullanici.RolId,
-                Rol = rol?.Ad ?? "Unknown",
-                Email = kullanici.Email
-            });
+            return Result<KullaniciDto>.Success(
+                AuthDtoFactory.Kullanici(kullanici, ayarDurumu));
         }
     }
 }

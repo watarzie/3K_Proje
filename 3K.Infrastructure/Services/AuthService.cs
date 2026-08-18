@@ -23,19 +23,30 @@ namespace _3K.Infrastructure.Services
             _configuration = configuration;
         }
 
-        public async Task<string> LoginAsync(string email, string sifre)
+        public async Task<Kullanici?> ValidateCredentialsAsync(
+            string email,
+            string sifre,
+            CancellationToken cancellationToken = default)
         {
             var kullanici = await _context.Kullanicilar
+                .AsNoTracking()
                 .Include(k => k.Rol)
-                .FirstOrDefaultAsync(k => k.Email == email);
+                .FirstOrDefaultAsync(k => k.Email == email.Trim(), cancellationToken);
 
-            if (kullanici == null)
-                throw new UnauthorizedAccessException("Geçersiz email veya şifre.");
+            if (kullanici == null || !BCrypt.Net.BCrypt.Verify(sifre, kullanici.SifreHash))
+                return null;
 
-            if (!BCrypt.Net.BCrypt.Verify(sifre, kullanici.SifreHash))
-                throw new UnauthorizedAccessException("Geçersiz email veya şifre.");
+            return kullanici;
+        }
 
-            return GenerateJwtToken(kullanici);
+        public async Task<Kullanici?> GetKullaniciByIdAsync(
+            int kullaniciId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _context.Kullanicilar
+                .AsNoTracking()
+                .Include(k => k.Rol)
+                .FirstOrDefaultAsync(k => k.Id == kullaniciId, cancellationToken);
         }
 
         public async Task<Kullanici> RegisterAsync(string adSoyad, string email, string sifre, int rolId)
@@ -88,17 +99,38 @@ namespace _3K.Infrastructure.Services
             return BCrypt.Net.BCrypt.HashPassword(plainPassword);
         }
 
-        public async Task<string> RefreshTokenAsync(int userId)
+        public string GenerateAccessToken(Kullanici kullanici, bool ikiFaktorDogrulandi)
         {
-            var kullaniciRepo = _unitOfWork.GetRepository<Kullanici>();
-            var kullanicilar = await kullaniciRepo.GetAllWithIncludeAsync(k => k.Rol);
-            var kullanici = kullanicilar.FirstOrDefault(k => k.Id == userId)
-                ?? throw new UnauthorizedAccessException("Kullanıcı bulunamadı.");
-
-            return GenerateJwtToken(kullanici);
+            return GenerateJwtToken(kullanici, ikiFaktorDogrulandi);
         }
 
-        private string GenerateJwtToken(Kullanici kullanici)
+        public async Task<string> RefreshTokenAsync(
+            int userId,
+            bool ikiFaktorDogrulandi,
+            CancellationToken cancellationToken = default)
+        {
+            var kullanici = await GetKullaniciByIdAsync(userId, cancellationToken)
+                ?? throw new UnauthorizedAccessException("Kullanıcı bulunamadı.");
+
+            if (kullanici.IkiFaktorZorunluMu)
+            {
+                var etkinAyarVar = await _context.KullaniciIkiFaktorAyarlari
+                    .AsNoTracking()
+                    .AnyAsync(
+                        x => x.KullaniciId == userId && x.EtkinMi,
+                        cancellationToken);
+
+                if (!ikiFaktorDogrulandi || !etkinAyarVar)
+                {
+                    throw new UnauthorizedAccessException(
+                        "İki faktörlü doğrulama tamamlanmadan oturum yenilenemez.");
+                }
+            }
+
+            return GenerateJwtToken(kullanici, ikiFaktorDogrulandi);
+        }
+
+        private string GenerateJwtToken(Kullanici kullanici, bool ikiFaktorDogrulandi)
         {
             var jwtKey = _configuration["JwtSettings:SecretKey"]
                 ?? Environment.GetEnvironmentVariable("JWT_SECRET_KEY")
@@ -107,7 +139,8 @@ namespace _3K.Infrastructure.Services
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-            var claims = new[]
+            var now = DateTimeOffset.UtcNow;
+            var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.NameIdentifier, kullanici.Id.ToString()),
                 new Claim(ClaimTypes.Name, kullanici.AdSoyad ?? ""),
@@ -116,14 +149,29 @@ namespace _3K.Infrastructure.Services
                 new Claim(ClaimTypes.Role, kullanici.Rol?.Ad ?? "Unknown"),
                 new Claim("RolId", kullanici.RolId.ToString()),
                 new Claim("BasHarf", kullanici.BasHarf ?? ""),
-                new Claim("KullaniciId", kullanici.Id.ToString())
+                new Claim("KullaniciId", kullanici.Id.ToString()),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
+                new Claim(
+                    "auth_time",
+                    now.ToUnixTimeSeconds().ToString(),
+                    ClaimValueTypes.Integer64),
+                new Claim("amr", "pwd"),
+                new Claim("mfa", ikiFaktorDogrulandi ? "true" : "false", ClaimValueTypes.Boolean)
             };
+
+            if (ikiFaktorDogrulandi)
+                claims.Add(new Claim("amr", "otp"));
+
+            var expirationHours = _configuration.GetValue<double?>("JwtSettings:ExpirationHours") ?? 8;
+            if (expirationHours <= 0)
+                expirationHours = 8;
 
             var tokenDescriptor = new JwtSecurityToken(
                 issuer: _configuration["JwtSettings:Issuer"] ?? "3K_API",
                 audience: _configuration["JwtSettings:Audience"] ?? "3K_Client",
                 claims: claims,
-                expires: DateTime.UtcNow.AddHours(8),
+                notBefore: now.UtcDateTime,
+                expires: now.AddHours(expirationHours).UtcDateTime,
                 signingCredentials: creds
             );
 

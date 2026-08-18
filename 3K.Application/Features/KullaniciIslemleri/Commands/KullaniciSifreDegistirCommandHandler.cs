@@ -29,8 +29,9 @@ namespace _3K.Application.Features.KullaniciIslemleri.Commands
                 return Result<bool>.Failure("Kullanıcı bulunamadı.", 404);
 
             kullanici.SifreHash = _authService.HashPassword(request.YeniSifre);
-            repo.Update(kullanici);
-            await _unitOfWork.SaveChangesAsync();
+            // GetByIdAsync tracked entity döndürür; yalnız şifre kolonunun
+            // güncellenmesi eşzamanlı 2FA zorunluluk değişikliğini ezmez.
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             return Result<bool>.Success(true);
         }

@@ -27,6 +27,7 @@ namespace _3K_API.Extensions
                 403 => new ObjectResult(errorBody) { StatusCode = 403 },
                 404 => new NotFoundObjectResult(errorBody),
                 409 => new ConflictObjectResult(errorBody),
+                429 => new ObjectResult(errorBody) { StatusCode = 429 },
                 500 => new ObjectResult(errorBody) { StatusCode = 500 },
                 _ => new BadRequestObjectResult(errorBody)
             };
@@ -50,6 +51,7 @@ namespace _3K_API.Extensions
                 403 => new ObjectResult(errorBody) { StatusCode = 403 },
                 404 => new NotFoundObjectResult(errorBody),
                 409 => new ConflictObjectResult(errorBody),
+                429 => new ObjectResult(errorBody) { StatusCode = 429 },
                 500 => new ObjectResult(errorBody) { StatusCode = 500 },
                 _ => new BadRequestObjectResult(errorBody)
             };

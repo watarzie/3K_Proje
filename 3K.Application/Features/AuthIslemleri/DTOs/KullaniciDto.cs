@@ -8,5 +8,8 @@ namespace _3K.Application.Features.AuthIslemleri.DTOs
         public int RolId { get; set; }
         public string Rol { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
+        public bool IkiFaktorZorunluMu { get; set; }
+        public bool IkiFaktorEtkinMi { get; set; }
+        public DateTime? IkiFaktorDogrulandiTarihiUtc { get; set; }
     }
 }

@@ -1,8 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
+using System.Threading.RateLimiting;
 using MediatR;
 using FluentValidation;
 using Serilog;
@@ -129,6 +132,7 @@ try
     builder.Services.AddScoped<IPdfService, PdfService>();
     builder.Services.AddScoped<IMailService, MailService>();
     builder.Services.AddScoped<IAuthService, AuthService>();
+    builder.Services.AddScoped<IIkiFaktorService, IkiFaktorService>();
     builder.Services.AddScoped<IDurumHesaplaService, DurumHesaplaService>();
     builder.Services.AddScoped<ILookupService, _3K.Infrastructure.Services.LookupService>();
     builder.Services.AddScoped<IRolService, _3K.Infrastructure.Services.RolService>();
@@ -155,6 +159,58 @@ try
     // ======= In-Memory Cache + Lookup Cache =======
     builder.Services.AddMemoryCache();
     builder.Services.AddScoped<ILookupCacheService, LookupCacheService>();
+
+    // ======= 2FA Secret Protection =======
+    var dataProtectionBuilder = builder.Services
+        .AddDataProtection()
+        .SetApplicationName("3K.IkiFaktor");
+    var dataProtectionKeysPath = builder.Configuration["TwoFactor:DataProtectionKeysPath"];
+    if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
+    {
+        dataProtectionBuilder.PersistKeysToFileSystem(
+            new DirectoryInfo(dataProtectionKeysPath));
+    }
+    else if (!builder.Environment.IsDevelopment())
+    {
+        Log.Warning(
+            "TwoFactor:DataProtectionKeysPath yapılandırılmamış. Kalıcı ve yedekli key-ring hazırlanmadan production kullanıcılarında 2FA zorunluluğunu açmayın.");
+    }
+    builder.Services.AddSingleton(TimeProvider.System);
+
+    // ======= Login / 2FA Rate Limiting =======
+    builder.Services.AddRateLimiter(options =>
+    {
+        options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+        options.OnRejected = async (context, cancellationToken) =>
+        {
+            context.HttpContext.Response.ContentType = "application/json; charset=utf-8";
+            await context.HttpContext.Response.WriteAsJsonAsync(
+                new { message = "Çok fazla doğrulama isteği gönderildi. Lütfen kısa bir süre sonra tekrar deneyin." },
+                cancellationToken);
+        };
+
+        options.AddPolicy("auth-login", httpContext =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                factory: _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 10,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                    AutoReplenishment = true
+                }));
+
+        options.AddPolicy("two-factor", httpContext =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                factory: _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 20,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                    AutoReplenishment = true
+                }));
+    });
 
     // ======= MediatR + Pipeline Behaviors =======
     builder.Services.AddMediatR(cfg =>
@@ -322,6 +378,7 @@ try
     }
 
     app.UseCors("AllowAll");
+    app.UseRateLimiter();
     app.UseAuthentication();
     app.UseAuthorization();
     app.MapControllers();

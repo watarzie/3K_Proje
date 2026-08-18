@@ -11,5 +11,6 @@ namespace _3K.Application.Features.AuthIslemleri.Commands
     {
         public string Email { get; set; } = string.Empty;
         public string Sifre { get; set; } = string.Empty;
+        public bool BeniHatirla { get; set; }
     }
 }

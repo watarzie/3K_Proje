@@ -8,6 +8,12 @@ namespace _3K.Core.Entities
         public string SifreHash { get; set; } = string.Empty;
 
         /// <summary>
+        /// Bu kullanıcının girişte TOTP tabanlı iki faktörlü doğrulamayı
+        /// tamamlamasının zorunlu olup olmadığını belirtir.
+        /// </summary>
+        public bool IkiFaktorZorunluMu { get; set; }
+
+        /// <summary>
         /// Kullanıcının atandığı rol — Rol tablosuna FK.
         /// </summary>
         public int RolId { get; set; }

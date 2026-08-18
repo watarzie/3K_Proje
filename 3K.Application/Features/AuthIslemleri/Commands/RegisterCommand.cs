@@ -8,8 +8,10 @@ namespace _3K.Application.Features.AuthIslemleri.Commands
     /// <summary>
     /// Kullanıcı kayıt - sadece Admin.
     /// </summary>
-    public class RegisterCommand : IRequest<Result<KullaniciDto>>, ISecuredRequest
+    public class RegisterCommand
+        : IRequest<Result<KullaniciDto>>, ISecuredRequest, IRequiresMenuPermission
     {
+        public string RequiredMenuKod => "kullanicilar";
 
         public string AdSoyad { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;

@@ -18,14 +18,7 @@ namespace _3K.Application.Features.AuthIslemleri.Commands
         {
             var kullanici = await _authService.RegisterAsync(request.AdSoyad, request.Email, request.Sifre, request.RolId);
 
-            return Result<KullaniciDto>.Success(new KullaniciDto
-            {
-                Id = kullanici.Id,
-                AdSoyad = kullanici.AdSoyad,
-                BasHarf = kullanici.BasHarf,
-                Rol = kullanici.Rol?.Ad ?? "Unknown",
-                Email = kullanici.Email
-            });
+            return Result<KullaniciDto>.Success(AuthDtoFactory.Kullanici(kullanici));
         }
     }
 }

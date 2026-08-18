@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using _3K.Application.Features.RolIslemleri.Queries;
 using _3K.Application.Features.RolIslemleri.Commands;
@@ -11,6 +12,7 @@ namespace _3K_API.Controllers
     /// Erişim, rol yönetimi menüsü için tanımlı RolYetkileri üzerinden kontrol edilir.
     /// </summary>
     [ApiController]
+    [Authorize]
     [Route("api/[controller]")]
     public class RolController : ControllerBase
     {
