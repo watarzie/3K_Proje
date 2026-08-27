@@ -245,6 +245,17 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     break;
             }
 
+            var projeTransferTelafiPaketi = false;
+            if (request.KarsilamaTipiId == (int)UcKDurum.TamGeldi &&
+                UcKProjeTransferTelafiTeslimKural.AdayMi(satir))
+            {
+                var sandikIcerikSayisi = _unitOfWork.GetRepository<SandikIcerik>()
+                    .Queryable()
+                    .Count(i => i.CekiSatiriId == satir.Id);
+                projeTransferTelafiPaketi =
+                    UcKProjeTransferTelafiTeslimKural.AktifMi(satir, sandikIcerikSayisi);
+            }
+
             // ===== Alanları göncelle =====
             satir.UcKKarsilamaTipiId = request.KarsilamaTipiId;
             satir.UcKAciklama = request.Aciklama;
@@ -274,6 +285,14 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                         sandikSevkKalan = Math.Max(sandikSevkPayi - sandikGridKaynakliKonulan, 0);
                     }
                     var sevkMiktari = Math.Min(Math.Max(sandikKalan, 0), sandikSevkKalan);
+                    var telafiTeslimResult = UcKProjeTransferTelafiTeslimKural.TeslimMiktariniHesapla(
+                        projeTransferTelafiPaketi,
+                        sevkMiktari,
+                        satir);
+                    if (!telafiTeslimResult.IsSuccess)
+                        return Result.Failure(telafiTeslimResult.Error!.Message, telafiTeslimResult.StatusCode);
+
+                    sevkMiktari = telafiTeslimResult.Value;
                     satir.GelenMiktar += Math.Max(sevkMiktari, 0);
                     satir.UcKDurumuId = (int)UcKDurum.TamGeldi;
                     satir.TeslimTarihi = TurkeyTime.Now;

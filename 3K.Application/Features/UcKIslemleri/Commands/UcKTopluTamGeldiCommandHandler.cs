@@ -41,6 +41,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 secimler.Select(s => s.CekiSatiriId));
             var basarili = 0;
             var hatalar = new List<string>();
+            var telafiConflictVar = false;
             var kaynakSatirIds = new HashSet<int>();
 
             foreach (var secim in secimler)
@@ -65,6 +66,16 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 if (satir.GridSevkDurumuId != (int)GridSevkDurum.SevkEdildi)
                 { hatalar.Add($"ID {cekiSatiriId}: Grid henüz sevk etmedi."); continue; }
 
+                var projeTransferTelafiPaketi = false;
+                if (UcKProjeTransferTelafiTeslimKural.AdayMi(satir))
+                {
+                    var sandikIcerikSayisi = _unitOfWork.GetRepository<SandikIcerik>()
+                        .Queryable()
+                        .Count(i => i.CekiSatiriId == satir.Id);
+                    projeTransferTelafiPaketi =
+                        UcKProjeTransferTelafiTeslimKural.AktifMi(satir, sandikIcerikSayisi);
+                }
+
                 var seciliIcerikResult = await UcKSandikIcerikSenkronizasyonHelper.GetSeciliIcerikAsync(
                     _unitOfWork,
                     satir.Id,
@@ -80,8 +91,12 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     ? Math.Max(satir.KalanMiktar, 0)
                     : Math.Max(sandikMiktari - seciliIcerik.KonulanAdet, 0);
 
-                // Yalnızca seçili tahsis zaten tamamlandıysa atla.
-                if (sandikKalan <= 0) continue;
+                // Normal akışta dolu tahsisi atla. Proje transferi telafi paketinde ise
+                // sandık mevcudu yeni paketin öncesinden kalmış olabileceği için işleme devam et.
+                if (!UcKProjeTransferTelafiTeslimKural.TeslimIslemiGerekliMi(
+                        projeTransferTelafiPaketi,
+                        sandikKalan))
+                    continue;
 
                 var eskiDurum = satir.UcKKarsilamaTipiId;
 
@@ -100,6 +115,18 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     sandikSevkKalan = Math.Max(sandikSevkPayi - sandikGridKaynakliKonulan, 0);
                 }
                 var sevkMiktari = Math.Min(sandikKalan, sandikSevkKalan);
+                var telafiTeslimResult = UcKProjeTransferTelafiTeslimKural.TeslimMiktariniHesapla(
+                    projeTransferTelafiPaketi,
+                    sevkMiktari,
+                    satir);
+                if (!telafiTeslimResult.IsSuccess)
+                {
+                    telafiConflictVar = true;
+                    hatalar.Add($"ID {cekiSatiriId}: {telafiTeslimResult.Error!.Message}");
+                    continue;
+                }
+
+                sevkMiktari = telafiTeslimResult.Value;
                 satir.GelenMiktar += Math.Max(sevkMiktari, 0);
                 satir.UcKKarsilamaTipiId = (int)UcKDurum.TamGeldi;
                 satir.UcKDurumuId = (int)UcKDurum.TamGeldi;
@@ -150,7 +177,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 await _sahaTamamlamaService.SenkronizeKaynakProjelerAsync(kaynakSatirIds, cancellationToken);
 
             if (hatalar.Any())
-                return Result.Failure($"{basarili} ürün güncellendi, {hatalar.Count} hata: {string.Join("; ", hatalar.Take(3))}");
+                return Result.Failure(
+                    $"{basarili} ürün güncellendi, {hatalar.Count} hata: {string.Join("; ", hatalar.Take(3))}",
+                    telafiConflictVar ? 409 : 400);
 
             return Result.Success();
         }

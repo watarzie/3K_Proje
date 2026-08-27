@@ -52,6 +52,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             var kullaniciId = _currentUserService.UserId ?? 0;
             int guncellenen = 0;
             var atlananlar = new List<string>();
+            var telafiConflictMesajlari = new List<string>();
 
             var kilitliSatirIdleri = await SandikSevkKilidiHelper.GetSevkEdilmisSandikCekiSatiriIdleriAsync(
                 _unitOfWork,
@@ -100,9 +101,17 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     continue;
                 }
 
+                var projeTransferTelafiPaketi = false;
+                if (UcKProjeTransferTelafiTeslimKural.AdayMi(satir))
+                {
+                    var sandikIcerikSayisi = _unitOfWork.GetRepository<SandikIcerik>()
+                        .Queryable()
+                        .Count(i => i.CekiSatiriId == satir.Id);
+                    projeTransferTelafiPaketi =
+                        UcKProjeTransferTelafiTeslimKural.AktifMi(satir, sandikIcerikSayisi);
+                }
+
                 // TamGeldi işareti — KURAL 1: Grid'in sevk ettiği miktar kadar teslim al
-                satir.UcKKarsilamaTipiId = (int)UcKDurum.TamGeldi;
-                satir.UcKDurumuId = (int)UcKDurum.TamGeldi;
                 var seciliIcerikResult = await UcKSandikIcerikSenkronizasyonHelper.GetSeciliIcerikAsync(
                     _unitOfWork,
                     satir.Id,
@@ -117,7 +126,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 var sandikKalan = seciliIcerik == null
                     ? Math.Max(satir.KalanMiktar, 0)
                     : Math.Max((seciliIcerik.TahsisMiktari > 0 ? seciliIcerik.TahsisMiktari : satir.IstenenAdet) - seciliIcerik.KonulanAdet, 0);
-                if (sandikKalan <= 0)
+                if (!UcKProjeTransferTelafiTeslimKural.TeslimIslemiGerekliMi(
+                        projeTransferTelafiPaketi,
+                        sandikKalan))
                     continue;
 
                 var sandikSevkKalan = sandikKalan;
@@ -134,6 +145,21 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     sandikSevkKalan = Math.Max(sandikSevkPayi - sandikGridKaynakliKonulan, 0);
                 }
                 var sevkMiktari = Math.Min(sandikKalan, sandikSevkKalan);
+                var telafiTeslimResult = UcKProjeTransferTelafiTeslimKural.TeslimMiktariniHesapla(
+                    projeTransferTelafiPaketi,
+                    sevkMiktari,
+                    satir);
+                if (!telafiTeslimResult.IsSuccess)
+                {
+                    var conflictMesaji = $"#{satir.SiraNo} ({satir.Aciklama}) - {telafiTeslimResult.Error!.Message}";
+                    atlananlar.Add(conflictMesaji);
+                    telafiConflictMesajlari.Add(conflictMesaji);
+                    continue;
+                }
+
+                sevkMiktari = telafiTeslimResult.Value;
+                satir.UcKKarsilamaTipiId = (int)UcKDurum.TamGeldi;
+                satir.UcKDurumuId = (int)UcKDurum.TamGeldi;
                 satir.GelenMiktar += Math.Max(sevkMiktari, 0);
                 satir.TeslimTarihi = now;
                 satir.UcKAciklama = request.Aciklama;
@@ -164,7 +190,12 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             }
 
             if (guncellenen == 0)
+            {
+                if (telafiConflictMesajlari.Any())
+                    return Result.Failure(string.Join("; ", telafiConflictMesajlari.Take(3)), 409);
+
                 return Result.Failure("Hiçbir ürün güncellenemedi. Tümü Grid sevk/iptal kontrolünü geçemedi.");
+            }
 
             await _unitOfWork.SaveChangesAsync();
 
@@ -196,6 +227,13 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 YeniDeger = ((int)UcKDurum.TamGeldi).ToString(),
                 Aciklama = sb.ToString().TrimEnd()
             });
+
+            if (telafiConflictMesajlari.Any())
+            {
+                return Result.Failure(
+                    $"{guncellenen} ürün güncellendi; {telafiConflictMesajlari.Count} proje transferi telafi kaydı veri tutarsızlığı nedeniyle atlandı: {string.Join("; ", telafiConflictMesajlari.Take(3))}",
+                    409);
+            }
 
             return Result.Success();
         }
