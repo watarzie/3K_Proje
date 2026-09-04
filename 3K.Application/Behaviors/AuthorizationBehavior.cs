@@ -34,21 +34,46 @@ namespace _3K.Application.Behaviors
             if (!userId.HasValue)
                 return CreateFailureResult("Kullanıcı bilgisi alınamadı.", 401);
 
-            var menuKod = request is IRequiresMenuPermission fixedMenuRequest
-                ? fixedMenuRequest.RequiredMenuKod
-                : _currentUserService.MenuKod;
-            if (string.IsNullOrWhiteSpace(menuKod))
-                return CreateFailureResult("Yetki bağlamı alınamadı.", 403);
+            var multiRequirements = request is IRequiresMenuPermissions multiPermissionRequest
+                ? multiPermissionRequest.RequiredMenuPermissions
+                    .Where(x => !string.IsNullOrWhiteSpace(x.MenuKod))
+                    .Distinct()
+                    .ToArray()
+                : Array.Empty<MenuPermissionRequirement>();
 
-            var requiredYetkiTipi = GetRequiredYetkiTipi(typeof(TRequest));
-            var hasPermission = await _rolService.HasUserPermissionAsync(
-                userId.Value,
-                menuKod,
-                requiredYetkiTipi,
-                cancellationToken);
+            if (multiRequirements.Length > 0)
+            {
+                // IRolService aynı scoped DbContext'i kullanabildiği için kontrolleri
+                // paralel çalıştırmıyoruz. Tüm gereksinimler AND mantığıyla sağlanmalı.
+                foreach (var requirement in multiRequirements)
+                {
+                    var granted = await _rolService.HasUserPermissionAsync(
+                        userId.Value,
+                        requirement.MenuKod,
+                        requirement.YetkiTipi,
+                        cancellationToken);
+                    if (!granted)
+                        return CreateFailureResult("Bu işlem için gerekli yetkileriniz bulunmuyor.", 403);
+                }
+            }
+            else
+            {
+                var menuKod = request is IRequiresMenuPermission fixedMenuRequest
+                    ? fixedMenuRequest.RequiredMenuKod
+                    : _currentUserService.MenuKod;
+                if (string.IsNullOrWhiteSpace(menuKod))
+                    return CreateFailureResult("Yetki bağlamı alınamadı.", 403);
 
-            if (!hasPermission)
-                return CreateFailureResult("Bu modül için yetkiniz bulunmuyor.", 403);
+                var requiredYetkiTipi = GetRequiredYetkiTipi(typeof(TRequest));
+                var hasPermission = await _rolService.HasUserPermissionAsync(
+                    userId.Value,
+                    menuKod,
+                    requiredYetkiTipi,
+                    cancellationToken);
+
+                if (!hasPermission)
+                    return CreateFailureResult("Bu modül için yetkiniz bulunmuyor.", 403);
+            }
 
             return await next();
         }

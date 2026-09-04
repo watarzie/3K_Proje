@@ -37,6 +37,28 @@ namespace _3K.Infrastructure.Data
         public DbSet<KullaniciBildirimi> KullaniciBildirimleri { get; set; } = null!;
         public DbSet<BildirimAboneligi> BildirimAbonelikleri { get; set; } = null!;
 
+        // ======= Ambalaj / Üretim Modülü DbSet'leri =======
+        public DbSet<AmbalajUretimKaydi> AmbalajUretimKayitlari { get; set; } = null!;
+        public DbSet<AmbalajUretimHareketi> AmbalajUretimHareketleri { get; set; } = null!;
+        public DbSet<AmbalajIcSandikSablonu> AmbalajIcSandikSablonlari { get; set; } = null!;
+        public DbSet<AmbalajTalepEden> AmbalajTalepEdenler { get; set; } = null!;
+        public DbSet<AmbalajKaynakSenkronizasyonKuyrukKaydi> AmbalajKaynakSenkronizasyonKuyrugu { get; set; } = null!;
+
+        // ======= Finans Yönetimi Modülü DbSet'leri =======
+        public DbSet<FinansUrun> FinansUrunleri { get; set; } = null!;
+        public DbSet<FinansUrunEslesmesi> FinansUrunEslesmeleri { get; set; } = null!;
+        public DbSet<FinansFiyatTarifesi> FinansFiyatTarifeleri { get; set; } = null!;
+        public DbSet<FinansIsKaydi> FinansIsKayitlari { get; set; } = null!;
+        public DbSet<FinansSiparis> FinansSiparisleri { get; set; } = null!;
+        public DbSet<FinansSiparisKalemi> FinansSiparisKalemleri { get; set; } = null!;
+        public DbSet<FinansFatura> FinansFaturalari { get; set; } = null!;
+        public DbSet<FinansFaturaKalemi> FinansFaturaKalemleri { get; set; } = null!;
+        public DbSet<FinansDuzenliIs> FinansDuzenliIsleri { get; set; } = null!;
+        public DbSet<FinansGiderKategori> FinansGiderKategorileri { get; set; } = null!;
+        public DbSet<FinansGiderKalemi> FinansGiderKalemleri { get; set; } = null!;
+        public DbSet<FinansGider> FinansGiderleri { get; set; } = null!;
+        public DbSet<FinansDegisiklikGecmisi> FinansDegisiklikGecmisleri { get; set; } = null!;
+
         // ======= RBAC (Rol Tabanlı Erişim Kontrolü) DbSet'leri =======
         public DbSet<Rol> Roller { get; set; } = null!;
         public DbSet<MenuTanimi> MenuTanimlari { get; set; } = null!;
@@ -88,6 +110,11 @@ namespace _3K.Infrastructure.Data
             ConfigureLookupTable<LookupBirim>(modelBuilder);
             ConfigureLookupTable<LookupKaliteDurum>(modelBuilder);
             ConfigureLookupTable<LookupSurecDurum>(modelBuilder);
+
+            // Yeni modüllerin eşlemeleri ayrı uzantılarda tutulur; DbContext tek
+            // modelin sahibi olmaya devam ederken ana dosyanın okunabilirliği korunur.
+            modelBuilder.ConfigureAmbalajUretimModule();
+            modelBuilder.ConfigureFinansModule();
 
             // ===============================================================
             // 2. UNIQUE CONSTRAINTS
@@ -1289,9 +1316,11 @@ namespace _3K.Infrastructure.Data
                 new MenuTanimi { Id = 5, Kod = "sandik-yonetimi", LabelKey = "MENU.SANDIK_YONETIMI", Icon = "ri-archive-line", Route = "/sandik-yonetimi", Sira = 3, ParentId = null },
                 new MenuTanimi { Id = 7, Kod = "depo-durumu", LabelKey = "MENU.DEPO_DURUMU", Icon = "ri-building-2-line", Route = "/depo-durumu", Sira = 4, ParentId = null },
                 new MenuTanimi { Id = 8, Kod = "stok", LabelKey = "MENU.STOK_MODULU", Icon = "ri-stack-line", Route = "/stok", Sira = 5, ParentId = null },
-                new MenuTanimi { Id = 10, Kod = "hareket-gecmisi", LabelKey = "MENU.HAREKET_GECMISI", Icon = "ri-history-line", Route = "/hareket-gecmisi", Sira = 8, ParentId = null },
-                new MenuTanimi { Id = 11, Kod = "kullanicilar", LabelKey = "MENU.KULLANICI_YETKI", Icon = "ri-user-settings-line", Route = "/kullanicilar", Sira = 9, ParentId = null },
-                new MenuTanimi { Id = 12, Kod = "rol-yonetimi", LabelKey = "MENU.ROL_YONETIMI", Icon = "ri-shield-user-line", Route = "/rol-yonetimi", Sira = 10, ParentId = null }
+                new MenuTanimi { Id = 46, Kod = "ambalaj-uretim-listesi", LabelKey = "MENU.AMBALAJ_URETIM_LISTESI", Icon = "ri-hammer-line", Route = "/ambalaj-uretim-listesi", Sira = 8, ParentId = null },
+                new MenuTanimi { Id = 47, Kod = "finans-yonetimi", LabelKey = "MENU.FINANS_YONETIMI", Icon = "ri-line-chart-line", Route = "/finans-yonetimi", Sira = 9, ParentId = null },
+                new MenuTanimi { Id = 10, Kod = "hareket-gecmisi", LabelKey = "MENU.HAREKET_GECMISI", Icon = "ri-history-line", Route = "/hareket-gecmisi", Sira = 10, ParentId = null },
+                new MenuTanimi { Id = 11, Kod = "kullanicilar", LabelKey = "MENU.KULLANICI_YETKI", Icon = "ri-user-settings-line", Route = "/kullanicilar", Sira = 11, ParentId = null },
+                new MenuTanimi { Id = 12, Kod = "rol-yonetimi", LabelKey = "MENU.ROL_YONETIMI", Icon = "ri-shield-user-line", Route = "/rol-yonetimi", Sira = 12, ParentId = null }
             );
 
             // Alt menüler ve yetki kontrollü modül düğümleri
@@ -1316,7 +1345,7 @@ namespace _3K.Infrastructure.Data
                 new MenuTanimi { Id = 34, Kod = "saha-proje-sil", LabelKey = "MENU.SAHA_PROJE_SIL", Icon = "", Route = null, Sira = 6, ParentId = 17 },
                 new MenuTanimi { Id = 18, Kod = "yedek-yonetimi", LabelKey = "MENU.YEDEK_YONETIMI", Icon = "ri-box-3-line", Route = "/yedek-yonetimi", Sira = 7, ParentId = null },
                 // Onay Merkezi
-                new MenuTanimi { Id = 99, Kod = "islem-onay-merkezi", LabelKey = "MENU.ISLEM_ONAY", Icon = "ri-check-double-line", Route = "/onay-merkezi", Sira = 11, ParentId = null },
+                new MenuTanimi { Id = 99, Kod = "islem-onay-merkezi", LabelKey = "MENU.ISLEM_ONAY", Icon = "ri-check-double-line", Route = "/onay-merkezi", Sira = 13, ParentId = null },
                 new MenuTanimi { Id = 43, Kod = "onay-kurallari-yonet", LabelKey = "MENU.ONAY_KURALLARI_YONET", Icon = "", Route = null, Sira = 1, ParentId = 99 },
                 // Kalite & Süreç — Sandık Yönetimi altında yetki kontrollü butonlar.
                 new MenuTanimi { Id = 20, Kod = "kalite-modulu", LabelKey = "MENU.KALITE_MODULU", Icon = "", Route = null, Sira = 3, ParentId = 5 },
@@ -1337,7 +1366,8 @@ namespace _3K.Infrastructure.Data
             );
 
             // ======= ADMIN ROL YETKİLERİ (tüm menülere W=3) =======
-            // Not: MenuTanimi Id'leri: 1,2,3,4,5,7,8,10,11,12,14,15,16,17,18,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,99
+            // Yeni modüller güvenli varsayılanla yalnız Admin rolüne W olarak verilir.
+            // Diğer roller mevcut Rol Yönetimi ekranından açıkça yetkilendirilir.
             var menuIds = new[] { 1, 2, 3, 4, 5, 7, 8, 10, 11, 12, 14, 15, 16, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45 };
             var adminYetkiler = new List<RolYetki>();
             for (int i = 0; i < menuIds.Length; i++)
@@ -1345,6 +1375,8 @@ namespace _3K.Infrastructure.Data
                 adminYetkiler.Add(new RolYetki { Id = i + 1, RolId = 1, MenuTanimiId = menuIds[i], YetkiTipiId = (int)_3K.Core.Enums.YetkiTipi.W });
             }
             adminYetkiler.Add(new RolYetki { Id = 99, RolId = 1, MenuTanimiId = 99, YetkiTipiId = (int)_3K.Core.Enums.YetkiTipi.W });
+            // Yeni modüllere başlangıç yetkisi koddan atanmaz. Ambalaj ve Finans
+            // R/W seçimleri mevcut Rol Yönetimi akışıyla RolYetkileri tablosuna yazılır.
             modelBuilder.Entity<RolYetki>().HasData(adminYetkiler);
         }
 

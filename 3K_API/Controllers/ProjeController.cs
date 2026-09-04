@@ -45,7 +45,8 @@ namespace _3K_API.Controllers
             [FromQuery] string? searchTerm = null,
             [FromQuery] bool? isSevkEdilen = null,
             [FromQuery] int take = 50,
-            [FromQuery] List<int>? includeIds = null)
+            [FromQuery] List<int>? includeIds = null,
+            CancellationToken cancellationToken = default)
         {
             var result = await _mediator.Send(new ProjeDropdownQuery
             {
@@ -54,7 +55,7 @@ namespace _3K_API.Controllers
                 IsSevkEdilen = isSevkEdilen,
                 Take = take,
                 IncludeIds = includeIds ?? []
-            });
+            }, cancellationToken);
             return result.ToActionResult();
         }
 

@@ -296,6 +296,80 @@ namespace _3K_API.Controllers
             return File(result.Value!, "application/pdf", $"{projeNo}_DepoSandikRaporu_{tarih}.pdf");
         }
 
+        [HttpGet("ambalaj-uretim/{projeId:int}")]
+        public async Task<IActionResult> AmbalajUretimPdfIndir(
+            int projeId,
+            [FromQuery] int? tur,
+            CancellationToken cancellationToken)
+        {
+            var ambalajTuru = tur switch
+            {
+                null => (_3K.Core.Enums.AmbalajSandikTuru?)null,
+                1 => _3K.Core.Enums.AmbalajSandikTuru.Normal,
+                2 => _3K.Core.Enums.AmbalajSandikTuru.Ilave,
+                3 => _3K.Core.Enums.AmbalajSandikTuru.Ic,
+                _ => null
+            };
+            if (tur.HasValue && ambalajTuru == null)
+                return BadRequest(new { message = "Üretim grubu geçersiz." });
+
+            var result = await _mediator.Send(
+                new _3K.Application.Features.AmbalajIslemleri.Queries.GetAmbalajUretimFormuDosyasiQuery
+                {
+                    ProjeId = projeId,
+                    Tur = ambalajTuru,
+                    BagimsizKayitMi = false,
+                    Format = "pdf"
+                }, cancellationToken);
+            if (!result.IsSuccess || result.Value == null) return result.ToActionResult();
+            return File(result.Value.Icerik, result.Value.IcerikTuru, result.Value.DosyaAdi);
+        }
+
+        [HttpGet("ozel-sandik/{tur:int}")]
+        public async Task<IActionResult> OzelSandikPdfIndir(int tur, CancellationToken cancellationToken)
+        {
+            var ambalajTuru = OzelAmbalajTurunuCoz(tur);
+            if (ambalajTuru == null) return BadRequest(new { message = "Özel sandık türü geçersiz." });
+            var result = await _mediator.Send(
+                new _3K.Application.Features.AmbalajIslemleri.Queries.GetAmbalajRaporDosyasiQuery
+                {
+                    Tur = ambalajTuru,
+                    OzelSandiklar = true,
+                    Format = "pdf"
+                }, cancellationToken);
+            if (!result.IsSuccess || result.Value == null) return result.ToActionResult();
+            return File(result.Value.Icerik, result.Value.IcerikTuru, result.Value.DosyaAdi);
+        }
+
+        [HttpGet("ozel-sandik/{tur:int}/proje/{projeId:int}")]
+        public async Task<IActionResult> OzelSandikUretimFormuIndir(
+            int tur,
+            int projeId,
+            CancellationToken cancellationToken)
+        {
+            var ambalajTuru = OzelAmbalajTurunuCoz(tur);
+            if (ambalajTuru == null) return BadRequest(new { message = "Özel sandık türü geçersiz." });
+            var result = await _mediator.Send(
+                new _3K.Application.Features.AmbalajIslemleri.Queries.GetAmbalajUretimFormuDosyasiQuery
+                {
+                    ProjeId = projeId,
+                    Tur = ambalajTuru,
+                    BagimsizKayitMi = true,
+                    Format = "pdf"
+                }, cancellationToken);
+            if (!result.IsSuccess || result.Value == null) return result.ToActionResult();
+            return File(result.Value.Icerik, result.Value.IcerikTuru, result.Value.DosyaAdi);
+        }
+
+        private static _3K.Core.Enums.AmbalajSandikTuru? OzelAmbalajTurunuCoz(int tur) => tur switch
+        {
+            2 => _3K.Core.Enums.AmbalajSandikTuru.Ilave,
+            3 => _3K.Core.Enums.AmbalajSandikTuru.Ic,
+            4 => _3K.Core.Enums.AmbalajSandikTuru.Saha,
+            5 => _3K.Core.Enums.AmbalajSandikTuru.Yedek,
+            _ => null
+        };
+
         private int GetKullaniciId()
         {
             var claim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);

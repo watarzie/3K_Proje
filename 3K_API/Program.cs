@@ -16,9 +16,11 @@ using _3K.Core.Interfaces;
 using _3K.Application.Behaviors;
 using _3K.Application.Common;
 using _3K.Application.Features.SandikIslemleri.Services;
+using _3K.Application.Features.AmbalajIslemleri.Commands;
 using _3K.Infrastructure.Data;
 using _3K.Infrastructure.Repositories;
 using _3K.Infrastructure.Services;
+using _3K_API.Services;
 
 // Npgsql'in DateTime davranışı için eski uyumluluğu aç (Unspecified DateTime hatasını çözer)
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
@@ -116,6 +118,7 @@ try
     // ======= Repository & UnitOfWork =======
     builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
     builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+    builder.Services.AddScoped<IReadQueryExecutor, EntityFrameworkReadQueryExecutor>();
     builder.Services.AddScoped<IProjeRepository, ProjeRepository>();
     builder.Services.AddScoped<IDashboardSandikQueryRepository, DashboardSandikQueryRepository>();
     builder.Services.AddScoped<IBildirimRepository, BildirimRepository>();
@@ -144,6 +147,18 @@ try
     builder.Services.AddScoped<IProjeSilmeService, ProjeSilmeService>();
     builder.Services.AddScoped<IBildirimService, BildirimService>();
     builder.Services.AddScoped<ISandikLokasyonGuncellemeService, SandikLokasyonGuncellemeService>();
+    builder.Services.AddScoped<FinansService>();
+    builder.Services.AddScoped<IFinansService>(sp => sp.GetRequiredService<FinansService>());
+    builder.Services.AddScoped<IFinansUretimAktarimService>(sp => sp.GetRequiredService<FinansService>());
+    builder.Services.AddScoped<IFinansAktarimService>(sp => sp.GetRequiredService<FinansService>());
+    builder.Services.AddScoped<IFinansRaporService, FinansRaporService>();
+    builder.Services.AddScoped<IAmbalajRaporDosyaService, AmbalajRaporDosyaService>();
+    builder.Services.AddScoped<IAmbalajKaynakSenkronizasyonService, AmbalajKaynaklariSenkronizeEtCommandHandler>();
+    builder.Services.AddScoped<IAmbalajKaynakSenkronizasyonKuyrugu, PostgreSqlAmbalajKaynakSenkronizasyonKuyrugu>();
+    builder.Services.Configure<AmbalajKaynakSenkronizasyonOptions>(
+        builder.Configuration.GetSection(AmbalajKaynakSenkronizasyonOptions.SectionName));
+    builder.Services.AddSingleton<AmbalajKaynakSenkronizasyonKuyrukIsleyici>();
+    builder.Services.AddSingleton<AmbalajKaynakDegisikligiDinleyici>();
 
     // ======= Current User Service (Pipeline Behavior için) =======
     builder.Services.AddHttpContextAccessor();
@@ -155,6 +170,8 @@ try
     builder.Services.AddHostedService<BackgroundTaskProcessor>();
     builder.Services.AddHostedService<ArsivBackgroundService>();
     builder.Services.AddHostedService<CekiRevizyonTalebiTemizlemeBackgroundService>();
+    builder.Services.AddHostedService<FinansDuzenliIsBackgroundService>();
+    builder.Services.AddHostedService<AmbalajKaynakSenkronizasyonBackgroundService>();
 
     // ======= In-Memory Cache + Lookup Cache =======
     builder.Services.AddMemoryCache();
