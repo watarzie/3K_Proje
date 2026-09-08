@@ -12,6 +12,12 @@ namespace _3K.Core.Entities
         public string Aciklama { get; set; } = string.Empty;
         public decimal IstenenAdet { get; set; }
         /// <summary>
+        /// İlk gerçek miktar değişikliğinden önceki değer. Satır oluşturulurken
+        /// null kalır; değer bulunması miktarın en az bir kez değiştiğini gösterir.
+        /// Sonraki değişikliklerde korunur ve güncel miktar hesaplarına katılmaz.
+        /// </summary>
+        public decimal? OrijinalIstenenAdet { get; set; }
+        /// <summary>
         /// Madde 7: Birim artık serbest metin değil, Enum tabanlı dropdown.
         /// </summary>
         public int BirimId { get; set; } = (int)Birim.Adet;

@@ -26,17 +26,20 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         private readonly IHareketService _hareketService;
         private readonly ICurrentUserService _currentUserService;
         private readonly ISahaTamamlamaService _sahaTamamlamaService;
+        private readonly IReadQueryExecutor _readQueries;
 
         public SandikSevkEtCommandHandler(
             IUnitOfWork unitOfWork,
             IHareketService hareketService,
             ICurrentUserService currentUserService,
-            ISahaTamamlamaService sahaTamamlamaService)
+            ISahaTamamlamaService sahaTamamlamaService,
+            IReadQueryExecutor readQueries)
         {
             _unitOfWork = unitOfWork;
             _hareketService = hareketService;
             _currentUserService = currentUserService;
             _sahaTamamlamaService = sahaTamamlamaService;
+            _readQueries = readQueries;
         }
 
         public async Task<Result> Handle(SandikSevkEtCommand request, CancellationToken cancellationToken)
@@ -96,14 +99,11 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
                 if (proje.ProjeTipiId == (int)ProjeTipi.Normal)
                 {
-                    var sahaUzerindenSevkEdilenSandikIds = kaynakSandikSahaDurumu.SahaUzerindenSevkEdilenSandikIds;
-                    var etkinSevkEdilenSandikSayisi = sandiklar.Count(s =>
-                        s.DurumId == (int)SandikDurum.Sevkedildi ||
-                        sahaUzerindenSevkEdilenSandikIds.Contains(s.Id));
-                    proje.DurumId = ProjeSevkDurumHelper.Hesapla(
-                        sandiklar.Count,
-                        etkinSevkEdilenSandikSayisi,
-                        proje.DurumId);
+                    proje.DurumId = await NormalProjeSevkDurumHesaplayici.HesaplaAsync(
+                        _unitOfWork, _readQueries, _sahaTamamlamaService,
+                        proje.Id, proje.DurumId, sandiklar,
+                        kaynakSandikSahaDurumu.SahaUzerindenSevkEdilenSandikIds,
+                        transactionCancellationToken);
                 }
                 else
                 {

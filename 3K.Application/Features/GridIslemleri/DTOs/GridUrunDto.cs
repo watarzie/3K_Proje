@@ -18,6 +18,7 @@ namespace _3K.Application.Features.GridIslemleri.DTOs
         public string BarkodNo { get; set; } = string.Empty;
         public string? OlcuResmiPozNo { get; set; }
         public string Aciklama { get; set; } = string.Empty;
+        /// <summary>Tek satırda güncel çeki miktarı, çoklu sandık dağılımında satırın tahsis payıdır. Fiziksel tahsis için SandikMiktari kullanılır.</summary>
         public decimal IstenenAdet { get; set; }
         public int BirimId { get; set; }
         public string Birim { get; set; } = string.Empty;
@@ -27,6 +28,8 @@ namespace _3K.Application.Features.GridIslemleri.DTOs
         public bool SandikSevkEdildiMi { get; set; }
         /// <summary>Ana çeki satırındaki proje toplamıdır.</summary>
         public decimal AnaIstenenAdet { get; set; }
+        /// <summary>İlk miktar düzenlemesinden önceki değer; null ise kayıtlı miktar düzenlemesi yoktur. Hesaplamalarda kullanılmaz.</summary>
+        public decimal? OrijinalIstenenAdet { get; set; }
         /// <summary>Bu sandık içeriğine tahsis edilen miktardır.</summary>
         public decimal SandikMiktari { get; set; }
         public bool SandikBazliDagitim { get; set; }

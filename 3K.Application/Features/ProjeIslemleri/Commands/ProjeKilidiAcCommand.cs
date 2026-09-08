@@ -63,17 +63,20 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
         private readonly IHareketService _hareketService;
         private readonly ICurrentUserService _currentUserService;
         private readonly ISahaTamamlamaService _sahaTamamlamaService;
+        private readonly IReadQueryExecutor _readQueries;
 
         public ProjeKilidiAcCommandHandler(
             IUnitOfWork unitOfWork,
             IHareketService hareketService,
             ICurrentUserService currentUserService,
-            ISahaTamamlamaService sahaTamamlamaService)
+            ISahaTamamlamaService sahaTamamlamaService,
+            IReadQueryExecutor readQueries)
         {
             _unitOfWork = unitOfWork;
             _hareketService = hareketService;
             _currentUserService = currentUserService;
             _sahaTamamlamaService = sahaTamamlamaService;
+            _readQueries = readQueries;
         }
 
         public async Task<Result> Handle(ProjeKilidiAcCommand request, CancellationToken cancellationToken)
@@ -94,9 +97,13 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
 
             var kilitAcmaTipi = (SevkiyatKilitAcmaTipi)request.KilitAcmaTipiId;
             int eskiDurum = proje.DurumId;
+            var eskiGerceklesenSevkTarihi = proje.GerceklesenSevkTarihi;
 
             // ===== Kilit açma tipine göre sandıkları geri al veya düzeltmeye aç =====
-            var sandiklar = (await sandikRepo.FindAsync(s => s.ProjeId == request.ProjeId)).ToList();
+            // Kilit denetimi, yalnız düzeltme bayrağının değiştiğini özgün değerlerden doğrular.
+            var sandiklar = await _readQueries.ToListAsync(
+                sandikRepo.Queryable().Where(s => s.ProjeId == request.ProjeId),
+                cancellationToken);
             var kaynakSandikSahaDurumu = proje.ProjeTipiId == (int)ProjeTipi.Normal
                 ? await _sahaTamamlamaService.GetKaynakSandikSahaAktarimDurumuAsync(
                     sandiklar.Select(s => s.Id),
@@ -142,7 +149,8 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                         sandik.SevkiyatDuzeltmeAcikMi = false;
                     }
 
-                    sandikRepo.Update(sandik);
+                    // Takipli sandıkta gerçek değişiklik EF tarafından algılanır; zaten açık
+                    // bir düzeltme bayrağı için gereksiz tüm-alan Update yapılmaz.
                     geriDondurulenSandik++;
                 }
             }
@@ -156,10 +164,10 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 var etkinSevkEdilenSandikSayisi = sandiklar.Count(s =>
                     s.DurumId == (int)SandikDurum.Sevkedildi ||
                     sahaUzerindenSevkEdilenSandikIds.Contains(s.Id));
-                proje.DurumId = ProjeSevkDurumHelper.Hesapla(
-                    sandiklar.Count,
-                    etkinSevkEdilenSandikSayisi,
-                    proje.DurumId);
+                proje.DurumId = await NormalProjeSevkDurumHesaplayici.HesaplaAsync(
+                    _unitOfWork, _readQueries, _sahaTamamlamaService,
+                    proje.Id, proje.DurumId, sandiklar,
+                    sahaUzerindenSevkEdilenSandikIds, cancellationToken);
 
                 if (kilitAcmaTipi == SevkiyatKilitAcmaTipi.SevkiyatGeriAlinarakAc &&
                     etkinSevkEdilenSandikSayisi == 0)
@@ -176,7 +184,9 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                     proje.GerceklesenSevkTarihi = null;
                 }
             }
-            repo.Update(proje);
+            // Sevkiyat korunurken değişmeyen projeyi Modified işaretlemek proje kilidine takılır.
+            if (proje.DurumId != eskiDurum || proje.GerceklesenSevkTarihi != eskiGerceklesenSevkTarihi)
+                repo.Update(proje);
 
             await _unitOfWork.SaveChangesAsync();
 

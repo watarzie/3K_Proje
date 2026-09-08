@@ -129,7 +129,7 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                 .Where(cs => !cs.KaynakCekiSatiriId.HasValue)
                 .Select(cs => cs.Id)
                 .ToList();
-            var sahaTamamlamaMap = await _sahaTamamlamaService.GetAktifGerceklesenTamamlamaMapAsync(normalKaynakSatirIds, cancellationToken);
+            var sahaTamamlamaMap = await _sahaTamamlamaService.GetAktifIsTamamlamaMapAsync(normalKaynakSatirIds, cancellationToken);
             var sevkEdilenSahaTamamlamaMap = await _sahaTamamlamaService.GetSevkEdilenGerceklesenTamamlamaMapAsync(normalKaynakSatirIds, cancellationToken);
             var normalKaynakSandikIds = projeler
                 .Where(p => p.ProjeTipiId == (int)ProjeTipi.Normal)
@@ -623,6 +623,9 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
             ISahaTamamlamaService sahaTamamlamaService,
             CancellationToken cancellationToken)
         {
+            var tamamlananSahaYedekIcerikleri = unitOfWork.GetRepository<SandikIcerik>()
+                .Queryable()
+                .Where(SahaYedekUrunTamamlanmaHelper.TamamlandiKosulu);
             var projeRows = unitOfWork.GetRepository<Proje>()
                 .Queryable()
                 .Select(p => new DashboardRankSourceRow
@@ -637,9 +640,7 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                         ? p.Sandiklar.SelectMany(s => s.SandikIcerikleri).Count()
                         : 0,
                     Tamamlanan = p.ProjeTipiId == (int)ProjeTipi.Saha || p.ProjeTipiId == (int)ProjeTipi.Yedek
-                        ? p.Sandiklar.SelectMany(s => s.SandikIcerikleri).Count(si =>
-                            (si.CekiSatiriId != null ? si.CekiSatiri!.IstenenAdet : si.Miktar) > 0 &&
-                            si.KonulanAdet >= (si.CekiSatiriId != null ? si.CekiSatiri!.IstenenAdet : si.Miktar))
+                        ? tamamlananSahaYedekIcerikleri.Count(si => si.Sandik.ProjeId == p.Id)
                         : 0
                 })
                 .ToList();
@@ -664,7 +665,7 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                 })
                 .ToList();
 
-            var sahaTamamlamaMap = await sahaTamamlamaService.GetAktifGerceklesenTamamlamaMapAsync(
+            var sahaTamamlamaMap = await sahaTamamlamaService.GetAktifIsTamamlamaMapAsync(
                 normalSatirRows.Select(r => r.Id),
                 cancellationToken);
 

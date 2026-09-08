@@ -10,10 +10,12 @@ namespace _3K.Infrastructure.Services
     public class DashboardStatsProvider : IDashboardStatsProvider
     {
         private readonly AppDbContext _context;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
-        public DashboardStatsProvider(AppDbContext context)
+        public DashboardStatsProvider(AppDbContext context, ISahaTamamlamaService sahaTamamlamaService)
         {
             _context = context;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<DashboardOzetRawStats> GetOzetStatsAsync(CancellationToken ct = default)
@@ -116,7 +118,7 @@ namespace _3K.Infrastructure.Services
                 })
                 .ToListAsync(ct);
 
-            var normalSahaTamamlamaMap = await GetAktifSahaTamamlamaMapAsync(
+            var normalSahaTamamlamaMap = await _sahaTamamlamaService.GetAktifIsTamamlamaMapAsync(
                 normalSatirStatsRows.Select(r => r.Id),
                 ct);
             var normalEksikUrun = normalSatirStatsRows.Count(r => HesaplaEtkinKalan(r, normalSahaTamamlamaMap) > 0);
@@ -126,20 +128,33 @@ namespace _3K.Infrastructure.Services
                 TamamlananUrun = normalSatirStatsRows.Count(r => HesaplaEtkinKalan(r, normalSahaTamamlamaMap) <= 0)
             };
 
-            var sahaYedekEksikUrunCounts = await _context.SandikIcerikleri
-                .Where(si => si.Sandik.Proje.ProjeTipiId == (int)ProjeTipi.Saha || si.Sandik.Proje.ProjeTipiId == (int)ProjeTipi.Yedek)
-                .Where(si =>
-                    !(((si.CekiSatiriId != null ? si.CekiSatiri!.IstenenAdet : si.Miktar) > 0)
-                      && si.KonulanAdet >= (si.CekiSatiriId != null ? si.CekiSatiri!.IstenenAdet : si.Miktar)))
+            // Yalnızca SQL'de gruplanmış sayaçlar yüklenir; ürünler belleğe taşınmaz.
+            var sahaYedekIcerikleri = _context.SandikIcerikleri
+                .AsNoTracking()
+                .Where(si => si.Sandik.Proje.ProjeTipiId == (int)ProjeTipi.Saha || si.Sandik.Proje.ProjeTipiId == (int)ProjeTipi.Yedek);
+            var sahaYedekToplamCounts = await sahaYedekIcerikleri
                 .GroupBy(si => si.Sandik.Proje.ProjeTipiId)
                 .Select(g => new { ProjeTipiId = g.Key, Count = g.Count() })
                 .ToListAsync(ct);
+            var sahaYedekTamamlananCounts = await sahaYedekIcerikleri
+                .Where(SahaYedekUrunTamamlanmaHelper.TamamlandiKosulu)
+                .GroupBy(si => si.Sandik.Proje.ProjeTipiId)
+                .Select(g => new { ProjeTipiId = g.Key, Count = g.Count() })
+                .ToListAsync(ct);
+            var sahaYedekStats = sahaYedekToplamCounts
+                .Select(toplam => new
+                {
+                    toplam.ProjeTipiId,
+                    ToplamUrun = toplam.Count,
+                    TamamlananUrun = sahaYedekTamamlananCounts.FirstOrDefault(t => t.ProjeTipiId == toplam.ProjeTipiId)?.Count ?? 0
+                })
+                .ToList();
 
             int GetEksikUrunByTip(int tipId) => tipId == (int)ProjeTipi.Normal
                 ? normalEksikUrun
-                : sahaYedekEksikUrunCounts.FirstOrDefault(d => d.ProjeTipiId == tipId)?.Count ?? 0;
+                : sahaYedekStats.Where(d => d.ProjeTipiId == tipId).Sum(d => d.ToplamUrun - d.TamamlananUrun);
 
-            var sahaYedekEksikUrun = sahaYedekEksikUrunCounts.Sum(d => d.Count);
+            var sahaYedekEksikUrun = sahaYedekStats.Sum(d => d.ToplamUrun - d.TamamlananUrun);
 
             // ── Depo sandık sayıları (lokasyon bazlı) ──
             var depoSandikCountsByTip = await _context.Sandiklar
@@ -215,20 +230,6 @@ namespace _3K.Infrastructure.Services
                 .Select(d => (d.LokasyonId, d.Count)));
 
             // ── Proje tipi bazlı ürün tamamlanma yüzdeleri ──
-            var sahaYedekStats = await _context.Projeler
-                .Where(p => p.ProjeTipiId == (int)ProjeTipi.Saha || p.ProjeTipiId == (int)ProjeTipi.Yedek)
-                .GroupBy(p => p.ProjeTipiId)
-                .Select(g => new
-                {
-                    ProjeTipiId = g.Key,
-                    ToplamUrun = g.Sum(p => p.Sandiklar.SelectMany(s => s.SandikIcerikleri).Count()),
-                    TamamlananUrun = g.Sum(p => p.Sandiklar.SelectMany(s => s.SandikIcerikleri)
-                        .Count(si =>
-                            ((si.CekiSatiriId != null ? si.CekiSatiri!.IstenenAdet : si.Miktar) > 0)
-                            && si.KonulanAdet >= (si.CekiSatiriId != null ? si.CekiSatiri!.IstenenAdet : si.Miktar)))
-                })
-                .ToListAsync(ct);
-
             var sahaStats = sahaYedekStats.FirstOrDefault(s => s.ProjeTipiId == (int)ProjeTipi.Saha);
             var yedekStats = sahaYedekStats.FirstOrDefault(s => s.ProjeTipiId == (int)ProjeTipi.Yedek);
 
@@ -318,39 +319,6 @@ namespace _3K.Infrastructure.Services
             return (int)ProjeDurum.Hazirlaniyor;
         }
 
-        private async Task<Dictionary<int, decimal>> GetAktifSahaTamamlamaMapAsync(
-            IEnumerable<int> kaynakCekiSatiriIds,
-            CancellationToken cancellationToken)
-        {
-            var kaynakIds = kaynakCekiSatiriIds
-                .Where(id => id > 0)
-                .Distinct()
-                .ToList();
-
-            if (kaynakIds.Count == 0)
-                return new Dictionary<int, decimal>();
-
-            var satirlar = await _context.CekiSatirlari
-                .AsNoTracking()
-                .Where(cs =>
-                    cs.KaynakCekiSatiriId.HasValue &&
-                    kaynakIds.Contains(cs.KaynakCekiSatiriId.Value) &&
-                    cs.Ceki.Proje.ProjeTipiId == (int)ProjeTipi.Saha)
-                .Select(cs => new SahaTamamlamaStatsRow
-                {
-                    KaynakCekiSatiriId = cs.KaynakCekiSatiriId!.Value,
-                    IstenenAdet = cs.IstenenAdet,
-                    KonulanAdet = cs.SandikIcerikleri.Sum(si => (decimal?)si.KonulanAdet) ?? 0
-                })
-                .ToListAsync(cancellationToken);
-
-            return satirlar
-                .GroupBy(s => s.KaynakCekiSatiriId)
-                .ToDictionary(
-                    g => g.Key,
-                    g => g.Sum(HesaplaGerceklesenSahaTamamlama));
-        }
-
         private static decimal HesaplaEtkinKalan(
             NormalSatirStatsRow row,
             IReadOnlyDictionary<int, decimal> sevkEdilenSahaTamamlamaMap)
@@ -369,14 +337,6 @@ namespace _3K.Infrastructure.Services
 
             var sahaTamamlanan = sevkEdilenSahaTamamlamaMap.TryGetValue(row.Id, out var value) ? value : 0;
             return Math.Max(hamKalan - sahaTamamlanan, 0);
-        }
-
-        private static decimal HesaplaGerceklesenSahaTamamlama(SahaTamamlamaStatsRow row)
-        {
-            if (row.IstenenAdet <= 0)
-                return 0;
-
-            return Math.Min(Math.Max(row.KonulanAdet, 0), row.IstenenAdet);
         }
 
         private sealed class NormalTamamlanmaStats
@@ -400,11 +360,5 @@ namespace _3K.Infrastructure.Services
             public int GridDurumuId { get; set; }
         }
 
-        private sealed class SahaTamamlamaStatsRow
-        {
-            public int KaynakCekiSatiriId { get; set; }
-            public decimal IstenenAdet { get; set; }
-            public decimal KonulanAdet { get; set; }
-        }
     }
 }

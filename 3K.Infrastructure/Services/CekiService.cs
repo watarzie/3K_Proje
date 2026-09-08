@@ -30,6 +30,8 @@ namespace _3K.Infrastructure.Services
         private const int MaxRevizyonTarananSatirSayisi = 20_000;
         private const int MaxRevizyonIsaretliSatirSayisi = 2_000;
         private const int MaxRevizyonOnizlemeJsonBoyutuBytes = 10 * 1024 * 1024;
+        private const string RevizyonAktifSahaKaynakGuncellemeMesaji =
+            "Bu revizyon U satırı aktif bir saha aktarımının normal proje kaynağıdır. Kaynak miktar ve işlem geçmişi korunacağı için güncellenemez. Sevk kilidini açmak saha aktarım korumasını kaldırmaz; kaynak/saha ilişkisi birlikte incelenmelidir.";
         private static readonly JsonSerializerOptions RevizyonJsonOptions = new(JsonSerializerDefaults.Web);
 
         private readonly IUnitOfWork _unitOfWork;
@@ -674,6 +676,14 @@ namespace _3K.Infrastructure.Services
                         silinecekSatirlar.Add(mevcutSatir);
                     }
                 }
+
+                // Onay/ön izleme sonrasında oluşan saha ilişkisini de yeniden doğrula.
+                // Hiçbir U satırının hareketi geri alınmadan veya hedef sandığı oluşturulmadan
+                // önce bütün kaynak güncellemeleri tek ilişki sorgusuyla kontrol edilir.
+                await RevizyonKaynakSahaGuncellemeleriniDogrulaAsync(
+                    proje.ProjeTipiId,
+                    guncellenecekler.Select(item => item.Satir).ToList(),
+                    cancellationToken);
 
                 var etkilenenSandikIds = silinecekSatirlar
                     .Concat(guncellenecekler.Select(item => item.Satir))
@@ -1370,7 +1380,7 @@ namespace _3K.Infrastructure.Services
                 sonuc.Satirlar.Add(satir);
             }
 
-            await RevizyonSahaAktarimRiskleriniEkleAsync(sonuc.Satirlar);
+            await RevizyonSahaAktarimRiskleriniEkleAsync(sonuc.Satirlar, proje.ProjeTipiId, anaSatirlar);
             await RevizyonStokGeriAlRiskleriniEkleAsync(sonuc.Satirlar);
             await RevizyonGelenTransferOzetleriniEkleAsync(sonuc.Satirlar);
             sonuc.SandikEtkileri = await RevizyonSandikEtkileriniOlusturAsync(
@@ -1545,31 +1555,72 @@ namespace _3K.Infrastructure.Services
         }
 
         private async Task RevizyonSahaAktarimRiskleriniEkleAsync(
-            IReadOnlyCollection<CekiRevizyonOnizlemeSatiri> satirlar)
+            IReadOnlyCollection<CekiRevizyonOnizlemeSatiri> satirlar,
+            int projeTipiId,
+            IReadOnlyCollection<CekiSatiri> anaSatirlar)
         {
-            var silinecekSatirlar = satirlar
+            var normalKaynakSatirIds = RevizyonNormalKaynakSatirIds(projeTipiId, anaSatirlar);
+            var korunacakSatirlar = satirlar
                 .Where(s =>
-                    s.CheckKodu == "D" &&
-                    s.MevcutCekiSatiriId.HasValue)
+                    s.MevcutCekiSatiriId.HasValue &&
+                    (s.CheckKodu == "D" ||
+                     (s.CheckKodu == "U" && normalKaynakSatirIds.Contains(s.MevcutCekiSatiriId.Value))))
                 .ToList();
 
-            if (silinecekSatirlar.Count == 0)
+            if (korunacakSatirlar.Count == 0)
                 return;
 
             var aktifAktarimBagliSatirIds = await _sahaAktarimSilmeKorumaService
                 .GetAktifAktarimBagliCekiSatiriIdsAsync(
-                    silinecekSatirlar.Select(s => s.MevcutCekiSatiriId!.Value));
+                    korunacakSatirlar.Select(s => s.MevcutCekiSatiriId!.Value).Distinct());
 
-            foreach (var satir in silinecekSatirlar.Where(s =>
+            foreach (var satir in korunacakSatirlar.Where(s =>
                          aktifAktarimBagliSatirIds.Contains(s.MevcutCekiSatiriId!.Value)))
             {
                 RevizyonSatirRiskEkle(
                     satir,
                     "Engel",
-                    SahaAktarimSilmeKorumaMesajlari.RevizyonCekiSatiriDetay,
+                    satir.CheckKodu == "U"
+                        ? RevizyonAktifSahaKaynakGuncellemeMesaji
+                        : SahaAktarimSilmeKorumaMesajlari.RevizyonCekiSatiriDetay,
                     CekiRevizyonSorunKodlari.AktifSahaAktarimi,
                     CekiRevizyonSorunKategorileri.DurumCakismasi);
             }
+        }
+
+        private async Task RevizyonKaynakSahaGuncellemeleriniDogrulaAsync(
+            int projeTipiId,
+            IReadOnlyCollection<CekiSatiri> guncellenecekSatirlar,
+            CancellationToken cancellationToken)
+        {
+            var normalKaynakSatirIds = RevizyonNormalKaynakSatirIds(projeTipiId, guncellenecekSatirlar);
+            if (normalKaynakSatirIds.Count == 0)
+                return;
+
+            var aktifAktarimBagliSatirIds = await _sahaAktarimSilmeKorumaService
+                .GetAktifAktarimBagliCekiSatiriIdsAsync(normalKaynakSatirIds, cancellationToken);
+            var sorunlar = guncellenecekSatirlar
+                .Where(s => normalKaynakSatirIds.Contains(s.Id) && aktifAktarimBagliSatirIds.Contains(s.Id))
+                .DistinctBy(s => s.Id)
+                .Select(s => RevizyonSorunuOlustur(
+                    s,
+                    CekiRevizyonSorunKodlari.AktifSahaAktarimi,
+                    RevizyonAktifSahaKaynakGuncellemeMesaji))
+                .ToList();
+
+            if (sorunlar.Count > 0)
+                throw new CekiRevizyonConflictException(RevizyonAktifSahaKaynakGuncellemeMesaji, sorunlar);
+        }
+
+        private static HashSet<int> RevizyonNormalKaynakSatirIds(
+            int projeTipiId,
+            IEnumerable<CekiSatiri> satirlar)
+        {
+            // Hedef saha satırları ve normal projedeki türemiş satırlar bu U korumasının
+            // kapsamı değildir; D/silme koruması mevcut kapsamıyla ayrıca çalışır.
+            return projeTipiId == (int)ProjeTipi.Normal
+                ? satirlar.Where(s => s.Id > 0 && !s.KaynakCekiSatiriId.HasValue).Select(s => s.Id).ToHashSet()
+                : new HashSet<int>();
         }
 
         private async Task RevizyonStokGeriAlRiskleriniEkleAsync(
@@ -2121,6 +2172,8 @@ namespace _3K.Infrastructure.Services
             mevcutSatir.OlcuResmiPozNo = string.IsNullOrWhiteSpace(revizyonSatiri.OlcuResmiPozNo) ? null : revizyonSatiri.OlcuResmiPozNo;
             mevcutSatir.Aciklama = revizyonSatiri.Aciklama;
             mevcutSatir.CekideGecenSandikNo = yeniKoliNo;
+            if (eskiIstenenAdet != revizyonSatiri.IstenenAdet)
+                mevcutSatir.OrijinalIstenenAdet ??= eskiIstenenAdet;
             mevcutSatir.IstenenAdet = revizyonSatiri.IstenenAdet;
             mevcutSatir.BirimId = revizyonSatiri.BirimId;
             mevcutSatir.Remarks = string.IsNullOrWhiteSpace(revizyonSatiri.Remarks) ? null : revizyonSatiri.Remarks;

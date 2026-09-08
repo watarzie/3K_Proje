@@ -37,6 +37,15 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
         public async Task<Result> Handle(GridDurumGuncelleCommand request, CancellationToken cancellationToken)
         {
+            return await _unitOfWork.ExecuteInTransactionAsync(
+                transactionCancellationToken => HandleInTransactionAsync(request, transactionCancellationToken),
+                cancellationToken);
+        }
+
+        private async Task<Result> HandleInTransactionAsync(
+            GridDurumGuncelleCommand request,
+            CancellationToken cancellationToken)
+        {
             // Validate durum
             if (!GecerliDurumlar.Contains(request.YeniDurumId))
                 return Result.Failure($"Geçersiz durum: {request.YeniDurumId}");
@@ -220,6 +229,9 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
             repo.Update(satir);
             await _unitOfWork.SaveChangesAsync();
+
+            if (satir.KaynakCekiSatiriId.HasValue)
+                await _sahaTamamlamaService.SenkronizeKaynakProjelerAsync(new[] { satir.KaynakCekiSatiriId.Value }, cancellationToken);
 
             // ===== Sandık Tamamlanma Kontrolü (TrafoSevk ise) =====
             if (request.YeniDurumId == (int)GridDurum.TrafoSevk)

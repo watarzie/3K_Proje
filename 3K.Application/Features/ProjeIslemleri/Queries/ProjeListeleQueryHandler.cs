@@ -36,7 +36,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                 .Where(cs => !cs.KaynakCekiSatiriId.HasValue)
                 .Select(cs => cs.Id)
                 .ToList();
-            var sahaTamamlamaMap = await _sahaTamamlamaService.GetAktifGerceklesenTamamlamaMapAsync(normalKaynakSatirIds, cancellationToken);
+            var sahaTamamlamaMap = await _sahaTamamlamaService.GetAktifIsTamamlamaMapAsync(normalKaynakSatirIds, cancellationToken);
             var sevkEdilenSahaTamamlamaMap = await _sahaTamamlamaService.GetSevkEdilenGerceklesenTamamlamaMapAsync(normalKaynakSatirIds, cancellationToken);
             var normalKaynakSandikIds = projeler
                 .Where(p => p.ProjeTipiId == (int)ProjeTipi.Normal)
@@ -96,13 +96,9 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                     ? sandikIcerikleri.Count
                     : cekiSatirlari.Count;
                 
-                // Tamamlanma ürün bazlı ilerler: normal projelerde kalan 0 olan çekisatırları tamamlanmış sayılır.
+                // İş ilerlemesi kalan üzerinden hesaplanır; iptal, fiziksel teslim/sevk sayılmaz.
                 var tamamlananUrun = isSahaYedek 
-                    ? sandikIcerikleri.Count(si =>
-                    {
-                        var istenen = si.CekiSatiri?.IstenenAdet ?? si.Miktar;
-                        return istenen > 0 && si.KonulanAdet >= istenen;
-                    })
+                    ? sandikIcerikleri.Count(SahaYedekUrunTamamlanmaHelper.TamamlandiMi)
                     : cekiSatirlari.Count(cs => CekiSatiriKalanHelper.HesaplaEtkinKalan(cs, sahaTamamlamaMap) <= 0);
                 var normalUrunlerSevkKapsamindaTamamlandi = !isSahaYedek && toplamUrun > 0 &&
                     cekiSatirlari.All(cs => CekiSatiriKalanHelper.HesaplaEtkinKalan(cs, sevkEdilenSahaTamamlamaMap) <= 0);

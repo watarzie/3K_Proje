@@ -48,6 +48,96 @@ namespace _3K.Infrastructure.Services
                 cancellationToken);
         }
 
+        public async Task<Dictionary<int, decimal>> GetAktifIsTamamlamaMapAsync(
+            IEnumerable<int> kaynakCekiSatiriIds,
+            CancellationToken cancellationToken = default)
+        {
+            var kaynakIds = kaynakCekiSatiriIds.Where(id => id > 0).Distinct().ToList();
+            if (kaynakIds.Count == 0)
+                return new Dictionary<int, decimal>();
+
+            // İş tamamlanması fiziksel teslimden ayrıdır. Kalan kuralı hesaplanan bir
+            // entity property olduğundan SQL'den yalnızca gereken skaler alanlar alınır.
+            var yeniSatirlar = await _context.SahaAktarimKalemleri
+                .AsNoTracking()
+                .Where(k =>
+                    kaynakIds.Contains(k.KaynakCekiSatiriId) &&
+                    k.DurumId != (int)SahaAktarimDurum.GeriAlindi &&
+                    k.DurumId != (int)SahaAktarimDurum.Iptal &&
+                    k.Miktar > 0 &&
+                    k.SahaCekiSatiri != null &&
+                    k.SahaCekiSatiri.Ceki.Proje.ProjeTipiId == (int)ProjeTipi.Saha &&
+                    // Bir hedefin farklı kaynaklara bağlı olduğu bozuk defter verisi,
+                    // aynı tamamlanan miktarı birden fazla ana ürüne yazmamalıdır.
+                    !_context.SahaAktarimKalemleri.Any(diger =>
+                        diger.SahaCekiSatiriId == k.SahaCekiSatiriId &&
+                        diger.KaynakCekiSatiriId != k.KaynakCekiSatiriId &&
+                        diger.DurumId != (int)SahaAktarimDurum.GeriAlindi &&
+                        diger.DurumId != (int)SahaAktarimDurum.Iptal &&
+                        diger.Miktar > 0))
+                .Select(k => new SahaIsTamamlamaSatirRow
+                {
+                    KaynakCekiSatiriId = k.KaynakCekiSatiriId,
+                    SahaCekiSatiriId = k.SahaCekiSatiriId!.Value,
+                    AktarilanMiktar = k.Miktar,
+                    IstenenAdet = k.SahaCekiSatiri!.IstenenAdet,
+                    GelenMiktar = k.SahaCekiSatiri.GelenMiktar,
+                    StokKarsilanan = k.SahaCekiSatiri.StokKarsilanan,
+                    ProjeKarsilanan = k.SahaCekiSatiri.ProjeKarsilanan,
+                    TedarikciKarsilanan = k.SahaCekiSatiri.TedarikciKarsilanan,
+                    ProjeGonderilen = k.SahaCekiSatiri.ProjeGonderilen,
+                    TrafoSevkAdet = k.SahaCekiSatiri.TrafoSevkAdet,
+                    HataliMiktar = k.SahaCekiSatiri.HataliMiktar,
+                    DurumId = k.SahaCekiSatiri.DurumId,
+                    GridDurumuId = k.SahaCekiSatiri.GridDurumuId
+                })
+                .ToListAsync(cancellationToken);
+
+            // Aynı hedefe ait birden fazla defter kaydı varsa hedefin tamamlanan
+            // miktarı yalnızca bir kez sayılır; farklı hedeflerin katkıları toplanır.
+            var yeniMap = yeniSatirlar
+                .GroupBy(s => new { s.KaynakCekiSatiriId, s.SahaCekiSatiriId })
+                .Select(g => new
+                {
+                    g.Key.KaynakCekiSatiriId,
+                    Tamamlanan = Math.Min(g.Sum(s => s.AktarilanMiktar), HesaplaIsTamamlama(g.First()))
+                })
+                .GroupBy(s => s.KaynakCekiSatiriId)
+                .ToDictionary(g => g.Key, g => g.Sum(s => s.Tamamlanan));
+
+            // İptal/geri alınmış defter hedefleri de legacy hesabından dışlanır.
+            // Kaynak pointer'ı tarihsel olarak farklı olsa bile defterdeki hedef,
+            // legacy üzerinden ikinci kez veya pasifken yeniden sayılmaz.
+            var legacySatirlar = await _context.CekiSatirlari
+                .AsNoTracking()
+                .Where(cs =>
+                    cs.KaynakCekiSatiriId.HasValue &&
+                    kaynakIds.Contains(cs.KaynakCekiSatiriId.Value) &&
+                    !_context.SahaAktarimKalemleri.Any(k => k.SahaCekiSatiriId == cs.Id) &&
+                    cs.Ceki.Proje.ProjeTipiId == (int)ProjeTipi.Saha)
+                .Select(cs => new SahaIsTamamlamaSatirRow
+                {
+                    KaynakCekiSatiriId = cs.KaynakCekiSatiriId!.Value,
+                    SahaCekiSatiriId = cs.Id,
+                    AktarilanMiktar = cs.IstenenAdet,
+                    IstenenAdet = cs.IstenenAdet,
+                    GelenMiktar = cs.GelenMiktar,
+                    StokKarsilanan = cs.StokKarsilanan,
+                    ProjeKarsilanan = cs.ProjeKarsilanan,
+                    TedarikciKarsilanan = cs.TedarikciKarsilanan,
+                    ProjeGonderilen = cs.ProjeGonderilen,
+                    TrafoSevkAdet = cs.TrafoSevkAdet,
+                    HataliMiktar = cs.HataliMiktar,
+                    DurumId = cs.DurumId,
+                    GridDurumuId = cs.GridDurumuId
+                })
+                .ToListAsync(cancellationToken);
+            var legacyMap = legacySatirlar.GroupBy(s => s.KaynakCekiSatiriId)
+                .ToDictionary(g => g.Key, g => g.Sum(HesaplaIsTamamlama));
+
+            return MergeMaps(yeniMap, legacyMap);
+        }
+
         public async Task<Dictionary<int, decimal>> GetSevkEdilenGerceklesenTamamlamaMapAsync(
             IEnumerable<int> kaynakCekiSatiriIds,
             CancellationToken cancellationToken = default)
@@ -579,7 +669,7 @@ namespace _3K.Infrastructure.Services
                 return;
 
             var tumKaynakSatirIds = kaynakSatirlar.Select(s => s.Id).ToList();
-            var aktifGerceklesenTamamlamaMap = await GetAktifGerceklesenTamamlamaMapAsync(tumKaynakSatirIds, cancellationToken);
+            var aktifIsTamamlamaMap = await GetAktifIsTamamlamaMapAsync(tumKaynakSatirIds, cancellationToken);
             var sevkEdilenGerceklesenTamamlamaMap = await GetSevkEdilenGerceklesenTamamlamaMapAsync(tumKaynakSatirIds, cancellationToken);
 
             var kaynakSandiklar = await _context.Sandiklar
@@ -635,7 +725,7 @@ namespace _3K.Infrastructure.Services
                 var sahaSevkiyleTamamlamaVar =
                     projeSatirlari.Any(s => sevkEdilenGerceklesenTamamlamaMap.GetValueOrDefault(s.Id) > 0) ||
                     stats is { SahaUzerindenSevkEdilenSandik: > 0 };
-                var tumUrunlerTamamlandi = projeSatirlari.All(s => HesaplaEtkinKalan(s, aktifGerceklesenTamamlamaMap) <= 0);
+                var tumUrunlerTamamlandi = projeSatirlari.All(s => HesaplaEtkinKalan(s, aktifIsTamamlamaMap) <= 0);
                 var tumUrunlerSevkKapsamindaTamamlandi = projeSatirlari.All(s => HesaplaEtkinKalan(s, sevkEdilenGerceklesenTamamlamaMap) <= 0);
                 var normalProjeSevkDurumu = NormalProjeSevkDurumHelper.Hesapla(
                     stats?.ToplamSandik ?? 0,
@@ -712,6 +802,18 @@ namespace _3K.Infrastructure.Services
                 return 0;
 
             return Math.Min(Math.Max(satir.KonulanAdet, 0), satir.IstenenAdet);
+        }
+
+        private static decimal HesaplaIsTamamlama(SahaIsTamamlamaSatirRow satir)
+        {
+            if (satir.IstenenAdet <= 0)
+                return 0;
+
+            var kalan = CekiSatiriKalanHelper.HesaplaHamKalan(
+                satir.IstenenAdet, satir.GelenMiktar, satir.StokKarsilanan,
+                satir.ProjeKarsilanan, satir.TedarikciKarsilanan, satir.ProjeGonderilen,
+                satir.TrafoSevkAdet, satir.HataliMiktar, satir.DurumId, satir.GridDurumuId);
+            return Math.Min(satir.IstenenAdet, Math.Max(satir.IstenenAdet - kalan, 0));
         }
 
         private static Dictionary<int, decimal> MergeMaps(
@@ -837,6 +939,23 @@ namespace _3K.Infrastructure.Services
             public int KaynakCekiSatiriId { get; set; }
             public decimal IstenenAdet { get; set; }
             public decimal KonulanAdet { get; set; }
+        }
+
+        private sealed class SahaIsTamamlamaSatirRow
+        {
+            public int KaynakCekiSatiriId { get; set; }
+            public int SahaCekiSatiriId { get; set; }
+            public decimal AktarilanMiktar { get; set; }
+            public decimal IstenenAdet { get; set; }
+            public decimal GelenMiktar { get; set; }
+            public decimal StokKarsilanan { get; set; }
+            public decimal ProjeKarsilanan { get; set; }
+            public decimal TedarikciKarsilanan { get; set; }
+            public decimal ProjeGonderilen { get; set; }
+            public decimal TrafoSevkAdet { get; set; }
+            public decimal HataliMiktar { get; set; }
+            public int DurumId { get; set; }
+            public int GridDurumuId { get; set; }
         }
 
         private sealed class KaynakSandikAktarimRow

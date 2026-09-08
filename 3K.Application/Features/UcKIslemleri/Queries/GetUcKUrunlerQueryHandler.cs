@@ -59,7 +59,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                 return Result<List<UcKUrunDto>>.Failure("Bu projeye ait ürün bulunamadı.", 404);
 
             var sahaTamamlamaMap = proje.ProjeTipiId == (int)ProjeTipi.Normal
-                ? await _sahaTamamlamaService.GetAktifGerceklesenTamamlamaMapAsync(
+                ? await _sahaTamamlamaService.GetAktifIsTamamlamaMapAsync(
                     satirlar.Where(s => !s.KaynakCekiSatiriId.HasValue).Select(s => s.Id),
                     cancellationToken)
                 : new Dictionary<int, decimal>();
@@ -222,6 +222,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                         SandikDurumMetni = sandik != null ? _lookupCache.GetDeger<LookupSandikDurum>(sandik.DurumId) : null,
                         SandikSevkEdildiMi = sandik != null && SandikSevkKilidiHelper.SandikKilitliMi(sandik),
                         AnaIstenenAdet = cs.IstenenAdet,
+                        OrijinalIstenenAdet = cs.OrijinalIstenenAdet,
                         SandikMiktari = sandikMiktari,
                         SandikBazliDagitim = tahsisler.Count > 1,
                         IstenenAdet = sandikMiktari,

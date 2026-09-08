@@ -24,6 +24,8 @@ namespace _3K.Application.Features.UcKIslemleri.DTOs
         public bool SandikSevkEdildiMi { get; set; }
         /// <summary>Ana çeki satırındaki proje toplamıdır.</summary>
         public decimal AnaIstenenAdet { get; set; }
+        /// <summary>İlk miktar düzenlemesinden önceki değer; null ise kayıtlı miktar düzenlemesi yoktur. Hesaplamalarda kullanılmaz.</summary>
+        public decimal? OrijinalIstenenAdet { get; set; }
         /// <summary>Bu sandık içeriğine tahsis edilen miktardır.</summary>
         public decimal SandikMiktari { get; set; }
         public bool SandikBazliDagitim { get; set; }

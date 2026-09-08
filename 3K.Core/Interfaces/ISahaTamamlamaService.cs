@@ -12,6 +12,14 @@ namespace _3K.Core.Interfaces
             IEnumerable<int> kaynakCekiSatiriIds,
             CancellationToken cancellationToken = default);
 
+        /// <summary>
+        /// Aktif saha işinin kalan miktarına göre kapanan miktar. İptal/Grid Kapandı
+        /// açık işi kapatır; bu değer fiziksel teslim veya sevkiyat miktarı değildir.
+        /// </summary>
+        Task<Dictionary<int, decimal>> GetAktifIsTamamlamaMapAsync(
+            IEnumerable<int> kaynakCekiSatiriIds,
+            CancellationToken cancellationToken = default);
+
         Task<Dictionary<int, decimal>> GetAktifGerceklesenTamamlamaMapAsync(
             IEnumerable<int> kaynakCekiSatiriIds,
             CancellationToken cancellationToken = default);

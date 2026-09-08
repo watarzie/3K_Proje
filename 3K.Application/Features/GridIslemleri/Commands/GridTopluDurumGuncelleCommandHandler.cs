@@ -40,6 +40,15 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
         public async Task<Result> Handle(GridTopluDurumGuncelleCommand request, CancellationToken cancellationToken)
         {
+            return await _unitOfWork.ExecuteInTransactionAsync(
+                transactionCancellationToken => HandleInTransactionAsync(request, transactionCancellationToken),
+                cancellationToken);
+        }
+
+        private async Task<Result> HandleInTransactionAsync(
+            GridTopluDurumGuncelleCommand request,
+            CancellationToken cancellationToken)
+        {
             if (request.CekiSatiriIdler == null || request.CekiSatiriIdler.Count == 0)
                 return Result.Failure("En az bir ürün seçilmelidir.", 400);
 
@@ -72,6 +81,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             int basarili = 0;
             var hatalar = new List<string>();
             var gridKapandiSandikNolari = new HashSet<string>();
+            var kaynakSatirIds = new HashSet<int>();
 
             foreach (var satir in satirlar)
             {
@@ -118,6 +128,8 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
                 repo.Update(satir);
                 basarili++;
+                if (satir.KaynakCekiSatiriId.HasValue)
+                    kaynakSatirIds.Add(satir.KaynakCekiSatiriId.Value);
 
                 // Hareket kaydı
                 await _hareketService.HareketKaydetAsync(new HareketGecmisi
@@ -143,6 +155,9 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             }
 
             await _unitOfWork.SaveChangesAsync();
+
+            if (kaynakSatirIds.Count > 0)
+                await _sahaTamamlamaService.SenkronizeKaynakProjelerAsync(kaynakSatirIds, cancellationToken);
 
             if (hatalar.Any())
                 return Result.Success();

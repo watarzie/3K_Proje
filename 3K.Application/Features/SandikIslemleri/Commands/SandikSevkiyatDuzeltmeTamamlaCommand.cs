@@ -18,17 +18,20 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         private readonly IHareketService _hareketService;
         private readonly ICurrentUserService _currentUserService;
         private readonly ISahaTamamlamaService _sahaTamamlamaService;
+        private readonly IReadQueryExecutor _readQueries;
 
         public SandikSevkiyatDuzeltmeTamamlaCommandHandler(
             IUnitOfWork unitOfWork,
             IHareketService hareketService,
             ICurrentUserService currentUserService,
-            ISahaTamamlamaService sahaTamamlamaService)
+            ISahaTamamlamaService sahaTamamlamaService,
+            IReadQueryExecutor readQueries)
         {
             _unitOfWork = unitOfWork;
             _hareketService = hareketService;
             _currentUserService = currentUserService;
             _sahaTamamlamaService = sahaTamamlamaService;
+            _readQueries = readQueries;
         }
 
         public async Task<Result> Handle(SandikSevkiyatDuzeltmeTamamlaCommand request, CancellationToken cancellationToken)
@@ -55,9 +58,27 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             var eskiDeger = sandik.SevkiyatDuzeltmeAcikMi;
             sandik.SevkiyatDuzeltmeAcikMi = false;
-            sandikRepo.Update(sandik);
 
-            await _unitOfWork.SaveChangesAsync();
+            if (proje.ProjeTipiId == (int)ProjeTipi.Normal)
+            {
+                var sandiklar = await _readQueries.ToListAsync(
+                    _readQueries.AsNoTracking(sandikRepo.Queryable())
+                        .Where(s => s.ProjeId == proje.Id), cancellationToken);
+                var sahaDurumu = await _sahaTamamlamaService.GetKaynakSandikSahaAktarimDurumuAsync(
+                    sandiklar.Select(s => s.Id), cancellationToken);
+                var yeniDurum = await NormalProjeSevkDurumHesaplayici.HesaplaAsync(
+                    _unitOfWork, _readQueries, _sahaTamamlamaService,
+                    proje.Id, proje.DurumId, sandiklar,
+                    sahaDurumu.SahaUzerindenSevkEdilenSandikIds, cancellationToken);
+
+                if (yeniDurum != proje.DurumId)
+                {
+                    proje.DurumId = yeniDurum;
+                    projeRepo.Update(proje);
+                }
+            }
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             if (proje.ProjeTipiId == (int)ProjeTipi.Saha)
             {

@@ -24,11 +24,7 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
             var isSahaYedek = proje.ProjeTipiId is (int)ProjeTipi.Saha or (int)ProjeTipi.Yedek;
             var toplamUrun = isSahaYedek ? sandikIcerikleri.Count : cekiSatirlari.Count;
             var tamamlananUrun = isSahaYedek
-                ? sandikIcerikleri.Count(si =>
-                {
-                    var istenen = si.CekiSatiri?.IstenenAdet ?? si.Miktar;
-                    return istenen > 0 && si.KonulanAdet >= istenen;
-                })
+                ? sandikIcerikleri.Count(SahaYedekUrunTamamlanmaHelper.TamamlandiMi)
                 : cekiSatirlari.Count(cs => CekiSatiriKalanHelper.HesaplaEtkinKalan(cs, sahaTamamlamaMap) <= 0);
             var normalUrunlerSevkKapsamindaTamamlandi = !isSahaYedek && toplamUrun > 0 &&
                 cekiSatirlari.All(cs => CekiSatiriKalanHelper.HesaplaEtkinKalan(cs, sevkEdilenSahaTamamlamaMap) <= 0);

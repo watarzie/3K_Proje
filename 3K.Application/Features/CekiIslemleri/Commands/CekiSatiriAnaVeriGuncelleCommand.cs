@@ -26,6 +26,7 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
         public string BarkodNo { get; set; } = string.Empty;
         public string Aciklama { get; set; } = string.Empty;
         public decimal IstenenAdet { get; set; }
+        public decimal? OrijinalIstenenAdet { get; set; }
         public int BirimId { get; set; }
         public string Birim { get; set; } = string.Empty;
         public string SandikNo { get; set; } = string.Empty;
@@ -36,13 +37,16 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IDurumHesaplaService _durumHesaplaService;
+        private readonly ISahaTamamlamaService _sahaTamamlamaService;
 
         public CekiSatiriAnaVeriGuncelleCommandHandler(
             IUnitOfWork unitOfWork,
-            IDurumHesaplaService durumHesaplaService)
+            IDurumHesaplaService durumHesaplaService,
+            ISahaTamamlamaService sahaTamamlamaService)
         {
             _unitOfWork = unitOfWork;
             _durumHesaplaService = durumHesaplaService;
+            _sahaTamamlamaService = sahaTamamlamaService;
         }
 
         public async Task<Result<CekiSatiriAnaVeriGuncelleDto>> Handle(
@@ -53,11 +57,25 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
             if (validation != null)
                 return Result<CekiSatiriAnaVeriGuncelleDto>.Failure(validation);
 
+            // Ana miktar, tahsis ve varsa yeni sandık aynı işlemde kalıcılaşmalıdır.
+            return await _unitOfWork.ExecuteInTransactionAsync(
+                transactionToken => GuncelleAsync(request, transactionToken),
+                cancellationToken);
+        }
+
+        private async Task<Result<CekiSatiriAnaVeriGuncelleDto>> GuncelleAsync(
+            CekiSatiriAnaVeriGuncelleCommand request,
+            CancellationToken cancellationToken)
+        {
             var satirRepo = _unitOfWork.GetRepository<CekiSatiri>();
             var satir = await satirRepo.GetByIdAsync(request.CekiSatiriId);
 
             if (satir == null)
                 return Result<CekiSatiriAnaVeriGuncelleDto>.Failure("Ceki satiri bulunamadi.", 404);
+
+            if (await SahaAktarimBlokajHelper.KaynakSatirAktarildiMiAsync(
+                    _sahaTamamlamaService, satir, cancellationToken))
+                return Result<CekiSatiriAnaVeriGuncelleDto>.Failure(SahaAktarimBlokajHelper.SandikMesaji, 409);
 
             if (await SandikSevkKilidiHelper.CekiSatiriSevkEdilmisSandiktaMiAsync(_unitOfWork, satir))
                 return Result<CekiSatiriAnaVeriGuncelleDto>.Failure(SandikSevkKilidiHelper.UrunKilitliMesaji);
@@ -71,6 +89,26 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
                 return Result<CekiSatiriAnaVeriGuncelleDto>.Failure(
                     $"Miktar islenmis miktardan kucuk olamaz. Minimum: {minimumAdet}");
 
+            var icerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
+            var icerikler = (await icerikRepo.FindAsync(i => i.CekiSatiriId == satir.Id)).ToList();
+            var miktarDegisti = request.IstenenAdet != satir.IstenenAdet;
+            var tekTamTahsis = icerikler.Count == 1 &&
+                (icerikler[0].TahsisMiktari <= 0 || icerikler[0].TahsisMiktari == satir.IstenenAdet);
+
+            if (miktarDegisti)
+            {
+                var konulanToplam = icerikler.Sum(i => Math.Max(i.KonulanAdet, 0));
+                if (request.IstenenAdet < konulanToplam)
+                    return Result<CekiSatiriAnaVeriGuncelleDto>.Failure(
+                        $"Miktar sandıklara konulan toplam miktardan küçük olamaz. Minimum: {konulanToplam}");
+
+                // Parçalı tahsiste hangi sandıktan miktar düşüleceğine bu ekran karar veremez.
+                var toplamTahsis = icerikler.Sum(i => SandikTahsisHelper.HesaplaSandikMiktari(satir, i, icerikler.Count));
+                if (!tekTamTahsis && request.IstenenAdet < satir.IstenenAdet && request.IstenenAdet < toplamTahsis)
+                    return Result<CekiSatiriAnaVeriGuncelleDto>.Failure(
+                        $"Miktar mevcut sandık tahsisleri toplamından ({toplamTahsis}) küçük olamaz. Önce sandık tahsislerini düzenleyin.");
+            }
+
             var oldCekideSandikNo = Normalize(satir.CekideGecenSandikNo);
             var oldEffectiveSandikNo = Normalize(string.IsNullOrWhiteSpace(satir.FiiliSandikNo)
                 ? satir.CekideGecenSandikNo
@@ -78,6 +116,37 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
             var newCekideSandikNo = Normalize(request.SandikNo);
             var shouldSyncFiiliSandik = string.IsNullOrWhiteSpace(satir.FiiliSandikNo) ||
                 string.Equals(Normalize(satir.FiiliSandikNo), oldCekideSandikNo, StringComparison.OrdinalIgnoreCase);
+            var newEffectiveSandikNo = shouldSyncFiiliSandik ? newCekideSandikNo : oldEffectiveSandikNo;
+            var sandikDegisti = !string.Equals(oldEffectiveSandikNo, newEffectiveSandikNo, StringComparison.OrdinalIgnoreCase);
+
+            Sandik? hedefSandik = null;
+            if (sandikDegisti)
+            {
+                if (icerikler.Count > 1)
+                    return Result<CekiSatiriAnaVeriGuncelleDto>.Failure(
+                        "Birden fazla sandığa tahsis edilmiş ürünün sandığı bu ekrandan değiştirilemez. Sandık ürün taşıma işlemini kullanın.");
+
+                var sandikRepo = _unitOfWork.GetRepository<Sandik>();
+                hedefSandik = (await sandikRepo.FindAsync(s =>
+                    s.ProjeId == ceki.ProjeId && s.SandikNo == newEffectiveSandikNo)).FirstOrDefault();
+
+                if (hedefSandik != null && SandikSevkKilidiHelper.SandikKilitliMi(hedefSandik))
+                    return Result<CekiSatiriAnaVeriGuncelleDto>.Failure(SandikSevkKilidiHelper.SandikKilitliMesaji);
+
+                if (hedefSandik == null)
+                {
+                    hedefSandik = new Sandik
+                    {
+                        ProjeId = ceki.ProjeId,
+                        SandikNo = newEffectiveSandikNo,
+                        TipId = (int)SandikTipi.AhsapKapali,
+                        DurumId = (int)SandikDurum.Hazirlaniyor,
+                        DepoLokasyonId = (int)DepoLokasyon.Belirsiz
+                    };
+                    await sandikRepo.AddAsync(hedefSandik);
+                    await _unitOfWork.SaveChangesAsync(cancellationToken);
+                }
+            }
 
             satir.SiraNo = request.SiraNo;
             satir.OlcuResmiPozNo = string.IsNullOrWhiteSpace(request.OlcuResmiPozNo)
@@ -85,6 +154,10 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
                 : request.OlcuResmiPozNo.Trim();
             satir.BarkodNo = request.BarkodNo.Trim();
             satir.Aciklama = request.Aciklama.Trim();
+            // Yalnızca gerçek miktar değişikliğini işaretle. İlk değere geri dönülse de
+            // dolu alan korunur; böylece düzenleme bilgisi kaybolmaz.
+            if (miktarDegisti)
+                satir.OrijinalIstenenAdet ??= satir.IstenenAdet;
             satir.IstenenAdet = request.IstenenAdet;
             satir.BirimId = request.BirimId;
             satir.CekideGecenSandikNo = newCekideSandikNo;
@@ -92,19 +165,26 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
             if (shouldSyncFiiliSandik)
                 satir.FiiliSandikNo = newCekideSandikNo;
 
-            var newEffectiveSandikNo = Normalize(string.IsNullOrWhiteSpace(satir.FiiliSandikNo)
-                ? satir.CekideGecenSandikNo
-                : satir.FiiliSandikNo);
+            if (miktarDegisti && tekTamTahsis)
+            {
+                // Tek tam tahsis ana miktarı izler; bilinçli parçalı tahsisler aynen korunur.
+                var icerik = icerikler[0];
+                icerik.TahsisMiktari = request.IstenenAdet;
+                icerik.EksikAdet = Math.Max(icerik.TahsisMiktari - icerik.KonulanAdet, 0);
+            }
 
-            if (!string.Equals(oldEffectiveSandikNo, newEffectiveSandikNo, StringComparison.OrdinalIgnoreCase))
-                await MoveSandikIcerikleriAsync(ceki.ProjeId, satir.Id, newEffectiveSandikNo, request.BirimId);
-            else
-                await SyncSandikIcerikBirimAsync(satir.Id, request.BirimId);
+            foreach (var icerik in icerikler)
+            {
+                if (hedefSandik != null)
+                    icerik.SandikId = hedefSandik.Id;
+                icerik.BirimId = request.BirimId;
+                icerikRepo.Update(icerik);
+            }
 
             _durumHesaplaService.HesaplaKalanVeDurum(satir);
             satirRepo.Update(satir);
 
-            await _unitOfWork.SaveChangesAsync();
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             return Result<CekiSatiriAnaVeriGuncelleDto>.Success(new CekiSatiriAnaVeriGuncelleDto
             {
@@ -114,56 +194,11 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
                 BarkodNo = satir.BarkodNo,
                 Aciklama = satir.Aciklama,
                 IstenenAdet = satir.IstenenAdet,
+                OrijinalIstenenAdet = satir.OrijinalIstenenAdet,
                 BirimId = satir.BirimId,
                 Birim = ((Birim)satir.BirimId).ToString(),
                 SandikNo = newEffectiveSandikNo
             });
-        }
-
-        private async Task MoveSandikIcerikleriAsync(int projeId, int cekiSatiriId, string sandikNo, int birimId)
-        {
-            var sandikRepo = _unitOfWork.GetRepository<Sandik>();
-            var hedefSandik = (await sandikRepo.FindAsync(s =>
-                    s.ProjeId == projeId &&
-                    s.SandikNo == sandikNo))
-                .FirstOrDefault();
-
-            if (hedefSandik == null)
-            {
-                hedefSandik = new Sandik
-                {
-                    ProjeId = projeId,
-                    SandikNo = sandikNo,
-                    TipId = (int)SandikTipi.AhsapKapali,
-                    DurumId = (int)SandikDurum.Hazirlaniyor,
-                    DepoLokasyonId = (int)DepoLokasyon.Belirsiz
-                };
-
-                await sandikRepo.AddAsync(hedefSandik);
-                await _unitOfWork.SaveChangesAsync();
-            }
-
-            var icerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
-            var icerikler = await icerikRepo.FindAsync(si => si.CekiSatiriId == cekiSatiriId);
-
-            foreach (var icerik in icerikler)
-            {
-                icerik.SandikId = hedefSandik.Id;
-                icerik.BirimId = birimId;
-                icerikRepo.Update(icerik);
-            }
-        }
-
-        private async Task SyncSandikIcerikBirimAsync(int cekiSatiriId, int birimId)
-        {
-            var icerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
-            var icerikler = await icerikRepo.FindAsync(si => si.CekiSatiriId == cekiSatiriId);
-
-            foreach (var icerik in icerikler)
-            {
-                icerik.BirimId = birimId;
-                icerikRepo.Update(icerik);
-            }
         }
 
         private static decimal GetMinimumAllowedIstenenAdet(CekiSatiri satir)

@@ -42,6 +42,23 @@ namespace _3K.Application.Common
         }
 
         /// <summary>
+        /// Grid listesinde tek satır, güncel çeki operasyon toplamlarını gösterir.
+        /// Eski veya kısmi tahsis, gerçekleşmiş gelen/sevk miktarlarını kırpmamalıdır.
+        /// Birden çok sandığa dağıtılmış satırlarda mevcut tahsis paylaştırması korunur.
+        /// Fiziksel tahsis ve konulan miktarı değiştirmez.
+        /// </summary>
+        public static decimal ToplamdanSatirPayi(
+            decimal toplam,
+            decimal sandikMiktari,
+            decimal toplamTahsisMiktari,
+            int tahsisSayisi)
+        {
+            return tahsisSayisi == 1
+                ? Math.Max(toplam, 0)
+                : ToplamdanTahsisPayi(toplam, sandikMiktari, toplamTahsisMiktari);
+        }
+
+        /// <summary>
         /// Merkezi iş kurallarıyla hesaplanan toplam kalanı, fiziksel açığı bulunan
         /// sandık tahsislerine dağıtır. Yalnızca okuma modeli hesabıdır; entity veya
         /// tahsis kayıtlarını değiştirmez.

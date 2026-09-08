@@ -70,6 +70,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             int basarili = 0;
             var hatalar = new List<string>();
             var sifirlananSatirIds = new HashSet<int>();
+            var kaynakSatirIds = new HashSet<int>();
 
             foreach (var satir in satirlar)
             {
@@ -116,6 +117,8 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 repo.Update(satir);
                 basarili++;
                 sifirlananSatirIds.Add(satir.Id);
+                if (satir.KaynakCekiSatiriId.HasValue)
+                    kaynakSatirIds.Add(satir.KaynakCekiSatiriId.Value);
 
                 // Hareket kaydı
                 await _hareketService.HareketKaydetAsync(new HareketGecmisi
@@ -139,6 +142,9 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 _unitOfWork,
                 sifirlananSatirIds);
             await _unitOfWork.SaveChangesAsync();
+
+            if (kaynakSatirIds.Count > 0)
+                await _sahaTamamlamaService.SenkronizeKaynakProjelerAsync(kaynakSatirIds, cancellationToken);
 
             if (hatalar.Any())
                 return Result.Success();

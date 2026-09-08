@@ -313,6 +313,7 @@ namespace _3K.Infrastructure.Data
             modelBuilder.Entity<CekiSatiri>(e =>
             {
                 e.Property(p => p.IstenenAdet).HasPrecision(18, 4);
+                e.Property(p => p.OrijinalIstenenAdet).HasPrecision(18, 4);
                 e.Property(p => p.GridGelenAdet).HasPrecision(18, 4);
                 e.Property(p => p.TrafoSevkAdet).HasPrecision(18, 4);
                 e.Property(p => p.GridSevkMiktari).HasPrecision(18, 4);

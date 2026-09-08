@@ -102,6 +102,9 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 new[] { satir.Id });
             await _unitOfWork.SaveChangesAsync();
 
+            if (satir.KaynakCekiSatiriId.HasValue)
+                await _sahaTamamlamaService.SenkronizeKaynakProjelerAsync(new[] { satir.KaynakCekiSatiriId.Value }, cancellationToken);
+
             // ===== Hareket kaydı =====
             var detay = $"Grid Sıfırlandı: " +
                 $"GridDurum:{Enum.GetName(typeof(GridDurum), eskiGridDurum) ?? eskiGridDurum.ToString()}→Bekliyor, " +
