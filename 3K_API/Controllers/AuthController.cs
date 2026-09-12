@@ -30,62 +30,62 @@ namespace _3K_API.Controllers
             _environment = environment;
         }
 
-        /// <summary>
-        /// İlk admin kullanıcısını oluşturur.
-        /// GÜVENLİK: Sadece DB'de hiç kullanıcı yokken çalışır.
-        /// MediatR pipeline'ını bypass eder (yetkilendirme gerekmez).
-        /// </summary>
-        [HttpPost("seed-admin")]
-        public async Task<ActionResult> SeedAdmin([FromBody] SeedAdminRequest request)
-        {
-            // Güvenlik 1: Sistemde zaten kullanıcı varsa engelle
-            var kullaniciRepo = _unitOfWork.GetRepository<Kullanici>();
-            var mevcutKullanicilar = await kullaniciRepo.GetAllAsync();
+        ///// <summary>
+        ///// İlk admin kullanıcısını oluşturur.
+        ///// GÜVENLİK: Sadece DB'de hiç kullanıcı yokken çalışır.
+        ///// MediatR pipeline'ını bypass eder (yetkilendirme gerekmez).
+        ///// </summary>
+        //[HttpPost("seed-admin")]
+        //public async Task<ActionResult> SeedAdmin([FromBody] SeedAdminRequest request)
+        //{
+        //    // Güvenlik 1: Sistemde zaten kullanıcı varsa engelle
+        //    var kullaniciRepo = _unitOfWork.GetRepository<Kullanici>();
+        //    var mevcutKullanicilar = await kullaniciRepo.GetAllAsync();
 
-            if (mevcutKullanicilar.Any())
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Sistemde zaten kullanıcı mevcut. Bu endpoint sadece ilk kurulumda kullanılabilir."
-                });
-            }
+        //    if (mevcutKullanicilar.Any())
+        //    {
+        //        return BadRequest(new
+        //        {
+        //            success = false,
+        //            message = "Sistemde zaten kullanıcı mevcut. Bu endpoint sadece ilk kurulumda kullanılabilir."
+        //        });
+        //    }
 
-            // Validasyon
-            if (string.IsNullOrWhiteSpace(request.AdSoyad) ||
-                string.IsNullOrWhiteSpace(request.Email) ||
-                string.IsNullOrWhiteSpace(request.Sifre))
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "AdSoyad, Email ve Sifre alanları zorunludur."
-                });
-            }
+        //    // Validasyon
+        //    if (string.IsNullOrWhiteSpace(request.AdSoyad) ||
+        //        string.IsNullOrWhiteSpace(request.Email) ||
+        //        string.IsNullOrWhiteSpace(request.Sifre))
+        //    {
+        //        return BadRequest(new
+        //        {
+        //            success = false,
+        //            message = "AdSoyad, Email ve Sifre alanları zorunludur."
+        //        });
+        //    }
 
-            // MediatR pipeline bypass — doğrudan AuthService kullan
-            // Rol her zaman Admin olarak zorunlu atanır (RolId=1)
-            var kullanici = await _authService.RegisterAsync(
-                request.AdSoyad,
-                request.Email,
-                request.Sifre,
-                1 // Admin RolId (seed data'da Id=1)
-            );
+        //    // MediatR pipeline bypass — doğrudan AuthService kullan
+        //    // Rol her zaman Admin olarak zorunlu atanır (RolId=1)
+        //    var kullanici = await _authService.RegisterAsync(
+        //        request.AdSoyad,
+        //        request.Email,
+        //        request.Sifre,
+        //        1 // Admin RolId (seed data'da Id=1)
+        //    );
 
-            return Ok(new
-            {
-                success = true,
-                message = "İlk admin kullanıcısı başarıyla oluşturuldu.",
-                data = new
-                {
-                    kullanici.Id,
-                    kullanici.AdSoyad,
-                    kullanici.Email,
-                    Rol = kullanici.Rol?.Ad ?? "Admin",
-                    kullanici.BasHarf
-                }
-            });
-        }
+        //    return Ok(new
+        //    {
+        //        success = true,
+        //        message = "İlk admin kullanıcısı başarıyla oluşturuldu.",
+        //        data = new
+        //        {
+        //            kullanici.Id,
+        //            kullanici.AdSoyad,
+        //            kullanici.Email,
+        //            Rol = kullanici.Rol?.Ad ?? "Admin",
+        //            kullanici.BasHarf
+        //        }
+        //    });
+        //}
 
         [HttpPost("login")]
         [AllowAnonymous]
