@@ -47,9 +47,22 @@ namespace _3K.Core.Entities
         /// </summary>
         public int GridSevkDurumuId { get; set; } = 3; // SevkEdilmedi
         /// <summary>
-        /// Grid'den 3K'ya sevk edilen adet.
+        /// Grid'den 3K'ya sevk edilen aktif partinin miktarı.
         /// </summary>
         public decimal? GridSevkMiktari { get; set; }
+        /// <summary>
+        /// Yalnızca aktif Grid sevk partisinden 3K tarafından karşılanan miktar.
+        /// Her yeni Grid sevkinde sıfırlanır; GelenMiktar ise partiler üstü kümülatif
+        /// toplamı korur. Null değer, alan eklenmeden önce oluşmuş legacy kayıt demektir.
+        /// </summary>
+        public decimal? AktifGridSevkKarsilananMiktari { get; set; }
+        /// <summary>
+        /// Aktif Grid sevk partisinin 3K tarafından Eksik/Gelmedi/Geri Gönderildi
+        /// kararıyla açıkça sonuçlandırıldığını gösterir. Null değer, bu alan
+        /// eklenmeden önce oluşmuş legacy kaydı; false ise teslimata açık yeni
+        /// partiyi ifade eder. Kümülatif karşılama izlerinden tahmin edilmez.
+        /// </summary>
+        public bool? AktifGridSevkPartisiErkenSonuclandirildiMi { get; set; }
         /// <summary>
         /// 3K geri bildirimi sonucunda Grid'in yeniden sevk etmesi gereken aktif miktar.
         /// </summary>

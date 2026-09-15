@@ -11,7 +11,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
         public int CekiSatiriId { get; set; }
         public int ProjeId { get; set; }
-        public int GelenMiktar { get; set; }
+        public decimal GelenMiktar { get; set; }
         public string? Aciklama { get; set; }
     }
 }

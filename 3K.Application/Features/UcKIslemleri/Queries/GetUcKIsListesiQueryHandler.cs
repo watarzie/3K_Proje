@@ -61,11 +61,14 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                     TrafoSevkAdet = cs.TrafoSevkAdet,
                     GridSevkDurumuId = cs.GridSevkDurumuId,
                     GridSevkMiktari = cs.GridSevkMiktari,
+                    AktifGridSevkKarsilananMiktari = cs.AktifGridSevkKarsilananMiktari,
+                    AktifGridSevkPartisiErkenSonuclandirildiMi = cs.AktifGridSevkPartisiErkenSonuclandirildiMi,
                     YenidenSevkGerekliAdet = cs.YenidenSevkGerekliAdet,
                     GridAciklama = cs.GridAciklama,
                     GridSevkTarihi = cs.GridSevkTarihi,
                     UcKDurumuId = cs.UcKDurumuId,
                     UcKKarsilamaTipiId = cs.UcKKarsilamaTipiId,
+                    TeslimTarihi = cs.TeslimTarihi,
                     GelenMiktar = cs.GelenMiktar,
                     StokKarsilanan = cs.StokKarsilanan,
                     ProjeKarsilanan = cs.ProjeKarsilanan,
@@ -152,11 +155,34 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
         private UcKIsListesiItemDto? MapItem(IsListesiRow row)
         {
             var gridSevkMiktari = row.GridSevkMiktari ?? 0;
-            var teslimBekleyen = Math.Max(gridSevkMiktari - row.GelenMiktar, 0);
-            var ucKGelenEksik = CalculateUcKGelenEksik(row.GridDurumuId, gridSevkMiktari, row.GelenMiktar);
+            var sevkSatiri = new CekiSatiri
+            {
+                IstenenAdet = row.IstenenAdet,
+                GridDurumuId = row.GridDurumuId,
+                GridGelenAdet = row.GridGelenAdet,
+                TrafoSevkAdet = row.TrafoSevkAdet,
+                GridSevkDurumuId = row.GridSevkDurumuId,
+                GridSevkMiktari = row.GridSevkMiktari,
+                AktifGridSevkKarsilananMiktari = row.AktifGridSevkKarsilananMiktari,
+                AktifGridSevkPartisiErkenSonuclandirildiMi = row.AktifGridSevkPartisiErkenSonuclandirildiMi,
+                YenidenSevkGerekliAdet = row.YenidenSevkGerekliAdet,
+                UcKDurumuId = row.UcKDurumuId,
+                UcKKarsilamaTipiId = row.UcKKarsilamaTipiId,
+                GelenMiktar = row.GelenMiktar,
+                StokKarsilanan = row.StokKarsilanan,
+                ProjeKarsilanan = row.ProjeKarsilanan,
+                ProjeGonderilen = row.ProjeGonderilen,
+                TedarikciKarsilanan = row.TedarikciKarsilanan,
+                TeslimTarihi = row.TeslimTarihi
+            };
+            var aktifPartiTeslimeAcik = GridUcKSevkPartisiKurali.AktifPartiTeslimEdilebilirMi(sevkSatiri);
+            var teslimBekleyen = aktifPartiTeslimeAcik
+                ? GridUcKSevkPartisiKurali.AktifPartiKalanMiktariniHesapla(sevkSatiri)
+                : 0;
+            var ucKGelenEksik = row.GridDurumuId == (int)GridDurum.EksikGeldi ? teslimBekleyen : 0;
             var kalan = CalculateKalan(row.GridDurumuId, row.IstenenAdet, row.GelenMiktar, row.StokKarsilanan, row.ProjeKarsilanan, row.ProjeGonderilen, row.TedarikciKarsilanan, row.TrafoSevkAdet);
 
-            var tip = GetIsTipi(row.GridDurumuId, row.GridSevkDurumuId, row.YenidenSevkGerekliAdet, row.TrafoSevkAdet, teslimBekleyen, ucKGelenEksik, row.UcKKarsilamaTipiId);
+            var tip = GetIsTipi(row.GridDurumuId, row.GridSevkDurumuId, row.YenidenSevkGerekliAdet, row.TrafoSevkAdet, teslimBekleyen, ucKGelenEksik, row.UcKKarsilamaTipiId, aktifPartiTeslimeAcik);
             if (tip == null)
             {
                 return null;
@@ -205,8 +231,12 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
             decimal trafoSevkAdet,
             decimal teslimBekleyen,
             decimal ucKGelenEksik,
-            int ucKKarsilamaTipiId)
+            int ucKKarsilamaTipiId,
+            bool aktifPartiTeslimeAcik)
         {
+            if (teslimBekleyen > 0 && aktifPartiTeslimeAcik)
+                return (TipTeslim, "3K teslim bekliyor", 2);
+
             if (yenidenSevkGerekliAdet > 0 || gridSevkDurumuId == (int)GridSevkDurum.YenidenSevkGerekli)
                 return (TipYeniden, "Yeniden sevk gerekli", 1);
 
@@ -214,9 +244,6 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                 ucKGelenEksik > 0 &&
                 gridSevkDurumuId == (int)GridSevkDurum.SevkEdildi)
                 return (TipEksik, "Grid eksik geldi", 3);
-
-            if (teslimBekleyen > 0 && gridSevkDurumuId == (int)GridSevkDurum.SevkEdildi)
-                return (TipTeslim, "3K teslim bekliyor", 2);
 
             return null;
         }
@@ -292,11 +319,14 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
             public decimal TrafoSevkAdet { get; set; }
             public int GridSevkDurumuId { get; set; }
             public decimal? GridSevkMiktari { get; set; }
+            public decimal? AktifGridSevkKarsilananMiktari { get; set; }
+            public bool? AktifGridSevkPartisiErkenSonuclandirildiMi { get; set; }
             public decimal YenidenSevkGerekliAdet { get; set; }
             public string? GridAciklama { get; set; }
             public DateTime? GridSevkTarihi { get; set; }
             public int UcKDurumuId { get; set; }
             public int UcKKarsilamaTipiId { get; set; }
+            public DateTime? TeslimTarihi { get; set; }
             public decimal GelenMiktar { get; set; }
             public decimal StokKarsilanan { get; set; }
             public decimal ProjeKarsilanan { get; set; }

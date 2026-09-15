@@ -44,6 +44,10 @@ namespace _3K.Application.Features.GridIslemleri.DTOs
         public string GridSevkDurumuMetni { get; set; } = string.Empty;
         public decimal? GridSevkMiktari { get; set; }
         public decimal YenidenSevkGerekliAdet { get; set; }
+        /// <summary>Backend iş kuralına göre önceki aktif parti kapandıktan sonra yeni bir Grid sevk partisi açılabilir.</summary>
+        public bool GridYenidenSevkEdilebilirMi { get; set; }
+        /// <summary>Yeni sevk partisinin ana çeki satırı düzeyindeki azami miktarıdır.</summary>
+        public decimal GridYenidenSevkUstSiniri { get; set; }
         public DateTime? GridSevkTarihi { get; set; }
         public string? GridAciklama { get; set; }
         public decimal GridEksikMiktar { get; set; }

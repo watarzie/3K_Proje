@@ -15,22 +15,34 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         private readonly IDurumHesaplaService _durumHesaplaService;
         private readonly IHareketService _hareketService;
         private readonly ISahaTamamlamaService _sahaTamamlamaService;
+        private readonly ILookupCacheService _lookupCache;
 
         public UcKTopluTeslimAlCommandHandler(
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUserService,
             IDurumHesaplaService durumHesaplaService,
             IHareketService hareketService,
-            ISahaTamamlamaService sahaTamamlamaService)
+            ISahaTamamlamaService sahaTamamlamaService,
+            ILookupCacheService lookupCache)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _durumHesaplaService = durumHesaplaService;
             _hareketService = hareketService;
             _sahaTamamlamaService = sahaTamamlamaService;
+            _lookupCache = lookupCache;
         }
 
         public async Task<Result> Handle(UcKTopluTeslimAlCommand request, CancellationToken cancellationToken)
+        {
+            return await _unitOfWork.ExecuteInTransactionAsync(
+                transactionCancellationToken => HandleInTransactionAsync(request, transactionCancellationToken),
+                cancellationToken);
+        }
+
+        private async Task<Result> HandleInTransactionAsync(
+            UcKTopluTeslimAlCommand request,
+            CancellationToken cancellationToken)
         {
             if (request.Urunler == null || request.Urunler.Count == 0)
                 return Result.Failure("En az bir ürün seçilmelidir.", 400);
@@ -45,6 +57,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             var now = TurkeyTime.Now;
             var kullaniciId = _currentUserService.UserId ?? 0;
             int teslimAlinan = 0;
+            var isKuraliBlokajlari = new List<string>();
             var kilitliSatirIdleri = await SandikSevkKilidiHelper.GetSevkEdilmisSandikCekiSatiriIdleriAsync(
                 _unitOfWork,
                 idler);
@@ -65,6 +78,19 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 if (sahayaAktarilanSatirIdleri.Contains(item.CekiSatiriId))
                     continue;
 
+                if (satir.GridDurumuId is (int)GridDurum.Iptal or (int)GridDurum.GridKapandi)
+                {
+                    isKuraliBlokajlari.Add($"#{satir.SiraNo}: Grid tarafından iptal edilmiş veya kapatılmış.");
+                    continue;
+                }
+
+                if (satir.KaliteDurumId.HasValue &&
+                    _lookupCache.GetDeger<LookupKaliteDurum>(satir.KaliteDurumId.Value) == "Tadilatta")
+                {
+                    isKuraliBlokajlari.Add($"#{satir.SiraNo}: Kalite Tadilatta.");
+                    continue;
+                }
+
                 if (item.GelenMiktar <= 0)
                     continue;
 
@@ -79,8 +105,24 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 var sandikKalan = seciliIcerik == null
                     ? satir.KalanMiktar
                     : Math.Max((seciliIcerik.TahsisMiktari > 0 ? seciliIcerik.TahsisMiktari : satir.IstenenAdet) - seciliIcerik.KonulanAdet, 0);
-                var gelenMiktar = Math.Min(item.GelenMiktar, sandikKalan);
+                var teslimUstSiniriResult = GridUcKSevkPartisiKurali.TamKarsilamaMiktariniHesapla(
+                    _unitOfWork,
+                    satir,
+                    seciliIcerik,
+                    sandikKalan);
+                if (!teslimUstSiniriResult.IsSuccess)
+                    continue;
+
+                var gelenMiktar = Math.Min(item.GelenMiktar, teslimUstSiniriResult.Value);
                 if (gelenMiktar <= 0)
+                    continue;
+
+                var aktifPartiKayitResult = GridUcKSevkPartisiKurali.AktifPartiKarsilamasiniKaydet(
+                    _unitOfWork,
+                    satir,
+                    seciliIcerik,
+                    gelenMiktar);
+                if (!aktifPartiKayitResult.IsSuccess)
                     continue;
 
                 satir.GelenMiktar += gelenMiktar;
@@ -92,6 +134,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                     satir.UcKDurumuId = (int)UcKDurum.TamGeldi;
                 else
                     satir.UcKDurumuId = (int)UcKDurum.EksikGeldi;
+                satir.UcKKarsilamaTipiId = satir.UcKDurumuId;
 
                 // Genel durumu otomatik hesapla
                 satir.DurumId = _durumHesaplaService.HesaplaGenelDurum(satir.GridDurumuId, satir.UcKDurumuId);
@@ -115,7 +158,14 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 teslimAlinan++;
             }
 
-            await _unitOfWork.SaveChangesAsync();
+            if (teslimAlinan == 0 && isKuraliBlokajlari.Count > 0)
+            {
+                return Result.Failure(
+                    $"Hiçbir ürün teslim alınamadı: {string.Join("; ", isKuraliBlokajlari.Take(3))}",
+                    409);
+            }
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             if (kaynakSatirIds.Count > 0)
                 await _sahaTamamlamaService.SenkronizeKaynakProjelerAsync(kaynakSatirIds, cancellationToken);

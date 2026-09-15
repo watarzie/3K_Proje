@@ -113,12 +113,25 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (await SahaAktarimBlokajHelper.KaynakSatirAktarildiMiAsync(_sahaTamamlamaService, urun, cancellationToken))
                 return Result.Failure(SahaAktarimBlokajHelper.SandikMesaji);
 
-            var icerikler = await sandikIcerikRepo.FindAsync(si =>
-                si.CekiSatiriId == request.CekiSatiriId.Value && si.SandikId == request.SandikId);
-            icerik = icerikler.FirstOrDefault();
+            var bagliIcerikler = (await sandikIcerikRepo.FindAsync(si =>
+                si.CekiSatiriId == request.CekiSatiriId.Value)).ToList();
+            icerik = bagliIcerikler.FirstOrDefault(si => si.SandikId == request.SandikId);
+
+            var gridUcKAkisiBasladi =
+                (urun.GridSevkMiktari ?? 0) > 0 ||
+                urun.AktifGridSevkKarsilananMiktari.HasValue ||
+                bagliIcerikler.Any(i => i.AktifGridSevkKarsilananMiktari.HasValue) ||
+                GridUcKSevkPartisiKurali.UcKTarafindaIslemVar(urun);
 
             if (icerik == null)
             {
+                if (gridUcKAkisiBasladi)
+                {
+                    return Result.Failure(
+                        "Grid/3K akışı başlamış ürüne Sandık Yönetimi'nden yeni tahsis eklenemez. Sandık taşıma veya ilgili Grid/3K sıfırlama akışını kullanın.",
+                        409);
+                }
+
                 icerik = new SandikIcerik
                 {
                     SandikId = request.SandikId,
@@ -139,6 +152,20 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             {
                 return Result.Failure(
                     $"Konulan adet bu sandığa tahsis edilen miktarı aşamaz. Maksimum: {icerik.TahsisMiktari}");
+            }
+
+            var fizikselMiktarDegisiyor =
+                (request.KonulanAdet.HasValue && request.KonulanAdet.Value != icerik.KonulanAdet) ||
+                (request.EksikAdet.HasValue && request.EksikAdet.Value != icerik.EksikAdet);
+            var islemDurumuDegisiyor =
+                (request.GridDurumuId.HasValue && request.GridDurumuId.Value != urun.GridDurumuId) ||
+                (request.UcKDurumuId.HasValue && request.UcKDurumuId.Value != urun.UcKDurumuId);
+
+            if (gridUcKAkisiBasladi && (fizikselMiktarDegisiyor || islemDurumuDegisiyor))
+            {
+                return Result.Failure(
+                    "Grid/3K akışı başlamış üründe fiziksel miktar veya işlem durumu Sandık Yönetimi'nden doğrudan değiştirilemez. İlgili Grid/3K işlem ya da sıfırlama akışını kullanın.",
+                    409);
             }
 
             if (request.KonulanAdet.HasValue) icerik.KonulanAdet = request.KonulanAdet.Value;
@@ -339,15 +366,40 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                     satir.TrafoSevkAdet = 0;
                     satir.GridSevkDurumuId = (int)GridSevkDurum.SevkEdilmedi;
                     satir.GridSevkMiktari = null;
+                    satir.AktifGridSevkKarsilananMiktari = null;
+                    satir.AktifGridSevkPartisiErkenSonuclandirildiMi = null;
                     satir.GelenMiktar = 0;
                     satir.UcKDurumuId = (int)UcKDurum.Bekliyor;
                     satir.UcKKarsilamaTipiId = (int)UcKDurum.Bekliyor;
+
+                    icerik.AktifGridSevkKarsilananMiktari = null;
+                    foreach (var bagliIcerik in bagliIcerikler.Where(i => i.Id != icerik.Id))
+                    {
+                        if (!bagliIcerik.AktifGridSevkKarsilananMiktari.HasValue)
+                            continue;
+
+                        bagliIcerik.AktifGridSevkKarsilananMiktari = null;
+                        sandikIcerikRepo.Update(bagliIcerik);
+                    }
                 }
                 else
                 {
                     satir.GelenMiktar = toplamKonulan;
                     satir.GridGelenAdet = toplamKonulan;
                     satir.GridSevkMiktari = toplamKonulan;
+                    satir.AktifGridSevkKarsilananMiktari = toplamKonulan;
+                    satir.AktifGridSevkPartisiErkenSonuclandirildiMi = false;
+
+                    icerik.AktifGridSevkKarsilananMiktari = Math.Max(icerik.KonulanAdet, 0);
+                    foreach (var bagliIcerik in bagliIcerikler.Where(i => i.Id != icerik.Id))
+                    {
+                        var aktifKarsilanan = Math.Max(bagliIcerik.KonulanAdet, 0);
+                        if (bagliIcerik.AktifGridSevkKarsilananMiktari == aktifKarsilanan)
+                            continue;
+
+                        bagliIcerik.AktifGridSevkKarsilananMiktari = aktifKarsilanan;
+                        sandikIcerikRepo.Update(bagliIcerik);
+                    }
 
                     if (toplamKonulan >= satir.IstenenAdet)
                     {

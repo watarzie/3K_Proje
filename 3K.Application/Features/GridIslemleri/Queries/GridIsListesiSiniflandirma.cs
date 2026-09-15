@@ -1,3 +1,5 @@
+using _3K.Application.Common;
+using _3K.Core.Entities;
 using _3K.Core.Enums;
 
 namespace _3K.Application.Features.GridIslemleri.Queries
@@ -11,6 +13,47 @@ namespace _3K.Application.Features.GridIslemleri.Queries
         public const string TipYeniden = "yeniden";
         public const string TipEksik = "eksik";
 
+        /// <summary>
+        /// Canlı iş listesi sınıflandırması. Grid komutlarıyla aynı merkezi devam
+        /// sevki kararını kullanır. 3K işlemi başlamamış sevkin Grid'deki eksik
+        /// miktarı listede kalır; kullanıcı mevcut sevk toplamını güncelleyebilir.
+        /// </summary>
+        public static GridIsListesiSiniflandirmaSonucu? Belirle(
+            CekiSatiri satir,
+            decimal gridEksikMiktar,
+            decimal kalanMiktar)
+        {
+            ArgumentNullException.ThrowIfNull(satir);
+
+            var devamKarari = GridUcKSevkPartisiKurali.DevamSevkiniDegerlendir(satir);
+            if (devamKarari.YeniPartiMi)
+            {
+                return new GridIsListesiSiniflandirmaSonucu(
+                    TipYeniden,
+                    "Yeniden sevk gerekli",
+                    1);
+            }
+
+            if (GridUcKSevkPartisiKurali.AktifPartiTeslimEdilebilirMi(satir) &&
+                GridUcKSevkPartisiKurali.UcKTarafindaIslemVar(satir))
+            {
+                return null;
+            }
+
+            if (satir.GridDurumuId == (int)GridDurum.EksikGeldi &&
+                gridEksikMiktar > 0 &&
+                kalanMiktar > 0)
+            {
+                return new GridIsListesiSiniflandirmaSonucu(
+                    TipEksik,
+                    "Eksik geldi",
+                    2);
+            }
+
+            return null;
+        }
+
+        // Eski saf imza birim testleri ve mevcut tüketiciler için korunur.
         public static GridIsListesiSiniflandirmaSonucu? Belirle(
             int gridDurumuId,
             int gridSevkDurumuId,

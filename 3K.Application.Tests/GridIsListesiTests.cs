@@ -208,6 +208,35 @@ public sealed class GridIsListesiTests
         Assert.Empty(sonuc.Value.Liste.Items);
     }
 
+    [Theory]
+    [InlineData(ProjeTipi.Normal, false)]
+    [InlineData(ProjeTipi.Saha, false)]
+    [InlineData(ProjeTipi.Yedek, false)]
+    [InlineData(ProjeTipi.Normal, true)]
+    [InlineData(ProjeTipi.Saha, true)]
+    [InlineData(ProjeTipi.Yedek, true)]
+    public async Task BekleyenIlkSevk_GridEksiginiListedenDusurmez(ProjeTipi projeTipi, bool legacy)
+    {
+        var satir = YeniEksikSatir(101, 1, "P-TEST", projeTipi, DateTime.UtcNow);
+        satir.IstenenAdet = 3;
+        satir.GridGelenAdet = 2;
+        satir.GridSevkDurumuId = (int)GridSevkDurum.SevkEdildi;
+        satir.GridSevkMiktari = 2;
+        satir.UcKDurumuId = (int)UcKDurum.Bekliyor;
+        satir.UcKKarsilamaTipiId = (int)UcKDurum.Bekliyor;
+        satir.GelenMiktar = 0;
+        satir.AktifGridSevkKarsilananMiktari = legacy ? null : 0;
+        satir.AktifGridSevkPartisiErkenSonuclandirildiMi = legacy ? null : false;
+        var handler = new GetGridIsListesiQueryHandler(
+            new TestUnitOfWork([satir]), new TestLookupCacheService());
+
+        var sonuc = await handler.Handle(new GetGridIsListesiQuery(), default);
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        var item = Assert.Single(sonuc.Value!.Liste.Items);
+        Assert.Equal(GridIsListesiSiniflandirma.TipEksik, item.IsTipi);
+    }
+
     private static GridIsListesiSiniflandirmaSonucu? Siniflandir(
         GridDurum gridDurumu = GridDurum.TamGeldi,
         GridSevkDurum gridSevkDurumu = GridSevkDurum.SevkEdilmedi,

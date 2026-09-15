@@ -34,15 +34,30 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
         public async Task<Result> Handle(GridTopluSevkCommand request, CancellationToken cancellationToken)
         {
+            return await _unitOfWork.ExecuteInTransactionAsync(
+                transactionCancellationToken => HandleInTransactionAsync(request, transactionCancellationToken),
+                cancellationToken);
+        }
+
+        private async Task<Result> HandleInTransactionAsync(
+            GridTopluSevkCommand request,
+            CancellationToken cancellationToken)
+        {
             if (request.CekiSatiriIdler == null || request.CekiSatiriIdler.Count == 0)
                 return Result.Failure("En az bir ürün seçilmelidir.", 400);
 
             var repo = _unitOfWork.GetRepository<CekiSatiri>();
-            var satirlar = await repo.FindAsync(cs =>
-                request.CekiSatiriIdler.Contains(cs.Id));
+            var satirlar = (await repo.FindAsync(cs =>
+                request.CekiSatiriIdler.Contains(cs.Id))).ToList();
 
             if (!satirlar.Any())
                 return Result.Failure("Seçilen ürünler bulunamadı.", 404);
+
+            var satirIdler = satirlar.Select(s => s.Id).ToList();
+            var iceriklerBySatirId = (await _unitOfWork.GetRepository<SandikIcerik>()
+                    .FindAsync(i => i.CekiSatiriId.HasValue && satirIdler.Contains(i.CekiSatiriId.Value)))
+                .GroupBy(i => i.CekiSatiriId!.Value)
+                .ToDictionary(g => g.Key, g => (IReadOnlyCollection<SandikIcerik>)g.ToList());
 
             var kilitliSatirIdleri = await SandikSevkKilidiHelper.GetSevkEdilmisSandikCekiSatiriIdleriAsync(
                 _unitOfWork,
@@ -80,56 +95,26 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             var kullaniciId = _currentUserService.UserId ?? 0;
             int guncellenen = 0;
             var atlananlar = new List<string>();
+            var tahsisKapasitesiEngelleri = new List<string>();
             var sevkEdilenSatirlar = new List<CekiSatiri>();
 
             foreach (var satir in satirlar)
             {
-                var yenidenSevkAkisi =
-                    satir.GridSevkDurumuId == (int)GridSevkDurum.YenidenSevkGerekli &&
-                    satir.YenidenSevkGerekliAdet > 0;
-                var projeTransferYenidenSevkAkisi =
-                    satir.GridSevkDurumuId == (int)GridSevkDurum.SevkEdildi &&
-                    (satir.GridSevkMiktari ?? 0) > 0 &&
-                    satir.ProjeGonderilen > 0 &&
-                    satir.KalanMiktar > 0;
-                var parcaliEksikYenidenSevkAkisi =
-                    satir.GridDurumuId == (int)GridDurum.EksikGeldi &&
-                    satir.GridSevkDurumuId == (int)GridSevkDurum.SevkEdildi &&
-                    (satir.GridSevkMiktari ?? 0) > 0 &&
-                    satir.KalanMiktar > 0;
+                var devamSevkKarari = GridUcKSevkPartisiKurali.DevamSevkiniDegerlendir(satir);
 
-                if (!yenidenSevkAkisi && !projeTransferYenidenSevkAkisi && !parcaliEksikYenidenSevkAkisi &&
-                    (satir.UcKDurumuId != (int)UcKDurum.Bekliyor || satir.GelenMiktar > 0 || satir.KarsilananMiktar > 0))
+                if (!devamSevkKarari.YeniPartiMi && GridUcKSevkPartisiKurali.UcKTarafindaIslemVar(satir))
                 {
                     atlananlar.Add($"#{satir.SiraNo} ({satir.Aciklama}) - 3K tarafında işlem yapılmış");
                     continue;
                 }
 
                 var sevkMiktari = satir.IstenenAdet;
+                var gridTamGeldiYapilacak = !devamSevkKarari.YeniPartiMi &&
+                    satir.GridDurumuId != (int)GridDurum.TrafoSevk;
 
-                if (yenidenSevkAkisi)
+                if (devamSevkKarari.YeniPartiMi)
                 {
-                    sevkMiktari = satir.YenidenSevkGerekliAdet;
-                    satir.YenidenSevkGerekliAdet = 0;
-                    satir.UcKDurumuId = (int)UcKDurum.Bekliyor;
-                    satir.UcKKarsilamaTipiId = (int)UcKDurum.Bekliyor;
-                    satir.TeslimTarihi = null;
-                }
-                else if (projeTransferYenidenSevkAkisi)
-                {
-                    sevkMiktari = Math.Min(satir.ProjeGonderilen, satir.KalanMiktar);
-                    satir.UcKDurumuId = (int)UcKDurum.Bekliyor;
-                    satir.UcKKarsilamaTipiId = (int)UcKDurum.Bekliyor;
-                    satir.TeslimTarihi = null;
-                }
-                else if (parcaliEksikYenidenSevkAkisi)
-                {
-                    sevkMiktari = satir.KalanMiktar;
-                    satir.GridDurumuId = (int)GridDurum.TamGeldi;
-                    satir.GridGelenAdet = Math.Max(satir.GridGelenAdet, satir.IstenenAdet - satir.TrafoSevkAdet);
-                    satir.UcKDurumuId = (int)UcKDurum.Bekliyor;
-                    satir.UcKKarsilamaTipiId = (int)UcKDurum.Bekliyor;
-                    satir.TeslimTarihi = null;
+                    sevkMiktari = devamSevkKarari.UstSinir;
                 }
                 else if (satir.GridDurumuId == (int)GridDurum.TrafoSevk)
                 {
@@ -141,7 +126,24 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
                     sevkMiktari = satir.GridGelenAdet;
                 }
-                else
+                var satirIcerikleri = iceriklerBySatirId.GetValueOrDefault(satir.Id)
+                    ?? Array.Empty<SandikIcerik>();
+                var tahsisKapasitesiResult = GridUcKSevkPartisiKurali.YeniSevkTahsisKapasitesiniDogrula(
+                    satir,
+                    satirIcerikleri,
+                    sevkMiktari,
+                    trafoSevkAdedi: gridTamGeldiYapilacak ? 0 : satir.TrafoSevkAdet);
+                if (!tahsisKapasitesiResult.IsSuccess)
+                {
+                    var mesaj = $"#{satir.SiraNo} ({satir.Aciklama}) - {tahsisKapasitesiResult.Error!.Message}";
+                    atlananlar.Add(mesaj);
+                    tahsisKapasitesiEngelleri.Add(mesaj);
+                    continue;
+                }
+
+                // Atlanan satırın bellekteki hali de korunur. İzlenen entity kullanan
+                // akışlarda başarısız satırın diğerleriyle kaydedilmesi de önlenir.
+                if (gridTamGeldiYapilacak)
                 {
                     satir.GridDurumuId = (int)GridDurum.TamGeldi;
                     satir.GridGelenAdet = satir.IstenenAdet;
@@ -149,7 +151,12 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 }
 
                 satir.GridSevkDurumuId = (int)GridSevkDurum.SevkEdildi;
-                satir.GridSevkMiktari = sevkMiktari;
+                await GridUcKSevkPartisiKurali.YeniPartiBaslatAsync(
+                    _unitOfWork,
+                    satir,
+                    sevkMiktari,
+                    devamSevkKarari,
+                    satirIcerikleri);
                 satir.GridSevkTarihi = now;
                 satir.GridPersonelId = kullaniciId;
                 satir.GridAciklama = request.Aciklama;
@@ -164,7 +171,16 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             }
 
             if (guncellenen == 0)
+            {
+                if (tahsisKapasitesiEngelleri.Any())
+                {
+                    return Result.Failure(
+                        $"Seçili ürünlerin sandık tahsis kapasitesi Grid sevkini karşılamıyor: {string.Join("; ", tahsisKapasitesiEngelleri.Take(3))}",
+                        409);
+                }
+
                 return Result.Failure("Sevk edilebilecek urun bulunamadi. Trafo sevk satirlari icin Grid gelen adet 0 olamaz.", 400);
+            }
 
             await _unitOfWork.SaveChangesAsync();
 

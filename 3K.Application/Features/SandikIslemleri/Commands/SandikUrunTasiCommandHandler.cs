@@ -175,6 +175,21 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                             409);
                     }
 
+                    if (cekiSatiri != null)
+                    {
+                        var aktifPartiSayacKontrolu =
+                            GridUcKSevkPartisiKurali.AktifPartiSandikSayaclariniDogrula(
+                                cekiSatiri,
+                                satirIcerikleri);
+                        if (!aktifPartiSayacKontrolu.IsSuccess)
+                            return aktifPartiSayacKontrolu;
+
+                        // Parent sayaç yeni semantikteyse oluşturulan hedef child da aynı
+                        // nullable sözleşmeye katılır. Legacy parent'ta ise null korunur.
+                        if (hedefSonucu.YeniKayit && cekiSatiri.AktifGridSevkKarsilananMiktari.HasValue)
+                            hedefIcerik.AktifGridSevkKarsilananMiktari = 0;
+                    }
+
                     var kaynakTahsisOnce = kaynakIcerik.TahsisMiktari;
                     var kaynakKonulanOnce = kaynakIcerik.KonulanAdet;
                     var fizikselTasinanAdet = Math.Min(request.TasinanAdet, kaynakKonulanOnce);
@@ -186,6 +201,17 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                         kaynakIcerik,
                         fizikselTasinanAdet,
                         kaynakKonulanOnce);
+                    var aktifPartiTasinanResult = AktifPartiKarsilamasiniBol(
+                        cekiSatiri,
+                        kaynakIcerik,
+                        fizikselTasinanAdet,
+                        kaynakKirilimlari);
+                    if (!aktifPartiTasinanResult.IsSuccess)
+                        return Result.Failure(
+                            aktifPartiTasinanResult.Error!.Message,
+                            aktifPartiTasinanResult.StatusCode);
+
+                    var aktifPartiTasinan = aktifPartiTasinanResult.Value;
 
                     kaynakIcerik.TahsisMiktari -= request.TasinanAdet;
                     kaynakIcerik.KonulanAdet -= fizikselTasinanAdet;
@@ -200,6 +226,15 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                     hedefIcerik.ProjeKarsilanan += kaynakKirilimlari.Proje;
                     hedefIcerik.TedarikciKarsilanan += kaynakKirilimlari.Tedarikci;
                     hedefIcerik.EksikAdet += tasinanEksikAdet;
+
+                    if (cekiSatiri?.AktifGridSevkKarsilananMiktari.HasValue == true)
+                    {
+                        kaynakIcerik.AktifGridSevkKarsilananMiktari = Math.Max(
+                            (kaynakIcerik.AktifGridSevkKarsilananMiktari ?? 0) - aktifPartiTasinan,
+                            0);
+                        hedefIcerik.AktifGridSevkKarsilananMiktari =
+                            Math.Max(hedefIcerik.AktifGridSevkKarsilananMiktari ?? 0, 0) + aktifPartiTasinan;
+                    }
 
                     // Miktar alanı Saha/Yedek raporlarında kullanılan tahsis gölgesidir. ÇEKİ bağlantısı
                     // olsa da olmasa da parçalı taşıma sonrasında iki sandığın gerçek tahsisini izler.
@@ -586,6 +621,44 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 Math.Min(DortHaneyeAsagiYuvarla(stok), stokMevcut),
                 Math.Min(DortHaneyeAsagiYuvarla(proje), projeMevcut),
                 Math.Min(DortHaneyeAsagiYuvarla(tedarikci), tedarikciMevcut));
+        }
+
+        private static Result<decimal> AktifPartiKarsilamasiniBol(
+            CekiSatiri? cekiSatiri,
+            SandikIcerik kaynak,
+            decimal fizikselTasinanMiktar,
+            (decimal Stok, decimal Proje, decimal Tedarikci) tasinanKaynakKirilimlari)
+        {
+            if (cekiSatiri?.AktifGridSevkKarsilananMiktari.HasValue != true)
+                return Result<decimal>.Success(0);
+
+            var kaynakAktifParti = Math.Max(kaynak.AktifGridSevkKarsilananMiktari ?? 0, 0);
+            if (kaynakAktifParti <= 0 || fizikselTasinanMiktar <= 0)
+                return Result<decimal>.Success(0);
+
+            var kaynakGridMiktari = GridUcKSevkPartisiKurali.SandiktakiGridKarsilananMiktariniHesapla(kaynak);
+            if (kaynakAktifParti > kaynakGridMiktari)
+            {
+                return Result<decimal>.Failure(
+                    "Kaynak sandıktaki aktif Grid sevk sayacı fiziksel Grid miktarını aşıyor. Veri mutabakatı yapılmadan taşıma uygulanamaz.",
+                    409);
+            }
+
+            var tasinanGridMiktari = Math.Max(
+                fizikselTasinanMiktar -
+                tasinanKaynakKirilimlari.Stok -
+                tasinanKaynakKirilimlari.Proje -
+                tasinanKaynakKirilimlari.Tedarikci,
+                0);
+            if (tasinanGridMiktari <= 0 || kaynakGridMiktari <= 0)
+                return Result<decimal>.Success(0);
+
+            var tasinanAktifParti = tasinanGridMiktari >= kaynakGridMiktari
+                ? kaynakAktifParti
+                : DortHaneyeAsagiYuvarla(kaynakAktifParti * tasinanGridMiktari / kaynakGridMiktari);
+
+            return Result<decimal>.Success(
+                Math.Min(Math.Min(tasinanAktifParti, kaynakAktifParti), tasinanGridMiktari));
         }
 
         private static decimal DortHaneyeAsagiYuvarla(decimal value)

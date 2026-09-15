@@ -23,6 +23,15 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
         public async Task<Result> Handle(FiiliSandikDegistirCommand request, CancellationToken cancellationToken)
         {
+            return await _unitOfWork.ExecuteInTransactionAsync(
+                transactionCancellationToken => HandleInTransactionAsync(request, transactionCancellationToken),
+                cancellationToken);
+        }
+
+        private async Task<Result> HandleInTransactionAsync(
+            FiiliSandikDegistirCommand request,
+            CancellationToken cancellationToken)
+        {
             var cekiSatiriRepo = _unitOfWork.GetRepository<CekiSatiri>();
             var sandikRepo = _unitOfWork.GetRepository<Sandik>();
             var sandikIcerikRepo = _unitOfWork.GetRepository<SandikIcerik>();
@@ -44,6 +53,34 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (eskiSandik != null && SandikSevkKilidiHelper.SandikKilitliMi(eskiSandik))
                 return Result.Failure("Ürün sevk edilmiş sandıkta olduğu için sandığı değiştirilemez.");
 
+            var eskiIcerikler = (await sandikIcerikRepo.FindAsync(
+                    si => si.CekiSatiriId == request.CekiSatiriId))
+                .ToList();
+
+            if (eskiIcerikler.Count > 1)
+            {
+                return Result.Failure(
+                    "Ürün birden fazla sandığa parçalı olarak tahsis edilmiş. Tamamını tek seferde değiştirmek yerine sandık yönetimindeki miktarlı taşıma işlemini kullanın.",
+                    409);
+            }
+
+            var eskiIcerik = eskiIcerikler.SingleOrDefault();
+
+            var aktifPartiSayacKontrolu =
+                GridUcKSevkPartisiKurali.AktifPartiSandikSayaclariniDogrula(urun, eskiIcerikler);
+            if (!aktifPartiSayacKontrolu.IsSuccess)
+                return aktifPartiSayacKontrolu;
+
+            if (eskiIcerik == null &&
+                urun.AktifGridSevkKarsilananMiktari.GetValueOrDefault() > 0)
+            {
+                return Result.Failure(
+                    "Aktif Grid sevk karşılamasının bağlı olduğu kaynak sandık içeriği bulunamadı. Veri mutabakatı yapılmadan sandık değiştirilemez.",
+                    409);
+            }
+
+            // Veri bütünlüğü kontrolleri tamamlanmadan hedef sandık üretmeyiz. Aksi
+            // halde reddedilen bir taşıma boş bir sandığı kalıcı bırakabilir.
             var hedefSandiklar = await sandikRepo.FindAsync(s =>
                 s.ProjeId == request.ProjeId && s.SandikNo == request.YeniFiiliSandikNo);
             var hedefSandik = hedefSandiklar.FirstOrDefault();
@@ -63,19 +100,6 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 await _unitOfWork.SaveChangesAsync();
             }
 
-            var eskiIcerikler = (await sandikIcerikRepo.FindAsync(
-                    si => si.CekiSatiriId == request.CekiSatiriId))
-                .ToList();
-
-            if (eskiIcerikler.Count > 1)
-            {
-                return Result.Failure(
-                    "Ürün birden fazla sandığa parçalı olarak tahsis edilmiş. Tamamını tek seferde değiştirmek yerine sandık yönetimindeki miktarlı taşıma işlemini kullanın.",
-                    409);
-            }
-
-            var eskiIcerik = eskiIcerikler.SingleOrDefault();
-
             decimal konulanAdet = eskiIcerik?.KonulanAdet ?? urun.IstenenAdet;
             decimal eksikAdet = eskiIcerik?.EksikAdet ?? 0;
 
@@ -89,7 +113,15 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                     ? eskiIcerik.TahsisMiktari
                     : urun.IstenenAdet,
                 KonulanAdet = konulanAdet,
-                EksikAdet = eksikAdet
+                EksikAdet = eksikAdet,
+                AktifGridSevkKarsilananMiktari = eskiIcerik?.AktifGridSevkKarsilananMiktari ??
+                    (urun.AktifGridSevkKarsilananMiktari.HasValue ? 0 : null),
+                StokKarsilanan = eskiIcerik?.StokKarsilanan ?? 0,
+                ProjeKarsilanan = eskiIcerik?.ProjeKarsilanan ?? 0,
+                TedarikciKarsilanan = eskiIcerik?.TedarikciKarsilanan ?? 0,
+                Miktar = eskiIcerik?.Miktar ?? 0,
+                BirimId = eskiIcerik?.BirimId ?? urun.BirimId,
+                KaynakProjeNo = eskiIcerik?.KaynakProjeNo
             });
 
             urun.FiiliSandikNo = request.YeniFiiliSandikNo;

@@ -13,6 +13,160 @@ namespace _3K.Application.Tests;
 
 public sealed class CekiSatiriAnaVeriTahsisTests
 {
+    [Theory]
+    [InlineData("satir")]
+    [InlineData("sira")]
+    [InlineData("barkod")]
+    [InlineData("aciklama")]
+    [InlineData("miktar")]
+    [InlineData("birim")]
+    [InlineData("sandik")]
+    public async Task GecersizAnaVeri_VeritabaniIslemineGirmedenReddedilir(string alan)
+    {
+        using var kurgu = new Kurgu(2);
+        var istek = new CekiSatiriAnaVeriGuncelleCommand
+        {
+            CekiSatiriId = 50, SiraNo = 1, BarkodNo = "FCT01181927",
+            Aciklama = "Urun", IstenenAdet = 3, BirimId = (int)Birim.Adet, SandikNo = "1"
+        };
+        switch (alan)
+        {
+            case "satir": istek.CekiSatiriId = 0; break;
+            case "sira": istek.SiraNo = 0; break;
+            case "barkod": istek.BarkodNo = " "; break;
+            case "aciklama": istek.Aciklama = " "; break;
+            case "miktar": istek.IstenenAdet = 0; break;
+            case "birim": istek.BirimId = -1; break;
+            case "sandik": istek.SandikNo = " "; break;
+        }
+        var once = kurgu.TumKayitlar();
+
+        var sonuc = await new CekiSatiriAnaVeriGuncelleCommandHandler(
+            kurgu.Uow, new DurumHesaplaService(), kurgu.Saha).Handle(istek, default);
+
+        Assert.False(sonuc.IsSuccess);
+        Assert.Equal(once, kurgu.TumKayitlar());
+        Assert.Equal(0, kurgu.Uow.TransactionCount);
+        Assert.Equal(0, kurgu.Uow.SaveCount);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AnaSatirVeyaCekiBulunamazsa_MiktarVeTahsisDegistirilmez(bool satirYok)
+    {
+        using var kurgu = new Kurgu(2);
+        if (satirYok) kurgu.Uow.Repo<CekiSatiri>().Rows.Clear();
+        else kurgu.Uow.Repo<Ceki>().Rows.Clear();
+        var sonuc = await kurgu.CalistirAsync(3);
+        Assert.False(sonuc.IsSuccess);
+        Assert.Equal(404, sonuc.StatusCode);
+        Assert.Equal(2, kurgu.TekIcerik.TahsisMiktari);
+        Assert.Equal(0, kurgu.Uow.WriteCount);
+        Assert.Equal(0, kurgu.Uow.SaveCount);
+    }
+
+    [Theory]
+    [InlineData(2, 3)]
+    [InlineData(32, 35)]
+    [InlineData(1.25, 2.625)]
+    public async Task TamamlanmisTeslimSonrasiArtis_GridKabulDurumuYeniIhtiyaciIzler(decimal eski, decimal yeni)
+    {
+        using var kurgu = new Kurgu(eski, konulan: eski);
+        kurgu.Satir.GridDurumuId = (int)GridDurum.TamGeldi;
+        kurgu.Satir.GridGelenAdet = eski;
+        kurgu.Satir.GridSevkMiktari = eski;
+        kurgu.Satir.GridSevkDurumuId = (int)GridSevkDurum.SevkEdildi;
+        kurgu.Satir.UcKDurumuId = (int)UcKDurum.TamGeldi;
+        kurgu.Satir.GelenMiktar = eski;
+        kurgu.Satir.DurumId = (int)UrunDurum.Tamamlandi;
+        kurgu.Satir.SurecDurumId = (int)SurecDurum.Tamamlandi;
+        kurgu.Satir.KaliteDurumId = 1;
+        kurgu.Satir.AktifGridSevkKarsilananMiktari = eski;
+        kurgu.Satir.AktifGridSevkPartisiErkenSonuclandirildiMi = false;
+        kurgu.TekIcerik.AktifGridSevkKarsilananMiktari = eski;
+        var fizikselOnce = kurgu.FizikselKayitlar();
+
+        var sonuc = await kurgu.CalistirAsync(yeni);
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.Equal((int)GridDurum.EksikGeldi, kurgu.Satir.GridDurumuId);
+        Assert.Equal((int)UrunDurum.KismiTamamlandi, kurgu.Satir.DurumId);
+        Assert.Equal(yeni - eski, kurgu.Satir.KalanMiktar);
+        Assert.Equal(yeni - eski, kurgu.Satir.GridEksikMiktar);
+        Assert.Equal(fizikselOnce, kurgu.FizikselKayitlar());
+        Assert.Equal((int)UcKDurum.TamGeldi, kurgu.Satir.UcKDurumuId);
+        Assert.Equal((int)SurecDurum.Tamamlandi, kurgu.Satir.SurecDurumId);
+        Assert.Equal(1, kurgu.Satir.KaliteDurumId);
+        Assert.Equal(eski, kurgu.Satir.AktifGridSevkKarsilananMiktari);
+        Assert.False(kurgu.Satir.AktifGridSevkPartisiErkenSonuclandirildiMi);
+        Assert.Equal(eski, kurgu.TekIcerik.AktifGridSevkKarsilananMiktari);
+        Assert.Equal(yeni - eski, GridUcKSevkPartisiKurali.DevamSevkiniDegerlendir(kurgu.Satir).UstSinir);
+    }
+
+    [Fact]
+    public async Task MiktarArtirilipGeriDusurulurse_TamEksikEtiketiVeTahsisBirlikteGuncellenir()
+    {
+        using var kurgu = new Kurgu(2, konulan: 2);
+        kurgu.Satir.GridDurumuId = (int)GridDurum.TamGeldi;
+        kurgu.Satir.GridGelenAdet = 2;
+        kurgu.Satir.GelenMiktar = 2;
+        var fizikselOnce = kurgu.FizikselKayitlar();
+        var artis = await kurgu.CalistirAsync(3);
+        Assert.True(artis.IsSuccess, artis.Error?.Message);
+        Assert.Equal((int)GridDurum.EksikGeldi, kurgu.Satir.GridDurumuId);
+
+        var azalis = await kurgu.CalistirAsync(2);
+
+        Assert.True(azalis.IsSuccess, azalis.Error?.Message);
+        Assert.Equal((int)GridDurum.TamGeldi, kurgu.Satir.GridDurumuId);
+        Assert.Equal(0, kurgu.Satir.KalanMiktar);
+        Assert.Equal(0, kurgu.TekIcerik.EksikAdet);
+        Assert.Equal(2, kurgu.TekIcerik.TahsisMiktari);
+        Assert.Equal(2m, kurgu.Satir.OrijinalIstenenAdet);
+        Assert.Equal(fizikselOnce, kurgu.FizikselKayitlar());
+    }
+
+    public static IEnumerable<object[]> DigerGridDurumlari() =>
+        Enum.GetValues<GridDurum>()
+            .Where(d => d != GridDurum.TamGeldi && d != GridDurum.EksikGeldi)
+            .Select(d => new object[] { d });
+
+    [Theory]
+    [MemberData(nameof(DigerGridDurumlari))]
+    public async Task MiktarArtisi_DigerGridIsAkislariniOtomatikYenidenAcmaz(GridDurum durum)
+    {
+        using var kurgu = new Kurgu(2, konulan: 1);
+        kurgu.Satir.GridDurumuId = (int)durum;
+        kurgu.Satir.GridGelenAdet = 1;
+        kurgu.Satir.TrafoSevkAdet = durum == GridDurum.TrafoSevk ? 1 : 0;
+        var fizikselOnce = kurgu.FizikselKayitlar();
+
+        var sonuc = await kurgu.CalistirAsync(3);
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.Equal((int)durum, kurgu.Satir.GridDurumuId);
+        Assert.Equal(fizikselOnce, kurgu.FizikselKayitlar());
+    }
+
+    [Theory]
+    [InlineData(GridDurum.TamGeldi, 0, 0)]
+    [InlineData(GridDurum.TamGeldi, 1, 1)]
+    [InlineData(GridDurum.EksikGeldi, 1, 1)]
+    public async Task BosVeyaTrafoIleKarmaKabul_MiktarDuzenlemesiDurumuVarsaymaz(
+        GridDurum durum, decimal gelen, decimal trafo)
+    {
+        using var kurgu = new Kurgu(2);
+        kurgu.Satir.GridDurumuId = (int)durum;
+        kurgu.Satir.GridGelenAdet = gelen;
+        kurgu.Satir.TrafoSevkAdet = trafo;
+        var sonuc = await kurgu.CalistirAsync(3);
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.Equal((int)durum, kurgu.Satir.GridDurumuId);
+        Assert.Equal(gelen, kurgu.Satir.GridGelenAdet);
+        Assert.Equal(trafo, kurgu.Satir.TrafoSevkAdet);
+    }
+
     [Fact]
     public async Task IlkMiktarDegisikligi_OrijinaliAyriSaklar_TahsisGuncelMiktariIzler()
     {

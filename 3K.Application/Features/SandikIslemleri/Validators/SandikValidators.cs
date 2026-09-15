@@ -132,4 +132,39 @@ namespace _3K.Application.Features.SandikIslemleri.Validators
                 .WithMessage("İşlem anahtarı zorunludur.");
         }
     }
+
+    public class UcKTeslimAlCommandValidator : AbstractValidator<UcKTeslimAlCommand>
+    {
+        public UcKTeslimAlCommandValidator()
+        {
+            RuleFor(x => x.CekiSatiriId).GreaterThan(0).WithMessage("Geçerli bir ürün ID belirtilmeli.");
+            RuleFor(x => x.ProjeId).GreaterThan(0).WithMessage("Geçerli bir proje ID belirtilmeli.");
+            RuleFor(x => x.GelenMiktar).GreaterThan(0).WithMessage("Gelen miktar 0'dan büyük olmalıdır.");
+            RuleFor(x => x.GelenMiktar)
+                .PrecisionScale(18, 4, false)
+                .WithMessage("Gelen miktar en fazla 14 tam ve 4 ondalık basamak içerebilir.");
+        }
+    }
+
+    public class TopluTeslimItemValidator : AbstractValidator<TopluTeslimItem>
+    {
+        public TopluTeslimItemValidator()
+        {
+            RuleFor(x => x.CekiSatiriId).GreaterThan(0).WithMessage("Geçerli bir ürün ID belirtilmeli.");
+            RuleFor(x => x.GelenMiktar).GreaterThan(0).WithMessage("Gelen miktar 0'dan büyük olmalıdır.");
+            RuleFor(x => x.GelenMiktar)
+                .PrecisionScale(18, 4, false)
+                .WithMessage("Gelen miktar en fazla 14 tam ve 4 ondalık basamak içerebilir.");
+        }
+    }
+
+    public class UcKTopluTeslimAlCommandValidator : AbstractValidator<UcKTopluTeslimAlCommand>
+    {
+        public UcKTopluTeslimAlCommandValidator()
+        {
+            RuleFor(x => x.ProjeId).GreaterThan(0).WithMessage("Geçerli bir proje ID belirtilmeli.");
+            RuleFor(x => x.Urunler).NotEmpty().WithMessage("En az bir ürün seçilmelidir.");
+            RuleForEach(x => x.Urunler).SetValidator(new TopluTeslimItemValidator());
+        }
+    }
 }

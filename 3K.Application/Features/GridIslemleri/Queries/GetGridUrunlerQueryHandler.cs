@@ -146,6 +146,7 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                     etkinKalan,
                     tahsisMiktarlari,
                     sandikTamamlananMiktarlari);
+                var devamSevkKarari = GridUcKSevkPartisiKurali.DevamSevkiniDegerlendir(cs);
 
                 for (var tahsisIndex = 0; tahsisIndex < tahsisler.Count; tahsisIndex++)
                 {
@@ -223,6 +224,8 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                     ? SandikTahsisHelper.ToplamdanSatirPayi(cs.GridSevkMiktari.Value, sandikMiktari, toplamTahsisMiktari, tahsisler.Count)
                     : null,
                         YenidenSevkGerekliAdet = SandikTahsisHelper.ToplamdanSatirPayi(cs.YenidenSevkGerekliAdet, sandikMiktari, toplamTahsisMiktari, tahsisler.Count),
+                        GridYenidenSevkEdilebilirMi = devamSevkKarari.YeniPartiMi,
+                        GridYenidenSevkUstSiniri = devamSevkKarari.UstSinir,
                         GridSevkTarihi = cs.GridSevkTarihi,
                         GridAciklama = cs.GridAciklama,
                         GridEksikMiktar = sandikGridEksik,
@@ -304,6 +307,8 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                 GridSevkDurumuMetni = _lookupCache.GetDeger<LookupGridSevkDurum>((int)GridSevkDurum.SevkEdildi),
                 GridSevkMiktari = miktar,
                 YenidenSevkGerekliAdet = 0,
+                GridYenidenSevkEdilebilirMi = false,
+                GridYenidenSevkUstSiniri = 0,
                 GridSevkTarihi = null,
                 GridAciklama = null,
                 GridEksikMiktar = 0,

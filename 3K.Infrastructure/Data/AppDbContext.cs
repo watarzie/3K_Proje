@@ -317,6 +317,7 @@ namespace _3K.Infrastructure.Data
                 e.Property(p => p.GridGelenAdet).HasPrecision(18, 4);
                 e.Property(p => p.TrafoSevkAdet).HasPrecision(18, 4);
                 e.Property(p => p.GridSevkMiktari).HasPrecision(18, 4);
+                e.Property(p => p.AktifGridSevkKarsilananMiktari).HasPrecision(18, 4);
                 e.Property(p => p.YenidenSevkGerekliAdet).HasPrecision(18, 4);
                 e.Property(p => p.GelenMiktar).HasPrecision(18, 4);
                 e.Property(p => p.KarsilananMiktar).HasPrecision(18, 4);
@@ -346,6 +347,7 @@ namespace _3K.Infrastructure.Data
                     .HasDefaultValue(0m);
                 e.Property(p => p.KonulanAdet).HasPrecision(18, 4);
                 e.Property(p => p.EksikAdet).HasPrecision(18, 4);
+                e.Property(p => p.AktifGridSevkKarsilananMiktari).HasPrecision(18, 4);
                 e.Property(p => p.StokKarsilanan).HasPrecision(18, 4);
                 e.Property(p => p.ProjeKarsilanan).HasPrecision(18, 4);
                 e.Property(p => p.TedarikciKarsilanan).HasPrecision(18, 4);

@@ -85,6 +85,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             satir.TrafoSevkAdet = 0;
             satir.GridSevkDurumuId = (int)GridSevkDurum.SevkEdilmedi;
             satir.GridSevkMiktari = null;
+            await GridUcKSevkPartisiKurali.AktifPartiTakibiniTemizleAsync(_unitOfWork, satir);
             satir.YenidenSevkGerekliAdet = 0;
             satir.GridSevkTarihi = null;
             satir.GridPersonelId = null;

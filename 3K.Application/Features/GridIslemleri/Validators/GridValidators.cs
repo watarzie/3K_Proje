@@ -11,6 +11,18 @@ namespace _3K.Application.Features.GridIslemleri.Validators
             RuleFor(x => x.CekiSatiriId).GreaterThan(0).WithMessage("Geçerli bir ürün ID belirtilmeli.");
             RuleFor(x => x.ProjeId).GreaterThan(0).WithMessage("Geçerli bir proje ID belirtilmeli.");
             RuleFor(x => x.YeniDurumId).GreaterThan(0).WithMessage("Yeni durum belirtilmeli.");
+            RuleFor(x => x.GridGelenAdet)
+                .PrecisionScale(18, 4, false)
+                .When(x => x.GridGelenAdet.HasValue)
+                .WithMessage("Grid gelen miktarı en fazla 14 tam ve 4 ondalık basamak içerebilir.");
+            RuleFor(x => x.TrafoSevkAdet)
+                .PrecisionScale(18, 4, false)
+                .When(x => x.TrafoSevkAdet.HasValue)
+                .WithMessage("Trafo sevk miktarı en fazla 14 tam ve 4 ondalık basamak içerebilir.");
+            RuleFor(x => x.SevkMiktari)
+                .PrecisionScale(18, 4, false)
+                .When(x => x.SevkMiktari.HasValue)
+                .WithMessage("Sevk miktarı en fazla 14 tam ve 4 ondalık basamak içerebilir.");
             RuleFor(x => x)
                 .Must(x => !x.SevkMiktari.HasValue ||
                            x.SevkMiktari.Value <= 0 ||

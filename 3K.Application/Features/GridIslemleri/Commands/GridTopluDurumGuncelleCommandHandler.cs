@@ -57,10 +57,20 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
             var durumAdi = ((GridDurum)request.HedefDurumId).ToString();
             var repo = _unitOfWork.GetRepository<CekiSatiri>();
-            var satirlar = await repo.FindAsync(cs => request.CekiSatiriIdler.Contains(cs.Id));
+            var satirlar = (await repo.FindAsync(cs => request.CekiSatiriIdler.Contains(cs.Id))).ToList();
 
             if (!satirlar.Any())
                 return Result.Failure("Seçilen ürünler bulunamadı.", 404);
+
+            var iceriklerBySatirId = new Dictionary<int, IReadOnlyCollection<SandikIcerik>>();
+            if (request.HedefDurumId == (int)GridDurum.Iptal)
+            {
+                var satirIdler = satirlar.Select(s => s.Id).ToList();
+                iceriklerBySatirId = (await _unitOfWork.GetRepository<SandikIcerik>()
+                        .FindAsync(i => i.CekiSatiriId.HasValue && satirIdler.Contains(i.CekiSatiriId.Value)))
+                    .GroupBy(i => i.CekiSatiriId!.Value)
+                    .ToDictionary(g => g.Key, g => (IReadOnlyCollection<SandikIcerik>)g.ToList());
+            }
 
             var kilitliSatirIdleri = await SandikSevkKilidiHelper.GetSevkEdilmisSandikCekiSatiriIdleriAsync(
                 _unitOfWork,
@@ -85,14 +95,13 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
             foreach (var satir in satirlar)
             {
-                // 3K işlem blokajı (İptal ve GridKapandı hariç — onlar 3K'dan bağımsız)
-                if (request.HedefDurumId == (int)GridDurum.TamGeldi)
+                // Mevcut toplu iş kuralı: İptal/Grid Kapandı, 3K karşılamasından
+                // bağımsızdır. Tam Geldi ise gerçekleşmiş 3K bilgisini değiştiremez.
+                if (request.HedefDurumId == (int)GridDurum.TamGeldi &&
+                    GridUcKSevkPartisiKurali.UcKTarafindaIslemVar(satir))
                 {
-                    if (satir.UcKDurumuId != (int)UcKDurum.Bekliyor || satir.GelenMiktar > 0 || satir.KarsilananMiktar > 0)
-                    {
-                        hatalar.Add($"#{satir.SiraNo}: 3K işlem yapılmış.");
-                        continue;
-                    }
+                    hatalar.Add($"#{satir.SiraNo}: 3K işlem yapılmış.");
+                    continue;
                 }
 
                 var eskiDurum = satir.GridDurumuId;
@@ -104,12 +113,16 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 {
                     satir.GridGelenAdet = satir.IstenenAdet;
                 }
-                else if (request.HedefDurumId == (int)GridDurum.Iptal || request.HedefDurumId == (int)GridDurum.GridKapandi)
+                else if (request.HedefDurumId == (int)GridDurum.Iptal)
                 {
                     satir.GridGelenAdet = 0;
                     satir.TrafoSevkAdet = 0;
                     satir.GridSevkDurumuId = (int)GridSevkDurum.SevkEdilmedi;
                     satir.GridSevkMiktari = null;
+                    await GridUcKSevkPartisiKurali.AktifPartiTakibiniTemizleAsync(
+                        _unitOfWork,
+                        satir,
+                        iceriklerBySatirId.GetValueOrDefault(satir.Id) ?? Array.Empty<SandikIcerik>());
                 }
 
                 if (request.HedefDurumId == (int)GridDurum.GridKapandi)

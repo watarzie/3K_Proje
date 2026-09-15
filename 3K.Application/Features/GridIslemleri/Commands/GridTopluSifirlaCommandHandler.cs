@@ -46,10 +46,16 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 return Result.Failure("En az bir ürün seçilmelidir.", 400);
 
             var repo = _unitOfWork.GetRepository<CekiSatiri>();
-            var satirlar = await repo.FindAsync(cs => request.CekiSatiriIdler.Contains(cs.Id));
+            var satirlar = (await repo.FindAsync(cs => request.CekiSatiriIdler.Contains(cs.Id))).ToList();
 
             if (!satirlar.Any())
                 return Result.Failure("Seçilen ürünler bulunamadı.", 404);
+
+            var satirIdler = satirlar.Select(s => s.Id).ToList();
+            var iceriklerBySatirId = (await _unitOfWork.GetRepository<SandikIcerik>()
+                    .FindAsync(i => i.CekiSatiriId.HasValue && satirIdler.Contains(i.CekiSatiriId.Value)))
+                .GroupBy(i => i.CekiSatiriId!.Value)
+                .ToDictionary(g => g.Key, g => (IReadOnlyCollection<SandikIcerik>)g.ToList());
 
             var kilitliSatirIdleri = await SandikSevkKilidiHelper.GetSevkEdilmisSandikCekiSatiriIdleriAsync(
                 _unitOfWork,
@@ -103,6 +109,10 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 satir.TrafoSevkAdet = 0;
                 satir.GridSevkDurumuId = (int)GridSevkDurum.SevkEdilmedi;
                 satir.GridSevkMiktari = null;
+                await GridUcKSevkPartisiKurali.AktifPartiTakibiniTemizleAsync(
+                    _unitOfWork,
+                    satir,
+                    iceriklerBySatirId.GetValueOrDefault(satir.Id) ?? Array.Empty<SandikIcerik>());
                 satir.YenidenSevkGerekliAdet = 0;
                 satir.GridSevkTarihi = null;
                 satir.GridPersonelId = null;

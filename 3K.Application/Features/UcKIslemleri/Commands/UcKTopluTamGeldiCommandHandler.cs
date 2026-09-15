@@ -14,28 +14,50 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
         private readonly IDurumHesaplaService _durumHesaplaService;
         private readonly IHareketService _hareketService;
         private readonly ISahaTamamlamaService _sahaTamamlamaService;
+        private readonly ILookupCacheService _lookupCache;
 
         public UcKTopluTamGeldiCommandHandler(
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUserService,
             IDurumHesaplaService durumHesaplaService,
             IHareketService hareketService,
-            ISahaTamamlamaService sahaTamamlamaService)
+            ISahaTamamlamaService sahaTamamlamaService,
+            ILookupCacheService lookupCache)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _durumHesaplaService = durumHesaplaService;
             _hareketService = hareketService;
             _sahaTamamlamaService = sahaTamamlamaService;
+            _lookupCache = lookupCache;
         }
 
         public async Task<Result> Handle(UcKTopluTamGeldiCommand request, CancellationToken cancellationToken)
+        {
+            return await _unitOfWork.ExecuteInTransactionAsync(
+                transactionCancellationToken => HandleInTransactionAsync(request, transactionCancellationToken),
+                cancellationToken);
+        }
+
+        private async Task<Result> HandleInTransactionAsync(
+            UcKTopluTamGeldiCommand request,
+            CancellationToken cancellationToken)
         {
             var secimler = UcKSandikSecimHelper.Olustur(request.CekiSatiriIdler, request.Secimler);
             if (!secimler.Any())
                 return Result.Failure("En az bir ürün seçilmelidir.");
 
             var repo = _unitOfWork.GetRepository<CekiSatiri>();
+            var seciliSatirIdleri = secimler.Select(s => s.CekiSatiriId).Distinct().ToList();
+            // Aynı parent için birden fazla sandık seçilebildiğinden tüm child kayıtlar
+            // tek tracked sorguda yüklenir. Böylece detached kopyaların sırayla attach
+            // edilmesi ve aktif-parti sayaçlarının yalnız bir child'da kalması önlenir.
+            var iceriklerBySatirId = _unitOfWork.GetRepository<SandikIcerik>()
+                .Queryable()
+                .Where(i => i.CekiSatiriId.HasValue && seciliSatirIdleri.Contains(i.CekiSatiriId.Value))
+                .ToList()
+                .GroupBy(i => i.CekiSatiriId!.Value)
+                .ToDictionary(g => g.Key, g => (IReadOnlyCollection<SandikIcerik>)g.ToList());
             var kilitliSatirIdleri = await SandikSevkKilidiHelper.GetSevkEdilmisSandikCekiSatiriIdleriAsync(
                 _unitOfWork,
                 secimler.Select(s => s.CekiSatiriId));
@@ -58,32 +80,32 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     satir.GridDurumuId == (int)GridDurum.GridKapandi)
                 { hatalar.Add($"ID {cekiSatiriId}: Grid durumu uygun değil."); continue; }
 
+                if (satir.KaliteDurumId.HasValue &&
+                    _lookupCache.GetDeger<LookupKaliteDurum>(satir.KaliteDurumId.Value) == "Tadilatta")
+                { hatalar.Add($"ID {cekiSatiriId}: Kalite Tadilatta."); continue; }
+
                 if (satir.GridDurumuId == (int)GridDurum.TrafoSevk &&
-                    (satir.GridSevkDurumuId != (int)GridSevkDurum.SevkEdildi || (satir.GridSevkMiktari ?? 0) <= 0))
+                    !GridUcKSevkPartisiKurali.AktifPartiTeslimeAcikMi(satir))
                 { hatalar.Add($"ID {cekiSatiriId}: Trafo sevk satirinda 3K'ya sevk edilmis Grid gelen miktar yok."); continue; }
 
                 // Grid sevk kontrolü
-                if (satir.GridSevkDurumuId != (int)GridSevkDurum.SevkEdildi)
+                if (!GridUcKSevkPartisiKurali.AktifPartiTeslimeAcikMi(satir))
                 { hatalar.Add($"ID {cekiSatiriId}: Grid henüz sevk etmedi."); continue; }
 
                 var projeTransferTelafiPaketi = false;
+                var satirIcerikleri = iceriklerBySatirId.GetValueOrDefault(satir.Id)
+                    ?? Array.Empty<SandikIcerik>();
                 if (UcKProjeTransferTelafiTeslimKural.AdayMi(satir))
                 {
-                    var sandikIcerikSayisi = _unitOfWork.GetRepository<SandikIcerik>()
-                        .Queryable()
-                        .Count(i => i.CekiSatiriId == satir.Id);
                     projeTransferTelafiPaketi =
-                        UcKProjeTransferTelafiTeslimKural.AktifMi(satir, sandikIcerikSayisi);
+                        UcKProjeTransferTelafiTeslimKural.AktifMi(satir, satirIcerikleri.Count);
                 }
 
-                var seciliIcerikResult = await UcKSandikIcerikSenkronizasyonHelper.GetSeciliIcerikAsync(
-                    _unitOfWork,
-                    satir.Id,
-                    secim.SandikIcerikId);
-                if (!seciliIcerikResult.IsSuccess)
-                { hatalar.Add($"ID {cekiSatiriId}: {seciliIcerikResult.Error!.Message}"); continue; }
-
-                var seciliIcerik = seciliIcerikResult.Value;
+                var seciliIcerik = secim.SandikIcerikId.HasValue
+                    ? satirIcerikleri.FirstOrDefault(i => i.Id == secim.SandikIcerikId.Value)
+                    : null;
+                if (secim.SandikIcerikId.HasValue && seciliIcerik == null)
+                { hatalar.Add($"ID {cekiSatiriId}: Seçilen sandık içeriği bu ürüne ait değil."); continue; }
                 var sandikMiktari = seciliIcerik == null
                     ? satir.IstenenAdet
                     : seciliIcerik.TahsisMiktari > 0 ? seciliIcerik.TahsisMiktari : satir.IstenenAdet;
@@ -101,20 +123,19 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 var eskiDurum = satir.UcKKarsilamaTipiId;
 
                 // TamGeldi mantığı — mevcut tek handler ile aynı
-                var sandikSevkKalan = sandikKalan;
-                if (seciliIcerik != null)
+                var teslimMiktariResult = GridUcKSevkPartisiKurali.TamKarsilamaMiktariniHesapla(
+                    _unitOfWork,
+                    satir,
+                    seciliIcerik,
+                    sandikKalan,
+                    satirIcerikleri);
+                if (!teslimMiktariResult.IsSuccess)
                 {
-                    var sandikSevkPayi = UcKSandikIcerikSenkronizasyonHelper.ToplamdanSeciliTahsisPayi(
-                        _unitOfWork,
-                        satir,
-                        seciliIcerik,
-                        satir.GridSevkMiktari ?? satir.GridGelenAdet);
-                    var sandikGridKaynakliKonulan = Math.Max(
-                        seciliIcerik.KonulanAdet - seciliIcerik.StokKarsilanan - seciliIcerik.ProjeKarsilanan - seciliIcerik.TedarikciKarsilanan,
-                        0);
-                    sandikSevkKalan = Math.Max(sandikSevkPayi - sandikGridKaynakliKonulan, 0);
+                    hatalar.Add($"ID {cekiSatiriId}: {teslimMiktariResult.Error!.Message}");
+                    continue;
                 }
-                var sevkMiktari = Math.Min(sandikKalan, sandikSevkKalan);
+
+                var sevkMiktari = teslimMiktariResult.Value;
                 var telafiTeslimResult = UcKProjeTransferTelafiTeslimKural.TeslimMiktariniHesapla(
                     projeTransferTelafiPaketi,
                     sevkMiktari,
@@ -127,6 +148,19 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 }
 
                 sevkMiktari = telafiTeslimResult.Value;
+                var aktifPartiKayitResult = GridUcKSevkPartisiKurali.AktifPartiKarsilamasiniKaydet(
+                    _unitOfWork,
+                    satir,
+                    seciliIcerik,
+                    Math.Max(sevkMiktari, 0),
+                    projeTransferTelafiPaketi,
+                    satirIcerikleri);
+                if (!aktifPartiKayitResult.IsSuccess)
+                {
+                    hatalar.Add($"ID {cekiSatiriId}: {aktifPartiKayitResult.Error!.Message}");
+                    continue;
+                }
+
                 satir.GelenMiktar += Math.Max(sevkMiktari, 0);
                 satir.UcKKarsilamaTipiId = (int)UcKDurum.TamGeldi;
                 satir.UcKDurumuId = (int)UcKDurum.TamGeldi;

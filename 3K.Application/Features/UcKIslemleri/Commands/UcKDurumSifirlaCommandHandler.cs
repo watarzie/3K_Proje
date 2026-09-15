@@ -65,6 +65,12 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     "Stoktan veya projeden karşılanan parçanın yalnız bir sandık için geri alınması güvenli değildir. Önce ilgili kaynak hareketini geri alın veya ürünün tüm 3K işlemini sıfırlayın.");
             }
 
+            if (seciliIcerik != null &&
+                !UcKDurumSifirlamaHelper.SandikBazliSifirlamaGerekliMi(satir, seciliIcerik))
+            {
+                return Result.Failure("Seçilen sandık içeriğinin 3K işlemi zaten sıfırlanmış.");
+            }
+
             if (await SahaAktarimBlokajHelper.KaynakSatirAktarildiMiAsync(_sahaTamamlamaService, satir, cancellationToken))
                 return Result.Failure(SahaAktarimBlokajHelper.UcKMesaji);
 
@@ -114,6 +120,8 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             // ===== 3K alanlarını sıfırla =====
             if (seciliIcerik == null)
             {
+                await GridUcKSevkPartisiKurali.AktifPartiKarsilamasiniSifirlaAsync(_unitOfWork, satir);
+                GridUcKSevkPartisiKurali.AktifPartiyiYenidenAc(satir);
                 satir.UcKDurumuId = (int)UcKDurum.Bekliyor;
                 satir.UcKKarsilamaTipiId = (int)UcKDurum.Bekliyor;
                 satir.GelenMiktar = 0;
@@ -133,9 +141,26 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             }
             else
             {
+                // Sonradan yapılan kaynak karşılaması son işlem tipini değiştirir;
+                // açıkça sonuçlandırılmış sevkin bilgisini takip bayrağından okuruz.
+                // Eski kayıtlarda mevcut Eksik Geldi davranışı korunur.
+                var eksikPartiFinalizasyonuVardi =
+                    satir.AktifGridSevkPartisiErkenSonuclandirildiMi ??
+                    satir.UcKKarsilamaTipiId == (int)UcKDurum.EksikGeldi;
+                var finalizasyonAnindakiAktifPartiEksigi = eksikPartiFinalizasyonuVardi
+                    ? GridUcKSevkPartisiKurali.AktifPartiKalanMiktariniHesapla(satir)
+                    : 0;
                 var sandikUcKGelen = Math.Max(
                     seciliIcerik.KonulanAdet - seciliIcerik.StokKarsilanan - seciliIcerik.ProjeKarsilanan - seciliIcerik.TedarikciKarsilanan,
                     0);
+                var aktifPartiGeriAlResult = GridUcKSevkPartisiKurali.AktifPartiKarsilamasiniGeriAl(
+                    _unitOfWork,
+                    satir,
+                    seciliIcerik,
+                    sandikUcKGelen);
+                if (!aktifPartiGeriAlResult.IsSuccess)
+                    return Result.Failure(aktifPartiGeriAlResult.Error!.Message, aktifPartiGeriAlResult.StatusCode);
+
                 satir.GelenMiktar = Math.Max(satir.GelenMiktar - sandikUcKGelen, 0);
                 satir.TedarikciKarsilanan = Math.Max(satir.TedarikciKarsilanan - seciliIcerik.TedarikciKarsilanan, 0);
                 satir.KarsilananMiktar = satir.StokKarsilanan + satir.ProjeKarsilanan + satir.TedarikciKarsilanan;
@@ -148,9 +173,16 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     satir.TeslimTarihi = null;
                     satir.UcKAciklama = null;
                 }
+
+                GridUcKSevkPartisiKurali.SandikBazliSifirlamaSonrasiPartiyiYenidenAc(
+                    satir,
+                    aktifPartiGeriAlResult.Value,
+                    eksikPartiFinalizasyonuVardi,
+                    finalizasyonAnindakiAktifPartiEksigi);
             }
-            if (satir.GridSevkDurumuId == (int)GridSevkDurum.YenidenSevkGerekli)
-                satir.GridSevkDurumuId = (int)GridSevkDurum.SevkEdildi;
+
+            if (seciliIcerik == null)
+                GridUcKSevkPartisiKurali.SifirlamaSonrasiGridSevkDurumunuSenkronizeEt(satir);
 
             UcKDurumSifirlamaHelper.KaliteVeSureciSifirlaEgerBaslangicta(satir);
 
@@ -249,6 +281,17 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             return AggregateBaslangicDurumunda(satir)
                 && !satir.KaliteDurumId.HasValue
                 && !satir.SurecDurumId.HasValue;
+        }
+
+        public static bool SandikBazliSifirlamaGerekliMi(
+            CekiSatiri satir,
+            SandikIcerik icerik)
+        {
+            return satir.UcKDurumuId != (int)UcKDurum.Bekliyor ||
+                   satir.UcKKarsilamaTipiId != (int)UcKDurum.Bekliyor ||
+                   icerik.KonulanAdet > 0 ||
+                   icerik.TedarikciKarsilanan > 0 ||
+                   (icerik.AktifGridSevkKarsilananMiktari ?? 0) > 0;
         }
 
         public static void KaliteVeSureciSifirlaEgerBaslangicta(CekiSatiri satir)

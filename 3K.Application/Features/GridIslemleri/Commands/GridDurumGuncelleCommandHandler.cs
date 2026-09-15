@@ -66,26 +66,19 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             // ===== 3K İşlem Blokajı =====
             // 3K tarafında işlem yapılmışsa Grid artık durum değiştiremez.
             // Önce 3K durumunun sıfırlanması gerekir.
-            var yenidenSevkAkisi =
-                satir.GridSevkDurumuId == (int)GridSevkDurum.YenidenSevkGerekli &&
-                satir.YenidenSevkGerekliAdet > 0 &&
-                request.GridSevkDurumuId == (int)GridSevkDurum.SevkEdildi;
-            var projeTransferYenidenSevkAkisi =
-                satir.GridSevkDurumuId == (int)GridSevkDurum.SevkEdildi &&
-                (satir.GridSevkMiktari ?? 0) > 0 &&
-                satir.ProjeGonderilen > 0 &&
-                satir.KalanMiktar > 0 &&
-                request.GridSevkDurumuId == (int)GridSevkDurum.SevkEdildi;
-            var parcaliEksikYenidenSevkAkisi =
-                satir.GridDurumuId == (int)GridDurum.EksikGeldi &&
-                satir.GridSevkDurumuId == (int)GridSevkDurum.SevkEdildi &&
-                (satir.GridSevkMiktari ?? 0) > 0 &&
-                satir.KalanMiktar > 0 &&
+            var devamSevkKarari = GridUcKSevkPartisiKurali.DevamSevkiniDegerlendir(satir);
+            var requestDurumuSevkAkisiylaUyumlu =
+                request.YeniDurumId == (int)GridDurum.TamGeldi ||
+                request.YeniDurumId == (int)GridDurum.EksikGeldi ||
+                request.YeniDurumId == (int)GridDurum.TrafoSevk;
+            var devamSevkAkisi =
+                devamSevkKarari.YeniPartiMi &&
+                requestDurumuSevkAkisiylaUyumlu &&
                 request.GridSevkDurumuId == (int)GridSevkDurum.SevkEdildi;
 
-            if (!yenidenSevkAkisi && !projeTransferYenidenSevkAkisi && !parcaliEksikYenidenSevkAkisi && (satir.UcKDurumuId != (int)UcKDurum.Bekliyor
-                || satir.GelenMiktar > 0
-                || satir.KarsilananMiktar > 0))
+            // 3K işlemi başlamadıysa sevk miktarı mevcut toplamın üzerine yazılır.
+            // Yalnız teslim sonrası devam sevkleri yeni parti olarak değerlendirilir.
+            if (!devamSevkAkisi && GridUcKSevkPartisiKurali.UcKTarafindaIslemVar(satir))
             {
                 return Result.Failure("Bu ürün için 3K tarafında işlem yapılmış. Grid durumu değiştirilemez. Önce 3K durumunu sıfırlayın.");
             }
@@ -107,119 +100,128 @@ namespace _3K.Application.Features.GridIslemleri.Commands
 
             var eskiDurum = satir.GridDurumuId;
 
-            // Grid alanlarını güncelle
-            satir.GridDurumuId = request.YeniDurumId;
+            // Devam sevkinde istemci sandık bazlı bir satırdan gelebilir. Bu satırdaki
+            // GridGelen/Trafo değerleri parent CekiSatiri toplamı değildir; mevcut
+            // kabul durumunu ve toplamlarını yeniden yazmak parent veriyi daraltır.
+            // Devam kararı backend'de parent kayıt üzerinden verildiği için burada
+            // yalnız yeni aktif sevk partisi açılır.
             satir.GridPersonelId = _currentUserService.UserId;
             satir.GridAciklama = request.Aciklama;
 
-            // ===== Durum bazlı alan yönetimi =====
-            switch (request.YeniDurumId)
+            if (!devamSevkAkisi)
             {
-                case (int)GridDurum.TamGeldi:
-                    satir.GridGelenAdet = satir.IstenenAdet; // otomatik
-                    satir.TrafoSevkAdet = 0;
-                    break;
+                satir.GridDurumuId = request.YeniDurumId;
 
-                case (int)GridDurum.EksikGeldi:
-                    if (request.GridGelenAdet == null || request.GridGelenAdet <= 0)
-                        return Result.Failure("Eksik geldi durumunda gelen adet girilmelidir.");
-                    if (request.GridGelenAdet >= satir.IstenenAdet)
-                        return Result.Failure("Eksik geldi durumunda gelen adet miktardan küçük olmalıdır.");
-                    satir.GridGelenAdet = request.GridGelenAdet.Value;
-                    satir.TrafoSevkAdet = 0;
-                    break;
+                // ===== Durum bazlı alan yönetimi =====
+                switch (request.YeniDurumId)
+                {
+                    case (int)GridDurum.TamGeldi:
+                        satir.GridGelenAdet = satir.IstenenAdet; // otomatik
+                        satir.TrafoSevkAdet = 0;
+                        break;
 
-                case (int)GridDurum.Gelmedi:
-                    satir.GridGelenAdet = 0;
-                    satir.TrafoSevkAdet = 0;
-                    satir.GridSevkDurumuId = 3; // SevkEdilmedi
-                    satir.GridSevkMiktari = null;
-                    break;
+                    case (int)GridDurum.EksikGeldi:
+                        if (request.GridGelenAdet == null || request.GridGelenAdet <= 0)
+                            return Result.Failure("Eksik geldi durumunda gelen adet girilmelidir.");
+                        if (request.GridGelenAdet >= satir.IstenenAdet)
+                            return Result.Failure("Eksik geldi durumunda gelen adet miktardan küçük olmalıdır.");
+                        satir.GridGelenAdet = request.GridGelenAdet.Value;
+                        satir.TrafoSevkAdet = 0;
+                        break;
 
-                case (int)GridDurum.TrafoSevk:
-                    if (request.TrafoSevkAdet == null || request.TrafoSevkAdet <= 0)
-                        return Result.Failure("Trafo sevk durumunda trafo sevk adeti girilmelidir.");
-                    if (request.TrafoSevkAdet > satir.IstenenAdet)
-                        return Result.Failure("Trafo sevk adeti miktardan büyük olamaz.");
-                    satir.TrafoSevkAdet = request.TrafoSevkAdet.Value;
-                    satir.GridGelenAdet = request.GridGelenAdet ?? 0;
-                    // Toplam kontrol
-                    if (satir.GridGelenAdet + satir.TrafoSevkAdet > satir.IstenenAdet)
-                        return Result.Failure("Toplam adet, çeki miktarını aşamaz.");
-                    break;
+                    case (int)GridDurum.Gelmedi:
+                        satir.GridGelenAdet = 0;
+                        satir.TrafoSevkAdet = 0;
+                        satir.GridSevkDurumuId = 3; // SevkEdilmedi
+                        satir.GridSevkMiktari = null;
+                        await GridUcKSevkPartisiKurali.AktifPartiTakibiniTemizleAsync(_unitOfWork, satir);
+                        break;
 
-                case (int)GridDurum.Iptal:
-                    satir.GridGelenAdet = 0;
-                    satir.TrafoSevkAdet = 0;
-                    satir.GridSevkDurumuId = 3; // SevkEdilmedi
-                    satir.GridSevkMiktari = null;
-                    break;
+                    case (int)GridDurum.TrafoSevk:
+                        if (request.TrafoSevkAdet == null || request.TrafoSevkAdet <= 0)
+                            return Result.Failure("Trafo sevk durumunda trafo sevk adeti girilmelidir.");
+                        if (request.TrafoSevkAdet > satir.IstenenAdet)
+                            return Result.Failure("Trafo sevk adeti miktardan büyük olamaz.");
+                        satir.TrafoSevkAdet = request.TrafoSevkAdet.Value;
+                        satir.GridGelenAdet = request.GridGelenAdet ?? 0;
+                        // Toplam kontrol
+                        if (satir.GridGelenAdet + satir.TrafoSevkAdet > satir.IstenenAdet)
+                            return Result.Failure("Toplam adet, çeki miktarını aşamaz.");
+                        break;
 
-                case (int)GridDurum.Sipariste:
-                    satir.GridGelenAdet = 0;
-                    satir.TrafoSevkAdet = 0;
-                    satir.GridSevkDurumuId = 3; // SevkEdilmedi
-                    satir.GridSevkMiktari = null;
-                    break;
+                    case (int)GridDurum.Iptal:
+                        satir.GridGelenAdet = 0;
+                        satir.TrafoSevkAdet = 0;
+                        satir.GridSevkDurumuId = 3; // SevkEdilmedi
+                        satir.GridSevkMiktari = null;
+                        await GridUcKSevkPartisiKurali.AktifPartiTakibiniTemizleAsync(_unitOfWork, satir);
+                        break;
 
-                case (int)GridDurum.GridKapandi:
-                    // Grid kapandı — mevcut adetler korunur, sadece durum güncellenir
-                    break;
-            }
+                    case (int)GridDurum.Sipariste:
+                        satir.GridGelenAdet = 0;
+                        satir.TrafoSevkAdet = 0;
+                        satir.GridSevkDurumuId = 3; // SevkEdilmedi
+                        satir.GridSevkMiktari = null;
+                        await GridUcKSevkPartisiKurali.AktifPartiTakibiniTemizleAsync(_unitOfWork, satir);
+                        break;
 
-            if (request.YeniDurumId == (int)GridDurum.GridKapandi)
-            {
-                await SandigiGridLokasyonunaAlAsync(request.ProjeId, satir);
+                    case (int)GridDurum.GridKapandi:
+                        // Grid kapandı — mevcut adetler korunur, sadece durum güncellenir
+                        break;
+                }
+
+                if (request.YeniDurumId == (int)GridDurum.GridKapandi)
+                {
+                    await SandigiGridLokasyonunaAlAsync(request.ProjeId, satir);
+                }
             }
 
             // ===== Grid Sevk Durumu =====
+            IReadOnlyCollection<SandikIcerik>? sevkIcerikleri = null;
             if (request.GridSevkDurumuId.HasValue)
             {
                 // Sevk edilebilmesi kontrolü 
                 if (request.GridSevkDurumuId.Value == (int)GridSevkDurum.SevkEdildi)
                 {
-                    if (request.YeniDurumId != (int)GridDurum.TamGeldi && request.YeniDurumId != (int)GridDurum.EksikGeldi && !(request.YeniDurumId == (int)GridDurum.TrafoSevk && satir.GridGelenAdet > 0))
+                    var sevkeUygunDurum = devamSevkAkisi ||
+                        request.YeniDurumId == (int)GridDurum.TamGeldi ||
+                        request.YeniDurumId == (int)GridDurum.EksikGeldi ||
+                        (request.YeniDurumId == (int)GridDurum.TrafoSevk && satir.GridGelenAdet > 0);
+                    if (!sevkeUygunDurum)
                         return Result.Failure("Sevk edilmesi için durum TamGeldi veya EksikGeldi olmalıdır.");
-                    var sevkUstSinir = yenidenSevkAkisi
-                        ? satir.YenidenSevkGerekliAdet
-                        : projeTransferYenidenSevkAkisi
-                            ? Math.Min(satir.ProjeGonderilen, satir.KalanMiktar)
-                            : parcaliEksikYenidenSevkAkisi
-                                ? satir.KalanMiktar
-                                : satir.GridGelenAdet;
+                    var sevkUstSinir = devamSevkAkisi
+                        ? devamSevkKarari.UstSinir
+                        : satir.GridGelenAdet;
                     if (request.SevkMiktari > sevkUstSinir)
                         return Result.Failure("Sevk miktari Grid'e gelen adetten buyuk olamaz.");
                     if (request.SevkMiktari == null || request.SevkMiktari <= 0)
                         return Result.Failure("Sevk miktarı girilmelidir.");
+
+                    sevkIcerikleri = (await _unitOfWork.GetRepository<SandikIcerik>()
+                            .FindAsync(i => i.CekiSatiriId == satir.Id))
+                        .ToList();
+                    var tahsisKapasitesiResult = GridUcKSevkPartisiKurali.YeniSevkTahsisKapasitesiniDogrula(
+                        satir,
+                        sevkIcerikleri,
+                        request.SevkMiktari.Value);
+                    if (!tahsisKapasitesiResult.IsSuccess)
+                    {
+                        return Result.Failure(
+                            tahsisKapasitesiResult.Error!.Message,
+                            tahsisKapasitesiResult.StatusCode);
+                    }
                 }
 
                 satir.GridSevkDurumuId = request.GridSevkDurumuId.Value;
                 if (request.SevkMiktari.HasValue)
                 {
-                    satir.GridSevkMiktari = request.SevkMiktari.Value;
+                    await GridUcKSevkPartisiKurali.YeniPartiBaslatAsync(
+                        _unitOfWork,
+                        satir,
+                        request.SevkMiktari.Value,
+                        devamSevkAkisi ? devamSevkKarari : GridUcKDevamSevkKarari.UygunDegil,
+                        sevkIcerikleri);
                     satir.GridSevkTarihi = TurkeyTime.Now;
-                    if (yenidenSevkAkisi)
-                    {
-                        satir.YenidenSevkGerekliAdet = Math.Max(satir.YenidenSevkGerekliAdet - request.SevkMiktari.Value, 0);
-                        satir.GridSevkDurumuId = satir.YenidenSevkGerekliAdet > 0
-                            ? (int)GridSevkDurum.YenidenSevkGerekli
-                            : (int)GridSevkDurum.SevkEdildi;
-                        satir.UcKDurumuId = (int)UcKDurum.Bekliyor;
-                        satir.UcKKarsilamaTipiId = (int)UcKDurum.Bekliyor;
-                        satir.TeslimTarihi = null;
-                    }
-                    else if (projeTransferYenidenSevkAkisi)
-                    {
-                        satir.UcKDurumuId = (int)UcKDurum.Bekliyor;
-                        satir.UcKKarsilamaTipiId = (int)UcKDurum.Bekliyor;
-                        satir.TeslimTarihi = null;
-                    }
-                    else if (parcaliEksikYenidenSevkAkisi)
-                    {
-                        satir.UcKDurumuId = (int)UcKDurum.Bekliyor;
-                        satir.UcKKarsilamaTipiId = (int)UcKDurum.Bekliyor;
-                        satir.TeslimTarihi = null;
-                    }
                 }
             }
 
@@ -234,7 +236,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 await _sahaTamamlamaService.SenkronizeKaynakProjelerAsync(new[] { satir.KaynakCekiSatiriId.Value }, cancellationToken);
 
             // ===== Sandık Tamamlanma Kontrolü (TrafoSevk ise) =====
-            if (request.YeniDurumId == (int)GridDurum.TrafoSevk)
+            if (!devamSevkAkisi && request.YeniDurumId == (int)GridDurum.TrafoSevk)
             {
                 await SandikTamamlanmaKontrol(satir);
             }
@@ -247,7 +249,8 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 sevkMetni += $" ({satir.GridSevkMiktari.Value} Adet)";
             }
 
-            var aciklamaMetni = $"Durum: {Enum.GetName(typeof(GridDurum), request.YeniDurumId) ?? request.YeniDurumId.ToString()}{sevkMetni}";
+            var uygulananDurumId = satir.GridDurumuId;
+            var aciklamaMetni = $"Durum: {Enum.GetName(typeof(GridDurum), uygulananDurumId) ?? uygulananDurumId.ToString()}{sevkMetni}";
             if (!string.IsNullOrWhiteSpace(request.Aciklama))
             {
                 aciklamaMetni += $" | Not: {request.Aciklama}";
@@ -263,7 +266,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 Islem = "Grid Durum Güncellendi",
                 IslemTipiId = (int)IslemTipi.GridDurumGuncellendi,
                 EskiDeger = eskiDurum.ToString(),
-                YeniDeger = request.YeniDurumId.ToString(),
+                YeniDeger = uygulananDurumId.ToString(),
                 Aciklama = aciklamaMetni
             });
 

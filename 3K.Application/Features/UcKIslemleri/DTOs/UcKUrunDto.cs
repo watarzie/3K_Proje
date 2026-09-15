@@ -42,7 +42,22 @@ namespace _3K.Application.Features.UcKIslemleri.DTOs
         public int GridSevkDurumuId { get; set; }
         public string GridSevkDurumuMetni { get; set; } = string.Empty;
         public decimal? GridSevkMiktari { get; set; }
-
+        /// <summary>
+        /// Grid durum enumundan bağımsız olarak, halen teslim alınabilecek aktif bir
+        /// Grid sevk partisinin bulunup bulunmadığını gösterir.
+        /// </summary>
+        public bool AktifGridSevkPartisiTeslimeAcikMi { get; set; }
+        /// <summary>Aktif Grid sevk partisinde 3K tarafından henüz karşılanmamış miktardır.</summary>
+        public decimal AktifGridSevkPartisiKalanMiktari { get; set; }
+        /// <summary>
+        /// Normal aktif parti kalanı sıfır olsa da aynı sevkiyata bağlı Fazla Geldi
+        /// işleminin mevcut iş kurallarına göre açık olduğunu gösterir.
+        /// </summary>
+        public bool AktifGridSevkPartisiFazlaTeslimeAcikMi { get; set; }
+        /// <summary>Seçili sandıktan güvenle geri gönderilebilecek fiziksel Grid miktarıdır.</summary>
+        public decimal GridGeriGonderilebilirMiktar { get; set; }
+        /// <summary>Geri gönderimin mevcut sevk yaşam döngüsünü bozmadan uygulanabileceğini gösterir.</summary>
+        public bool GridGeriGonderimeAcikMi { get; set; }
         // 3K tarafı
         public int UcKKarsilamaTipiId { get; set; }
         public string UcKKarsilamaTipiMetni { get; set; } = string.Empty;

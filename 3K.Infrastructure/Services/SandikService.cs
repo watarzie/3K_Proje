@@ -87,9 +87,23 @@ namespace _3K.Infrastructure.Services
             if (eskiIcerikler.Count > 1)
                 return false;
 
-            var eskiIcerik = eskiIcerikler.SingleOrDefault();
-
             var cekiSatiri = await cekiSatiriRepo.GetByIdAsync(cekiSatiriId);
+            if (cekiSatiri == null)
+                return false;
+
+            var eskiIcerik = eskiIcerikler.SingleOrDefault();
+            var parentSayaciVar = cekiSatiri.AktifGridSevkKarsilananMiktari.HasValue;
+            var aktifPartiSayaclariTutarsiz =
+                eskiIcerikler.Any(i => i.AktifGridSevkKarsilananMiktari.HasValue != parentSayaciVar) ||
+                (parentSayaciVar &&
+                 eskiIcerikler.Count > 0 &&
+                 eskiIcerikler.Sum(i => Math.Max(i.AktifGridSevkKarsilananMiktari ?? 0, 0)) !=
+                 Math.Max(cekiSatiri.AktifGridSevkKarsilananMiktari!.Value, 0));
+            if (aktifPartiSayaclariTutarsiz ||
+                (eskiIcerik == null && cekiSatiri.AktifGridSevkKarsilananMiktari.GetValueOrDefault() > 0))
+            {
+                return false;
+            }
 
             if (eskiIcerik != null)
                 sandikIcerikRepo.Remove(eskiIcerik);
@@ -100,9 +114,17 @@ namespace _3K.Infrastructure.Services
                 CekiSatiriId = cekiSatiriId,
                 TahsisMiktari = eskiIcerik?.TahsisMiktari > 0
                     ? eskiIcerik.TahsisMiktari
-                    : cekiSatiri?.IstenenAdet ?? eskiIcerik?.KonulanAdet ?? 0,
+                    : cekiSatiri.IstenenAdet,
                 KonulanAdet = eskiIcerik?.KonulanAdet ?? 0,
-                EksikAdet = eskiIcerik?.EksikAdet ?? 0
+                EksikAdet = eskiIcerik?.EksikAdet ?? 0,
+                AktifGridSevkKarsilananMiktari = eskiIcerik?.AktifGridSevkKarsilananMiktari ??
+                    (cekiSatiri.AktifGridSevkKarsilananMiktari.HasValue ? 0 : null),
+                StokKarsilanan = eskiIcerik?.StokKarsilanan ?? 0,
+                ProjeKarsilanan = eskiIcerik?.ProjeKarsilanan ?? 0,
+                TedarikciKarsilanan = eskiIcerik?.TedarikciKarsilanan ?? 0,
+                Miktar = eskiIcerik?.Miktar ?? 0,
+                BirimId = eskiIcerik?.BirimId ?? cekiSatiri.BirimId,
+                KaynakProjeNo = eskiIcerik?.KaynakProjeNo
             };
             await sandikIcerikRepo.AddAsync(yeniIcerik);
             await _unitOfWork.SaveChangesAsync();

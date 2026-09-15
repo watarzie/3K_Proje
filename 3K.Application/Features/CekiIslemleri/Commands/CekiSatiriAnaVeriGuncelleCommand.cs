@@ -159,6 +159,8 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
             if (miktarDegisti)
                 satir.OrijinalIstenenAdet ??= satir.IstenenAdet;
             satir.IstenenAdet = request.IstenenAdet;
+            if (miktarDegisti)
+                MiktarDegisikligiSonrasiGridDurumunuGuncelle(satir);
             satir.BirimId = request.BirimId;
             satir.CekideGecenSandikNo = newCekideSandikNo;
 
@@ -199,6 +201,23 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
                 Birim = ((Birim)satir.BirimId).ToString(),
                 SandikNo = newEffectiveSandikNo
             });
+        }
+
+        private static void MiktarDegisikligiSonrasiGridDurumunuGuncelle(CekiSatiri satir)
+        {
+            // Çeki ihtiyacının değişmesi yeni bir fiziksel teslim değildir. Gelen,
+            // sevk edilen ve 3K'da karşılanan miktarlar ile aktif parti korunur.
+            // Yalnız normal Grid kabulünün Tam/Eksik etiketi yeni ihtiyacı izler;
+            // böylece tamamlanmış eski teslim, artan ihtiyacın devam sevkini kilitlemez.
+            // İptal, Grid kapandı, trafo ve diğer iş akışları burada yeniden açılmaz.
+            if (satir.TrafoSevkAdet != 0 || satir.GridGelenAdet <= 0 ||
+                (satir.GridDurumuId != (int)GridDurum.TamGeldi &&
+                 satir.GridDurumuId != (int)GridDurum.EksikGeldi))
+                return;
+
+            satir.GridDurumuId = satir.GridGelenAdet >= satir.IstenenAdet
+                ? (int)GridDurum.TamGeldi
+                : (int)GridDurum.EksikGeldi;
         }
 
         private static decimal GetMinimumAllowedIstenenAdet(CekiSatiri satir)

@@ -18,6 +18,13 @@ namespace _3K.Core.Entities
         public decimal EksikAdet { get; set; }
 
         /// <summary>
+        /// Bağlı çeki satırının aktif Grid sevk partisinden bu tahsiste 3K tarafından
+        /// karşılanan miktar. Her yeni Grid partisinde sıfırlanır. Null, sayaç alanı
+        /// eklenmeden önce oluşmuş legacy tahsisleri ayırt etmek için korunur.
+        /// </summary>
+        public decimal? AktifGridSevkKarsilananMiktari { get; set; }
+
+        /// <summary>
         /// PostgreSQL xmin sistem kolonu üzerinden iyimser eşzamanlılık kontrolü sağlar.
         /// Aynı içerikten eşzamanlı taşımalarda miktar kaybını/çift taşımayı engeller.
         /// </summary>

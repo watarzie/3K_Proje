@@ -37,6 +37,23 @@ public sealed class CekiOrijinalMiktarTests
         Assert.Equal(2.5m, satir.KalanMiktar);
     }
 
+    [Fact]
+    public void AktifGridSevkKarsilamaSayaclari_NullableVeOndalikHassasiyetlidir()
+    {
+        using var context = Context();
+        var satirProperty = context.Model.FindEntityType(typeof(CekiSatiri))!
+            .FindProperty(nameof(CekiSatiri.AktifGridSevkKarsilananMiktari))!;
+        var icerikProperty = context.Model.FindEntityType(typeof(SandikIcerik))!
+            .FindProperty(nameof(SandikIcerik.AktifGridSevkKarsilananMiktari))!;
+
+        Assert.True(satirProperty.IsNullable);
+        Assert.Equal(18, satirProperty.GetPrecision());
+        Assert.Equal(4, satirProperty.GetScale());
+        Assert.True(icerikProperty.IsNullable);
+        Assert.Equal(18, icerikProperty.GetPrecision());
+        Assert.Equal(4, icerikProperty.GetScale());
+    }
+
     [Theory]
     [InlineData(null, 2, 3, 2d)]
     [InlineData(1d, 2, 3, 1d)]
@@ -87,6 +104,138 @@ public sealed class CekiOrijinalMiktarTests
     }
 
     [Fact]
+    public async Task PA702Revizyonu_TekTamTahsisAnaMiktarlaBirlikteGuncellenir()
+    {
+        var tahsisVerisi = new TahsisSatiri(
+            Id: 40,
+            CekiSatiriId: 20,
+            SandikId: 30,
+            ProjeId: 10,
+            SandikNo: "1",
+            Tahsis: 2,
+            Konulan: 0);
+        await using var context = Context(new TahsisSelectSonucu(tahsisVerisi));
+        var sandik = new Sandik { Id = 30, ProjeId = 10, SandikNo = "1" };
+        context.Sandiklar.Attach(sandik);
+        var satir = new CekiSatiri
+        {
+            Id = 20,
+            CekiId = 15,
+            SiraNo = 1,
+            BarkodNo = "FCT01331267",
+            Aciklama = "LASTİK TİTREŞİM ÖNLEYİCİ PLAKA",
+            CekideGecenSandikNo = "1",
+            FiiliSandikNo = "1",
+            IstenenAdet = 2
+        };
+        context.CekiSatirlari.Attach(satir);
+
+        await InvokeAsync(Service(context), "RevizyonSatiriniGuncelleAsync", 10, satir,
+            ImportSatiri(4), new Dictionary<string, Sandik> { ["1"] = sandik }, SandikBilgileri(), 7);
+
+        var icerik = Assert.Single(context.ChangeTracker.Entries<SandikIcerik>()).Entity;
+        Assert.Equal(4, satir.IstenenAdet);
+        Assert.Equal(2, satir.OrijinalIstenenAdet);
+        Assert.Equal(4, icerik.TahsisMiktari);
+        Assert.Equal(0, icerik.KonulanAdet);
+        Assert.Equal(4, icerik.EksikAdet);
+    }
+
+    [Fact]
+    public async Task RevizyonU_CokluTahsisDagiliminiOtomatikYenidenPaylastirmaz()
+    {
+        var ilk = new TahsisSatiri(40, 20, 30, 10, "1", Tahsis: 2, Konulan: 1);
+        var ikinci = new TahsisSatiri(41, 20, 31, 10, "2", Tahsis: 2, Konulan: 1);
+        await using var context = Context(new TahsisSelectSonucu(ilk, ikinci));
+        var sandik = new Sandik { Id = 30, ProjeId = 10, SandikNo = "1" };
+        context.Sandiklar.Attach(sandik);
+        var satir = new CekiSatiri
+        {
+            Id = 20,
+            CekiId = 15,
+            SiraNo = 1,
+            BarkodNo = "TEST",
+            Aciklama = "TEST",
+            CekideGecenSandikNo = "1",
+            FiiliSandikNo = "1",
+            IstenenAdet = 4
+        };
+        context.CekiSatirlari.Attach(satir);
+
+        await InvokeAsync(Service(context), "RevizyonSatiriniGuncelleAsync", 10, satir,
+            ImportSatiri(6), new Dictionary<string, Sandik> { ["1"] = sandik }, SandikBilgileri(), 7);
+
+        var icerikler = context.ChangeTracker.Entries<SandikIcerik>()
+            .Select(e => e.Entity)
+            .OrderBy(i => i.Id)
+            .ToList();
+        Assert.Equal(6, satir.IstenenAdet);
+        Assert.Equal(4, satir.OrijinalIstenenAdet);
+        Assert.Collection(icerikler,
+            i =>
+            {
+                Assert.Equal(2, i.TahsisMiktari);
+                Assert.Equal(1, i.KonulanAdet);
+                Assert.Equal(1, i.EksikAdet);
+            },
+            i =>
+            {
+                Assert.Equal(2, i.TahsisMiktari);
+                Assert.Equal(1, i.KonulanAdet);
+                Assert.Equal(1, i.EksikAdet);
+            });
+    }
+
+    [Fact]
+    public async Task RevizyonOncesiOtomatikGeriAl_AktifPartiSayaclariniAnaSatirVeTahsislerdeTemizler()
+    {
+        var tahsisVerisi = new TahsisSatiri(
+            Id: 40,
+            CekiSatiriId: 20,
+            SandikId: 30,
+            ProjeId: 10,
+            SandikNo: "1",
+            Tahsis: 4,
+            Konulan: 2,
+            AktifPartideKarsilanan: 1);
+        await using var context = Context(new TahsisSelectSonucu(tahsisVerisi));
+        var satir = new CekiSatiri
+        {
+            Id = 20,
+            CekiId = 15,
+            SiraNo = 1,
+            BarkodNo = "REVIZYON-RESET",
+            Aciklama = "Aktif parti takip sayacı testi",
+            CekideGecenSandikNo = "1",
+            FiiliSandikNo = "1",
+            IstenenAdet = 4,
+            GridDurumuId = (int)GridDurum.TamGeldi,
+            GridGelenAdet = 4,
+            GridSevkDurumuId = (int)GridSevkDurum.SevkEdildi,
+            GridSevkMiktari = 2,
+            AktifGridSevkKarsilananMiktari = 1,
+            UcKDurumuId = (int)UcKDurum.EksikGeldi,
+            UcKKarsilamaTipiId = (int)UcKDurum.EksikGeldi,
+            GelenMiktar = 2
+        };
+
+        await InvokeAsync(
+            Service(context),
+            "RevizyonSatiriIslemleriniGeriAlAsync",
+            10,
+            satir,
+            7,
+            "Revizyon regresyon testi");
+
+        var icerik = Assert.Single(context.ChangeTracker.Entries<SandikIcerik>()).Entity;
+        Assert.Null(satir.AktifGridSevkKarsilananMiktari);
+        Assert.Null(icerik.AktifGridSevkKarsilananMiktari);
+        Assert.Equal(0, satir.GridSevkMiktari);
+        Assert.Equal(0, satir.GelenMiktar);
+        Assert.Equal(0, icerik.KonulanAdet);
+    }
+
+    [Fact]
     public async Task IlkNormalCekiYuklemesi_MiktarDegisikligiOlmadigiIcinOrijinalMiktarBosKalir()
     {
         await using var context = Context();
@@ -126,9 +275,9 @@ public sealed class CekiOrijinalMiktarTests
         }
     }
 
-    private static AppDbContext Context() => new(new DbContextOptionsBuilder<AppDbContext>()
+    private static AppDbContext Context(DbCommandInterceptor? selectSonucu = null) => new(new DbContextOptionsBuilder<AppDbContext>()
         .UseNpgsql("Host=database-must-not-be-contacted.invalid;Database=test;Username=test;Password=test")
-        .AddInterceptors(new BaglantiyiEngelle(), new BosSelectSonucu()).Options);
+        .AddInterceptors(new BaglantiyiEngelle(), selectSonucu ?? new BosSelectSonucu()).Options);
 
     private static CekiService Service(AppDbContext context, IUnitOfWork? uow = null) =>
         new(uow!, context, null!, new DurumStub(), null!, NullLogger<CekiService>.Instance);
@@ -166,6 +315,82 @@ public sealed class CekiOrijinalMiktarTests
             Assert.StartsWith("SELECT ", command.CommandText);
             Assert.True(command.CommandText.Contains("FROM \"SandikIcerikleri\"") || command.CommandText.Contains("FROM \"Projeler\""));
             return ValueTask.FromResult(InterceptionResult<DbDataReader>.SuppressWithResult(new DataTable().CreateDataReader()));
+        }
+    }
+
+    private sealed record TahsisSatiri(
+        int Id,
+        int CekiSatiriId,
+        int SandikId,
+        int ProjeId,
+        string SandikNo,
+        decimal Tahsis,
+        decimal Konulan,
+        decimal? AktifPartideKarsilanan = null);
+
+    /// <summary>
+    /// Revizyon testlerinin gerçek PostgreSQL'e bağlanmadan EF materialization yolunu
+    /// kullanmasını sağlar. Sütun sırası CekiService'in SandikIcerik + Sandik sorgusuyla aynıdır.
+    /// </summary>
+    private sealed class TahsisSelectSonucu(params TahsisSatiri[] satirlar) : DbCommandInterceptor
+    {
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            Assert.StartsWith("SELECT ", command.CommandText);
+            if (command.CommandText.Contains("EXISTS", StringComparison.OrdinalIgnoreCase))
+            {
+                var exists = new DataTable();
+                exists.Columns.Add("c0", typeof(bool));
+                exists.Rows.Add(false);
+                return ValueTask.FromResult(InterceptionResult<DbDataReader>.SuppressWithResult(exists.CreateDataReader()));
+            }
+
+            if (!command.CommandText.Contains("FROM \"SandikIcerikleri\""))
+                return ValueTask.FromResult(InterceptionResult<DbDataReader>.SuppressWithResult(
+                    new DataTable().CreateDataReader()));
+
+            var table = TahsisTablosuOlustur();
+            foreach (var satir in satirlar)
+                TahsisSatiriEkle(table, satir);
+
+            return ValueTask.FromResult(InterceptionResult<DbDataReader>.SuppressWithResult(table.CreateDataReader()));
+        }
+
+        private static DataTable TahsisTablosuOlustur()
+        {
+            var table = new DataTable();
+            var tipler = new[]
+            {
+                typeof(int), typeof(string), typeof(decimal), typeof(string), typeof(int),
+                typeof(int), typeof(string), typeof(DateTime), typeof(decimal), typeof(string),
+                typeof(string), typeof(decimal), typeof(decimal), typeof(decimal), typeof(int),
+                typeof(decimal), typeof(decimal), typeof(decimal), typeof(string), typeof(DateTime), typeof(uint),
+                typeof(int), typeof(string), typeof(string), typeof(decimal), typeof(string),
+                typeof(DateTime), typeof(int), typeof(int), typeof(decimal), typeof(decimal),
+                typeof(decimal), typeof(int), typeof(string), typeof(int), typeof(bool),
+                typeof(int), typeof(string), typeof(DateTime), typeof(uint), typeof(decimal)
+            };
+            for (var i = 0; i < tipler.Length; i++)
+                table.Columns.Add($"c{i}", tipler[i]);
+            return table;
+        }
+
+        private static void TahsisSatiriEkle(DataTable table, TahsisSatiri veri)
+        {
+            var bos = DBNull.Value;
+            table.Rows.Add(
+                veri.Id, bos, veri.AktifPartideKarsilanan.HasValue ? veri.AktifPartideKarsilanan.Value : bos, bos, (int)Birim.Adet,
+                veri.CekiSatiriId, bos, DateTime.UtcNow, Math.Max(veri.Tahsis - veri.Konulan, 0), bos,
+                bos, veri.Konulan, 0m, 0m, veri.SandikId,
+                0m, veri.Tahsis, 0m, bos, bos, 1u,
+                veri.SandikId, bos, bos, bos, bos,
+                DateTime.UtcNow, (int)DepoLokasyon.Belirsiz, (int)SandikDurum.Hazirlaniyor, bos, bos,
+                bos, veri.ProjeId, veri.SandikNo, bos, false,
+                (int)SandikTipi.AhsapKapali, bos, bos, 1u, bos);
         }
     }
 

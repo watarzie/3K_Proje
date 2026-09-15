@@ -80,6 +80,16 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     continue;
                 }
 
+                var legacyPartiHazirlamaResult =
+                    await GridUcKSevkPartisiKurali.GuvenliLegacyAktifPartiyiMaterializeEtAsync(
+                        _unitOfWork,
+                        satir);
+                if (!legacyPartiHazirlamaResult.IsSuccess)
+                {
+                    hatalar.Add($"ID {cekiSatiriId}: {legacyPartiHazirlamaResult.Error!.Message}");
+                    continue;
+                }
+
                 var eskiDurum = satir.UcKKarsilamaTipiId;
 
                 // Tedarikçiden Geldi mantığı — kalan miktar kadar karşıla

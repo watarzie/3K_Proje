@@ -2042,6 +2042,8 @@ namespace _3K.Infrastructure.Services
             satir.TrafoSevkAdet = 0;
             satir.GridSevkDurumuId = (int)GridSevkDurum.SevkEdilmedi;
             satir.GridSevkMiktari = 0;
+            satir.AktifGridSevkKarsilananMiktari = null;
+            satir.AktifGridSevkPartisiErkenSonuclandirildiMi = null;
             satir.YenidenSevkGerekliAdet = 0;
             satir.GridSevkTarihi = null;
             satir.GridAciklama = null;
@@ -2078,6 +2080,7 @@ namespace _3K.Infrastructure.Services
             {
                 icerik.KonulanAdet = 0;
                 icerik.EksikAdet = 0;
+                icerik.AktifGridSevkKarsilananMiktari = null;
                 icerik.StokKarsilanan = 0;
                 icerik.ProjeKarsilanan = 0;
                 icerik.TedarikciKarsilanan = 0;
