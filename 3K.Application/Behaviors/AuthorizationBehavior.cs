@@ -7,25 +7,34 @@ namespace _3K.Application.Behaviors
 {
     /// <summary>
     /// Central authorization pipeline.
-    /// ISecuredRequest only marks the request; the required menu comes from the
-    /// active UI context and the permission decision is read from RolYetkileri.
+    /// ISecuredRequest marks the request; requirements are defined by server code.
+    /// X-Menu-Kod is never an authorization source.
     /// </summary>
     public class AuthorizationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
         where TRequest : notnull
     {
         private readonly ICurrentUserService _currentUserService;
         private readonly IRolService _rolService;
+        private readonly IRequestMenuPermissionResolver? _permissionResolver;
+        private readonly IApprovalExecutionContext? _approvalExecutionContext;
 
-        public AuthorizationBehavior(ICurrentUserService currentUserService, IRolService rolService)
+        public AuthorizationBehavior(ICurrentUserService currentUserService, IRolService rolService,
+            IRequestMenuPermissionResolver? permissionResolver = null,
+            IApprovalExecutionContext? approvalExecutionContext = null)
         {
             _currentUserService = currentUserService;
             _rolService = rolService;
+            _permissionResolver = permissionResolver;
+            _approvalExecutionContext = approvalExecutionContext;
         }
 
         public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
         {
-            if (request is not ISecuredRequest)
+            if (MenuAuthorizationExceptions.IsPublic(request) || MenuAuthorizationExceptions.IsServerInternal(request))
                 return await next();
+
+            if (request is not ISecuredRequest && !MenuAuthorizationExceptions.IsOwnAuthenticatedData(request))
+                return CreateFailureResult("Bu işlem için sunucu yetki tanımı bulunamadı.", 403);
 
             if (!_currentUserService.IsAuthenticated)
                 return CreateFailureResult("Oturum açmanız gerekiyor.", 401);
@@ -34,55 +43,56 @@ namespace _3K.Application.Behaviors
             if (!userId.HasValue)
                 return CreateFailureResult("Kullanıcı bilgisi alınamadı.", 401);
 
-            var multiRequirements = request is IRequiresMenuPermissions multiPermissionRequest
-                ? multiPermissionRequest.RequiredMenuPermissions
-                    .Where(x => !string.IsNullOrWhiteSpace(x.MenuKod))
-                    .Distinct()
-                    .ToArray()
-                : Array.Empty<MenuPermissionRequirement>();
+            if (MenuAuthorizationExceptions.IsOwnAuthenticatedData(request))
+                return await next();
 
-            if (multiRequirements.Length > 0)
+            // Bu bağlam yalnız onay handler'ında kayıt/karar/meta veri kontrollerinden
+            // sonra açılır. Onay yetkisi, talep edenin ekran yazma izniyle aynı değildir.
+            if (_approvalExecutionContext?.IsExecutingApprovedCommand == true &&
+                request is IApprovalOperation && RequestMenuPermissionResolver.HasServerDefinition(request))
+                return await next();
+
+            var policy = _permissionResolver != null
+                ? await _permissionResolver.ResolveAsync(request, cancellationToken)
+                : DeclaredPermissions(request);
+
+            if (policy.Groups.Count == 0)
+                return CreateFailureResult("Bu işlem için sunucu yetki tanımı bulunamadı.", 403);
+
+            foreach (var group in policy.Groups)
             {
-                // IRolService aynı scoped DbContext'i kullanabildiği için kontrolleri
-                // paralel çalıştırmıyoruz. Tüm gereksinimler AND mantığıyla sağlanmalı.
-                foreach (var requirement in multiRequirements)
+                if (group.Requirements.Count == 0 || !Enum.IsDefined(group.Match) ||
+                    group.Requirements.Any(x => string.IsNullOrWhiteSpace(x.MenuKod) ||
+                        x.YetkiTipi is not (YetkiTipi.R or YetkiTipi.W)))
+                    return CreateFailureResult("Geçersiz sunucu yetki tanımı.", 403);
+
+                var anyGranted = false;
+                // Aynı scoped DbContext: kontroller kasıtlı olarak sıralıdır.
+                foreach (var requirement in group.Requirements.Distinct())
                 {
-                    var granted = await _rolService.HasUserPermissionAsync(
-                        userId.Value,
-                        requirement.MenuKod,
-                        requirement.YetkiTipi,
-                        cancellationToken);
-                    if (!granted)
+                    var granted = await _rolService.HasUserPermissionAsync(userId.Value,
+                        requirement.MenuKod, requirement.YetkiTipi, cancellationToken);
+                    if (!granted && group.Match == MenuPermissionMatch.All)
                         return CreateFailureResult("Bu işlem için gerekli yetkileriniz bulunmuyor.", 403);
+                    anyGranted |= granted;
+                    if (granted && group.Match == MenuPermissionMatch.Any)
+                        break;
                 }
-            }
-            else
-            {
-                var menuKod = request is IRequiresMenuPermission fixedMenuRequest
-                    ? fixedMenuRequest.RequiredMenuKod
-                    : _currentUserService.MenuKod;
-                if (string.IsNullOrWhiteSpace(menuKod))
-                    return CreateFailureResult("Yetki bağlamı alınamadı.", 403);
-
-                var requiredYetkiTipi = GetRequiredYetkiTipi(typeof(TRequest));
-                var hasPermission = await _rolService.HasUserPermissionAsync(
-                    userId.Value,
-                    menuKod,
-                    requiredYetkiTipi,
-                    cancellationToken);
-
-                if (!hasPermission)
-                    return CreateFailureResult("Bu modül için yetkiniz bulunmuyor.", 403);
+                if (!anyGranted)
+                    return CreateFailureResult("Bu işlem için gerekli yetkileriniz bulunmuyor.", 403);
             }
 
             return await next();
         }
 
-        private static YetkiTipi GetRequiredYetkiTipi(Type requestType)
+        internal static RequestMenuPermissions DeclaredPermissions(object request)
         {
-            return requestType.Name.EndsWith("Query", StringComparison.OrdinalIgnoreCase)
-                ? YetkiTipi.R
-                : YetkiTipi.W;
+            if (request is IRequiresMenuPermissions multiple && multiple.RequiredMenuPermissions.Count > 0)
+                return new([new(multiple.RequiredMenuPermissions, multiple.PermissionMatch)]);
+            if (request is IRequiresMenuPermission single && !string.IsNullOrWhiteSpace(single.RequiredMenuKod))
+                return new([new([new(single.RequiredMenuKod,
+                    request.GetType().Name.EndsWith("Query", StringComparison.Ordinal) ? YetkiTipi.R : YetkiTipi.W)])]);
+            return RequestMenuPermissions.Denied;
         }
 
         private static TResponse CreateFailureResult(string message, int code)

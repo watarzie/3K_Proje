@@ -18,6 +18,7 @@ namespace _3K.Infrastructure.Data
         public DbSet<Sandik> Sandiklar { get; set; } = null!;
         public DbSet<SandikIcerik> SandikIcerikleri { get; set; } = null!;
         public DbSet<SandikUrunTransferi> SandikUrunTransferleri { get; set; } = null!;
+        public DbSet<SandikTopluTasimaIslemi> SandikTopluTasimaIslemleri { get; set; } = null!;
         public DbSet<Kullanici> Kullanicilar { get; set; } = null!;
         public DbSet<IslemOnayKurali> IslemOnayKurallari { get; set; } = null!;
         public DbSet<StokKaydi> StokKayitlari { get; set; } = null!;
@@ -362,6 +363,17 @@ namespace _3K.Infrastructure.Data
                 e.HasIndex(p => new { p.SandikId, p.CekiSatiriId })
                     .IsUnique()
                     .HasFilter("\"CekiSatiriId\" IS NOT NULL AND \"TahsisMiktari\" > 0");
+            });
+
+            modelBuilder.Entity<SandikTopluTasimaIslemi>(e =>
+            {
+                e.ToTable("SandikTopluTasimaIslemleri", table => table.HasCheckConstraint(
+                    "CK_SandikTopluTasimaIslemleri_SatirSayisi", "\"SatirSayisi\" BETWEEN 1 AND 250"));
+                e.Property(p => p.IstekHash).HasMaxLength(64).IsRequired();
+                e.Property(p => p.CreatedDate).HasColumnType("timestamp without time zone");
+                e.Property(p => p.UpdatedDate).HasColumnType("timestamp without time zone");
+                e.HasIndex(p => p.IslemAnahtari).IsUnique();
+                e.HasIndex(p => new { p.ProjeId, p.CreatedDate });
             });
 
             modelBuilder.Entity<SandikUrunTransferi>(e =>

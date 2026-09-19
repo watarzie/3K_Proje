@@ -143,9 +143,9 @@ Kaynak: [DurumHesaplaService.cs:13](C:/Users/Watarzie/source/repos/3K_Proje/3K.I
 
 **Y-01.** Güvenli isteklerde oturum ve kullanıcı kimliği zorunludur. Menü yetkisi bulunmadan API'ye doğrudan istek atmak yetki kontrolünü kaldırmaz.
 
-**Y-02.** Açıkça sabit menü kodu belirten işlem o kodu kullanır; diğer işlemler aktif menü bağlamını kullanır. Menü bağlamı yoksa işlem reddedilir.
+**Y-02.** Korunan işlemin menü/işlem izni sunucudaki açık sözleşme veya `RequestMenuPermissionResolver` kataloğundan gelir. `X-Menu-Kod` yetki sağlamaz. Tanımlanmamış korumalı işlem reddedilir. Proje, sandık ve satır bağlamı gerektiren işlemlerde gerçek proje tipi/ilişkisi veritabanından doğrulanır.
 
-**Y-03.** Query için R, değiştiren komut için W gerekir. W, R gereksinimini de karşılar. Birden fazla menü koşulu bildirilmişse hepsinin sağlanması gerekir.
+**Y-03.** Okuma için R, değiştiren işlem için W gerekir; rapor indirme komutları okuma olarak açık tanımlıdır. W, R gereksinimini de karşılar. Çoklu izinlerde varsayılan `All` (AND); aynı endpoint'i kullanan izinli ekranlar `Any` (OR) grubuyla belirtilir. Ayrı gruplar ve toplu seçimde ayrı gerçek projelerin gereksinimleri birlikte sağlanır. [Sunucu işlem/yetki kataloğu](../guvenlik/SUNUCU_YETKI_ESLEMESI.md).
 
 **Y-04.** Rol, kullanıcı/rol ilişkisi ve `RolYetkileri` kayıtlarıyla doğrulanır. Normal menü yetki kontrolünde genel bir “Admin her menüyü atlar” istisnası yoktur.
 
@@ -329,7 +329,7 @@ Kaynak: [ManuelUrunSilmeKurali.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Ap
 
 **R-03.** Bu raporun saha haritası bağlı saha satırlarının istenen miktarlarını toplar ve eksik raporda yalnız sevkli sandıklarla sınırlamaz. İş tamamlanma veya sevk edilmiş gerçekleşen haritalarıyla aynı tanım değildir.
 
-**R-04.** Sıralama sandık numarasının sayısal kısmı, ardından çeki sıra numarasıdır. Miktar gösterimi tam sayıysa ondalık göstermeyebilir, değilse dört ondalığa kadar biçimlenir.
+**R-04.** Üretilen PDF/Excel raporlarında sandık numarası ortak doğal karşılaştırıcıyla sıralanır (1, 2, 10; SND-1, SND-2, SND-10); rakamlar sayısal tipe çevrilmediğinden büyük değerler taşmaz. Eşit doğal değerler özgün metinle, aynı sandıkta ürünler mevcut sıra numarası ve kayıt kimliğiyle kararlı sıralanır. Boş numaralar sona gelir, özgün numara gösterimi korunur. Miktar gösterimi tam sayıysa ondalık göstermeyebilir, değilse dört ondalığa kadar biçimlenir. Orijinal çeki Excel şablonunu dolduran yol, şablon satır/formül düzenini korur.
 
 **R-05.** Gerçekleşen çeki çıktısı sevk durumundaki veya sevkiyat kaydı bulunan projelerde açılır. Fiili sandık ve gerçekleşen miktar, orijinal çeki planından ayrı değerlendirilir. Saha/yedekte çeki bağlantısı olmayan içeriklerin rapora yansıtılması için içerik bazlı satır üretimi vardır.
 

@@ -98,7 +98,7 @@ public class OrtakSandikRaporIsKurallariTests
         var proxy = (RaporProxy)pdf;
         var command = new GetEksikUrunlerPdfQuery { ProjeId = 10, ProjeTipi = type };
         Assert.Equal(menu, command.RequiredMenuKod);
-        var result = await new GetEksikUrunlerPdfQueryHandler(uow, pdf).Handle(command, default);
+        var result = await new GetEksikUrunlerPdfQueryHandler(uow, pdf, new OrtakUser(), new RaporRolService()).Handle(command, default);
         Assert.True(result.IsSuccess);
         Assert.Equal(proxy.Bytes, result.Value);
         Assert.Equal(10, Assert.Single(proxy.Projeler));
@@ -114,7 +114,7 @@ public class OrtakSandikRaporIsKurallariTests
         var uow = new OrtakMemoryUow();
         uow.Repo<Proje>().Rows.Add(new() { Id = 10, ProjeTipiId = (int)actual });
         var pdf = DispatchProxy.Create<IPdfService, RaporProxy>();
-        var result = await new GetEksikUrunlerPdfQueryHandler(uow, pdf).Handle(new() { ProjeId = 10, ProjeTipi = requested }, default);
+        var result = await new GetEksikUrunlerPdfQueryHandler(uow, pdf, new OrtakUser(), new RaporRolService()).Handle(new() { ProjeId = 10, ProjeTipi = requested }, default);
         Assert.False(result.IsSuccess);
         Assert.Equal(403, result.StatusCode);
         Assert.Empty(((RaporProxy)pdf).Projeler);
@@ -124,7 +124,7 @@ public class OrtakSandikRaporIsKurallariTests
     public async Task EksikRaporu_ProjeYoksaVeyaIstekIptalseServisiCalistirmaz()
     {
         var pdf = DispatchProxy.Create<IPdfService, RaporProxy>();
-        var handler = new GetEksikUrunlerPdfQueryHandler(new OrtakMemoryUow(), pdf);
+        var handler = new GetEksikUrunlerPdfQueryHandler(new OrtakMemoryUow(), pdf, new OrtakUser(), new RaporRolService());
         var query = new GetEksikUrunlerPdfQuery { ProjeId = 10, ProjeTipi = ProjeTipi.Normal };
         Assert.Equal(404, (await handler.Handle(query, default)).StatusCode);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => handler.Handle(query, new CancellationToken(true)));

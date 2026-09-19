@@ -406,6 +406,7 @@ namespace _3K_API.Controllers
                 new _3K.Application.Features.PdfIslemleri.Queries.GetTopluEksikUrunlerRaporuQuery
                 {
                     ProjeIds = (IReadOnlyCollection<int>?)request?.ProjeIds ?? Array.Empty<int>(),
+                    ProjeTipi = request?.ProjeTipi ?? ProjeTipi.Normal,
                     DosyaTuru = dosyaTuru
                 },
                 cancellationToken);
@@ -427,5 +428,6 @@ namespace _3K_API.Controllers
     public sealed class TopluEksikUrunlerRaporuRequest
     {
         public List<int> ProjeIds { get; set; } = new();
+        public ProjeTipi ProjeTipi { get; set; } = ProjeTipi.Normal;
     }
 }

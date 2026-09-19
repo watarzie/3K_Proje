@@ -8,6 +8,7 @@ namespace _3K.Core.Interfaces
     {
         int? UserId { get; }
         bool IsAuthenticated { get; }
+        /// <summary>İstemci ekran ipucu; güvenilir yetki kaynağı değildir.</summary>
         string? MenuKod { get; }
     }
 }

@@ -203,6 +203,15 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
 
+        [HttpPost("urunleri-toplu-tasi")]
+        public async Task<ActionResult> SandikUrunleriTopluTasi(
+            [FromBody] SandikUrunleriTopluTasiCommand command,
+            CancellationToken cancellationToken)
+        {
+            var result = await _mediator.Send(command, cancellationToken);
+            return result.ToActionResult();
+        }
+
         /// <summary>
         /// Yanlışlıkla sevk edilen sandığın kilidini açar ve sevk öncesi durumuna döndürür.
         /// </summary>

@@ -1,5 +1,6 @@
 using MediatR;
 using _3K.Application.Common;
+using _3K.Core.Enums;
 
 namespace _3K.Application.Features.PdfIslemleri.Queries
 {
@@ -12,7 +13,9 @@ namespace _3K.Application.Features.PdfIslemleri.Queries
     public sealed class GetTopluEksikUrunlerRaporuQuery
         : IRequest<Result<byte[]>>, ISecuredRequest, IRequiresMenuPermission
     {
-        public string RequiredMenuKod => "eksik-raporu";
+        public string RequiredMenuKod => EksikUrunlerRaporYetkisi.GetMenuKod(ProjeTipi);
+
+        public ProjeTipi ProjeTipi { get; init; } = ProjeTipi.Normal;
 
         public IReadOnlyCollection<int> ProjeIds { get; init; } = Array.Empty<int>();
 

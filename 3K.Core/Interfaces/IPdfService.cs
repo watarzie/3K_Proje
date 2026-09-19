@@ -34,7 +34,7 @@ namespace _3K.Core.Interfaces
         /// <summary>
         /// Normal projelerdeki eksik/gelmedi durumlu ve kalan > 0 olan ürünlerin PDF raporunu oluşturur.
         /// </summary>
-        Task<byte[]> EksikUrunlerRaporuPdfOlusturAsync(int projeId);
+        Task<byte[]> EksikUrunlerRaporuPdfOlusturAsync(int projeId, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Projenin gerçek tipini doğrulayarak gerçekleşen çeki listesi PDF raporunu oluşturur.
@@ -46,7 +46,7 @@ namespace _3K.Core.Interfaces
         /// </summary>
         Task<byte[]> SahaGerceklesenCekiListesiRaporuPdfOlusturAsync(int projeId);
 
-        Task<byte[]> EksikUrunlerRaporuExcelOlusturAsync(int projeId);
+        Task<byte[]> EksikUrunlerRaporuExcelOlusturAsync(int projeId, CancellationToken cancellationToken = default);
 
         Task<byte[]> GerceklesenCekiListesiRaporuExcelOlusturAsync(int projeId);
 

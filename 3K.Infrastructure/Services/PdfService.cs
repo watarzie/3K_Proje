@@ -7,6 +7,7 @@ using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using _3K.Core.Common;
 
 namespace _3K.Infrastructure.Services
 {
@@ -46,15 +47,38 @@ namespace _3K.Infrastructure.Services
                 || sevkiyatKaydiVar;
         }
 
-        private static int GetRaporSandikSortKey(string? sandikNo)
-        {
-            if (string.IsNullOrWhiteSpace(sandikNo))
-                return int.MaxValue;
+        private static string RaporMetni(string? metin) => string.IsNullOrWhiteSpace(metin) ? "-" : metin.Trim();
 
-            var match = System.Text.RegularExpressions.Regex.Match(sandikNo, @"\d+");
-            return match.Success && int.TryParse(match.Value, out var numericValue)
-                ? numericValue
-                : int.MaxValue;
+        private static string GetRaporSandikAdi(Sandik sandik) =>
+            string.IsNullOrWhiteSpace(sandik.Ad) && string.IsNullOrWhiteSpace(sandik.AdIngilizce)
+                ? "-"
+                : $"{RaporMetni(sandik.Ad)} / {RaporMetni(sandik.AdIngilizce)}";
+
+        private static List<Sandik> GetEksikRaporSandiklari(CekiSatiri satir, int projeId) =>
+            satir.SandikIcerikleri
+                .Where(si => si.Sandik != null && si.Sandik.ProjeId == projeId)
+                .Select(si => si.Sandik)
+                .DistinctBy(s => s.Id)
+                .OrderBy(s => s.SandikNo, SandikNumarasiComparer.Instance)
+                .ThenBy(s => s.Id)
+                .ToList();
+
+        private static string? GetEksikRaporSandikSortKey(CekiSatiri satir, int projeId) =>
+            GetEksikRaporSandiklari(satir, projeId).FirstOrDefault()?.SandikNo
+                ?? satir.FiiliSandikNo ?? satir.CekideGecenSandikNo;
+
+        private static string GetEksikRaporSandikMetni(CekiSatiri satir, Proje proje)
+        {
+            var sandiklar = GetEksikRaporSandiklari(satir, proje.Id);
+            var adGoster = proje.ProjeTipiId is (int)ProjeTipi.Saha or (int)ProjeTipi.Yedek;
+            if (sandiklar.Count > 0)
+                // Her ilişki kendi numara/adıyla gösterilir; ürün satırı ve miktarı çoğaltılmaz.
+                return string.Join("\n", sandiklar.Select(s => adGoster
+                    ? $"{RaporMetni(s.SandikNo)}: {GetRaporSandikAdi(s)}"
+                    : RaporMetni(s.SandikNo)));
+
+            var eskiSandikNo = RaporMetni(satir.FiiliSandikNo ?? satir.CekideGecenSandikNo);
+            return adGoster ? $"{eskiSandikNo}: -" : eskiSandikNo;
         }
 
         private static decimal GetEksikRaporKalan(CekiSatiri satir, IReadOnlyDictionary<int, decimal> tamamlamaPlanMap)
@@ -68,7 +92,8 @@ namespace _3K.Infrastructure.Services
 
         private async Task<Dictionary<int, decimal>> GetTamamlamaPlanMapAsync(
             IReadOnlyCollection<CekiSatiri> satirlar,
-            bool sadeceSevkEdilenSandiklar)
+            bool sadeceSevkEdilenSandiklar,
+            CancellationToken cancellationToken = default)
         {
             var kaynakSatirIds = satirlar
                 .Where(s => !s.KaynakCekiSatiriId.HasValue)
@@ -91,10 +116,10 @@ namespace _3K.Infrastructure.Services
             return await query
                 .GroupBy(cs => cs.KaynakCekiSatiriId!.Value)
                 .Select(g => new { CekiSatiriId = g.Key, TamamlananAdet = g.Sum(cs => cs.IstenenAdet) })
-                .ToDictionaryAsync(x => x.CekiSatiriId, x => x.TamamlananAdet);
+                .ToDictionaryAsync(x => x.CekiSatiriId, x => x.TamamlananAdet, cancellationToken);
         }
 
-        private async Task<HashSet<int>> GetAktifSahaAktarimKaynakSatirIdsAsync(IEnumerable<int> cekiSatiriIds)
+        private async Task<HashSet<int>> GetAktifSahaAktarimKaynakSatirIdsAsync(IEnumerable<int> cekiSatiriIds, CancellationToken cancellationToken = default)
         {
             var satirIds = cekiSatiriIds.Where(id => id > 0).Distinct().ToList();
             if (satirIds.Count == 0)
@@ -107,7 +132,7 @@ namespace _3K.Infrastructure.Services
                     k.DurumId != (int)SahaAktarimDurum.Iptal)
                 .Select(k => k.KaynakCekiSatiriId)
                 .Distinct()
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
 
             var eskiKaynakSatirIds = await _context.CekiSatirlari
                 .AsNoTracking()
@@ -116,7 +141,7 @@ namespace _3K.Infrastructure.Services
                     cs.Ceki.Proje.ProjeTipiId == (int)ProjeTipi.Saha)
                 .Select(cs => cs.KaynakCekiSatiriId!.Value)
                 .Distinct()
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
 
             return kaynakSatirIds.Concat(eskiKaynakSatirIds).ToHashSet();
         }
@@ -141,9 +166,11 @@ namespace _3K.Infrastructure.Services
                 .Include(si => si.CekiSatiri)
                     .ThenInclude(cs => cs!.BirimLookup)
                 .Where(si => si.Sandik.ProjeId == projeId)
-                .OrderBy(si => si.Sandik.SandikNo)
-                .ThenBy(si => si.Id)
                 .ToListAsync();
+            sahaIcerikleri = sahaIcerikleri
+                .OrderBy(si => si.Sandik.SandikNo, SandikNumarasiComparer.Instance)
+                .ThenBy(si => si.Id)
+                .ToList();
 
             if (!sahaIcerikleri.Any())
                 return satirlar;
@@ -291,7 +318,8 @@ namespace _3K.Infrastructure.Services
         }
 
         private async Task<(Dictionary<int, string> ProjedenAlinan, Dictionary<int, string> ProjeyeVerilen)> GetProjeTransferRaporMapleriAsync(
-            IReadOnlyCollection<CekiSatiri> satirlar)
+            IReadOnlyCollection<CekiSatiri> satirlar,
+            CancellationToken cancellationToken = default)
         {
             var satirIds = satirlar.Select(s => s.Id).Distinct().ToList();
             if (!satirIds.Any())
@@ -304,7 +332,7 @@ namespace _3K.Infrastructure.Services
                 .Where(t => t.DurumId == (int)ProjeTransferDurum.Aktif &&
                     (satirIds.Contains(t.KaynakCekiSatiriId) ||
                      (t.HedefCekiSatiriId.HasValue && satirIds.Contains(t.HedefCekiSatiriId.Value))))
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
 
             var projedenAlinan = transferler
                 .Where(t => t.HedefCekiSatiriId.HasValue && satirIds.Contains(t.HedefCekiSatiriId.Value))
@@ -324,7 +352,8 @@ namespace _3K.Infrastructure.Services
         }
 
         private async Task<(Dictionary<int, string> KaynakProje, Dictionary<int, string> HedefSaha)> GetSahaAktarimRaporMapleriAsync(
-            IReadOnlyCollection<CekiSatiri> satirlar)
+            IReadOnlyCollection<CekiSatiri> satirlar,
+            CancellationToken cancellationToken = default)
         {
             var satirIds = satirlar
                 .Where(s => s.Id > 0)
@@ -343,7 +372,7 @@ namespace _3K.Infrastructure.Services
                     k.DurumId != (int)SahaAktarimDurum.Iptal &&
                     (satirIds.Contains(k.KaynakCekiSatiriId) ||
                      (k.SahaCekiSatiriId.HasValue && satirIds.Contains(k.SahaCekiSatiriId.Value))))
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
 
             var kaynakProje = sahaAktarimlari
                 .Where(k => k.SahaCekiSatiriId.HasValue && satirIds.Contains(k.SahaCekiSatiriId.Value))
@@ -371,7 +400,7 @@ namespace _3K.Infrastructure.Services
                     KaynakProjeNo = cs.KaynakCekiSatiri!.Ceki.Proje.ProjeNo,
                     cs.IstenenAdet
                 })
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
 
             foreach (var grup in eskiSahaKaynaklari.GroupBy(a => a.SahaCekiSatiriId))
             {
@@ -396,7 +425,7 @@ namespace _3K.Infrastructure.Services
                     SahaProjeNo = cs.Ceki.Proje.ProjeNo,
                     cs.IstenenAdet
                 })
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
 
             foreach (var grup in eskiSahaAktarimlari.GroupBy(a => a.KaynakCekiSatiriId))
             {
@@ -485,8 +514,7 @@ namespace _3K.Infrastructure.Services
                 .Where(si => si.KonulanAdet > 0 && si.Sandik != null && !string.IsNullOrWhiteSpace(si.Sandik.SandikNo))
                 .Select(si => si.Sandik!.SandikNo.Trim())
                 .Distinct()
-                .OrderBy(GetRaporSandikSortKey)
-                .ThenBy(x => x)
+                .OrderBy(x => x, SandikNumarasiComparer.Instance)
                 .ToList();
 
             if (aktifSandiklar.Any())
@@ -499,8 +527,7 @@ namespace _3K.Infrastructure.Services
                 .Where(si => si.Sandik != null && !string.IsNullOrWhiteSpace(si.Sandik.SandikNo))
                 .Select(si => si.Sandik!.SandikNo.Trim())
                 .Distinct()
-                .OrderBy(GetRaporSandikSortKey)
-                .ThenBy(x => x)
+                .OrderBy(x => x, SandikNumarasiComparer.Instance)
                 .ToList();
 
             return sandiklar;
@@ -511,10 +538,10 @@ namespace _3K.Infrastructure.Services
             return string.Join(", ", GetRaporSandikNoList(satir));
         }
 
-        private static (int Number, string Text) GetRaporPrimarySandikSortKey(CekiSatiri satir)
+        private static string? GetRaporPrimarySandikSortKey(CekiSatiri satir)
         {
             var firstSandikNo = GetRaporSandikNoList(satir).FirstOrDefault() ?? "";
-            return (GetRaporSandikSortKey(firstSandikNo), firstSandikNo);
+            return firstSandikNo;
         }
 
         private static decimal GetRaporTrafodaSevkAdet(CekiSatiri satir)
@@ -821,8 +848,8 @@ namespace _3K.Infrastructure.Services
                     .ThenInclude(si => si.CekiSatiri)
                         .ThenInclude(cs => cs!.BirimLookup)
                 .Where(s => s.ProjeId == projeId)
-                .OrderBy(s => s.SandikNo)
                 .ToListAsync();
+            sandiklar = sandiklar.OrderBy(s => s.SandikNo, SandikNumarasiComparer.Instance).ThenBy(s => s.Id).ToList();
 
             QuestPDF.Settings.License = LicenseType.Community;
 
@@ -994,6 +1021,7 @@ namespace _3K.Infrastructure.Services
                             row.RelativeItem().Column(col =>
                             {
                                 col.Item().Text($"Sandık No: {sandik.SandikNo}").Bold();
+                                col.Item().Text($"Sandık Adı / Crate Name: {GetRaporSandikAdi(sandik)}").FontSize(8);
                                 col.Item().Text($"Ait Olduğu Proje: {sandik.Proje?.ProjeNo ?? "-"}");
                             });
                             row.RelativeItem().Column(col =>
@@ -1123,7 +1151,7 @@ namespace _3K.Infrastructure.Services
             if (proje == null)
                 throw new KeyNotFoundException($"Proje bulunamadı: {projeId}");
 
-            var sandiklar = proje.Sandiklar.OrderBy(s => s.SandikNo).ToList();
+            var sandiklar = proje.Sandiklar.OrderBy(s => s.SandikNo, SandikNumarasiComparer.Instance).ThenBy(s => s.Id).ToList();
 
             if (!sandiklar.Any())
                 throw new InvalidOperationException("Bu projeye ait sandık bulunamadı.");
@@ -1137,7 +1165,7 @@ namespace _3K.Infrastructure.Services
             var headerText = Colors.White;
             var tableBorderColor = Colors.Grey.Lighten2;
             var altRowBg = "#F8FAFE";
-            var accentColor = proje.ProjeTipiId == (int)ProjeTipi.Yedek ? "#7B1FA2" : "#1565C0"; // Yedek: mor, Saha: mavi
+            var accentColor = "#1565C0";
             var projeTipiStr = proje.ProjeTipiId == (int)ProjeTipi.Yedek ? "Yedek" : "Saha";
             var yedekProjesiMi = proje.ProjeTipiId == (int)ProjeTipi.Yedek;
             var raporTarihi = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
@@ -1197,6 +1225,7 @@ namespace _3K.Infrastructure.Services
                                 {
                                     col.Item().Text("SANDIK BİLGİSİ").Bold().FontSize(7).FontColor(accentColor);
                                     col.Item().PaddingTop(3).Text($"Sandık No: {sandik.SandikNo}").Bold().FontSize(13);
+                                    col.Item().Text($"Sandık Adı / Crate Name: {GetRaporSandikAdi(sandik)}").FontSize(8);
                                     col.Item().Text($"Ölçüler (B/E/Y): {sandik.Boy ?? 0} x {sandik.En ?? 0} x {sandik.Yukseklik ?? 0} mm").FontSize(8);
                                     col.Item().Text($"Ağırlık (Net/Gross): {sandik.NetKg ?? 0} / {sandik.GrossKg ?? 0} kg").FontSize(8);
                                 });
@@ -1308,32 +1337,36 @@ namespace _3K.Infrastructure.Services
         /// <summary>
         /// Normal projelerde kalan ürünlerin, saha projelerinde sevk sonrası tüm satırların PDF raporu.
         /// </summary>
-        public async Task<byte[]> EksikUrunlerRaporuPdfOlusturAsync(int projeId)
+        public async Task<byte[]> EksikUrunlerRaporuPdfOlusturAsync(int projeId, CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var proje = await _context.Projeler
+                .AsNoTracking()
                 .Include(p => p.ProjeTipiLookup)
-                .FirstOrDefaultAsync(p => p.Id == projeId);
+                .FirstOrDefaultAsync(p => p.Id == projeId, cancellationToken);
 
             if (proje == null)
                 throw new KeyNotFoundException($"Proje bulunamadı: {projeId}");
 
             // Grid durumu EksikGeldi veya Gelmedi olan VE kalan > 0 olan ürünler
             var satirlar = await _context.CekiSatirlari
+                .AsNoTracking()
                 .Include(cs => cs.BirimLookup)
                 .Include(cs => cs.GridDurumLookup)
                 .Include(cs => cs.UcKDurumLookup)
                 .Include(cs => cs.DurumLookup)
                 .Include(cs => cs.GeriGonderilmeSebebiLookup)
                 .Include(cs => cs.SurecDurumLookup)
+                .Include(cs => cs.SandikIcerikleri).ThenInclude(si => si.Sandik)
                 .Where(cs => cs.Ceki.ProjeId == projeId)
                 .OrderBy(cs => cs.SiraNo)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
 
-            var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar, sadeceSevkEdilenSandiklar: false);
+            var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar, sadeceSevkEdilenSandiklar: false, cancellationToken);
             var sahaEksikRaporuMu = proje.ProjeTipiId == (int)ProjeTipi.Saha;
             var aktifSahaAktarimKaynakIds = sahaEksikRaporuMu
                 ? new HashSet<int>()
-                : await GetAktifSahaAktarimKaynakSatirIdsAsync(satirlar.Select(s => s.Id));
+                : await GetAktifSahaAktarimKaynakSatirIdsAsync(satirlar.Select(s => s.Id), cancellationToken);
 
             // Normal projelerde eksik filtresi korunur; saha sevk sonrası raporunda tamamlananlar da listelenir.
             // Sıralama: Sandık numarasına göre sayısal (1,2,3...10,11), sonra sıra numarasına göre
@@ -1341,14 +1374,9 @@ namespace _3K.Infrastructure.Services
                 .Where(cs => sahaEksikRaporuMu ||
                     GetEksikRaporKalan(cs, tamamlamaPlanMap) > 0 ||
                     aktifSahaAktarimKaynakIds.Contains(cs.Id))
-                .OrderBy(cs =>
-                {
-                    var sandikStr = cs.FiiliSandikNo ?? cs.CekideGecenSandikNo ?? "";
-                    // Sayısal kısmı çıkar (örn: "10" → 10, "SND-3" → 3)
-                    var numMatch = System.Text.RegularExpressions.Regex.Match(sandikStr, @"\d+");
-                    return numMatch.Success ? int.Parse(numMatch.Value) : int.MaxValue;
-                })
+                .OrderBy(cs => GetEksikRaporSandikSortKey(cs, projeId), SandikNumarasiComparer.Instance)
                 .ThenBy(cs => cs.SiraNo)
+                .ThenBy(cs => cs.Id)
                 .ToList();
 
             QuestPDF.Settings.License = LicenseType.Community;
@@ -1373,8 +1401,8 @@ namespace _3K.Infrastructure.Services
             var toplamIstenenAdet = raporSatirlari.Sum(s => s.IstenenAdet);
             var toplamGelenAdet = raporSatirlari.Sum(s => s.GelenMiktar + s.StokKarsilanan + s.ProjeKarsilanan + s.TedarikciKarsilanan);
             var summaryAccentColor = sahaEksikRaporuMu ? "#1565C0" : dangerColor;
-            var (projedenAlinanMap, projeyeVerilenMap) = await GetProjeTransferRaporMapleriAsync(raporSatirlari);
-            var (kaynakProjeMap, hedefSahaMap) = await GetSahaAktarimRaporMapleriAsync(raporSatirlari);
+            var (projedenAlinanMap, projeyeVerilenMap) = await GetProjeTransferRaporMapleriAsync(raporSatirlari, cancellationToken);
+            var (kaynakProjeMap, hedefSahaMap) = await GetSahaAktarimRaporMapleriAsync(raporSatirlari, cancellationToken);
 
             var document = Document.Create(container =>
             {
@@ -1445,8 +1473,8 @@ namespace _3K.Infrastructure.Services
                             columns.ConstantColumn(28);   // Sıra
                             columns.RelativeColumn(1.25f); // Barkod
                             columns.ConstantColumn(42);   // Poz No
-                            columns.RelativeColumn(2.7f); // Açıklama
-                            columns.RelativeColumn(0.85f); // Sandık
+                            columns.RelativeColumn(2.1f); // Açıklama
+                            columns.RelativeColumn(1.45f); // Sandık no ve adı
                             columns.ConstantColumn(42);   // İstenen
                             columns.ConstantColumn(46);   // 3K Gelen
                             columns.ConstantColumn(46);   // Karşılanan
@@ -1498,10 +1526,11 @@ namespace _3K.Infrastructure.Services
                         int sira = 1;
                         foreach (var cs in raporSatirlari)
                         {
+                            cancellationToken.ThrowIfCancellationRequested();
                             var bg = sira % 2 == 0 ? altRowBg : "#FFFFFF";
                             var karsilanan = cs.StokKarsilanan + cs.ProjeKarsilanan + cs.TedarikciKarsilanan;
                             var ucKDurum = cs.UcKDurumLookup?.Deger ?? "-";
-                            var sandikNo = cs.FiiliSandikNo ?? cs.CekideGecenSandikNo;
+                            var sandikNo = GetEksikRaporSandikMetni(cs, proje);
                             var kalan = GetEksikRaporKalan(cs, tamamlamaPlanMap);
 
                             void DataCell(IContainer c, string text, bool bold = false, string? fontColor = null)
@@ -1527,7 +1556,7 @@ namespace _3K.Infrastructure.Services
                             var hedefSaha = GetHedefSahaRaporMetni(cs, hedefSahaMap);
                             var projedenAlindi = GetProjedenAlinanRaporMetni(cs, projedenAlinanMap);
                             var projeyeVerildi = GetProjeyeVerilenRaporMetni(cs, projeyeVerilenMap);
-                            DataCell(table.Cell(), kaynakProje, fontColor: kaynakProje != "-" ? "#6A1B9A" : null);
+                            DataCell(table.Cell(), kaynakProje, fontColor: kaynakProje != "-" ? "#1565C0" : null);
                             DataCell(table.Cell(), hedefSaha, fontColor: hedefSaha != "-" ? "#00897B" : null);
                             DataCell(table.Cell(), projedenAlindi, fontColor: projedenAlindi != "-" ? "#2E7D32" : null);
                             DataCell(table.Cell(), projeyeVerildi, fontColor: projeyeVerildi != "-" ? "#1565C0" : null);
@@ -1634,7 +1663,6 @@ namespace _3K.Infrastructure.Services
             var projeSandiklari = await _context.Sandiklar
                 .AsNoTracking()
                 .Where(s => s.ProjeId == projeId)
-                .OrderBy(s => s.SandikNo)
                 .ToListAsync();
 
             if (!satirlar.Any())
@@ -1651,65 +1679,15 @@ namespace _3K.Infrastructure.Services
             var raporTarihi = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
             var sevkTarihi = proje.GerceklesenSevkTarihi?.ToString("dd.MM.yyyy") ?? proje.PlanlananSevkTarihi?.ToString("dd.MM.yyyy") ?? "-";
 
-            int GetSandikSortKey(string? sandikNo)
-            {
-                if (string.IsNullOrWhiteSpace(sandikNo))
-                    return int.MaxValue;
-
-                var match = System.Text.RegularExpressions.Regex.Match(sandikNo, @"\d+");
-                return match.Success && int.TryParse(match.Value, out var numericValue)
-                    ? numericValue
-                    : int.MaxValue;
-            }
-
             // Sandıkları sayısal sıraya göre sırala
             projeSandiklari = projeSandiklari
-                .OrderBy(s => GetSandikSortKey(s.SandikNo))
-                .ThenBy(s => s.SandikNo)
+                .OrderBy(s => s.SandikNo, SandikNumarasiComparer.Instance)
+                .ThenBy(s => s.Id)
                 .ToList();
-
-            List<string> GetSandikNoList(CekiSatiri satir)
-            {
-                if (!string.IsNullOrWhiteSpace(satir.FiiliSandikNo))
-                    return new List<string> { satir.FiiliSandikNo.Trim() };
-
-                var aktifSandiklar = satir.SandikIcerikleri
-                    .Where(si => si.KonulanAdet > 0 && si.Sandik != null && !string.IsNullOrWhiteSpace(si.Sandik.SandikNo))
-                    .Select(si => si.Sandik.SandikNo.Trim())
-                    .Distinct()
-                    .OrderBy(GetSandikSortKey)
-                    .ThenBy(x => x)
-                    .ToList();
-
-                if (aktifSandiklar.Any())
-                    return aktifSandiklar;
-
-                if (!string.IsNullOrWhiteSpace(satir.CekideGecenSandikNo))
-                    return new List<string> { satir.CekideGecenSandikNo.Trim() };
-
-                var sandiklar = satir.SandikIcerikleri
-                    .Where(si => si.Sandik != null && !string.IsNullOrWhiteSpace(si.Sandik.SandikNo))
-                    .Select(si => si.Sandik.SandikNo.Trim())
-                    .Distinct()
-                    .OrderBy(GetSandikSortKey)
-                    .ThenBy(x => x)
-                    .ToList();
-
-                if (sandiklar.Any())
-                    return sandiklar;
-
-                return new List<string>();
-            }
 
             string GetSandikNolari(CekiSatiri satir)
             {
-                return string.Join(", ", GetSandikNoList(satir));
-            }
-
-            (int Number, string Text) GetPrimarySandikSortKey(CekiSatiri satir)
-            {
-                var firstSandikNo = GetSandikNoList(satir).FirstOrDefault() ?? "";
-                return (GetSandikSortKey(firstSandikNo), firstSandikNo);
+                return GetRaporSandikNolari(satir);
             }
 
             decimal GetTrafodaSevkAdet(CekiSatiri satir)
@@ -1770,9 +1748,9 @@ namespace _3K.Infrastructure.Services
 
             satirlar = satirlar
                 .OrderBy(GetDurumSortPriority)
-                .ThenBy(s => GetPrimarySandikSortKey(s).Number)
-                .ThenBy(s => GetPrimarySandikSortKey(s).Text)
+                .ThenBy(GetRaporPrimarySandikSortKey, SandikNumarasiComparer.Instance)
                 .ThenBy(s => s.SiraNo)
+                .ThenBy(s => s.Id)
                 .ToList();
 
             var toplamSatir = satirlar.Count;
@@ -1898,8 +1876,8 @@ namespace _3K.Infrastructure.Services
 
                                 SandikDataCell(table.Cell(), sandikSira.ToString(), bold: true);
                                 SandikDataCell(table.Cell(), sandik.SandikNo, bold: true, fontColor: headerBg);
-                                SandikDataCell(table.Cell(), sandik.Ad ?? "-");
-                                SandikDataCell(table.Cell(), sandik.AdIngilizce ?? "-");
+                                SandikDataCell(table.Cell(), RaporMetni(sandik.Ad));
+                                SandikDataCell(table.Cell(), RaporMetni(sandik.AdIngilizce));
                                 SandikDataCell(table.Cell(), FormatAdet(netKg), bold: true);
                                 SandikDataCell(table.Cell(), FormatAdet(brutKg), bold: true);
                                 SandikDataCell(table.Cell(), FormatAdet(sandik.Boy ?? 0));
@@ -2116,11 +2094,13 @@ namespace _3K.Infrastructure.Services
             return pdfStream.ToArray();
         }
 
-        public async Task<byte[]> EksikUrunlerRaporuExcelOlusturAsync(int projeId)
+        public async Task<byte[]> EksikUrunlerRaporuExcelOlusturAsync(int projeId, CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var proje = await _context.Projeler
+                .AsNoTracking()
                 .Include(p => p.ProjeTipiLookup)
-                .FirstOrDefaultAsync(p => p.Id == projeId);
+                .FirstOrDefaultAsync(p => p.Id == projeId, cancellationToken);
 
             if (proje == null)
                 throw new KeyNotFoundException($"Proje bulunamadı: {projeId}");
@@ -2133,22 +2113,23 @@ namespace _3K.Infrastructure.Services
                 .Include(cs => cs.DurumLookup)
                 .Include(cs => cs.GeriGonderilmeSebebiLookup)
                 .Include(cs => cs.SurecDurumLookup)
+                .Include(cs => cs.SandikIcerikleri).ThenInclude(si => si.Sandik)
                 .Where(cs => cs.Ceki.ProjeId == projeId)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
 
-            var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar, sadeceSevkEdilenSandiklar: false);
+            var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar, sadeceSevkEdilenSandiklar: false, cancellationToken);
             var sahaEksikRaporuMu = proje.ProjeTipiId == (int)ProjeTipi.Saha;
             var aktifSahaAktarimKaynakIds = sahaEksikRaporuMu
                 ? new HashSet<int>()
-                : await GetAktifSahaAktarimKaynakSatirIdsAsync(satirlar.Select(s => s.Id));
+                : await GetAktifSahaAktarimKaynakSatirIdsAsync(satirlar.Select(s => s.Id), cancellationToken);
 
             var raporSatirlari = satirlar
                 .Where(cs => sahaEksikRaporuMu ||
                     GetEksikRaporKalan(cs, tamamlamaPlanMap) > 0 ||
                     aktifSahaAktarimKaynakIds.Contains(cs.Id))
-                .OrderBy(cs => GetRaporSandikSortKey(cs.FiiliSandikNo ?? cs.CekideGecenSandikNo))
-                .ThenBy(cs => cs.FiiliSandikNo ?? cs.CekideGecenSandikNo)
+                .OrderBy(cs => GetEksikRaporSandikSortKey(cs, projeId), SandikNumarasiComparer.Instance)
                 .ThenBy(cs => cs.SiraNo)
+                .ThenBy(cs => cs.Id)
                 .ToList();
 
             var toplamRaporUrun = raporSatirlari.Count;
@@ -2158,8 +2139,8 @@ namespace _3K.Infrastructure.Services
             var toplamIstenenAdet = raporSatirlari.Sum(s => s.IstenenAdet);
             var toplamGelenAdet = raporSatirlari.Sum(s => s.GelenMiktar + s.StokKarsilanan + s.ProjeKarsilanan + s.TedarikciKarsilanan);
             var karsilamaOrani = toplamIstenenAdet > 0 ? toplamGelenAdet * 100 / toplamIstenenAdet : 0;
-            var (projedenAlinanMap, projeyeVerilenMap) = await GetProjeTransferRaporMapleriAsync(raporSatirlari);
-            var (kaynakProjeMap, hedefSahaMap) = await GetSahaAktarimRaporMapleriAsync(raporSatirlari);
+            var (projedenAlinanMap, projeyeVerilenMap) = await GetProjeTransferRaporMapleriAsync(raporSatirlari, cancellationToken);
+            var (kaynakProjeMap, hedefSahaMap) = await GetSahaAktarimRaporMapleriAsync(raporSatirlari, cancellationToken);
             var raporBasligi = sahaEksikRaporuMu ? "Sevk Sonrası Eksik Raporu" : "Eksik Ürünler Raporu";
 
             using var workbook = new XLWorkbook();
@@ -2216,8 +2197,9 @@ namespace _3K.Infrastructure.Services
             var sira = 1;
             foreach (var cs in raporSatirlari)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var karsilanan = cs.StokKarsilanan + cs.ProjeKarsilanan + cs.TedarikciKarsilanan;
-                var sandikNo = cs.FiiliSandikNo ?? cs.CekideGecenSandikNo;
+                var sandikNo = GetEksikRaporSandikMetni(cs, proje);
                 var kaynakProje = GetKaynakProjeRaporMetni(cs, kaynakProjeMap);
                 var hedefSaha = GetHedefSahaRaporMetni(cs, hedefSahaMap);
                 var projedenAlindi = GetProjedenAlinanRaporMetni(cs, projedenAlinanMap);
@@ -2253,6 +2235,7 @@ namespace _3K.Infrastructure.Services
             }
 
             worksheet.Column(5).Style.Alignment.WrapText = true;
+            worksheet.Column(6).Style.Alignment.WrapText = true;
             worksheet.Column(18).Style.Alignment.WrapText = true;
             FinalizeExcelWorksheet(worksheet, headerRow, Math.Max(row - 1, headerRow), lastColumn);
 
@@ -2308,7 +2291,6 @@ namespace _3K.Infrastructure.Services
             var projeSandiklari = await _context.Sandiklar
                 .AsNoTracking()
                 .Where(s => s.ProjeId == projeId)
-                .OrderBy(s => s.SandikNo)
                 .ToListAsync();
 
             if (!satirlar.Any())
@@ -2317,15 +2299,15 @@ namespace _3K.Infrastructure.Services
             var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar, sadeceSevkEdilenSandiklar: !sahaYedekRaporuMu);
 
             projeSandiklari = projeSandiklari
-                .OrderBy(s => GetRaporSandikSortKey(s.SandikNo))
-                .ThenBy(s => s.SandikNo)
+                .OrderBy(s => s.SandikNo, SandikNumarasiComparer.Instance)
+                .ThenBy(s => s.Id)
                 .ToList();
 
             satirlar = satirlar
                 .OrderBy(GetRaporDurumSortPriority)
-                .ThenBy(s => GetRaporPrimarySandikSortKey(s).Number)
-                .ThenBy(s => GetRaporPrimarySandikSortKey(s).Text)
+                .ThenBy(GetRaporPrimarySandikSortKey, SandikNumarasiComparer.Instance)
                 .ThenBy(s => s.SiraNo)
+                .ThenBy(s => s.Id)
                 .ToList();
 
             var toplamSatir = satirlar.Count;
@@ -2369,8 +2351,8 @@ namespace _3K.Infrastructure.Services
                 {
                     sandikSheet.Cell(row, 1).SetValue(sira);
                     sandikSheet.Cell(row, 2).Value = sandik.SandikNo;
-                    sandikSheet.Cell(row, 3).Value = sandik.Ad ?? "-";
-                    sandikSheet.Cell(row, 4).Value = sandik.AdIngilizce ?? "-";
+                    sandikSheet.Cell(row, 3).Value = RaporMetni(sandik.Ad);
+                    sandikSheet.Cell(row, 4).Value = RaporMetni(sandik.AdIngilizce);
                     SetDecimalCell(sandikSheet.Cell(row, 5), sandik.NetKg ?? 0);
                     SetDecimalCell(sandikSheet.Cell(row, 6), sandik.GrossKg ?? 0);
                     SetDecimalCell(sandikSheet.Cell(row, 7), sandik.Boy ?? 0);
@@ -2478,13 +2460,6 @@ namespace _3K.Infrastructure.Services
                 .ToListAsync();
             var lokasyonAdlari = depoLokasyonlari.ToDictionary(l => l.Id, l => l.Deger);
 
-            int GetSandikSortKey(string? sandikNo)
-            {
-                if (string.IsNullOrWhiteSpace(sandikNo)) return int.MaxValue;
-                var digits = new string(sandikNo.TakeWhile(char.IsDigit).ToArray());
-                return int.TryParse(digits, out var number) ? number : int.MaxValue;
-            }
-
             bool BelirsizLokasyonMu(LookupDepoLokasyon lokasyon)
             {
                 return lokasyon.Id == (int)DepoLokasyon.Belirsiz
@@ -2512,8 +2487,8 @@ namespace _3K.Infrastructure.Services
                 .Where(s => s.DepoLokasyonId != (int)DepoLokasyon.Belirsiz)
                 .OrderBy(EtkinDepoLokasyonMetni)
                 .ThenBy(s => s.Proje.ProjeNo)
-                .ThenBy(s => GetSandikSortKey(s.SandikNo))
-                .ThenBy(s => s.SandikNo)
+                .ThenBy(s => s.SandikNo, SandikNumarasiComparer.Instance)
+                .ThenBy(s => s.Id)
                 .ToList();
 
             QuestPDF.Settings.License = LicenseType.Community;
@@ -2755,8 +2730,8 @@ namespace _3K.Infrastructure.Services
                 .Where(DepodaSayilacakSandik)
                 .OrderBy(s => s.DepoLokasyonLookup?.Anahtar ?? s.DepoLokasyonId)
                 .ThenBy(s => s.DepoLokasyonLookup?.Deger)
-                .ThenBy(s => GetRaporSandikSortKey(s.SandikNo))
-                .ThenBy(s => s.SandikNo)
+                .ThenBy(s => s.SandikNo, SandikNumarasiComparer.Instance)
+                .ThenBy(s => s.Id)
                 .ToList();
 
             var lokasyonOzetleri = raporSandiklari
@@ -3074,8 +3049,8 @@ namespace _3K.Infrastructure.Services
                 .ToListAsync();
 
             var raporSandiklari = sandiklar
-                .OrderBy(s => GetRaporSandikSortKey(s.SandikNo))
-                .ThenBy(s => s.SandikNo)
+                .OrderBy(s => s.SandikNo, SandikNumarasiComparer.Instance)
+                .ThenBy(s => s.Id)
                 .ToList();
 
             QuestPDF.Settings.License = LicenseType.Community;

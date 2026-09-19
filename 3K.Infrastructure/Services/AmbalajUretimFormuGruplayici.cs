@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using _3K.Core.Models;
+using _3K.Core.Common;
 
 namespace _3K.Infrastructure.Services
 {
@@ -19,7 +20,7 @@ namespace _3K.Infrastructure.Services
                 .GroupBy(GrupAnahtariOlustur)
                 .Select(grup => GrupOlustur(grup))
                 .OrderBy(grup => SandikTuruSiraNo(grup.Temsilci.SandikTuru))
-                .ThenBy(grup => grup.SandikNo, DogalSandikNoKarsilastiricisi.Instance)
+                .ThenBy(grup => grup.SandikNo, SandikNumarasiComparer.Instance)
                 .ThenBy(grup => grup.Temsilci.SandikTuru, StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
@@ -156,7 +157,7 @@ namespace _3K.Infrastructure.Services
                 index++;
             }
 
-            parcalar.AddRange(digerNumaralar);
+            parcalar.AddRange(digerNumaralar.OrderBy(x => x, SandikNumarasiComparer.Instance));
             return string.Join(", ", parcalar);
         }
 
@@ -222,51 +223,6 @@ namespace _3K.Infrastructure.Services
             decimal KesitYukseklik,
             decimal Uzunluk);
 
-        private sealed class DogalSandikNoKarsilastiricisi : IComparer<string>
-        {
-            internal static readonly DogalSandikNoKarsilastiricisi Instance = new();
-
-            public int Compare(string? x, string? y)
-            {
-                if (ReferenceEquals(x, y))
-                    return 0;
-                if (x is null)
-                    return -1;
-                if (y is null)
-                    return 1;
-
-                var xSayisi = IlkSayiyiBul(x);
-                var ySayisi = IlkSayiyiBul(y);
-                if (xSayisi.HasValue && ySayisi.HasValue)
-                {
-                    var sayiKarsilastirmasi = xSayisi.Value.CompareTo(ySayisi.Value);
-                    if (sayiKarsilastirmasi != 0)
-                        return sayiKarsilastirmasi;
-                }
-                else if (xSayisi.HasValue)
-                {
-                    return -1;
-                }
-                else if (ySayisi.HasValue)
-                {
-                    return 1;
-                }
-
-                var metinKarsilastirmasi = StringComparer.OrdinalIgnoreCase.Compare(x, y);
-                return metinKarsilastirmasi != 0
-                    ? metinKarsilastirmasi
-                    : StringComparer.Ordinal.Compare(x, y);
-            }
-
-            private static int? IlkSayiyiBul(string deger)
-            {
-                var eslesme = Regex.Match(deger, @"^\s*(\d+)", RegexOptions.CultureInvariant);
-                return eslesme.Success &&
-                       int.TryParse(eslesme.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var sayi)
-                    ? sayi
-                    : null;
-            }
-        }
     }
 
     internal sealed record AmbalajUretimGrubu(

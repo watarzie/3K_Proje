@@ -19,18 +19,22 @@ namespace _3K.Application.Features.RolIslemleri.Queries
         }
 
         public async Task<Result<RolDetayDto>> Handle(GetRolDetayQuery request, CancellationToken cancellationToken)
+            => await OkuAsync(_unitOfWork, _rolService, request.RolId, cancellationToken);
+
+        internal static async Task<Result<RolDetayDto>> OkuAsync(
+            IUnitOfWork unitOfWork, IRolService rolService, int rolId, CancellationToken cancellationToken)
         {
-            var rolRepo = _unitOfWork.GetRepository<Rol>();
-            var rol = (await rolRepo.GetAllAsync()).FirstOrDefault(r => r.Id == request.RolId);
+            var rolRepo = unitOfWork.GetRepository<Rol>();
+            var rol = await rolRepo.GetByIdAsync(rolId);
 
             if (rol == null)
                 return Result<RolDetayDto>.Failure("Rol bulunamadı.", 404);
 
             // Menü ağacını getir
-            var menuAgaci = await _rolService.GetMenuAgaciAsync(cancellationToken);
+            var menuAgaci = await rolService.GetMenuAgaciAsync(cancellationToken);
 
             // Rolün mevcut yetkilerini getir
-            var yetkiler = await _rolService.GetRolYetkileriAsync(request.RolId, cancellationToken);
+            var yetkiler = await rolService.GetRolYetkileriAsync(rolId, cancellationToken);
             var yetkiMap = yetkiler.ToDictionary(y => y.MenuTanimiId, y => y.YetkiTipiId);
 
             // Menü ağacını DTO'ya dönüştür (recursive)
@@ -51,7 +55,7 @@ namespace _3K.Application.Features.RolIslemleri.Queries
         /// MenuTanimi → MenuTreeDto recursive dönüşümü.
         /// Her node'a rolün yetkisini ekler (W/R/N).
         /// </summary>
-        private MenuTreeDto MapToMenuTreeDto(MenuTanimi menu, Dictionary<int, int> yetkiMap)
+        private static MenuTreeDto MapToMenuTreeDto(MenuTanimi menu, Dictionary<int, int> yetkiMap)
         {
             return new MenuTreeDto
             {

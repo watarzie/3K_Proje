@@ -8,7 +8,7 @@ namespace _3K_API.Controllers
 {
     /// <summary>
     /// Kullanıcıya ait menü ağacını döner.
-    /// JWT'deki RolId claim'i kullanılarak backend'de filtrelenir.
+    /// Oturum sahibinin veritabanındaki güncel rolü kullanılarak backend'de filtrelenir.
     /// Frontend bu bilgiyi sidebar ve route guard için kullanır.
     /// GÜVENLİK: Yetkisiz (N) menüler asla frontend'e gönderilmez.
     /// </summary>
@@ -31,11 +31,7 @@ namespace _3K_API.Controllers
         [HttpGet("kullanici-menu")]
         public async Task<ActionResult> GetKullaniciMenu()
         {
-            var rolIdClaim = User.FindFirst("RolId")?.Value;
-            if (string.IsNullOrEmpty(rolIdClaim) || !int.TryParse(rolIdClaim, out var rolId))
-                return Unauthorized(new { message = "Geçersiz oturum." });
-
-            var result = await _mediator.Send(new GetRolDetayQuery { RolId = rolId });
+            var result = await _mediator.Send(new GetKullaniciMenuQuery());
             if (!result.IsSuccess)
                 return BadRequest(new { message = result.Error });
 

@@ -15,19 +15,30 @@ namespace _3K.Application.Features.PdfIslemleri.Queries
 
         private readonly IUnitOfWork _unitOfWork;
         private readonly IPdfService _pdfService;
+        private readonly ICurrentUserService _currentUser;
+        private readonly IRolService _rolService;
 
         public GetTopluEksikUrunlerRaporuQueryHandler(
             IUnitOfWork unitOfWork,
-            IPdfService pdfService)
+            IPdfService pdfService,
+            ICurrentUserService currentUser,
+            IRolService rolService)
         {
             _unitOfWork = unitOfWork;
             _pdfService = pdfService;
+            _currentUser = currentUser;
+            _rolService = rolService;
         }
 
         public async Task<Result<byte[]>> Handle(
             GetTopluEksikUrunlerRaporuQuery request,
             CancellationToken cancellationToken)
         {
+            var validation = await new Validators.GetTopluEksikUrunlerRaporuQueryValidator()
+                .ValidateAsync(request, cancellationToken);
+            if (!validation.IsValid)
+                return Result<byte[]>.Failure(string.Join(" ", validation.Errors.Select(x => x.ErrorMessage)));
+
             var projeIds = request.ProjeIds.ToList();
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -56,15 +67,23 @@ namespace _3K.Application.Features.PdfIslemleri.Queries
                     404);
             }
 
-            var normalOlmayanProjeler = projeler
-                .Where(proje => proje.ProjeTipiId != (int)ProjeTipi.Normal)
+            var kapsamaUymayanProjeler = projeler
+                .Where(proje => proje.ProjeTipiId != (int)request.ProjeTipi)
                 .Select(proje => $"{proje.ProjeNo} ({proje.Id})")
                 .ToList();
 
-            if (normalOlmayanProjeler.Count > 0)
+            if (kapsamaUymayanProjeler.Count > 0)
             {
                 return Result<byte[]>.Failure(
-                    $"Toplu eksik raporu yalnızca normal projeler için alınabilir. Uygun olmayan projeler: {string.Join(", ", normalOlmayanProjeler)}.");
+                    $"Seçilen rapor kapsamına uymayan projeler: {string.Join(", ", kapsamaUymayanProjeler)}.", 403);
+            }
+
+            // Önce bütün seçim doğrulanır; bir proje yetkisizse hiçbir rapor üretilmez.
+            foreach (var proje in projeler)
+            {
+                if (!await EksikUrunlerRaporYetkisi.YetkiliMiAsync(
+                    (ProjeTipi)proje.ProjeTipiId, _currentUser, _rolService, cancellationToken))
+                    return Result<byte[]>.Failure($"{proje.ProjeNo} projesinin eksik raporunu okuma yetkiniz bulunmuyor.", 403);
             }
 
             var uzanti = request.DosyaTuru == EksikUrunlerRaporDosyaTuru.Pdf
@@ -82,8 +101,8 @@ namespace _3K.Application.Features.PdfIslemleri.Queries
                     var projeId = projeIds[index];
                     var proje = projeMap[projeId];
                     var raporBytes = request.DosyaTuru == EksikUrunlerRaporDosyaTuru.Pdf
-                        ? await _pdfService.EksikUrunlerRaporuPdfOlusturAsync(projeId)
-                        : await _pdfService.EksikUrunlerRaporuExcelOlusturAsync(projeId);
+                        ? await _pdfService.EksikUrunlerRaporuPdfOlusturAsync(projeId, cancellationToken)
+                        : await _pdfService.EksikUrunlerRaporuExcelOlusturAsync(projeId, cancellationToken);
                     cancellationToken.ThrowIfCancellationRequested();
 
                     if (raporBytes.Length == 0)
@@ -101,7 +120,8 @@ namespace _3K.Application.Features.PdfIslemleri.Queries
                     toplamHamRaporBoyutu += raporBytes.LongLength;
 
                     var guvenliProjeNo = GuvenliDosyaParcasiOlustur(proje.ProjeNo);
-                    var entryAdi = $"{index + 1:D2}_{guvenliProjeNo}_{projeId}_EksikRaporu.{uzanti}";
+                    var raporAdi = request.ProjeTipi == ProjeTipi.Saha ? "SevkSonrasiEksikRaporu" : "EksikRaporu";
+                    var entryAdi = $"{index + 1:D2}_{guvenliProjeNo}_{projeId}_{raporAdi}.{uzanti}";
                     var entry = archive.CreateEntry(entryAdi, CompressionLevel.Fastest);
 
                     await using var entryStream = entry.Open();

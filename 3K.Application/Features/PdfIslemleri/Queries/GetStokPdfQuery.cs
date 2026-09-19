@@ -4,7 +4,7 @@ using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.PdfIslemleri.Queries
 {
-    public class GetStokPdfQuery : IRequest<Result<byte[]>> { }
+    public class GetStokPdfQuery : IRequest<Result<byte[]>>, ISecuredRequest { }
 
     public class GetStokPdfQueryHandler : IRequestHandler<GetStokPdfQuery, Result<byte[]>>
     {

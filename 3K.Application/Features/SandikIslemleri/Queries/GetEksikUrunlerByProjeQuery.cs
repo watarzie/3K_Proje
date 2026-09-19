@@ -7,7 +7,7 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
     /// Normal projelerdeki kalan > 0 olan ürünleri listeler.
     /// Saha/Yedek sandıklara ekleme yapmak için kullanılır.
     /// </summary>
-    public class GetEksikUrunlerByProjeQuery : IRequest<Result<List<EksikUrunForSandikDto>>>
+    public class GetEksikUrunlerByProjeQuery : IRequest<Result<List<EksikUrunForSandikDto>>>, ISecuredRequest
     {
         public int ProjeId { get; set; }
     }

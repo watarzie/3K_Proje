@@ -1,6 +1,7 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Core.Enums;
+using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.PdfIslemleri.Queries
 {
@@ -32,6 +33,19 @@ namespace _3K.Application.Features.PdfIslemleri.Queries
         public static bool GecerliMi(ProjeTipi projeTipi)
         {
             return projeTipi is ProjeTipi.Normal or ProjeTipi.Saha or ProjeTipi.Yedek;
+        }
+
+        public static async Task<bool> YetkiliMiAsync(
+            ProjeTipi gercekProjeTipi,
+            ICurrentUserService currentUser,
+            IRolService rolService,
+            CancellationToken cancellationToken)
+        {
+            return GecerliMi(gercekProjeTipi)
+                && currentUser.IsAuthenticated
+                && currentUser.UserId.HasValue
+                && await rolService.HasUserPermissionAsync(
+                    currentUser.UserId.Value, GetMenuKod(gercekProjeTipi), YetkiTipi.R, cancellationToken);
         }
     }
 }

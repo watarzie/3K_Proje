@@ -126,6 +126,7 @@ try
 
     // ======= Services =======
     builder.Services.AddScoped<ICekiService, CekiService>();
+    builder.Services.AddScoped<ICekiRevizyonGecmisiService, CekiRevizyonGecmisiService>();
     builder.Services.AddScoped<IYedekCekiImportService, YedekCekiImportService>();
     builder.Services.AddScoped<ISandikService, SandikService>();
     builder.Services.AddScoped<IUrunService, UrunService>();
@@ -164,6 +165,7 @@ try
     builder.Services.AddHttpContextAccessor();
     builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
     builder.Services.AddScoped<IApprovalExecutionContext, ApprovalExecutionContext>();
+    builder.Services.AddScoped<IRequestMenuPermissionResolver, RequestMenuPermissionResolver>();
 
     // ======= Background Task Queue =======
     builder.Services.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();

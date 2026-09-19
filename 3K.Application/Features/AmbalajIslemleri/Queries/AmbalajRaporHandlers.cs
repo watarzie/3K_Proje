@@ -1,6 +1,7 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Application.Features.AmbalajIslemleri.DTOs;
+using _3K.Core.Common;
 using _3K.Core.Entities;
 using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
@@ -95,9 +96,10 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
             IAmbalajRaporFiltresi filtre) =>
             AmbalajSorguYardimcisi.Filtrele(
                     unitOfWork.GetRepository<AmbalajUretimKaydi>().Queryable(), filtre)
+                .AsEnumerable()
                 .OrderBy(k => k.ProjeId ?? int.MaxValue)
                 .ThenBy(k => k.ManuelProjeNo)
-                .ThenBy(k => k.SandikNo)
+                .ThenBy(k => k.SandikNo, SandikNumarasiComparer.Instance)
                 .ThenBy(k => k.Id)
                 .ToList();
 

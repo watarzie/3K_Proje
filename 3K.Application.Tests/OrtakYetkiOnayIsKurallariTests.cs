@@ -48,8 +48,8 @@ public class OrtakYetkiOnayIsKurallariTests
     public async Task QueryOkuma_CommandYazmaVeSabitMenuyuKullanir()
     {
         var rol = new RolFake();
-        await new AuthorizationBehavior<OrtakQuery, Result>(new OrtakUser(), rol)
-            .Handle(new OrtakQuery(), () => Task.FromResult(Result.Success()), default);
+        await new AuthorizationBehavior<SabitQuery, Result>(new OrtakUser(MenuKod: "sahte-menu"), rol)
+            .Handle(new SabitQuery(), () => Task.FromResult(Result.Success()), default);
         await new AuthorizationBehavior<SabitCommand, Result>(new OrtakUser(MenuKod: "baska-menu"), rol)
             .Handle(new SabitCommand(), () => Task.FromResult(Result.Success()), default);
         Assert.Equal([(7, "grid-modulu", YetkiTipi.R), (7, "sabit", YetkiTipi.W)], rol.Calls);
@@ -206,6 +206,7 @@ public class OrtakYetkiOnayIsKurallariTests
 
     private sealed record OrtakQuery : IRequest<Result>, ISecuredRequest;
     private sealed record SabitCommand : IRequest<Result>, ISecuredRequest, IRequiresMenuPermission { public string RequiredMenuKod => "sabit"; }
+    private sealed record SabitQuery : IRequest<Result>, ISecuredRequest, IRequiresMenuPermission { public string RequiredMenuKod => "grid-modulu"; }
     private sealed record CokluCommand : IRequest<Result>, ISecuredRequest, IRequiresMenuPermissions
     { public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions => [new("ilk", YetkiTipi.R), new("ikinci", YetkiTipi.W)]; }
     public sealed record AyarliCommand : IRequest<Result>, IConfigurableApproval

@@ -2,6 +2,24 @@
 
 Bu dosya, iş kuralı kataloğunun testlerle nasıl doğrulandığını ve hangi sınırların birim testlerinin dışında kaldığını açıklar. Test sayısı, iş kuralı kapsam yüzdesi veya sıfır regresyon garantisi değildir.
 
+## Güncel ek doğrulama — 19 Eylül 2026
+
+Sunucu yetkilendirmesi, toplu sandık taşıma, Saha/Yedek raporları ve revizyon geçmişi sonrasında tam paket yeniden çalıştırıldı:
+
+| Kontrol | Sonuç |
+|---|---|
+| Backend Debug | 1.113/1.113 başarılı; 0 atlanan |
+| Backend Release + coverage | 1.113/1.113 başarılı; 0 atlanan |
+| Çözüm Release build | Başarılı |
+| Frontend ChromeHeadless / production build | 82/82 başarılı / build başarılı |
+| Katalog ve test referansları | 501/501; eşlenen metotların başarılı çalışması TRX ile doğrulandı |
+
+`ServerAuthorizationRegressionTests`, `SandikTopluTasimaTests`, `RaporTutarliligiTests`, `RaporPostgresEntegrasyonTests`, `CekiRevizyonGecmisiTests` ve `CekiRevizyonYasamDongusuEntegrasyonTests` eklendi. İzole PostgreSQL'de gerçek taşıma transaction/rollback/concurrency, rapor üretimi ve revizyon yükleme–doğrudan/onaylı uygulama–temizlik–indirme doğrulandı. Yeni revizyon testi gerçek A/U/D parser/handler/onay servisiyle aynı adlı dosyaların, snapshot'ın ve tekrar yürütme korumasının bütünlüğünü kontrol eder; SSE/bildirim taşıması no-op'tur.
+
+Bu koşumlarda `THREEK_TEST_POSTGRES` yalnız 127.0.0.1:55439 üzerinde ayrı sentetik test sunucusuna verildi. Uygulama DB'sine veri düzeltmesi uygulanmadı. Değişken olmadan yeni PG testleri atlanır; tam runner sıfır-atlama kontrolünden geçmez. Yeniden çalıştırma, gerekli SQL, dosya listesi, TRX/coverage yolları, PDF/Excel görsel kontrolü ve sınırlar [teslim notundadır](../20260919_YEDI_ISTEK_TESLIM.md).
+
+Gerçek HTTP/JWT middleware, canlı roller ve kullanıcılarla ekran kabulü bu testlerin yerine geçtiği iddia edilmez. Aşağıdaki 12 Eylül sayıları önceki değişikliğin tarihsel sonucudur; yeni koşum olarak okunmamalıdır.
+
 ## Doğrulanan sonuç — 12 Eylül 2026
 
 Başlangıçtaki 635 backend vakasına **392 yeni vaka** eklendi. Yeni testler mevcut xUnit projesinde ve mevcut handler/service arayüzleriyle çalışır; test uğruna üretim mimarisi değiştirilmedi.
