@@ -1222,6 +1222,9 @@ namespace _3K.Infrastructure.Services
                 ToplamIsaretliSatirSayisi = revizyonSatirlari.Count
             };
 
+            var tahsisDuzeltilecekKaynakSandikNolari = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var tahsisDuzeltilecekSatirlar = new List<CekiRevizyonOnizlemeSatiri>();
+
             foreach (var revizyonSatiri in revizyonSatirlari)
             {
                 var satir = new CekiRevizyonOnizlemeSatiri
@@ -1312,6 +1315,19 @@ namespace _3K.Infrastructure.Services
                     sonuc.GuncellenenSatirSayisi++;
                     RevizyonDegisiklikleriDoldur(satir, mevcutSatir, revizyonSatiri);
 
+                    if (RevizyonTekTamTahsisSandigiUyumsuzMu(
+                        proje.Id, mevcutSatir.CekideGecenSandikNo, mevcutSatir.FiiliSandikNo,
+                        mevcutSatir.IstenenAdet, revizyonSatiri.KoliNo, mevcutSatir.SandikIcerikleri.ToList()))
+                    {
+                        var kaynakSandikNo = NormalizeKoliNo(mevcutSatir.SandikIcerikleri.Single().Sandik.SandikNo);
+                        RevizyonDegisiklikEkle(satir, "Tahsis sandığı", kaynakSandikNo, NormalizeKoliNo(revizyonSatiri.KoliNo));
+                        tahsisDuzeltilecekKaynakSandikNolari.Add(kaynakSandikNo);
+                        tahsisDuzeltilecekSatirlar.Add(satir);
+                        if (SandikSevkKilitliMi(mevcutSatir.SandikIcerikleri.Single().Sandik))
+                            RevizyonSatirRiskEkle(satir, "Engel", "Tahsis düzeltmesinin kaynak sandığı sevk kilitli. Önce ilgili sandığın sevk kilidini açın.",
+                                CekiRevizyonSorunKodlari.SevkKilidi, CekiRevizyonSorunKategorileri.DurumCakismasi);
+                    }
+
                     if (satir.Degisiklikler.Count == 0)
                         satir.Degisiklikler.Add("Ana veride değişiklik yok.");
 
@@ -1380,13 +1396,28 @@ namespace _3K.Infrastructure.Services
                 sonuc.Satirlar.Add(satir);
             }
 
+            if (tahsisDuzeltilecekSatirlar.Count > 0)
+            {
+                var hedefNolar = tahsisDuzeltilecekSatirlar
+                    .Select(s => NormalizeKoliNo(s.YeniKoliNo).ToUpperInvariant()).Distinct().ToList();
+                var kilitliHedefNolar = (await _context.Sandiklar.AsNoTracking()
+                        .Where(s => s.ProjeId == proje.Id && hedefNolar.Contains(s.SandikNo.ToUpper()) &&
+                            s.DurumId == (int)SandikDurum.Sevkedildi && !s.SevkiyatDuzeltmeAcikMi)
+                        .Select(s => s.SandikNo).ToListAsync())
+                    .Select(NormalizeKoliNo).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                foreach (var satir in tahsisDuzeltilecekSatirlar.Where(s => kilitliHedefNolar.Contains(NormalizeKoliNo(s.YeniKoliNo))))
+                    RevizyonSatirRiskEkle(satir, "Engel", "Tahsis düzeltmesinin hedef sandığı sevk kilitli. Önce ilgili sandığın sevk kilidini açın.",
+                        CekiRevizyonSorunKodlari.SevkKilidi, CekiRevizyonSorunKategorileri.DurumCakismasi);
+            }
+
             await RevizyonSahaAktarimRiskleriniEkleAsync(sonuc.Satirlar, proje.ProjeTipiId, anaSatirlar);
             await RevizyonStokGeriAlRiskleriniEkleAsync(sonuc.Satirlar);
             await RevizyonGelenTransferOzetleriniEkleAsync(sonuc.Satirlar);
             sonuc.SandikEtkileri = await RevizyonSandikEtkileriniOlusturAsync(
                 proje.Id,
                 sonuc.Satirlar,
-                import.SandikBilgileri);
+                import.SandikBilgileri,
+                tahsisDuzeltilecekKaynakSandikNolari);
 
             sonuc.RiskliSatirSayisi = sonuc.Satirlar.Count(s => s.RiskSeviyesi != "Güvenli");
             sonuc.EngelliSatirSayisi = sonuc.Satirlar.Count(s => !s.UygulanabilirMi);
@@ -1404,7 +1435,8 @@ namespace _3K.Infrastructure.Services
         private async Task<List<CekiRevizyonSandikEtkisi>> RevizyonSandikEtkileriniOlusturAsync(
             int projeId,
             IReadOnlyCollection<CekiRevizyonOnizlemeSatiri> onizlemeSatirlari,
-            IReadOnlyDictionary<string, SandikImportBilgisi> sandikBilgileri)
+            IReadOnlyDictionary<string, SandikImportBilgisi> sandikBilgileri,
+            IEnumerable<string> tahsisDuzeltilecekKaynakSandikNolari)
         {
             var hedefSandikNolari = onizlemeSatirlari
                 .Where(satir => satir.CheckKodu is "A" or "U")
@@ -1416,6 +1448,7 @@ namespace _3K.Infrastructure.Services
                 .Concat(onizlemeSatirlari
                     .Where(satir => satir.CheckKodu is "U" or "D")
                     .Select(satir => NormalizeKoliNo(satir.EskiKoliNo)))
+                .Concat(tahsisDuzeltilecekKaynakSandikNolari)
                 .Where(sandikNo => !string.IsNullOrWhiteSpace(sandikNo))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -2192,6 +2225,17 @@ namespace _3K.Infrastructure.Services
                 .Where(i => i.CekiSatiriId == mevcutSatir.Id)
                 .ToListAsync();
 
+            // Taşıma uygunluğunu revizyonun hesaplayacağı eksikten değil,
+            // tahsisin güncelleme öncesindeki operasyon izinden belirle.
+            var iceriklerTasinabilir = RevizyonIcerikleriTasinabilirMi(icerikler);
+            var tahsisSandigiUyumsuz = RevizyonTekTamTahsisSandigiUyumsuzMu(
+                projeId, eskiKoliNo, eskiFiiliKoliNo, eskiIstenenAdet, yeniKoliNo, icerikler);
+            if (tahsisSandigiUyumsuz && (SandikSevkKilitliMi(hedefSandik) || icerikler.Any(i => SandikSevkKilitliMi(i.Sandik))))
+                throw new CekiRevizyonConflictException(
+                    "Tahsis düzeltmesinin kaynak veya hedef sandığı sevk kilitli.",
+                    new[] { RevizyonSorunuOlustur(mevcutSatir, CekiRevizyonSorunKodlari.SevkKilidi,
+                        "Tahsis düzeltmesi için önce ilgili sandığın sevk kilidini açın.") });
+
             if (icerikler.Count == 1)
             {
                 var tekIcerik = icerikler[0];
@@ -2215,9 +2259,9 @@ namespace _3K.Infrastructure.Services
                     EksikAdet = 0
                 });
             }
-            else if (!string.Equals(eskiKoliNo, yeniKoliNo, StringComparison.OrdinalIgnoreCase) &&
+            else if ((!string.Equals(eskiKoliNo, yeniKoliNo, StringComparison.OrdinalIgnoreCase) || tahsisSandigiUyumsuz) &&
                 fiiliPlanlaAyni &&
-                RevizyonIcerikleriTasinabilirMi(icerikler))
+                iceriklerTasinabilir)
             {
                 foreach (var icerik in icerikler)
                     icerik.Sandik = hedefSandik;
@@ -2677,6 +2721,27 @@ namespace _3K.Infrastructure.Services
                 i.StokKarsilanan == 0 &&
                 i.ProjeKarsilanan == 0 &&
                 i.TedarikciKarsilanan == 0);
+        }
+
+        private static bool RevizyonTekTamTahsisSandigiUyumsuzMu(
+            int projeId, string? eskiKoliNo, string? eskiFiiliKoliNo, decimal eskiIstenenAdet,
+            string? yeniKoliNo, IReadOnlyList<SandikIcerik> icerikler)
+        {
+            var plan = NormalizeKoliNo(eskiKoliNo);
+            var fiili = NormalizeKoliNo(eskiFiiliKoliNo);
+            var hedef = NormalizeKoliNo(yeniKoliNo);
+            if (icerikler.Count != 1 || string.IsNullOrWhiteSpace(hedef) ||
+                !string.Equals(plan, hedef, StringComparison.OrdinalIgnoreCase) ||
+                (!string.IsNullOrWhiteSpace(fiili) && !string.Equals(fiili, plan, StringComparison.OrdinalIgnoreCase)))
+                return false;
+
+            // Eski revizyon plan/fiili numarasını yazıp FK'yı eski sandıkta bırakmış olabilir.
+            // Yalnız planı izleyen tek tam tahsisi düzelt; bölünmüş/kısmi dağılımı tahmin etme.
+            var icerik = icerikler[0];
+            return (icerik.TahsisMiktari <= 0 || icerik.TahsisMiktari == eskiIstenenAdet) &&
+                icerik.Sandik?.ProjeId == projeId &&
+                !string.IsNullOrWhiteSpace(NormalizeKoliNo(icerik.Sandik.SandikNo)) &&
+                !string.Equals(NormalizeKoliNo(icerik.Sandik.SandikNo), hedef, StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool SandikSevkKilitliMi(Sandik? sandik)

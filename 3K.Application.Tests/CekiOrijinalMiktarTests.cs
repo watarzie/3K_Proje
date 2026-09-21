@@ -275,6 +275,154 @@ public sealed class CekiOrijinalMiktarTests
         }
     }
 
+    [Theory]
+    [InlineData(true, 10, 0, 0)]
+    [InlineData(false, 10, 0, 0)]
+    [InlineData(true, 15, 0, 0)]
+    [InlineData(false, 15, 0, 0)]
+    [InlineData(false, 10, 1, 0)]
+    [InlineData(false, 10, 0, 1)]
+    public async Task RevizyonU_SandikDegisikligi_TasimaUygunlugunuYeniEksikHesabindanOnceBelirler(
+        bool yeniSandik, decimal yeniMiktar, decimal oncekiEksik, decimal konulan)
+    {
+        var tahsisVerisi = new TahsisSatiri(
+            40, 20, 30, 10, "19", Tahsis: 10, Konulan: konulan, Eksik: oncekiEksik);
+        await using var context = Context(new TahsisSelectSonucu(tahsisVerisi));
+        var kaynak = new Sandik { Id = 30, ProjeId = 10, SandikNo = "19" };
+        context.Sandiklar.Attach(kaynak);
+        var sandikCache = new Dictionary<string, Sandik> { ["19"] = kaynak };
+        if (!yeniSandik)
+        {
+            var mevcutHedef = new Sandik { Id = 31, ProjeId = 10, SandikNo = "20" };
+            context.Sandiklar.Attach(mevcutHedef);
+            sandikCache.Add("20", mevcutHedef);
+        }
+
+        var satir = new CekiSatiri
+        {
+            Id = 20, CekiId = 15, SiraNo = 1, BarkodNo = "TEST", Aciklama = "TEST",
+            CekideGecenSandikNo = "19", FiiliSandikNo = "19", IstenenAdet = 10
+        };
+        context.CekiSatirlari.Attach(satir);
+
+        await InvokeAsync(Service(context), "RevizyonSatiriniGuncelleAsync", 10, satir,
+            ImportSatiri(yeniMiktar, "20"), sandikCache, SandikBilgileri(), 7);
+        context.ChangeTracker.DetectChanges();
+
+        var icerik = Assert.Single(context.ChangeTracker.Entries<SandikIcerik>()).Entity;
+        var hedef = sandikCache["20"];
+        Assert.Equal("20", satir.CekideGecenSandikNo);
+        Assert.Equal("20", satir.FiiliSandikNo);
+        Assert.Equal(yeniMiktar, satir.IstenenAdet);
+        Assert.Equal(yeniMiktar, icerik.TahsisMiktari);
+        Assert.Equal(konulan, icerik.KonulanAdet);
+        Assert.Equal(yeniMiktar - konulan, icerik.EksikAdet);
+        Assert.Equal(0, satir.GelenMiktar);
+        Assert.Equal(0, icerik.StokKarsilanan + icerik.ProjeKarsilanan + icerik.TedarikciKarsilanan);
+
+        if (oncekiEksik == 0 && konulan == 0)
+        {
+            Assert.Same(hedef, icerik.Sandik);
+            Assert.Equal(context.Entry(hedef).Property(s => s.Id).CurrentValue,
+                context.Entry(icerik).Property(i => i.SandikId).CurrentValue);
+            Assert.Empty(kaynak.SandikIcerikleri);
+            // Yeni hedef boş değildir; revizyon sonundaki boş sandık temizliğine aday olmaz.
+            Assert.Same(icerik, Assert.Single(hedef.SandikIcerikleri));
+            if (yeniSandik)
+                Assert.Equal(EntityState.Added, context.Entry(hedef).State);
+        }
+        else
+        {
+            // Güncelleme öncesinden kalan gerçek operasyon izi taşıma engeli olmaya devam eder.
+            Assert.Same(kaynak, icerik.Sandik);
+            Assert.Equal(kaynak.Id, icerik.SandikId);
+            Assert.Empty(hedef.SandikIcerikleri);
+        }
+    }
+
+    [Theory]
+    [InlineData("20", 10, false, 10, true)]
+    [InlineData("", 10, false, 10, true)]
+    [InlineData("20", 0, false, 10, true)]
+    [InlineData("19", 10, false, 10, false)]
+    [InlineData("20", 5, false, 10, false)]
+    [InlineData("20", 10, true, 10, false)]
+    [InlineData("20", 10, false, 99, false)]
+    public async Task RevizyonU_AyniPlanliTekTahsisDuzeltmesi_BilincliDagilimiKorur(
+        string fiiliSandikNo, decimal tahsis, bool bolunmus, int kaynakProjeId, bool tasinmali)
+    {
+        var veriler = new List<TahsisSatiri>
+        {
+            new(40, 20, 30, kaynakProjeId, "19", Tahsis: tahsis, Konulan: 0, Eksik: 0)
+        };
+        if (bolunmus)
+            veriler.Add(new(41, 20, 32, 10, "21", Tahsis: 5, Konulan: 0, Eksik: 0));
+        await using var context = Context(new TahsisSelectSonucu(veriler.ToArray()));
+        var kaynak = new Sandik { Id = 30, ProjeId = kaynakProjeId, SandikNo = "19" };
+        context.Sandiklar.Attach(kaynak);
+        var cache = new Dictionary<string, Sandik> { ["19"] = kaynak };
+        var satir = new CekiSatiri
+        {
+            Id = 20, CekiId = 15, SiraNo = 1, BarkodNo = "TEST", Aciklama = "TEST",
+            CekideGecenSandikNo = "20", FiiliSandikNo = fiiliSandikNo, IstenenAdet = 10
+        };
+        context.CekiSatirlari.Attach(satir);
+
+        await InvokeAsync(Service(context), "RevizyonSatiriniGuncelleAsync", 10, satir,
+            ImportSatiri(10, "20"), cache, SandikBilgileri(), 7);
+        context.ChangeTracker.DetectChanges();
+
+        var icerik = context.ChangeTracker.Entries<SandikIcerik>().Single(e => e.Entity.Id == 40).Entity;
+        Assert.Equal("20", satir.CekideGecenSandikNo);
+        Assert.Equal(fiiliSandikNo == "19" ? "19" : "20", satir.FiiliSandikNo);
+        Assert.Equal(10, satir.IstenenAdet);
+        Assert.Null(satir.OrijinalIstenenAdet);
+        Assert.Equal(0, icerik.KonulanAdet);
+        Assert.Equal(tasinmali ? 10 : tahsis, icerik.TahsisMiktari);
+        Assert.Same(tasinmali ? cache["20"] : kaynak, icerik.Sandik);
+        if (tasinmali)
+            Assert.Same(icerik, Assert.Single(cache["20"].SandikIcerikleri));
+        else
+            Assert.Empty(cache["20"].SandikIcerikleri);
+        if (bolunmus)
+        {
+            var diger = context.ChangeTracker.Entries<SandikIcerik>().Single(e => e.Entity.Id == 41).Entity;
+            Assert.Equal(32, diger.SandikId);
+            Assert.Equal(5, diger.TahsisMiktari);
+        }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RevizyonU_AyniPlanliTahsisDuzeltmesi_KaynakVeHedefSevkKilidiniAsmaz(bool kaynakKilitli)
+    {
+        await using var context = Context(new TahsisSelectSonucu(
+            new TahsisSatiri(40, 20, 30, 10, "19", Tahsis: 10, Konulan: 0, Eksik: 0)));
+        var kaynak = new Sandik { Id = 30, ProjeId = 10, SandikNo = "19",
+            DurumId = (int)(kaynakKilitli ? SandikDurum.Sevkedildi : SandikDurum.Hazirlaniyor) };
+        var hedef = new Sandik { Id = 31, ProjeId = 10, SandikNo = "20",
+            DurumId = (int)(kaynakKilitli ? SandikDurum.Hazirlaniyor : SandikDurum.Sevkedildi) };
+        context.Sandiklar.AttachRange(kaynak, hedef);
+        var satir = new CekiSatiri
+        {
+            Id = 20, CekiId = 15, SiraNo = 1, BarkodNo = "TEST", Aciklama = "TEST",
+            CekideGecenSandikNo = "20", FiiliSandikNo = "20", IstenenAdet = 10
+        };
+        context.CekiSatirlari.Attach(satir);
+
+        await Assert.ThrowsAsync<_3K.Core.Exceptions.CekiRevizyonConflictException>(() =>
+            InvokeAsync(Service(context), "RevizyonSatiriniGuncelleAsync", 10, satir,
+                ImportSatiri(10, "20"), new Dictionary<string, Sandik> { ["19"] = kaynak, ["20"] = hedef }, SandikBilgileri(), 7));
+
+        var icerik = Assert.Single(context.ChangeTracker.Entries<SandikIcerik>()).Entity;
+        Assert.Same(kaynak, icerik.Sandik);
+        Assert.Equal(10, icerik.TahsisMiktari);
+        Assert.Equal(0, icerik.EksikAdet);
+        Assert.Equal(0, icerik.KonulanAdet);
+        Assert.Empty(hedef.SandikIcerikleri);
+    }
+
     private static AppDbContext Context(DbCommandInterceptor? selectSonucu = null) => new(new DbContextOptionsBuilder<AppDbContext>()
         .UseNpgsql("Host=database-must-not-be-contacted.invalid;Database=test;Username=test;Password=test")
         .AddInterceptors(new BaglantiyiEngelle(), selectSonucu ?? new BosSelectSonucu()).Options);
@@ -282,14 +430,14 @@ public sealed class CekiOrijinalMiktarTests
     private static CekiService Service(AppDbContext context, IUnitOfWork? uow = null) =>
         new(uow!, context, null!, new DurumStub(), null!, NullLogger<CekiService>.Instance);
 
-    private static object ImportSatiri(decimal miktar)
+    private static object ImportSatiri(decimal miktar, string koliNo = "1")
     {
         var type = typeof(CekiService).GetNestedType("CiktiSatirImportBilgisi", BindingFlags.NonPublic)!;
         var satir = Activator.CreateInstance(type)!;
         foreach (var (property, value) in new Dictionary<string, object>
         {
             ["ExcelSatirNo"] = 6, ["SiraNo"] = 1, ["BarkodNo"] = "TEST", ["Aciklama"] = "TEST",
-            ["KoliNo"] = "1", ["IstenenAdet"] = miktar, ["BirimId"] = (int)Birim.Adet
+            ["KoliNo"] = koliNo, ["IstenenAdet"] = miktar, ["BirimId"] = (int)Birim.Adet
         }) type.GetProperty(property)!.SetValue(satir, value);
         return satir;
     }
@@ -326,7 +474,8 @@ public sealed class CekiOrijinalMiktarTests
         string SandikNo,
         decimal Tahsis,
         decimal Konulan,
-        decimal? AktifPartideKarsilanan = null);
+        decimal? AktifPartideKarsilanan = null,
+        decimal? Eksik = null);
 
     /// <summary>
     /// Revizyon testlerinin gerçek PostgreSQL'e bağlanmadan EF materialization yolunu
@@ -384,7 +533,7 @@ public sealed class CekiOrijinalMiktarTests
             var bos = DBNull.Value;
             table.Rows.Add(
                 veri.Id, bos, veri.AktifPartideKarsilanan.HasValue ? veri.AktifPartideKarsilanan.Value : bos, bos, (int)Birim.Adet,
-                veri.CekiSatiriId, bos, DateTime.UtcNow, Math.Max(veri.Tahsis - veri.Konulan, 0), bos,
+                veri.CekiSatiriId, bos, DateTime.UtcNow, veri.Eksik ?? Math.Max(veri.Tahsis - veri.Konulan, 0), bos,
                 bos, veri.Konulan, 0m, 0m, veri.SandikId,
                 0m, veri.Tahsis, 0m, bos, bos, 1u,
                 veri.SandikId, bos, bos, bos, bos,

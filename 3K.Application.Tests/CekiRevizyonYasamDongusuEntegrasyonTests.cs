@@ -13,6 +13,7 @@ using _3K.Application.Features.OnayIslemleri.Commands;
 using _3K.Core.Constants;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
+using _3K.Core.Exceptions;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
 using _3K.Infrastructure.Data;
@@ -172,6 +173,200 @@ public sealed class CekiRevizyonYasamDongusuEntegrasyonTests
         }
     }
 
+    [PostgresRaporFact]
+    [Trait("Category", "Postgres")]
+    public async Task AyniPlanliRevizyon_TekTamTahsisSapmasiniOnaylaDuzeltir_TemizlikVeYeniYuklemeSandigiKorur()
+    {
+        var builder = new NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable("THREEK_TEST_POSTGRES"));
+        Assert.Equal("127.0.0.1", builder.Host);
+        Assert.Equal(55439, builder.Port);
+        Assert.Equal("postgres", builder.Database);
+        var database = $"revision_allocation_tests_{Guid.NewGuid():N}";
+        var projectId = RandomNumberGenerator.GetInt32(1_000_000_000, 2_000_000_000);
+        var uploadsRoot = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "Uploads"));
+        var ownProjectDirectory = Path.Combine(uploadsRoot, projectId.ToString());
+        Assert.False(Directory.Exists(ownProjectDirectory));
+        await using var admin = new NpgsqlConnection(builder.ConnectionString);
+        await admin.OpenAsync();
+        await using (var create = new NpgsqlCommand($"CREATE DATABASE \"{database}\"", admin))
+            await create.ExecuteNonQueryAsync();
+
+        try
+        {
+            builder.Database = database;
+            var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(builder.ConnectionString).Options;
+            await using var context = new AppDbContext(options);
+            await context.Database.EnsureCreatedAsync();
+            var project = new Proje { Id = projectId, ProjeNo = "SYNTHETIC-ALLOCATION", FBNo = "SYNTHETIC-ALLOCATION", Musteri = "Sentetik test", ProjeTipiId = (int)ProjeTipi.Normal };
+            var main = new Ceki { Proje = project, CekiTipiId = (int)CekiTipi.Normal, OrijinalDosyaYolu = "synthetic-main.xlsx" };
+            var source = new Sandik { Proje = project, SandikNo = "19", Ad = "Korunacak kaynak sandık", DurumId = (int)SandikDurum.Hazirlaniyor };
+            var updateRow = CreateRow(main, source, 183, 10m);
+            updateRow.CekideGecenSandikNo = "20";
+            updateRow.FiiliSandikNo = "20";
+            updateRow.GridDurumuId = (int)GridDurum.Gelmedi;
+            var oldAllocation = Assert.Single(updateRow.SandikIcerikleri);
+            // Önceki hatalı uygulama planı 20'ye yazmış, tahsisi 19'da bırakmıştı.
+            // Pozitif eksik gerçek public akışta otomatik geri alma adımını da çalıştırır.
+            oldAllocation.EksikAdet = 10m;
+            var untouchedRow = CreateRow(main, source, 1, 5m);
+            untouchedRow.CekideGecenSandikNo = "19";
+            untouchedRow.FiiliSandikNo = "19";
+            untouchedRow.GelenMiktar = 2m;
+            var untouchedAllocation = Assert.Single(untouchedRow.SandikIcerikleri);
+            untouchedAllocation.KonulanAdet = 2m;
+            untouchedAllocation.EksikAdet = 3m;
+            var uploader = new Kullanici { AdSoyad = "Sentetik yükleyen", Email = "upload@example.invalid", SifreHash = "synthetic", RolId = 1 };
+            var approver = new Kullanici { AdSoyad = "Sentetik onaylayan", Email = "approve@example.invalid", SifreHash = "synthetic", RolId = 1 };
+            context.AddRange(main, source, updateRow, untouchedRow, uploader, approver);
+            await context.SaveChangesAsync();
+            var rule = await context.OnayOperasyonKurallari.SingleOrDefaultAsync(r => r.IslemKodu == OnayIslemKodlari.CekiRevizyonuUygula);
+            if (rule == null)
+            {
+                rule = new OnayOperasyonKurali { IslemKodu = OnayIslemKodlari.CekiRevizyonuUygula };
+                context.Add(rule);
+            }
+            rule.OnayGerektirirMi = true;
+            await context.SaveChangesAsync();
+            context.ChangeTracker.Clear();
+
+            var currentUser = new TestUser { UserId = uploader.Id };
+            await using var provider = CreateProvider(context, currentUser);
+            var mediator = provider.GetRequiredService<IMediator>();
+            var service = provider.GetRequiredService<ICekiService>();
+            var bytes = Workbook(project.FBNo, "20", (183, "U", 10m));
+            int? firstTargetId = null;
+
+            // Aynı U verisi ikinci kez yeni bir dosya talebi olarak yüklenir;
+            // yalnız uygulanan talebin idempotent replay kısa yolunu test etmiyoruz.
+            for (var attempt = 1; attempt <= 2; attempt++)
+            {
+                currentUser.UserId = uploader.Id;
+                using var previewStream = new MemoryStream(bytes);
+                var preview = await service.CekiRevizyonOnizleAsync(previewStream, $"tahsis-revizyonu-{attempt}.xlsx");
+                Assert.True(preview.UygulanabilirMi, preview.Mesaj);
+                var change = Assert.Single(preview.Satirlar);
+                Assert.Equal("20", change.EskiKoliNo);
+                Assert.Equal("20", change.YeniKoliNo);
+                if (attempt == 1)
+                {
+                    Assert.Contains("Tahsis sandığı: 19 → 20", change.Degisiklikler);
+                    Assert.DoesNotContain("Ana veride değişiklik yok.", change.Degisiklikler);
+                    Assert.Contains(preview.SandikEtkileri, effect => effect.SandikNo == "19" && !effect.YeniSandikMi);
+                    Assert.Contains(preview.SandikEtkileri, effect => effect.SandikNo == "20" && effect.YeniSandikMi);
+                    Assert.False(await context.Sandiklar.AnyAsync(crate => crate.ProjeId == projectId && crate.SandikNo == "20"));
+                }
+                else
+                {
+                    Assert.DoesNotContain("Tahsis sandığı: 19 → 20", change.Degisiklikler);
+                    Assert.Contains("Ana veride değişiklik yok.", change.Degisiklikler);
+                }
+
+                var upload = await UploadAsync(mediator, uploader.Id, bytes, $"tahsis-revizyonu-{attempt}.xlsx");
+                Assert.True(upload.IsSuccess, upload.Error?.Message);
+                Assert.Equal(StatusConstants.ActionQueuedForApproval, upload.StatusCode);
+                Assert.Equal(CekiRevizyonTalepSonucTipleri.OnayBekliyor, upload.Value!.SonucTipi);
+                if (attempt == 1)
+                {
+                    Assert.Equal(source.Id, await context.SandikIcerikleri.Where(item => item.Id == oldAllocation.Id).Select(item => item.SandikId).SingleAsync());
+                    Assert.False(await context.Sandiklar.AnyAsync(crate => crate.ProjeId == projectId && crate.SandikNo == "20"));
+                }
+
+                var approval = await context.OnayBekleyenIslemler.AsNoTracking().SingleAsync(item => item.ReferansId == upload.Value.TalepId);
+                currentUser.UserId = approver.Id;
+                var result = await mediator.Send(new IslemOnaylaCommand { OnayBekleyenIslemId = approval.Id });
+                Assert.True(result.IsSuccess, result.Error?.Message);
+                context.ChangeTracker.Clear();
+                Assert.Equal(OnayCalistirmaDurumu.Basarili, await context.OnayBekleyenIslemler.Where(item => item.Id == approval.Id).Select(item => item.CalistirmaDurumu).SingleAsync());
+
+                var target = await context.Sandiklar.AsNoTracking().SingleAsync(crate => crate.ProjeId == projectId && crate.SandikNo == "20");
+                firstTargetId ??= target.Id;
+                Assert.Equal(firstTargetId.Value, target.Id);
+                var appliedRow = await context.CekiSatirlari.AsNoTracking().SingleAsync(row => row.Id == updateRow.Id);
+                var appliedAllocation = await context.SandikIcerikleri.AsNoTracking().SingleAsync(item => item.CekiSatiriId == updateRow.Id);
+                Assert.Equal(oldAllocation.Id, appliedAllocation.Id);
+                Assert.Equal(target.Id, appliedAllocation.SandikId);
+                Assert.Equal("20", appliedRow.CekideGecenSandikNo);
+                Assert.Equal("20", appliedRow.FiiliSandikNo);
+                Assert.Equal(10m, appliedRow.IstenenAdet);
+                Assert.Null(appliedRow.OrijinalIstenenAdet);
+                Assert.Equal(10m, appliedAllocation.TahsisMiktari);
+                Assert.Equal(10m, appliedAllocation.EksikAdet);
+                Assert.Equal(0m, appliedAllocation.KonulanAdet);
+                Assert.Equal(0m, appliedAllocation.StokKarsilanan + appliedAllocation.ProjeKarsilanan + appliedAllocation.TedarikciKarsilanan);
+                Assert.Equal(0m, appliedRow.GridGelenAdet + appliedRow.GelenMiktar + appliedRow.StokKarsilanan + appliedRow.ProjeKarsilanan + appliedRow.TedarikciKarsilanan);
+                Assert.Equal(10m, appliedRow.KalanMiktar);
+
+                var remaining = await context.SandikIcerikleri.AsNoTracking().SingleAsync(item => item.SandikId == source.Id);
+                Assert.Equal(untouchedAllocation.Id, remaining.Id);
+                Assert.Equal(untouchedRow.Id, remaining.CekiSatiriId);
+                Assert.Equal(5m, remaining.TahsisMiktari);
+                Assert.Equal(2m, remaining.KonulanAdet);
+                Assert.Equal(3m, remaining.EksikAdet);
+                Assert.Equal(2m, await context.CekiSatirlari.Where(row => row.Id == untouchedRow.Id).Select(row => row.GelenMiktar).SingleAsync());
+                Assert.Equal(2, await context.Sandiklar.CountAsync(crate => crate.ProjeId == projectId));
+                Assert.Equal(2, await context.SandikIcerikleri.CountAsync());
+                Assert.Equal(2, await context.CekiSatirlari.CountAsync());
+                Assert.Equal(attempt, await context.Cekiler.CountAsync(ceki => ceki.ProjeId == projectId && ceki.CekiTipiId == (int)CekiTipi.Revizyon));
+                Assert.Equal(attempt, await context.HareketGecmisleri.CountAsync(item => item.ReferansId == updateRow.Id.ToString() && item.Islem == "Revizyon Öncesi Otomatik Geri Al"));
+            }
+
+            // Yeni bir onay talebi 19 → 20 düzeltmesini kaydeder. Talep beklerken
+            // yalnız gerçek kaynak FK'sı değişirse eski onay yeni kaynağı kapsamaz.
+            var staleAllocation = await context.SandikIcerikleri.SingleAsync(item => item.Id == oldAllocation.Id);
+            staleAllocation.SandikId = source.Id;
+            await context.SaveChangesAsync();
+            context.ChangeTracker.Clear();
+            currentUser.UserId = uploader.Id;
+            var staleUpload = await UploadAsync(mediator, uploader.Id, bytes, "kaynak-degisen-revizyon.xlsx");
+            Assert.True(staleUpload.IsSuccess, staleUpload.Error?.Message);
+            Assert.Equal(StatusConstants.ActionQueuedForApproval, staleUpload.StatusCode);
+            var staleRequest = await context.CekiRevizyonTalepleri.AsNoTracking().SingleAsync(item => item.Id == staleUpload.Value!.TalepId);
+            var staleSnapshot = staleRequest.OnizlemeJson;
+            var staleHash = staleRequest.OnizlemeHash;
+            var changedSource = new Sandik { ProjeId = projectId, SandikNo = "18", Ad = "Onay sonrası sentetik kaynak", DurumId = (int)SandikDurum.Hazirlaniyor };
+            context.Sandiklar.Add(changedSource);
+            staleAllocation = await context.SandikIcerikleri.SingleAsync(item => item.Id == oldAllocation.Id);
+            staleAllocation.Sandik = changedSource;
+            await context.SaveChangesAsync();
+            context.ChangeTracker.Clear();
+            using (var changedPreviewStream = new MemoryStream(bytes))
+            {
+                var changedPreview = await service.CekiRevizyonOnizleAsync(changedPreviewStream, "kaynak-degisen-revizyon.xlsx");
+                Assert.Contains("Tahsis sandığı: 18 → 20", Assert.Single(changedPreview.Satirlar).Degisiklikler);
+            }
+
+            var eventsBeforeConflict = await context.HareketGecmisleri.CountAsync();
+            var filesBeforeConflict = Directory.GetFiles(Path.Combine(ownProjectDirectory, "Revizyonlar")).Length;
+            var conflict = await Assert.ThrowsAsync<CekiRevizyonConflictException>(() =>
+                service.OnayliCekiRevizyonunuUygulaAsync(staleRequest.Id, approver.Id));
+            Assert.Contains(conflict.Sorunlar, issue => issue.Kod == CekiRevizyonSorunKodlari.OnayOnizlemesiDegisti);
+            context.ChangeTracker.Clear();
+            Assert.Equal(eventsBeforeConflict, await context.HareketGecmisleri.CountAsync());
+            Assert.Equal(filesBeforeConflict, Directory.GetFiles(Path.Combine(ownProjectDirectory, "Revizyonlar")).Length);
+            Assert.Equal(changedSource.Id, await context.SandikIcerikleri.Where(item => item.Id == oldAllocation.Id).Select(item => item.SandikId).SingleAsync());
+            Assert.Equal(10m, await context.SandikIcerikleri.Where(item => item.Id == oldAllocation.Id).Select(item => item.EksikAdet).SingleAsync());
+            Assert.Equal(2, await context.Cekiler.CountAsync(ceki => ceki.ProjeId == projectId && ceki.CekiTipiId == (int)CekiTipi.Revizyon));
+            Assert.Equal(staleSnapshot, await context.CekiRevizyonTalepleri.Where(item => item.Id == staleRequest.Id).Select(item => item.OnizlemeJson).SingleAsync());
+            Assert.Equal(staleHash, await context.CekiRevizyonTalepleri.Where(item => item.Id == staleRequest.Id).Select(item => item.OnizlemeHash).SingleAsync());
+            Assert.Null(await context.CekiRevizyonTalepleri.Where(item => item.Id == staleRequest.Id).Select(item => item.UygulananRevizyonCekiId).SingleAsync());
+
+            var staleApproval = await context.OnayBekleyenIslemler.AsNoTracking().SingleAsync(item => item.ReferansId == staleRequest.Id);
+            currentUser.UserId = approver.Id;
+            var staleDecision = await mediator.Send(new IslemOnaylaCommand { OnayBekleyenIslemId = staleApproval.Id });
+            Assert.False(staleDecision.IsSuccess);
+            Assert.Equal(OnayCalistirmaDurumu.Basarisiz, await context.OnayBekleyenIslemler.Where(item => item.Id == staleApproval.Id).Select(item => item.CalistirmaDurumu).SingleAsync());
+            Assert.Equal(changedSource.Id, await context.SandikIcerikleri.Where(item => item.Id == oldAllocation.Id).Select(item => item.SandikId).SingleAsync());
+        }
+        finally
+        {
+            NpgsqlConnection.ClearAllPools();
+            await using var drop = new NpgsqlCommand($"DROP DATABASE \"{database}\" WITH (FORCE)", admin);
+            await drop.ExecuteNonQueryAsync();
+            Assert.Equal(uploadsRoot, Directory.GetParent(Path.GetFullPath(ownProjectDirectory))!.FullName);
+            if (Directory.Exists(ownProjectDirectory)) Directory.Delete(ownProjectDirectory, recursive: true);
+        }
+    }
+
     private static ServiceProvider CreateProvider(AppDbContext context, TestUser currentUser)
     {
         var services = new ServiceCollection();
@@ -202,6 +397,9 @@ public sealed class CekiRevizyonYasamDongusuEntegrasyonTests
     }
 
     private static byte[] Workbook(string projectNumber, params (int Order, string Code, decimal Quantity)[] changes)
+        => Workbook(projectNumber, "1", changes);
+
+    private static byte[] Workbook(string projectNumber, string crateNumber, params (int Order, string Code, decimal Quantity)[] changes)
     {
         using var workbook = new XLWorkbook();
         var sheet = workbook.AddWorksheet("ÇIKTI SAYFASI");
@@ -215,7 +413,7 @@ public sealed class CekiRevizyonYasamDongusuEntegrasyonTests
             sheet.Cell(row, 1).Value = change.Order;
             sheet.Cell(row, 3).Value = $"SYNTHETIC-{change.Order}";
             sheet.Cell(row, 4).Value = "Sentetik ürün";
-            sheet.Cell(row, 5).Value = "1";
+            sheet.Cell(row, 5).Value = crateNumber;
             sheet.Cell(row, 6).Value = change.Quantity;
             sheet.Cell(row, 7).Value = "Adet";
             sheet.Cell(row, 11).Value = change.Code;
