@@ -100,126 +100,65 @@ namespace _3K.Infrastructure.Services
             return MapRecurring(entity);
         }
 
-        public async Task<FinansDonemOlusturSonucModel> DuzenliIsDonemiOlusturAsync(
-            DateTime referansTarihi,
-            CancellationToken cancellationToken)
-        {
-            var period = FirstDayOfMonth(referansTarihi);
-            var periodEnd = period.AddMonths(1).AddTicks(-1);
-            await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
-            try
+        public Task<FinansDonemOlusturSonucModel> DuzenliIsDonemiOlusturAsync(DateTime referansTarihi, CancellationToken cancellationToken)
+            => ExecuteAtomicAsync(async () =>
             {
-                var templates = await _context.Set<FinansDuzenliIs>()
-                    .AsNoTracking()
-                    .Include(x => x.Proje)
-                    .Include(x => x.FinansUrun)
-                    .Where(x => x.Aktif && x.BaslangicTarihi <= periodEnd && (!x.BitisTarihi.HasValue || x.BitisTarihi.Value >= period))
-                    .OrderBy(x => x.Id)
-                    .ToListAsync(cancellationToken);
-                // Günlük arka plan görevi ayın başında çalışsa bile şablonu kendi
-                // oluşturma gününden önce üretmez. Geçmiş dönem elle oluşturulurken
-                // ayın tamamı işlenir.
-                if (period.Year == TurkeyTime.Now.Year && period.Month == TurkeyTime.Now.Month)
-                    templates = templates.Where(x => x.OlusturmaGunu <= referansTarihi.Day).ToList();
-
-                var sourceIds = templates.Select(x => $"{x.Id}:{period:yyyyMM}").ToArray();
-                var existingSourceIds = await _context.Set<FinansIsKaydi>()
-                    .AsNoTracking()
-                    .Where(x => x.KaynakTuru == "DuzenliIs" &&
-                                x.KaynakKayitId != null &&
-                                sourceIds.Contains(x.KaynakKayitId))
-                    .Select(x => x.KaynakKayitId!)
-                    .ToHashSetAsync(cancellationToken);
-                var productIds = templates
-                    .Where(x => x.FinansUrunId.HasValue)
-                    .Select(x => x.FinansUrunId!.Value)
-                    .Distinct()
-                    .ToArray();
-                var tariffs = await _context.Set<FinansFiyatTarifesi>()
-                    .AsNoTracking()
-                    .Where(x => productIds.Contains(x.FinansUrunId) &&
-                                x.Aktif &&
-                                x.GecerlilikBaslangici <= period &&
-                                x.GecerlilikBitisi >= period)
-                    .OrderByDescending(x => x.GecerlilikBaslangici)
-                    .ThenByDescending(x => x.Id)
-                    .ToListAsync(cancellationToken);
-                var tariffByProduct = tariffs
-                    .GroupBy(x => x.FinansUrunId)
-                    .ToDictionary(x => x.Key, x => x.First());
-                var worksToCreate = new List<(FinansIsKaydi Work, string SourceId)>();
+                if (referansTarihi.Year is < 2000 or > 2200) throw new InvalidOperationException("Geçerli referans tarihi girin.");
+                var templates = await _context.Set<FinansDuzenliIs>().AsNoTracking().Include(x => x.Proje).Include(x => x.FinansUrun)
+                    .Where(x => x.Aktif && x.BaslangicTarihi <= referansTarihi.Date).OrderBy(x => x.Id).ToListAsync(cancellationToken);
+                var created = 0;
                 foreach (var template in templates)
                 {
-                    var sourceId = $"{template.Id}:{period:yyyyMM}";
-                    if (existingSourceIds.Contains(sourceId))
-                        continue;
-                    var project = template.Proje;
-                    var product = template.FinansUrun;
-                    var pricingUnit = product?.FiyatlandirmaBirimi ?? FinansFiyatlandirmaBirimi.Adet;
-                    var quantity = FinansMiktarKurallari.DuzenliIsMiktari(pricingUnit, template.Miktar);
-                    var work = new FinansIsKaydi
+                    var final = template.BitisTarihi.HasValue && template.BitisTarihi.Value < referansTarihi ? template.BitisTarihi.Value : referansTarihi;
+                    foreach (var due in DuzenliIsTarihleri(template.BaslangicTarihi, final, template.OlusturmaGunu))
                     {
-                        ProjeId = template.ProjeId,
-                        ProjeNo = project?.ProjeNo ?? template.ManuelProjeNo ?? "BAĞIMSIZ",
-                        Musteri = project?.Musteri ?? template.ManuelProjeAdi ?? template.Musteri,
-                        ManuelProjeMi = !template.ProjeId.HasValue,
-                        IsTuru = template.IsTuru,
-                        IsAdi = template.IsAdi,
-                        OzelIsTuru = template.OzelIsTuru,
-                        HesaplamaYontemi = template.HesaplamaYontemi,
-                        RaporGrubu = template.RaporGrubu,
-                        Aciklama = template.Aciklama,
-                        Adet = quantity.Adet,
-                        Birim = pricingUnit switch
+                        cancellationToken.ThrowIfCancellationRequested();
+                        var period = FirstDayOfMonth(due);
+                        var sourceId = $"{template.Id}:{period:yyyyMM}";
+                        if (await _context.Set<FinansIsKaydi>().AnyAsync(x => x.KaynakTuru == "DuzenliIs" && x.KaynakKayitId == sourceId, cancellationToken) ||
+                            await _context.Set<FinansKaynakBastirma>().AnyAsync(x => x.KaynakTuru == "DuzenliIs" && x.KaynakKayitId == sourceId, cancellationToken))
+                            continue;
+                        var product = template.FinansUrun;
+                        var pricing = product?.FiyatlandirmaBirimi ?? (template.HesaplamaYontemi is FinansHesaplamaYontemi.SabitAylik or FinansHesaplamaYontemi.DegiskenTutar
+                            ? FinansFiyatlandirmaBirimi.SabitTutar : template.HesaplamaYontemi == FinansHesaplamaYontemi.Metrekup ? FinansFiyatlandirmaBirimi.Metrekup : FinansFiyatlandirmaBirimi.Adet);
+                        var quantity = FinansMiktarKurallari.DuzenliIsMiktari(pricing, template.Miktar);
+                        var tariff = product is null ? null : await FindTariffAsync(product.Id, due, cancellationToken);
+                        var work = new FinansIsKaydi
                         {
-                            FinansFiyatlandirmaBirimi.Metrekup => "m³",
-                            FinansFiyatlandirmaBirimi.SabitTutar => "Sabit",
-                            _ => template.Birim
-                        },
-                        BirimM3 = quantity.M3,
-                        ToplamM3 = quantity.M3,
-                        FinansUrunId = template.FinansUrunId,
-                        UretimTarihi = period.AddDays(Math.Min(template.OlusturmaGunu, DateTime.DaysInMonth(period.Year, period.Month)) - 1),
-                        FinansDonemi = period,
-                        KayitTarihi = TurkeyTime.Now,
-                        KaynakTuru = "DuzenliIs",
-                        KaynakKayitId = sourceId,
-                        KaynakAktif = true,
-                        DuzenliIsId = template.Id
-                    };
-                    if (product is not null)
-                    {
-                        tariffByProduct.TryGetValue(product.Id, out var tariff);
-                        work.FiyatlandirmaBirimiSnapshot = product.FiyatlandirmaBirimi;
-                        work.BirimFiyatSnapshot = tariff?.BirimFiyat ?? template.BirimFiyat;
-                        work.ParaBirimiSnapshot = tariff?.ParaBirimi ?? template.ParaBirimi;
-                        work.KdvOraniSnapshot = tariff?.KdvOrani ?? template.KdvOrani;
-                        work.TarifeYiliSnapshot = tariff?.Yil;
+                            ProjeId = template.ProjeId, ProjeNo = template.Proje?.ProjeNo ?? template.ManuelProjeNo ?? "BAĞIMSIZ",
+                            Musteri = template.Proje?.Musteri ?? template.ManuelProjeAdi ?? template.Musteri, ManuelProjeMi = !template.ProjeId.HasValue,
+                            IsTuru = template.IsTuru, IsAdi = template.IsAdi, OzelIsTuru = template.OzelIsTuru, HesaplamaYontemi = template.HesaplamaYontemi,
+                            RaporGrubu = template.RaporGrubu, Aciklama = template.Aciklama, Adet = quantity.Adet,
+                            Birim = pricing == FinansFiyatlandirmaBirimi.Metrekup ? "m³" : template.Birim,
+                            BirimM3 = quantity.M3, ToplamM3 = quantity.M3, FinansUrunId = template.FinansUrunId,
+                            UretimTarihi = due, FinansTarihi = due, FinansDonemi = period, KayitTarihi = TurkeyTime.Now,
+                            KaynakTuru = "DuzenliIs", KaynakKayitId = sourceId, KaynakAktif = true, DuzenliIsId = template.Id,
+                            FiyatlandirmaBirimiSnapshot = pricing, BirimFiyatSnapshot = tariff?.BirimFiyat ?? template.BirimFiyat,
+                            ParaBirimiSnapshot = tariff?.ParaBirimi ?? template.ParaBirimi, KdvOraniSnapshot = tariff?.KdvOrani ?? template.KdvOrani,
+                            TarifeYiliSnapshot = tariff?.Yil, TarifeIdSnapshot = tariff?.Id
+                        };
+                        _context.Add(work);
+                        await _context.SaveChangesAsync(cancellationToken);
+                        AddAudit(nameof(FinansIsKaydi), work.Id, "Dönem Oluşturma", "*", null, sourceId);
+                        created++;
                     }
-                    else
-                    {
-                        work.FiyatlandirmaBirimiSnapshot = FinansFiyatlandirmaBirimi.Adet;
-                        work.BirimFiyatSnapshot = template.BirimFiyat;
-                        work.ParaBirimiSnapshot = template.ParaBirimi;
-                        work.KdvOraniSnapshot = template.KdvOrani;
-                    }
-                    worksToCreate.Add((work, sourceId));
                 }
+                await _context.SaveChangesAsync(cancellationToken);
+                return new FinansDonemOlusturSonucModel(templates.Count, created, referansTarihi);
+            }, cancellationToken);
 
-                _context.Set<FinansIsKaydi>().AddRange(worksToCreate.Select(x => x.Work));
-                await _context.SaveChangesAsync(cancellationToken);
-                foreach (var item in worksToCreate)
-                    AddAudit(nameof(FinansIsKaydi), item.Work.Id, "Dönem Oluşturma", "*", null, item.SourceId);
-                await _context.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
-                return new FinansDonemOlusturSonucModel(templates.Count, worksToCreate.Count, referansTarihi);
-            }
-            catch (Exception exception)
+        internal static IReadOnlyList<DateTime> DuzenliIsTarihleri(DateTime start, DateTime end, int day)
+        {
+            if (day is < 1 or > 31 || start.Year < 2000 || end.Year > 2200)
+                throw new InvalidOperationException("Düzenli iş başlangıç/bitiş ve gününü kontrol edin.");
+            var result = new List<DateTime>();
+            for (var month = FirstDayOfMonth(start); month <= FirstDayOfMonth(end); month = month.AddMonths(1))
             {
-                await transaction.RollbackAsync(cancellationToken);
-                ThrowIfPersistenceConflict(exception);
-                throw;
+                var due = month.AddDays(Math.Min(day, DateTime.DaysInMonth(month.Year, month.Month)) - 1);
+                if (due < start.Date) due = start.Date;
+                if (due <= end.Date) result.Add(due);
             }
+            return result;
         }
 
         private async Task ValidateRecurringReferencesAsync(FinansDuzenliIsKaydetModel model, CancellationToken cancellationToken)
@@ -289,6 +228,7 @@ namespace _3K.Infrastructure.Services
                 .Include(x => x.GiderKalemi)
                 .Include(x => x.Proje)
                 .AsQueryable();
+            query = ExpenseFilter(query, filtre);
             if (!filtre.IptalEdilenleriDahilEt) query = query.Where(x => !x.IptalEdildi);
             if (filtre.ProjeId.HasValue) query = query.Where(x => x.ProjeId == filtre.ProjeId);
             if (!string.IsNullOrWhiteSpace(filtre.ProjeNo))
@@ -297,11 +237,11 @@ namespace _3K.Infrastructure.Services
                 query = query.Where(x => x.ManuelProjeNo == projectNo || (x.Proje != null && x.Proje.ProjeNo == projectNo));
             }
             if (filtre.IsTuru.HasValue) query = query.Where(x => x.IsTuru == filtre.IsTuru);
-            if (filtre.Baslangic.HasValue) query = query.Where(x => x.FinansDonemi >= filtre.Baslangic.Value.Date);
+            if (filtre.Baslangic.HasValue) query = query.Where(x => x.FinansTarihi >= filtre.Baslangic.Value.Date);
             if (filtre.Bitis.HasValue)
             {
                 var end = filtre.Bitis.Value.Date.AddDays(1);
-                query = query.Where(x => x.FinansDonemi < end);
+                query = query.Where(x => x.FinansTarihi < end);
             }
             if (!string.IsNullOrWhiteSpace(filtre.ParaBirimi)) query = query.Where(x => x.ParaBirimi == filtre.ParaBirimi.Trim().ToUpper());
             if (!string.IsNullOrWhiteSpace(filtre.Arama))
@@ -315,13 +255,9 @@ namespace _3K.Infrastructure.Services
             var (page, size, skip) = NormalizePagination(
                 filtre.PageNumber, filtre.PageSize, count, 250);
             var totals = await query
-                .Where(x => !x.IptalEdildi)
+                .Where(x => !x.IptalEdildi && !x.AvansMi)
                 .GroupBy(x => x.ParaBirimi)
-                .Select(x => new FinansParaToplamiModel(
-                    x.Key,
-                    x.Sum(y => y.Matrah),
-                    x.Sum(y => y.KdvTutari),
-                    x.Sum(y => y.ToplamTutar)))
+                .Select(x => new FinansParaToplamiModel("", 0, 0, 0) { ParaBirimi = x.Key, NetTutar = x.Sum(y => y.Matrah), KdvTutari = x.Sum(y => y.KdvTutari), ToplamTutar = x.Sum(y => y.ToplamTutar) })
                 .OrderBy(x => x.ParaBirimi)
                 .ToListAsync(cancellationToken);
             var entities = await query.OrderByDescending(x => x.Tarih).ThenByDescending(x => x.Id)
@@ -366,6 +302,7 @@ namespace _3K.Infrastructure.Services
 
         public async Task<bool> GiderIptalAsync(int id, string aciklama, CancellationToken cancellationToken)
         {
+            Gerekce(aciklama);
             var entity = await _context.Set<FinansGider>().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
             if (entity is null) return false;
             if (entity.IptalEdildi) return true;
@@ -392,6 +329,16 @@ namespace _3K.Infrastructure.Services
 
         private async Task ValidateExpenseReferencesAsync(FinansGiderKaydetModel model, CancellationToken cancellationToken)
         {
+            if (model.Miktar <= 0 || model.BirimFiyat < 0 || model.KdvOrani is < 0 or > 100 || model.Tarih.Year is < 2000 or > 2200 ||
+                model.FinansDonemi.Year is < 2000 or > 2200 || (model.FinansTarihi.HasValue && model.FinansTarihi.Value.Year is < 2000 or > 2200))
+                throw new InvalidOperationException("Gider miktarı, fiyatı, KDV oranı ve tarihlerini kontrol edin.");
+            if (NormalizeCurrency(model.ParaBirimi) is not ("EUR" or "USD" or "TRY")) throw new InvalidOperationException("Gider para birimi EUR, USD veya TRY olmalıdır.");
+            if (model.MahsupEdilenAvansId.HasValue)
+            {
+                var advance = await _context.Set<FinansGider>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == model.MahsupEdilenAvansId, cancellationToken);
+                if (model.AvansMi || advance is null || !advance.AvansMi || advance.IptalEdildi || advance.ParaBirimi != NormalizeCurrency(model.ParaBirimi) || advance.FirmaVeyaKisi != model.FirmaVeyaKisi?.Trim())
+                    throw new InvalidOperationException("Avans mahsubu aynı kişi/para birimindeki aktif avansa bağlanmalıdır; avansın kendisi maliyete dahil edilmez.");
+            }
             if (model.ProjeId.HasValue && !string.IsNullOrWhiteSpace(model.ManuelProjeNo))
                 throw new InvalidOperationException("Sistem projesi ile manuel proje aynı anda seçilemez.");
             if (!await _context.Set<FinansGiderKategori>().AnyAsync(x => x.Id == model.KategoriId && x.Aktif, cancellationToken))
@@ -422,7 +369,8 @@ namespace _3K.Infrastructure.Services
                 gross = net + vat;
             }
             entity.Tarih = model.Tarih;
-            entity.FinansDonemi = FirstDayOfMonth(model.FinansDonemi);
+            entity.FinansTarihi = (model.FinansTarihi ?? (FirstDayOfMonth(model.Tarih) == FirstDayOfMonth(model.FinansDonemi) ? model.Tarih : model.FinansDonemi)).Date;
+            entity.FinansDonemi = FirstDayOfMonth(entity.FinansTarihi);
             entity.FinansGiderKategoriId = model.KategoriId;
             entity.FinansGiderKalemiId = model.GiderKalemiId;
             entity.AltKategori = model.AltKategori?.Trim();
@@ -441,6 +389,9 @@ namespace _3K.Infrastructure.Services
             entity.ProjeId = model.ProjeId;
             entity.ManuelProjeNo = model.ManuelProjeNo?.Trim();
             entity.IsTuru = model.IsTuru;
+            entity.BelgeNo = model.BelgeNo?.Trim();
+            entity.AvansMi = model.AvansMi;
+            entity.MahsupEdilenAvansId = model.MahsupEdilenAvansId;
         }
 
         private async Task<FinansGiderModel> GetExpenseAsync(int id, CancellationToken cancellationToken)
@@ -455,6 +406,10 @@ namespace _3K.Infrastructure.Services
         {
             Id = entity.Id,
             Tarih = entity.Tarih,
+            FinansTarihi = entity.FinansTarihi,
+            BelgeNo = entity.BelgeNo,
+            AvansMi = entity.AvansMi,
+            MahsupEdilenAvansId = entity.MahsupEdilenAvansId,
             FinansDonemi = entity.FinansDonemi,
             KategoriId = entity.FinansGiderKategoriId,
             Kategori = entity.Kategori.Ad,

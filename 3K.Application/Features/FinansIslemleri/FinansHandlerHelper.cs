@@ -4,6 +4,11 @@ namespace _3K.Application.Features.FinansIslemleri
 {
     internal static class FinansHandlerHelper
     {
+        public static async Task<Result<T?>> ExecuteOptionalAsync<T>(Func<Task<T?>> action) where T : class
+        {
+            var result = await ExecuteAsync(action);
+            return result.IsSuccess && result.Value is null ? Result<T?>.Failure("Kayıt bulunamadı.", 404) : result;
+        }
         public static async Task<Result<T>> ExecuteAsync<T>(Func<Task<T>> action)
         {
             try

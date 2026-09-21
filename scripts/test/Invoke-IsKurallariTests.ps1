@@ -14,7 +14,8 @@ $taskResults = Join-Path $taskRepository "artifacts/test-results/$taskRunId"
 
 & (Join-Path $PSScriptRoot 'Test-IsKuraliEslemesi.ps1')
 
-# Yalnız test projesi çalışır; API/worker başlatılmaz, uygulama bağlantı ayarları okunmaz.
+# Yalnız test projesi çalışır; üretim Program/worker başlatılmaz, uygulama bağlantı ayarları okunmaz.
+# HTTP güvenlik testleri yalnız localhost'ta sentetik bağımlılıklarla izole test host'u açar.
 # Sonuçlar ayrı klasöre yazılır; önceki test raporları silinmez veya ezilmez.
 $taskArguments = @(
     'test', $taskProject,

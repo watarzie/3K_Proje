@@ -39,13 +39,13 @@ namespace _3K.Infrastructure.Services
                 sheet.Cell(row, 8).Value = KaynakMetni(item.KaynakModul);
                 sheet.Cell(row, 9).Value = item.SandikCinsi;
                 sheet.Cell(row, 10).Value = item.Adet;
-                sheet.Cell(row, 11).Value = item.Boy;
-                sheet.Cell(row, 12).Value = item.En;
-                sheet.Cell(row, 13).Value = item.Yukseklik;
-                sheet.Cell(row, 14).Value = item.NetM3;
-                sheet.Cell(row, 15).Value = item.SarfOrani;
-                sheet.Cell(row, 16).Value = item.SarfM3;
-                sheet.Cell(row, 17).Value = item.ToplamM3;
+                sheet.Cell(row, 11).Value = XLCellValue.FromObject(item.Boy);
+                sheet.Cell(row, 12).Value = XLCellValue.FromObject(item.En);
+                sheet.Cell(row, 13).Value = XLCellValue.FromObject(item.Yukseklik);
+                sheet.Cell(row, 14).Value = XLCellValue.FromObject(item.NetM3);
+                sheet.Cell(row, 15).Value = XLCellValue.FromObject(item.SarfOrani);
+                sheet.Cell(row, 16).Value = XLCellValue.FromObject(item.SarfM3);
+                sheet.Cell(row, 17).Value = XLCellValue.FromObject(item.ToplamM3);
                 sheet.Cell(row, 18).Value = EvetHayir(item.AmbalajaDahil);
                 sheet.Cell(row, 19).Value = EvetHayir(item.UretimeAlindi);
                 sheet.Cell(row, 20).Value = DurumMetni(item.UretimDurumu);
@@ -58,7 +58,7 @@ namespace _3K.Infrastructure.Services
                 sheet.Cell(row, 26).Value = item.Aciklama;
                 sheet.Cell(row, 27).Value = EvetHayir(item.IptalMi);
                 sheet.Cell(row, 28).Value = item.IptalNedeni;
-                sheet.Cell(row, 29).Value = item.BirimM3;
+                sheet.Cell(row, 29).Value = XLCellValue.FromObject(item.BirimM3);
                 sheet.Cell(row, 30).Value = item.CreatedDate;
                 row++;
             }
@@ -91,7 +91,7 @@ namespace _3K.Infrastructure.Services
             summary.Range("A1:B1").Style.Fill.BackgroundColor = XLColor.FromHtml("#1F4E78");
             summary.Range("A1:B1").Style.Font.FontColor = XLColor.White;
             var labels = new[] { "Kayıt Sayısı", "Toplam Sandık Adedi", "Net m³", "Sarf m³", "Net + Sarf m³" };
-            var values = new object[] { ozet.KayitSayisi, ozet.ToplamSandikAdedi, ozet.NetM3, ozet.SarfM3, ozet.ToplamM3 };
+            var values = new object?[] { ozet.KayitSayisi, ozet.ToplamSandikAdedi, ozet.NetM3, ozet.SarfM3, ozet.ToplamM3 };
             for (var index = 0; index < labels.Length; index++)
             {
                 summary.Cell(index + 2, 1).Value = labels[index];
@@ -176,7 +176,7 @@ namespace _3K.Infrastructure.Services
                             Hucre(table.Cell(), $"{item.Boy:N0} × {item.En:N0} × {item.Yukseklik:N0}");
                             Hucre(table.Cell(), $"{item.BirimM3:N6}\n{item.NetM3:N6}");
                             Hucre(table.Cell(), $"{item.SarfM3:N6}\n(%{item.SarfOrani * 100:N2})");
-                            Hucre(table.Cell(), item.ToplamM3.ToString("N6"));
+                            Hucre(table.Cell(), item.ToplamM3?.ToString("N6") ?? "—");
                             Hucre(table.Cell(), item.IptalMi ? "İptal" : DurumMetni(item.UretimDurumu));
                             Hucre(table.Cell(), item.UretimTarihi?.ToString("dd.MM.yyyy") ?? "-");
                             Hucre(table.Cell(), $"{item.TalepEdenKisi ?? "-"}\n{item.TalepEdenBolum ?? "-"}");
@@ -214,11 +214,11 @@ namespace _3K.Infrastructure.Services
             summary.Cell("A4").Value = "Proje / Müşteri";
             summary.Cell("B4").Value = form.ProjeAdi;
             summary.Cell("A5").Value = "Net m³";
-            summary.Cell("B5").Value = form.NetM3;
+            summary.Cell("B5").Value = XLCellValue.FromObject(form.NetM3);
             summary.Cell("A6").Value = "Sarf m³";
-            summary.Cell("B6").Value = form.SarfM3;
+            summary.Cell("B6").Value = XLCellValue.FromObject(form.SarfM3);
             summary.Cell("A7").Value = "Net + Sarf m³";
-            summary.Cell("B7").Value = form.ToplamM3;
+            summary.Cell("B7").Value = XLCellValue.FromObject(form.ToplamM3);
             summary.Range("A3:A7").Style.Font.Bold = true;
             summary.Range("B5:B7").Style.NumberFormat.Format = "0.000000";
 
@@ -238,33 +238,33 @@ namespace _3K.Infrastructure.Services
             foreach (var grup in gruplar)
             {
                 var item = grup.Temsilci;
-                foreach (var part in grup.Parcalar)
+                foreach (var part in grup.Parcalar.Cast<AmbalajUretimFormuParcasiModel?>().DefaultIfEmpty())
                 {
                     detail.Cell(row, 1).Value = grup.SandikNo;
                     detail.Cell(row, 2).Value = item.SandikAdi;
                     detail.Cell(row, 3).Value = item.SandikTuru;
                     detail.Cell(row, 4).Value = item.SandikCinsi;
                     detail.Cell(row, 5).Value = grup.Adet;
-                    detail.Cell(row, 6).Value = item.IcOlculer.Boy;
-                    detail.Cell(row, 7).Value = item.IcOlculer.En;
-                    detail.Cell(row, 8).Value = item.IcOlculer.Yukseklik;
-                    detail.Cell(row, 9).Value = item.DisOlculer.Boy;
-                    detail.Cell(row, 10).Value = item.DisOlculer.En;
-                    detail.Cell(row, 11).Value = item.DisOlculer.Yukseklik;
-                    detail.Cell(row, 12).Value = part.Kod;
-                    detail.Cell(row, 13).Value = part.Grup;
-                    detail.Cell(row, 14).Value = part.Aciklama;
-                    detail.Cell(row, 15).Value = part.Malzeme;
-                    detail.Cell(row, 16).Value = part.KesitEn;
-                    detail.Cell(row, 17).Value = part.KesitYukseklik;
-                    detail.Cell(row, 18).Value = part.Uzunluk;
-                    detail.Cell(row, 19).Value = part.TeorikAdet;
-                    detail.Cell(row, 20).Value = part.KesimAdedi;
-                    detail.Cell(row, 21).Value = part.HacimM3;
-                    detail.Cell(row, 22).Value = grup.NetM3;
-                    detail.Cell(row, 23).Value = grup.NetM3 == 0 ? 0 : grup.SarfM3 / grup.NetM3;
-                    detail.Cell(row, 24).Value = grup.SarfM3;
-                    detail.Cell(row, 25).Value = grup.ToplamM3;
+                    detail.Cell(row, 6).Value = XLCellValue.FromObject(item.IcOlculer?.Boy);
+                    detail.Cell(row, 7).Value = XLCellValue.FromObject(item.IcOlculer?.En);
+                    detail.Cell(row, 8).Value = XLCellValue.FromObject(item.IcOlculer?.Yukseklik);
+                    detail.Cell(row, 9).Value = XLCellValue.FromObject(item.DisOlculer?.Boy);
+                    detail.Cell(row, 10).Value = XLCellValue.FromObject(item.DisOlculer?.En);
+                    detail.Cell(row, 11).Value = XLCellValue.FromObject(item.DisOlculer?.Yukseklik);
+                    detail.Cell(row, 12).Value = part?.Kod;
+                    detail.Cell(row, 13).Value = part?.Grup;
+                    detail.Cell(row, 14).Value = part?.Aciklama ?? (item.M3HesaplanabilirMi ? "—" : "Üretim m³ hesabı uygulanmaz.");
+                    detail.Cell(row, 15).Value = part?.Malzeme;
+                    detail.Cell(row, 16).Value = XLCellValue.FromObject(part?.KesitEn);
+                    detail.Cell(row, 17).Value = XLCellValue.FromObject(part?.KesitYukseklik);
+                    detail.Cell(row, 18).Value = XLCellValue.FromObject(part?.Uzunluk);
+                    detail.Cell(row, 19).Value = XLCellValue.FromObject(part?.TeorikAdet);
+                    detail.Cell(row, 20).Value = XLCellValue.FromObject(part?.KesimAdedi);
+                    detail.Cell(row, 21).Value = XLCellValue.FromObject(part?.HacimM3);
+                    detail.Cell(row, 22).Value = XLCellValue.FromObject(grup.NetM3);
+                    detail.Cell(row, 23).Value = XLCellValue.FromObject(grup.NetM3 is null or 0 ? null : grup.SarfM3 / grup.NetM3);
+                    detail.Cell(row, 24).Value = XLCellValue.FromObject(grup.SarfM3);
+                    detail.Cell(row, 25).Value = XLCellValue.FromObject(grup.ToplamM3);
                     detail.Cell(row, 26).Value = item.FirinPartiNo;
                     if (grup.UretimTarihleri.Count == 1)
                         detail.Cell(row, 27).Value = grup.UretimTarihleri[0];
@@ -297,6 +297,22 @@ namespace _3K.Infrastructure.Services
 
         public byte[] UretimFormuPdfOlustur(AmbalajUretimFormuModel form)
             => AmbalajUretimFormuPdfOlusturucu.Olustur(form);
+
+        private static AmbalajRaporOzeti FormOzeti(AmbalajUretimFormuModel form) =>
+            new(form.Kalemler.Count, form.Kalemler.Sum(k => k.Adet), form.NetM3, form.SarfM3, form.ToplamM3);
+
+        private static IReadOnlyList<AmbalajRaporSatiri> FormSatirlari(AmbalajUretimFormuModel form) =>
+            form.Kalemler.Select(k => new AmbalajRaporSatiri
+            {
+                KayitId = k.KayitId, IsAkisKimligi = k.IsAkisKimligi, ProjeNo = form.ProjeNo,
+                ProjeAdi = form.ProjeAdi, SandikNo = k.SandikNo, SandikAdi = k.SandikAdi,
+                SandikCinsi = k.SandikCinsi, Adet = k.Adet, Boy = k.DisOlculer?.Boy,
+                En = k.DisOlculer?.En, Yukseklik = k.DisOlculer?.Yukseklik,
+                NetM3 = k.NetM3, SarfOrani = k.SarfOrani, SarfM3 = k.SarfM3, ToplamM3 = k.ToplamM3,
+                BirimM3 = k.NetM3 / k.Adet, AmbalajaDahil = true, UretimeAlindi = true,
+                Aciklama = k.M3HesaplanabilirMi ? k.Aciklama : "Bu ürün cinsinde üretim m³ hesabı uygulanmaz.",
+                UretimTarihi = k.UretimTarihi
+            }).ToList();
 
         private static void Baslik(IContainer container, string text) =>
             container.Background(Colors.Blue.Darken2).Padding(4).AlignMiddle().Text(text).Bold().FontColor(Colors.White);

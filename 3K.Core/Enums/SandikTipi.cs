@@ -7,6 +7,7 @@ namespace _3K.Core.Enums
     public enum SandikTipi
     {
         AhsapKapali = 1,
-        KatlanirSandik = 2
+        KatlanirSandik = 2,
+        Kontrplak = 3
     }
 }

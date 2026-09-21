@@ -15,6 +15,7 @@ namespace _3K.Core.Entities
         /// kaydın bütün yaşamı boyunca değişmeyen iş anahtarıdır.
         /// </summary>
         public Guid IsAkisKimligi { get; set; } = Guid.NewGuid();
+        public uint Version { get; set; }
 
         public int? ProjeId { get; set; }
         public string? ManuelProjeNo { get; set; }

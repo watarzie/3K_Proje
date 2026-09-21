@@ -8,9 +8,9 @@ namespace _3K.Application.Features.AmbalajIslemleri.DTOs
         public int ProjeSandikKayitSayisi { get; set; }
         public int OzelSandikKayitSayisi { get; set; }
         public int ToplamSandikAdedi { get; set; }
-        public decimal NetM3 { get; set; }
-        public decimal SarfM3 { get; set; }
-        public decimal ToplamM3 { get; set; }
+        public decimal? NetM3 { get; set; }
+        public decimal? SarfM3 { get; set; }
+        public decimal? ToplamM3 { get; set; }
     }
 
     public sealed class AmbalajManuelProjeSecenegiDto
@@ -22,9 +22,9 @@ namespace _3K.Application.Features.AmbalajIslemleri.DTOs
         public int AmbalajaDahilKayitSayisi { get; set; }
         public int UretimeAlinmisKayitSayisi { get; set; }
         public int ToplamSandikAdedi { get; set; }
-        public decimal NetM3 { get; set; }
-        public decimal SarfM3 { get; set; }
-        public decimal ToplamM3 { get; set; }
+        public decimal? NetM3 { get; set; }
+        public decimal? SarfM3 { get; set; }
+        public decimal? ToplamM3 { get; set; }
     }
 
     public sealed class AmbalajManuelProjeSecenekleriSayfasiDto
@@ -48,6 +48,8 @@ namespace _3K.Application.Features.AmbalajIslemleri.DTOs
 
     public class AmbalajUretimKaydiDto
     {
+        public bool M3HesaplanabilirMi { get; set; } = true;
+        public bool OlcuBilgisiGorunurMu { get; set; } = true;
         public bool M3BilgisiGorunurMu { get; set; } = true;
         public bool SarfBilgisiGorunurMu { get; set; } = true;
         public bool KaynakBilgisiGorunurMu { get; set; } = true;
@@ -71,21 +73,21 @@ namespace _3K.Application.Features.AmbalajIslemleri.DTOs
         public string SandikCinsiMetni { get; set; } = string.Empty;
         public string? DigerSandikCinsi { get; set; }
         public int Adet { get; set; }
-        public decimal Boy { get; set; }
-        public decimal En { get; set; }
-        public decimal Yukseklik { get; set; }
+        public decimal? Boy { get; set; }
+        public decimal? En { get; set; }
+        public decimal? Yukseklik { get; set; }
         public bool OlcuEksikMi { get; set; }
         public bool AmbalajaDahil { get; set; }
         public bool UretimeAlindi { get; set; }
-        public decimal HesaplananBirimM3 { get; set; }
-        public decimal HesaplananToplamM3 { get; set; }
+        public decimal? HesaplananBirimM3 { get; set; }
+        public decimal? HesaplananToplamM3 { get; set; }
         public decimal? M3Override { get; set; }
         public string? M3OverrideNedeni { get; set; }
-        public decimal NetM3 { get; set; }
+        public decimal? NetM3 { get; set; }
         public string M3HesaplamaVersiyonu { get; set; } = string.Empty;
-        public decimal SarfOrani { get; set; }
-        public decimal SarfM3 { get; set; }
-        public decimal ToplamM3 { get; set; }
+        public decimal? SarfOrani { get; set; }
+        public decimal? SarfM3 { get; set; }
+        public decimal? ToplamM3 { get; set; }
         public string? KullanimAmaci { get; set; }
         public string? TalepEdenKisi { get; set; }
         public string? TalepEdenBolum { get; set; }
@@ -141,9 +143,9 @@ namespace _3K.Application.Features.AmbalajIslemleri.DTOs
         public int AmbalajaDahilSandikAdedi { get; set; }
         public int UretimeAlinanSandikAdedi { get; set; }
         public int TamamlananSandikAdedi { get; set; }
-        public decimal NetM3 { get; set; }
-        public decimal SarfM3 { get; set; }
-        public decimal ToplamM3 { get; set; }
+        public decimal? NetM3 { get; set; }
+        public decimal? SarfM3 { get; set; }
+        public decimal? ToplamM3 { get; set; }
         public DateTime? SonUretimTarihi { get; set; }
     }
 
@@ -155,9 +157,9 @@ namespace _3K.Application.Features.AmbalajIslemleri.DTOs
         public IReadOnlyList<AmbalajUretimKaydiDto> Kayitlar { get; set; } = [];
         public int KayitSayisi { get; set; }
         public int ToplamSandikAdedi { get; set; }
-        public decimal NetM3 { get; set; }
-        public decimal SarfM3 { get; set; }
-        public decimal ToplamM3 { get; set; }
+        public decimal? NetM3 { get; set; }
+        public decimal? SarfM3 { get; set; }
+        public decimal? ToplamM3 { get; set; }
     }
 
     /// <summary>

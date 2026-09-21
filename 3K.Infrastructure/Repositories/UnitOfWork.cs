@@ -212,14 +212,18 @@ namespace _3K.Infrastructure.Repositories
             }
         }
 
-        private static bool IsTransactionConcurrencyConflict(Exception exception)
+        internal static bool IsTransactionConcurrencyConflict(Exception exception)
         {
-            var postgresException = exception as PostgresException ??
-                (exception as DbUpdateException)?.InnerException as PostgresException;
-
-            return postgresException?.SqlState is
-                PostgresErrorCodes.SerializationFailure or
-                PostgresErrorCodes.DeadlockDetected;
+            // Npgsql execution strategy, DbUpdateException'i ayrıca
+            // InvalidOperationException içine sarabilir. Yalnız iki transaction
+            // çatışma kodunu eşleştir; başka geçici/kalıcı hatalar 409 sayılmaz.
+            for (Exception? current = exception; current != null; current = current.InnerException)
+            {
+                if (current is PostgresException { SqlState:
+                    PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected })
+                    return true;
+            }
+            return false;
         }
 
         public void Dispose()

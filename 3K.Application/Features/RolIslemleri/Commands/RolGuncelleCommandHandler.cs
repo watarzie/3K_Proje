@@ -1,85 +1,41 @@
+using System.Text.Json;
 using MediatR;
-using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Application.Features.RolIslemleri.DTOs;
+using _3K.Application.Features.RolIslemleri.Queries;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
 
-namespace _3K.Application.Features.RolIslemleri.Commands
+namespace _3K.Application.Features.RolIslemleri.Commands;
+
+public sealed class RolGuncelleCommandHandler(IUnitOfWork unitOfWork, IRolService rolService,
+    ICurrentUserService currentUser) : IRequestHandler<RolGuncelleCommand, Result<RolDetayDto>>
 {
-    public class RolGuncelleCommandHandler : IRequestHandler<RolGuncelleCommand, Result<RolDetayDto>>
+    public async Task<Result<RolDetayDto>> Handle(RolGuncelleCommand request, CancellationToken cancellationToken)
     {
-        private readonly IUnitOfWork _unitOfWork;
-        private readonly IRolService _rolService;
-
-        public RolGuncelleCommandHandler(IUnitOfWork unitOfWork, IRolService rolService)
+        return await unitOfWork.ExecuteInTransactionAsync(async ct =>
         {
-            _unitOfWork = unitOfWork;
-            _rolService = rolService;
-        }
-
-        public async Task<Result<RolDetayDto>> Handle(RolGuncelleCommand request, CancellationToken cancellationToken)
-        {
-            var repo = _unitOfWork.GetRepository<Rol>();
-            var rol = (await repo.GetAllAsync()).FirstOrDefault(r => r.Id == request.Id);
-
-            if (rol == null)
-                return Result<RolDetayDto>.Failure("Rol bulunamadı.", 404);
-
-            // Rol adını güncelle
-            if (!string.IsNullOrWhiteSpace(request.Ad))
+            var rol = await unitOfWork.GetRepository<Rol>().GetByIdAsync(request.Id);
+            if (rol == null) return Result<RolDetayDto>.Failure("Rol bulunamadı.", 404);
+            if (string.IsNullOrWhiteSpace(request.Ad) ||
+                (rol.Id != 1 && string.Equals(request.Ad.Trim(), "Admin", StringComparison.OrdinalIgnoreCase)))
+                return Result<RolDetayDto>.Failure("Geçerli ve ayrılmış olmayan bir rol adı giriniz.");
+            var validation = await YetkiAtamaKurallari.DogrulaAsync(unitOfWork, rolService, currentUser,
+                request.Id, request.Yetkiler, ct);
+            if (!validation.IsSuccess) return Result<RolDetayDto>.Failure(validation.Error!.Message, validation.StatusCode);
+            var onceki = await rolService.GetRolYetkileriAsync(request.Id, ct);
+            await unitOfWork.GetRepository<YetkiDegisikligi>().AddAsync(new()
             {
-                rol.Ad = request.Ad;
-                repo.Update(rol);
-                await _unitOfWork.SaveChangesAsync();
-            }
-
-            // Yetkileri güncelle (delete all + insert new)
-            if (request.Yetkiler.Any())
-            {
-                var yetkiEntities = request.Yetkiler.Select(y => new RolYetki
-                {
-                    RolId = request.Id,
-                    MenuTanimiId = y.MenuTanimiId,
-                    YetkiTipiId = y.YetkiTipiId
-                }).ToList();
-
-                await _rolService.YetkileriGuncelleAsync(request.Id, yetkiEntities, cancellationToken);
-            }
-
-            // Güncel menü ağacını döndür
-            var menuAgaci = await _rolService.GetMenuAgaciAsync(cancellationToken);
-            var guncelYetkiler = await _rolService.GetRolYetkileriAsync(request.Id, cancellationToken);
-            var yetkiMap = guncelYetkiler.ToDictionary(y => y.MenuTanimiId, y => y.YetkiTipiId);
-
-            return Result<RolDetayDto>.Success(new RolDetayDto
-            {
-                Id = rol.Id,
-                Ad = rol.Ad,
-                MenuAgaci = menuAgaci
-                    .OrderBy(m => m.Sira)
-                    .Select(m => MapToDto(m, yetkiMap))
-                    .ToList()
+                AktorKullaniciId = currentUser.UserId!.Value, HedefTuru = "Rol", HedefId = rol.Id,
+                OncekiDeger = JsonSerializer.Serialize(new { rol.Ad, Yetkiler = onceki.Select(x => new { x.MenuTanimiId, x.YetkiTipiId }) }),
+                YeniDeger = JsonSerializer.Serialize(new { request.Ad, request.Yetkiler })
             });
-        }
-
-        private MenuTreeDto MapToDto(MenuTanimi menu, Dictionary<int, int> yetkiMap)
-        {
-            return new MenuTreeDto
-            {
-                Id = menu.Id,
-                Kod = menu.Kod,
-                LabelKey = menu.LabelKey,
-                Icon = menu.Icon,
-                Route = menu.Route,
-                Sira = menu.Sira,
-                YetkiTipiId = yetkiMap.TryGetValue(menu.Id, out var yetkiId) ? yetkiId : 1,
-                YetkiTipiMetni = yetkiMap.TryGetValue(menu.Id, out var yt) ? ((YetkiTipi)yt).ToString() : "N",
-                Children = menu.Children?
-                    .OrderBy(c => c.Sira)
-                    .Select(c => MapToDto(c, yetkiMap))
-                    .ToList() ?? new()
-            };
-        }
+            rol.Ad = request.Ad.Trim();
+            // Boş liste bütün izinleri kaldırır; boş isteği sessizce yok sayma.
+            await rolService.YetkileriGuncelleAsync(rol.Id, request.Yetkiler.Select(x => new RolYetki
+            { RolId = rol.Id, MenuTanimiId = x.MenuTanimiId, YetkiTipiId = x.YetkiTipiId }).ToList(), ct);
+            await unitOfWork.SaveChangesAsync(ct);
+            return await GetRolDetayQueryHandler.OkuAsync(unitOfWork, rolService, rol.Id, ct);
+        }, cancellationToken);
     }
 }

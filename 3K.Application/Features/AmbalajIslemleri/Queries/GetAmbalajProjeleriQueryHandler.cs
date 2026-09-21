@@ -34,6 +34,8 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
             if (request.ProjeTipiId.HasValue)
                 query = query.Where(p => p.ProjeTipiId == request.ProjeTipiId.Value);
             query = AmbalajProjeAramaFiltresi.Uygula(query, request.Arama);
+            query = AmbalajDurumErisimi.ProjeleriFiltrele(query,
+                _unitOfWork.GetRepository<AmbalajUretimKaydi>().Queryable(), request.IzinliDurumlar);
 
             var toplam = query.Count();
             var projeler = query
@@ -57,7 +59,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
                     })
                     .ToDictionary(x => x.ProjeId)
                 : [];
-            var kayitOzetleri = _unitOfWork.GetRepository<AmbalajUretimKaydi>().Queryable()
+            var kayitOzetleri = AmbalajDurumErisimi.Filtrele(_unitOfWork.GetRepository<AmbalajUretimKaydi>().Queryable(), request.IzinliDurumlar)
                 .Where(k => k.ProjeId.HasValue && projeIds.Contains(k.ProjeId.Value) && !k.IptalMi)
                 .GroupBy(k => k.ProjeId!.Value)
                 .Select(g => new
@@ -74,14 +76,14 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
                             : 0),
                     NetM3 = yetkiler.M3Gorunur
                         ? g.Sum(k => k.AmbalajaDahil && k.UretimeAlindi
-                            ? k.M3Override ?? k.HesaplananToplamM3
+                            ? ((k.SandikCinsi == _3K.Core.Enums.AmbalajSandikCinsi.AhsapKapali || k.SandikCinsi == _3K.Core.Enums.AmbalajSandikCinsi.Kafes) ? k.M3Override ?? k.HesaplananToplamM3 : 0)
                             : 0)
                         : 0,
                     SarfM3 = yetkiler.SarfGorunur
-                        ? g.Sum(k => k.AmbalajaDahil && k.UretimeAlindi ? k.SarfM3 : 0)
+                        ? g.Sum(k => k.AmbalajaDahil && k.UretimeAlindi && (k.SandikCinsi == _3K.Core.Enums.AmbalajSandikCinsi.AhsapKapali || k.SandikCinsi == _3K.Core.Enums.AmbalajSandikCinsi.Kafes) ? k.SarfM3 : 0)
                         : 0,
                     ToplamM3 = yetkiler.M3Gorunur && yetkiler.SarfGorunur
-                        ? g.Sum(k => k.AmbalajaDahil && k.UretimeAlindi ? k.ToplamM3 : 0)
+                        ? g.Sum(k => k.AmbalajaDahil && k.UretimeAlindi && (k.SandikCinsi == _3K.Core.Enums.AmbalajSandikCinsi.AhsapKapali || k.SandikCinsi == _3K.Core.Enums.AmbalajSandikCinsi.Kafes) ? k.ToplamM3 : 0)
                         : 0,
                     SonUretimTarihi = g
                         .Where(k => k.AmbalajaDahil && k.UretimeAlindi)
@@ -108,9 +110,9 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
                     AmbalajaDahilSandikAdedi = kayitOzeti?.AmbalajaDahilSandikAdedi ?? 0,
                     UretimeAlinanSandikAdedi = kayitOzeti?.UretimeAlinanSandikAdedi ?? 0,
                     TamamlananSandikAdedi = kayitOzeti?.TamamlananSandikAdedi ?? 0,
-                    NetM3 = kayitOzeti?.NetM3 ?? 0,
-                    SarfM3 = kayitOzeti?.SarfM3 ?? 0,
-                    ToplamM3 = kayitOzeti?.ToplamM3 ?? 0,
+                    NetM3 = yetkiler.M3Gorunur ? kayitOzeti?.NetM3 : null,
+                    SarfM3 = yetkiler.SarfGorunur ? kayitOzeti?.SarfM3 : null,
+                    ToplamM3 = yetkiler.M3Gorunur && yetkiler.SarfGorunur ? kayitOzeti?.ToplamM3 : null,
                     SonUretimTarihi = kayitOzeti?.SonUretimTarihi
                 };
             }).ToList();

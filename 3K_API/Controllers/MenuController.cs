@@ -33,7 +33,7 @@ namespace _3K_API.Controllers
         {
             var result = await _mediator.Send(new GetKullaniciMenuQuery());
             if (!result.IsSuccess)
-                return BadRequest(new { message = result.Error });
+                return StatusCode(result.StatusCode, new { message = result.Error?.Message });
 
             // Backend'de filtreleme: sadece yetkili (W veya R) menüleri gönder
             var filteredMenu = FilterTree(result.Value!.MenuAgaci);
@@ -61,6 +61,9 @@ namespace _3K_API.Controllers
                     Id = node.Id,
                     Kod = node.Kod,
                     LabelKey = node.LabelKey,
+                    Ad = node.Ad,
+                    GerekenYetkiTipiId = node.GerekenYetkiTipiId,
+                    KritikMi = node.KritikMi,
                     Icon = node.Icon,
                     Route = node.Route,
                     Sira = node.Sira,

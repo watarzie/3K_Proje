@@ -13,13 +13,18 @@ internal static partial class AmbalajPlanlamaYardimcisi
         string projeTipiMetni,
         IReadOnlyList<Sandik> sandiklar,
         IReadOnlyList<AmbalajUretimKaydi> kayitlar,
-        int? grup = null)
+        int? grup = null,
+        int[]? izinliDurumlar = null)
     {
+        var genelDurum = AmbalajUretimPolitikasi.ProjeDurumu(kayitlar);
+        var gerekenler = kayitlar.Where(k => !k.IptalMi && k.AmbalajaDahil).ToList();
         var aktifKayitlar = kayitlar.Where(k => !k.IptalMi && !k.BagimsizKayitMi).ToList();
-        var kaynakMap = aktifKayitlar
-            .Where(k => k.KaynakKayitId.HasValue)
+        // İptal edilmiş kaynağı "henüz senkronize edilmemiş" sayıp yeniden
+        // öngörüye katma. Aynı kaynak için aktif bir halef varsa onun kararı geçerlidir.
+        var kaynakMap = kayitlar
+            .Where(k => !k.BagimsizKayitMi && k.KaynakKayitId.HasValue)
             .GroupBy(k => k.KaynakKayitId!.Value)
-            .ToDictionary(g => g.Key, g => g.OrderByDescending(k => k.Id).First());
+            .ToDictionary(g => g.Key, g => g.OrderBy(k => k.IptalMi).ThenByDescending(k => k.Id).First());
         var planBaslangici = aktifKayitlar
             .Where(k => k.KaynakKayitId.HasValue)
             .Select(k => (DateTime?)k.CreatedDate)
@@ -28,9 +33,15 @@ internal static partial class AmbalajPlanlamaYardimcisi
         var kaynaklar = grup == 3
             ? []
             : sandiklar
+                .Where(s => !kaynakMap.TryGetValue(s.Id, out var kayit) || !kayit.IptalMi)
                 .OrderBy(s => SandikSiraAnahtari(s.SandikNo))
                 .ThenBy(s => s.SandikNo, StringComparer.OrdinalIgnoreCase)
-                .Select(s => KaynakKalemDtoOlustur(s, kaynakMap.GetValueOrDefault(s.Id), planBaslangici))
+                .Select(s =>
+                {
+                    var dto = KaynakKalemDtoOlustur(s, kaynakMap.GetValueOrDefault(s.Id), planBaslangici);
+                    return genelDurum == AmbalajUretimDurumu.Tamamlandi && !kaynakMap.ContainsKey(s.Id)
+                        ? dto with { AmbalajaDahilMi = false, AmbalajKarariOneriliyor = true } : dto;
+                })
                 .ToList();
         var manueller = aktifKayitlar
             .Where(k => !k.KaynakKayitId.HasValue)
@@ -39,7 +50,9 @@ internal static partial class AmbalajPlanlamaYardimcisi
             .ThenBy(k => k.SandikNo, StringComparer.OrdinalIgnoreCase)
             .Select(KalemDtoOlustur)
             .ToList();
-        var tumKalemler = kaynaklar.Concat(manueller).ToList();
+        var tumKalemler = kaynaklar.Concat(manueller)
+            .Where(k => izinliDurumlar == null || izinliDurumlar.Contains(k.UretimDurumu)).ToList();
+        aktifKayitlar = aktifKayitlar.Where(k => izinliDurumlar == null || izinliDurumlar.Contains((int)k.UretimDurumu)).ToList();
 
         var normal = GrupKayitlari(aktifKayitlar, AmbalajSandikTuru.Normal);
         var ilave = GrupKayitlari(aktifKayitlar, AmbalajSandikTuru.Ilave);
@@ -59,21 +72,24 @@ internal static partial class AmbalajPlanlamaYardimcisi
             GrupDurumu(ic),
             tumKalemler,
             tumKalemler.Where(k => k.UretimeAlindi).Sum(k => k.Adet),
-            tumKalemler.Where(k => k.UretimeAlindi).Sum(k => k.HacimM3));
+            tumKalemler.Where(k => k.UretimeAlindi).Sum(k => k.HacimM3),
+            (int)genelDurum, gerekenler.Sum(k => k.Adet), gerekenler.Where(k => k.UretimDurumu == AmbalajUretimDurumu.Tamamlandi).Sum(k => k.Adet));
     }
 
     public static AmbalajPlanlamaProjeOzetDto ProjeOzetDtoOlustur(
         Proje proje,
         string projeTipiMetni,
         IReadOnlyList<Sandik> sandiklar,
-        IReadOnlyList<AmbalajUretimKaydi> kayitlar)
+        IReadOnlyList<AmbalajUretimKaydi> kayitlar,
+        int[]? izinliDurumlar = null)
     {
-        var plan = PlanDtoOlustur(proje, projeTipiMetni, sandiklar, kayitlar);
+        var plan = PlanDtoOlustur(proje, projeTipiMetni, sandiklar, kayitlar, izinliDurumlar: izinliDurumlar);
         var ambalajKaynaklari = plan.Kalemler.Where(k => k.KaynakSandikId.HasValue && k.AmbalajaDahilMi != false).ToList();
         var seciliKaynaklar = ambalajKaynaklari.Where(k => k.UretimeAlindi).ToList();
         var olculu = ambalajKaynaklari.Where(Olculu).ToList();
-        var eksikler = seciliKaynaklar.Where(k => !Olculu(k)).Select(k => k.SandikNo).ToList();
-        var manueller = plan.Kalemler.Where(k => !k.KaynakSandikId.HasValue && k.UretimeAlindi).ToList();
+        var manueller = plan.Kalemler.Where(k => !k.KaynakSandikId.HasValue && k.AmbalajaDahilMi != false).ToList();
+        var seciliManueller = manueller.Where(k => k.UretimeAlindi).ToList();
+        var eksikler = ambalajKaynaklari.Concat(manueller).Where(k => !Olculu(k)).Select(k => k.SandikNo).ToList();
         var projeKaynaklari = ambalajKaynaklari.Where(k => k.Tur == 1).ToList();
         var ilaveKaynaklari = ambalajKaynaklari.Where(k => k.Tur == 2).ToList();
 
@@ -88,21 +104,22 @@ internal static partial class AmbalajPlanlamaYardimcisi
             olculu.Count,
             eksikler.Count,
             eksikler,
-            olculu.Sum(k => k.HacimM3),
+            ambalajKaynaklari.Sum(k => k.HacimM3) + manueller.Sum(k => k.HacimM3),
             plan.FirinPartiNo,
-            seciliKaynaklar.Sum(k => k.Adet) + manueller.Sum(k => k.Adet),
+            seciliKaynaklar.Sum(k => k.Adet) + seciliManueller.Sum(k => k.Adet),
             ilaveKaynaklari.Count + manueller.Count(k => k.Tur == 2),
             manueller.Count(k => k.Tur == 3),
-            seciliKaynaklar.Sum(k => k.HacimM3) + manueller.Sum(k => k.HacimM3),
+            seciliKaynaklar.Sum(k => k.HacimM3) + seciliManueller.Sum(k => k.HacimM3),
             plan.ProjeSandiklariDurumId,
             plan.IlaveSandiklarDurumId,
             plan.IcSandiklarDurumId,
             plan.IlaveFirinPartiNo,
             plan.IcSandikFirinPartiNo,
             projeKaynaklari.Sum(k => k.Adet) + manueller.Where(k => k.Tur == 1).Sum(k => k.Adet),
-            projeKaynaklari.Where(k => k.UretimeAlindi).Sum(k => k.HacimM3) + manueller.Where(k => k.Tur == 1).Sum(k => k.HacimM3),
-            ilaveKaynaklari.Where(k => k.UretimeAlindi).Sum(k => k.HacimM3) + manueller.Where(k => k.Tur == 2).Sum(k => k.HacimM3),
-            manueller.Where(k => k.Tur == 3).Sum(k => k.HacimM3));
+            projeKaynaklari.Sum(k => k.HacimM3) + manueller.Where(k => k.Tur == 1).Sum(k => k.HacimM3),
+            ilaveKaynaklari.Sum(k => k.HacimM3) + manueller.Where(k => k.Tur == 2).Sum(k => k.HacimM3),
+            manueller.Where(k => k.Tur == 3).Sum(k => k.HacimM3),
+            plan.GenelUretimDurumu, plan.GerekliSandikAdedi, plan.TamamlananSandikAdedi);
     }
 
     public static AmbalajPlanlamaKalemDto KalemDtoOlustur(AmbalajUretimKaydi kayit) =>
@@ -124,9 +141,10 @@ internal static partial class AmbalajPlanlamaYardimcisi
             kayit.KullanimAmaci,
             kayit.TalimatVeren,
             kayit.Aciklama,
-            kayit.M3Override ?? kayit.HesaplananToplamM3,
+            AmbalajUretimPolitikasi.M3HesaplanabilirMi(kayit.SandikCinsi) ? kayit.M3Override ?? kayit.HesaplananToplamM3 : null,
             kayit.AmbalajaDahil,
-            false);
+            false,
+            AmbalajUretimPolitikasi.M3HesaplanabilirMi(kayit.SandikCinsi), (int)kayit.UretimDurumu);
 
     public static AmbalajBagimsizSandikDto BagimsizDtoOlustur(
         AmbalajUretimKaydi kayit,
@@ -158,7 +176,8 @@ internal static partial class AmbalajPlanlamaYardimcisi
             kayit.KullanimAmaci,
             kayit.TalimatVeren,
             kayit.Aciklama,
-            kayit.M3Override ?? kayit.HesaplananToplamM3);
+            AmbalajUretimPolitikasi.M3HesaplanabilirMi(kayit.SandikCinsi) ? kayit.M3Override ?? kayit.HesaplananToplamM3 : null,
+            AmbalajUretimPolitikasi.M3HesaplanabilirMi(kayit.SandikCinsi), (int)kayit.UretimDurumu, kayit.AmbalajaDahil);
 
     public static AmbalajSandikCinsi SandikCinsiCoz(string? sandikTipi) => sandikTipi?.Trim() switch
     {
@@ -226,9 +245,11 @@ internal static partial class AmbalajPlanlamaYardimcisi
                   (kayit == null && planBaslangici.HasValue && sandik.CreatedDate > planBaslangici.Value)
             ? 2
             : 1;
-        var dahil = kayit?.AmbalajaDahil ?? true;
+        var dahil = kayit?.AmbalajaDahil ?? !AmbalajUretimPolitikasi.VarsayilanYapilmazMi(sandik.Ad, sandik.AdIngilizce);
         var secili = dahil && (kayit?.UretimeAlindi ?? false);
-        var hacim = KaynakSandikToplamHacmiHesapla(
+        var cins = kayit?.SandikCinsi ?? AmbalajUretimPolitikasi.KaynakCinsi(sandik.TipId);
+        var hacim = !AmbalajUretimPolitikasi.M3HesaplanabilirMi(cins) ? 0 : kayit != null
+            ? kayit.M3Override ?? kayit.HesaplananToplamM3 : KaynakSandikToplamHacmiHesapla(
             sandik.Ad,
             sandik.AdIngilizce,
             sandik.SandikNo,
@@ -245,7 +266,7 @@ internal static partial class AmbalajPlanlamaYardimcisi
             secili,
             sandik.SandikNo,
             sandik.Ad,
-            kayit == null ? "Ahşap Kapalı" : SandikTipiMetni(kayit.SandikCinsi, kayit.DigerSandikCinsi),
+            SandikTipiMetni(cins, kayit?.DigerSandikCinsi),
             SandikAdediHesapla(sandik.SandikNo),
             sandik.Boy ?? 0,
             sandik.En ?? 0,
@@ -253,9 +274,10 @@ internal static partial class AmbalajPlanlamaYardimcisi
             kayit?.KullanimAmaci,
             kayit?.TalimatVeren,
             kayit?.Aciklama,
-            hacim,
+            AmbalajUretimPolitikasi.M3HesaplanabilirMi(cins) ? hacim : null,
             dahil,
-            AmbalajKarariOneriliyor(sandik));
+            AmbalajKarariOneriliyor(sandik),
+            AmbalajUretimPolitikasi.M3HesaplanabilirMi(cins), (int)(kayit?.UretimDurumu ?? AmbalajUretimDurumu.Planlandi));
     }
 
     internal static decimal KaynakSandikToplamHacmiHesapla(
@@ -285,8 +307,7 @@ internal static partial class AmbalajPlanlamaYardimcisi
 
     private static int GrupDurumu(IEnumerable<AmbalajUretimKaydi> kayitlar)
     {
-        var secili = kayitlar.Where(k => k.UretimeAlindi).ToList();
-        return secili.Count == 0 ? 1 : (int)secili.Max(k => k.UretimDurumu);
+        return (int)AmbalajUretimPolitikasi.ProjeDurumu(kayitlar);
     }
 
     private static int GrupTuruneDonustur(AmbalajSandikTuru tur) => tur switch
@@ -308,15 +329,7 @@ internal static partial class AmbalajPlanlamaYardimcisi
 
     private static bool AmbalajKarariOneriliyor(Sandik sandik)
     {
-        if (int.TryParse(sandik.SandikNo.Trim(), out var sandikNo) && sandikNo == 1)
-            return true;
-        var ad = $"{sandik.Ad} {sandik.AdIngilizce}".ToUpperInvariant()
-            .Replace('İ', 'I')
-            .Replace('Ş', 'S');
-        return ad.Contains("BUSHING", StringComparison.Ordinal) ||
-               ad.Contains("BUSING", StringComparison.Ordinal) ||
-               ad.Contains("PARAFUD", StringComparison.Ordinal) ||
-               ad.Contains("SURGE ARRESTER", StringComparison.Ordinal);
+        return AmbalajUretimPolitikasi.VarsayilanYapilmazMi(sandik.Ad, sandik.AdIngilizce);
     }
 
     internal static int SandikSiraAnahtari(string? sandikNo)

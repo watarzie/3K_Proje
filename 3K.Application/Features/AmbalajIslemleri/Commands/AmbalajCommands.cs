@@ -32,14 +32,14 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
         : IRequest<Result<AmbalajUretimKaydiDto>>, ISecuredRequest, IRequiresMenuPermission,
           IRequiresMenuPermissions, IAmbalajKayitAlanlari
     {
-        public string RequiredMenuKod => AmbalajMenuKodlari.KayitDuzenle;
+        public string RequiredMenuKod => AmbalajMenuKodlari.KayitEkle;
         public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions
         {
             get
             {
                 var requirements = new List<MenuPermissionRequirement>
                 {
-                    AmbalajMenuKodlari.Write(AmbalajMenuKodlari.KayitDuzenle)
+                    AmbalajMenuKodlari.Write(AmbalajMenuKodlari.KayitEkle)
                 };
                 var turKodu = AmbalajMenuKodlari.TurOlusturmaKodu(Tur);
                 if (turKodu != null)

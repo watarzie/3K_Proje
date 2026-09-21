@@ -30,7 +30,7 @@ internal static class ModuleModelBuilderExtensions
                     "CK_AmbalajUretimKayitlari_UretimSecimi",
                     "NOT \"UretimeAlindi\" OR (\"AmbalajaDahil\" AND " +
                     "(\"M3Override\" IS NOT NULL OR (\"Adet\" > 0 AND CASE " +
-                    "WHEN NOT \"BagimsizKayitMi\" AND \"KaynakKayitId\" IS NOT NULL AND \"KaynakModul\" IN (1, 2, 3) " +
+                    "WHEN \"SandikCinsi\" IN (1, 2) AND NOT \"BagimsizKayitMi\" AND \"KaynakKayitId\" IS NOT NULL AND \"KaynakModul\" IN (1, 2, 3) " +
                     "THEN \"Boy\" > 92 AND \"En\" > 92 AND \"Yukseklik\" > 255 " +
                     "ELSE \"Boy\" > 0 AND \"En\" > 0 AND \"Yukseklik\" > 0 END)))");
             });
@@ -111,7 +111,7 @@ internal static class ModuleModelBuilderExtensions
             entity.HasOne(x => x.AmbalajUretimKaydi)
                 .WithMany(x => x.Hareketler)
                 .HasForeignKey(x => x.AmbalajUretimKaydiId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Restrict);
 
             entity.HasOne<Kullanici>()
                 .WithMany()
@@ -258,7 +258,7 @@ internal static class ModuleModelBuilderExtensions
                 table.HasCheckConstraint("CK_FinansIsKayitlari_Fiyat", "\"BirimFiyatSnapshot\" >= 0 AND \"KdvOraniSnapshot\" >= 0 AND \"KdvOraniSnapshot\" <= 100");
                 table.HasCheckConstraint("CK_FinansIsKayitlari_Proje", "\"ProjeId\" IS NOT NULL OR NULLIF(BTRIM(\"ProjeNo\"), '') IS NOT NULL");
             });
-            entity.HasIndex(x => new { x.KaynakTuru, x.KaynakKayitId })
+            entity.HasIndex(x => new { x.KaynakTuru, x.KaynakKayitId, x.KaynakBileseni })
                 .IsUnique()
                 .HasFilter("\"KaynakKayitId\" IS NOT NULL");
             entity.HasIndex(x => new { x.Durum, x.IptalEdildi, x.KaynakAktif });
@@ -319,7 +319,7 @@ internal static class ModuleModelBuilderExtensions
         {
             entity.ToTable("FinansSiparisKalemleri", table =>
             {
-                table.HasCheckConstraint("CK_FinansSiparisKalemleri_Miktar", "\"Adet\" >= 0 AND \"M3\" >= 0 AND (\"Adet\" > 0 OR \"M3\" > 0)");
+                table.HasCheckConstraint("CK_FinansSiparisKalemleri_Miktar", "\"Adet\" >= 0 AND \"M3\" >= 0 AND (\"Adet\" > 0 OR \"M3\" > 0 OR \"TutarBazli\")");
                 table.HasCheckConstraint("CK_FinansSiparisKalemleri_Tutar", "\"BirimFiyatSnapshot\" >= 0 AND \"NetTutarSnapshot\" >= 0 AND \"KdvTutariSnapshot\" >= 0 AND \"ToplamTutarSnapshot\" >= 0");
             });
             entity.HasIndex(x => new { x.FinansSiparisId, x.FinansIsKaydiId }).IsUnique();
@@ -371,7 +371,7 @@ internal static class ModuleModelBuilderExtensions
         {
             entity.ToTable("FinansFaturaKalemleri", table =>
             {
-                table.HasCheckConstraint("CK_FinansFaturaKalemleri_Miktar", "\"Adet\" >= 0 AND \"M3\" >= 0 AND (\"Adet\" > 0 OR \"M3\" > 0)");
+                table.HasCheckConstraint("CK_FinansFaturaKalemleri_Miktar", "\"Adet\" >= 0 AND \"M3\" >= 0 AND (\"Adet\" > 0 OR \"M3\" > 0 OR \"TutarBazli\")");
                 table.HasCheckConstraint("CK_FinansFaturaKalemleri_Tutar", "\"NetTutarSnapshot\" >= 0 AND \"KdvTutariSnapshot\" >= 0 AND \"ToplamTutarSnapshot\" >= 0");
             });
             entity.HasIndex(x => new { x.FinansFaturaId, x.FinansSiparisKalemiId }).IsUnique();

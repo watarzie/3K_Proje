@@ -10,13 +10,19 @@ namespace _3K.Application.Features.KullaniciIslemleri.Commands
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IIkiFaktorService _ikiFaktorService;
+        private readonly IKullaniciYetkiService? _yetkiService;
+        private readonly ICurrentUserService? _currentUser;
 
         public KullaniciGuncelleCommandHandler(
             IUnitOfWork unitOfWork,
-            IIkiFaktorService ikiFaktorService)
+            IIkiFaktorService ikiFaktorService,
+            IKullaniciYetkiService? yetkiService = null,
+            ICurrentUserService? currentUser = null)
         {
             _unitOfWork = unitOfWork;
             _ikiFaktorService = ikiFaktorService;
+            _yetkiService = yetkiService;
+            _currentUser = currentUser;
         }
 
         public async Task<Result<KullaniciDto>> Handle(KullaniciGuncelleCommand request, CancellationToken cancellationToken)
@@ -26,6 +32,19 @@ namespace _3K.Application.Features.KullaniciIslemleri.Commands
 
             if (kullanici == null)
                 return Result<KullaniciDto>.Failure("Kullanıcı bulunamadı.");
+
+            if (kullanici.RolId != request.RolId)
+            {
+                var check = _yetkiService == null ? null :
+                    await _yetkiService.RolAtamayiDogrulaAsync(kullanici.Id, request.RolId, cancellationToken);
+                if (check?.Basarili != true)
+                    return Result<KullaniciDto>.Failure(check?.Hata ?? "Rol atama yetkisi doğrulanamadı.", check?.DurumKodu ?? 403);
+                await _unitOfWork.GetRepository<YetkiDegisikligi>().AddAsync(new()
+                {
+                    AktorKullaniciId = _currentUser?.UserId ?? 0, HedefTuru = "KullaniciRol", HedefId = kullanici.Id,
+                    OncekiDeger = kullanici.RolId.ToString(), YeniDeger = request.RolId.ToString()
+                });
+            }
 
             kullanici.AdSoyad = request.AdSoyad;
             kullanici.BasHarf = request.AdSoyad.Length >= 2

@@ -33,9 +33,9 @@ public sealed class AmbalajPlanKaydetCommandHandler
         AmbalajPlanKaydetCommand request,
         CancellationToken cancellationToken)
     {
-        if (request.Grup is not (1 or 2 or 3) || request.DurumId is not (1 or 2 or 3))
-            return Result<AmbalajPlanlamaPlanDto>.Failure("Üretim grubu veya durumu geçersiz.");
-        if (!_currentUser.UserId.HasValue)
+        if (request.Grup is not (1 or 2 or 3))
+            return Result<AmbalajPlanlamaPlanDto>.Failure("Üretim grubu geçersiz.");
+        if (!_currentUser.IslemKullaniciId.HasValue)
             return Result<AmbalajPlanlamaPlanDto>.Failure("Kullanıcı bilgisi alınamadı.", 401);
 
         var proje = await _unitOfWork.GetRepository<Proje>().GetByIdAsync(request.ProjeId);
@@ -54,8 +54,9 @@ public sealed class AmbalajPlanKaydetCommandHandler
             var sandiklar = _unitOfWork.GetRepository<Sandik>().Queryable()
                 .Where(s => s.ProjeId == proje.Id).ToList();
             var kayitRepo = _unitOfWork.GetRepository<AmbalajUretimKaydi>();
-            var kayitlar = kayitRepo.Queryable()
-                .Where(k => k.ProjeId == proje.Id && !k.IptalMi).ToList();
+            var tumKayitlar = kayitRepo.Queryable()
+                .Where(k => k.ProjeId == proje.Id).ToList();
+            var kayitlar = tumKayitlar.Where(k => !k.IptalMi).ToList();
             var planKayitlari = kayitlar.Where(k => !k.BagimsizKayitMi).ToList();
             var kaynakMap = planKayitlari.Where(k => k.KaynakKayitId.HasValue)
                 .ToDictionary(k => k.KaynakKayitId!.Value);
@@ -98,24 +99,26 @@ public sealed class AmbalajPlanKaydetCommandHandler
                     409);
 
             var aktarilacaklar = new List<AmbalajUretimKaydi>();
+            var firinPartiNo = AmbalajUretimYardimcilari.Temizle(request.FirinPartiNo);
             foreach (var kayit in gecerliKayitlar)
             {
-                var eski = AmbalajUretimYardimcilari.Snapshot(kayit);
-                kayit.Tur = hedefTur;
-                kayit.UretimeAlindi = kayit.KaynakKayitId.HasValue
+                var secili = kayit.KaynakKayitId.HasValue
                     ? request.SeciliKaynakSandikIds.Contains(kayit.KaynakKayitId.Value)
                     : kayit.UretimeAlindi;
-                kayit.FirinPartiNo = AmbalajUretimYardimcilari.Temizle(request.FirinPartiNo);
-                kayit.UretimDurumu = (AmbalajUretimDurumu)request.DurumId;
-                kayit.UretimTarihi = kayit.UretimeAlindi ? kayit.UretimTarihi ?? TurkeyTime.Now : null;
-                kayit.TamamlanmaTarihi = kayit.UretimDurumu == AmbalajUretimDurumu.Tamamlandi
-                    ? kayit.TamamlanmaTarihi ?? TurkeyTime.Now
-                    : null;
+                if (kayit.Tur == hedefTur && kayit.UretimeAlindi == secili &&
+                    string.Equals(kayit.FirinPartiNo, firinPartiNo, StringComparison.Ordinal))
+                    continue;
+                var eski = AmbalajUretimYardimcilari.Snapshot(kayit);
+                kayit.Tur = hedefTur;
+                kayit.UretimeAlindi = secili;
+                kayit.FirinPartiNo = firinPartiNo;
+                // Plan seçimi fiziksel başlangıç/tamamlama değildir. İlk form ve açık
+                // durum komutları tarihleri ve gerçekleşmeyi kendi lifecycle kapısında yönetir.
                 kayit.UpdatedDate = TurkeyTime.Now;
-                kayit.UpdatedBy = _currentUser.UserId.Value.ToString();
+                kayit.UpdatedBy = _currentUser.IslemKullaniciId.Value.ToString();
                 kayitRepo.Update(kayit);
                 await AmbalajUretimYardimcilari.AlanHareketleriniEkleAsync(
-                    _unitOfWork, kayit, eski, "Üretim planı güncellendi", _currentUser.UserId.Value,
+                    _unitOfWork, kayit, eski, "Üretim planı güncellendi", _currentUser.IslemKullaniciId.Value,
                     $"Grup: {request.Grup}");
                 aktarilacaklar.Add(kayit);
             }
@@ -129,7 +132,7 @@ public sealed class AmbalajPlanKaydetCommandHandler
             var tipMetni = _unitOfWork.GetRepository<LookupProjeTipi>().Queryable()
                 .Where(x => x.Id == proje.ProjeTipiId).Select(x => x.Deger).FirstOrDefault() ?? "-";
             return Result<AmbalajPlanlamaPlanDto>.Success(
-                AmbalajPlanlamaYardimcisi.PlanDtoOlustur(proje, tipMetni, sandiklar, kayitlar, request.Grup));
+                AmbalajPlanlamaYardimcisi.PlanDtoOlustur(proje, tipMetni, sandiklar, tumKayitlar, request.Grup));
         }, cancellationToken);
     }
 }
@@ -160,7 +163,7 @@ public sealed class AmbalajKarariKaydetCommandHandler
     {
         var sandik = await _unitOfWork.GetRepository<Sandik>().GetByIdAsync(request.SandikId);
         if (sandik == null) return Result<AmbalajPlanlamaPlanDto>.Failure("Sandık bulunamadı.", 404);
-        if (!_currentUser.UserId.HasValue)
+        if (!_currentUser.IslemKullaniciId.HasValue)
             return Result<AmbalajPlanlamaPlanDto>.Failure("Kullanıcı bilgisi alınamadı.", 401);
         var senkron = await _senkronizasyon.SenkronizeEtAsync(sandik.ProjeId, _currentUser, cancellationToken);
         if (!senkron.IsSuccess)
@@ -176,15 +179,15 @@ public sealed class AmbalajKarariKaydetCommandHandler
         kayit.AmbalajaDahil = request.AmbalajaDahilMi;
         if (!request.AmbalajaDahilMi) kayit.UretimeAlindi = false;
         kayit.UpdatedDate = TurkeyTime.Now;
-        kayit.UpdatedBy = _currentUser.UserId.Value.ToString();
+        kayit.UpdatedBy = _currentUser.IslemKullaniciId.Value.ToString();
         kayitRepo.Update(kayit);
         await AmbalajUretimYardimcilari.AlanHareketleriniEkleAsync(
-            _unitOfWork, kayit, eski, "Ambalaj kararı güncellendi", _currentUser.UserId.Value);
+            _unitOfWork, kayit, eski, "Ambalaj kararı güncellendi", _currentUser.IslemKullaniciId.Value);
         await AmbalajFinansSenkronizasyonu.KaydetVeAktarAsync(
             _unitOfWork, _finans, kayit, proje, cancellationToken);
 
         var sandiklar = _unitOfWork.GetRepository<Sandik>().Queryable().Where(s => s.ProjeId == proje.Id).ToList();
-        var kayitlar = kayitRepo.Queryable().Where(k => k.ProjeId == proje.Id && !k.IptalMi).ToList();
+        var kayitlar = kayitRepo.Queryable().Where(k => k.ProjeId == proje.Id).ToList();
         var tipMetni = _unitOfWork.GetRepository<LookupProjeTipi>().Queryable()
             .Where(x => x.Id == proje.ProjeTipiId).Select(x => x.Deger).FirstOrDefault() ?? "-";
         return Result<AmbalajPlanlamaPlanDto>.Success(
@@ -215,7 +218,7 @@ public sealed class AmbalajPlanKalemKaydetCommandHandler
     {
         var hata = Dogrula(request);
         if (hata != null) return Result<AmbalajPlanlamaKalemDto>.Failure(hata);
-        if (!_currentUser.UserId.HasValue)
+        if (!_currentUser.IslemKullaniciId.HasValue)
             return Result<AmbalajPlanlamaKalemDto>.Failure("Kullanıcı bilgisi alınamadı.", 401);
         if (request.IcSandikSablonId.HasValue && !_unitOfWork.GetRepository<AmbalajIcSandikSablonu>()
                 .Queryable().Any(x => x.Id == request.IcSandikSablonId.Value))
@@ -251,7 +254,7 @@ public sealed class AmbalajPlanKalemKaydetCommandHandler
                 KaynakModul = AmbalajKaynakModulu.Manuel,
                 AmbalajaDahil = true,
                 SarfOrani = AmbalajHesaplayici.VarsayilanSarfOrani,
-                CreatedBy = _currentUser.UserId.Value.ToString()
+                CreatedBy = _currentUser.IslemKullaniciId.Value.ToString()
             };
             await kayitRepo.AddAsync(kayit);
         }
@@ -265,12 +268,12 @@ public sealed class AmbalajPlanKalemKaydetCommandHandler
 
         AlanlariUygula(kayit, request, sandikNo);
         kayit.UpdatedDate = request.KalemId.HasValue ? TurkeyTime.Now : null;
-        kayit.UpdatedBy = request.KalemId.HasValue ? _currentUser.UserId.Value.ToString() : null;
+        kayit.UpdatedBy = request.KalemId.HasValue ? _currentUser.IslemKullaniciId.Value.ToString() : null;
         kayitRepo.Update(kayit);
         await AmbalajUretimYardimcilari.AlanHareketleriniEkleAsync(
             _unitOfWork, kayit, eski,
             request.KalemId.HasValue ? "Ambalaj kalemi güncellendi" : "Ambalaj kalemi eklendi",
-            _currentUser.UserId.Value, request.Aciklama);
+            _currentUser.IslemKullaniciId.Value, request.Aciklama);
         await AmbalajFinansSenkronizasyonu.KaydetVeAktarAsync(
             _unitOfWork, _finans, kayit, proje, cancellationToken);
         return Result<AmbalajPlanlamaKalemDto>.Success(AmbalajPlanlamaYardimcisi.KalemDtoOlustur(kayit));
@@ -359,7 +362,7 @@ public sealed class AmbalajPlanKalemSilCommandHandler
             return Result.Failure("Ambalaj kalemi bulunamadı.", 404);
         if (repo.Queryable().Any(k => k.UstKayitId == kayit.Id && !k.IptalMi))
             return Result.Failure("Bu sandığa bağlı iç sandıklar silinmeden ana sandık silinemez.");
-        if (!_currentUser.UserId.HasValue) return Result.Failure("Kullanıcı bilgisi alınamadı.", 401);
+        if (!_currentUser.IslemKullaniciId.HasValue) return Result.Failure("Kullanıcı bilgisi alınamadı.", 401);
 
         var proje = kayit.ProjeId.HasValue
             ? await _unitOfWork.GetRepository<Proje>().GetByIdAsync(kayit.ProjeId.Value)
@@ -367,11 +370,11 @@ public sealed class AmbalajPlanKalemSilCommandHandler
         var eski = AmbalajUretimYardimcilari.Snapshot(kayit);
         kayit.IptalMi = true;
         kayit.IptalTarihi = TurkeyTime.Now;
-        kayit.IptalEdenKullaniciId = _currentUser.UserId.Value;
-        kayit.IptalNedeni = "Kullanıcı tarafından silindi.";
+        kayit.IptalEdenKullaniciId = _currentUser.IslemKullaniciId.Value;
+        kayit.IptalNedeni = AmbalajUretimYardimcilari.Temizle(request.Gerekce) ?? "Kullanıcı tarafından silindi.";
         repo.Update(kayit);
         await AmbalajUretimYardimcilari.AlanHareketleriniEkleAsync(
-            _unitOfWork, kayit, eski, "Ambalaj kalemi silindi", _currentUser.UserId.Value);
+            _unitOfWork, kayit, eski, "Ambalaj kalemi silindi", _currentUser.IslemKullaniciId.Value);
         await AmbalajFinansSenkronizasyonu.KaydetVeAktarAsync(
             _unitOfWork, _finans, kayit, proje, cancellationToken);
         return Result.Success();
@@ -411,7 +414,7 @@ public sealed class AmbalajIcSandikSablonuEkleCommandHandler
             Boy = request.Boy,
             En = request.En,
             Yukseklik = request.Yukseklik,
-            CreatedBy = _currentUser.UserId?.ToString()
+            CreatedBy = _currentUser.IslemKullaniciId?.ToString()
         };
         await repo.AddAsync(entity);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -463,7 +466,7 @@ public sealed class AmbalajTalepEdenEkleCommandHandler
         var repo = _unitOfWork.GetRepository<AmbalajTalepEden>();
         if (repo.Queryable().Any(x => x.Ad.ToLower() == ad.ToLower()))
             return Result<AmbalajTalepEdenDto>.Failure("Bu talep eden zaten kayıtlıdır.", 409);
-        var entity = new AmbalajTalepEden { Ad = ad, CreatedBy = _currentUser.UserId?.ToString() };
+        var entity = new AmbalajTalepEden { Ad = ad, CreatedBy = _currentUser.IslemKullaniciId?.ToString() };
         await repo.AddAsync(entity);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Result<AmbalajTalepEdenDto>.Success(new AmbalajTalepEdenDto(entity.Id, entity.Ad));
@@ -496,7 +499,7 @@ public sealed class AmbalajBagimsizSandikKaydetCommandHandler
     {
         var hata = await DogrulaAsync(request);
         if (hata != null) return Result<AmbalajBagimsizSandikDto>.Failure(hata);
-        if (!_currentUser.UserId.HasValue)
+        if (!_currentUser.IslemKullaniciId.HasValue)
             return Result<AmbalajBagimsizSandikDto>.Failure("Kullanıcı bilgisi alınamadı.", 401);
         var proje = await _unitOfWork.GetRepository<Proje>().GetByIdAsync(request.ProjeId);
         if (proje == null) return Result<AmbalajBagimsizSandikDto>.Failure("Seçilen proje bulunamadı.", 404);
@@ -550,7 +553,7 @@ public sealed class AmbalajBagimsizSandikKaydetCommandHandler
                 AmbalajaDahil = true,
                 BagimsizKayitMi = true,
                 SarfOrani = AmbalajHesaplayici.VarsayilanSarfOrani,
-                CreatedBy = _currentUser.UserId.Value.ToString()
+                CreatedBy = _currentUser.IslemKullaniciId.Value.ToString()
             };
             await repo.AddAsync(kayit);
         }
@@ -578,14 +581,14 @@ public sealed class AmbalajBagimsizSandikKaydetCommandHandler
         kayit.Aciklama = AmbalajUretimYardimcilari.Temizle(request.Aciklama);
         kayit.UretimTarihi ??= TurkeyTime.Now;
         kayit.UpdatedDate = eski == null ? null : TurkeyTime.Now;
-        kayit.UpdatedBy = eski == null ? null : _currentUser.UserId.Value.ToString();
+        kayit.UpdatedBy = eski == null ? null : _currentUser.IslemKullaniciId.Value.ToString();
         AmbalajUretimYardimcilari.M3DegerleriniHesapla(kayit);
         if (!yeniKayitMi)
             repo.Update(kayit);
         await AmbalajUretimYardimcilari.AlanHareketleriniEkleAsync(
             _unitOfWork, kayit, eski,
             eski == null ? "Bağımsız ambalaj sandığı eklendi" : "Bağımsız ambalaj sandığı güncellendi",
-            _currentUser.UserId.Value, request.Aciklama);
+            _currentUser.IslemKullaniciId.Value, request.Aciklama);
         await AmbalajFinansSenkronizasyonu.KaydetVeAktarAsync(
             _unitOfWork, _finans, kayit, proje, cancellationToken);
 
@@ -691,18 +694,18 @@ public sealed class AmbalajBagimsizSandikSilCommandHandler
         var kayit = await repo.GetByIdAsync(request.SandikId);
         if (kayit == null || !kayit.BagimsizKayitMi || kayit.IptalMi)
             return Result.Failure("Sandık bulunamadı.", 404);
-        if (!_currentUser.UserId.HasValue) return Result.Failure("Kullanıcı bilgisi alınamadı.", 401);
+        if (!_currentUser.IslemKullaniciId.HasValue) return Result.Failure("Kullanıcı bilgisi alınamadı.", 401);
         var proje = kayit.ProjeId.HasValue
             ? await _unitOfWork.GetRepository<Proje>().GetByIdAsync(kayit.ProjeId.Value)
             : null;
         var eski = AmbalajUretimYardimcilari.Snapshot(kayit);
         kayit.IptalMi = true;
         kayit.IptalTarihi = TurkeyTime.Now;
-        kayit.IptalEdenKullaniciId = _currentUser.UserId.Value;
-        kayit.IptalNedeni = "Kullanıcı tarafından silindi.";
+        kayit.IptalEdenKullaniciId = _currentUser.IslemKullaniciId.Value;
+        kayit.IptalNedeni = AmbalajUretimYardimcilari.Temizle(request.Gerekce) ?? "Kullanıcı tarafından silindi.";
         repo.Update(kayit);
         await AmbalajUretimYardimcilari.AlanHareketleriniEkleAsync(
-            _unitOfWork, kayit, eski, "Bağımsız ambalaj sandığı silindi", _currentUser.UserId.Value);
+            _unitOfWork, kayit, eski, "Bağımsız ambalaj sandığı silindi", _currentUser.IslemKullaniciId.Value);
         await AmbalajFinansSenkronizasyonu.KaydetVeAktarAsync(
             _unitOfWork, _finans, kayit, proje, cancellationToken);
         return Result.Success();

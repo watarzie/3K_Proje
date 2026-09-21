@@ -2,7 +2,46 @@
 
 Bu dosya, iş kuralı kataloğunun testlerle nasıl doğrulandığını ve hangi sınırların birim testlerinin dışında kaldığını açıklar. Test sayısı, iş kuralı kapsam yüzdesi veya sıfır regresyon garantisi değildir.
 
-## Güncel ek doğrulama — 19 Eylül 2026
+## Güncel doğrulama — Üretim planı ve çam öngörüsü, 19 Eylül 2026
+
+Son UI/plan düzeltmesinden sonra tam backend paketi **Debug 1.259/1.259** ve **Release + coverage 1.259/1.259** geçti; atlanan/başarısız test yoktur. Katalog referansları ve 501/501 eşlenen metodun başarılı çalışması iki TRX için doğrulandı. Frontend **194/194** ve production build başarılıdır. Bu sayılar aşağıdaki önceki 1.228 vakalık koşumun yerine geçen son doğrulamadır.
+
+Plan öncesi çam ihtiyacı, iptal kaynakları, plan kaydında durum/tarih/snapshot koruması ve form seçimi regresyonları eklendi. Çalışan kullanıcı API'si durdurulmadan ayrı build çıkışıyla koşuldu; standart runner yerine tam `dotnet test` Debug/Release + coverage, TRX sayaç kontrolü ve ayrı kural eşlemesi adımları kullanıldı. Gerçek PostgreSQL testleri yalnız izole sentetik veritabanlarında çalıştı. Uygulama DB'sine dokunulmadı.
+
+[Güncel değişiklik, komut ve kanıt kaydı](../20260919_URETIM_FINANS_UI_DUZELTMESI.md) son TRX/coverage/frontend çıktı yollarını ve doğrulama sınırlarını içerir. Test sayıları tam iş kuralı kapsamı veya sıfır regresyon garantisi değildir.
+
+## Önceki doğrulama — Üretim/Finans V2, 19 Eylül 2026
+
+Üretim/finans ve ayrıntılı yetki değişikliklerinin son backend/test durumuyla tam paket iki yapılandırmada yeniden derlenip çalıştırıldı. Bu sonuç, önceki 1.218 ve 1.227 vakalık ara koşumların yerine geçer; K03/K04, K11, F7 ve son K15/K27/K34/K36 PostgreSQL kabul kanıtlarını da içerir:
+
+| Kontrol | Sonuç |
+|---|---|
+| Backend Debug | 1.228/1.228 başarılı; 0 atlanan |
+| Backend Release + coverage | 1.228/1.228 başarılı; 0 atlanan |
+| Katalog ve test referansları | 501/501; eşlenen metotların başarılı çalışması her iki TRX ile doğrulandı |
+| Değişmeyen modüllerin regresyon örnekleri | `Grid*` 207/207, `UcK*` 69/69, `Saha*` 63/63 |
+
+Son [Debug TRX](../../artifacts/test-results/20260919-194327-950170ee/is-kurallari.trx), [Release TRX](../../artifacts/test-results/20260919-194407-106a41b0/is-kurallari.trx) ve [Cobertura raporu](../../artifacts/test-results/20260919-194407-106a41b0/2579adfb-b9a7-465f-948a-306498c1e0fe/coverage.cobertura.xml) ayrı yerel çalışma çıktılarıdır. Modül sayıları TRX'teki sınıf adı öneklerine göre alınmış alt kümelerdir; iş kuralı kapsam yüzdesi veya modülün bütün senaryolarının kanıtı değildir. Önceki ara özetteki `Saha*` 65 sayısı, son TRX sınıf öneki sayımıyla 63 olarak düzeltildi. Grid/3K/saha üretim akışları bu çalışma için değiştirilmedi.
+
+Koşumlar `Invoke-IsKurallariTests.ps1 -Configuration Debug -NoRestore` ve ardından `-Configuration Release -Coverage -NoRestore` ile yapıldı. Önceki restore denemesi sandbox'ın kullanıcı `NuGet.Config` dosyasını okuma engeline takılmıştı; nihai koşumdan önce `dotnet restore 3K_Proje.slnx` gerekli yükseltilmiş erişimle başarıyla tamamlandı ve çözümün Release derlemesi geçti. `--no-build` kullanılmadı: SDK güncel kaynakları her iki yapılandırmada derledi. Debug derlemesinde görev dışındaki `SandikService.cs:48/51` ve `StokService.cs:29` için üç mevcut CS8602 uyarısı bulunur; derleme hatası yoktur. Her iki TRX'te toplam/çalışan/başarılı sayısı 1.228, başarısız/atlanmış/zaman aşımı sayısı sıfırdır.
+
+Son ek kabul kanıtları:
+
+- [AmbalajUretimV2Tests](../../3K.Application.Tests/AmbalajUretimV2Tests.cs) ve [AmbalajUretimV2PostgresTests](../../3K.Application.Tests/AmbalajUretimV2PostgresTests.cs): toplam 23 vaka. `K03K04_KaynakVarsayilanHaric_YetkiliKararResyncteKorunur_FormaDahilOlur` kaynakların varsayılan hariçliğini ve yetkili kararın yeniden senkronizasyonda korunmasını; `K11_UcCins_185Ahsap26Kontra14Katlanir_FinansManuelM3UretimeKarismaz` üç cins toplamını ve finans ölçüsünün üretime karışmamasını sınar. PostgreSQL form eşzamanlılığı, snapshot/FK ve finans hatasında atomik rollback ayrıca çalışır.
+- [FinansV2PostgresTests](../../3K.Application.Tests/FinansV2PostgresTests.cs): 9 gerçek PostgreSQL vakası ve 6 yaşlandırma sınır vakası. `CokProjePo_7000_3000Fatura_SarfAcikTamamlanmaz_PoZorunlu_TarihYaslandirmayiDegistirmez` K12/K19/K21/K22/K29 için aktif PO zorunluluğunu, 10.000 PO'nun 7.000 faturası sonrası 3.000 bakiyesini, çok projeli PO'ya iki faturayı, açık sarf nedeniyle tamamlanmayan projeyi ve finans tarihi değişince yaşın korunmasını doğrular. `IkiWorkerEszamanliCatchup_TarifeTarihSnapshotlariVeDortFiyatYontemi` K26/F4/K17 için iki ayrı açık bağlantı/DbContext'in birlikte başlatılmasını, serializable yarışında güvenli yeniden denemeyi, tekil dönem üretimini, 31. gün telafisini, dönem tarihine göre tarife seçimini, eski fiyatların korunmasını ve dört yöntemde fiziksel miktar uydurmayan tutar bazlı kısmi PO'yu doğrular.
+- Aynı sınıftaki `K15_GenelArama_SeciliAyDisindakiProjePoVeFaturayiBulur_DigerFiltreleriKorur`, seçili ay dışında kalan proje/PO/faturanın genel aramada bulunmasını, diğer filtrelerin korunmasını ve iş/gider filtrelerinde `%`, `_`, `\` karakterlerinin gerçek metin olarak aranmasını doğrular. Bu test önce `tr-TR` uygulama kültürüyle PostgreSQL küçültmesi arasındaki I/ı farkında başarısız olmuş; parametreli, jokerleri kaçırılmış `ILIKE` düzeltmesinden sonra geçmiştir. [FinansModuluTests](../../3K.Application.Tests/FinansModuluTests.cs) içindeki `Aylik_arama_bir_alt_satira_eslesince_ayni_proje_biriminin_tum_satirlarini_toplama_dahil_eder` de aynı sonuç beklentisini koruyarak bellek içinden gerçek izole PostgreSQL'e taşındı. Böylece bu iki sınıftaki finans kabul akışı 10 gerçek PostgreSQL vakası içerir; 6 yaşlandırma sınır testi bu sayıya dahil değildir.
+- `SablonSurumu_Bilesenler_BelgeSurumu_ve_MigrationIdempotency` K27 için farklı m³/fiyatlı iki bileşeni (`1,2×500`, `0,5×800`) ve sabit 200 ile toplam 1.200'ü; zorunlu dinamik alan eksikken kayıt/audit değişmemesini; eski şablon sürümü, alan/bileşen ve manuel net snapshot'ının yeniden kaydedilirken korunmasını doğrular. `TutarRevizyonu_GerceklestirilenTutarinAltinaInemez_FaturaAsimiRollback` K34 için faturayı iptal edip 7.000 bekleyen fatura bakiyesinin geri gelmesini, belgenin geçmişte korunmasını ve gerçek aktör/tarih/gerekçe/eski-yeni audit alanlarını sınar. `CokProjePo_MixedCurrencyRollback_PdfAuditFailOrphanYok` K36 için ortak PO'ya bağlı işin önizlemede engellenmesini, doğru sürüm/ikinci onay/gerekçe ile zorlanan silmenin de reddini ve iki projenin PO satırları, iş kayıtları ile audit'in değişmemesini doğrular.
+- [FinansOzelIsContractTests](../../3K.Application.Tests/FinansOzelIsContractTests.cs): 3 vaka. Ham JSON → gerçek controller → MediatR komutu adaptöründe serbest iş türü ve opsiyonel talep eden kişi/bölümün korunması (F7) ile manuel net tutarın yetkisiz JSON'da null olması doğrulanır. Bu adaptör testi tek başına HTTP model binding/authorization veya veritabanı kalıcılığı kanıtı değildir.
+
+Yeni güvenlik kanıtları `GranularYetkiTests`/`GranularYetkiPostgresTests` (19), `FinansAlanHttpSecurityTests`/`FinansAlanProjeksiyonuTests` (31) ve `AmbalajAlanMaskelemeTests` (8) vakasında yer alır. Gerçek JWT/Kestrel/MediatR/MVC zinciri; sahte `X-Menu-Kod`, kök modül reddi + açık alt izin, aynı token ile izin kaldırılması, parasal/ölçü/m³/sarf alanlarında null, iç içe audit/string alanları ve yetkisiz binary indirme 403 davranışını doğrular. Finans veri servisi/izin deposu HTTP testinde sentetiktir; kalıcı override/rol/audit davranışı ayrıca gerçek PostgreSQL'de sınanır. Canlı kullanıcıyla tarayıcı kabulünün yerine geçtiği iddia edilmez.
+
+`UretimFinansMigrationPostgresTests` K39 için gerçek `20260919155111_UretimFinansV2.Up` SQL operasyonlarını tek transaction içinde çalıştırır (3/3). V1-benzeri sentetik şemada 01–04 sırası, eski belge snapshot yedeği ve kontrollü mutabakat, üretim tarihini koruma, legacy miktar bayrağı, tekrar çalıştırmada audit/izin iptalini koruma, kapasite hatasında önceki DDL dahil geri alma ve eksik temel şemada durma testlidir. İlk koşum SQL02 lookup INSERT'indeki eksik `CreatedDate` nedeniyle başarısız olmuş, düzeltmeden sonra yeni lookup ve tekrar yolu geçmiştir. Bu fixture tarihsel canlı DB dump'ı değildir; gerçek kurulumun önizleme/yedek/staging kontrolü hâlâ gerekir. Dört DBA scriptinin tek tek çalıştırılması, EF'in dört adımlı tek transaction garantisiyle aynı değildir.
+
+`TransactionConcurrencyMappingTests` doğrudan ve sarmalanmış PostgreSQL `40001`/`40P01` hatalarını ve geçici olmayan hataların ayrımını 11 vaka ile sınar. Gerçek PostgreSQL taşıma ve finans eşzamanlılık/rollback testleri de tam koşumda çalışmıştır. `THREEK_TEST_POSTGRES` yalnız `127.0.0.1:55439` üzerindeki sentetik sunucudur; her sınıf kendi benzersiz DB'sini kurup kaldırır. Uygulama veritabanına SQL uygulanmadı.
+
+Bu son koşumun assembly satır/dal kapsamı Application %57,81/%54,24, Core %73,96/%82,40, Infrastructure %19,99/%41,66 ve API %3,94/%10,10'dur. Bunlar bütün assembly'lere aittir; V2 kabul maddelerinin veya 501 katalog maddesinin tamamının doğrulandığı anlamına gelmez. V2 kabul eşlemesi [uygulama kaydında](../20260919_URETIM_FINANS_V2.md), alan/rol politikası [güvenlik notunda](../guvenlik/GRANULAR_YETKI_20260919.md) tutulur. Frontend güncel doğrulaması ayrı teslim kaydında raporlanır; aşağıdaki 82/82 sonucu önceki değişikliğe aittir.
+
+## Önceki ek doğrulama — 19 Eylül 2026
 
 Sunucu yetkilendirmesi, toplu sandık taşıma, Saha/Yedek raporları ve revizyon geçmişi sonrasında tam paket yeniden çalıştırıldı:
 
@@ -70,7 +109,7 @@ Depo kökünde:
 
 Paketler daha önce indirilmişse ağdan restore gerektirmemek için `-NoRestore` eklenebilir. `-Configuration Debug` ile ikinci yapılandırma da çalıştırılabilir. Kural eşlemesindeki eksik/eski referans, başarısız test veya derleme, scriptin başarısız çıkmasına neden olur; deploy/merge öncesi aynı komut kullanılmalıdır. Çalıştırma sonunda TRX raporunda sıfır test/atlanmış test olmadığı ve eşlemedeki metotların gerçekten başarılı çalıştığı da kontrol edilir. `Birim` satırına test referansı koymamak denetimi geçmez.
 
-Her çalıştırma ayrı bir `artifacts/test-results/<tarih-kimlik>/` klasöründe TRX raporu ve `-Coverage` seçildiyse Cobertura raporu bırakır. Önceki raporlar silinmez. API veya kuyruk worker'ı başlatılmaz; uygulamanın gerçek bağlantı ayarları kullanılmaz. Birim testler gerçek handler/service metotlarını bellek içi bağımlılıklarla çalıştırır. EF model/SQL çeviri testleri gerçek PostgreSQL davranışını kanıtlamaz.
+Her çalıştırma ayrı bir `artifacts/test-results/<tarih-kimlik>/` klasöründe TRX raporu ve `-Coverage` seçildiyse Cobertura raporu bırakır. Önceki raporlar silinmez. Üretim Program'ı veya kuyruk worker'ı başlatılmaz; uygulamanın gerçek bağlantı ayarları kullanılmaz. HTTP güvenlik testleri localhost'ta sentetik bağımlılıklarla izole test host'u açar. Birim testler gerçek handler/service metotlarını bellek içi bağımlılıklarla çalıştırır; PostgreSQL entegrasyon sınıfları ayrıca gerçek sentetik DB kullanır. EF model/SQL çeviri testleri tek başına gerçek PostgreSQL davranışını kanıtlamaz.
 
 ## Kural–test eşlemesi
 

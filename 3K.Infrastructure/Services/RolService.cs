@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
+using _3K.Core.Constants;
+using _3K.Core.Models;
 using _3K.Infrastructure.Data;
 
 namespace _3K.Infrastructure.Services
@@ -84,6 +86,17 @@ namespace _3K.Infrastructure.Services
 
             if (kullanici == null)
                 return false;
+
+            var kisiselKarar = await _context.KullaniciYetkileri
+                .AsNoTracking()
+                .Where(x => x.KullaniciId == userId && x.MenuTanimi.Kod == menuKod)
+                .Select(x => (bool?)x.IzinVerildi)
+                .SingleOrDefaultAsync(ct);
+            if (kisiselKarar.HasValue)
+            {
+                var ekIzinSeviyesi = (int)(YetkiKatalogu.Bul(menuKod)?.GerekenYetki ?? YetkiTipi.W);
+                return YetkiDegerlendirici.EtkinYetki(1, kisiselKarar, ekIzinSeviyesi) >= (int)requiredYetkiTipi;
+            }
 
             var requiredYetkiTipiId = (int)requiredYetkiTipi;
 

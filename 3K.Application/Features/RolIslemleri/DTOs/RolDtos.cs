@@ -38,6 +38,9 @@ namespace _3K.Application.Features.RolIslemleri.DTOs
         public string YetkiTipiMetni { get; set; } = "N";
 
         public List<MenuTreeDto> Children { get; set; } = new();
+        public string? Ad { get; set; }
+        public int? GerekenYetkiTipiId { get; set; }
+        public bool KritikMi { get; set; }
     }
 
     /// <summary>

@@ -11,10 +11,12 @@ namespace _3K.Infrastructure.Services
     public class CurrentUserService : ICurrentUserService
     {
         private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly IIslemKullaniciBaglami? _islemBaglami;
 
-        public CurrentUserService(IHttpContextAccessor httpContextAccessor)
+        public CurrentUserService(IHttpContextAccessor httpContextAccessor, IIslemKullaniciBaglami? islemBaglami = null)
         {
             _httpContextAccessor = httpContextAccessor;
+            _islemBaglami = islemBaglami;
         }
 
         public int? UserId
@@ -27,6 +29,8 @@ namespace _3K.Infrastructure.Services
                 return userIdClaim != null && int.TryParse(userIdClaim.Value, out var id) ? id : null;
             }
         }
+
+        public int? IslemKullaniciId => _islemBaglami?.IslemKullaniciId ?? UserId;
 
         public bool IsAuthenticated =>
             _httpContextAccessor.HttpContext?.User?.Identity?.IsAuthenticated ?? false;

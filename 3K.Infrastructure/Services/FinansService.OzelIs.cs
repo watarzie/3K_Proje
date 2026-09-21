@@ -35,9 +35,9 @@ namespace _3K.Infrastructure.Services
                         .Where(x => !x.FinansFatura.IptalEdildi)
                         .ToList();
                     var faturaBekleyenSiparisId = siparisKalemleri
-                        .Where(x => x.Adet - x.FaturaKalemleri
+                        .Where(x => x.NetTutarSnapshot - x.FaturaKalemleri
                             .Where(fatura => !fatura.FinansFatura.IptalEdildi)
-                            .Sum(fatura => fatura.Adet) > Tolerance)
+                            .Sum(fatura => fatura.NetTutarSnapshot) > 0)
                         .Select(x => (int?)x.FinansSiparisId)
                         .FirstOrDefault();
 
@@ -75,8 +75,8 @@ namespace _3K.Infrastructure.Services
             if (entity is null) return false;
             if (entity.IptalEdildi)
                 throw new InvalidOperationException("İptal edilmiş özel iş güncellenemez.");
-            if (entity.SiparisKalemleri.Any(x => !x.FinansSiparis.IptalEdildi))
-                throw new InvalidOperationException("Aktif PO bulunan özel iş güncellenemez.");
+            if (entity.SiparisKalemleri.Count != 0)
+                throw new InvalidOperationException("PO geçmişi bulunan özel işin fiyat snapshot'ı güncellenemez.");
             if (!model.Miktar.HasValue && !model.NetBirimFiyat.HasValue)
                 throw new InvalidOperationException("Miktar veya net birim fiyat gönderilmelidir.");
             if (model.Miktar is <= 0 || model.NetBirimFiyat is < 0)
@@ -94,6 +94,7 @@ namespace _3K.Infrastructure.Services
             }
             if (model.NetBirimFiyat.HasValue)
                 entity.BirimFiyatSnapshot = model.NetBirimFiyat.Value;
+            entity.FinansMiktariManuel = true;
             AddAuditChanges(nameof(_3K.Core.Entities.FinansIsKaydi), entity, auditBefore);
             await _context.SaveChangesAsync(cancellationToken);
             return true;

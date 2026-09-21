@@ -10,5 +10,6 @@ namespace _3K.Application.Features.RolIslemleri.Commands
     {
 
         public string Ad { get; set; } = string.Empty;
+        public string? SablonKodu { get; set; }
     }
 }

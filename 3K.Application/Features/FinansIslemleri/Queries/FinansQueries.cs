@@ -60,7 +60,7 @@ namespace _3K.Application.Features.FinansIslemleri.Queries
 
     public sealed class FinansProjelerQuery : FinansQuery<FinansSayfaliSonuc<FinansProjeOzetModel>>
     {
-        public override string RequiredMenuKod => FinansYetkiKodlari.GelirGoruntule;
+        public override string RequiredMenuKod => FinansYetkiKodlari.KayitGoruntule;
         public FinansListeFiltre Filtre { get; init; } = new();
     }
 
@@ -76,66 +76,60 @@ namespace _3K.Application.Features.FinansIslemleri.Queries
 
     public sealed class FinansIsKayitlariQuery : FinansQuery<FinansSayfaliSonuc<FinansIsKaydiModel>>
     {
-        public override string RequiredMenuKod => FinansYetkiKodlari.GelirGoruntule;
+        public override string RequiredMenuKod => FinansYetkiKodlari.KayitGoruntule;
         public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
         [
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.GelirGoruntule),
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.BirimFiyatGoruntule)
+            FinansYetkiKodlari.Read(FinansYetkiKodlari.KayitGoruntule)
         ];
         public FinansListeFiltre Filtre { get; init; } = new();
     }
 
     public sealed class FinansIsKaydiGetirQuery : FinansQuery<FinansIsKaydiModel>
     {
-        public override string RequiredMenuKod => FinansYetkiKodlari.GelirGoruntule;
+        public override string RequiredMenuKod => FinansYetkiKodlari.KayitGoruntule;
         public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
         [
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.GelirGoruntule),
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.BirimFiyatGoruntule)
+            FinansYetkiKodlari.Read(FinansYetkiKodlari.KayitGoruntule)
         ];
         public int Id { get; init; }
     }
 
     public sealed class FinansIsKayitlariSecimQuery : FinansQuery<IReadOnlyList<FinansIsKaydiModel>>
     {
-        public override string RequiredMenuKod => FinansYetkiKodlari.GelirGoruntule;
+        public override string RequiredMenuKod => FinansYetkiKodlari.KayitGoruntule;
         public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
         [
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.GelirGoruntule),
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.BirimFiyatGoruntule)
+            FinansYetkiKodlari.Read(FinansYetkiKodlari.KayitGoruntule)
         ];
         public IReadOnlyCollection<int> Ids { get; init; } = Array.Empty<int>();
     }
 
     public sealed class FinansOzelIslerQuery : FinansQuery<FinansSayfaliSonuc<FinansOzelIsModel>>
     {
-        public override string RequiredMenuKod => FinansYetkiKodlari.GelirGoruntule;
+        public override string RequiredMenuKod => FinansYetkiKodlari.KayitGoruntule;
         public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
         [
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.GelirGoruntule),
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.BirimFiyatGoruntule)
+            FinansYetkiKodlari.Read(FinansYetkiKodlari.KayitGoruntule)
         ];
         public FinansListeFiltre Filtre { get; init; } = new();
     }
 
     public sealed class FinansSiparislerQuery : FinansQuery<FinansSayfaliSonuc<FinansSiparisModel>>
     {
-        public override string RequiredMenuKod => FinansYetkiKodlari.GelirGoruntule;
+        public override string RequiredMenuKod => FinansYetkiKodlari.KayitGoruntule;
         public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
         [
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.GelirGoruntule),
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.BirimFiyatGoruntule)
+            FinansYetkiKodlari.Read(FinansYetkiKodlari.KayitGoruntule)
         ];
         public FinansListeFiltre Filtre { get; init; } = new();
     }
 
     public sealed class FinansSiparisGetirQuery : FinansQuery<FinansSiparisModel>
     {
-        public override string RequiredMenuKod => FinansYetkiKodlari.GelirGoruntule;
+        public override string RequiredMenuKod => FinansYetkiKodlari.KayitGoruntule;
         public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
         [
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.GelirGoruntule),
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.BirimFiyatGoruntule)
+            FinansYetkiKodlari.Read(FinansYetkiKodlari.KayitGoruntule)
         ];
         public int Id { get; init; }
     }
@@ -154,13 +148,13 @@ namespace _3K.Application.Features.FinansIslemleri.Queries
 
     public sealed class FinansFaturalarQuery : FinansQuery<FinansSayfaliSonuc<FinansFaturaModel>>
     {
-        public override string RequiredMenuKod => FinansYetkiKodlari.GelirGoruntule;
+        public override string RequiredMenuKod => FinansYetkiKodlari.KayitGoruntule;
         public FinansListeFiltre Filtre { get; init; } = new();
     }
 
     public sealed class FinansFaturaGetirQuery : FinansQuery<FinansFaturaModel>
     {
-        public override string RequiredMenuKod => FinansYetkiKodlari.GelirGoruntule;
+        public override string RequiredMenuKod => FinansYetkiKodlari.KayitGoruntule;
         public int Id { get; init; }
     }
 
@@ -187,11 +181,10 @@ namespace _3K.Application.Features.FinansIslemleri.Queries
 
     public sealed class FinansAylikIslerQuery : FinansQuery<FinansAylikSayfaliSonuc>
     {
-        public override string RequiredMenuKod => FinansYetkiKodlari.GelirGoruntule;
+        public override string RequiredMenuKod => FinansYetkiKodlari.KayitGoruntule;
         public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
         [
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.GelirGoruntule),
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.BirimFiyatGoruntule)
+            FinansYetkiKodlari.Read(FinansYetkiKodlari.KayitGoruntule)
         ];
         public int Yil { get; init; }
         public int Ay { get; init; }
@@ -295,14 +288,10 @@ namespace _3K.Application.Features.FinansIslemleri.Queries
 
     public sealed class FinansDegisiklikGecmisiQuery : FinansQuery<FinansSayfaliSonuc<FinansDegisiklikModel>>
     {
-        public override string RequiredMenuKod => FinansYetkiKodlari.RaporGoruntule;
+        public override string RequiredMenuKod => FinansYetkiKodlari.DenetimGor;
         public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
         [
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.RaporGoruntule),
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.GelirGoruntule),
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.GiderGoruntule),
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.KarlilikGoruntule),
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.BirimFiyatGoruntule)
+            FinansYetkiKodlari.Read(FinansYetkiKodlari.DenetimGor)
         ];
         public string? VarlikTuru { get; init; }
         public int? VarlikId { get; init; }

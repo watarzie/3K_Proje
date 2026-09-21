@@ -17,6 +17,7 @@ namespace _3K.Infrastructure.Services
         private const decimal Tolerance = 0.000001m;
         private readonly AppDbContext _context;
         private readonly ICurrentUserService _currentUser;
+        private readonly Guid _auditGroup = Guid.NewGuid();
 
         public FinansService(AppDbContext context, ICurrentUserService currentUser)
         {
@@ -173,38 +174,62 @@ namespace _3K.Infrastructure.Services
                         !z.FinansFatura.IptalEdildi && z.FinansFatura.Durum == faturaDurumu)));
             }
             if (filtre.Baslangic.HasValue)
-                query = query.Where(x => x.FinansDonemi >= filtre.Baslangic.Value.Date);
+                query = query.Where(x => x.FinansTarihi >= filtre.Baslangic.Value.Date);
+            if (filtre.SandikCinsi.HasValue) query = query.Where(x => x.SandikCinsi == filtre.SandikCinsi);
+            if (!string.IsNullOrWhiteSpace(filtre.Firma))
+            {
+                var firma = LiteralSearchPattern(filtre.Firma);
+                query = query.Where(x => EF.Functions.ILike(x.Musteri, firma, "\\"));
+            }
+            if (!string.IsNullOrWhiteSpace(filtre.FaturaNumarasi))
+            {
+                var fatura = LiteralSearchPattern(filtre.FaturaNumarasi);
+                query = query.Where(x => x.SiparisKalemleri.Any(p => p.FaturaKalemleri.Any(f =>
+                    EF.Functions.ILike(f.FinansFatura.FaturaNumarasi, fatura, "\\"))));
+            }
             if (filtre.Bitis.HasValue)
             {
                 var bitisExclusive = filtre.Bitis.Value.Date.AddDays(1);
-                query = query.Where(x => x.FinansDonemi < bitisExclusive);
+                query = query.Where(x => x.FinansTarihi < bitisExclusive);
             }
             if (!string.IsNullOrWhiteSpace(filtre.ParaBirimi))
                 query = query.Where(x => x.ParaBirimiSnapshot == filtre.ParaBirimi.Trim().ToUpperInvariant());
             if (!string.IsNullOrWhiteSpace(filtre.Arama))
             {
-                var arama = filtre.Arama.Trim().ToLower();
+                var arama = LiteralSearchPattern(filtre.Arama);
                 query = query.Where(x =>
-                    x.ProjeNo.ToLower().Contains(arama) ||
-                    x.Musteri.ToLower().Contains(arama) ||
-                    x.IsAdi.ToLower().Contains(arama) ||
-                    (x.SandikNo != null && x.SandikNo.ToLower().Contains(arama)));
+                    EF.Functions.ILike(x.ProjeNo, arama, "\\") ||
+                    EF.Functions.ILike(x.Musteri, arama, "\\") ||
+                    EF.Functions.ILike(x.IsAdi, arama, "\\") ||
+                    (x.SandikNo != null && EF.Functions.ILike(x.SandikNo, arama, "\\")) ||
+                    (x.Aciklama != null && EF.Functions.ILike(x.Aciklama, arama, "\\")) ||
+                    (x.TalepEdenKisi != null && EF.Functions.ILike(x.TalepEdenKisi, arama, "\\")) ||
+                    x.SiparisKalemleri.Any(y => EF.Functions.ILike(y.FinansSiparis.PoNumarasi, arama, "\\") ||
+                        y.FaturaKalemleri.Any(z => EF.Functions.ILike(z.FinansFatura.FaturaNumarasi, arama, "\\"))));
             }
             if (!string.IsNullOrWhiteSpace(filtre.PoNumarasi))
             {
-                var po = filtre.PoNumarasi.Trim().ToLower();
-                query = query.Where(x => x.SiparisKalemleri.Any(y => !y.FinansSiparis.IptalEdildi && y.FinansSiparis.PoNumarasi.ToLower().Contains(po)));
+                var po = LiteralSearchPattern(filtre.PoNumarasi);
+                query = query.Where(x => x.SiparisKalemleri.Any(y => !y.FinansSiparis.IptalEdildi && EF.Functions.ILike(y.FinansSiparis.PoNumarasi, po, "\\")));
             }
             if (!string.IsNullOrWhiteSpace(filtre.TalepEden))
             {
-                var talepEden = filtre.TalepEden.Trim().ToLower();
+                var talepEden = LiteralSearchPattern(filtre.TalepEden);
                 query = query.Where(x =>
-                    (x.TalepEdenKisi != null && x.TalepEdenKisi.ToLower().Contains(talepEden)) ||
-                    (x.TalepEdenBolum != null && x.TalepEdenBolum.ToLower().Contains(talepEden)));
+                    (x.TalepEdenKisi != null && EF.Functions.ILike(x.TalepEdenKisi, talepEden, "\\")) ||
+                    (x.TalepEdenBolum != null && EF.Functions.ILike(x.TalepEdenBolum, talepEden, "\\")));
             }
 
             return query;
         }
+
+        // Harf eşlemesini tek yerde (PostgreSQL) yap; tr-TR uygulama kültürü ile DB
+        // kültürünün farklı küçültmesi aranan I/İ karakterlerini kaybettirmesin.
+        // Contains sözleşmesindeki %, _ ve \ karakterleri joker değil, gerçek metindir.
+        private static string LiteralSearchPattern(string value)
+            => "%" + value.Trim().Replace("\\", "\\\\", StringComparison.Ordinal)
+                .Replace("%", "\\%", StringComparison.Ordinal)
+                .Replace("_", "\\_", StringComparison.Ordinal) + "%";
 
         private static (decimal Net, decimal Kdv, decimal Toplam) CalculateMoney(
             decimal miktar,
@@ -225,6 +250,7 @@ namespace _3K.Infrastructure.Services
                 FinansFiyatlandirmaBirimi.Adet => adet,
                 FinansFiyatlandirmaBirimi.Metrekup => m3,
                 FinansFiyatlandirmaBirimi.SabitTutar => 1m,
+                FinansFiyatlandirmaBirimi.ManuelToplam => 1m,
                 _ => 0m
             };
 
@@ -232,7 +258,8 @@ namespace _3K.Infrastructure.Services
             int finansUrunId,
             DateTime tarih,
             CancellationToken cancellationToken)
-            => await _context.Set<FinansFiyatTarifesi>()
+        {
+            var tariffs = await _context.Set<FinansFiyatTarifesi>()
                 .AsNoTracking()
                 .Where(x => x.FinansUrunId == finansUrunId &&
                             x.Aktif &&
@@ -240,7 +267,10 @@ namespace _3K.Infrastructure.Services
                             x.GecerlilikBitisi.Date >= tarih.Date)
                 .OrderByDescending(x => x.GecerlilikBaslangici)
                 .ThenByDescending(x => x.Id)
-                .FirstOrDefaultAsync(cancellationToken);
+                .Take(2).ToListAsync(cancellationToken);
+            if (tariffs.Count > 1) throw new InvalidOperationException("Çakışan aktif fiyat tarifeleri var; fiyatlandırmadan önce tarifeleri düzeltin.");
+            return tariffs.SingleOrDefault();
+        }
 
         private async Task ApplyPriceSnapshotAsync(
             FinansIsKaydi entity,
@@ -271,6 +301,7 @@ namespace _3K.Infrastructure.Services
                     : NormalizeCurrency(paraBirimi);
                 entity.KdvOraniSnapshot = kdvOrani ?? tarife.KdvOrani;
                 entity.TarifeYiliSnapshot = tarife.Yil;
+                entity.TarifeIdSnapshot = tarife.Id;
                 return;
             }
 
@@ -288,7 +319,8 @@ namespace _3K.Infrastructure.Services
 
             entity.FiyatlandirmaBirimiSnapshot = entity.BirimM3 > 0
                 ? FinansFiyatlandirmaBirimi.Metrekup
-                : FinansFiyatlandirmaBirimi.Adet;
+                : entity.IsTuru == FinansIsTuru.OzelIs && entity.HesaplamaYontemi == FinansHesaplamaYontemi.SabitAylik
+                    ? FinansFiyatlandirmaBirimi.SabitTutar : FinansFiyatlandirmaBirimi.Adet;
             entity.BirimFiyatSnapshot = manuelBirimFiyat.Value;
             entity.ParaBirimiSnapshot = NormalizeCurrency(paraBirimi ?? "EUR");
             entity.KdvOraniSnapshot = kdvOrani ?? 0;
@@ -336,6 +368,10 @@ namespace _3K.Infrastructure.Services
             object? yeniDeger,
             string? aciklama = null)
         {
+            var target = _context.ChangeTracker.Entries<BaseEntity>().Select(x => x.Entity)
+                .FirstOrDefault(x => x.Id == varlikId && x.GetType().Name == varlikTuru);
+            var reference = target switch { FinansIsKaydi x => $"{x.ProjeNo} / {x.IsAdi}", FinansSiparis x => x.PoNumarasi,
+                FinansFatura x => x.FaturaNumarasi, FinansGider x => x.BelgeNo ?? x.Aciklama, _ => $"{varlikTuru}/{varlikId}" };
             _context.Set<FinansDegisiklikGecmisi>().Add(new FinansDegisiklikGecmisi
             {
                 VarlikTuru = varlikTuru,
@@ -345,8 +381,10 @@ namespace _3K.Infrastructure.Services
                 EskiDeger = ToAuditString(eskiDeger),
                 YeniDeger = ToAuditString(yeniDeger),
                 Aciklama = aciklama,
-                IslemYapan = _currentUser.UserId?.ToString(CultureInfo.InvariantCulture) ?? "SYSTEM",
-                CreatedBy = _currentUser.UserId?.ToString(CultureInfo.InvariantCulture)
+                IslemYapan = _currentUser.IslemKullaniciId?.ToString(CultureInfo.InvariantCulture) ?? "SYSTEM",
+                IslemGrubu = _auditGroup,
+                Referans = reference.Length <= 500 ? reference : reference[..500],
+                CreatedBy = _currentUser.IslemKullaniciId?.ToString(CultureInfo.InvariantCulture)
             });
         }
 
@@ -417,7 +455,7 @@ namespace _3K.Infrastructure.Services
             var invoicedAdet = activeInvoiceLines.Sum(x => x.Adet);
             var invoicedM3 = activeInvoiceLines.Sum(x => x.M3);
             var priceQuantity = PricingQuantity(entity.FiyatlandirmaBirimiSnapshot, entity.Adet, entity.ToplamM3);
-            var money = CalculateMoney(priceQuantity, entity.BirimFiyatSnapshot, entity.KdvOraniSnapshot);
+            var money = CalculateMoney(1, FinansTutarKurallari.IsNet(entity), entity.KdvOraniSnapshot);
 
             return new FinansIsKaydiModel
             {
@@ -456,8 +494,21 @@ namespace _3K.Infrastructure.Services
                 ToplamTutar = money.Toplam,
                 UretimTarihi = entity.UretimTarihi,
                 FinansDonemi = entity.FinansDonemi,
+                FinansTarihi = entity.FinansTarihi == default ? entity.FinansDonemi : entity.FinansTarihi,
+                FinansTarihiManuel = entity.FinansTarihiManuel,
+                FinansMiktariManuel = entity.FinansMiktariManuel,
+                KaynakBileseni = entity.KaynakBileseni,
+                FiyatlandirmaHazir = money.Net > 0,
+                SiparisNetTutar = activeOrderLines.Sum(x => x.NetTutarSnapshot),
+                FaturalananNetTutar = activeInvoiceLines.Sum(x => x.NetTutarSnapshot),
+                KalanSiparisNetTutar = Math.Max(0, money.Net - activeOrderLines.Sum(x => x.NetTutarSnapshot)),
+                KalanFaturaNetTutar = Math.Max(0, activeOrderLines.Sum(x => x.NetTutarSnapshot) - activeInvoiceLines.Sum(x => x.NetTutarSnapshot)),
+                SablonSurumId = entity.SablonSurumId,
+                ManuelNetTutar = entity.ManuelNetTutar,
+                AlanDegerleri = entity.AlanDegerleriJson is null ? null : System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string?>>(entity.AlanDegerleriJson),
+                Bilesenler = entity.FiyatBilesenleriJson is null ? null : System.Text.Json.JsonSerializer.Deserialize<FinansFiyatBileseniModel[]>(entity.FiyatBilesenleriJson),
                 KayitTarihi = entity.KayitTarihi,
-                Durum = entity.Durum,
+                Durum = DetermineWorkStatus(entity),
                 SiparisAdedi = orderedAdet,
                 SiparisM3 = orderedM3,
                 SiparisBekleyenAdet = Math.Max(0, entity.Adet - orderedAdet),
@@ -478,36 +529,15 @@ namespace _3K.Infrastructure.Services
 
         private static FinansIsDurumu DetermineWorkStatus(FinansIsKaydi entity)
         {
-            if (entity.IptalEdildi || !entity.KaynakAktif)
-                return FinansIsDurumu.IptalEdildi;
-
-            var activeOrderLines = entity.SiparisKalemleri.Where(x => !x.FinansSiparis.IptalEdildi).ToList();
-            if (activeOrderLines.Count == 0)
-                return FinansIsDurumu.SiparisBekliyor;
-
-            var pricingUnit = activeOrderLines.Select(x => x.FiyatlandirmaBirimiSnapshot).Distinct().Count() == 1
-                ? activeOrderLines[0].FiyatlandirmaBirimiSnapshot
-                : entity.FiyatlandirmaBirimiSnapshot;
-            var orderedAdet = activeOrderLines.Sum(x => x.Adet);
-            var orderedM3 = activeOrderLines.Sum(x => x.M3);
-            if (!FinansMiktarKurallari.DagitimVar(pricingUnit, orderedAdet, orderedM3, activeOrderLines.Count > 0))
-                return FinansIsDurumu.SiparisBekliyor;
-
-            var activeInvoiceLines = activeOrderLines.SelectMany(x => x.FaturaKalemleri)
-                .Where(x => !x.FinansFatura.IptalEdildi).ToList();
-            var invoicedAdet = activeInvoiceLines.Sum(x => x.Adet);
-            var invoicedM3 = activeInvoiceLines.Sum(x => x.M3);
-            var fullyOrdered = FinansMiktarKurallari.TamamiDagitildi(
-                pricingUnit, entity.Adet, entity.ToplamM3, orderedAdet, orderedM3, activeOrderLines.Count > 0);
-            var fullyInvoiced = FinansMiktarKurallari.TamamiDagitildi(
-                pricingUnit, orderedAdet, orderedM3, invoicedAdet, invoicedM3, activeInvoiceLines.Count > 0);
-
-            if (fullyOrdered && fullyInvoiced)
-                return FinansIsDurumu.Faturalandi;
-            if (FinansMiktarKurallari.DagitimVar(pricingUnit, invoicedAdet, invoicedM3, activeInvoiceLines.Count > 0))
-                return FinansIsDurumu.KismiFaturalandi;
-            return fullyOrdered ? FinansIsDurumu.SiparisAcildi : FinansIsDurumu.KismiSiparis;
+            return FinansTutarKurallari.Durum(entity);
         }
+
+        private static async Task<IReadOnlyList<FinansParaToplamiModel>> WorkMoneyTotalsAsync(IQueryable<FinansIsKaydi> query, CancellationToken cancellationToken)
+            => await query.Select(x => new { Currency = x.ParaBirimiSnapshot, Vat = x.KdvOraniSnapshot,
+                Net = x.ManuelNetTutar ?? decimal.Round(x.BirimFiyatSnapshot * (x.FiyatlandirmaBirimiSnapshot == FinansFiyatlandirmaBirimi.Adet ? x.Adet : x.FiyatlandirmaBirimiSnapshot == FinansFiyatlandirmaBirimi.Metrekup ? x.ToplamM3 : 1m), 2) })
+                .GroupBy(x => x.Currency).Select(g => new FinansParaToplamiModel(g.Key, g.Sum(x => x.Net),
+                    g.Sum(x => decimal.Round(x.Net * x.Vat / 100m, 2)), g.Sum(x => x.Net + decimal.Round(x.Net * x.Vat / 100m, 2))))
+                .ToArrayAsync(cancellationToken);
 
         private async Task RefreshWorkStatusesAsync(IEnumerable<int> workIds, CancellationToken cancellationToken)
         {

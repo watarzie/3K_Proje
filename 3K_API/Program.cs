@@ -140,6 +140,9 @@ try
     builder.Services.AddScoped<IDurumHesaplaService, DurumHesaplaService>();
     builder.Services.AddScoped<ILookupService, _3K.Infrastructure.Services.LookupService>();
     builder.Services.AddScoped<IRolService, _3K.Infrastructure.Services.RolService>();
+    builder.Services.AddScoped<IAlanErisimService, AlanErisimService>();
+    builder.Services.AddScoped<IAmbalajFormIslemKilidi, AmbalajFormIslemKilidi>();
+    builder.Services.AddScoped<IKullaniciYetkiService, KullaniciYetkiService>();
     builder.Services.AddScoped<IOnayYetkiService, OnayYetkiService>();
     builder.Services.AddScoped<IProjectLockService, ProjectLockService>();
     builder.Services.AddScoped<IDashboardStatsProvider, DashboardStatsProvider>();
@@ -165,6 +168,7 @@ try
     builder.Services.AddHttpContextAccessor();
     builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
     builder.Services.AddScoped<IApprovalExecutionContext, ApprovalExecutionContext>();
+    builder.Services.AddScoped<IIslemKullaniciBaglami>(sp => (ApprovalExecutionContext)sp.GetRequiredService<IApprovalExecutionContext>());
     builder.Services.AddScoped<IRequestMenuPermissionResolver, RequestMenuPermissionResolver>();
 
     // ======= Background Task Queue =======
@@ -240,6 +244,7 @@ try
         cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(AuthorizationBehavior<,>));
         cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ApprovalBehavior<,>));
         cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+        cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(AmbalajYasamDongusuBehavior<,>));
         cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(CachingBehavior<,>));
     });
 

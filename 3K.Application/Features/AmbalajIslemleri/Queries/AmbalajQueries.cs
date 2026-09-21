@@ -6,9 +6,10 @@ using _3K.Core.Enums;
 namespace _3K.Application.Features.AmbalajIslemleri.Queries
 {
     public sealed class GetAmbalajProjeleriQuery
-        : PaginatedQuery<Result<PaginatedList<AmbalajProjeOzetDto>>>, ISecuredRequest, IRequiresMenuPermission,
+        : PaginatedQuery<Result<PaginatedList<AmbalajProjeOzetDto>>>, ISecuredRequest, IRequiresMenuPermission, IAmbalajDurumKapsamli,
           IRequiresMenuPermissions
     {
+        [System.Text.Json.Serialization.JsonIgnore] public int[]? IzinliDurumlar { get; set; }
         public string RequiredMenuKod => AmbalajMenuKodlari.Listele;
         public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
             [AmbalajMenuKodlari.Read(AmbalajMenuKodlari.Listele)];
@@ -18,8 +19,9 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
 
     public sealed class GetAmbalajUretimKayitlariQuery
         : PaginatedQuery<Result<PaginatedList<AmbalajUretimKaydiDto>>>, ISecuredRequest, IRequiresMenuPermission,
-          IRequiresMenuPermissions, IAmbalajRaporFiltresi
+          IRequiresMenuPermissions, IAmbalajRaporFiltresi, IAmbalajDurumKapsamli
     {
+        [System.Text.Json.Serialization.JsonIgnore] public int[]? IzinliDurumlar { get; set; }
         public string RequiredMenuKod => AmbalajMenuKodlari.Listele;
         public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
             [AmbalajMenuKodlari.Read(AmbalajMenuKodlari.Listele)];
@@ -66,9 +68,10 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
     }
 
     public sealed class GetAmbalajManuelProjeSecenekleriQuery
-        : IRequest<Result<AmbalajManuelProjeSecenekleriSayfasiDto>>, ISecuredRequest,
+        : IRequest<Result<AmbalajManuelProjeSecenekleriSayfasiDto>>, ISecuredRequest, IAmbalajDurumKapsamli,
           IRequiresMenuPermission, IRequiresMenuPermissions
     {
+        [System.Text.Json.Serialization.JsonIgnore] public int[]? IzinliDurumlar { get; set; }
         public string RequiredMenuKod => AmbalajMenuKodlari.Listele;
         public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
             [AmbalajMenuKodlari.Read(AmbalajMenuKodlari.Listele)];
@@ -100,8 +103,9 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
         bool? OzelSandiklar { get; }
     }
 
-    public abstract class AmbalajRaporFiltresi : IAmbalajRaporFiltresi
+    public abstract class AmbalajRaporFiltresi : IAmbalajRaporFiltresi, IAmbalajDurumKapsamli
     {
+        [System.Text.Json.Serialization.JsonIgnore] public int[]? IzinliDurumlar { get; set; }
         public int? ProjeId { get; set; }
         public string? ManuelProjeNo { get; set; }
         public AmbalajSandikTuru? Tur { get; set; }
@@ -140,10 +144,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
         public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
         [
             AmbalajMenuKodlari.Read(AmbalajMenuKodlari.RaporGoruntule),
-            AmbalajMenuKodlari.Read(AmbalajMenuKodlari.M3Goruntule),
-            AmbalajMenuKodlari.Read(AmbalajMenuKodlari.SarfGoruntule),
-            AmbalajMenuKodlari.Read(AmbalajMenuKodlari.KaynakGoruntule),
-            AmbalajMenuKodlari.Write(string.Equals(Format, "pdf", StringComparison.OrdinalIgnoreCase)
+            AmbalajMenuKodlari.Read(string.Equals(Format, "pdf", StringComparison.OrdinalIgnoreCase)
                 ? AmbalajMenuKodlari.PdfIndir
                 : AmbalajMenuKodlari.ExcelIndir)
         ];
@@ -158,9 +159,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
         public string RequiredMenuKod => AmbalajMenuKodlari.FormGoruntule;
         public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
         [
-            AmbalajMenuKodlari.Read(AmbalajMenuKodlari.FormGoruntule),
-            AmbalajMenuKodlari.Read(AmbalajMenuKodlari.M3Goruntule),
-            AmbalajMenuKodlari.Read(AmbalajMenuKodlari.SarfGoruntule)
+            AmbalajMenuKodlari.Read(AmbalajMenuKodlari.FormGoruntule)
         ];
         public int? KayitId { get; set; }
         public int? ProjeId { get; set; }
@@ -176,10 +175,8 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
         public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
         [
             AmbalajMenuKodlari.Read(AmbalajMenuKodlari.FormGoruntule),
-            AmbalajMenuKodlari.Write(AmbalajMenuKodlari.FormIndir),
-            AmbalajMenuKodlari.Read(AmbalajMenuKodlari.M3Goruntule),
-            AmbalajMenuKodlari.Read(AmbalajMenuKodlari.SarfGoruntule),
-            AmbalajMenuKodlari.Write(string.Equals(Format, "xlsx", StringComparison.OrdinalIgnoreCase)
+            AmbalajMenuKodlari.Read(AmbalajMenuKodlari.FormIndir),
+            AmbalajMenuKodlari.Read(string.Equals(Format, "xlsx", StringComparison.OrdinalIgnoreCase)
                 ? AmbalajMenuKodlari.ExcelIndir
                 : AmbalajMenuKodlari.PdfIndir)
         ];

@@ -26,12 +26,9 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
         internal static FinansUretimAktarimModel ModelOlustur(AmbalajUretimKaydi kayit, Proje? proje)
         {
             var uretimTarihi = kayit.UretimTarihi ?? kayit.CreatedDate;
-            // Finans fiyatlandırmasının siparişe esas miktarı net üretim m³'üdür.
-            // %11 sarf kereste, Üretim isterinde ayrı raporlanan bir üretim metriğidir;
-            // ayrı PO/gelir kalemi olarak tarif edilmediğinden burada ToplamM3 veya
-            // ikinci bir SarfKereste hareketi üretmek aynı işi iki kez fiyatlandırırdı.
-            // SarfKereste enum'u bilinçli manuel/gelecekteki ayrı tarife kullanımı içindir.
-            var netM3 = kayit.M3Override ?? kayit.HesaplananToplamM3;
+            var hesaplanabilir = AmbalajUretimPolitikasi.M3HesaplanabilirMi(kayit.SandikCinsi);
+            // Ana iş net hacmi kullanır; onaylı sarf ayrı kaynak bileşeniyle aktarılır.
+            var netM3 = hesaplanabilir ? kayit.M3Override ?? kayit.HesaplananToplamM3 : 0m;
             var birimM3 = kayit.Adet > 0 ? decimal.Round(netM3 / kayit.Adet, 6) : 0;
             return new FinansUretimAktarimModel(
                 KaynakTuru: "AmbalajUretim",
@@ -54,7 +51,10 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
                 Yukseklik: kayit.Yukseklik,
                 Aciklama: kayit.Aciklama,
                 TalepEdenKisi: kayit.TalepEdenKisi,
-                TalepEdenBolum: kayit.TalepEdenBolum);
+                TalepEdenBolum: kayit.TalepEdenBolum,
+                SandikCinsi: kayit.SandikCinsi,
+                SarfM3: hesaplanabilir ? kayit.SarfM3 : 0m,
+                UretimM3Hesaplanabilir: hesaplanabilir);
         }
 
         private static FinansIsTuru IsTuruBelirle(AmbalajSandikTuru tur) => tur switch

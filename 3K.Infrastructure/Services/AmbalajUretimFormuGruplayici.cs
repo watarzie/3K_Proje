@@ -65,9 +65,9 @@ namespace _3K.Infrastructure.Services
                 temsilci,
                 KoliNumaralariniBirlestir(grup.Select(kalem => kalem.SandikNo)),
                 grup.Sum(kalem => kalem.Adet),
-                grup.Sum(kalem => kalem.NetM3),
-                grup.Sum(kalem => kalem.SarfM3),
-                grup.Sum(kalem => kalem.ToplamM3),
+                grup.Any(kalem => kalem.NetM3.HasValue) ? grup.Sum(kalem => kalem.NetM3) : null,
+                grup.Any(kalem => kalem.SarfM3.HasValue) ? grup.Sum(kalem => kalem.SarfM3) : null,
+                grup.Any(kalem => kalem.ToplamM3.HasValue) ? grup.Sum(kalem => kalem.ToplamM3) : null,
                 parcalar,
                 grup.Where(kalem => kalem.UretimTarihi.HasValue)
                     .Select(kalem => kalem.UretimTarihi!.Value)
@@ -205,7 +205,7 @@ namespace _3K.Infrastructure.Services
             int UstKizakAdedi,
             int AyakAdedi,
             int YanKusakAdedi,
-            decimal OnDuvarYuksekligi,
+            decimal? OnDuvarYuksekligi,
             string FormulVersiyonu,
             decimal? BrutKg,
             string KullanimAmaci,
@@ -229,9 +229,9 @@ namespace _3K.Infrastructure.Services
         AmbalajUretimFormuKalemiModel Temsilci,
         string SandikNo,
         int Adet,
-        decimal NetM3,
-        decimal SarfM3,
-        decimal ToplamM3,
+        decimal? NetM3,
+        decimal? SarfM3,
+        decimal? ToplamM3,
         IReadOnlyList<AmbalajUretimFormuParcasiModel> Parcalar,
         IReadOnlyList<DateTime> UretimTarihleri);
 }

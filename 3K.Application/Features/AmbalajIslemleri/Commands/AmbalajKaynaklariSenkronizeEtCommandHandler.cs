@@ -50,7 +50,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
             CancellationToken cancellationToken,
             bool sonucKayitlariniOlustur = true)
         {
-            var kullaniciId = islemiYapan.UserId;
+            var kullaniciId = islemiYapan.IslemKullaniciId;
             if (!kullaniciId.HasValue || kullaniciId <= 0)
                 return Result<AmbalajSenkronizasyonSonucuDto>.Failure("Senkronizasyon için geçerli bir kullanıcı gereklidir.", 401);
             return await _unitOfWork.ExecuteInTransactionAsync(async transactionToken =>
@@ -117,12 +117,15 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
                     guncellenen++;
                 }
 
+                var tamamlanmisProje = AmbalajUretimPolitikasi.ProjeDurumu(
+                    kayitRepo.Queryable().Where(k => k.ProjeId == proje.Id).ToList()) == AmbalajUretimDurumu.Tamamlandi;
                 foreach (var sandik in sandiklar)
                 {
                     transactionToken.ThrowIfCancellationRequested();
                     if (!globalMevcutlar.TryGetValue(sandik.Id, out var kayit))
                     {
                         kayit = YeniKayitOlustur(proje, sandik, kaynakModul, tur);
+                        if (tamamlanmisProje) kayit.AmbalajaDahil = false;
                         await kayitRepo.AddAsync(kayit);
                         await AmbalajUretimYardimcilari.AlanHareketleriniEkleAsync(
                             _unitOfWork,
@@ -228,7 +231,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
         {
             var kayit = new AmbalajUretimKaydi
             {
-                AmbalajaDahil = true,
+                AmbalajaDahil = !AmbalajUretimPolitikasi.VarsayilanYapilmazMi(sandik.Ad, sandik.AdIngilizce),
                 UretimeAlindi = false,
                 SarfOrani = AmbalajHesaplayici.VarsayilanSarfOrani,
                 UretimDurumu = AmbalajUretimDurumu.Planlandi
@@ -278,10 +281,6 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
             _ => AmbalajSandikTuru.Normal
         };
 
-        private static AmbalajSandikCinsi CinsBelirle(int tipId) => tipId switch
-        {
-            (int)SandikTipi.KatlanirSandik => AmbalajSandikCinsi.Katlanir,
-            _ => AmbalajSandikCinsi.AhsapKapali
-        };
+        private static AmbalajSandikCinsi CinsBelirle(int tipId) => AmbalajUretimPolitikasi.KaynakCinsi(tipId);
     }
 }

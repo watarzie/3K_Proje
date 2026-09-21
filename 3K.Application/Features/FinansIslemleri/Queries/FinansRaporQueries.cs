@@ -16,7 +16,7 @@ namespace _3K.Application.Features.FinansIslemleri.Queries
             FinansYetkiKodlari.Read(FinansYetkiKodlari.RaporGoruntule),
             FinansYetkiKodlari.Read(FinansYetkiKodlari.GelirGoruntule),
             FinansYetkiKodlari.Read(FinansYetkiKodlari.BirimFiyatGoruntule),
-            FinansYetkiKodlari.Write(FinansRaporPermissionRules.ExportPermission(Format))
+            FinansYetkiKodlari.Read(FinansRaporPermissionRules.ExportPermission(Format))
         ];
         public string Format { get; init; } = "pdf";
         public FinansListeFiltre Filtre { get; init; } = new();
@@ -29,7 +29,7 @@ namespace _3K.Application.Features.FinansIslemleri.Queries
         [
             FinansYetkiKodlari.Read(FinansYetkiKodlari.RaporGoruntule),
             FinansYetkiKodlari.Read(FinansYetkiKodlari.GiderGoruntule),
-            FinansYetkiKodlari.Write(FinansRaporPermissionRules.ExportPermission(Format))
+            FinansYetkiKodlari.Read(FinansRaporPermissionRules.ExportPermission(Format))
         ];
         public string Format { get; init; } = "pdf";
         public FinansListeFiltre Filtre { get; init; } = new();
@@ -45,7 +45,7 @@ namespace _3K.Application.Features.FinansIslemleri.Queries
             FinansYetkiKodlari.Read(FinansYetkiKodlari.GiderGoruntule),
             FinansYetkiKodlari.Read(FinansYetkiKodlari.KarlilikGoruntule),
             FinansYetkiKodlari.Read(FinansYetkiKodlari.BirimFiyatGoruntule),
-            FinansYetkiKodlari.Write(FinansRaporPermissionRules.ExportPermission(Format))
+            FinansYetkiKodlari.Read(FinansRaporPermissionRules.ExportPermission(Format))
         ];
         public string Format { get; init; } = "pdf";
         public int Yil { get; init; }
@@ -61,7 +61,7 @@ namespace _3K.Application.Features.FinansIslemleri.Queries
             FinansYetkiKodlari.Read(FinansYetkiKodlari.RaporGoruntule),
             FinansYetkiKodlari.Read(FinansYetkiKodlari.GelirGoruntule),
             FinansYetkiKodlari.Read(FinansYetkiKodlari.BirimFiyatGoruntule),
-            FinansYetkiKodlari.Write(FinansRaporPermissionRules.ExportPermission(Format))
+            FinansYetkiKodlari.Read(FinansRaporPermissionRules.ExportPermission(Format))
         ];
         public string Format { get; init; } = "pdf";
         public FinansListeFiltre Filtre { get; init; } = new();

@@ -13,15 +13,23 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
         : IRequestHandler<GetAmbalajUretimFormuQuery, Result<AmbalajUretimFormuModel>>
     {
         private readonly IUnitOfWork _unitOfWork;
-
-        public GetAmbalajUretimFormuQueryHandler(IUnitOfWork unitOfWork) => _unitOfWork = unitOfWork;
+        private readonly IRolService? _roles;
+        private readonly ICurrentUserService? _user;
+        public GetAmbalajUretimFormuQueryHandler(IUnitOfWork unitOfWork, IRolService? roles = null, ICurrentUserService? user = null)
+        { _unitOfWork = unitOfWork; _roles = roles; _user = user; }
 
         public async Task<Result<AmbalajUretimFormuModel>> Handle(
             GetAmbalajUretimFormuQuery request,
             CancellationToken cancellationToken)
         {
-            return await AmbalajUretimFormuOlusturucu.OlusturAsync(
-                _unitOfWork, request.KayitId, request.ProjeId, request.ManuelProjeNo, cancellationToken);
+            if (!request.KayitId.HasValue && !request.ProjeId.HasValue && string.IsNullOrWhiteSpace(request.ManuelProjeNo))
+                return Result<AmbalajUretimFormuModel>.Failure("Form için kayıt veya proje seçiniz.", 400);
+            var form = AmbalajYasamDongusuYardimcisi.KayitliForm(_unitOfWork, request.KayitId, request.ProjeId, request.ManuelProjeNo);
+            if (form == null) return Result<AmbalajUretimFormuModel>.Failure("Kaydedilmiş üretim formu bulunamadı. Önce Üretim Formu Oluştur işlemini kullanınız.", 404);
+            var izin = _roles != null && _user != null ? await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(_roles, _user, cancellationToken)
+                : new AmbalajGorunumYetkileri(false, false, false, false);
+            AmbalajYasamDongusuYardimcisi.Maskele(form, izin);
+            return Result<AmbalajUretimFormuModel>.Success(form);
         }
     }
 
@@ -30,32 +38,32 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IAmbalajRaporDosyaService _dosyaService;
+        private readonly IRolService? _roles;
+        private readonly ICurrentUserService? _user;
 
         public GetAmbalajUretimFormuDosyasiQueryHandler(
             IUnitOfWork unitOfWork,
-            IAmbalajRaporDosyaService dosyaService)
+            IAmbalajRaporDosyaService dosyaService, IRolService? roles = null, ICurrentUserService? user = null)
         {
             _unitOfWork = unitOfWork;
             _dosyaService = dosyaService;
+            _roles = roles;
+            _user = user;
         }
 
         public async Task<Result<AmbalajDosyaDto>> Handle(
             GetAmbalajUretimFormuDosyasiQuery request,
             CancellationToken cancellationToken)
         {
-            var result = await AmbalajUretimFormuOlusturucu.OlusturAsync(
-                _unitOfWork,
-                request.KayitId,
-                request.ProjeId,
-                request.ManuelProjeNo,
-                cancellationToken,
-                request.KayitIdleri,
-                request.Tur,
-                request.BagimsizKayitMi);
-            if (!result.IsSuccess)
-                return Result<AmbalajDosyaDto>.Failure(result.Error!.Message, result.StatusCode);
-
-            var form = result.Value!;
+            if (!request.KayitId.HasValue && !request.ProjeId.HasValue && string.IsNullOrWhiteSpace(request.ManuelProjeNo) && request.KayitIdleri.Count == 0)
+                return Result<AmbalajDosyaDto>.Failure("Form için kayıt veya proje seçiniz.", 400);
+            if (request.KayitIdleri.Any(id => id <= 0) || request.KayitIdleri.Distinct().Count() > GetAmbalajUretimFormuDosyasiQuery.EnFazlaSecilebilirKayit)
+                return Result<AmbalajDosyaDto>.Failure("Form seçimi geçersiz veya 500 kayıt sınırını aşıyor.", 400);
+            var form = AmbalajYasamDongusuYardimcisi.KayitliForm(_unitOfWork, request.KayitId, request.ProjeId, request.ManuelProjeNo, request.KayitIdleri, request.Tur, request.BagimsizKayitMi);
+            if (form == null) return Result<AmbalajDosyaDto>.Failure("Kaydedilmiş üretim formu bulunamadı. Önce Üretim Formu Oluştur işlemini kullanınız.", 404);
+            var izin = _roles != null && _user != null ? await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(_roles, _user, cancellationToken)
+                : new AmbalajGorunumYetkileri(false, false, false, false);
+            AmbalajYasamDongusuYardimcisi.Maskele(form, izin);
             var safeProject = string.Concat((form.ProjeNo.Length == 0 ? "bagimsiz" : form.ProjeNo)
                 .Select(character => Path.GetInvalidFileNameChars().Contains(character) ? '-' : character));
             var zaman = TurkeyTime.Now.ToString("yyyyMMdd-HHmmss");
@@ -84,7 +92,8 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
             CancellationToken cancellationToken = default,
             IReadOnlyCollection<int>? kayitIdleri = null,
             AmbalajSandikTuru? tur = null,
-            bool? bagimsizKayitMi = null)
+            bool? bagimsizKayitMi = null,
+            bool ilkForm = false)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (kayitIdleri?.Any(id => id <= 0) == true)
@@ -128,7 +137,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
                         404);
 
                 var uygunOlmayanlar = kayitlar
-                    .Where(k => k.IptalMi || !k.AmbalajaDahil || !k.UretimeAlindi)
+                    .Where(k => k.IptalMi || !k.AmbalajaDahil || (!ilkForm && !k.UretimeAlindi))
                     .OrderBy(k => k.Id)
                     .ToArray();
                 if (uygunOlmayanlar.Length > 0)
@@ -210,7 +219,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
 
             if (kayitlar.Count == 0)
                 return Result<AmbalajUretimFormuModel>.Failure("Üretime alınmış ambalaj kaydı bulunamadı.", 404);
-            var uyumsuzFormul = kayitlar.FirstOrDefault(k => !string.Equals(
+            var uyumsuzFormul = kayitlar.FirstOrDefault(k => AmbalajUretimPolitikasi.M3HesaplanabilirMi(k.SandikCinsi) && !string.Equals(
                 k.M3HesaplamaVersiyonu,
                 AmbalajHesaplayici.FormulVersiyonu,
                 StringComparison.Ordinal));
@@ -245,9 +254,9 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
                 ProjeAdi = proje?.Musteri ?? ilk.ManuelProjeAdi,
                 FBNo = proje?.FBNo,
                 Kalemler = kalemler,
-                NetM3 = kalemler.Sum(k => k.NetM3),
-                SarfM3 = kalemler.Sum(k => k.SarfM3),
-                ToplamM3 = kalemler.Sum(k => k.ToplamM3)
+                NetM3 = kalemler.Any(k => k.NetM3.HasValue) ? kalemler.Sum(k => k.NetM3) : null,
+                SarfM3 = kalemler.Any(k => k.SarfM3.HasValue) ? kalemler.Sum(k => k.SarfM3) : null,
+                ToplamM3 = kalemler.Any(k => k.ToplamM3.HasValue) ? kalemler.Sum(k => k.ToplamM3) : null
             });
         }
 
@@ -273,6 +282,21 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
             AmbalajUretimKaydi kayit,
             IReadOnlyDictionary<int, decimal?> brutKgMap)
         {
+            if (!AmbalajUretimPolitikasi.M3HesaplanabilirMi(kayit.SandikCinsi))
+                return new AmbalajUretimFormuKalemiModel
+                {
+                    Tur = kayit.Tur, BagimsizKayitMi = kayit.BagimsizKayitMi,
+                    KayitId = kayit.Id, IsAkisKimligi = kayit.IsAkisKimligi,
+                    SandikNo = kayit.SandikNo, SandikAdi = kayit.Ad,
+                    SandikTuru = AmbalajUretimYardimcilari.TurMetni(kayit.Tur),
+                    SandikCinsi = AmbalajUretimYardimcilari.CinsMetni(kayit.SandikCinsi, kayit.DigerSandikCinsi),
+                    Adet = kayit.Adet, M3HesaplanabilirMi = false,
+                    IcOlculer = new(kayit.Boy, kayit.En, kayit.Yukseklik),
+                    DisOlculer = new(kayit.Boy, kayit.En, kayit.Yukseklik),
+                    FormulVersiyonu = "uygulanmaz-v1", FirinPartiNo = kayit.FirinPartiNo,
+                    KullanimAmaci = kayit.KullanimAmaci, TalimatVeren = kayit.TalimatVeren,
+                    Aciklama = kayit.Aciklama, UretimTarihi = kayit.UretimTarihi
+                };
             var ayakProfili = AmbalajAyakProfiliBelirleyici.Belirle(kayit.Ad, kayit.KullanimAmaci);
             var icOlculer = AmbalajUretimYardimcilari.HesaplamaIcOlculeriniGetir(kayit);
             var hesap = AmbalajHesaplayici.Hesapla(
@@ -283,6 +307,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
                 AmbalajUretimYardimcilari.KaynakSandikOlculeriMi(kayit) ? kayit.Boy : null);
             return new AmbalajUretimFormuKalemiModel
             {
+                Tur = kayit.Tur, BagimsizKayitMi = kayit.BagimsizKayitMi,
                 KayitId = kayit.Id,
                 IsAkisKimligi = kayit.IsAkisKimligi,
                 SandikNo = kayit.SandikNo,

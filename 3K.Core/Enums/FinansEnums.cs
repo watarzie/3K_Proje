@@ -21,7 +21,8 @@ namespace _3K.Core.Enums
     {
         Adet = 1,
         Metrekup = 2,
-        SabitTutar = 3
+        SabitTutar = 3,
+        ManuelToplam = 4
     }
 
     public enum FinansIsDurumu
@@ -61,6 +62,8 @@ namespace _3K.Core.Enums
     {
         SabitAylik = 1,
         DegiskenTutar = 2,
-        DegiskenAdet = 3
+        DegiskenAdet = 3,
+        Metrekup = 4,
+        Bilesenli = 5
     }
 }

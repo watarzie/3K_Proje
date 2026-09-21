@@ -19,6 +19,7 @@
     <ProjectReference Include="..\3K.Application\3K.Application.csproj" />
     <ProjectReference Include="..\3K.Core\3K.Core.csproj" />
     <ProjectReference Include="..\3K.Infrastructure\3K.Infrastructure.csproj" />
+    <ProjectReference Include="..\3K_API\3K_API.csproj" />
   </ItemGroup>
 
   <ItemGroup>

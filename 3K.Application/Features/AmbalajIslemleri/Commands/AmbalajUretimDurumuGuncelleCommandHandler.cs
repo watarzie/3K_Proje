@@ -52,6 +52,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
             }
 
             var eski = AmbalajUretimYardimcilari.Snapshot(kayit);
+            var ilkTamamlama = kayit.UretimDurumu != AmbalajUretimDurumu.Tamamlandi && request.Durum == AmbalajUretimDurumu.Tamamlandi;
             kayit.UretimDurumu = request.Durum;
             kayit.FirinPartiNo = AmbalajUretimYardimcilari.Temizle(request.FirinPartiNo) ?? kayit.FirinPartiNo;
             if (request.UretimTarihi.HasValue)
@@ -68,12 +69,14 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
             }
 
             repo.Update(kayit);
+            if (ilkTamamlama)
+                await AmbalajYasamDongusuYardimcisi.GerceklesmeyiKaydetAsync(_unitOfWork, kayit, _currentUserService.IslemKullaniciId ?? 0);
             await AmbalajUretimYardimcilari.AlanHareketleriniEkleAsync(
                 _unitOfWork,
                 kayit,
                 eski,
                 "Ambalaj üretim durumu güncellendi",
-                _currentUserService.UserId ?? 0,
+                _currentUserService.IslemKullaniciId ?? 0,
                 request.Aciklama);
             var proje = kayit.ProjeId.HasValue
                 ? await _unitOfWork.GetRepository<Proje>().GetByIdAsync(kayit.ProjeId.Value)

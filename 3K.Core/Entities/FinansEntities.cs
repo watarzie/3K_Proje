@@ -81,10 +81,20 @@ namespace _3K.Core.Entities
         public int? TarifeYiliSnapshot { get; set; }
         public DateTime UretimTarihi { get; set; }
         public DateTime FinansDonemi { get; set; }
+        public DateTime FinansTarihi { get; set; }
+        public bool FinansTarihiManuel { get; set; }
+        public bool FinansMiktariManuel { get; set; }
+        public decimal? ManuelNetTutar { get; set; }
+        public int? TarifeIdSnapshot { get; set; }
+        public AmbalajSandikCinsi? SandikCinsi { get; set; }
+        public int? SablonSurumId { get; set; }
+        public string? AlanDegerleriJson { get; set; }
+        public string? FiyatBilesenleriJson { get; set; }
         public DateTime KayitTarihi { get; set; }
         public FinansIsDurumu Durum { get; set; } = FinansIsDurumu.SiparisBekliyor;
         public string KaynakTuru { get; set; } = "Manuel";
         public string? KaynakKayitId { get; set; }
+        public string KaynakBileseni { get; set; } = "NET";
         public bool KaynakAktif { get; set; } = true;
         public int? DuzenliIsId { get; set; }
         public bool IptalEdildi { get; set; }
@@ -100,6 +110,7 @@ namespace _3K.Core.Entities
     {
         public string KayitNo { get; set; } = string.Empty;
         public string PoNumarasi { get; set; } = string.Empty;
+        public string? ParaBirimi { get; set; }
         public DateTime SiparisTarihi { get; set; }
         public string? Aciklama { get; set; }
         public FinansSiparisDurumu Durum { get; set; } = FinansSiparisDurumu.Acik;
@@ -116,6 +127,7 @@ namespace _3K.Core.Entities
         public int FinansIsKaydiId { get; set; }
         public decimal Adet { get; set; }
         public decimal M3 { get; set; }
+        public bool TutarBazli { get; set; }
         public int? FinansUrunId { get; set; }
         public FinansFiyatlandirmaBirimi FiyatlandirmaBirimiSnapshot { get; set; }
         public decimal BirimFiyatSnapshot { get; set; }
@@ -157,6 +169,7 @@ namespace _3K.Core.Entities
         public int FinansSiparisKalemiId { get; set; }
         public decimal Adet { get; set; }
         public decimal M3 { get; set; }
+        public bool TutarBazli { get; set; }
         public decimal NetTutarSnapshot { get; set; }
         public decimal KdvTutariSnapshot { get; set; }
         public decimal ToplamTutarSnapshot { get; set; }
@@ -219,7 +232,11 @@ namespace _3K.Core.Entities
     public class FinansGider : BaseEntity
     {
         public DateTime Tarih { get; set; }
+        public DateTime FinansTarihi { get; set; }
         public DateTime FinansDonemi { get; set; }
+        public string? BelgeNo { get; set; }
+        public bool AvansMi { get; set; }
+        public int? MahsupEdilenAvansId { get; set; }
         public int FinansGiderKategoriId { get; set; }
         public int? FinansGiderKalemiId { get; set; }
         public string? AltKategori { get; set; }
@@ -260,5 +277,7 @@ namespace _3K.Core.Entities
         public string? YeniDeger { get; set; }
         public string? Aciklama { get; set; }
         public string IslemYapan { get; set; } = "SYSTEM";
+        public Guid IslemGrubu { get; set; }
+        public string? Referans { get; set; }
     }
 }

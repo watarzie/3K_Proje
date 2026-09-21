@@ -27,6 +27,7 @@ namespace _3K.Infrastructure.Services
             return new FinansSayfaliSonuc<FinansIsKaydiModel>
             {
                 Items = items.Select(MapIsKaydi).ToArray(),
+                Toplamlar = await WorkMoneyTotalsAsync(query.Where(x => !x.IptalEdildi && x.KaynakAktif), cancellationToken),
                 PageNumber = pageNumber,
                 PageSize = pageSize,
                 TotalCount = count
@@ -68,7 +69,18 @@ namespace _3K.Infrastructure.Services
         public async Task<FinansIsKaydiModel?> IsKaydiGetirAsync(int id, CancellationToken cancellationToken)
         {
             var entity = await IsKaydiDetayQuery().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
-            return entity is null ? null : MapIsKaydi(entity);
+            if (entity is null) return null;
+            var model = MapIsKaydi(entity);
+            if (entity.SablonSurumId is not { } versionId) return model;
+            // Düzenleme, şablonun bugünkü son sürümünü değil kaydın değişmez sürümünü açar.
+            var version = await _context.Set<FinansIsSablonSurumu>().AsNoTracking().Include(x => x.Sablon)
+                .FirstOrDefaultAsync(x => x.Id == versionId, cancellationToken);
+            return version is null ? model : model with
+            {
+                Sablon = new FinansSablonModel(version.FinansIsSablonuId, version.Sablon.Kod, version.Sablon.Ad,
+                    version.Sablon.Aktif, version.Id, version.Surum,
+                    System.Text.Json.JsonSerializer.Deserialize<FinansSablonAlanModel[]>(version.AlanlarJson)!)
+            };
         }
 
         public async Task<FinansSayfaliSonuc<FinansProjeOzetModel>> ProjelerAsync(
@@ -115,7 +127,8 @@ namespace _3K.Infrastructure.Services
                 .Select(x => x.ProjeNo)
                 .Distinct()
                 .ToArray();
-            var pageEntityIds = baseQuery
+            // Dönem/arama proje seçer; tamamlanma bütün aktif alt işleri kapsar.
+            var pageEntityIds = _context.Set<FinansIsKaydi>().Where(x => !x.IptalEdildi && x.KaynakAktif)
                 .Where(x =>
                     (x.ProjeId.HasValue && projectIds.Contains(x.ProjeId.Value)) ||
                     (!x.ProjeId.HasValue && manualProjectNos.Contains(x.ProjeNo)))
@@ -207,25 +220,17 @@ namespace _3K.Infrastructure.Services
 
         private static FinansProjeOzetModel MapProjectSummary(int? projeId, string projeNo, string musteri, List<FinansIsKaydi> entities)
         {
-            // Referans Finans ekranındaki proje özeti yalnız ana ambalaj üretimini
-            // gösterir. İlave/iç/saha/yedek kalemler proje alt detayında kalır.
-            var normalEntities = entities.Where(x => x.IsTuru == FinansIsTuru.AnaAmbalaj).ToList();
+            var normalEntities = entities.Where(x => !x.IptalEdildi && x.KaynakAktif).ToList();
             var normalModels = normalEntities.Select(MapIsKaydi).ToList();
             var allOrderLines = normalEntities.SelectMany(x => x.SiparisKalemleri).Where(x => !x.FinansSiparis.IptalEdildi).ToList();
             var invoiceLines = allOrderLines.SelectMany(x => x.FaturaKalemleri).Where(x => !x.FinansFatura.IptalEdildi).ToList();
-            var toplamM3 = normalModels.Sum(x => x.ToplamM3);
+            var toplamM3 = normalModels.Where(x => x.IsTuru != FinansIsTuru.SarfKereste).Sum(x => x.ToplamM3);
             var tarife = normalModels.OrderBy(x => x.Id).FirstOrDefault(x => x.BirimFiyat > 0);
-            var tarifeEksik = normalModels.Count == 0 || normalModels.Any(x => x.BirimFiyat <= 0);
-            var fiyatlandirmaM3 = Math.Round(toplamM3, 2, MidpointRounding.AwayFromZero);
-            var netTutar = tarifeEksik || tarife is null
-                ? 0m
-                : Math.Round(fiyatlandirmaM3 * tarife.BirimFiyat, 2, MidpointRounding.AwayFromZero);
-            var kdvTutari = tarifeEksik || tarife is null
-                ? 0m
-                : Math.Round(netTutar * tarife.KdvOrani / 100m, 2, MidpointRounding.AwayFromZero);
-            var totals = tarife is null
-                ? Array.Empty<FinansParaToplamiModel>()
-                : [new FinansParaToplamiModel(tarife.ParaBirimi, netTutar, kdvTutari, netTutar + kdvTutari)];
+            var tarifeEksik = normalModels.Count == 0 || normalModels.Any(x => !x.FiyatlandirmaHazir);
+            var totals = normalModels.GroupBy(x => x.ParaBirimi).Select(g => new FinansParaToplamiModel(
+                g.Key, g.Sum(x => x.NetTutar), g.Sum(x => x.KdvTutari), g.Sum(x => x.ToplamTutar))).ToArray();
+            var netTutar = totals.Length == 1 ? totals[0].NetTutar : 0;
+            var kdvTutari = totals.Length == 1 ? totals[0].KdvTutari : 0;
             var allCompleted = normalModels.Count > 0 && normalModels.All(x => x.Durum == FinansIsDurumu.Faturalandi);
             var invoiceWaitingOrder = allOrderLines.Select(x => x.FinansSiparis)
                 .Where(x => x.Durum is FinansSiparisDurumu.Acik or FinansSiparisDurumu.KismiFaturalandi)
@@ -237,7 +242,7 @@ namespace _3K.Infrastructure.Services
                 ProjeNo = projeNo,
                 Musteri = musteri,
                 ToplamIsAdedi = normalModels.Count,
-                ToplamSandikAdedi = normalModels.Sum(x => x.Adet),
+                ToplamSandikAdedi = normalModels.Where(x => x.IsTuru != FinansIsTuru.SarfKereste).Sum(x => x.Adet),
                 ToplamM3 = toplamM3,
                 SiparisAcikM3 = normalModels.Sum(x => x.SiparisM3),
                 SiparisBekleyenM3 = normalModels.Sum(x => x.SiparisBekleyenM3),
@@ -296,11 +301,14 @@ namespace _3K.Infrastructure.Services
                 ToplamM3 = decimal.Round(model.Adet * model.BirimM3, 6),
                 UretimTarihi = model.UretimTarihi,
                 FinansDonemi = FirstDayOfMonth(model.FinansDonemi),
+                FinansTarihi = model.FinansDonemi.Date,
+                FinansTarihiManuel = true,
+                FinansMiktariManuel = true,
                 KayitTarihi = TurkeyTime.Now,
                 KaynakTuru = "Manuel",
                 KaynakAktif = true
             };
-            await ApplyPriceSnapshotAsync(entity, model.FinansUrunId, model.ManuelBirimFiyat, model.ParaBirimi, model.KdvOrani, entity.FinansDonemi, cancellationToken);
+            await ApplyPriceSnapshotAsync(entity, model.FinansUrunId, model.ManuelBirimFiyat, model.ParaBirimi, model.KdvOrani, entity.FinansTarihi, cancellationToken);
             _context.Set<FinansIsKaydi>().Add(entity);
             await _context.SaveChangesAsync(cancellationToken);
             if (entity.IsTuru == FinansIsTuru.OzelIs && string.IsNullOrWhiteSpace(entity.SandikNo))
@@ -327,6 +335,16 @@ namespace _3K.Infrastructure.Services
             var auditBefore = CaptureAuditState(entity);
             var previousProductId = entity.FinansUrunId;
             var previousFinancePeriod = entity.FinansDonemi;
+            if (model.Adet != entity.Adet || model.BirimM3 != entity.BirimM3 || model.FinansUrunId != entity.FinansUrunId ||
+                (model.ManuelBirimFiyat.HasValue && model.ManuelBirimFiyat != entity.BirimFiyatSnapshot) ||
+                (!string.IsNullOrWhiteSpace(model.ParaBirimi) && NormalizeCurrency(model.ParaBirimi) != entity.ParaBirimiSnapshot) ||
+                (model.KdvOrani.HasValue && model.KdvOrani != entity.KdvOraniSnapshot))
+                throw new InvalidOperationException("Finansal miktar/fiyat alanları gerekçeli fiyatlandırma komutuyla değiştirilmelidir.");
+            if (FirstDayOfMonth(model.FinansDonemi) != entity.FinansDonemi)
+                throw new InvalidOperationException("Finans tarihi ayrı finans tarihi değiştirme işlemiyle güncellenmelidir.");
+            if (entity.SiparisKalemleri.Count > 0 && (model.ManuelBirimFiyat != null && model.ManuelBirimFiyat != entity.BirimFiyatSnapshot ||
+                model.Adet != entity.Adet || model.BirimM3 != entity.BirimM3 || model.FinansUrunId != entity.FinansUrunId))
+                throw new InvalidOperationException("Belgesi bulunan işin miktar/fiyat geçmişi genel düzenlemeden değiştirilemez.");
 
             var activeOrderLines = entity.SiparisKalemleri.Where(x => !x.FinansSiparis.IptalEdildi).ToList();
             var orderedAdet = activeOrderLines.Sum(x => x.Adet);
@@ -375,7 +393,6 @@ namespace _3K.Infrastructure.Services
                                         !string.IsNullOrWhiteSpace(model.ParaBirimi) ||
                                         model.KdvOrani.HasValue;
             var shouldReprice = previousProductId != model.FinansUrunId ||
-                                previousFinancePeriod.Date != entity.FinansDonemi.Date ||
                                 explicitPriceOverride;
             if (shouldReprice)
                 await ApplyPriceSnapshotAsync(entity, model.FinansUrunId, model.ManuelBirimFiyat, model.ParaBirimi, model.KdvOrani, entity.FinansDonemi, cancellationToken);
@@ -389,11 +406,10 @@ namespace _3K.Infrastructure.Services
 
         public async Task<bool> IsKaydiIptalAsync(int id, string aciklama, CancellationToken cancellationToken)
         {
+            Gerekce(aciklama);
             var entity = await IsKaydiDetayQuery(true).FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
             if (entity is null) return false;
             if (entity.IptalEdildi) return true;
-            if (!string.Equals(entity.KaynakTuru, "Manuel", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Üretim kaynaklı kayıtlar Finans ekranından iptal edilemez; işlemi Üretim modülünden yönetin.");
             if (entity.SiparisKalemleri.Any(x => !x.FinansSiparis.IptalEdildi))
                 throw new InvalidOperationException("Aktif siparişi bulunan iş iptal edilemez. Önce bağlı siparişleri iptal edin.");
             entity.IptalEdildi = true;
@@ -427,7 +443,12 @@ namespace _3K.Infrastructure.Services
             CancellationToken cancellationToken)
         {
             if (modeller.Count == 0) return new FinansSenkronizasyonSonucModel(0, 0, 0);
-            var duplicate = modeller.GroupBy(x => new { Tur = x.KaynakTuru.Trim().ToUpperInvariant(), Id = x.KaynakKayitId.Trim() })
+            modeller = modeller.SelectMany(model => model.SarfM3.HasValue && model.KaynakBileseni == "NET"
+                ? new[] { model, model with { KaynakBileseni = "SARF", IsTuru = FinansIsTuru.SarfKereste,
+                    IsAdi = $"Sarf Kereste - {model.SandikNo}", BirimM3 = model.Adet > 0 ? model.SarfM3.Value / model.Adet : 0,
+                    KaynakAktif = model.KaynakAktif && model.UretimM3Hesaplanabilir && model.SarfM3 > 0, SarfM3 = null } }
+                : new[] { model }).ToArray();
+            var duplicate = modeller.GroupBy(x => new { Tur = x.KaynakTuru.Trim().ToUpperInvariant(), Id = x.KaynakKayitId.Trim(), x.KaynakBileseni })
                 .FirstOrDefault(x => x.Count() > 1);
             if (duplicate is not null)
                 throw new InvalidOperationException("Aynı aktarım paketinde yinelenen üretim kaynak anahtarı bulunuyor.");
@@ -444,14 +465,17 @@ namespace _3K.Infrastructure.Services
                 {
                     var sourceType = model.KaynakTuru.Trim().ToUpperInvariant();
                     var sourceId = model.KaynakKayitId.Trim();
+                    var component = model.KaynakBileseni.Trim().ToUpperInvariant();
                     if (sourceType.Length == 0 || sourceId.Length == 0)
                         throw new InvalidOperationException("Üretim aktarımında kaynak türü ve kaynak kayıt kimliği zorunludur.");
 
                     var entity = await IsKaydiDetayQuery(true).FirstOrDefaultAsync(
-                        x => x.KaynakTuru == sourceType && x.KaynakKayitId == sourceId,
+                        x => x.KaynakTuru == sourceType && x.KaynakKayitId == sourceId && x.KaynakBileseni == component,
                         cancellationToken);
                     if (entity is null)
                     {
+                        if (await _context.Set<FinansKaynakBastirma>().AnyAsync(x => x.KaynakTuru == sourceType && x.KaynakKayitId == sourceId && x.KaynakBileseni == component, cancellationToken))
+                            continue;
                         // Üretime hiç alınmamış/pasif bir kaynak Finans'ta hayalet
                         // kayıt oluşturmamalı. Daha önce aktarılmış kayıtlarda false
                         // güncellemesi aşağıdaki mevcut-entity akışında işlenir.
@@ -461,6 +485,7 @@ namespace _3K.Infrastructure.Services
                         {
                             KaynakTuru = sourceType,
                             KaynakKayitId = sourceId,
+                            KaynakBileseni = component,
                             KayitTarihi = TurkeyTime.Now
                         };
                         ApplyProductionValues(entity, model);
@@ -489,7 +514,7 @@ namespace _3K.Infrastructure.Services
                         var pricingUnit = activeOrderLines.Select(x => x.FiyatlandirmaBirimiSnapshot).Distinct().Count() == 1
                             ? activeOrderLines[0].FiyatlandirmaBirimiSnapshot
                             : entity.FiyatlandirmaBirimiSnapshot;
-                        if (model.KaynakAktif && FinansMiktarKurallari.KapasiteAsiliyor(
+                        if (!entity.FinansMiktariManuel && model.KaynakAktif && FinansMiktarKurallari.KapasiteAsiliyor(
                                 pricingUnit,
                                 model.Adet,
                                 requestedM3,
@@ -508,12 +533,15 @@ namespace _3K.Infrastructure.Services
                                 "Önce finansal belgeleri uzlaştırın ya da mevcut kaydı koruyun.");
 
                         ApplyProductionValues(entity, model);
-                        if (!hasFinancialHistory && priceMatchChanged)
+                        if (model.KaynakAktif && FinansTutarKurallari.SiparisNet(entity) > FinansTutarKurallari.IsNet(entity))
+                            throw new InvalidOperationException("Kaynak güncellemesi aktif PO net toplamını iş bedelinin üzerine çıkaramaz.");
+                        if (!hasFinancialHistory && !entity.FinansMiktariManuel && priceMatchChanged && entity.BirimFiyatSnapshot <= 0)
                         {
                             ResetAutomaticPriceSnapshot(entity);
                             await TryApplyAutomaticPriceAsync(entity, cancellationToken);
                         }
                         else if (entity.BirimFiyatSnapshot <= 0 &&
+                                 !entity.FinansMiktariManuel &&
                                  !entity.TarifeYiliSnapshot.HasValue &&
                                  !hasFinancialHistory)
                         {
@@ -556,6 +584,7 @@ namespace _3K.Infrastructure.Services
 
         private static void ApplyProductionValues(FinansIsKaydi entity, FinansUretimAktarimModel model)
         {
+            var finansIptali = entity.IptalEdildi && entity.KaynakAktif;
             entity.ProjeId = model.ProjeId;
             entity.ProjeNo = model.ProjeNo.Trim();
             entity.Musteri = model.Musteri.Trim();
@@ -572,16 +601,27 @@ namespace _3K.Infrastructure.Services
             entity.En = model.En;
             entity.Yukseklik = model.Yukseklik;
             entity.IcSandikSablonId = model.IcSandikSablonId;
-            entity.Adet = model.Adet;
-            entity.Birim = model.BirimM3 > 0 ? "m³" : "Adet";
-            entity.BirimM3 = model.BirimM3;
-            entity.ToplamM3 = decimal.Round(model.Adet * model.BirimM3, 6);
+            entity.SandikCinsi = model.SandikCinsi;
+            if (!entity.FinansMiktariManuel)
+            {
+                entity.Adet = model.Adet;
+                entity.Birim = model.BirimM3 > 0 ? "m³" : "Adet";
+                entity.BirimM3 = model.UretimM3Hesaplanabilir ? model.BirimM3 : 0;
+                entity.ToplamM3 = decimal.Round(entity.Adet * entity.BirimM3, 6);
+            }
             entity.UretimTarihi = model.UretimTarihi;
-            entity.FinansDonemi = FirstDayOfMonth(model.FinansDonemi);
+            if (!entity.FinansTarihiManuel)
+            {
+                entity.FinansTarihi = model.UretimTarihi.Date;
+                entity.FinansDonemi = FirstDayOfMonth(model.FinansDonemi);
+            }
             entity.KaynakAktif = model.KaynakAktif;
-            entity.IptalEdildi = !model.KaynakAktif;
-            entity.IptalTarihi = model.KaynakAktif ? null : TurkeyTime.Now;
-            entity.IptalAciklamasi = model.KaynakAktif ? null : "Üretim kaynağı pasifleştirildi.";
+            if (!finansIptali)
+            {
+                entity.IptalEdildi = !model.KaynakAktif;
+                entity.IptalTarihi = model.KaynakAktif ? null : TurkeyTime.Now;
+                entity.IptalAciklamasi = model.KaynakAktif ? null : "Üretim kaynağı pasifleştirildi.";
+            }
         }
 
         private static bool ProductionPriceMatchChanged(FinansIsKaydi entity, FinansUretimAktarimModel model)
@@ -589,8 +629,7 @@ namespace _3K.Infrastructure.Services
                !string.Equals(entity.SandikAdi?.Trim(), model.SandikAdi?.Trim(), StringComparison.OrdinalIgnoreCase) ||
                !string.Equals(entity.SandikTipi?.Trim(), model.SandikTipi?.Trim(), StringComparison.OrdinalIgnoreCase) ||
                entity.Boy != model.Boy || entity.En != model.En || entity.Yukseklik != model.Yukseklik ||
-               entity.IcSandikSablonId != model.IcSandikSablonId ||
-               entity.FinansDonemi.Date != FirstDayOfMonth(model.FinansDonemi).Date;
+               entity.IcSandikSablonId != model.IcSandikSablonId;
 
         private static void ResetAutomaticPriceSnapshot(FinansIsKaydi entity)
         {
@@ -635,7 +674,7 @@ namespace _3K.Infrastructure.Services
 
             entity.FinansUrunId = match.FinansUrunId;
             entity.FiyatlandirmaBirimiSnapshot = match.FinansUrun.FiyatlandirmaBirimi;
-            var tariff = await FindTariffAsync(match.FinansUrunId, entity.FinansDonemi, cancellationToken);
+            var tariff = await FindTariffAsync(match.FinansUrunId, entity.FinansTarihi, cancellationToken);
             if (tariff is null)
             {
                 entity.BirimFiyatSnapshot = 0;
@@ -649,6 +688,7 @@ namespace _3K.Infrastructure.Services
             entity.ParaBirimiSnapshot = tariff.ParaBirimi;
             entity.KdvOraniSnapshot = tariff.KdvOrani;
             entity.TarifeYiliSnapshot = tariff.Yil;
+            entity.TarifeIdSnapshot = tariff.Id;
         }
 
         private static int MatchSpecificity(FinansUrunEslesmesi value)

@@ -479,9 +479,13 @@ namespace _3K.Infrastructure.Services
 
         public async Task<FinansRaporModel> RaporVerisiAsync(FinansListeFiltre filtre, CancellationToken cancellationToken)
         {
+            if (filtre.Baslangic.HasValue && filtre.Bitis.HasValue) TarihAraliginiDogrula(filtre.Baslangic.Value, filtre.Bitis.Value);
+            if (await ApplyFilter(_context.Set<FinansIsKaydi>(), filtre).CountAsync(cancellationToken) > RaporKayitSiniri)
+                throw new InvalidOperationException("Rapor en fazla 20.000 iş içerebilir; filtreyi daraltın.");
             var workEntities = await ApplyFilter(IsKaydiDetayQuery(), filtre).OrderBy(x => x.FinansDonemi).ThenBy(x => x.Id).ToListAsync(cancellationToken);
             var works = workEntities.Select(MapIsKaydi).ToArray();
             var expenseQuery = _context.Set<FinansGider>().AsNoTracking().Include(x => x.Kategori).Include(x => x.GiderKalemi).Include(x => x.Proje).AsQueryable();
+            expenseQuery = ExpenseFilter(expenseQuery, filtre);
             if (!filtre.IptalEdilenleriDahilEt) expenseQuery = expenseQuery.Where(x => !x.IptalEdildi);
             if (filtre.ProjeId.HasValue) expenseQuery = expenseQuery.Where(x => x.ProjeId == filtre.ProjeId);
             if (!string.IsNullOrWhiteSpace(filtre.ProjeNo))
@@ -490,11 +494,11 @@ namespace _3K.Infrastructure.Services
                 expenseQuery = expenseQuery.Where(x => x.ManuelProjeNo == projectNo || (x.Proje != null && x.Proje.ProjeNo == projectNo));
             }
             if (filtre.IsTuru.HasValue) expenseQuery = expenseQuery.Where(x => x.IsTuru == filtre.IsTuru);
-            if (filtre.Baslangic.HasValue) expenseQuery = expenseQuery.Where(x => x.FinansDonemi >= filtre.Baslangic.Value.Date);
+            if (filtre.Baslangic.HasValue) expenseQuery = expenseQuery.Where(x => x.FinansTarihi >= filtre.Baslangic.Value.Date);
             if (filtre.Bitis.HasValue)
             {
                 var end = filtre.Bitis.Value.Date.AddDays(1);
-                expenseQuery = expenseQuery.Where(x => x.FinansDonemi < end);
+                expenseQuery = expenseQuery.Where(x => x.FinansTarihi < end);
             }
             if (!string.IsNullOrWhiteSpace(filtre.ParaBirimi)) expenseQuery = expenseQuery.Where(x => x.ParaBirimi == filtre.ParaBirimi.Trim().ToUpper());
             if (!string.IsNullOrWhiteSpace(filtre.Arama))
@@ -507,6 +511,8 @@ namespace _3K.Infrastructure.Services
             var expenseTotals = await BuildExpenseTotalsQuery(expenseQuery)
                 .OrderBy(x => x.ParaBirimi)
                 .ToArrayAsync(cancellationToken);
+            if (await expenseQuery.CountAsync(cancellationToken) > RaporKayitSiniri)
+                throw new InvalidOperationException("Rapor en fazla 20.000 gider içerebilir; filtreyi daraltın.");
             var expenses = (await expenseQuery
                     .OrderBy(x => x.FinansDonemi)
                     .ThenBy(x => x.Id)
@@ -559,13 +565,17 @@ namespace _3K.Infrastructure.Services
                 if (filtre.FaturaDurumu == FinansFaturaDurumu.Aktif)
                     query = query.Where(x => x.FinansFatura.Durum == FinansFaturaDurumu.Aktif);
             }
-            if (filtre.Baslangic.HasValue) query = query.Where(x => x.FinansFatura.FaturaTarihi >= filtre.Baslangic.Value.Date);
+            if (filtre.Baslangic.HasValue) query = query.Where(x => x.FinansSiparisKalemi.FinansIsKaydi.FinansTarihi >= filtre.Baslangic.Value.Date);
             if (filtre.Bitis.HasValue)
             {
                 var end = filtre.Bitis.Value.Date.AddDays(1);
-                query = query.Where(x => x.FinansFatura.FaturaTarihi < end);
+                query = query.Where(x => x.FinansSiparisKalemi.FinansIsKaydi.FinansTarihi < end);
             }
             if (filtre.ProjeId.HasValue) query = query.Where(x => x.FinansSiparisKalemi.FinansIsKaydi.ProjeId == filtre.ProjeId);
+            if (!filtre.IptalEdilenleriDahilEt) query = query.Where(x => !x.FinansSiparisKalemi.FinansIsKaydi.IptalEdildi && x.FinansSiparisKalemi.FinansIsKaydi.KaynakAktif && !x.FinansFatura.FinansSiparis.IptalEdildi);
+            if (filtre.SandikCinsi.HasValue) query = query.Where(x => x.FinansSiparisKalemi.FinansIsKaydi.SandikCinsi == filtre.SandikCinsi);
+            if (!string.IsNullOrWhiteSpace(filtre.Firma)) query = query.Where(x => x.FinansSiparisKalemi.FinansIsKaydi.Musteri.ToLower().Contains(filtre.Firma.ToLower()));
+            if (!string.IsNullOrWhiteSpace(filtre.FaturaNumarasi)) query = query.Where(x => x.FinansFatura.FaturaNumarasi.ToLower().Contains(filtre.FaturaNumarasi.ToLower()));
             if (!string.IsNullOrWhiteSpace(filtre.ProjeNo)) query = query.Where(x => x.FinansSiparisKalemi.FinansIsKaydi.ProjeNo == filtre.ProjeNo.Trim());
             if (filtre.IsTuru.HasValue) query = query.Where(x => x.FinansSiparisKalemi.FinansIsKaydi.IsTuru == filtre.IsTuru);
             if (filtre.Durum.HasValue) query = query.Where(x => x.FinansSiparisKalemi.FinansIsKaydi.Durum == filtre.Durum);
@@ -606,7 +616,11 @@ namespace _3K.Infrastructure.Services
             CancellationToken cancellationToken)
         {
             var query = _context.Set<FinansDegisiklikGecmisi>().AsNoTracking();
-            if (!string.IsNullOrWhiteSpace(varlikTuru)) query = query.Where(x => x.VarlikTuru == varlikTuru.Trim());
+            if (!string.IsNullOrWhiteSpace(varlikTuru))
+            {
+                var canonical = varlikTuru.Trim() switch { "IsKaydi" => nameof(FinansIsKaydi), "Siparis" => nameof(FinansSiparis), "Fatura" => nameof(FinansFatura), "Gider" => nameof(FinansGider), var value => value };
+                query = query.Where(x => x.VarlikTuru == canonical);
+            }
             if (varlikId.HasValue) query = query.Where(x => x.VarlikId == varlikId);
             var page = Math.Max(1, pageNumber);
             var size = Math.Clamp(pageSize, 1, 250);
@@ -614,7 +628,7 @@ namespace _3K.Infrastructure.Services
             var items = await query.OrderByDescending(x => x.CreatedDate).ThenByDescending(x => x.Id)
                 .Skip((page - 1) * size).Take(size)
                 .Select(x => new FinansDegisiklikModel(x.Id, x.VarlikTuru, x.VarlikId, x.Islem, x.AlanAdi,
-                    x.EskiDeger, x.YeniDeger, x.Aciklama, x.CreatedDate, x.IslemYapan))
+                    x.EskiDeger, x.YeniDeger, x.Aciklama, x.CreatedDate, x.IslemYapan, x.IslemGrubu, x.Referans))
                 .ToListAsync(cancellationToken);
             return new FinansSayfaliSonuc<FinansDegisiklikModel>
             {

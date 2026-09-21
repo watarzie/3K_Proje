@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using System.Text.Json;
 using _3K.Application.Common;
 using _3K.Application.Features.AmbalajIslemleri;
 using _3K.Application.Features.AmbalajIslemleri.Commands;
@@ -28,15 +29,15 @@ public sealed class AmbalajUretimAkisRegresyonTests
 
         var kodlar = command.RequiredMenuPermissions.Select(x => x.MenuKod).ToArray();
 
-        Assert.Contains(AmbalajMenuKodlari.KayitDuzenle, kodlar);
+        Assert.Contains(AmbalajMenuKodlari.KayitEkle, kodlar);
         Assert.Contains(AmbalajMenuKodlari.IlaveOlustur, kodlar);
         Assert.Contains(AmbalajMenuKodlari.ManuelProje, kodlar);
         Assert.All(command.RequiredMenuPermissions, requirement => Assert.Equal(YetkiTipi.W, requirement.YetkiTipi));
     }
 
     [Theory]
-    [InlineData("pdf", "ambalaj-uretim-listesi")]
-    [InlineData("xlsx", "ambalaj-uretim-listesi")]
+    [InlineData("pdf", "ambalaj-pdf-indir")]
+    [InlineData("xlsx", "ambalaj-excel-indir")]
     public void RaporDosyasi_FormatYetkisiniDigerGereksinimlerleBirlikteIster(
         string format,
         string beklenenFormatKodu)
@@ -45,15 +46,16 @@ public sealed class AmbalajUretimAkisRegresyonTests
         var kodlar = query.RequiredMenuPermissions.Select(x => x.MenuKod).ToArray();
 
         Assert.Contains(AmbalajMenuKodlari.RaporGoruntule, kodlar);
-        Assert.Contains(AmbalajMenuKodlari.M3Goruntule, kodlar);
-        Assert.Contains(AmbalajMenuKodlari.SarfGoruntule, kodlar);
-        Assert.Contains(AmbalajMenuKodlari.KaynakGoruntule, kodlar);
+        // Alan izinleri rapora giriş şartı değildir; izin verilmeyen kolonlar null kalır.
+        Assert.DoesNotContain(AmbalajMenuKodlari.M3Goruntule, kodlar);
+        Assert.DoesNotContain(AmbalajMenuKodlari.SarfGoruntule, kodlar);
+        Assert.DoesNotContain(AmbalajMenuKodlari.KaynakGoruntule, kodlar);
         Assert.Contains(beklenenFormatKodu, kodlar);
-        Assert.Contains(query.RequiredMenuPermissions, x => x.MenuKod == beklenenFormatKodu && x.YetkiTipi == YetkiTipi.W);
+        Assert.All(query.RequiredMenuPermissions, x => Assert.Equal(YetkiTipi.R, x.YetkiTipi));
     }
 
     [Fact]
-    public async Task Liste_RootOkumaYetkisiyleM3SarfVeKaynakAlanlariniGosterir()
+    public async Task Liste_RootOkumaYetkisiM3SarfVeKaynakAlanlariniAcmaz()
     {
         var kayit = GecerliFormKaydi();
         kayit.KaynakModul = AmbalajKaynakModulu.Sandik;
@@ -70,18 +72,19 @@ public sealed class AmbalajUretimAkisRegresyonTests
 
         Assert.True(sonuc.IsSuccess);
         var dto = Assert.Single(sonuc.Value!.Items);
-        Assert.True(dto.M3BilgisiGorunurMu);
-        Assert.True(dto.SarfBilgisiGorunurMu);
-        Assert.True(dto.KaynakBilgisiGorunurMu);
-        Assert.Equal(kayit.M3Override, dto.NetM3);
-        Assert.Equal(kayit.SarfM3, dto.SarfM3);
-        Assert.Equal(kayit.ToplamM3, dto.ToplamM3);
-        Assert.Equal(9.5m, dto.M3Override);
-        Assert.Equal(91, dto.KaynakKayitId);
+        Assert.False(dto.M3BilgisiGorunurMu);
+        Assert.False(dto.SarfBilgisiGorunurMu);
+        Assert.False(dto.KaynakBilgisiGorunurMu);
+        Assert.Null(dto.NetM3);
+        Assert.Null(dto.SarfM3);
+        Assert.Null(dto.ToplamM3);
+        Assert.Null(dto.M3Override);
+        Assert.Null(dto.M3OverrideNedeni);
+        Assert.Null(dto.KaynakKayitId);
     }
 
     [Fact]
-    public async Task Detay_RootOkumaYetkisiyleAuditDegerleriniGosterir()
+    public async Task Detay_RootOkumaYetkisiHassasAuditDegerleriniAcmaz()
     {
         var kayit = GecerliFormKaydi();
         var hareket = new AmbalajUretimHareketi
@@ -108,15 +111,15 @@ public sealed class AmbalajUretimAkisRegresyonTests
 
         Assert.True(sonuc.IsSuccess);
         var maskeliHareket = Assert.Single(sonuc.Value!.Hareketler);
-        Assert.False(maskeliHareket.DegerlerGizliMi);
-        Assert.Equal("1.2", maskeliHareket.EskiDeger);
-        Assert.Equal("3.4", maskeliHareket.YeniDeger);
-        Assert.Equal("Kaynak: gizli", maskeliHareket.Aciklama);
-        Assert.Equal(nameof(AmbalajUretimKaydi.HesaplananToplamM3), maskeliHareket.AlanAdi);
+        Assert.True(maskeliHareket.DegerlerGizliMi);
+        Assert.Null(maskeliHareket.EskiDeger);
+        Assert.Null(maskeliHareket.YeniDeger);
+        Assert.Null(maskeliHareket.Aciklama);
+        Assert.Equal("KisitliKaynakAlani", maskeliHareket.AlanAdi);
     }
 
     [Fact]
-    public async Task SecimHandleri_KokMenuYetkisiyleDahilKaydiHaricTutar()
+    public async Task SecimHandleri_KokMenuYetkisiDahilKaydiHaricTutamaz()
     {
         var kayit = GecerliFormKaydi();
         kayit.KaynakKayitId = null;
@@ -137,13 +140,15 @@ public sealed class AmbalajUretimAkisRegresyonTests
             UretimeAlindi = false
         }, CancellationToken.None);
 
-        Assert.True(sonuc.IsSuccess);
-        Assert.False(kayit.AmbalajaDahil);
-        Assert.False(kayit.UretimeAlindi);
+        Assert.False(sonuc.IsSuccess);
+        Assert.Equal(403, sonuc.StatusCode);
+        Assert.True(kayit.AmbalajaDahil);
+        Assert.True(kayit.UretimeAlindi);
+        Assert.Equal(0, unitOfWork.SaveChangesSayisi);
     }
 
     [Fact]
-    public async Task SecimHandleri_DuzenlemeYetkisiyleKaynakKaydaMudahaleEder()
+    public async Task SecimHandleri_AcikKaynakVeSecimYetkisiyleKaynakKaydaMudahaleEder()
     {
         var kayit = GecerliFormKaydi();
         kayit.KaynakModul = AmbalajKaynakModulu.Sandik;
@@ -157,6 +162,7 @@ public sealed class AmbalajUretimAkisRegresyonTests
             new FakeFinansAktarimService(),
             FakeRolService.Yalniz(
                 AmbalajMenuKodlari.Listele,
+                AmbalajMenuKodlari.KaynakMudahalesi,
                 AmbalajMenuKodlari.HaricTut,
                 AmbalajMenuKodlari.UretimdenCikar));
 
@@ -207,7 +213,7 @@ public sealed class AmbalajUretimAkisRegresyonTests
     }
 
     [Fact]
-    public async Task GuncellemeHandleri_DuzenlemeYetkisiyleOlcuDiffiniUygular()
+    public async Task GuncellemeHandleri_DuzenlemeVeOlcuYetkisiyleOlcuDiffiniUygular()
     {
         var kayit = GecerliFormKaydi();
         kayit.KaynakModul = AmbalajKaynakModulu.Manuel;
@@ -219,7 +225,7 @@ public sealed class AmbalajUretimAkisRegresyonTests
             unitOfWork,
             new FakeCurrentUserService(),
             new FakeFinansAktarimService(),
-            FakeRolService.Yalniz(AmbalajMenuKodlari.KayitDuzenle));
+            FakeRolService.Yalniz(AmbalajMenuKodlari.KayitDuzenle, AmbalajMenuKodlari.OlcuDuzenle));
         var command = GuncellemeKomutu(kayit);
         command.Boy += 100;
 
@@ -242,12 +248,8 @@ public sealed class AmbalajUretimAkisRegresyonTests
         kayit.IptalMi = iptalMi;
         kayit.AmbalajaDahil = ambalajaDahil;
         kayit.UretimeAlindi = uretimeAlindi;
-        var handler = new GetAmbalajUretimFormuQueryHandler(
-            new FakeUnitOfWork().AddRepository(kayit));
-
-        var sonuc = await handler.Handle(
-            new GetAmbalajUretimFormuQuery { KayitId = kayit.Id },
-            CancellationToken.None);
+        var sonuc = await AmbalajUretimFormuOlusturucu.OlusturAsync(
+            new FakeUnitOfWork().AddRepository(kayit), kayit.Id, null);
 
         Assert.False(sonuc.IsSuccess);
         Assert.Equal(409, sonuc.StatusCode);
@@ -258,12 +260,8 @@ public sealed class AmbalajUretimAkisRegresyonTests
     {
         var kayit = GecerliFormKaydi();
         kayit.M3HesaplamaVersiyonu = "KER-ESKI-01";
-        var handler = new GetAmbalajUretimFormuQueryHandler(
-            new FakeUnitOfWork().AddRepository(kayit));
-
-        var sonuc = await handler.Handle(
-            new GetAmbalajUretimFormuQuery { KayitId = kayit.Id },
-            CancellationToken.None);
+        var sonuc = await AmbalajUretimFormuOlusturucu.OlusturAsync(
+            new FakeUnitOfWork().AddRepository(kayit), kayit.Id, null);
 
         Assert.False(sonuc.IsSuccess);
         Assert.Equal(409, sonuc.StatusCode);
@@ -275,8 +273,13 @@ public sealed class AmbalajUretimAkisRegresyonTests
     public async Task UretimFormu_M3DegerlerindeKaydedilmisSnapshotiKullanir()
     {
         var kayit = GecerliFormKaydi();
-        var handler = new GetAmbalajUretimFormuQueryHandler(
-            new FakeUnitOfWork().AddRepository(kayit));
+        var unitOfWork = new FakeUnitOfWork().AddRepository(kayit);
+        await FormuKaydetAsync(unitOfWork, kayitId: kayit.Id);
+        var handler = new GetAmbalajUretimFormuQueryHandler(unitOfWork,
+            FakeRolService.TumYetkiler(), new FakeCurrentUserService());
+        var eskiNet = kayit.HesaplananToplamM3;
+        kayit.HesaplananToplamM3 = 999;
+        kayit.Boy = 9999;
 
         var sonuc = await handler.Handle(
             new GetAmbalajUretimFormuQuery { KayitId = kayit.Id },
@@ -284,10 +287,11 @@ public sealed class AmbalajUretimAkisRegresyonTests
 
         Assert.True(sonuc.IsSuccess);
         var kalem = Assert.Single(sonuc.Value!.Kalemler);
-        Assert.Equal(kayit.HesaplananToplamM3, kalem.HesaplananNetM3);
-        Assert.Equal(kayit.HesaplananToplamM3, kalem.NetM3);
+        Assert.Equal(eskiNet, kalem.HesaplananNetM3);
+        Assert.Equal(eskiNet, kalem.NetM3);
         Assert.Equal(kayit.SarfM3, kalem.SarfM3);
         Assert.Equal(kayit.ToplamM3, kalem.ToplamM3);
+        Assert.Equal(0, unitOfWork.SaveChangesSayisi);
     }
 
     [Fact]
@@ -325,7 +329,9 @@ public sealed class AmbalajUretimAkisRegresyonTests
             .AddRepository(proje)
             .AddRepository(secili, secilmeyen)
             .AddRepository(kaynakSandik);
-        var handler = new GetAmbalajUretimFormuQueryHandler(unitOfWork);
+        await FormuKaydetAsync(unitOfWork, projeId: proje.Id);
+        var handler = new GetAmbalajUretimFormuQueryHandler(unitOfWork,
+            FakeRolService.TumYetkiler(), new FakeCurrentUserService());
 
         var sonuc = await handler.Handle(
             new GetAmbalajUretimFormuQuery { ProjeId = proje.Id },
@@ -886,8 +892,10 @@ public sealed class AmbalajUretimAkisRegresyonTests
         baskasinin.Id = 103;
         baskasinin.CreatedBy = "8";
         baskasinin.ManuelProjeNo = "MAN-GRUP";
-        var handler = new GetAmbalajUretimFormuQueryHandler(
-            new FakeUnitOfWork().AddRepository(bir, iki, baskasinin));
+        var unitOfWork = new FakeUnitOfWork().AddRepository(bir, iki, baskasinin);
+        await FormuKaydetAsync(unitOfWork, manuelProjeNo: "MAN-GRUP");
+        var handler = new GetAmbalajUretimFormuQueryHandler(unitOfWork,
+            FakeRolService.TumYetkiler(), new FakeCurrentUserService());
 
         var sonuc = await handler.Handle(
             new GetAmbalajUretimFormuQuery { ManuelProjeNo = "MAN-GRUP" }, CancellationToken.None);
@@ -903,12 +911,8 @@ public sealed class AmbalajUretimAkisRegresyonTests
         var kayit = GecerliFormKaydi();
         kayit.UretimeAlindi = false;
         kayit.UretimDurumu = AmbalajUretimDurumu.Planlandi;
-        var handler = new GetAmbalajUretimFormuDosyasiQueryHandler(
-            new FakeUnitOfWork().AddRepository(kayit), new FakeAmbalajDosyaService());
-
-        var sonuc = await handler.Handle(
-            new GetAmbalajUretimFormuDosyasiQuery { KayitId = kayit.Id, Format = "pdf" },
-            CancellationToken.None);
+        var sonuc = await AmbalajUretimFormuOlusturucu.OlusturAsync(
+            new FakeUnitOfWork().AddRepository(kayit), kayit.Id, null);
 
         Assert.False(sonuc.IsSuccess);
         Assert.Equal(409, sonuc.StatusCode);
@@ -924,8 +928,10 @@ public sealed class AmbalajUretimAkisRegresyonTests
         string expectedExtension)
     {
         var kayit = GecerliFormKaydi();
+        var unitOfWork = new FakeUnitOfWork().AddRepository(kayit);
+        await FormuKaydetAsync(unitOfWork, kayitId: kayit.Id);
         var handler = new GetAmbalajUretimFormuDosyasiQueryHandler(
-            new FakeUnitOfWork().AddRepository(kayit), new FakeAmbalajDosyaService());
+            unitOfWork, new FakeAmbalajDosyaService(), FakeRolService.TumYetkiler(), new FakeCurrentUserService());
 
         var sonuc = await handler.Handle(
             new GetAmbalajUretimFormuDosyasiQuery { KayitId = kayit.Id, Format = format },
@@ -963,8 +969,10 @@ public sealed class AmbalajUretimAkisRegresyonTests
         var unitOfWork = new FakeUnitOfWork()
             .AddRepository(proje)
             .AddRepository(bir, iki, secilmeyen);
+        await FormuKaydetAsync(unitOfWork, projeId: proje.Id);
         var dosyaService = new FakeAmbalajDosyaService();
-        var handler = new GetAmbalajUretimFormuDosyasiQueryHandler(unitOfWork, dosyaService);
+        var handler = new GetAmbalajUretimFormuDosyasiQueryHandler(unitOfWork, dosyaService,
+            FakeRolService.TumYetkiler(), new FakeCurrentUserService());
 
         var sonuc = await handler.Handle(new GetAmbalajUretimFormuDosyasiQuery
         {
@@ -983,20 +991,15 @@ public sealed class AmbalajUretimAkisRegresyonTests
     public async Task SeciliSandiklarUretimFormu_BulunamayanIdVarsaKismiFormUretmez()
     {
         var kayit = GecerliFormKaydi();
-        var dosyaService = new FakeAmbalajDosyaService();
-        var handler = new GetAmbalajUretimFormuDosyasiQueryHandler(
-            new FakeUnitOfWork().AddRepository(kayit), dosyaService);
-
-        var sonuc = await handler.Handle(new GetAmbalajUretimFormuDosyasiQuery
-        {
-            KayitIdleri = [kayit.Id, 9999],
-            Format = "pdf"
-        }, CancellationToken.None);
+        var unitOfWork = new FakeUnitOfWork().AddRepository(kayit);
+        var sonuc = await AmbalajUretimFormuOlusturucu.OlusturAsync(
+            unitOfWork, null, null, kayitIdleri: [kayit.Id, 9999]);
 
         Assert.False(sonuc.IsSuccess);
         Assert.Equal(404, sonuc.StatusCode);
         Assert.Contains("9999", sonuc.Error!.Message);
-        Assert.Null(dosyaService.SonUretimFormu);
+        Assert.Null(sonuc.Value);
+        Assert.Equal(0, unitOfWork.SaveChangesSayisi);
     }
 
     [Theory]
@@ -1016,20 +1019,15 @@ public sealed class AmbalajUretimAkisRegresyonTests
         uygunOlmayan.IptalMi = iptalMi;
         uygunOlmayan.AmbalajaDahil = ambalajaDahil;
         uygunOlmayan.UretimeAlindi = uretimeAlindi;
-        var dosyaService = new FakeAmbalajDosyaService();
-        var handler = new GetAmbalajUretimFormuDosyasiQueryHandler(
-            new FakeUnitOfWork().AddRepository(uygun, uygunOlmayan), dosyaService);
-
-        var sonuc = await handler.Handle(new GetAmbalajUretimFormuDosyasiQuery
-        {
-            KayitIdleri = [uygun.Id, uygunOlmayan.Id],
-            Format = "pdf"
-        }, CancellationToken.None);
+        var unitOfWork = new FakeUnitOfWork().AddRepository(uygun, uygunOlmayan);
+        var sonuc = await AmbalajUretimFormuOlusturucu.OlusturAsync(
+            unitOfWork, null, null, kayitIdleri: [uygun.Id, uygunOlmayan.Id]);
 
         Assert.False(sonuc.IsSuccess);
         Assert.Equal(409, sonuc.StatusCode);
         Assert.Contains(uygunOlmayan.Id.ToString(), sonuc.Error!.Message);
-        Assert.Null(dosyaService.SonUretimFormu);
+        Assert.Null(sonuc.Value);
+        Assert.Equal(0, unitOfWork.SaveChangesSayisi);
     }
 
     [Fact]
@@ -1045,21 +1043,15 @@ public sealed class AmbalajUretimAkisRegresyonTests
         iki.Id = 902;
         iki.ProjeId = projeIki.Id;
         iki.ManuelProjeNo = null;
-        var dosyaService = new FakeAmbalajDosyaService();
-        var handler = new GetAmbalajUretimFormuDosyasiQueryHandler(
-            new FakeUnitOfWork().AddRepository(projeBir, projeIki).AddRepository(bir, iki),
-            dosyaService);
-
-        var sonuc = await handler.Handle(new GetAmbalajUretimFormuDosyasiQuery
-        {
-            KayitIdleri = [bir.Id, iki.Id],
-            Format = "pdf"
-        }, CancellationToken.None);
+        var unitOfWork = new FakeUnitOfWork().AddRepository(projeBir, projeIki).AddRepository(bir, iki);
+        var sonuc = await AmbalajUretimFormuOlusturucu.OlusturAsync(
+            unitOfWork, null, null, kayitIdleri: [bir.Id, iki.Id]);
 
         Assert.False(sonuc.IsSuccess);
         Assert.Equal(409, sonuc.StatusCode);
         Assert.Contains("farklı projelere", sonuc.Error!.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Null(dosyaService.SonUretimFormu);
+        Assert.Null(sonuc.Value);
+        Assert.Equal(0, unitOfWork.SaveChangesSayisi);
     }
 
     [Fact]
@@ -1073,14 +1065,8 @@ public sealed class AmbalajUretimAkisRegresyonTests
         manuel.Id = 912;
         manuel.ProjeId = null;
         manuel.ManuelProjeNo = "MAN-10";
-        var handler = new GetAmbalajUretimFormuDosyasiQueryHandler(
-            new FakeUnitOfWork().AddRepository(sistem, manuel), new FakeAmbalajDosyaService());
-
-        var sonuc = await handler.Handle(new GetAmbalajUretimFormuDosyasiQuery
-        {
-            KayitIdleri = [sistem.Id, manuel.Id],
-            Format = "pdf"
-        }, CancellationToken.None);
+        var sonuc = await AmbalajUretimFormuOlusturucu.OlusturAsync(
+            new FakeUnitOfWork().AddRepository(sistem, manuel), null, null, kayitIdleri: [sistem.Id, manuel.Id]);
 
         Assert.False(sonuc.IsSuccess);
         Assert.Equal(409, sonuc.StatusCode);
@@ -1095,14 +1081,8 @@ public sealed class AmbalajUretimAkisRegresyonTests
         var iki = GecerliFormKaydi();
         iki.Id = 922;
         iki.ManuelProjeNo = "MAN-2";
-        var handler = new GetAmbalajUretimFormuDosyasiQueryHandler(
-            new FakeUnitOfWork().AddRepository(bir, iki), new FakeAmbalajDosyaService());
-
-        var sonuc = await handler.Handle(new GetAmbalajUretimFormuDosyasiQuery
-        {
-            KayitIdleri = [bir.Id, iki.Id],
-            Format = "pdf"
-        }, CancellationToken.None);
+        var sonuc = await AmbalajUretimFormuOlusturucu.OlusturAsync(
+            new FakeUnitOfWork().AddRepository(bir, iki), null, null, kayitIdleri: [bir.Id, iki.Id]);
 
         Assert.False(sonuc.IsSuccess);
         Assert.Equal(409, sonuc.StatusCode);
@@ -1143,9 +1123,11 @@ public sealed class AmbalajUretimAkisRegresyonTests
     public async Task SeciliSandiklarUretimFormu_BosIdListesiniTumProjeFormunaDonusturmez()
     {
         var kayit = GecerliFormKaydi();
+        var unitOfWork = new FakeUnitOfWork().AddRepository(kayit);
+        await FormuKaydetAsync(unitOfWork, kayitId: kayit.Id);
         var dosyaService = new FakeAmbalajDosyaService();
         var handler = new GetAmbalajUretimFormuDosyasiQueryHandler(
-            new FakeUnitOfWork().AddRepository(kayit), dosyaService);
+            unitOfWork, dosyaService);
 
         var sonuc = await handler.Handle(new GetAmbalajUretimFormuDosyasiQuery
         {
@@ -1407,9 +1389,50 @@ public sealed class AmbalajUretimAkisRegresyonTests
         UretimTarihi = kayit.UretimTarihi
     };
 
+    // GET artık hesaplama/oluşturma yapmaz. Kurgu önce gerçek oluşturucu ile değişmez
+    // snapshot üretir; GET testleri yalnız saklanan JSON'u ve seçim linklerini okur.
+    private static async Task FormuKaydetAsync(FakeUnitOfWork uow, int? kayitId = null,
+        int? projeId = null, string? manuelProjeNo = null)
+    {
+        var result = await AmbalajUretimFormuOlusturucu.OlusturAsync(uow, kayitId, projeId, manuelProjeNo);
+        Assert.True(result.IsSuccess, result.Error?.Message);
+        var form = result.Value!;
+        var entity = new AmbalajUretimFormuSurumu
+        {
+            Id = 1, FormKimligi = Guid.NewGuid(), Surum = 1, IdempotencyAnahtari = Guid.NewGuid(),
+            KapsamAnahtari = form.ProjeId.HasValue ? "P:" + form.ProjeId : "M:" + form.ProjeNo,
+            ProjeId = form.ProjeId, SnapshotJson = JsonSerializer.Serialize(form), OlusturanKullaniciId = 7
+        };
+        uow.AddRepository(entity);
+        uow.AddRepository(form.Kalemler.Select((k, i) => new AmbalajUretimFormuKaydi
+        { Id = i + 1, FormSurumuId = 1, AmbalajUretimKaydiId = k.KayitId }).ToArray());
+    }
+
+    [Fact]
+    public async Task GetUretimFormu_SnapshotYoksaYeniFormUretmezVeDurumDegistirmez()
+    {
+        var kayit = GecerliFormKaydi();
+        var uow = new FakeUnitOfWork().AddRepository(kayit);
+        var before = JsonSerializer.Serialize(kayit);
+        var result = await new GetAmbalajUretimFormuQueryHandler(uow,
+            FakeRolService.TumYetkiler(), new FakeCurrentUserService()).Handle(
+            new() { KayitId = kayit.Id }, default);
+        Assert.Equal(404, result.StatusCode);
+        Assert.Equal(before, JsonSerializer.Serialize(kayit));
+        Assert.Equal(0, uow.SaveChangesSayisi);
+        Assert.Empty(uow.Repository<AmbalajUretimFormuSurumu>().Items);
+    }
+
     private sealed class FakeUnitOfWork : IUnitOfWork
     {
         private readonly Dictionary<Type, object> _repositories = new();
+
+        public FakeUnitOfWork()
+        {
+            AddRepository<AmbalajUretimFormuSurumu>();
+            AddRepository<AmbalajUretimFormuKaydi>();
+            AddRepository<AmbalajUretimGerceklesmesi>();
+        }
 
         private bool _transactionIcinde;
         private bool _erisimTakibiAktif;

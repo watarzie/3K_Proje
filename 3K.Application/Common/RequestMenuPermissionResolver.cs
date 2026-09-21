@@ -68,7 +68,8 @@ public sealed class RequestMenuPermissionResolver(IUnitOfWork unitOfWork, IReadQ
 
     private static RequestMenuPermissions? GetFixedPolicy(object request) => request switch
         {
-            RolOlusturCommand or RolGuncelleCommand or RolSilCommand => One("rol-yonetimi", YetkiTipi.W),
+            RolOlusturCommand or RolGuncelleCommand or RolSilCommand => new(
+                [new([new("rol-yonetimi", YetkiTipi.W), new(_3K.Core.Constants.YetkiKodlari.YetkiAtama, YetkiTipi.W)])]),
             GetRolDetayQuery => One("rol-yonetimi", YetkiTipi.R),
             GetRollerQuery => Any(YetkiTipi.R, "rol-yonetimi", "kullanicilar", "onay-kurallari-yonet"),
             DashboardOzetQuery or DashboardProjelerQuery or DashboardKritikEksiklerQuery or

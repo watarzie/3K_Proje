@@ -119,7 +119,7 @@ namespace _3K.Application.Features.FinansIslemleri.Queries
             var source = await _service.SiparislerAsync(request.Filtre, cancellationToken);
             return Result<FinansSayfaliSonuc<FinansSiparisModel>>.Success(new FinansSayfaliSonuc<FinansSiparisModel>
             {
-                Items = source.Items.Select(FinansHassasAlanMaskeleme.Siparis).ToArray(),
+                Items = source.Items,
                 PageNumber = source.PageNumber,
                 PageSize = source.PageSize,
                 TotalCount = source.TotalCount
@@ -133,7 +133,7 @@ namespace _3K.Application.Features.FinansIslemleri.Queries
                 cancellationToken);
             return Result<FinansSayfaliSonuc<FinansSiparisModel>>.Success(new FinansSayfaliSonuc<FinansSiparisModel>
             {
-                Items = source.Items.Select(FinansHassasAlanMaskeleme.Siparis).ToArray(),
+                Items = source.Items,
                 PageNumber = source.PageNumber,
                 PageSize = source.PageSize,
                 TotalCount = source.TotalCount
@@ -154,7 +154,7 @@ namespace _3K.Application.Features.FinansIslemleri.Queries
             var source = await _service.FaturalarAsync(request.Filtre, cancellationToken);
             return Result<FinansSayfaliSonuc<FinansFaturaModel>>.Success(new FinansSayfaliSonuc<FinansFaturaModel>
             {
-                Items = source.Items.Select(FinansHassasAlanMaskeleme.Fatura).ToArray(),
+                Items = source.Items,
                 PageNumber = source.PageNumber,
                 PageSize = source.PageSize,
                 TotalCount = source.TotalCount
@@ -166,7 +166,7 @@ namespace _3K.Application.Features.FinansIslemleri.Queries
             var value = await _service.FaturaGetirAsync(request.Id, cancellationToken);
             return value is null
                 ? FinansHandlerHelper.NotFound<FinansFaturaModel>("Fatura bulunamadı.")
-                : Result<FinansFaturaModel>.Success(FinansHassasAlanMaskeleme.Fatura(value));
+                : Result<FinansFaturaModel>.Success(value);
         }
 
         public async Task<Result<FinansSayfaliSonuc<FinansDuzenliIsModel>>> Handle(FinansDuzenliIslerQuery request, CancellationToken cancellationToken)
@@ -191,7 +191,7 @@ namespace _3K.Application.Features.FinansIslemleri.Queries
             var source = await _service.IsKayitlariAsync(filter, cancellationToken);
             return Result<FinansSayfaliSonuc<FinansIsKaydiModel>>.Success(new FinansSayfaliSonuc<FinansIsKaydiModel>
             {
-                Items = source.Items.Select(FinansHassasAlanMaskeleme.IsKaydi).ToArray(),
+                Items = source.Items,
                 PageNumber = source.PageNumber,
                 PageSize = source.PageSize,
                 TotalCount = source.TotalCount
@@ -230,7 +230,7 @@ namespace _3K.Application.Features.FinansIslemleri.Queries
                 request.PageNumber, request.PageSize, cancellationToken);
             return Result<FinansSayfaliSonuc<FinansUrunModel>>.Success(new FinansSayfaliSonuc<FinansUrunModel>
             {
-                Items = source.Items.Select(FinansHassasAlanMaskeleme.Urun).ToArray(),
+                Items = source.Items,
                 PageNumber = source.PageNumber,
                 PageSize = source.PageSize,
                 TotalCount = source.TotalCount

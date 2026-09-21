@@ -16,7 +16,7 @@ namespace _3K.Application.Features.FinansIslemleri.DTOs
         int FaturaBekleyen,
         int Faturalanan,
         int BuAyOzelIs,
-        decimal BuAyGider);
+        decimal? BuAyGider);
 
     public sealed record FinansHassasOzetDto(IReadOnlyList<FinansParaToplamiModel> Tutarlar);
     public sealed record FinansDurumTutarOzetiDto(

@@ -31,6 +31,8 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
             var kayit = await repo.GetByIdAsync(request.Id);
             if (kayit == null)
                 return Result<AmbalajUretimKaydiDto>.Failure("Ambalaj üretim kaydı bulunamadı.", 404);
+            if (!_3K.Core.Models.AmbalajUretimPolitikasi.M3HesaplanabilirMi(kayit.SandikCinsi))
+                return Result<AmbalajUretimKaydiDto>.Failure("Bu cinste üretim sarf m³ hesaplanmaz.", 409);
             if (kayit.IptalMi)
                 return Result<AmbalajUretimKaydiDto>.Failure("İptal edilmiş kaydın sarf oranı değiştirilemez.", 409);
             if (!await AmbalajYetkilendirmeYardimcisi.KaynakMudahalesineYetkiliMiAsync(
@@ -47,7 +49,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
                 kayit,
                 eski,
                 "Sarf oranı değiştirildi",
-                _currentUserService.UserId ?? 0,
+                _currentUserService.IslemKullaniciId ?? 0,
                 request.Neden);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 

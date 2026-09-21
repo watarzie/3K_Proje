@@ -70,15 +70,16 @@ namespace _3K.Infrastructure.Services
         {
             var start = baslangic?.Date;
             var endExclusive = bitis?.Date.AddDays(1);
-            var thisMonthStart = new DateTime(TurkeyTime.Now.Year, TurkeyTime.Now.Month, 1);
+            var reference = bitis ?? baslangic ?? TurkeyTime.Now;
+            var thisMonthStart = new DateTime(reference.Year, reference.Month, 1);
             var nextMonthStart = thisMonthStart.AddMonths(1);
             IQueryable<FinansIsKaydi>? workQuery = null;
             if (bolumler.HasFlag(DashboardBolumu.Operasyon) || bolumler.HasFlag(DashboardBolumu.DurumTutarlari))
             {
                 workQuery = _context.Set<FinansIsKaydi>().AsNoTracking()
                     .Where(x => !x.IptalEdildi && x.KaynakAktif);
-                if (start.HasValue) workQuery = workQuery.Where(x => x.FinansDonemi >= start.Value);
-                if (endExclusive.HasValue) workQuery = workQuery.Where(x => x.FinansDonemi < endExclusive.Value);
+                if (start.HasValue) workQuery = workQuery.Where(x => x.FinansTarihi >= start.Value);
+                if (endExclusive.HasValue) workQuery = workQuery.Where(x => x.FinansTarihi < endExclusive.Value);
             }
 
             var toplamIs = 0;
@@ -96,8 +97,8 @@ namespace _3K.Infrastructure.Services
                     .Select(group => new
                     {
                         ToplamIs = group.Count(),
-                        ToplamSandik = group.Sum(x => x.Adet),
-                        ToplamM3 = group.Sum(x => x.ToplamM3),
+                        ToplamSandik = group.Where(x => x.IsTuru != FinansIsTuru.SarfKereste).Sum(x => x.Adet),
+                        ToplamM3 = group.Where(x => x.IsTuru != FinansIsTuru.SarfKereste).Sum(x => x.ToplamM3),
                         SiparisBekleyen = group.Count(x => x.Durum == FinansIsDurumu.SiparisBekliyor),
                         SiparisAcik = group.Count(x => x.Durum == FinansIsDurumu.SiparisAcildi),
                         KismiSiparis = group.Count(x => x.Durum == FinansIsDurumu.KismiSiparis),
@@ -107,8 +108,8 @@ namespace _3K.Infrastructure.Services
                         Faturalanan = group.Count(x => x.Durum == FinansIsDurumu.Faturalandi),
                         BuAyOzelIs = group.Count(x =>
                             x.IsTuru == FinansIsTuru.OzelIs &&
-                            x.FinansDonemi >= thisMonthStart &&
-                            x.FinansDonemi < nextMonthStart)
+                            x.FinansTarihi >= thisMonthStart &&
+                            x.FinansTarihi < nextMonthStart)
                     })
                     .SingleOrDefaultAsync(cancellationToken);
                 if (summary is not null)
@@ -128,17 +129,9 @@ namespace _3K.Infrastructure.Services
             IReadOnlyList<FinansParaToplamiModel> income = Array.Empty<FinansParaToplamiModel>();
             if (bolumler.HasFlag(DashboardBolumu.Gelir))
             {
-                var invoiceQuery = _context.Set<FinansFatura>().AsNoTracking()
-                    .Where(x => !x.IptalEdildi &&
-                                (!start.HasValue || x.FaturaTarihi >= start.Value) &&
-                                (!endExclusive.HasValue || x.FaturaTarihi < endExclusive.Value));
-                var documentTotals = await BuildInvoiceDocumentTotalsQuery(invoiceQuery)
-                    .OrderBy(x => x.ParaBirimi)
-                    .ToListAsync(cancellationToken);
-                var calculatedTotals = await BuildInvoiceCalculatedTotalsQuery(invoiceQuery)
-                    .OrderBy(x => x.ParaBirimi)
-                    .ToListAsync(cancellationToken);
-                income = MergeMoneyTotals(documentTotals.Concat(calculatedTotals));
+                var invoiceLines = ApplyInvoiceLineFilter(_context.Set<FinansFaturaKalemi>().AsNoTracking(),
+                    new FinansListeFiltre(Baslangic: baslangic, Bitis: bitis));
+                income = await BuildInvoiceTotalsQuery(invoiceLines).OrderBy(x => x.ParaBirimi).ToListAsync(cancellationToken);
             }
 
             var buAyGiderKaydi = 0;
@@ -149,17 +142,17 @@ namespace _3K.Infrastructure.Services
                 var scopedExpenses = _context.Set<FinansGider>().AsNoTracking()
                     .Where(x => !x.IptalEdildi);
                 var expenseQuery = scopedExpenses;
-                if (start.HasValue) expenseQuery = expenseQuery.Where(x => x.FinansDonemi >= start.Value);
-                if (endExclusive.HasValue) expenseQuery = expenseQuery.Where(x => x.FinansDonemi < endExclusive.Value);
+                if (start.HasValue) expenseQuery = expenseQuery.Where(x => x.FinansTarihi >= start.Value);
+                if (endExclusive.HasValue) expenseQuery = expenseQuery.Where(x => x.FinansTarihi < endExclusive.Value);
                 expenseTotals = await BuildExpenseTotalsQuery(expenseQuery)
                     .OrderBy(x => x.ParaBirimi)
                     .ToListAsync(cancellationToken);
 
                 var currentMonthQuery = scopedExpenses.Where(x =>
-                    x.FinansDonemi >= thisMonthStart &&
-                    x.FinansDonemi < nextMonthStart);
-                if (start.HasValue) currentMonthQuery = currentMonthQuery.Where(x => x.FinansDonemi >= start.Value);
-                if (endExclusive.HasValue) currentMonthQuery = currentMonthQuery.Where(x => x.FinansDonemi < endExclusive.Value);
+                    x.FinansTarihi >= thisMonthStart &&
+                    x.FinansTarihi < nextMonthStart);
+                if (start.HasValue) currentMonthQuery = currentMonthQuery.Where(x => x.FinansTarihi >= start.Value);
+                if (endExclusive.HasValue) currentMonthQuery = currentMonthQuery.Where(x => x.FinansTarihi < endExclusive.Value);
                 buAyGiderKaydi = await currentMonthQuery.CountAsync(cancellationToken);
                 thisMonthExpenses = await BuildExpenseTotalsQuery(currentMonthQuery)
                     .OrderBy(x => x.ParaBirimi)
@@ -194,11 +187,7 @@ namespace _3K.Infrastructure.Services
             {
                 var gelir = income.FirstOrDefault(x => x.ParaBirimi == currency);
                 var gider = expenseTotals.FirstOrDefault(x => x.ParaBirimi == currency);
-                return new FinansParaToplamiModel(
-                    currency,
-                    (gelir?.NetTutar ?? 0) - (gider?.NetTutar ?? 0),
-                    (gelir?.KdvTutari ?? 0) - (gider?.KdvTutari ?? 0),
-                    (gelir?.ToplamTutar ?? 0) - (gider?.ToplamTutar ?? 0));
+                return new FinansParaToplamiModel("", 0, 0, 0) { ParaBirimi = currency, NetTutar = (gelir?.NetTutar ?? 0) - (gider?.NetTutar ?? 0), KdvTutari = (gelir?.KdvTutari ?? 0) - (gider?.KdvTutari ?? 0), ToplamTutar = (gelir?.ToplamTutar ?? 0) - (gider?.ToplamTutar ?? 0) };
             }).ToArray();
 
             return new FinansDashboardModel
@@ -223,113 +212,24 @@ namespace _3K.Infrastructure.Services
             };
         }
 
-        internal static IQueryable<FinansParaToplamiModel> BuildPendingAmountQuery(
-            IQueryable<FinansIsKaydi> works)
+        internal static IQueryable<FinansParaToplamiModel> BuildPendingAmountQuery(IQueryable<FinansIsKaydi> works)
         {
-            var source = works.Select(work => new
+            var amounts = works.Select(work => new
             {
-                work.Adet,
-                work.ToplamM3,
-                WorkPricingUnit = work.FiyatlandirmaBirimiSnapshot,
-                WorkUnitPrice = work.BirimFiyatSnapshot,
-                WorkVat = work.KdvOraniSnapshot,
-                WorkCurrency = work.ParaBirimiSnapshot,
-                OrderLineCount = work.SiparisKalemleri.Count(x => !x.FinansSiparis.IptalEdildi),
-                PricingUnitCount = work.SiparisKalemleri
-                    .Where(x => !x.FinansSiparis.IptalEdildi)
-                    .Select(x => x.FiyatlandirmaBirimiSnapshot)
-                    .Distinct()
-                    .Count(),
-                OrderPricingUnit = work.SiparisKalemleri
-                    .Where(x => !x.FinansSiparis.IptalEdildi)
-                    .Select(x => (FinansFiyatlandirmaBirimi?)x.FiyatlandirmaBirimiSnapshot)
-                    .FirstOrDefault(),
-                OrderedAdet = work.SiparisKalemleri
-                    .Where(x => !x.FinansSiparis.IptalEdildi)
-                    .Sum(x => (decimal?)x.Adet) ?? 0m,
-                OrderedM3 = work.SiparisKalemleri
-                    .Where(x => !x.FinansSiparis.IptalEdildi)
-                    .Sum(x => (decimal?)x.M3) ?? 0m,
-                LatestUnitPrice = work.SiparisKalemleri
-                    .Where(x => !x.FinansSiparis.IptalEdildi)
-                    .OrderByDescending(x => x.FinansSiparis.SiparisTarihi)
-                    .ThenByDescending(x => x.Id)
-                    .Select(x => (decimal?)x.BirimFiyatSnapshot)
-                    .FirstOrDefault(),
-                LatestVat = work.SiparisKalemleri
-                    .Where(x => !x.FinansSiparis.IptalEdildi)
-                    .OrderByDescending(x => x.FinansSiparis.SiparisTarihi)
-                    .ThenByDescending(x => x.Id)
-                    .Select(x => (decimal?)x.KdvOraniSnapshot)
-                    .FirstOrDefault(),
-                LatestCurrency = work.SiparisKalemleri
-                    .Where(x => !x.FinansSiparis.IptalEdildi)
-                    .OrderByDescending(x => x.FinansSiparis.SiparisTarihi)
-                    .ThenByDescending(x => x.Id)
-                    .Select(x => x.ParaBirimiSnapshot)
-                    .FirstOrDefault()
-            });
-            var priced = source.Select(row => new
-            {
-                row.Adet,
-                row.ToplamM3,
-                row.OrderedAdet,
-                row.OrderedM3,
-                row.OrderLineCount,
-                PricingUnit = row.OrderLineCount > 0 &&
-                              row.PricingUnitCount == 1 &&
-                              row.OrderPricingUnit.HasValue
-                    ? row.OrderPricingUnit.Value
-                    : row.WorkPricingUnit,
-                UnitPrice = row.LatestUnitPrice ?? row.WorkUnitPrice,
-                Vat = row.LatestVat ?? row.WorkVat,
-                Currency = row.LatestCurrency ?? row.WorkCurrency
-            });
-            var quantities = priced.Select(row => new
-            {
-                row.UnitPrice,
-                row.Vat,
-                row.Currency,
-                Remaining = row.PricingUnit == FinansFiyatlandirmaBirimi.Adet
-                    ? (row.Adet > row.OrderedAdet ? row.Adet - row.OrderedAdet : 0m)
-                    : row.PricingUnit == FinansFiyatlandirmaBirimi.Metrekup
-                        ? (row.ToplamM3 > row.OrderedM3 ? row.ToplamM3 - row.OrderedM3 : 0m)
-                        : row.PricingUnit == FinansFiyatlandirmaBirimi.SabitTutar && row.OrderLineCount == 0
-                            ? 1m
-                            : 0m
-            });
-            var nets = quantities
-                .Where(row => row.Remaining > Tolerance && row.UnitPrice > 0)
-                .Select(row => new
-                {
-                    row.Currency,
-                    row.Vat,
-                    Net = decimal.Round(row.Remaining * row.UnitPrice, 2)
-                });
-            var amounts = nets.Select(row => new
-            {
-                row.Currency,
-                row.Net,
-                Kdv = decimal.Round(row.Net * row.Vat / 100m, 2)
-            });
-            return amounts
-                .GroupBy(row => row.Currency)
-                .Select(group => new FinansParaToplamiModel(
-                    group.Key,
-                    group.Sum(x => x.Net),
-                    group.Sum(x => x.Kdv),
-                    group.Sum(x => x.Net + x.Kdv)));
+                Currency = work.ParaBirimiSnapshot, Vat = work.KdvOraniSnapshot,
+                Capacity = work.ManuelNetTutar ?? decimal.Round(work.BirimFiyatSnapshot *
+                    (work.FiyatlandirmaBirimiSnapshot == FinansFiyatlandirmaBirimi.Adet ? work.Adet :
+                     work.FiyatlandirmaBirimiSnapshot == FinansFiyatlandirmaBirimi.Metrekup ? work.ToplamM3 : 1m), 2),
+                Used = work.SiparisKalemleri.Where(x => !x.FinansSiparis.IptalEdildi).Sum(x => (decimal?)x.NetTutarSnapshot) ?? 0m
+            }).Select(x => new { x.Currency, x.Vat, Net = x.Capacity > x.Used ? x.Capacity - x.Used : 0m });
+            return amounts.GroupBy(x => x.Currency).Select(g => new FinansParaToplamiModel("", 0, 0, 0) { ParaBirimi = g.Key, NetTutar = g.Sum(x => x.Net), KdvTutari = g.Sum(x => decimal.Round(x.Net * x.Vat / 100m, 2)), ToplamTutar = g.Sum(x => x.Net + decimal.Round(x.Net * x.Vat / 100m, 2)) });
         }
 
         internal static IQueryable<FinansParaToplamiModel> BuildInvoiceTotalsQuery(
             IQueryable<FinansFaturaKalemi> invoiceLines)
             => invoiceLines
                 .GroupBy(x => x.FinansSiparisKalemi.ParaBirimiSnapshot)
-                .Select(group => new FinansParaToplamiModel(
-                    group.Key,
-                    group.Sum(x => x.NetTutarSnapshot),
-                    group.Sum(x => x.KdvTutariSnapshot),
-                    group.Sum(x => x.ToplamTutarSnapshot)));
+                .Select(group => new FinansParaToplamiModel("", 0, 0, 0) { ParaBirimi = group.Key, NetTutar = group.Sum(x => x.NetTutarSnapshot), KdvTutari = group.Sum(x => x.KdvTutariSnapshot), ToplamTutar = group.Sum(x => x.ToplamTutarSnapshot) });
 
         internal static IQueryable<FinansParaToplamiModel> BuildInvoiceDocumentTotalsQuery(
             IQueryable<FinansFatura> invoices)
@@ -340,11 +240,7 @@ namespace _3K.Infrastructure.Services
                             x.BelgeKdvTutariSnapshot.HasValue &&
                             x.BelgeToplamTutarSnapshot.HasValue)
                 .GroupBy(x => x.BelgeParaBirimiSnapshot!)
-                .Select(group => new FinansParaToplamiModel(
-                    group.Key,
-                    group.Sum(x => x.BelgeNetTutarSnapshot!.Value),
-                    group.Sum(x => x.BelgeKdvTutariSnapshot!.Value),
-                    group.Sum(x => x.BelgeToplamTutarSnapshot!.Value)));
+                .Select(group => new FinansParaToplamiModel("", 0, 0, 0) { ParaBirimi = group.Key, NetTutar = group.Sum(x => x.BelgeNetTutarSnapshot!.Value), KdvTutari = group.Sum(x => x.BelgeKdvTutariSnapshot!.Value), ToplamTutar = group.Sum(x => x.BelgeToplamTutarSnapshot!.Value) });
 
         internal static IQueryable<FinansParaToplamiModel> BuildInvoiceCalculatedTotalsQuery(
             IQueryable<FinansFatura> invoices)
@@ -358,79 +254,27 @@ namespace _3K.Infrastructure.Services
 
         internal static IQueryable<FinansParaToplamiModel> BuildExpenseTotalsQuery(
             IQueryable<FinansGider> expenses)
-            => expenses
+            => expenses.Where(x => !x.AvansMi)
                 .GroupBy(x => x.ParaBirimi)
-                .Select(group => new FinansParaToplamiModel(
-                    group.Key,
-                    group.Sum(x => x.Matrah),
-                    group.Sum(x => x.KdvTutari),
-                    group.Sum(x => x.ToplamTutar)));
+                .Select(group => new FinansParaToplamiModel("", 0, 0, 0) { ParaBirimi = group.Key, NetTutar = group.Sum(x => x.Matrah), KdvTutari = group.Sum(x => x.KdvTutari), ToplamTutar = group.Sum(x => x.ToplamTutar) });
 
         internal static IReadOnlyList<FinansParaToplamiModel> MergeMoneyTotals(
             IEnumerable<FinansParaToplamiModel> totals)
             => totals
                 .GroupBy(x => x.ParaBirimi)
-                .Select(group => new FinansParaToplamiModel(
-                    group.Key,
-                    group.Sum(x => x.NetTutar),
-                    group.Sum(x => x.KdvTutari),
-                    group.Sum(x => x.ToplamTutar)))
+                .Select(group => new FinansParaToplamiModel("", 0, 0, 0) { ParaBirimi = group.Key, NetTutar = group.Sum(x => x.NetTutar), KdvTutari = group.Sum(x => x.KdvTutari), ToplamTutar = group.Sum(x => x.ToplamTutar) })
                 .OrderBy(x => x.ParaBirimi)
                 .ToArray();
 
-        internal static IQueryable<FinansParaToplamiModel> BuildOpenOrderAmountQuery(
-            IQueryable<FinansSiparisKalemi> orderLines)
+        internal static IQueryable<FinansParaToplamiModel> BuildOpenOrderAmountQuery(IQueryable<FinansSiparisKalemi> orderLines)
         {
-            var source = orderLines.Select(line => new
+            var amounts = orderLines.Select(line => new
             {
-                PricingUnit = line.FiyatlandirmaBirimiSnapshot,
-                line.Adet,
-                line.M3,
-                UnitPrice = line.BirimFiyatSnapshot,
-                Vat = line.KdvOraniSnapshot,
                 Currency = line.ParaBirimiSnapshot,
-                InvoicedAdet = line.FaturaKalemleri
-                    .Where(x => !x.FinansFatura.IptalEdildi)
-                    .Sum(x => (decimal?)x.Adet) ?? 0m,
-                InvoicedM3 = line.FaturaKalemleri
-                    .Where(x => !x.FinansFatura.IptalEdildi)
-                    .Sum(x => (decimal?)x.M3) ?? 0m,
-                InvoiceLineCount = line.FaturaKalemleri.Count(x => !x.FinansFatura.IptalEdildi)
+                Net = line.NetTutarSnapshot - (line.FaturaKalemleri.Where(x => !x.FinansFatura.IptalEdildi).Sum(x => (decimal?)x.NetTutarSnapshot) ?? 0m),
+                Vat = line.KdvTutariSnapshot - (line.FaturaKalemleri.Where(x => !x.FinansFatura.IptalEdildi).Sum(x => (decimal?)x.KdvTutariSnapshot) ?? 0m)
             });
-            var quantities = source.Select(row => new
-            {
-                row.UnitPrice,
-                row.Vat,
-                row.Currency,
-                Remaining = row.PricingUnit == FinansFiyatlandirmaBirimi.Adet
-                    ? (row.Adet > row.InvoicedAdet ? row.Adet - row.InvoicedAdet : 0m)
-                    : row.PricingUnit == FinansFiyatlandirmaBirimi.Metrekup
-                        ? (row.M3 > row.InvoicedM3 ? row.M3 - row.InvoicedM3 : 0m)
-                        : row.PricingUnit == FinansFiyatlandirmaBirimi.SabitTutar && row.InvoiceLineCount == 0
-                            ? 1m
-                            : 0m
-            });
-            var nets = quantities
-                .Where(row => row.Remaining > Tolerance)
-                .Select(row => new
-                {
-                    row.Currency,
-                    row.Vat,
-                    Net = decimal.Round(row.Remaining * row.UnitPrice, 2)
-                });
-            var amounts = nets.Select(row => new
-            {
-                row.Currency,
-                row.Net,
-                Kdv = decimal.Round(row.Net * row.Vat / 100m, 2)
-            });
-            return amounts
-                .GroupBy(row => row.Currency)
-                .Select(group => new FinansParaToplamiModel(
-                    group.Key,
-                    group.Sum(x => x.Net),
-                    group.Sum(x => x.Kdv),
-                    group.Sum(x => x.Net + x.Kdv)));
+            return amounts.GroupBy(x => x.Currency).Select(g => new FinansParaToplamiModel("", 0, 0, 0) { ParaBirimi = g.Key, NetTutar = g.Sum(x => x.Net), KdvTutari = g.Sum(x => x.Vat), ToplamTutar = g.Sum(x => x.Net + x.Vat) });
         }
     }
 }

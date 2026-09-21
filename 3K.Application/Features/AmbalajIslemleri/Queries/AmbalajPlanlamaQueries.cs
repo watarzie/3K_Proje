@@ -5,10 +5,16 @@ using _3K.Application.Features.AmbalajIslemleri.DTOs;
 namespace _3K.Application.Features.AmbalajIslemleri.Queries;
 
 public abstract class AmbalajPlanlamaQuery<T> : IRequest<Result<T>>, ISecuredRequest,
-    IRequiresMenuPermissions
+    IRequiresMenuPermissions, IAmbalajDurumKapsamli
 {
+    [System.Text.Json.Serialization.JsonIgnore] public int[]? IzinliDurumlar { get; set; }
     public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
-        [AmbalajMenuKodlari.Read(AmbalajMenuKodlari.Listele)];
+        this switch
+        {
+            GetAmbalajPlanlamaPlanQuery => [AmbalajMenuKodlari.Read(AmbalajMenuKodlari.PlanGoruntule), AmbalajMenuKodlari.Read(AmbalajMenuKodlari.ProjeDetayGoruntule)],
+            GetAmbalajProjeSandikSecenekleriQuery or GetAmbalajIlaveSandikAdaylariQuery => [AmbalajMenuKodlari.Read(AmbalajMenuKodlari.SandikListesiGoruntule)],
+            _ => [AmbalajMenuKodlari.Read(AmbalajMenuKodlari.Listele)]
+        };
 }
 
 public sealed class GetAmbalajPlanlamaProjeleriQuery

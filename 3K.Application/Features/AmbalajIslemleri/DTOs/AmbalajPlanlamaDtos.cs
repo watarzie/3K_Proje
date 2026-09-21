@@ -11,27 +11,30 @@ public sealed record AmbalajPlanlamaProjeOzetDto(
     int OlculuSandikSayisi,
     int EksikOlculuSandikSayisi,
     IReadOnlyList<string> EksikOlculuSandiklar,
-    decimal ToplamHacimM3,
+    decimal? ToplamHacimM3,
     string? FirinPartiNo,
     int UretimeAlinanSandikAdedi,
     int IlaveSandikSayisi,
     int IcSandikSayisi,
-    decimal UretimHacimM3,
+    decimal? UretimHacimM3,
     int ProjeSandiklariDurumId,
     int IlaveSandiklarDurumId,
     int IcSandiklarDurumId,
     string? IlaveFirinPartiNo,
     string? IcSandikFirinPartiNo,
     int ProjeSandikSayisi,
-    decimal ProjeSandiklariHacimM3,
-    decimal IlaveSandiklarHacimM3,
-    decimal IcSandiklarHacimM3);
+    decimal? ProjeSandiklariHacimM3,
+    decimal? IlaveSandiklarHacimM3,
+    decimal? IcSandiklarHacimM3,
+    int GenelUretimDurumu = 1,
+    int GerekliSandikAdedi = 0,
+    int TamamlananSandikAdedi = 0);
 
 public sealed class AmbalajPlanlamaProjeFiltreOzetiDto
 {
     public int ProjeSayisi { get; init; }
     public int ToplamSandikAdedi { get; init; }
-    public decimal ToplamHacimM3 { get; init; }
+    public decimal? ToplamHacimM3 { get; init; }
     public int EksikOlculuProjeSayisi { get; init; }
 }
 
@@ -62,7 +65,10 @@ public sealed record AmbalajPlanlamaPlanDto(
     int IcSandiklarDurumId,
     IReadOnlyList<AmbalajPlanlamaKalemDto> Kalemler,
     int SeciliSandikAdedi,
-    decimal SeciliHacimM3);
+    decimal? SeciliHacimM3,
+    int GenelUretimDurumu = 1,
+    int GerekliSandikAdedi = 0,
+    int TamamlananSandikAdedi = 0);
 
 public sealed record AmbalajPlanlamaKalemDto(
     int Id,
@@ -76,23 +82,25 @@ public sealed record AmbalajPlanlamaKalemDto(
     string? Ad,
     string SandikTipi,
     int Adet,
-    decimal Boy,
-    decimal En,
-    decimal Yukseklik,
+    decimal? Boy,
+    decimal? En,
+    decimal? Yukseklik,
     string? KullanimAmaci,
     string? TalimatVeren,
     string? Aciklama,
-    decimal HacimM3,
+    decimal? HacimM3,
     bool? AmbalajaDahilMi = true,
-    bool AmbalajKarariOneriliyor = false);
+    bool AmbalajKarariOneriliyor = false,
+    bool M3HesaplanabilirMi = true,
+    int UretimDurumu = 1);
 
 public sealed record AmbalajIcSandikSablonDto(
     int Id,
     string Ad,
     string SandikTipi,
-    decimal Boy,
-    decimal En,
-    decimal Yukseklik);
+    decimal? Boy,
+    decimal? En,
+    decimal? Yukseklik);
 
 public sealed record AmbalajTalepEdenDto(int Id, string Ad);
 
@@ -133,20 +141,23 @@ public sealed record AmbalajBagimsizSandikDto(
     string Ad,
     string SandikTipi,
     int Adet,
-    decimal Boy,
-    decimal En,
-    decimal Yukseklik,
+    decimal? Boy,
+    decimal? En,
+    decimal? Yukseklik,
     string? KullanimAmaci,
     string? TalimatVeren,
     string? Aciklama,
-    decimal HacimM3);
+    decimal? HacimM3,
+    bool M3HesaplanabilirMi = true,
+    int UretimDurumu = 1,
+    bool AmbalajaDahilMi = true);
 
 public sealed class AmbalajBagimsizSandikTurOzetiDto
 {
     public int Tur { get; init; }
     public int KayitSayisi { get; init; }
     public int ToplamSandikAdedi { get; init; }
-    public decimal ToplamHacimM3 { get; init; }
+    public decimal? ToplamHacimM3 { get; init; }
 }
 
 public sealed class AmbalajBagimsizSandikFiltreOzetiDto
@@ -154,7 +165,7 @@ public sealed class AmbalajBagimsizSandikFiltreOzetiDto
     public int KayitSayisi { get; init; }
     public int ToplamSandikAdedi { get; init; }
     public int UretimeAlinanSandikAdedi { get; init; }
-    public decimal ToplamHacimM3 { get; init; }
+    public decimal? ToplamHacimM3 { get; init; }
     public IReadOnlyList<AmbalajBagimsizSandikTurOzetiDto> TurOzetleri { get; init; } = [];
 }
 

@@ -7,6 +7,7 @@ namespace _3K.Core.Interfaces
     public interface ICurrentUserService
     {
         int? UserId { get; }
+        int? IslemKullaniciId => UserId;
         bool IsAuthenticated { get; }
         /// <summary>İstemci ekran ipucu; güvenilir yetki kaynağı değildir.</summary>
         string? MenuKod { get; }

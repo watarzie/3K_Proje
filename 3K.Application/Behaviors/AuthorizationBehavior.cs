@@ -1,5 +1,6 @@
 using MediatR;
 using _3K.Application.Common;
+using _3K.Core.Constants;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 
@@ -48,9 +49,29 @@ namespace _3K.Application.Behaviors
 
             // Bu bağlam yalnız onay handler'ında kayıt/karar/meta veri kontrollerinden
             // sonra açılır. Onay yetkisi, talep edenin ekran yazma izniyle aynı değildir.
-            if (_approvalExecutionContext?.IsExecutingApprovedCommand == true &&
+            var granularModule = request.GetType().Namespace?.StartsWith("_3K.Application.Features.AmbalajIslemleri", StringComparison.Ordinal) == true ||
+                request.GetType().Namespace?.StartsWith("_3K.Application.Features.FinansIslemleri", StringComparison.Ordinal) == true;
+            if (_approvalExecutionContext?.IsExecutingApprovedCommand == true && !granularModule &&
                 request is IApprovalOperation && RequestMenuPermissionResolver.HasServerDefinition(request))
                 return await next();
+
+            if (_approvalExecutionContext?.IsExecutingApprovedCommand == true && granularModule)
+            {
+                if (_approvalExecutionContext.InitiatorUserId is not int initiator || initiator <= 0)
+                    return CreateFailureResult("Onay işleminin başlatan kullanıcısı doğrulanamadı.", 403);
+                userId = initiator;
+            }
+
+            // Üretim/finans kök erişimi ile bağımsız eylem izni birlikte gerekir.
+            // Kökün kişisel açık reddi, elde kalmış alt izinle API'den aşılamaz.
+            // Diğer modüllerin mevcut All/Any sözleşmelerine ek gereksinim koymayız.
+            if (granularModule)
+            {
+                var root = request.GetType().Namespace!.StartsWith("_3K.Application.Features.AmbalajIslemleri", StringComparison.Ordinal)
+                    ? YetkiKodlari.Ambalaj.Listele : YetkiKodlari.Finans.Modul;
+                if (!await _rolService.HasUserPermissionAsync(userId.Value, root, YetkiTipi.R, cancellationToken))
+                    return CreateFailureResult("Bu modüle erişim yetkiniz bulunmuyor.", 403);
+            }
 
             var policy = _permissionResolver != null
                 ? await _permissionResolver.ResolveAsync(request, cancellationToken)
