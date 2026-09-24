@@ -26,7 +26,7 @@ public sealed class RolOlusturCommandHandler(IUnitOfWork unitOfWork, IRolService
             permissions.AddRange(template.IzinKodlari.Select(code => YetkiKatalogu.Bul(code)!).Select(x =>
                 new RolYetkiItemDto { MenuTanimiId = x.Id, YetkiTipiId = (int)x.GerekenYetki }));
         }
-        var check = await YetkiAtamaKurallari.DogrulaAsync(unitOfWork, rolService, currentUser, 0, permissions, cancellationToken);
+        var check = await YetkiAtamaKurallari.DogrulaAsync(unitOfWork, rolService, currentUser, permissions, cancellationToken);
         if (!check.IsSuccess) return Result<RolDto>.Failure(check.Error!.Message, check.StatusCode);
         var repo = unitOfWork.GetRepository<Rol>();
         if ((await repo.FindAsync(x => x.Ad.ToLower() == request.Ad.Trim().ToLower())).Any())

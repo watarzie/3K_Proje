@@ -4601,16 +4601,6 @@ namespace _3K.Infrastructure.Migrations
                     b.HasData(
                         new
                         {
-                            Id = 5000,
-                            CreatedDate = new DateTime(2026, 9, 19, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Icon = "",
-                            Kod = "yetki-atama",
-                            LabelKey = "Rol ve kişisel izin atama",
-                            ParentId = 12,
-                            Sira = 1
-                        },
-                        new
-                        {
                             Id = 5100,
                             CreatedDate = new DateTime(2026, 9, 19, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Icon = "",
@@ -6410,14 +6400,6 @@ namespace _3K.Infrastructure.Migrations
                     b.ToTable("RolYetkileri");
 
                     b.HasData(
-                        new
-                        {
-                            Id = 15000,
-                            CreatedDate = new DateTime(2026, 9, 19, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            MenuTanimiId = 5000,
-                            RolId = 1,
-                            YetkiTipiId = 3
-                        },
                         new
                         {
                             Id = 15100,

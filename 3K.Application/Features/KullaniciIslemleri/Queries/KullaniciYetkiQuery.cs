@@ -1,15 +1,16 @@
 using MediatR;
 using _3K.Application.Common;
-using _3K.Core.Constants;
+using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
 
 namespace _3K.Application.Features.KullaniciIslemleri.Queries;
 
 public sealed class KullaniciYetkiQuery : IRequest<Result<IReadOnlyList<KullaniciYetkiModel>>>,
-    ISecuredRequest, IRequiresMenuPermission
+    ISecuredRequest, IRequiresMenuPermissions
 {
-    public string RequiredMenuKod => YetkiKodlari.YetkiAtama;
+    public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
+        [new("kullanicilar", YetkiTipi.W)];
     public int KullaniciId { get; set; }
 }
 

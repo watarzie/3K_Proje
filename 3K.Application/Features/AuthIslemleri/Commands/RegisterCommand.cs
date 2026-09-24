@@ -6,7 +6,7 @@ using _3K.Core.Enums;
 namespace _3K.Application.Features.AuthIslemleri.Commands
 {
     /// <summary>
-    /// Kullanıcı kayıt - sadece Admin.
+    /// Kullanıcı kaydı; kullanıcı yönetimi yazma izni ve atanacak role ilişkin ek kontroller gerekir.
     /// </summary>
     public class RegisterCommand
         : IRequest<Result<KullaniciDto>>, ISecuredRequest, IRequiresMenuPermission

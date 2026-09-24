@@ -32,11 +32,10 @@ public sealed class GranularYetkiPostgresTests
             var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(connection.ConnectionString).Options;
             await using var context = new AppDbContext(options);
             await context.Database.EnsureCreatedAsync();
-            var yetkiAtama = YetkiKatalogu.Bul(YetkiKodlari.YetkiAtama)!;
             var poGir = YetkiKatalogu.Bul(YetkiKodlari.Finans.PoGir)!;
             var kaliciSil = YetkiKatalogu.Bul(YetkiKodlari.Finans.KaliciSil)!;
             Assert.True(await context.MenuTanimlari.AnyAsync(x => x.Id == poGir.Id && x.Kod == poGir.Kod));
-            Assert.True(await context.RolYetkileri.AnyAsync(x => x.RolId == 1 && x.MenuTanimiId == yetkiAtama.Id));
+            Assert.True(await context.RolYetkileri.AnyAsync(x => x.RolId == 1 && x.MenuTanimiId == 11 && x.YetkiTipiId == (int)YetkiTipi.W));
             Assert.True(await context.RolYetkileri.AnyAsync(x => x.RolId == 1 && x.MenuTanimiId == kaliciSil.Id));
             context.Roller.Add(new() { Id = 77, Ad = "Eski Finans W" });
             context.Kullanicilar.AddRange(

@@ -5,7 +5,6 @@ namespace _3K.Core.Constants;
 /// <summary>Her kod tek bir ekran, işlem veya alanı temsil eder; kök W alt izin vermez.</summary>
 public static class YetkiKodlari
 {
-    public const string YetkiAtama = "yetki-atama";
     public static class Ambalaj
     {
         public const string Listele = "ambalaj-uretim-listesi";
@@ -111,7 +110,6 @@ public static class YetkiKatalogu
 {
     public static readonly IReadOnlyList<YetkiTanimi> Tum =
     [
-        new(5000, YetkiKodlari.YetkiAtama, "Rol ve kişisel izin atama", 12, YetkiTipi.W, true),
         new(5100, YetkiKodlari.Ambalaj.KayitDuzenle, "Kayıt düzenleme", 46, YetkiTipi.W, false),
         new(5101, YetkiKodlari.Ambalaj.RaporGoruntule, "Rapor görüntüleme", 46, YetkiTipi.R, false),
         new(5102, YetkiKodlari.Ambalaj.M3Goruntule, "Üretim m³ görüntüleme", 46, YetkiTipi.R, false),

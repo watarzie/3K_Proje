@@ -25,7 +25,8 @@ public static class GranularPermissionModelBuilderExtensions
         builder.Entity<MenuTanimi>().HasData(YetkiKatalogu.Tum.Select((x, i) => new MenuTanimi
         {
             Id = x.Id, Kod = x.Kod, LabelKey = x.Ad, Icon = string.Empty,
-            ParentId = x.ParentId, Sira = i + 1, CreatedDate = seedDate
+            // 5000 kodlu eski izin kaldırıldı; mevcut izinlerin canlıdaki sıra değerleri değişmemeli.
+            ParentId = x.ParentId, Sira = i + 2, CreatedDate = seedDate
         }));
         // Admin ayrı bir bypass değildir; yalnız açık seed izinleri vardır. Kullanıcı reddi Admin'i de sınırlar.
         builder.Entity<RolYetki>().HasData(YetkiKatalogu.Tum.Select(x => new RolYetki

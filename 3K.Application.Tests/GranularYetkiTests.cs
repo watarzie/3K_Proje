@@ -2,6 +2,8 @@ using System.Security.Claims;
 using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
 using _3K.Application.Behaviors;
 using _3K.Application.Common;
 using _3K.Application.Features.RolIslemleri.Commands;
@@ -19,6 +21,17 @@ namespace _3K.Application.Tests;
 
 public class GranularYetkiTests
 {
+    [Fact]
+    public void KaldirilanYetki_DigerMenuSeedSiralariniKaydirmaz()
+    {
+        using var context = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql("Host=127.0.0.1;Database=permission_seed_metadata_only;Username=unused;Password=unused")
+            .Options);
+        var seeds = context.GetService<IDesignTimeModel>().Model.FindEntityType(typeof(MenuTanimi))!.GetSeedData();
+        Assert.DoesNotContain(seeds, x => (int)x[nameof(MenuTanimi.Id)]! == 5000);
+        Assert.Equal(2, seeds.Single(x => (int)x[nameof(MenuTanimi.Id)]! == 5100)[nameof(MenuTanimi.Sira)]);
+    }
+
     [Theory]
     [InlineData(1, false, false)]
     [InlineData(3, false, false)]
@@ -102,15 +115,118 @@ public class GranularYetkiTests
     }
 
     [Fact]
-    public async Task RolGuncelleme_SahipOlunmayanKritikIzniKendineEkleyemez_VeriDegismez()
+    public async Task RolGuncelleme_RolYoneticisiSahipOlmadigiKritikIzniRoleEkleyebilir()
     {
         var (uow, roles) = RoleFixture();
         var result = await new RolGuncelleCommandHandler(uow, roles, new OrtakUser()).Handle(new()
         {
-            Id = 7, Ad = "Yetkisiz yeni ad", Yetkiler = [new() { MenuTanimiId = YetkiKatalogu.Bul(YetkiKodlari.Finans.KaliciSil)!.Id, YetkiTipiId = 3 }]
+            Id = 7, Ad = "Yeni ad", Yetkiler = [new() { MenuTanimiId = YetkiKatalogu.Bul(YetkiKodlari.Finans.KaliciSil)!.Id, YetkiTipiId = 3 }]
         }, default);
+        Assert.True(result.IsSuccess);
+        Assert.Equal("Yeni ad", uow.Repo<Rol>().Rows.Single().Ad);
+        Assert.Contains(roles.Permissions, x => x.MenuTanimiId == YetkiKatalogu.Bul(YetkiKodlari.Finans.KaliciSil)!.Id &&
+            x.YetkiTipiId == 3);
+        Assert.Equal(1, roles.UpdateCount);
+        Assert.Single(uow.Repo<YetkiDegisikligi>().Rows);
+    }
+
+    [Fact]
+    public async Task RolGuncelleme_RolYoneticisiAmbalajYetkisiOlmadanKokVeAltYazmaIzniniAtayabilir()
+    {
+        var (uow, roles) = RoleFixture();
+        uow.Repo<MenuTanimi>().Rows.Add(new() { Id = 46, Kod = YetkiKodlari.Ambalaj.Listele });
+        var result = await new RolGuncelleCommandHandler(uow, roles, new OrtakUser()).Handle(new()
+        {
+            Id = 7,
+            Ad = "Test rolü",
+            Yetkiler =
+            [
+                new() { MenuTanimiId = 46, YetkiTipiId = 2 },
+                new() { MenuTanimiId = YetkiKatalogu.Bul(YetkiKodlari.Ambalaj.KayitDuzenle)!.Id, YetkiTipiId = 3 }
+            ]
+        }, default);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, roles.Permissions.Count);
+        Assert.Contains(roles.Permissions, x => x.MenuTanimiId == 46 && x.YetkiTipiId == 2);
+        Assert.Contains(roles.Permissions, x => x.MenuTanimiId == YetkiKatalogu.Bul(YetkiKodlari.Ambalaj.KayitDuzenle)!.Id &&
+            x.YetkiTipiId == 3);
+        Assert.Equal(1, roles.UpdateCount);
+        Assert.Single(uow.Repo<YetkiDegisikligi>().Rows);
+    }
+
+    [Fact]
+    public async Task RolGuncelleme_RolYoneticisiAmbalajYetkisiOlmadanYalnizKokOkumaIzniniAtayabilir()
+    {
+        var (uow, roles) = RoleFixture();
+        uow.Repo<MenuTanimi>().Rows.Add(new() { Id = 46, Kod = YetkiKodlari.Ambalaj.Listele });
+        var result = await new RolGuncelleCommandHandler(uow, roles, new OrtakUser()).Handle(new()
+        {
+            Id = 7,
+            Ad = "Test rolü",
+            Yetkiler = [new() { MenuTanimiId = 46, YetkiTipiId = 2 }]
+        }, default);
+
+        Assert.True(result.IsSuccess);
+        var permission = Assert.Single(roles.Permissions);
+        Assert.Equal(46, permission.MenuTanimiId);
+        Assert.Equal(2, permission.YetkiTipiId);
+        Assert.Equal(1, roles.UpdateCount);
+        Assert.Single(uow.Repo<YetkiDegisikligi>().Rows);
+    }
+
+    [Fact]
+    public async Task RolGuncelleme_RolYonetimiSaltOkumaOlanAktorYetkiAtayamaz()
+    {
+        var (uow, roles) = RoleFixture();
+        roles.Grants["rol-yonetimi"] = 2;
+        var result = await new RolGuncelleCommandHandler(uow, roles, new OrtakUser()).Handle(new()
+        {
+            Id = 7, Ad = "Yeni ad", Yetkiler = [new() { MenuTanimiId = YetkiKatalogu.Bul(YetkiKodlari.Ambalaj.KayitDuzenle)!.Id, YetkiTipiId = 3 }]
+        }, default);
+
         Assert.Equal(403, result.StatusCode);
+        Assert.Equal("Rol izinlerini değiştirme yetkiniz bulunmuyor.", result.Error!.Message);
         Assert.Equal("Test rolü", uow.Repo<Rol>().Rows.Single().Ad);
+        Assert.Equal(0, uow.SaveCount);
+        Assert.Equal(0, roles.UpdateCount);
+    }
+
+    [Theory]
+    [InlineData(99999, 3, "Bilinmeyen izin.")]
+    [InlineData(5100, 2, "İşlem ve alan izinlerinde yalnız tanımlı izin seviyesi kullanılabilir.")]
+    [InlineData(5100, 4, "Yinelenen veya geçersiz izin.")]
+    public async Task RolGuncelleme_GecersizVeyaBilinmeyenIzniReddeder(int menuId, int seviye, string hata)
+    {
+        var (uow, roles) = RoleFixture();
+        var result = await new RolGuncelleCommandHandler(uow, roles, new OrtakUser()).Handle(new()
+        {
+            Id = 7, Ad = "Yeni ad", Yetkiler = [new() { MenuTanimiId = menuId, YetkiTipiId = seviye }]
+        }, default);
+
+        Assert.Equal(400, result.StatusCode);
+        Assert.Equal(hata, result.Error!.Message);
+        Assert.Equal("Test rolü", uow.Repo<Rol>().Rows.Single().Ad);
+        Assert.Equal(0, uow.SaveCount);
+        Assert.Equal(0, roles.UpdateCount);
+    }
+
+    [Fact]
+    public async Task RolGuncelleme_YinelenenIzniReddeder()
+    {
+        var (uow, roles) = RoleFixture();
+        var menuId = YetkiKatalogu.Bul(YetkiKodlari.Ambalaj.KayitDuzenle)!.Id;
+        var result = await new RolGuncelleCommandHandler(uow, roles, new OrtakUser()).Handle(new()
+        {
+            Id = 7, Ad = "Yeni ad", Yetkiler =
+            [
+                new() { MenuTanimiId = menuId, YetkiTipiId = 3 },
+                new() { MenuTanimiId = menuId, YetkiTipiId = 3 }
+            ]
+        }, default);
+
+        Assert.Equal(400, result.StatusCode);
+        Assert.Equal("Yinelenen veya geçersiz izin.", result.Error!.Message);
         Assert.Equal(0, uow.SaveCount);
         Assert.Equal(0, roles.UpdateCount);
     }
@@ -132,7 +248,7 @@ public class GranularYetkiTests
     {
         using var context = CreateContext(1, null);
         var roles = new MemoryRoles();
-        roles.Grants[YetkiKodlari.YetkiAtama] = 3;
+        roles.Grants["kullanicilar"] = 3;
         var uow = new OrtakMemoryUow();
         var service = new KullaniciYetkiService(context, roles, new OrtakUser(), uow);
         Assert.Equal(403, (await service.UpdateAsync(7, [new(5200, true)])).DurumKodu);
@@ -215,7 +331,7 @@ public class GranularYetkiTests
         foreach (var item in YetkiKatalogu.Tum)
             uow.Repo<MenuTanimi>().Rows.Add(new() { Id = item.Id, Kod = item.Kod });
         var roles = new MemoryRoles();
-        roles.Grants[YetkiKodlari.YetkiAtama] = 3;
+        roles.Grants["rol-yonetimi"] = 3;
         return (uow, roles);
     }
 

@@ -47,8 +47,8 @@ public class ServerAuthorizationRegressionTests
     [InlineData("grid-modulu", YetkiTipi.W, false)]
     [InlineData("stok", YetkiTipi.W, false)]
     [InlineData("rol-yonetimi", YetkiTipi.R, false)]
-    [InlineData("rol-yonetimi", YetkiTipi.W, false)]
-    [InlineData("yetki-atama", YetkiTipi.W, false)]
+    [InlineData("rol-yonetimi", YetkiTipi.W, true)]
+    [InlineData("kullanicilar", YetkiTipi.W, false)]
     public async Task RolCrud_SahteHeaderBaskaModulYazmaYetkisiniTasiyamaz(string grantedMenu, YetkiTipi permission, bool allowed)
     {
         var fixture = new Fixture(grantedMenu, permission, header: grantedMenu);
@@ -57,7 +57,26 @@ public class ServerAuthorizationRegressionTests
         Assert.Equal(allowed, (await fixture.Run(new RolGuncelleCommand())).IsSuccess);
         Assert.All(fixture.Roles.Calls, x =>
         {
-            Assert.Contains(x.Menu, new[] { "rol-yonetimi", "yetki-atama" });
+            Assert.Equal("rol-yonetimi", x.Menu);
+            Assert.Equal(YetkiTipi.W, x.Yetki);
+        });
+    }
+
+    [Theory]
+    [InlineData("kullanicilar", YetkiTipi.R, false)]
+    [InlineData("kullanicilar", YetkiTipi.W, true)]
+    [InlineData("rol-yonetimi", YetkiTipi.W, false)]
+    public async Task KisiselIzinDuzenleyicisi_KullaniciYazmaYetkisiIster(
+        string grantedMenu, YetkiTipi permission, bool allowed)
+    {
+        var fixture = new Fixture(grantedMenu, permission);
+        Assert.Equal(allowed, (await fixture.Run(new _3K.Application.Features.KullaniciIslemleri.Queries.KullaniciYetkiQuery
+        { KullaniciId = 8 })).IsSuccess);
+        Assert.Equal(allowed, (await fixture.Run(new _3K.Application.Features.KullaniciIslemleri.Commands.KullaniciYetkiGuncelleCommand
+        { KullaniciId = 8 })).IsSuccess);
+        Assert.All(fixture.Roles.Calls, x =>
+        {
+            Assert.Equal("kullanicilar", x.Menu);
             Assert.Equal(YetkiTipi.W, x.Yetki);
         });
     }

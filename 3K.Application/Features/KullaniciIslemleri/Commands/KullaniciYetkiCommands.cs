@@ -1,6 +1,5 @@
 using MediatR;
 using _3K.Application.Common;
-using _3K.Core.Constants;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
 
@@ -8,7 +7,7 @@ namespace _3K.Application.Features.KullaniciIslemleri.Commands;
 
 public sealed class KullaniciYetkiGuncelleCommand : IRequest<Result>, ISecuredRequest, IRequiresMenuPermission
 {
-    public string RequiredMenuKod => YetkiKodlari.YetkiAtama;
+    public string RequiredMenuKod => "kullanicilar";
     public int KullaniciId { get; set; }
     public IReadOnlyCollection<KullaniciYetkiKarari> Kararlar { get; set; } = [];
 }

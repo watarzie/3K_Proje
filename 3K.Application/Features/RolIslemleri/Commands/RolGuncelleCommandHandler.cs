@@ -21,7 +21,7 @@ public sealed class RolGuncelleCommandHandler(IUnitOfWork unitOfWork, IRolServic
                 (rol.Id != 1 && string.Equals(request.Ad.Trim(), "Admin", StringComparison.OrdinalIgnoreCase)))
                 return Result<RolDetayDto>.Failure("Geçerli ve ayrılmış olmayan bir rol adı giriniz.");
             var validation = await YetkiAtamaKurallari.DogrulaAsync(unitOfWork, rolService, currentUser,
-                request.Id, request.Yetkiler, ct);
+                request.Yetkiler, ct);
             if (!validation.IsSuccess) return Result<RolDetayDto>.Failure(validation.Error!.Message, validation.StatusCode);
             var onceki = await rolService.GetRolYetkileriAsync(request.Id, ct);
             await unitOfWork.GetRepository<YetkiDegisikligi>().AddAsync(new()

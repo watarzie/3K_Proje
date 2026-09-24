@@ -16,7 +16,7 @@ public sealed class KullaniciYetkiService(AppDbContext context, IRolService rolS
         CancellationToken cancellationToken = default)
     {
         if (!currentUser.IsAuthenticated || currentUser.UserId is not int actor ||
-            !await rolService.HasUserPermissionAsync(actor, YetkiKodlari.YetkiAtama, YetkiTipi.W, cancellationToken))
+            !await rolService.HasUserPermissionAsync(actor, "kullanicilar", YetkiTipi.W, cancellationToken))
             return new(false, "Rol atama yetkiniz bulunmuyor.", 403);
         if (hedefKullaniciId == actor)
             return new(false, "Kendi rolünüzü değiştiremezsiniz.", 403);
@@ -57,7 +57,7 @@ public sealed class KullaniciYetkiService(AppDbContext context, IRolService rolS
         IReadOnlyCollection<KullaniciYetkiKarari> kararlar, CancellationToken cancellationToken = default)
     {
         if (!currentUser.IsAuthenticated || currentUser.UserId is not int actor ||
-            !await rolService.HasUserPermissionAsync(actor, YetkiKodlari.YetkiAtama, YetkiTipi.W, cancellationToken))
+            !await rolService.HasUserPermissionAsync(actor, "kullanicilar", YetkiTipi.W, cancellationToken))
             return new(false, "Kişisel izin atama yetkiniz bulunmuyor.", 403);
         if (actor == kullaniciId)
             return new(false, "Kendi kişisel izinlerinizi değiştiremezsiniz.", 403);
