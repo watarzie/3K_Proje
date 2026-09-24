@@ -7,7 +7,7 @@ Eski nonnull m³ kolonları şema uyumluluğu için korunur. Kontra/katlanır/bi
 ## Uygulama
 
 1. `scripts/database/20260919_02_Uretim_Onizleme.sql` salt okunur raporunu arşivleyin; lookup tip 3 çakışmasını inceleyin.
-2. İlgili EF migration veya `20260919_02_Uretim_YasamDongusu.sql` şema geçişini uygulayın. İkisini bağımsız migration geçmişiymiş gibi karıştırmayın.
+2. Depo dışında yönetilen `20260919_02_Uretim_YasamDongusu.sql` şema geçişini DBA olarak bakım penceresinde elle uygulayın. Bu sürümün EF V2 migration'ını çalıştırmayın veya SQL uygulamasını EF geçmişine işaretlemeyin. Tüm 01–04 sırası ve backend yayım adımı için [veritabanı geçiş kılavuzunu](../scripts/database/README.md) izleyin.
 3. Eski tamamlanan kayda bugün tarihiyle otomatik gerçekleşme üretmeyin. Rapor, snapshot'ı olmayan tamamlananların sayısını ayrıca gösterir. Eski doğrulanmış gerçekleşmeler için ayrı, kanıtı ve aktörü bulunan kontrollü veri geçişi gerekir.
 4. Yeni izinleri rol/kullanıcılara açıkça atayın; önceki genel W kritik izinlerin kanıtı değildir.
 

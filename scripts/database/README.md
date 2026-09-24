@@ -16,35 +16,37 @@ kurulumun veya doğrulanmış kopyanın bulunması gerekir; eksik tabloyu atlaya
 | 03 | `20260919_03_Finans_V2.sql` | Finans tarihi/sahipliği, tutar dağıtımı, şablon/belge/audit/bastırma ve eski snapshot yedeği |
 | 04 | `20260919_04_Granular_Yetkiler.sql` | Ayrı işlem/alan izinleri, kullanıcı override ve kontrollü ilk rol eşlemesi |
 
+02–04 geçiş ve ilgili önizleme SQL'leri DBA tarafından depo dışında yönetilir; Git'e
+eklenmeleri, uygulama paketine gömülmeleri veya .NET derlemesinde bulunmaları gerekmez.
+Canlı şema geçişi bu SQL'lerin yetkili kişi tarafından elle uygulanmasıdır.
+`20260919155111_UretimFinansV2` EF migration'ını bu sürüm için çalıştırmayın.
+
 ## Canlıya geçiş
 
 1. Önce canlı kopyasında staging provası yapın. Tam yedeği ve geri yükleme işlemini
    doğrulayın. Önizleme sonuçlarını kaydedin. Uyuşmayan belge, para birimi, kapasite
    veya lookup/izin kimliğini incelemeden geçiş korumalarını kaldırmayın.
 2. Bakım penceresinde API yazmalarını ve worker'ları durdurun. Son tam yedeği alın.
-3. **Tek geçiş yöntemi seçin:**
-   - EF migration geçmişi temel şemayla uyumluysa `20260919155111_UretimFinansV2`
-     migration'ını dağıtım aracınızla uygulayın. 01–04 SQL dosyaları Infrastructure
-     assembly'sine gömülüdür; hepsi EF'nin tek transaction'ı içindedir. Önceki
-     `InitialCreate` migration'ını mevcut şemaya yeniden çalıştırmayın.
-   - Kurulumunuz DBA SQL yöntemiyle yönetiliyorsa 01 → 02 → 03 → 04 dosyalarını
-     sırayla çalıştırın. Her dosya kendi transaction'ını kullanır. Herhangi biri
-     hata verirse `ROLLBACK` yapın ve **sonraki dosyaya geçmeyin**. Ayrı dosyalar,
-     EF'nin bütün sürüm için tek transaction garantisi değildir. Sebebi çözüp
-     aynı idempotent sırayı tekrarlayın; arada uygulamayı açmayın.
+3. DBA, 01 → 02 → 03 → 04 SQL dosyalarını sırayla elle çalıştırır. Her dosya kendi
+   transaction'ını kullanır. Herhangi biri hata verirse `ROLLBACK` yapın ve
+   **sonraki dosyaya geçmeyin**. Sebebi çözüp aynı idempotent sırayı tekrarlayın;
+   arada uygulamayı açmayın. Önceki `InitialCreate` migration'ını mevcut şemaya
+   yeniden çalıştırmayın.
 4. Sonuçları önizleme/yedekle karşılaştırın. Finans eski belge net/KDV/brüt
    snapshot'larını `FinansV2GecisYedegi` içinde korur. Önceden kabul edilmiş belge
    mutabakatı satırlara deterministik dağıtılır; yeni tarife uygulanmaz. İş/PO
    kapasitesi aşılmışsa script durur, sessiz düzeltme yapmaz.
-5. Backend ve frontend'i birlikte yayımlayın. Rol/kullanıcı ekranından yeni kritik
-   izinleri açıkça atayın; onay gerekiyorsa mevcut dinamik onay kurallarını
+5. SQL sırası tamamlanıp sonuçlar doğrulandıktan sonra backend ve frontend'i birlikte
+   yayımlayın. Rol/kullanıcı ekranından yeni kritik izinleri açıkça atayın; onay
+   gerekiyorsa mevcut dinamik onay kurallarını
    yapılandırın. Kök menü W bütün yeni kritik işlemleri otomatik açmaz.
 6. Ayrılmış test verisiyle ilk form, tekrar istek, tamamlanma raporu, net/sarf
    işleri, kısmi PO/fatura, alan gizliliği ve PDF indirmeyi doğrulayın. Sonra
    worker'ları açıp hata/işlem kayıtlarını izleyin.
 
-SQL yöntemiyle uyguladıysanız EF geçmişine rastgele satır eklemeyin. Sonraki EF
-geçişinde önce gerçek şema/geçmiş eşleşmesini doğrulayın. `EnsureCreated`,
+Bu elle uygulanan SQL'ler için `__EFMigrationsHistory` tablosuna satır eklemeyin veya
+V2 EF migration'ını uygulanmış gibi işaretlemeyin. Sonraki EF geçişinde önce gerçek
+şema/geçmiş eşleşmesini doğrulayın. `EnsureCreated`,
 `EnsureDeleted`, uyarı bastırma veya geçmiş tablolarını silme çözüm değildir.
 
 ## Yetki geçişi

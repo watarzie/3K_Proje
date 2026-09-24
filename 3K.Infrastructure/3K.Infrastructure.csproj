@@ -33,10 +33,4 @@
     </Content>
   </ItemGroup>
 
-  <ItemGroup>
-    <EmbeddedResource Include="..\scripts\database\20260919_01_Sandik_Toplu_Tasima.sql" LogicalName="_3K.Infrastructure.Migrations.Sql.20260919_01_Sandik_Toplu_Tasima.sql" />
-    <EmbeddedResource Include="..\scripts\database\20260919_02_Uretim_YasamDongusu.sql" LogicalName="_3K.Infrastructure.Migrations.Sql.20260919_02_Uretim_YasamDongusu.sql" />
-    <EmbeddedResource Include="..\scripts\database\20260919_03_Finans_V2.sql" LogicalName="_3K.Infrastructure.Migrations.Sql.20260919_03_Finans_V2.sql" />
-    <EmbeddedResource Include="..\scripts\database\20260919_04_Granular_Yetkiler.sql" LogicalName="_3K.Infrastructure.Migrations.Sql.20260919_04_Granular_Yetkiler.sql" />
-  </ItemGroup>
 </Project>

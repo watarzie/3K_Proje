@@ -4,6 +4,10 @@ Kaynak: 19.09.2026 tarihli U1–U6 / F1–F11 / K01–K39 isterleri.
 Başlangıç: backend `89d36b7`, frontend `061be65`. Bu belge bir çalışma kaydıdır;
 test sonucu yazılmamış maddeler tamamlanmış kabul edilmez.
 
+Güncel depoda V2 EF migration'ı ve K39 migration testi kaldırılmıştır. Aşağıdaki
+K39 kanıtı ilk teslimin tarihsel koşumudur; depo dışında yönetilen 02–04 SQL'lerinin
+bugünkü halini veya manuel canlı geçişini doğrulamaz.
+
 Sonraki üretim planı tasarımı, plan öncesi çam öngörüsü ve finans görünümü düzeltmesi
 [ayrı teslim notunda](20260919_URETIM_FINANS_UI_DUZELTMESI.md) kayıtlıdır.
 Güncel sonuç: backend Debug/Release ayrı ayrı 1.259/1.259, frontend 194/194 ve production
@@ -82,13 +86,13 @@ bu çalışma nedeniyle değiştirilmez. Mevcut iş kuralı test kapıları tekr
 | K36 | İlişkili/ortak mali belgeler varken silme engellenir; kaynak işi silinince sync yeniden yaratmaz. | PG `CokProjePo_MixedCurrencyRollback_PdfAuditFailOrphanYok`: geçerli sürüm/ikinci onayla zorlanan bağlı iş silme reddedilir; iki projeye ait PO kalemleri/tutarları, işler ve audit aynen kalır. Kaynak/bastırma testinde kalıcı silme sonrası yeniden sync tek SARF bırakır ve bastırma kaydı yaşar. Cascade ile ortak PO silme yolu yoktur. |
 | K37 | Belge kimlik bazlı, içerik doğrulamalı ve sürümlüdür; içerik/metadata/audit atomiktir. | PG `SablonSurumu_Bilesenler_BelgeSurumu_ve_MigrationIdempotency`: 1/2 sürümleri, güvenli ad ve eski PDF'nin birebir byte indirilmesi. `CokProjePo_MixedCurrencyRollback_PdfAuditFailOrphanYok`: audit trigger hatasında belge tablosu boş; HTTP dosya izin testleri. PDF/Excel becerilerinin yönlendirdiği görsel kontrolde üretilen örnekler render edilerek incelendi. |
 | K38 | Sayfalı liste, global toplam ve tam filtreli export ayrıdır. | PG ilk tutar dağıtımı testi `PageSize=1` iken iş/PO/fatura toplamı 10.000; beş PDF/XLSX raporu aynı filtreyle gerçek servis üzerinden üretilir. Frontend servis testleri sayfa/tarih/filtre sözleşmesini doğrular; eski arama yanıtları iptal edilir. |
-| K39 | Gerçek 01–04 migration SQL'i geçmiş snapshot'ı korur; başarısız adım bütün EF geçişini geri alır. | `UretimFinansMigrationPostgresTests.K39_GercekMigration01den04e_GecmisSnapshotiKorur_TekrarYetkiIptaliniGeriAlmaz`, `K39_FinansKapasiteHatasinda_OncekiSqlAdimlariVeMutabakatYazimiBirlikteRollbackOlur`, `K39_TemelSemaYoksa_MigrationHicbirV2TablosuOlusturmadanDurur`. Bunlar sentetik V1 şemasıdır, canlı yedeği üzerinde prova değildir. |
+| K39 (tarihsel) | İlk teslimdeki 01–04 EF geçişinin snapshot ve tek transaction davranışı sınanmıştı. Bu yol artık kullanılmaz. | O tarihteki `UretimFinansMigrationPostgresTests` üç K39 vakası sentetik V1 şemasında geçmişti. Test sınıfı ve EF V2 migration'ı kaldırıldı; bu sonuç güncel DBA SQL'lerini veya canlı yedek provası yapılmış olduğunu göstermez. |
 
 ## Değişen dosya grupları ve sözleşmeler
 
 - Core: üretim form/gerçekleşme varlıkları; finans tarih, tutar dağıtımı, dinamik şablon/bileşen, belge/audit/bastırma modelleri; capability kataloğu ve kullanıcı izin modeli.
 - Application: Ambalaj yaşam döngüsü command/query/handler'ları; finans V2 request ve rapor sorguları; sabit sunucu authorization/approval, kullanıcı/rol izin yönetimi. EF/Infrastructure bağımlılığı eklenmedi.
-- Infrastructure: mevcut `FinansService` partial dosyaları genişletildi; ayrı yeni finans sistemi kurulmadı. PostgreSQL mapping/transaction, raporlar, dosya snapshot'ları ve sürümlü migration burada.
+- Infrastructure: mevcut `FinansService` partial dosyaları genişletildi; ayrı yeni finans sistemi kurulmadı. PostgreSQL mapping/transaction, raporlar ve dosya snapshot'ları burada.
 - API: ince controller adaptörleri ve finans alan projeksiyon filtresi. Yeni üretim `POST/GET uretim-formlari`, `GET uretim-formlari/{id}/dosya`, `GET gerceklesen-uretim-raporu[/dosya]`, `PUT gerceklesmeler/{id}`. Finans `panel`, `hareketler`, `genel-arama`, `yaslandirma`, gerekçeli `is-kayitlari/{id}/finans-tarihi` / `fiyatlandirma`, `sablonlar`, `belgeler`, `kalici-silme[/onizleme]`, `raporlar/ozet/{tur}/{format}`. Mevcut sipariş/fatura/gider uçları yeni tutar sözleşmesini kullanır.
 - Frontend: mevcut iki modül içinde küçük standalone yaşam döngüsü/panel/dağıtım/detay/belge/şablon/kategori/rapor bileşenleri. Aktif servisler `core/services`, DTO'lar `shared/models`; sunucu sayfalama, stale-response koruması, onay bekleyen `202`, null/erişilemez alan sözleşmesi ve TR/EN metinleri.
 - Ortak API sarmalayıcısında `202` ve gövde `isSuccess=false` ayrımı korundu ve test eklendi. Model alanlarında `null` yetkisiz veya uygulanmayan değeri temsil eder; sahte sıfır değildir. Fiyat düzenlemesi, gerekli snapshot/alan izinleri eksikse maskeli veriyi sıfırla kaydetmez.
@@ -97,8 +101,9 @@ bu çalışma nedeniyle değiştirilmez. Mevcut iş kuralı test kapıları tekr
 
 Tek dağıtım kılavuzu: [scripts/database/README.md](../scripts/database/README.md).
 Önizleme → yedek/staging → bakım penceresi → 01/02/03/04 → backend+frontend → rol ataması → doğrulama sırasını izleyin.
-EF `20260919155111_UretimFinansV2` aynı dört SQL'i tek transaction'da gömülü çalıştırır;
-manuel SQL yolu her dosya için ayrı transaction kullanır. İkisini rastgele karıştırmayın.
+02–04 SQL'leri depo dışında yönetilir; .NET derlemesi veya uygulama paketi bunları gerektirmez.
+DBA her SQL'i kendi transaction'ında elle uygular; backend, SQL sırası doğrulandıktan sonra yayımlanır.
+Bu sürüm için EF V2 migration'ı çalıştırılmaz ve `__EFMigrationsHistory` elle işaretlenmez.
 Eski InitialCreate bütün çalışan şemayı temsil etmediği için boş DB kurulum aracı olarak sunulmaz.
 
 İzin matrisi ve ilk rol eşlemesi: [Granular yetki kılavuzu](guvenlik/GRANULAR_YETKI_20260919.md).
@@ -126,14 +131,14 @@ Angular animations 21/20 uyumsuzluğu mevcut Angular 20.3.18 ile eşitlendi;
 CDK 20.2.14 ile ngx-scrollbar peer uyumu sağlandı. `--force` / `--legacy-peer-deps` kullanılmadı.
 Kullanıcının onayıyla kilitleyen eski `ng serve` durdurulup temiz kurulum/testlerden sonra yeniden başlatıldı.
 
-Migration sonrası model farkı kontrolü `No changes have been made to the model since the last migration` sonucuyla geçti.
+İlk V2 teslimindeki migration sonrası model farkı kontrolü `No changes have been made to the model since the last migration` sonucuyla geçmişti. Bu tarihsel kontrol güncel manuel SQL geçişini doğrulamaz.
 Rapor QA sentetik verilerle yapıldı: üretim PDF'sinde nonwood hacim “—” ve not;
 finans genel raporunda EUR 10.000 gelir / 2.500 gider / 7.500 fark. XLSX hücre verileri ve
 PDF aynı tutarları taşır. Çıktılar `artifacts/uretim-v2` ve `artifacts/finans-v2` altında test artefaktıdır.
 XLSX önizleme aracında başlık dolgu rengi render edilmedi; dosya XML'inde başlık metinleri,
 beyaz yazı ve renkli dolgu mevcuttur. Native Excel görsel kabulü yapılmış sayılmamalıdır.
 
-Canlıya dağıtım yapılmadı. Gerçek tarihî veritabanı yedeği üzerinde staging migration provası
+Canlıya dağıtım yapılmadı. Gerçek tarihî veritabanı yedeği üzerinde staging SQL geçiş provası
 ve giriş yapılmış gerçek kullanıcıyla bütün ekranların uçtan uca kabulü bu testlerin yerine geçmez;
 yayından önce yapılmalıdır. HTTP yetki testleri gerçek controller/pipeline, izole iş servisi
 kullanır; mali transaction testleri ayrı gerçek PostgreSQL üzerinde çalışır.

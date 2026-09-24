@@ -2,6 +2,12 @@
 
 Bu dosya, iş kuralı kataloğunun testlerle nasıl doğrulandığını ve hangi sınırların birim testlerinin dışında kaldığını açıklar. Test sayısı, iş kuralı kapsam yüzdesi veya sıfır regresyon garantisi değildir.
 
+Güncel depoda `20260919155111_UretimFinansV2` EF migration'ı ve
+`UretimFinansMigrationPostgresTests` K39 testi bulunmaz. Aşağıdaki 19 Eylül
+koşum sayıları tarihsel kayıttır; depo dışında yönetilen 02–04 SQL'lerinin
+bugünkü halini veya canlıda elle uygulanmasını doğrulamaz. Bu geçiş için
+ayrı staging provası ve DBA doğrulaması gerekir.
+
 ## Güncel doğrulama — Üretim planı ve çam öngörüsü, 19 Eylül 2026
 
 Son UI/plan düzeltmesinden sonra tam backend paketi **Debug 1.259/1.259** ve **Release + coverage 1.259/1.259** geçti; atlanan/başarısız test yoktur. Katalog referansları ve 501/501 eşlenen metodun başarılı çalışması iki TRX için doğrulandı. Frontend **194/194** ve production build başarılıdır. Bu sayılar aşağıdaki önceki 1.228 vakalık koşumun yerine geçen son doğrulamadır.
@@ -35,7 +41,7 @@ Son ek kabul kanıtları:
 
 Yeni güvenlik kanıtları `GranularYetkiTests`/`GranularYetkiPostgresTests` (19), `FinansAlanHttpSecurityTests`/`FinansAlanProjeksiyonuTests` (31) ve `AmbalajAlanMaskelemeTests` (8) vakasında yer alır. Gerçek JWT/Kestrel/MediatR/MVC zinciri; sahte `X-Menu-Kod`, kök modül reddi + açık alt izin, aynı token ile izin kaldırılması, parasal/ölçü/m³/sarf alanlarında null, iç içe audit/string alanları ve yetkisiz binary indirme 403 davranışını doğrular. Finans veri servisi/izin deposu HTTP testinde sentetiktir; kalıcı override/rol/audit davranışı ayrıca gerçek PostgreSQL'de sınanır. Canlı kullanıcıyla tarayıcı kabulünün yerine geçtiği iddia edilmez.
 
-`UretimFinansMigrationPostgresTests` K39 için gerçek `20260919155111_UretimFinansV2.Up` SQL operasyonlarını tek transaction içinde çalıştırır (3/3). V1-benzeri sentetik şemada 01–04 sırası, eski belge snapshot yedeği ve kontrollü mutabakat, üretim tarihini koruma, legacy miktar bayrağı, tekrar çalıştırmada audit/izin iptalini koruma, kapasite hatasında önceki DDL dahil geri alma ve eksik temel şemada durma testlidir. İlk koşum SQL02 lookup INSERT'indeki eksik `CreatedDate` nedeniyle başarısız olmuş, düzeltmeden sonra yeni lookup ve tekrar yolu geçmiştir. Bu fixture tarihsel canlı DB dump'ı değildir; gerçek kurulumun önizleme/yedek/staging kontrolü hâlâ gerekir. Dört DBA scriptinin tek tek çalıştırılması, EF'in dört adımlı tek transaction garantisiyle aynı değildir.
+19 Eylül'deki eski koşumda `UretimFinansMigrationPostgresTests`, K39 için o tarihteki `20260919155111_UretimFinansV2.Up` SQL operasyonlarını tek transaction içinde çalıştırmıştı (3/3). V1-benzeri sentetik şemada 01–04 sırası, eski belge snapshot yedeği ve kontrollü mutabakat, üretim tarihini koruma, legacy miktar bayrağı, tekrar çalıştırmada audit/izin iptalini koruma, kapasite hatasında önceki DDL dahil geri alma ve eksik temel şemada durma sınanmıştı. İlk koşum SQL02 lookup INSERT'indeki eksik `CreatedDate` nedeniyle başarısız olmuş, düzeltmeden sonra yeni lookup ve tekrar yolu geçmişti. Bu test ve EF V2 migration'ı artık depoda yoktur; sonuçlar depo dışındaki güncel SQL dosyalarının veya DBA'nın ayrı transaction'larla yaptığı uygulamanın kanıtı değildir.
 
 `TransactionConcurrencyMappingTests` doğrudan ve sarmalanmış PostgreSQL `40001`/`40P01` hatalarını ve geçici olmayan hataların ayrımını 11 vaka ile sınar. Gerçek PostgreSQL taşıma ve finans eşzamanlılık/rollback testleri de tam koşumda çalışmıştır. `THREEK_TEST_POSTGRES` yalnız `127.0.0.1:55439` üzerindeki sentetik sunucudur; her sınıf kendi benzersiz DB'sini kurup kaldırır. Uygulama veritabanına SQL uygulanmadı.
 

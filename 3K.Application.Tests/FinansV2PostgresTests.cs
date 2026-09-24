@@ -160,7 +160,7 @@ public sealed class FinansV2PostgresTests
     }
 
     [PostgresRaporFact, Trait("Category", "Postgres")]
-    public async Task SablonSurumu_Bilesenler_BelgeSurumu_ve_MigrationIdempotency()
+    public async Task SablonSurumu_Bilesenler_ve_BelgeSurumuKalici()
     {
         await InDatabase(async options =>
         {
@@ -200,11 +200,12 @@ public sealed class FinansV2PostgresTests
             Assert.Equal(1, first.Surum); Assert.Equal(2, second.Surum); Assert.DoesNotContain("/", first.OrijinalAd);
             Assert.Equal(pdf, (await service.BelgeIndirAsync(first.Id, Ct))!.Icerik);
             await service.FaturaOlusturAsync(Invoice("MIGRATE", po.Id, po.Kalemler[0].Id, 1200), Ct);
-            var root = Directory.GetCurrentDirectory();
-            while (!File.Exists(Path.Combine(root, "3K_Proje.slnx"))) root = Directory.GetParent(root)!.FullName;
-            var sql = await File.ReadAllTextAsync(Path.Combine(root, "scripts/database/20260919_03_Finans_V2.sql"));
-            await db.Database.ExecuteSqlRawAsync(sql); await db.Database.ExecuteSqlRawAsync(sql);
+            var auditCount = await db.Set<FinansDegisiklikGecmisi>().CountAsync();
+            db.ChangeTracker.Clear();
             Assert.Equal(1200, (await service.IsKaydiGetirAsync(work.Id, Ct))!.NetTutar);
+            Assert.Equal(pdf, (await service.BelgeIndirAsync(first.Id, Ct))!.Icerik);
+            Assert.Equal(2, await db.Set<FinansBelge>().CountAsync());
+            Assert.Equal(auditCount, await db.Set<FinansDegisiklikGecmisi>().CountAsync());
         });
     }
 
