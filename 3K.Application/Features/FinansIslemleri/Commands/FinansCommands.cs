@@ -53,7 +53,7 @@ namespace _3K.Application.Features.FinansIslemleri.Commands
 
     public sealed class FinansOzelIsAylikDegerGuncelleCommand : FinansCommand
     {
-        public override string RequiredMenuKod => FinansYetkiKodlari.ManuelIsDuzenle;
+        public override string RequiredMenuKod => FinansYetkiKodlari.FiyatlandirmaDegistir;
         public int Id { get; init; }
         public FinansAylikDegerModel Model { get; init; } = null!;
     }
@@ -86,7 +86,7 @@ namespace _3K.Application.Features.FinansIslemleri.Commands
 
     public sealed class FinansSiparisIptalCommand : FinansCommand
     {
-        public override string RequiredMenuKod => FinansYetkiKodlari.PoDegistir;
+        public override string RequiredMenuKod => FinansYetkiKodlari.PoIptal;
         public int Id { get; init; }
         public string Aciklama { get; init; } = string.Empty;
     }
@@ -99,20 +99,20 @@ namespace _3K.Application.Features.FinansIslemleri.Commands
 
     public sealed class FinansFaturaOlusturCommand : FinansCommand<FinansFaturaModel>
     {
-        public override string RequiredMenuKod => FinansYetkiKodlari.FaturaYonet;
+        public override string RequiredMenuKod => FinansYetkiKodlari.FaturaGir;
         public FinansFaturaOlusturModel Model { get; init; } = null!;
     }
 
     public sealed class FinansFaturaGuncelleCommand : FinansCommand<FinansFaturaModel>
     {
-        public override string RequiredMenuKod => FinansYetkiKodlari.FaturaYonet;
+        public override string RequiredMenuKod => FinansYetkiKodlari.FaturaDegistir;
         public int Id { get; init; }
         public FinansFaturaGuncelleModel Model { get; init; } = null!;
     }
 
     public sealed class FinansFaturaIptalCommand : FinansCommand
     {
-        public override string RequiredMenuKod => FinansYetkiKodlari.FaturaYonet;
+        public override string RequiredMenuKod => FinansYetkiKodlari.FaturaIptal;
         public int Id { get; init; }
         public string Aciklama { get; init; } = string.Empty;
     }
@@ -157,7 +157,7 @@ namespace _3K.Application.Features.FinansIslemleri.Commands
 
     public sealed class FinansGiderIptalCommand : FinansCommand
     {
-        public override string RequiredMenuKod => FinansYetkiKodlari.GiderDuzenle;
+        public override string RequiredMenuKod => FinansYetkiKodlari.GiderIptal;
         public int Id { get; init; }
         public string Aciklama { get; init; } = string.Empty;
     }

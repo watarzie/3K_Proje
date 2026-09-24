@@ -73,7 +73,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
                 kayit,
                 eski,
                 "Ambalaj üretim kaydı yeniden aktifleştirildi",
-                _currentUserService.UserId ?? 0,
+                _currentUserService.IslemKullaniciId ?? 0,
                 request.Aciklama);
             var proje = kayit.ProjeId.HasValue
                 ? await _unitOfWork.GetRepository<Proje>().GetByIdAsync(kayit.ProjeId.Value)

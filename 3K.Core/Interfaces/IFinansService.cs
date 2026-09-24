@@ -2,7 +2,7 @@ using _3K.Core.Models;
 
 namespace _3K.Core.Interfaces
 {
-    public interface IFinansService
+    public partial interface IFinansService
     {
         Task<FinansDashboardModel> DashboardAsync(DateTime? baslangic, DateTime? bitis, CancellationToken cancellationToken);
         Task<FinansDashboardModel> DashboardOperasyonAsync(DateTime? baslangic, DateTime? bitis, CancellationToken cancellationToken);
@@ -90,6 +90,7 @@ namespace _3K.Core.Interfaces
 
     public interface IFinansRaporService
     {
+        Task<byte[]> OzetRaporAsync(string tur, bool excel, FinansListeFiltre filtre, CancellationToken cancellationToken);
         Task<byte[]> IslerExcelAsync(FinansListeFiltre filtre, CancellationToken cancellationToken);
         Task<byte[]> IslerPdfAsync(FinansListeFiltre filtre, CancellationToken cancellationToken);
         Task<byte[]> GiderlerExcelAsync(FinansListeFiltre filtre, CancellationToken cancellationToken);

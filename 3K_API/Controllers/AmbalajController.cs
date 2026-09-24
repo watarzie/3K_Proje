@@ -16,6 +16,33 @@ namespace _3K_API.Controllers
     {
         private readonly IMediator _mediator;
 
+        [HttpPost("uretim-formlari")]
+        public async Task<ActionResult> FormOlustur([FromBody] AmbalajFormOlusturCommand command, CancellationToken ct) =>
+            (await _mediator.Send(command, ct)).ToActionResult();
+
+        [HttpGet("uretim-formlari")]
+        public async Task<ActionResult> FormSurumleri([FromQuery] GetAmbalajFormSurumleriQuery query, CancellationToken ct) =>
+            (await _mediator.Send(query, ct)).ToActionResult();
+
+        [HttpGet("uretim-formlari/{id:int}/dosya")]
+        public async Task<ActionResult> FormSurumuDosyasi(int id, [FromQuery] string format = "pdf", CancellationToken ct = default) =>
+            DosyayaDonustur(await _mediator.Send(new GetAmbalajFormSurumuDosyasiQuery { Id = id, Format = format }, ct));
+
+        [HttpGet("gerceklesen-uretim-raporu")]
+        public async Task<ActionResult> GerceklesenRapor([FromQuery] GetAmbalajGerceklesenRaporQuery query, CancellationToken ct) =>
+            (await _mediator.Send(query, ct)).ToActionResult();
+
+        [HttpGet("gerceklesen-uretim-raporu/dosya")]
+        public async Task<ActionResult> GerceklesenRaporDosyasi([FromQuery] GetAmbalajGerceklesenRaporDosyasiQuery query, CancellationToken ct) =>
+            DosyayaDonustur(await _mediator.Send(query, ct));
+
+        [HttpPut("gerceklesmeler/{id:int}")]
+        public async Task<ActionResult> GerceklesmeDuzelt(int id, [FromBody] AmbalajGerceklesmeDuzeltCommand command, CancellationToken ct)
+        {
+            command.Id = id;
+            return (await _mediator.Send(command, ct)).ToActionResult();
+        }
+
         public AmbalajController(IMediator mediator) => _mediator = mediator;
 
         [HttpGet("projeler")]
@@ -75,8 +102,8 @@ namespace _3K_API.Controllers
         }
 
         [HttpDelete("kalemler/{kalemId:int}")]
-        public async Task<ActionResult> KalemSil(int kalemId) =>
-            (await _mediator.Send(new AmbalajPlanKalemSilCommand { KalemId = kalemId })).ToActionResult();
+        public async Task<ActionResult> KalemSil(int kalemId, [FromQuery] string? gerekce) =>
+            (await _mediator.Send(new AmbalajPlanKalemSilCommand { KalemId = kalemId, Gerekce = gerekce })).ToActionResult();
 
         [HttpGet("ic-sandik-sablonlari")]
         public async Task<ActionResult> IcSandikSablonlari() =>
@@ -126,8 +153,8 @@ namespace _3K_API.Controllers
         }
 
         [HttpDelete("bagimsiz-sandiklar/{sandikId:int}")]
-        public async Task<ActionResult> BagimsizSandikSil(int sandikId) =>
-            (await _mediator.Send(new AmbalajBagimsizSandikSilCommand { SandikId = sandikId })).ToActionResult();
+        public async Task<ActionResult> BagimsizSandikSil(int sandikId, [FromQuery] string? gerekce) =>
+            (await _mediator.Send(new AmbalajBagimsizSandikSilCommand { SandikId = sandikId, Gerekce = gerekce })).ToActionResult();
 
         [HttpGet("projeler/{projeId:int}/ilave-sandik-adaylari")]
         public async Task<ActionResult> IlaveSandikAdaylari(

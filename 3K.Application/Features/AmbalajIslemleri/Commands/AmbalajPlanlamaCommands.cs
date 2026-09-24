@@ -7,15 +7,24 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands;
 public abstract class AmbalajPlanlamaCommand<T> : IRequest<Result<T>>, ISecuredRequest,
     IRequiresMenuPermissions
 {
+    public string? Gerekce { get; set; }
     public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
-        [AmbalajMenuKodlari.Write(AmbalajMenuKodlari.KayitDuzenle)];
+        [AmbalajMenuKodlari.Write(this switch
+        {
+            AmbalajPlanKaydetCommand => AmbalajMenuKodlari.PlanOlustur,
+            AmbalajKarariKaydetCommand c => c.AmbalajaDahilMi ? AmbalajMenuKodlari.DahilEt : AmbalajMenuKodlari.HaricTut,
+            AmbalajPlanKalemKaydetCommand c => c.KalemId.HasValue ? AmbalajMenuKodlari.KayitDuzenle : AmbalajMenuKodlari.KayitEkle,
+            AmbalajBagimsizSandikKaydetCommand c => c.SandikId.HasValue ? AmbalajMenuKodlari.KayitDuzenle : AmbalajMenuKodlari.KayitEkle,
+            _ => AmbalajMenuKodlari.KayitDuzenle
+        })];
 }
 
 public abstract class AmbalajPlanlamaCommand : IRequest<Result>, ISecuredRequest,
     IRequiresMenuPermissions
 {
+    public string? Gerekce { get; set; }
     public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
-        [AmbalajMenuKodlari.Write(AmbalajMenuKodlari.KayitDuzenle)];
+        [AmbalajMenuKodlari.Write(AmbalajMenuKodlari.KayitSil)];
 }
 
 public sealed class AmbalajPlanKaydetCommand : AmbalajPlanlamaCommand<AmbalajPlanlamaPlanDto>
@@ -25,6 +34,8 @@ public sealed class AmbalajPlanKaydetCommand : AmbalajPlanlamaCommand<AmbalajPla
     public string? FirinPartiNo { get; init; }
     public IReadOnlyList<int> SeciliKaynakSandikIds { get; init; } = [];
     public int Grup { get; init; } = 1;
+    // Eski istemcilerin payload'ları için korunur; plan kaydı artık durum değiştirmez.
+    // İlk başlangıç FormOlustur, sonraki geçişler UretimDurumuGuncelle ile yapılır.
     public int DurumId { get; init; } = 1;
 }
 

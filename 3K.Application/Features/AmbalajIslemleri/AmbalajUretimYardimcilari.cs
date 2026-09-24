@@ -18,14 +18,14 @@ namespace _3K.Application.Features.AmbalajIslemleri
             kayit.KaynakModul is AmbalajKaynakModulu.Sandik or AmbalajKaynakModulu.Saha or AmbalajKaynakModulu.Yedek;
 
         public static bool OlculerGecerli(AmbalajUretimKaydi kayit) =>
-            kayit.Adet > 0 && (KaynakSandikOlculeriMi(kayit)
+            kayit.Adet > 0 && (KaynakSandikOlculeriMi(kayit) && AmbalajUretimPolitikasi.M3HesaplanabilirMi(kayit.SandikCinsi)
                 ? kayit.Boy > DisOlcuBoyEnFarki &&
                   kayit.En > DisOlcuBoyEnFarki &&
                   kayit.Yukseklik > DisOlcuYukseklikFarki
                 : kayit.Boy > 0 && kayit.En > 0 && kayit.Yukseklik > 0);
 
         public static bool UretimMiktariGecerli(AmbalajUretimKaydi kayit) =>
-            OlculerGecerli(kayit) || kayit.M3Override.HasValue;
+            OlculerGecerli(kayit) || (AmbalajUretimPolitikasi.M3HesaplanabilirMi(kayit.SandikCinsi) && kayit.M3Override.HasValue);
 
         public static AmbalajOlculeri HesaplamaIcOlculeriniGetir(AmbalajUretimKaydi kayit) =>
             KaynakSandikOlculeriMi(kayit)
@@ -37,6 +37,14 @@ namespace _3K.Application.Features.AmbalajIslemleri
 
         public static void M3DegerleriniHesapla(AmbalajUretimKaydi kayit)
         {
+            if (!AmbalajUretimPolitikasi.M3HesaplanabilirMi(kayit.SandikCinsi))
+            {
+                kayit.HesaplananBirimM3 = kayit.HesaplananToplamM3 = kayit.SarfM3 = kayit.ToplamM3 = 0;
+                kayit.M3Override = null;
+                kayit.M3OverrideNedeni = null;
+                kayit.M3HesaplamaVersiyonu = "uygulanmaz-v1";
+                return;
+            }
             if (!OlculerGecerli(kayit))
             {
                 kayit.HesaplananBirimM3 = 0;
@@ -76,9 +84,11 @@ namespace _3K.Application.Features.AmbalajIslemleri
             string? ustSandikNo = null)
         {
             var netM3 = kayit.M3Override ?? kayit.HesaplananToplamM3;
+            var hesaplanir = AmbalajUretimPolitikasi.M3HesaplanabilirMi(kayit.SandikCinsi);
             return new AmbalajUretimKaydiDto
             {
                 Id = kayit.Id,
+                M3HesaplanabilirMi = hesaplanir,
                 IsAkisKimligi = kayit.IsAkisKimligi,
                 ProjeId = kayit.ProjeId,
                 ProjeNo = projeNo ?? kayit.ManuelProjeNo,
@@ -104,15 +114,15 @@ namespace _3K.Application.Features.AmbalajIslemleri
                 OlcuEksikMi = !OlculerGecerli(kayit),
                 AmbalajaDahil = kayit.AmbalajaDahil,
                 UretimeAlindi = kayit.UretimeAlindi,
-                HesaplananBirimM3 = kayit.HesaplananBirimM3,
-                HesaplananToplamM3 = kayit.HesaplananToplamM3,
-                M3Override = kayit.M3Override,
+                HesaplananBirimM3 = hesaplanir ? kayit.HesaplananBirimM3 : null,
+                HesaplananToplamM3 = hesaplanir ? kayit.HesaplananToplamM3 : null,
+                M3Override = hesaplanir ? kayit.M3Override : null,
                 M3OverrideNedeni = kayit.M3OverrideNedeni,
-                NetM3 = netM3,
+                NetM3 = hesaplanir ? netM3 : null,
                 M3HesaplamaVersiyonu = kayit.M3HesaplamaVersiyonu,
-                SarfOrani = kayit.SarfOrani,
-                SarfM3 = kayit.SarfM3,
-                ToplamM3 = kayit.ToplamM3,
+                SarfOrani = hesaplanir ? kayit.SarfOrani : null,
+                SarfM3 = hesaplanir ? kayit.SarfM3 : null,
+                ToplamM3 = hesaplanir ? kayit.ToplamM3 : null,
                 KullanimAmaci = kayit.KullanimAmaci,
                 TalepEdenKisi = kayit.TalepEdenKisi,
                 TalepEdenBolum = kayit.TalepEdenBolum,
@@ -250,9 +260,9 @@ namespace _3K.Application.Features.AmbalajIslemleri
 
         public static string DurumMetni(AmbalajUretimDurumu durum) => durum switch
         {
-            AmbalajUretimDurumu.Planlandi => "Bekliyor",
+            AmbalajUretimDurumu.Planlandi => "Üretim Bekliyor",
             AmbalajUretimDurumu.Uretimde => "Üretimde",
-            _ => "Tamamlandı"
+            _ => "Üretim Tamamlandı"
         };
 
         public static string CinsMetni(AmbalajSandikCinsi cins, string? diger) => cins switch

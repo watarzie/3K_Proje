@@ -34,6 +34,8 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
             var kayit = await repo.GetByIdAsync(request.Id);
             if (kayit == null)
                 return Result<AmbalajUretimKaydiDto>.Failure("Ambalaj üretim kaydı bulunamadı.", 404);
+            if (!_3K.Core.Models.AmbalajUretimPolitikasi.M3HesaplanabilirMi(kayit.SandikCinsi))
+                return Result<AmbalajUretimKaydiDto>.Failure("Bu cinste üretim m³ hesaplanmaz. Manuel m³ Finans modülünde girilmelidir.", 409);
             if (kayit.IptalMi)
                 return Result<AmbalajUretimKaydiDto>.Failure("İptal edilmiş kaydın m³ değeri değiştirilemez.", 409);
             if (!await AmbalajYetkilendirmeYardimcisi.KaynakMudahalesineYetkiliMiAsync(
@@ -56,7 +58,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
                 kayit,
                 eski,
                 request.M3Override.HasValue ? "M³ değeri manuel değiştirildi" : "M³ manuel değişikliği kaldırıldı",
-                _currentUserService.UserId ?? 0,
+                _currentUserService.IslemKullaniciId ?? 0,
                 request.Neden);
             var proje = kayit.ProjeId.HasValue
                 ? await _unitOfWork.GetRepository<Proje>().GetByIdAsync(kayit.ProjeId.Value)

@@ -17,6 +17,7 @@ public sealed class GetAmbalajManuelProjeSecenekleriQueryHandler(IUnitOfWork uni
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
         var query = unitOfWork.GetRepository<AmbalajUretimKaydi>().Queryable()
             .Where(x => !x.ProjeId.HasValue && x.ManuelProjeNo != null && x.ManuelProjeNo != "");
+        query = AmbalajDurumErisimi.Filtrele(query, request.IzinliDurumlar);
         if (!string.IsNullOrWhiteSpace(request.Arama))
         {
             var search = request.Arama.Trim().ToLower();
@@ -37,9 +38,9 @@ public sealed class GetAmbalajManuelProjeSecenekleriQueryHandler(IUnitOfWork uni
                 UretimeAlinmisKayitSayisi = group.Count(x => !x.IptalMi && x.AmbalajaDahil && x.UretimeAlindi),
                 ToplamSandikAdedi = group.Where(x => !x.IptalMi).Sum(x => x.Adet),
                 NetM3 = group.Where(x => !x.IptalMi && x.AmbalajaDahil && x.UretimeAlindi)
-                    .Sum(x => x.M3Override ?? x.HesaplananToplamM3),
-                SarfM3 = group.Where(x => !x.IptalMi && x.AmbalajaDahil && x.UretimeAlindi).Sum(x => x.SarfM3),
-                ToplamM3 = group.Where(x => !x.IptalMi && x.AmbalajaDahil && x.UretimeAlindi).Sum(x => x.ToplamM3)
+                    .Sum(x => ((x.SandikCinsi == _3K.Core.Enums.AmbalajSandikCinsi.AhsapKapali || x.SandikCinsi == _3K.Core.Enums.AmbalajSandikCinsi.Kafes) ? x.M3Override ?? x.HesaplananToplamM3 : 0)),
+                SarfM3 = group.Where(x => !x.IptalMi && x.AmbalajaDahil && x.UretimeAlindi).Sum(x => (x.SandikCinsi == _3K.Core.Enums.AmbalajSandikCinsi.AhsapKapali || x.SandikCinsi == _3K.Core.Enums.AmbalajSandikCinsi.Kafes) ? x.SarfM3 : 0),
+                ToplamM3 = group.Where(x => !x.IptalMi && x.AmbalajaDahil && x.UretimeAlindi).Sum(x => (x.SandikCinsi == _3K.Core.Enums.AmbalajSandikCinsi.AhsapKapali || x.SandikCinsi == _3K.Core.Enums.AmbalajSandikCinsi.Kafes) ? x.ToplamM3 : 0)
             })
             .OrderBy(x => x.No)
             .Skip((pageNumber - 1) * pageSize)

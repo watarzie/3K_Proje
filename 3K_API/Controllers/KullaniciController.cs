@@ -26,6 +26,16 @@ namespace _3K_API.Controllers
             _mediator = mediator;
         }
 
+        [HttpGet("{id:int}/yetkiler")]
+        public async Task<ActionResult> GetYetkiler(int id, CancellationToken cancellationToken)
+            => (await _mediator.Send(new KullaniciYetkiQuery { KullaniciId = id }, cancellationToken)).ToActionResult();
+
+        [HttpPut("{id:int}/yetkiler")]
+        public async Task<ActionResult> UpdateYetkiler(int id,
+            [FromBody] IReadOnlyCollection<_3K.Core.Models.KullaniciYetkiKarari> kararlar, CancellationToken cancellationToken)
+            => (await _mediator.Send(new KullaniciYetkiGuncelleCommand
+            { KullaniciId = id, Kararlar = kararlar }, cancellationToken)).ToActionResult();
+
         /// <summary>Tüm kullanıcıları listeler.</summary>
         [HttpGet("liste")]
         public async Task<ActionResult> GetAll()

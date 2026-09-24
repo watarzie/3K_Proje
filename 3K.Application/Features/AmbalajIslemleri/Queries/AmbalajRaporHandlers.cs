@@ -28,7 +28,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
 
         public async Task<Result<AmbalajRaporDto>> Handle(GetAmbalajRaporQuery request, CancellationToken cancellationToken)
         {
-            var yetkiler = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(
+            var yetkiler = await AmbalajRaporVerisi.RaporYetkileriAsync(
                 _rolService, _currentUserService, cancellationToken);
             if (!yetkiler.KaynakGorunur)
                 request.KaynakModul = null;
@@ -63,7 +63,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
             GetAmbalajRaporDosyasiQuery request,
             CancellationToken cancellationToken)
         {
-            var yetkiler = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(
+            var yetkiler = await AmbalajRaporVerisi.RaporYetkileriAsync(
                 _rolService, _currentUserService, cancellationToken);
             if (!yetkiler.KaynakGorunur)
                 request.KaynakModul = null;
@@ -91,6 +91,12 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
 
     internal static class AmbalajRaporVerisi
     {
+        public static async Task<AmbalajGorunumYetkileri> RaporYetkileriAsync(IRolService roles, ICurrentUserService user, CancellationToken ct)
+        {
+            var izin = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(roles, user, ct);
+            var m3Rapor = await AmbalajYetkilendirmeYardimcisi.YetkiliMiAsync(roles, user, AmbalajMenuKodlari.M3RaporGoruntule, ct, _3K.Core.Enums.YetkiTipi.R);
+            return izin with { M3Gorunur = izin.M3Gorunur && m3Rapor, SarfGorunur = izin.SarfGorunur && m3Rapor };
+        }
         public static List<AmbalajUretimKaydi> KayitlariGetir(
             IUnitOfWork unitOfWork,
             IAmbalajRaporFiltresi filtre) =>
@@ -116,9 +122,9 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
                 Kayitlar = dtolar,
                 KayitSayisi = ozet.KayitSayisi,
                 ToplamSandikAdedi = ozet.ToplamSandikAdedi,
-                NetM3 = ozet.NetM3,
-                SarfM3 = ozet.SarfM3,
-                ToplamM3 = ozet.ToplamM3
+                NetM3 = yetkiler.M3Gorunur ? ozet.NetM3 : null,
+                SarfM3 = yetkiler.SarfGorunur ? ozet.SarfM3 : null,
+                ToplamM3 = yetkiler.M3Gorunur && yetkiler.SarfGorunur ? ozet.ToplamM3 : null
             };
         }
 
@@ -128,9 +134,9 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
             return new AmbalajRaporOzeti(
                 dtolar.Count,
                 dahil.Sum(k => k.Adet),
-                dahil.Sum(k => k.NetM3),
-                dahil.Sum(k => k.SarfM3),
-                dahil.Sum(k => k.ToplamM3));
+                dahil.Any(k => k.NetM3.HasValue) ? dahil.Sum(k => k.NetM3) : null,
+                dahil.Any(k => k.SarfM3.HasValue) ? dahil.Sum(k => k.SarfM3) : null,
+                dahil.Any(k => k.ToplamM3.HasValue) ? dahil.Sum(k => k.ToplamM3) : null);
         }
 
         public static IReadOnlyList<AmbalajRaporSatiri> RaporSatirlariOlustur(
@@ -150,7 +156,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
                 Boy = k.Boy,
                 En = k.En,
                 Yukseklik = k.Yukseklik,
-                BirimM3 = k.Adet > 0 ? decimal.Round(k.NetM3 / k.Adet, 6) : 0,
+                BirimM3 = k.Adet > 0 && k.NetM3.HasValue ? decimal.Round(k.NetM3.Value / k.Adet, 6) : null,
                 NetM3 = k.NetM3,
                 SarfOrani = k.SarfOrani,
                 SarfM3 = k.SarfM3,

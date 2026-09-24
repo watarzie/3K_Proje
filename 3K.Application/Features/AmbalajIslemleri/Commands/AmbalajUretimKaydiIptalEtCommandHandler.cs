@@ -47,7 +47,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
             kayit.IptalOncesiUretimDurumu = kayit.UretimDurumu;
             kayit.IptalMi = true;
             kayit.IptalTarihi = TurkeyTime.Now;
-            kayit.IptalEdenKullaniciId = _currentUserService.UserId;
+            kayit.IptalEdenKullaniciId = _currentUserService.IslemKullaniciId;
             kayit.IptalNedeni = request.Neden.Trim();
             // İptal, kullanıcının üretime alma seçimini silmemelidir. Kaydın aktifliği
             // IptalMi üzerinden değerlendirilir; yeniden aktifleştirildiğinde önceki seçim
@@ -58,7 +58,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
                 kayit,
                 eski,
                 "Ambalaj üretim kaydı iptal edildi",
-                _currentUserService.UserId ?? 0,
+                _currentUserService.IslemKullaniciId ?? 0,
                 request.Neden);
             var proje = kayit.ProjeId.HasValue
                 ? await _unitOfWork.GetRepository<Proje>().GetByIdAsync(kayit.ProjeId.Value)

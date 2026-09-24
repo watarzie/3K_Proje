@@ -13,6 +13,8 @@ namespace _3K.Infrastructure.Services
             CancellationToken cancellationToken)
         {
             var (baslangic, bitis) = AylikDonem(yil, ay);
+            if (await AylikKayitlariFiltrele(_context.Set<FinansIsKaydi>(), baslangic, bitis).CountAsync(cancellationToken) > RaporKayitSiniri)
+                throw new InvalidOperationException("Aylık rapor 20.000 işi aşamaz; filtreli rapor kullanın.");
             var kayitlar = await AylikKayitlariFiltrele(IsKaydiDetayQuery(), baslangic, bitis)
                 .OrderBy(x => x.UretimTarihi)
                 .ThenBy(x => x.Id)
@@ -238,8 +240,8 @@ namespace _3K.Infrastructure.Services
                     faturalananMiktar = Para(faturalananMiktar);
                 }
 
-                var net = Para(miktar * tarife.BirimFiyatSnapshot);
-                var kdv = Para(net * tarife.KdvOraniSnapshot / 100m);
+                var net = satirlar.Sum(FinansTutarKurallari.IsNet);
+                var kdv = satirlar.Sum(x => Para(FinansTutarKurallari.IsNet(x) * x.KdvOraniSnapshot / 100m));
                 var isAdi = IsAdi(
                     grup.Key.IsTuru,
                     grup.Key.SandikTipi,
@@ -263,7 +265,7 @@ namespace _3K.Infrastructure.Services
                     satirlar.Select(x => x.Id).ToArray(),
                     siparisler.Select(x => x.FinansSiparis.PoNumarasi).Distinct().Order().ToArray(),
                     faturalar.Select(x => x.FinansFatura.FaturaNumarasi).Distinct().Order().ToArray(),
-                    Durum(miktar, siparisMiktari, faturalananMiktar),
+                    Durum(net, siparisler.Sum(x => x.NetTutarSnapshot), faturalar.Sum(x => x.NetTutarSnapshot)),
                     false, false, satirlar.All(x => x.IptalEdildi),
                     satirlar.Select(x => x.IptalAciklamasi).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x))));
             }
@@ -276,12 +278,12 @@ namespace _3K.Infrastructure.Services
                 var miktar = kayit.FiyatlandirmaBirimiSnapshot switch
                 {
                     FinansFiyatlandirmaBirimi.Metrekup => kayit.ToplamM3,
-                    FinansFiyatlandirmaBirimi.SabitTutar => 1m,
+                    FinansFiyatlandirmaBirimi.SabitTutar or FinansFiyatlandirmaBirimi.ManuelToplam => 1m,
                     _ => kayit.Adet
                 };
                 var siparisMiktari = Math.Min(miktar, siparisler.Sum(SiparisMiktari));
                 var faturalananMiktar = Math.Min(siparisMiktari, faturalar.Sum(FaturaMiktari));
-                var net = Para(miktar * kayit.BirimFiyatSnapshot);
+                var net = FinansTutarKurallari.IsNet(kayit);
                 var kdv = Para(net * kayit.KdvOraniSnapshot / 100m);
                 var miktarBekliyor = kayit.HesaplamaYontemi == FinansHesaplamaYontemi.DegiskenTutar
                     ? kayit.BirimFiyatSnapshot <= 0
@@ -300,7 +302,7 @@ namespace _3K.Infrastructure.Services
                     Para(faturalar.Sum(x => x.ToplamTutarSnapshot)), [kayit.Id],
                     siparisler.Select(x => x.FinansSiparis.PoNumarasi).Distinct().Order().ToArray(),
                     faturalar.Select(x => x.FinansFatura.FaturaNumarasi).Distinct().Order().ToArray(),
-                    kayit.IptalEdildi ? "İptal" : miktarBekliyor ? "Miktar Bekliyor" : Durum(miktar, siparisMiktari, faturalananMiktar),
+                    kayit.IptalEdildi ? "İptal" : net <= 0 ? "Fiyatlandırma Bekliyor" : Durum(net, siparisler.Sum(x => x.NetTutarSnapshot), faturalar.Sum(x => x.NetTutarSnapshot)),
                     !kayit.IptalEdildi && siparisler.Count == 0 && kayit.HesaplamaYontemi == FinansHesaplamaYontemi.DegiskenAdet,
                     !kayit.IptalEdildi && siparisler.Count == 0 && kayit.HesaplamaYontemi == FinansHesaplamaYontemi.DegiskenTutar,
                     kayit.IptalEdildi, kayit.IptalAciklamasi));
@@ -309,106 +311,21 @@ namespace _3K.Infrastructure.Services
             return sonuc.OrderBy(x => x.IsGrubu).ThenBy(x => x.ProjeNo).ThenBy(x => x.IsAdi).ToArray();
         }
 
-        private async Task<IReadOnlyList<FinansAylikGrupToplamiModel>> AylikIsToplamlariAsync(
-            IQueryable<FinansIsKaydi> query,
-            CancellationToken cancellationToken)
+        private async Task<IReadOnlyList<FinansAylikGrupToplamiModel>> AylikIsToplamlariAsync(IQueryable<FinansIsKaydi> query, CancellationToken cancellationToken)
         {
-            var regular = await query
-                .Where(x => x.IsTuru != FinansIsTuru.OzelIs)
-                .GroupBy(x => new
-                {
-                    x.ProjeId,
-                    ProjeNo = x.ProjeId.HasValue ? null : x.ProjeNo,
-                    Musteri = x.ProjeId.HasValue ? null : x.Musteri,
-                    x.IsTuru,
-                    SandikTipi = x.IsTuru == FinansIsTuru.IlaveSandik ||
-                                  x.IsTuru == FinansIsTuru.IcSandik ||
-                                  x.IsTuru == FinansIsTuru.SahaSandigi ||
-                                  x.IsTuru == FinansIsTuru.YedekSandik
-                        ? x.SandikTipi
-                        : null,
-                    Boy = x.IsTuru == FinansIsTuru.IlaveSandik ||
-                          x.IsTuru == FinansIsTuru.IcSandik ||
-                          x.IsTuru == FinansIsTuru.SahaSandigi ||
-                          x.IsTuru == FinansIsTuru.YedekSandik
-                        ? x.Boy
-                        : null,
-                    En = x.IsTuru == FinansIsTuru.IlaveSandik ||
-                         x.IsTuru == FinansIsTuru.IcSandik ||
-                         x.IsTuru == FinansIsTuru.SahaSandigi ||
-                         x.IsTuru == FinansIsTuru.YedekSandik
-                        ? x.En
-                        : null,
-                    Yukseklik = x.IsTuru == FinansIsTuru.IlaveSandik ||
-                                x.IsTuru == FinansIsTuru.IcSandik ||
-                                x.IsTuru == FinansIsTuru.SahaSandigi ||
-                                x.IsTuru == FinansIsTuru.YedekSandik
-                        ? x.Yukseklik
-                        : null,
-                    IcSandikSablonId = x.IsTuru == FinansIsTuru.IcSandik ? x.IcSandikSablonId : null,
-                    x.FinansUrunId,
-                    x.FiyatlandirmaBirimiSnapshot,
-                    x.BirimFiyatSnapshot,
-                    x.ParaBirimiSnapshot,
-                    x.KdvOraniSnapshot
-                })
-                .Select(x => new FinansAylikHesapGrubu
-                {
-                    OzelIs = false,
-                    IsTuru = x.Key.IsTuru,
-                    RaporGrubu = null,
-                    FiyatlandirmaBirimi = x.Key.FiyatlandirmaBirimiSnapshot,
-                    BirimFiyat = x.Key.BirimFiyatSnapshot,
-                    ParaBirimi = x.Key.ParaBirimiSnapshot,
-                    KdvOrani = x.Key.KdvOraniSnapshot,
-                    Adet = x.Sum(y => y.Adet),
-                    ToplamM3 = x.Sum(y => y.ToplamM3)
-                })
-                .ToListAsync(cancellationToken);
-            var special = await query
-                .Where(x => x.IsTuru == FinansIsTuru.OzelIs)
-                .Select(x => new FinansAylikHesapGrubu
-                {
-                    OzelIs = true,
-                    IsTuru = x.IsTuru,
-                    RaporGrubu = x.RaporGrubu,
-                    FiyatlandirmaBirimi = x.FiyatlandirmaBirimiSnapshot,
-                    BirimFiyat = x.BirimFiyatSnapshot,
-                    ParaBirimi = x.ParaBirimiSnapshot,
-                    KdvOrani = x.KdvOraniSnapshot,
-                    Adet = x.Adet,
-                    ToplamM3 = x.ToplamM3
-                })
-                .ToListAsync(cancellationToken);
-
-            return regular.Concat(special)
-                .Select(x =>
-                {
-                    var quantity = x.FiyatlandirmaBirimi switch
-                    {
-                        FinansFiyatlandirmaBirimi.Adet => x.Adet,
-                        FinansFiyatlandirmaBirimi.SabitTutar => 1m,
-                        _ => x.ToplamM3
-                    };
-                    if (!x.OzelIs && x.IsTuru == FinansIsTuru.AnaAmbalaj)
-                        quantity = Para(quantity);
-                    var net = Para(quantity * x.BirimFiyat);
-                    var vat = Para(net * x.KdvOrani / 100m);
-                    var group = x.OzelIs
-                        ? x.RaporGrubu is "Kira" or "Sevkiyat" ? "Sabit İşler" : "Ekstra İşler"
-                        : "Ana Ambalaj";
-                    return new FinansAylikGrupToplamiModel(group, x.ParaBirimi, net, vat, net + vat);
-                })
-                .GroupBy(x => new { x.Grup, x.ParaBirimi })
-                .Select(x => new FinansAylikGrupToplamiModel(
-                    x.Key.Grup,
-                    x.Key.ParaBirimi,
-                    Para(x.Sum(y => y.NetTutar)),
-                    Para(x.Sum(y => y.KdvTutari)),
-                    Para(x.Sum(y => y.ToplamTutar))))
-                .OrderBy(x => x.Grup)
-                .ThenBy(x => x.ParaBirimi)
-                .ToArray();
+            var values = await query.Select(x => new
+            {
+                x.IsTuru, x.RaporGrubu, x.ParaBirimiSnapshot, x.KdvOraniSnapshot,
+                Net = x.ManuelNetTutar ?? decimal.Round(x.BirimFiyatSnapshot *
+                    (x.FiyatlandirmaBirimiSnapshot == FinansFiyatlandirmaBirimi.Adet ? x.Adet :
+                     x.FiyatlandirmaBirimiSnapshot == FinansFiyatlandirmaBirimi.Metrekup ? x.ToplamM3 : 1m), 2)
+            }).GroupBy(x => new { x.IsTuru, x.RaporGrubu, x.ParaBirimiSnapshot })
+              .Select(g => new { g.Key.IsTuru, g.Key.RaporGrubu, g.Key.ParaBirimiSnapshot,
+                  Net = g.Sum(x => x.Net), Vat = g.Sum(x => decimal.Round(x.Net * x.KdvOraniSnapshot / 100m, 2)) })
+              .ToListAsync(cancellationToken);
+            return values.Select(x => new FinansAylikGrupToplamiModel(
+                x.IsTuru == FinansIsTuru.OzelIs ? x.RaporGrubu is "Kira" or "Sevkiyat" ? "Sabit İşler" : "Ekstra İşler" : IsGrubu(x.IsTuru),
+                x.ParaBirimiSnapshot, x.Net, x.Vat, x.Net + x.Vat)).ToArray();
         }
 
         private async Task<IReadOnlyList<FinansAylikFinansOzetiModel>> AylikFinansOzetiAsync(
@@ -424,7 +341,7 @@ namespace _3K.Infrastructure.Services
                 .Select(x => new FinansAylikTutarProjection
                 {
                     ParaBirimi = x.Key,
-                    Toplam = x.Sum(y => y.ToplamTutarSnapshot)
+                    Toplam = x.Sum(y => y.NetTutarSnapshot)
                 })
                 .ToListAsync(cancellationToken);
             var invoiceTotals = await activeMonthQuery
@@ -434,29 +351,29 @@ namespace _3K.Infrastructure.Services
                     (orderLine, invoiceLine) => new
                     {
                         orderLine.ParaBirimiSnapshot,
-                        invoiceLine.ToplamTutarSnapshot
+                        invoiceLine.NetTutarSnapshot
                     })
                 .GroupBy(x => x.ParaBirimiSnapshot)
                 .Select(x => new FinansAylikTutarProjection
                 {
                     ParaBirimi = x.Key,
-                    Toplam = x.Sum(y => y.ToplamTutarSnapshot)
+                    Toplam = x.Sum(y => y.NetTutarSnapshot)
                 })
                 .ToListAsync(cancellationToken);
             var expenseTotals = await _context.Set<FinansGider>()
                 .AsNoTracking()
-                .Where(x => !x.IptalEdildi && x.Tarih >= baslangic && x.Tarih < bitis)
+                .Where(x => !x.IptalEdildi && !x.AvansMi && x.FinansDonemi >= baslangic && x.FinansDonemi < bitis)
                 .GroupBy(x => x.ParaBirimi)
                 .Select(x => new FinansAylikTutarProjection
                 {
                     ParaBirimi = x.Key,
-                    Toplam = x.Sum(y => y.ToplamTutar)
+                    Toplam = x.Sum(y => y.Matrah)
                 })
                 .ToListAsync(cancellationToken);
 
             var workByCurrency = workTotals
                 .GroupBy(x => x.ParaBirimi)
-                .ToDictionary(x => x.Key, x => Para(x.Sum(y => y.ToplamTutar)), StringComparer.OrdinalIgnoreCase);
+                .ToDictionary(x => x.Key, x => Para(x.Sum(y => y.NetTutar)), StringComparer.OrdinalIgnoreCase);
             var orderByCurrency = orderTotals.ToDictionary(x => x.ParaBirimi, x => Para(x.Toplam), StringComparer.OrdinalIgnoreCase);
             var invoiceByCurrency = invoiceTotals.ToDictionary(x => x.ParaBirimi, x => Para(x.Toplam), StringComparer.OrdinalIgnoreCase);
             var expenseByCurrency = expenseTotals.ToDictionary(x => x.ParaBirimi, x => Para(x.Toplam), StringComparer.OrdinalIgnoreCase);
@@ -511,8 +428,8 @@ namespace _3K.Infrastructure.Services
             DateTime baslangic,
             DateTime bitis) =>
             query.Where(x =>
-                x.UretimTarihi >= baslangic &&
-                x.UretimTarihi < bitis &&
+                x.FinansDonemi >= baslangic &&
+                x.FinansDonemi < bitis &&
                 (x.IsTuru == FinansIsTuru.OzelIs || (x.KaynakAktif && !x.IptalEdildi)));
 
         private static bool OzelSandikTuru(FinansIsTuru tur) => tur is
@@ -522,28 +439,28 @@ namespace _3K.Infrastructure.Services
         private static decimal Miktar(FinansFiyatlandirmaBirimi birim, IReadOnlyCollection<FinansIsKaydi> kayitlar) => birim switch
         {
             FinansFiyatlandirmaBirimi.Adet => kayitlar.Sum(x => x.Adet),
-            FinansFiyatlandirmaBirimi.SabitTutar => 1m,
+            FinansFiyatlandirmaBirimi.SabitTutar or FinansFiyatlandirmaBirimi.ManuelToplam => 1m,
             _ => kayitlar.Sum(x => x.ToplamM3)
         };
 
         private static decimal SiparisMiktari(FinansSiparisKalemi satir) => satir.FiyatlandirmaBirimiSnapshot switch
         {
             FinansFiyatlandirmaBirimi.Adet => satir.Adet,
-            FinansFiyatlandirmaBirimi.SabitTutar => 1m,
+            FinansFiyatlandirmaBirimi.SabitTutar or FinansFiyatlandirmaBirimi.ManuelToplam => 1m,
             _ => satir.M3
         };
 
         private static decimal FaturaMiktari(FinansFaturaKalemi satir) => satir.FinansSiparisKalemi.FiyatlandirmaBirimiSnapshot switch
         {
             FinansFiyatlandirmaBirimi.Adet => satir.Adet,
-            FinansFiyatlandirmaBirimi.SabitTutar => 1m,
+            FinansFiyatlandirmaBirimi.SabitTutar or FinansFiyatlandirmaBirimi.ManuelToplam => 1m,
             _ => satir.M3
         };
 
         private static string Birim(FinansFiyatlandirmaBirimi birim) => birim switch
         {
             FinansFiyatlandirmaBirimi.Adet => "Adet",
-            FinansFiyatlandirmaBirimi.SabitTutar => "Hizmet",
+            FinansFiyatlandirmaBirimi.SabitTutar or FinansFiyatlandirmaBirimi.ManuelToplam => "Hizmet",
             _ => "m³"
         };
 

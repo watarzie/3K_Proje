@@ -4,6 +4,7 @@ using _3K.Application.Features.AmbalajIslemleri.DTOs;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.AmbalajIslemleri.Queries;
 
@@ -37,11 +38,13 @@ public sealed class GetAmbalajPlanlamaProjeleriQueryHandler
             .AsNoTracking(_unitOfWork.GetRepository<Proje>().Queryable())
             .Where(p => p.ProjeTipiId == projeTipiId);
         filtrelenmisProjeler = AmbalajProjeAramaFiltresi.Uygula(filtrelenmisProjeler, request.Arama);
+        filtrelenmisProjeler = AmbalajDurumErisimi.ProjeleriFiltrele(filtrelenmisProjeler,
+            _unitOfWork.GetRepository<AmbalajUretimKaydi>().Queryable(), request.IzinliDurumlar);
 
         var totalCount = await _readQueries.CountAsync(filtrelenmisProjeler, cancellationToken);
         var sayfa = AmbalajSayfalamaYardimcisi.Olustur(request.PageNumber, pageSize, totalCount);
         var filteredSummary = request.IncludeSummary
-            ? await FiltreOzetiniOlusturAsync(filtrelenmisProjeler, request.Grup, totalCount, cancellationToken)
+            ? await FiltreOzetiniOlusturAsync(filtrelenmisProjeler, request.Grup, totalCount, request.IzinliDurumlar, cancellationToken)
             : null;
         var projeler = await _readQueries.ToListAsync(filtrelenmisProjeler
             .OrderByDescending(p => p.Id)
@@ -56,7 +59,7 @@ public sealed class GetAmbalajPlanlamaProjeleriQueryHandler
             .ToDictionary(g => g.Key, g => (IReadOnlyList<Sandik>)g.ToList());
         var kayitSatirlari = await _readQueries.ToListAsync(
             _readQueries.AsNoTracking(_unitOfWork.GetRepository<AmbalajUretimKaydi>().Queryable())
-                .Where(k => k.ProjeId.HasValue && projeIds.Contains(k.ProjeId.Value) && !k.IptalMi),
+                .Where(k => k.ProjeId.HasValue && projeIds.Contains(k.ProjeId.Value)),
             cancellationToken);
         var kayitlar = kayitSatirlari
             .GroupBy(k => k.ProjeId!.Value)
@@ -72,7 +75,7 @@ public sealed class GetAmbalajPlanlamaProjeleriQueryHandler
                 proje,
                 tipler.GetValueOrDefault(proje.ProjeTipiId, "-"),
                 sandiklar.GetValueOrDefault(proje.Id, []),
-                kayitlar.GetValueOrDefault(proje.Id, [])))
+                kayitlar.GetValueOrDefault(proje.Id, []), request.IzinliDurumlar))
             .ToList();
         return Result<AmbalajPlanlamaProjeleriSayfasiDto>.Success(
             new AmbalajPlanlamaProjeleriSayfasiDto
@@ -90,29 +93,41 @@ public sealed class GetAmbalajPlanlamaProjeleriQueryHandler
         IQueryable<Proje> filtrelenmisProjeler,
         int grup,
         int projeSayisi,
+        int[]? izinliDurumlar,
         CancellationToken cancellationToken)
     {
         var filtrelenmisProjeIds = filtrelenmisProjeler.Select(p => p.Id);
-        var aktifKayitlar = _readQueries
+        var tumProjeKayitlari = _readQueries
             .AsNoTracking(_unitOfWork.GetRepository<AmbalajUretimKaydi>().Queryable())
-            .Where(k => k.ProjeId.HasValue && filtrelenmisProjeIds.Contains(k.ProjeId.Value) &&
-                        !k.IptalMi && !k.BagimsizKayitMi);
-        var kaynakKayitlari = await _readQueries.ToListAsync(aktifKayitlar
-            .Where(k => k.KaynakKayitId.HasValue)
+            .Where(k => k.ProjeId.HasValue && filtrelenmisProjeIds.Contains(k.ProjeId.Value));
+        var projeKayitlari = tumProjeKayitlari.Where(k => !k.IptalMi);
+        // Tamamlanmış projeye sonradan eklenen kaynaklar, açık dahil kararı olmadan
+        // stok öngörüsüne de alınmaz; plan DTO'suyla aynı yaşam döngüsü sınırı korunur.
+        var tamamlananProjeIds = (await _readQueries.ToListAsync(projeKayitlari
+            .Where(k => k.AmbalajaDahil)
+            .GroupBy(k => k.ProjeId!.Value)
+            .Where(g => g.All(k => k.UretimDurumu == AmbalajUretimDurumu.Tamamlandi))
+            .Select(g => g.Key), cancellationToken)).ToHashSet();
+        var aktifKayitlar = projeKayitlari.Where(k => !k.BagimsizKayitMi);
+        var kaynakKayitlari = await _readQueries.ToListAsync(tumProjeKayitlari
+            .Where(k => !k.BagimsizKayitMi && k.KaynakKayitId.HasValue)
             .Select(k => new KaynakKayitOzetSatiri
             {
                 Id = k.Id,
                 ProjeId = k.ProjeId!.Value,
                 KaynakSandikId = k.KaynakKayitId!.Value,
                 Tur = k.Tur,
+                IptalMi = k.IptalMi,
                 AmbalajaDahil = k.AmbalajaDahil,
-                UretimeAlindi = k.UretimeAlindi,
+                SandikCinsi = k.SandikCinsi,
+                NetM3 = k.M3Override ?? k.HesaplananToplamM3,
                 CreatedDate = k.CreatedDate
             }), cancellationToken);
         var kaynakKayitMap = kaynakKayitlari
             .GroupBy(k => k.KaynakSandikId)
-            .ToDictionary(g => g.Key, g => g.OrderByDescending(k => k.Id).First());
+            .ToDictionary(g => g.Key, g => g.OrderBy(k => k.IptalMi).ThenByDescending(k => k.Id).First());
         var planBaslangiclari = kaynakKayitlari
+            .Where(k => !k.IptalMi)
             .GroupBy(k => k.ProjeId)
             .ToDictionary(g => g.Key, g => g.Min(k => k.CreatedDate));
         var kaynaklar = await _readQueries.ToListAsync(_readQueries
@@ -125,11 +140,15 @@ public sealed class GetAmbalajPlanlamaProjeleriQueryHandler
                 SandikNo = s.SandikNo,
                 Ad = s.Ad,
                 AdIngilizce = s.AdIngilizce,
+                TipId = s.TipId,
                 Boy = s.Boy,
                 En = s.En,
                 Yukseklik = s.Yukseklik,
                 CreatedDate = s.CreatedDate
             }), cancellationToken);
+
+        var izinliKaynakIds = (await _readQueries.ToListAsync(AmbalajDurumErisimi.Filtrele(aktifKayitlar, izinliDurumlar)
+            .Where(k => k.KaynakKayitId.HasValue).Select(k => k.KaynakKayitId!.Value), cancellationToken)).ToHashSet();
 
         var kaynakSandikAdedi = 0;
         var kaynakHacmi = 0m;
@@ -137,7 +156,13 @@ public sealed class GetAmbalajPlanlamaProjeleriQueryHandler
         foreach (var kaynak in kaynaklar)
         {
             kaynakKayitMap.TryGetValue(kaynak.Id, out var kayit);
-            if (kayit?.AmbalajaDahil == false)
+            if (kayit?.IptalMi == true)
+                continue;
+            if (izinliDurumlar != null && (kayit == null ? !izinliDurumlar.Contains(1) : !izinliKaynakIds.Contains(kaynak.Id)))
+                continue;
+            if (kayit?.AmbalajaDahil == false || (kayit == null && AmbalajUretimPolitikasi.VarsayilanYapilmazMi(kaynak.Ad, kaynak.AdIngilizce)))
+                continue;
+            if (kayit == null && tamamlananProjeIds.Contains(kaynak.ProjeId))
                 continue;
 
             var kaynakGrubu = kayit?.Tur == AmbalajSandikTuru.Ilave ||
@@ -151,22 +176,18 @@ public sealed class GetAmbalajPlanlamaProjeleriQueryHandler
             kaynakSandikAdedi += grup == 1
                 ? AmbalajPlanlamaYardimcisi.SandikAdediHesapla(kaynak.SandikNo)
                 : 1;
-            if (kayit?.UretimeAlindi != true)
-                continue;
-
-            kaynakHacmi += AmbalajPlanlamaYardimcisi.KaynakSandikToplamHacmiHesapla(
-                kaynak.Ad,
-                kaynak.AdIngilizce,
-                kaynak.SandikNo,
-                kaynak.Boy,
-                kaynak.En,
-                kaynak.Yukseklik);
+            // Satın alma öngörüsü seçim/üretim başlangıcını beklemez. Kaydedilmiş
+            // hesap veya override korunur; henüz senkronize edilmemiş kaynak salt okunur hesaplanır.
+            var cins = kayit?.SandikCinsi ?? AmbalajUretimPolitikasi.KaynakCinsi(kaynak.TipId);
+            if (AmbalajUretimPolitikasi.M3HesaplanabilirMi(cins))
+                kaynakHacmi += kayit?.NetM3 ?? AmbalajPlanlamaYardimcisi.KaynakSandikToplamHacmiHesapla(
+                    kaynak.Ad, kaynak.AdIngilizce, kaynak.SandikNo, kaynak.Boy, kaynak.En, kaynak.Yukseklik);
             if (kaynak.Boy is not > 0 || kaynak.En is not > 0 || kaynak.Yukseklik is not > 0)
                 eksikOlculuProjeler.Add(kaynak.ProjeId);
         }
 
-        var manuelKayitlar = aktifKayitlar
-            .Where(k => !k.KaynakKayitId.HasValue && k.UretimeAlindi);
+        var manuelKayitlar = AmbalajDurumErisimi.Filtrele(aktifKayitlar, izinliDurumlar)
+            .Where(k => !k.KaynakKayitId.HasValue && k.AmbalajaDahil);
         manuelKayitlar = grup switch
         {
             2 => manuelKayitlar.Where(k => k.Tur == AmbalajSandikTuru.Ilave),
@@ -180,9 +201,13 @@ public sealed class GetAmbalajPlanlamaProjeleriQueryHandler
             {
                 KayitSayisi = g.Count(),
                 ToplamAdet = g.Sum(k => k.Adet),
-                ToplamHacimM3 = g.Sum(k => k.M3Override ?? k.HesaplananToplamM3)
+                ToplamHacimM3 = g.Sum(k => ((k.SandikCinsi == _3K.Core.Enums.AmbalajSandikCinsi.AhsapKapali || k.SandikCinsi == _3K.Core.Enums.AmbalajSandikCinsi.Kafes) ? k.M3Override ?? k.HesaplananToplamM3 : 0))
             })
             .Take(1), cancellationToken)).FirstOrDefault() ?? new ManuelKayitOzeti();
+        var eksikManuelProjeIds = await _readQueries.ToListAsync(manuelKayitlar
+            .Where(k => k.Boy <= 0 || k.En <= 0 || k.Yukseklik <= 0)
+            .Select(k => k.ProjeId!.Value).Distinct(), cancellationToken);
+        eksikOlculuProjeler.UnionWith(eksikManuelProjeIds);
 
         return new AmbalajPlanlamaProjeFiltreOzetiDto
         {
@@ -199,8 +224,10 @@ public sealed class GetAmbalajPlanlamaProjeleriQueryHandler
         public int ProjeId { get; init; }
         public int KaynakSandikId { get; init; }
         public AmbalajSandikTuru Tur { get; init; }
+        public bool IptalMi { get; init; }
         public bool AmbalajaDahil { get; init; }
-        public bool UretimeAlindi { get; init; }
+        public AmbalajSandikCinsi SandikCinsi { get; init; }
+        public decimal NetM3 { get; init; }
         public DateTime CreatedDate { get; init; }
     }
 
@@ -211,6 +238,7 @@ public sealed class GetAmbalajPlanlamaProjeleriQueryHandler
         public string SandikNo { get; init; } = string.Empty;
         public string? Ad { get; init; }
         public string? AdIngilizce { get; init; }
+        public int TipId { get; init; }
         public decimal? Boy { get; init; }
         public decimal? En { get; init; }
         public decimal? Yukseklik { get; init; }
@@ -248,11 +276,11 @@ public sealed class GetAmbalajPlanlamaPlanQueryHandler
         var sandiklar = _unitOfWork.GetRepository<Sandik>().Queryable()
             .Where(s => s.ProjeId == proje.Id).ToList();
         var kayitlar = _unitOfWork.GetRepository<AmbalajUretimKaydi>().Queryable()
-            .Where(k => k.ProjeId == proje.Id && !k.IptalMi).ToList();
+            .Where(k => k.ProjeId == proje.Id).ToList();
         var tipMetni = _unitOfWork.GetRepository<LookupProjeTipi>().Queryable()
             .Where(x => x.Id == proje.ProjeTipiId).Select(x => x.Deger).FirstOrDefault() ?? "-";
         return Result<AmbalajPlanlamaPlanDto>.Success(
-            AmbalajPlanlamaYardimcisi.PlanDtoOlustur(proje, tipMetni, sandiklar, kayitlar, request.Grup));
+            AmbalajPlanlamaYardimcisi.PlanDtoOlustur(proje, tipMetni, sandiklar, kayitlar, request.Grup, request.IzinliDurumlar));
     }
 }
 
@@ -373,6 +401,7 @@ public sealed class GetAmbalajBagimsizSandiklarQueryHandler
                          k.Tur == AmbalajSandikTuru.Ic ||
                          k.Tur == AmbalajSandikTuru.Saha ||
                          k.Tur == AmbalajSandikTuru.Yedek));
+        aktifBagimsizQuery = AmbalajDurumErisimi.Filtrele(aktifBagimsizQuery, request.IzinliDurumlar);
 
         var query = AmbalajBagimsizSandikAramaFiltresi.Uygula(
             aktifBagimsizQuery, projelerQuery, kaynakSandiklarQuery, tumKayitlar, request.Arama);
@@ -395,8 +424,8 @@ public sealed class GetAmbalajBagimsizSandiklarQueryHandler
                     KayitSayisi = g.Count(),
                     ToplamSandikAdedi = g.Sum(k => k.Adet),
                     UretimeAlinanSandikAdedi = g.Sum(k => k.UretimeAlindi ? k.Adet : 0),
-                    ToplamHacimM3 = g.Sum(k => k.SandikCinsi != AmbalajSandikCinsi.Kontrplak
-                        ? k.M3Override ?? k.HesaplananToplamM3
+                    ToplamHacimM3 = g.Sum(k => k.AmbalajaDahil && k.SandikCinsi != AmbalajSandikCinsi.Kontrplak
+                        ? ((k.SandikCinsi == _3K.Core.Enums.AmbalajSandikCinsi.AhsapKapali || k.SandikCinsi == _3K.Core.Enums.AmbalajSandikCinsi.Kafes) ? k.M3Override ?? k.HesaplananToplamM3 : 0)
                         : 0)
                 }), cancellationToken);
             var turOzetleri = new[] { 4, 5, 2, 3 }
@@ -420,8 +449,8 @@ public sealed class GetAmbalajBagimsizSandiklarQueryHandler
                     KayitSayisi = g.Count(),
                     ToplamSandikAdedi = g.Sum(k => k.Adet),
                     UretimeAlinanSandikAdedi = g.Sum(k => k.UretimeAlindi ? k.Adet : 0),
-                    ToplamHacimM3 = g.Sum(k => k.SandikCinsi != AmbalajSandikCinsi.Kontrplak
-                        ? k.M3Override ?? k.HesaplananToplamM3
+                    ToplamHacimM3 = g.Sum(k => k.AmbalajaDahil && k.SandikCinsi != AmbalajSandikCinsi.Kontrplak
+                        ? ((k.SandikCinsi == _3K.Core.Enums.AmbalajSandikCinsi.AhsapKapali || k.SandikCinsi == _3K.Core.Enums.AmbalajSandikCinsi.Kafes) ? k.M3Override ?? k.HesaplananToplamM3 : 0)
                         : 0)
                 })
                 .Take(1), cancellationToken)).FirstOrDefault() ?? new BagimsizFiltreToplami();

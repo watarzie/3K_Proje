@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using _3K.Application.Features.FinansIslemleri.Commands;
+using _3K.Application.Features.FinansIslemleri;
 using _3K.Application.Features.FinansIslemleri.DTOs;
 using _3K.Application.Features.FinansIslemleri.Queries;
 using _3K.Core.Enums;
@@ -14,11 +15,66 @@ namespace _3K_API.Controllers
     [ApiController]
     [Authorize]
     [Route("api/finans")]
+    [TypeFilter(typeof(FinansAlanErisimFiltresi))]
     public sealed class FinansController : ControllerBase
     {
         private readonly IMediator _mediator;
 
         public FinansController(IMediator mediator) => _mediator = mediator;
+
+        [HttpGet("panel")]
+        public async Task<ActionResult> Panel([FromQuery] DateTime baslangic, [FromQuery] DateTime bitis, CancellationToken ct)
+            => (await _mediator.Send(new FinansPanelQuery { Baslangic = baslangic, Bitis = bitis }, ct)).ToActionResult();
+        [HttpGet("hareketler")]
+        public async Task<ActionResult> Hareketler([FromQuery] FinansFilterRequest request, [FromQuery] string? tur, CancellationToken ct)
+            => (await _mediator.Send(new FinansHareketlerQuery { Filtre = request.ToModel(), Tur = tur }, ct)).ToActionResult();
+        [HttpGet("genel-arama")]
+        public async Task<ActionResult> GenelArama([FromQuery] FinansFilterRequest request, CancellationToken ct)
+            => (await _mediator.Send(new FinansGenelAramaQuery { Filtre = request.ToModel() }, ct)).ToActionResult();
+        [HttpGet("yaslandirma")]
+        public async Task<ActionResult> Yaslandirma([FromQuery] FinansFilterRequest request, [FromQuery] DateTime? referansTarihi, [FromQuery] int minimumGun, CancellationToken ct)
+            => (await _mediator.Send(new FinansYaslandirmaQuery { Filtre = request.ToModel(), ReferansTarihi = referansTarihi ?? TurkeyTime.Now.Date, MinimumGun = minimumGun }, ct)).ToActionResult();
+        [HttpPost("is-kayitlari/{id:int}/finans-tarihi")]
+        public async Task<ActionResult> FinansTarihi(int id, [FromBody] FinansTarihiDegistirModel model, CancellationToken ct)
+            => (await _mediator.Send(new FinansTarihiDegistirCommand { Id = id, Model = model }, ct)).ToActionResult();
+        [HttpPost("is-kayitlari/{id:int}/fiyatlandirma")]
+        public async Task<ActionResult> Fiyatlandirma(int id, [FromBody] FinansFiyatlandirmaModel model, CancellationToken ct)
+            => (await _mediator.Send(new FinansFiyatlandirCommand { Id = id, Model = model }, ct)).ToActionResult();
+        [HttpGet("sablonlar")]
+        public async Task<ActionResult> Sablonlar(CancellationToken ct)
+            => (await _mediator.Send(new FinansSablonlarQuery(), ct)).ToActionResult();
+        [HttpPost("sablonlar")]
+        public async Task<ActionResult> SablonOlustur([FromBody] FinansSablonKaydetModel model, CancellationToken ct)
+            => (await _mediator.Send(new FinansSablonKaydetCommand { Model = model }, ct)).ToActionResult();
+        [HttpPut("sablonlar/{id:int}")]
+        public async Task<ActionResult> SablonGuncelle(int id, [FromBody] FinansSablonKaydetModel model, CancellationToken ct)
+            => (await _mediator.Send(new FinansSablonKaydetCommand { Id = id, Model = model }, ct)).ToActionResult();
+        [HttpGet("kalici-silme/onizleme")]
+        public async Task<ActionResult> SilmeOnizleme([FromQuery] string varlikTuru, [FromQuery] int id, CancellationToken ct)
+            => (await _mediator.Send(new FinansKaliciSilOnizlemeQuery { VarlikTuru = varlikTuru, Id = id }, ct)).ToActionResult();
+        [HttpPost("kalici-silme")]
+        public async Task<ActionResult> KaliciSil([FromBody] FinansKaliciSilModel model, CancellationToken ct)
+            => (await _mediator.Send(new FinansKaliciSilCommand { Model = model }, ct)).ToActionResult();
+        [HttpGet("belgeler")]
+        public async Task<ActionResult> Belgeler([FromQuery] string hedefTuru, [FromQuery] int hedefId, CancellationToken ct)
+            => (await _mediator.Send(new FinansBelgelerQuery { HedefTuru = hedefTuru, HedefId = hedefId }, ct)).ToActionResult();
+        [HttpPost("belgeler")]
+        [RequestSizeLimit(11 * 1024 * 1024)]
+        public async Task<ActionResult> BelgeYukle([FromForm] string hedefTuru, [FromForm] int hedefId, [FromForm] IFormFile dosya, CancellationToken ct)
+        {
+            if (dosya.Length > 10 * 1024 * 1024) return BadRequest("PDF en fazla 10 MB olabilir.");
+            using var buffer = new MemoryStream();
+            await dosya.CopyToAsync(buffer, ct);
+            return (await _mediator.Send(new FinansBelgeYukleCommand { Model = new(hedefTuru, hedefId, dosya.FileName, buffer.ToArray()) }, ct)).ToActionResult();
+        }
+        [HttpGet("belgeler/{id:int}/indir")]
+        public async Task<ActionResult> BelgeIndir(int id, CancellationToken ct)
+        {
+            var result = await _mediator.Send(new FinansBelgeIndirQuery { Id = id }, ct);
+            if (!result.IsSuccess) return result.ToActionResult();
+            if (result.Value is null) return NotFound();
+            return File(result.Value.Icerik, result.Value.IcerikTuru, result.Value.DosyaAdi);
+        }
 
         [HttpGet("dashboard")]
         public async Task<ActionResult> Dashboard([FromQuery] DateTime? baslangic, [FromQuery] DateTime? bitis, CancellationToken cancellationToken)
@@ -353,7 +409,11 @@ namespace _3K_API.Controllers
 
         [HttpGet("raporlar/veri")]
         public async Task<ActionResult> RaporVerisi([FromQuery] FinansFilterRequest request, CancellationToken cancellationToken)
-            => (await _mediator.Send(new FinansRaporVerisiQuery { Filtre = request.ToModel() }, cancellationToken)).ToActionResult();
+              => (await _mediator.Send(new FinansRaporVerisiQuery { Filtre = request.ToModel() }, cancellationToken)).ToActionResult();
+
+        [HttpGet("raporlar/ozet/{tur}/{format}")]
+        public async Task<ActionResult> OzetRapor(string tur, string format, [FromQuery] FinansFilterRequest request, CancellationToken cancellationToken)
+            => await FileResultAsync(new FinansV2RaporQuery { Tur = tur, Format = format, Filtre = request.ToModel() }, cancellationToken);
 
         [HttpGet("raporlar/isler/{format}")]
         public async Task<ActionResult> IsRaporu(string format, [FromQuery] FinansFilterRequest request, CancellationToken cancellationToken)
@@ -406,9 +466,9 @@ namespace _3K_API.Controllers
 
         private static FinansIsKaydiKaydetModel OzelIsModeli(FinansOzelIsKaydetModel model) => new(
             model.ProjeId, null, null, model.Musteri, FinansIsTuru.OzelIs,
-            model.IsAdi, model.Aciklama, null, null, model.Miktar, model.Birim, 0m,
+            model.IsAdi, model.Aciklama, model.TalepEdenKisi, model.TalepEdenBolum, model.Miktar, model.Birim, 0m,
             null, model.BirimFiyat, model.ParaBirimi, model.KdvOrani,
-            model.IsTarihi.Date, new DateTime(model.IsTarihi.Year, model.IsTarihi.Month, 1),
+            model.IsTarihi.Date, model.IsTarihi.Date,
             OzelIsTuru: model.IsTuru,
             HesaplamaYontemi: model.HesaplamaYontemi,
             RaporGrubu: model.RaporGrubu);
@@ -421,10 +481,10 @@ namespace _3K_API.Controllers
             model.HesaplamaYontemi, model.RaporGrubu);
 
         private static FinansGiderKaydetModel GiderModeli(FinansGiderUyumKaydetModel model) => new(
-            model.Tarih, new DateTime(model.Tarih.Year, model.Tarih.Month, 1),
-            model.KategoriId, null, model.AltKategori, model.FirmaVeyaKisi,
-            model.Aciklama, 1m, "Tutar", model.Tutar, model.ParaBirimi,
-            model.KdvDahil, model.KdvOrani, model.ProjeId, null, model.IsTuru);
+            model.Tarih, model.FinansDonemi ?? new DateTime(model.Tarih.Year, model.Tarih.Month, 1),
+            model.KategoriId, model.GiderKalemiId, model.AltKategori, model.FirmaVeyaKisi,
+            model.Aciklama, model.Miktar ?? 1m, model.Birim ?? "Tutar", model.BirimFiyat ?? model.Tutar, model.ParaBirimi,
+            model.KdvDahil, model.KdvOrani, model.ProjeId, null, model.IsTuru, model.BelgeNo, model.AvansMi, model.MahsupEdilenAvansId, model.FinansTarihi);
     }
 
     public sealed class FinansFilterRequest
@@ -446,11 +506,15 @@ namespace _3K_API.Controllers
         public FinansFaturaDurumu? FaturaDurumu { get; init; }
         public bool FaturaBekleyen { get; init; }
         public bool FaturalamaBekleyen { get; init; }
+        public string? FaturaNumarasi { get; init; }
+        public string? Firma { get; init; }
+        public AmbalajSandikCinsi? SandikCinsi { get; init; }
+        public int? GiderKategoriId { get; init; }
 
         public FinansListeFiltre ToModel() => new(
             PageNumber, PageSize, Arama, ProjeId, ProjeNo, IsTuru, Durum,
             Baslangic, Bitis, ParaBirimi, IptalEdilenleriDahilEt, PoNumarasi, TalepEden,
-            SiparisDurumu, FaturaDurumu, FaturaBekleyen, FaturalamaBekleyen);
+            SiparisDurumu, FaturaDurumu, FaturaBekleyen, FaturalamaBekleyen, FaturaNumarasi, Firma, SandikCinsi, GiderKategoriId);
     }
 
     public sealed class FinansProjeSecenekRequest

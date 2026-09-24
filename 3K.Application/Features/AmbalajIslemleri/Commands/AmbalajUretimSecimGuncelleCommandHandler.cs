@@ -66,7 +66,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
                 kayit,
                 eski,
                 "Ambalaj ve üretim seçimi güncellendi",
-                _currentUserService.UserId ?? 0,
+                _currentUserService.IslemKullaniciId ?? 0,
                 request.Aciklama);
             var proje = kayit.ProjeId.HasValue
                 ? await _unitOfWork.GetRepository<Proje>().GetByIdAsync(kayit.ProjeId.Value)

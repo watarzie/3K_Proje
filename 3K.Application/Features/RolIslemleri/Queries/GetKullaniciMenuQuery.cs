@@ -22,6 +22,24 @@ public sealed class GetKullaniciMenuQueryHandler(
             return Result<RolDetayDto>.Failure("Kullanıcı bulunamadı.", 401);
 
         // Bu iç okuma yalnız doğrulanmış kullanıcının kendi rolüyle sınırlıdır.
-        return await GetRolDetayQueryHandler.OkuAsync(unitOfWork, rolService, user.RolId, cancellationToken);
+        var result = await GetRolDetayQueryHandler.OkuAsync(unitOfWork, rolService, user.RolId, cancellationToken);
+        if (!result.IsSuccess) return result;
+        var decisions = (await unitOfWork.GetRepository<KullaniciYetki>().FindAsync(x => x.KullaniciId == userId))
+            .ToDictionary(x => x.MenuTanimiId, x => x.IzinVerildi);
+        void Apply(IEnumerable<MenuTreeDto> nodes)
+        {
+            foreach (var node in nodes)
+            {
+                if (decisions.TryGetValue(node.Id, out var granted))
+                {
+                    node.YetkiTipiId = _3K.Core.Models.YetkiDegerlendirici.EtkinYetki(node.YetkiTipiId, granted,
+                        (int)(_3K.Core.Constants.YetkiKatalogu.Bul(node.Kod)?.GerekenYetki ?? _3K.Core.Enums.YetkiTipi.W));
+                    node.YetkiTipiMetni = ((_3K.Core.Enums.YetkiTipi)node.YetkiTipiId).ToString();
+                }
+                Apply(node.Children);
+            }
+        }
+        Apply(result.Value!.MenuAgaci);
+        return result;
     }
 }

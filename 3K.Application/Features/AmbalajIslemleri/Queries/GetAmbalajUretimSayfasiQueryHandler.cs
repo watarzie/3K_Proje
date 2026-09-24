@@ -35,21 +35,21 @@ public sealed class GetAmbalajUretimSayfasiQueryHandler(
                 OzelSandikKayitSayisi = group.Count(x => x.Tur != _3K.Core.Enums.AmbalajSandikTuru.Normal),
                 ToplamSandikAdedi = group.Sum(x => x.Adet),
                 NetM3 = group.Where(x => x.AmbalajaDahil && x.UretimeAlindi)
-                    .Sum(x => x.M3Override ?? x.HesaplananToplamM3),
-                SarfM3 = group.Where(x => x.AmbalajaDahil && x.UretimeAlindi).Sum(x => x.SarfM3),
-                ToplamM3 = group.Where(x => x.AmbalajaDahil && x.UretimeAlindi).Sum(x => x.ToplamM3)
+                    .Sum(x => ((x.SandikCinsi == _3K.Core.Enums.AmbalajSandikCinsi.AhsapKapali || x.SandikCinsi == _3K.Core.Enums.AmbalajSandikCinsi.Kafes) ? x.M3Override ?? x.HesaplananToplamM3 : 0)),
+                SarfM3 = group.Where(x => x.AmbalajaDahil && x.UretimeAlindi).Sum(x => (x.SandikCinsi == _3K.Core.Enums.AmbalajSandikCinsi.AhsapKapali || x.SandikCinsi == _3K.Core.Enums.AmbalajSandikCinsi.Kafes) ? x.SarfM3 : 0),
+                ToplamM3 = group.Where(x => x.AmbalajaDahil && x.UretimeAlindi).Sum(x => (x.SandikCinsi == _3K.Core.Enums.AmbalajSandikCinsi.AhsapKapali || x.SandikCinsi == _3K.Core.Enums.AmbalajSandikCinsi.Kafes) ? x.ToplamM3 : 0)
             })
             .FirstOrDefault() ?? new AmbalajFiltreOzetiDto();
 
         if (!yetkiler.M3Gorunur)
         {
-            summary.NetM3 = 0;
-            summary.ToplamM3 = 0;
+            summary.NetM3 = null;
+            summary.ToplamM3 = null;
         }
         if (!yetkiler.SarfGorunur)
         {
-            summary.SarfM3 = 0;
-            summary.ToplamM3 = 0;
+            summary.SarfM3 = null;
+            summary.ToplamM3 = null;
         }
 
         var records = query

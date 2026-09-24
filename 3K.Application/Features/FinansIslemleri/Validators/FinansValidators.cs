@@ -108,7 +108,8 @@ namespace _3K.Application.Features.FinansIslemleri.Validators
                 line.RuleFor(x => x.IsKaydiId).GreaterThan(0);
                 line.RuleFor(x => x.Adet).GreaterThanOrEqualTo(0);
                 line.RuleFor(x => x.M3).GreaterThanOrEqualTo(0);
-                line.RuleFor(x => x).Must(x => x.Adet > 0 || x.M3 > 0).WithMessage("Sipariş kalemi miktarı sıfırdan büyük olmalıdır.");
+                line.RuleFor(x => x).Must(x => x.NetTutar > 0 || x.Adet > 0 || x.M3 > 0).WithMessage("Sipariş kalemi net tutarı veya miktarı sıfırdan büyük olmalıdır.");
+                line.RuleFor(x => x.NetTutar).GreaterThan(0).When(x => x.NetTutar.HasValue);
                 line.RuleFor(x => x.BirimFiyat).GreaterThan(0).When(x => x.BirimFiyat.HasValue);
                 line.RuleFor(x => x.KdvOrani).InclusiveBetween(0, 100).When(x => x.KdvOrani.HasValue);
                 line.RuleFor(x => x.ParaBirimi).Must(x => x is null || FinansValidationRules.Currency(x));
@@ -155,7 +156,8 @@ namespace _3K.Application.Features.FinansIslemleri.Validators
                 line.RuleFor(x => x.SiparisKalemiId).GreaterThan(0);
                 line.RuleFor(x => x.Adet).GreaterThanOrEqualTo(0);
                 line.RuleFor(x => x.M3).GreaterThanOrEqualTo(0);
-                line.RuleFor(x => x).Must(x => x.Adet > 0 || x.M3 > 0).WithMessage("Fatura kalemi miktarı sıfırdan büyük olmalıdır.");
+                line.RuleFor(x => x).Must(x => x.NetTutar > 0 || x.Adet > 0 || x.M3 > 0).WithMessage("Fatura kalemi net tutarı veya miktarı sıfırdan büyük olmalıdır.");
+                line.RuleFor(x => x.NetTutar).GreaterThan(0).When(x => x.NetTutar.HasValue);
             });
         }
 

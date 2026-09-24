@@ -6,6 +6,7 @@ using _3K.Application.Features.FinansIslemleri.DTOs;
 using _3K.Application.Features.FinansIslemleri.Queries;
 using _3K.Application.Features.FinansIslemleri.Validators;
 using _3K.Core.Enums;
+using _3K.Core.Constants;
 using _3K.Core.Models;
 using _3K.Core.Entities;
 using _3K.Infrastructure.Data;
@@ -19,7 +20,7 @@ namespace _3K.Application.Tests;
 public sealed class FinansModuluTests
 {
     [Fact]
-    public void Ambalaj_ve_finans_yetkileri_iki_kok_menu_koduna_konsolidedir()
+    public void Ambalaj_ve_finans_islem_alan_kodlari_katalogla_bire_bir_bagimsizdir()
     {
         var actual = new[] { typeof(AmbalajMenuKodlari), typeof(FinansYetkiKodlari) }
             .SelectMany(type => type.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static))
@@ -28,13 +29,14 @@ public sealed class FinansModuluTests
             .Distinct(StringComparer.Ordinal)
             .Order()
             .ToArray();
-        var expected = new[] { "ambalaj-uretim-listesi", "finans-yonetimi" }.Order().ToArray();
+        var expected = YetkiKatalogu.Tum.Where(x => x.ParentId is 46 or 47).Select(x => x.Kod)
+            .Concat(["ambalaj-uretim-listesi", "finans-yonetimi"]).Order().ToArray();
 
         Assert.Equal(expected, actual);
     }
 
     [Fact]
-    public void Yeni_modul_menuleri_seed_edilir_ama_hicbir_role_koddan_yetki_verilmez()
+    public void Yeni_modul_seed_izinleri_yalniz_acik_Admin_kayitlaridir()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql("Host=localhost;Database=model_validation;Username=test;Password=test")
@@ -53,29 +55,34 @@ public sealed class FinansModuluTests
 
         Assert.Equal(2, menuSeeds.Length);
         Assert.All(menuSeeds, seed => Assert.Null(seed[nameof(MenuTanimi.ParentId)]));
-        Assert.Empty(permissionSeeds);
+        Assert.Equal(2, permissionSeeds.Length);
+        Assert.All(permissionSeeds, seed => Assert.Equal(1, seed[nameof(RolYetki.RolId)]));
+        var granular = designModel.FindEntityType(typeof(RolYetki))!.GetSeedData()
+            .Where(x => (int)x[nameof(RolYetki.MenuTanimiId)]! >= 5000).ToArray();
+        Assert.Equal(YetkiKatalogu.Tum.Count, granular.Length);
+        Assert.All(granular, seed => Assert.Equal(1, seed[nameof(RolYetki.RolId)]));
     }
 
     [Theory]
     [InlineData(typeof(FinansDashboardQuery), "finans-yonetimi")]
     [InlineData(typeof(FinansProjeSecenekleriQuery), "finans-yonetimi")]
-    [InlineData(typeof(FinansIsKaydiOlusturCommand), "finans-yonetimi")]
-    [InlineData(typeof(FinansIsKaydiGuncelleCommand), "finans-yonetimi")]
-    [InlineData(typeof(FinansIsKaydiIptalCommand), "finans-yonetimi")]
-    [InlineData(typeof(FinansIsKaydiGeriAlCommand), "finans-yonetimi")]
-    [InlineData(typeof(FinansGelirOzetiQuery), "finans-yonetimi")]
-    [InlineData(typeof(FinansDurumTutarOzetiQuery), "finans-yonetimi")]
-    [InlineData(typeof(FinansGiderOzetiQuery), "finans-yonetimi")]
-    [InlineData(typeof(FinansNetOzetiQuery), "finans-yonetimi")]
-    [InlineData(typeof(FinansSiparisOlusturCommand), "finans-yonetimi")]
-    [InlineData(typeof(FinansSiparisGuncelleCommand), "finans-yonetimi")]
-    [InlineData(typeof(FinansAylikOperasyonIslerQuery), "finans-yonetimi")]
-    [InlineData(typeof(FinansFaturaOlusturCommand), "finans-yonetimi")]
-    [InlineData(typeof(FinansFaturaGuncelleCommand), "finans-yonetimi")]
-    [InlineData(typeof(FinansFaturaOperasyonDetayQuery), "finans-yonetimi")]
-    [InlineData(typeof(FinansGiderOlusturCommand), "finans-yonetimi")]
-    [InlineData(typeof(FinansFiyatTarifesiOlusturCommand), "finans-yonetimi")]
-    [InlineData(typeof(FinansRaporVerisiQuery), "finans-yonetimi")]
+    [InlineData(typeof(FinansIsKaydiOlusturCommand), FinansYetkiKodlari.ManuelIsEkle)]
+    [InlineData(typeof(FinansIsKaydiGuncelleCommand), FinansYetkiKodlari.ManuelIsDuzenle)]
+    [InlineData(typeof(FinansIsKaydiIptalCommand), FinansYetkiKodlari.IsIptal)]
+    [InlineData(typeof(FinansIsKaydiGeriAlCommand), FinansYetkiKodlari.IsIptal)]
+    [InlineData(typeof(FinansGelirOzetiQuery), FinansYetkiKodlari.GelirGoruntule)]
+    [InlineData(typeof(FinansDurumTutarOzetiQuery), FinansYetkiKodlari.GelirGoruntule)]
+    [InlineData(typeof(FinansGiderOzetiQuery), FinansYetkiKodlari.GiderGoruntule)]
+    [InlineData(typeof(FinansNetOzetiQuery), FinansYetkiKodlari.KarlilikGoruntule)]
+    [InlineData(typeof(FinansSiparisOlusturCommand), FinansYetkiKodlari.PoGir)]
+    [InlineData(typeof(FinansSiparisGuncelleCommand), FinansYetkiKodlari.PoDegistir)]
+    [InlineData(typeof(FinansAylikOperasyonIslerQuery), FinansYetkiKodlari.SiparisOperasyonGoruntule)]
+    [InlineData(typeof(FinansFaturaOlusturCommand), FinansYetkiKodlari.FaturaGir)]
+    [InlineData(typeof(FinansFaturaGuncelleCommand), FinansYetkiKodlari.FaturaDegistir)]
+    [InlineData(typeof(FinansFaturaOperasyonDetayQuery), FinansYetkiKodlari.FaturaYonet)]
+    [InlineData(typeof(FinansGiderOlusturCommand), FinansYetkiKodlari.GiderEkle)]
+    [InlineData(typeof(FinansFiyatTarifesiOlusturCommand), FinansYetkiKodlari.TarifeYonet)]
+    [InlineData(typeof(FinansRaporVerisiQuery), FinansYetkiKodlari.RaporGoruntule)]
     public void Finans_requestleri_beklenen_sabit_yetki_kodunu_kullanir(Type requestType, string expectedCode)
     {
         var request = Activator.CreateInstance(requestType);
@@ -85,13 +92,12 @@ public sealed class FinansModuluTests
     }
 
     [Fact]
-    public void Manuel_is_ve_tarih_degistirme_aliaslari_gelir_yazma_yetkisine_baglidir()
+    public void Manuel_is_fiyat_tarih_ve_iptal_gelir_goruntulemeden_bagimsizdir()
     {
-        Assert.Equal(FinansYetkiKodlari.GelirGoruntule, FinansYetkiKodlari.ManuelIsEkle);
-        Assert.Equal(FinansYetkiKodlari.GelirGoruntule, FinansYetkiKodlari.ManuelIsDuzenle);
-        Assert.Equal(FinansYetkiKodlari.GelirGoruntule, FinansYetkiKodlari.IsIptal);
-        Assert.Equal(FinansYetkiKodlari.GelirGoruntule, FinansYetkiKodlari.TarihDegistir);
-        Assert.Equal(FinansYetkiKodlari.Modul, FinansYetkiKodlari.ManuelIsEkle);
+        var codes = new[] { FinansYetkiKodlari.GelirGoruntule, FinansYetkiKodlari.ManuelIsEkle,
+            FinansYetkiKodlari.ManuelIsDuzenle, FinansYetkiKodlari.IsIptal, FinansYetkiKodlari.TarihDegistir,
+            FinansYetkiKodlari.BirimFiyatDegistir, FinansYetkiKodlari.Modul };
+        Assert.Equal(codes.Length, codes.Distinct().Count());
     }
 
     [Fact]
@@ -252,9 +258,9 @@ public sealed class FinansModuluTests
         Assert.Contains(report.RequiredMenuPermissions, x => x.MenuKod == FinansYetkiKodlari.GiderGoruntule);
         Assert.Contains(report.RequiredMenuPermissions, x => x.MenuKod == FinansYetkiKodlari.KarlilikGoruntule);
         Assert.Contains(excel.RequiredMenuPermissions, x => x.MenuKod == FinansYetkiKodlari.ExcelAktar);
-        Assert.Contains(excel.RequiredMenuPermissions, x => x.MenuKod == FinansYetkiKodlari.RaporGoruntule && x.YetkiTipi == YetkiTipi.W);
+        Assert.Contains(excel.RequiredMenuPermissions, x => x.MenuKod == FinansYetkiKodlari.RaporGoruntule && x.YetkiTipi == YetkiTipi.R);
         Assert.Contains(pdf.RequiredMenuPermissions, x => x.MenuKod == FinansYetkiKodlari.PdfAktar);
-        Assert.Contains(pdf.RequiredMenuPermissions, x => x.MenuKod == FinansYetkiKodlari.RaporGoruntule && x.YetkiTipi == YetkiTipi.W);
+        Assert.Contains(pdf.RequiredMenuPermissions, x => x.MenuKod == FinansYetkiKodlari.RaporGoruntule && x.YetkiTipi == YetkiTipi.R);
     }
 
     [Fact]
@@ -546,7 +552,7 @@ public sealed class FinansModuluTests
 
         Assert.NotNull(work);
         Assert.Contains(work!.GetIndexes(), index => index.IsUnique &&
-            index.Properties.Select(x => x.Name).SequenceEqual(new[] { "KaynakTuru", "KaynakKayitId" }));
+            index.Properties.Select(x => x.Name).SequenceEqual(new[] { "KaynakTuru", "KaynakKayitId", "KaynakBileseni" }));
         Assert.Contains(order!.GetIndexes(), index => index.IsUnique && index.Properties.Single().Name == "PoNumarasi");
         Assert.Contains(invoice!.GetIndexes(), index => index.IsUnique && index.Properties.Single().Name == "FaturaNumarasi");
     }
@@ -614,11 +620,11 @@ public sealed class FinansModuluTests
         Assert.Contains("GROUP BY", calculatedIncomeSql);
         Assert.Contains("GROUP BY", expenseSql);
         Assert.Contains("round", pendingSql, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("round", openSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("NetTutarSnapshot", openSql, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Finans_dashboard_kalan_tutarlari_authoritative_m3_ve_son_po_snapshotini_korur()
+    public void Finans_dashboard_kalan_tutarlari_is_net_bedeli_ve_po_fatura_snapshotlarindan_hesaplar()
     {
         var work = new FinansIsKaydi
         {
@@ -638,6 +644,9 @@ public sealed class FinansModuluTests
             FiyatlandirmaBirimiSnapshot = FinansFiyatlandirmaBirimi.Metrekup,
             M3 = 4,
             BirimFiyatSnapshot = 110,
+            NetTutarSnapshot = 440,
+            KdvTutariSnapshot = 88,
+            ToplamTutarSnapshot = 528,
             ParaBirimiSnapshot = "EUR",
             KdvOraniSnapshot = 20
         };
@@ -648,16 +657,19 @@ public sealed class FinansModuluTests
         {
             FinansFatura = invoice,
             FinansSiparisKalemi = line,
-            M3 = 1.5m
+            M3 = 1.5m,
+            NetTutarSnapshot = 165,
+            KdvTutariSnapshot = 33,
+            ToplamTutarSnapshot = 198
         };
         line.FaturaKalemleri.Add(invoiceLine);
 
         var pending = Assert.Single(FinansService.BuildPendingAmountQuery(new[] { work }.AsQueryable()));
         var open = Assert.Single(FinansService.BuildOpenOrderAmountQuery(new[] { line }.AsQueryable()));
 
-        Assert.Equal(660m, pending.NetTutar);
-        Assert.Equal(132m, pending.KdvTutari);
-        Assert.Equal(792m, pending.ToplamTutar);
+        Assert.Equal(560m, pending.NetTutar);
+        Assert.Equal(112m, pending.KdvTutari);
+        Assert.Equal(672m, pending.ToplamTutar);
         Assert.Equal(275m, open.NetTutar);
         Assert.Equal(55m, open.KdvTutari);
         Assert.Equal(330m, open.ToplamTutar);
@@ -1143,6 +1155,7 @@ public sealed class FinansModuluTests
             Id = 1,
             IsTuru = FinansIsTuru.AnaAmbalaj,
             UretimTarihi = ay.AddDays(1),
+            FinansDonemi = ay,
             KaynakAktif = true
         };
         var pasifAmbalaj = new FinansIsKaydi
@@ -1150,6 +1163,7 @@ public sealed class FinansModuluTests
             Id = 2,
             IsTuru = FinansIsTuru.AnaAmbalaj,
             UretimTarihi = ay.AddDays(2),
+            FinansDonemi = ay,
             KaynakAktif = false,
             IptalEdildi = true
         };
@@ -1158,6 +1172,7 @@ public sealed class FinansModuluTests
             Id = 3,
             IsTuru = FinansIsTuru.OzelIs,
             UretimTarihi = ay.AddDays(3),
+            FinansDonemi = ay,
             KaynakAktif = true,
             IptalEdildi = true
         };
@@ -1199,9 +1214,9 @@ public sealed class FinansModuluTests
         var month = new DateTime(2026, 9, 1);
         var records = new[]
         {
-            new FinansIsKaydi { Id = 1, IsTuru = FinansIsTuru.AnaAmbalaj, UretimTarihi = month, KaynakAktif = true },
-            new FinansIsKaydi { Id = 2, IsTuru = FinansIsTuru.AnaAmbalaj, UretimTarihi = month, KaynakAktif = false, IptalEdildi = true },
-            new FinansIsKaydi { Id = 3, IsTuru = FinansIsTuru.OzelIs, UretimTarihi = month, KaynakAktif = true, IptalEdildi = true }
+            new FinansIsKaydi { Id = 1, IsTuru = FinansIsTuru.AnaAmbalaj, UretimTarihi = month, FinansDonemi = month, KaynakAktif = true },
+            new FinansIsKaydi { Id = 2, IsTuru = FinansIsTuru.AnaAmbalaj, UretimTarihi = month, FinansDonemi = month, KaynakAktif = false, IptalEdildi = true },
+            new FinansIsKaydi { Id = 3, IsTuru = FinansIsTuru.OzelIs, UretimTarihi = month, FinansDonemi = month, KaynakAktif = true, IptalEdildi = true }
         }.AsQueryable();
 
         var scoped = FinansService.AylikKayitlariFiltrele(records, month, month.AddMonths(1));
@@ -1374,26 +1389,35 @@ public sealed class FinansModuluTests
         Assert.Contains(rows, x => x.ParaBirimi == "USD" && x.Miktar == 3m && x.NetTutar == 90m && x.ToplamTutar == 99m);
     }
 
-    [Fact]
-    public void Aylik_arama_bir_alt_satira_eslesince_ayni_proje_biriminin_tum_satirlarini_toplama_dahil_eder()
+    [PostgresRaporFact, Trait("Category", "Postgres")]
+    public async Task Aylik_arama_bir_alt_satira_eslesince_ayni_proje_biriminin_tum_satirlarini_toplama_dahil_eder()
     {
-        var records = new[]
+        await FinansV2PostgresTests.InDatabase(async options =>
         {
-            new FinansIsKaydi { Id = 1, ProjeId = 10, ProjeNo = "PA-10", Musteri = "A", IsAdi = "Ana", IsTuru = FinansIsTuru.AnaAmbalaj, KaynakAktif = true },
-            new FinansIsKaydi { Id = 2, ProjeId = 10, ProjeNo = "PA-ESKI", Musteri = "Eski", IsAdi = "needle detay", IsTuru = FinansIsTuru.IlaveSandik, KaynakAktif = true },
-            new FinansIsKaydi { Id = 3, ProjeId = 20, ProjeNo = "PA-20", Musteri = "B", IsAdi = "Başka", IsTuru = FinansIsTuru.AnaAmbalaj, KaynakAktif = true },
-            new FinansIsKaydi { Id = 4, ProjeNo = "MANUEL", Musteri = "C", IsAdi = "needle manuel", IsTuru = FinansIsTuru.IlaveSandik, KaynakAktif = true },
-            new FinansIsKaydi { Id = 5, ProjeNo = "MANUEL", Musteri = "D", IsAdi = "Ayrı müşteri", IsTuru = FinansIsTuru.AnaAmbalaj, KaynakAktif = true }
-        }.AsQueryable();
+            await using var context = new AppDbContext(options);
+            context.AddRange(new Proje { Id = 10, ProjeNo = "PA-10", Musteri = "A" },
+                new Proje { Id = 20, ProjeNo = "PA-20", Musteri = "B" });
+            await context.SaveChangesAsync();
+            var records = new[]
+            {
+                new FinansIsKaydi { Id = 1, ProjeId = 10, ProjeNo = "PA-10", Musteri = "A", IsAdi = "Ana", IsTuru = FinansIsTuru.AnaAmbalaj, KaynakAktif = true, Adet = 1 },
+                new FinansIsKaydi { Id = 2, ProjeId = 10, ProjeNo = "PA-ESKI", Musteri = "Eski", IsAdi = "needle detay", IsTuru = FinansIsTuru.IlaveSandik, KaynakAktif = true, Adet = 1 },
+                new FinansIsKaydi { Id = 3, ProjeId = 20, ProjeNo = "PA-20", Musteri = "B", IsAdi = "Başka", IsTuru = FinansIsTuru.AnaAmbalaj, KaynakAktif = true, Adet = 1 },
+                new FinansIsKaydi { Id = 4, ProjeNo = "MANUEL", Musteri = "C", IsAdi = "needle manuel", IsTuru = FinansIsTuru.IlaveSandik, KaynakAktif = true, Adet = 1 },
+                new FinansIsKaydi { Id = 5, ProjeNo = "MANUEL", Musteri = "D", IsAdi = "Ayrı müşteri", IsTuru = FinansIsTuru.AnaAmbalaj, KaynakAktif = true, Adet = 1 }
+            };
+            context.AddRange(records);
+            await context.SaveChangesAsync();
 
-        var result = FinansService.BuildMonthlyExpandedFilterQuery(
-                records,
-                new FinansListeFiltre(Arama: "needle"))
-            .Select(x => x.Id)
-            .Order()
-            .ToArray();
+            var result = await FinansService.BuildMonthlyExpandedFilterQuery(
+                    context.Set<FinansIsKaydi>().AsNoTracking(),
+                    new FinansListeFiltre(Arama: "needle"))
+                .Select(x => x.Id)
+                .Order()
+                .ToArrayAsync();
 
-        Assert.Equal([1, 2, 4], result);
+            Assert.Equal([1, 2, 4], result);
+        });
     }
 
     [Fact]

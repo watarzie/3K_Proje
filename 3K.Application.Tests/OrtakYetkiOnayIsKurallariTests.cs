@@ -201,6 +201,7 @@ public class OrtakYetkiOnayIsKurallariTests
         context.Kullanicilar = new OrtakMemorySet<Kullanici>([new() { Id = 7, RolId = roleId, Rol = new() { Id = roleId, Ad = roleName } }]);
         context.RolYetkileri = new OrtakMemorySet<RolYetki>([new() { RolId = roleId, MenuTanimi = new() { Kod = "grid-modulu" }, YetkiTipiId = (int)granted }]);
         context.OnayIslemYetkileri = new OrtakMemorySet<OnayIslemYetki>([]);
+        context.KullaniciYetkileri = new OrtakMemorySet<KullaniciYetki>([]);
         return context;
     }
 

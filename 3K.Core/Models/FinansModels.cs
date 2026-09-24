@@ -35,7 +35,11 @@ namespace _3K.Core.Models
         FinansSiparisDurumu? SiparisDurumu = null,
         FinansFaturaDurumu? FaturaDurumu = null,
         bool FaturaBekleyen = false,
-        bool FaturalamaBekleyen = false);
+        bool FaturalamaBekleyen = false,
+        string? FaturaNumarasi = null,
+        string? Firma = null,
+        AmbalajSandikCinsi? SandikCinsi = null,
+        int? GiderKategoriId = null);
 
     public sealed class FinansDashboardModel
     {
@@ -50,7 +54,7 @@ namespace _3K.Core.Models
         public int BuAyOzelIs { get; init; }
         public int BuAyGiderKaydi { get; init; }
         /// <summary>Referans Finans ekranının kullandığı bu ay toplam gider tutarı.</summary>
-        public decimal BuAyGider => BuAyGiderler.Sum(x => x.ToplamTutar);
+        public decimal? BuAyGider => BuAyGiderler.Select(x => x.ParaBirimi).Distinct().Count() > 1 ? null : BuAyGiderler.Sum(x => x.NetTutar);
         public IReadOnlyList<FinansParaToplamiModel> BuAyGiderler { get; init; } = Array.Empty<FinansParaToplamiModel>();
         public IReadOnlyList<FinansParaToplamiModel> Gelirler { get; init; } = Array.Empty<FinansParaToplamiModel>();
         public IReadOnlyList<FinansParaToplamiModel> Giderler { get; init; } = Array.Empty<FinansParaToplamiModel>();
@@ -103,6 +107,20 @@ namespace _3K.Core.Models
         public decimal ToplamTutar { get; init; }
         public DateTime UretimTarihi { get; init; }
         public DateTime FinansDonemi { get; init; }
+        public DateTime FinansTarihi { get; init; }
+        public bool FinansTarihiManuel { get; init; }
+        public bool FinansMiktariManuel { get; init; }
+        public string KaynakBileseni { get; init; } = "NET";
+        public bool FiyatlandirmaHazir { get; init; }
+        public decimal SiparisNetTutar { get; init; }
+        public decimal FaturalananNetTutar { get; init; }
+        public decimal KalanSiparisNetTutar { get; init; }
+        public decimal KalanFaturaNetTutar { get; init; }
+        public int? SablonSurumId { get; init; }
+        public FinansSablonModel? Sablon { get; init; }
+        public decimal? ManuelNetTutar { get; init; }
+        public IReadOnlyDictionary<string, string?>? AlanDegerleri { get; init; }
+        public IReadOnlyList<FinansFiyatBileseniModel>? Bilesenler { get; init; }
         public DateTime KayitTarihi { get; init; }
         public FinansIsDurumu Durum { get; init; }
         public decimal SiparisAdedi { get; init; }
@@ -201,7 +219,9 @@ namespace _3K.Core.Models
         string RaporGrubu,
         decimal BirimFiyat,
         string ParaBirimi,
-        decimal KdvOrani);
+        decimal KdvOrani,
+        string? TalepEdenKisi = null,
+        string? TalepEdenBolum = null);
 
     public sealed record FinansAylikDegerModel(decimal? Miktar = null, decimal? NetBirimFiyat = null);
 
@@ -231,7 +251,11 @@ namespace _3K.Core.Models
         int? IcSandikSablonId = null,
         string? Aciklama = null,
         string? TalepEdenKisi = null,
-        string? TalepEdenBolum = null);
+        string? TalepEdenBolum = null,
+        string KaynakBileseni = "NET",
+        AmbalajSandikCinsi? SandikCinsi = null,
+        decimal? SarfM3 = null,
+        bool UretimM3Hesaplanabilir = true);
 
     public sealed record FinansSenkronizasyonSonucModel(int Olusturulan, int Guncellenen, int Pasiflestirilen);
 
@@ -336,18 +360,23 @@ namespace _3K.Core.Models
         int? FinansUrunId = null,
         decimal? BirimFiyat = null,
         string? ParaBirimi = null,
-        decimal? KdvOrani = null);
+        decimal? KdvOrani = null,
+        decimal? NetTutar = null);
 
     public sealed record FinansSiparisOlusturModel(
         string PoNumarasi,
         DateTime SiparisTarihi,
         string? Aciklama,
-        IReadOnlyList<FinansSiparisDagitimModel> Kalemler);
+        IReadOnlyList<FinansSiparisDagitimModel> Kalemler,
+        string? ParaBirimi = null,
+        decimal? BelgeNetTutar = null);
 
     public sealed record FinansSiparisGuncelleModel(
         string PoNumarasi,
         DateTime SiparisTarihi,
-        string? Aciklama);
+        string? Aciklama,
+        IReadOnlyList<FinansSiparisDagitimModel>? Kalemler = null,
+        string? Gerekce = null);
 
     public sealed record class FinansSiparisModel
     {
@@ -397,10 +426,13 @@ namespace _3K.Core.Models
         public decimal NetTutar { get; init; }
         public decimal KdvTutari { get; init; }
         public decimal ToplamTutar { get; init; }
+        public decimal FaturalananNetTutar { get; init; }
+        public decimal KalanFaturaNetTutar { get; init; }
+        public bool TutarBazli { get; init; }
         public bool FiyatManuelDegistirildi { get; init; }
     }
 
-    public sealed record FinansFaturaKalemiOlusturModel(int SiparisKalemiId, decimal Adet, decimal M3);
+    public sealed record FinansFaturaKalemiOlusturModel(int SiparisKalemiId, decimal Adet, decimal M3, decimal? NetTutar = null);
     public sealed record FinansFaturaOlusturModel(
         int SiparisId,
         string FaturaNumarasi,
@@ -422,10 +454,16 @@ namespace _3K.Core.Models
         decimal? BelgeKdvTutari = null,
         decimal? BelgeToplamTutar = null,
         string? MutabakatAciklamasi = null,
-        bool BelgeMutabakatiniKoru = false);
+        bool BelgeMutabakatiniKoru = false,
+        IReadOnlyList<FinansFaturaKalemiOlusturModel>? Kalemler = null,
+        string? Gerekce = null);
+
+    public sealed record FinansFaturaKalemiModel(int Id, int SiparisKalemiId, int IsKaydiId,
+        decimal NetTutar, decimal KdvTutari, decimal ToplamTutar, string ParaBirimi, bool TutarBazli);
 
     public sealed record class FinansFaturaModel
     {
+        public IReadOnlyList<FinansFaturaKalemiModel> Kalemler { get; init; } = Array.Empty<FinansFaturaKalemiModel>();
         public int Id { get; init; }
         public string KayitNo { get; init; } = string.Empty;
         public string FaturaNumarasi { get; init; } = string.Empty;
@@ -533,7 +571,11 @@ namespace _3K.Core.Models
         decimal KdvOrani,
         int? ProjeId,
         string? ManuelProjeNo,
-        FinansIsTuru? IsTuru);
+        FinansIsTuru? IsTuru,
+        string? BelgeNo = null,
+        bool AvansMi = false,
+        int? MahsupEdilenAvansId = null,
+        DateTime? FinansTarihi = null);
 
     public sealed record FinansGiderUyumKaydetModel(
         DateTime Tarih,
@@ -546,12 +588,25 @@ namespace _3K.Core.Models
         bool KdvDahil,
         decimal KdvOrani,
         int? ProjeId,
-        FinansIsTuru? IsTuru);
+        FinansIsTuru? IsTuru,
+        decimal? Miktar = null,
+        string? Birim = null,
+        decimal? BirimFiyat = null,
+        int? GiderKalemiId = null,
+        DateTime? FinansDonemi = null,
+        string? BelgeNo = null,
+        bool AvansMi = false,
+        int? MahsupEdilenAvansId = null,
+        DateTime? FinansTarihi = null);
 
     public sealed class FinansGiderModel
     {
         public int Id { get; init; }
         public DateTime Tarih { get; init; }
+        public DateTime FinansTarihi { get; init; }
+        public string? BelgeNo { get; init; }
+        public bool AvansMi { get; init; }
+        public int? MahsupEdilenAvansId { get; init; }
         public DateTime FinansDonemi { get; init; }
         public int KategoriId { get; init; }
         public string Kategori { get; init; } = string.Empty;
@@ -693,7 +748,9 @@ namespace _3K.Core.Models
         string? YeniDeger,
         string? Aciklama,
         DateTime Tarih,
-        string? Kullanici);
+        string? Kullanici,
+        Guid IslemGrubu = default,
+        string? Referans = null);
 
     public sealed class FinansRaporModel
     {

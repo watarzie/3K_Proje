@@ -10,6 +10,8 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
             IQueryable<AmbalajUretimKaydi> query,
             IAmbalajRaporFiltresi filtre)
         {
+            if (filtre is IAmbalajDurumKapsamli kapsam)
+                query = AmbalajDurumErisimi.Filtrele(query, kapsam.IzinliDurumlar);
             if (!filtre.IptallerDahil)
                 query = query.Where(k => !k.IptalMi);
             if (filtre.ProjeId.HasValue)

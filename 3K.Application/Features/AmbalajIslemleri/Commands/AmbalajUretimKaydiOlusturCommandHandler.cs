@@ -39,7 +39,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
 
             var kayit = new AmbalajUretimKaydi
             {
-                CreatedBy = _currentUserService.UserId?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                CreatedBy = _currentUserService.IslemKullaniciId?.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 KaynakModul = request.KaynakModul,
                 KaynakKayitId = null,
                 AmbalajaDahil = request.AmbalajaDahil,
@@ -56,7 +56,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
                 kayit,
                 null,
                 "Ambalaj üretim kaydı oluşturuldu",
-                _currentUserService.UserId ?? 0,
+                _currentUserService.IslemKullaniciId ?? 0,
                 request.Aciklama);
             await AmbalajFinansSenkronizasyonu.KaydetVeAktarAsync(
                 _unitOfWork, _finansService, kayit, baglanti.Proje, cancellationToken);

@@ -12,6 +12,122 @@ namespace _3K.Application.Tests;
 public sealed class AmbalajPlanlamaSayfalamaTests
 {
     [Fact]
+    public async Task OngorulenCam_PlansizKaynaklardanHesaplanir_VarsayilanHaricVeAhsapOlmayanlarM3eGirmez()
+    {
+        var proje = new Proje { Id = 1, ProjeNo = "PA682-43", ProjeTipiId = 1 };
+        Sandik Kaynak(int id, string ad, int tip = 1) => new()
+        {
+            Id = id, ProjeId = 1, SandikNo = id.ToString(), Ad = ad, TipId = tip,
+            Boy = 1800, En = 900, Yukseklik = 800
+        };
+        var kaynaklar = new[] { Kaynak(1, "Radyatör"), Kaynak(2, "Transformatör"),
+            Kaynak(3, "YG Bushing"), Kaynak(4, "Aksesuar", 3) };
+        var uow = PlanlamaDeposu(proje, kaynaklar, []);
+        var sonuc = await new GetAmbalajPlanlamaProjeleriQueryHandler(uow)
+            .Handle(new GetAmbalajPlanlamaProjeleriQuery(), CancellationToken.None);
+        var plan = AmbalajPlanlamaYardimcisi.PlanDtoOlustur(proje, "Normal", kaynaklar, []);
+        var beklenen = plan.Kalemler.Single(k => k.KaynakSandikId == 1).HacimM3;
+
+        Assert.True(beklenen > 0);
+        Assert.Equal(beklenen, sonuc.Value!.FilteredSummary!.ToplamHacimM3);
+        Assert.Equal(beklenen, Assert.Single(sonuc.Value.Items).ProjeSandiklariHacimM3);
+        Assert.Equal(2, sonuc.Value.FilteredSummary.ToplamSandikAdedi);
+        Assert.Equal(0, plan.SeciliSandikAdedi);
+        Assert.Equal(0m, plan.SeciliHacimM3);
+        Assert.Equal(0m, Assert.Single(sonuc.Value.Items).UretimHacimM3);
+        Assert.Equal(0, uow.SaveCount);
+    }
+
+    [Theory]
+    [InlineData(1, AmbalajSandikTuru.Normal)]
+    [InlineData(2, AmbalajSandikTuru.Ilave)]
+    [InlineData(3, AmbalajSandikTuru.Ic)]
+    public async Task OngorulenCam_SecimdenBagimsiz_ManuelOverrideVeDahilKarariniKorur(int grup, AmbalajSandikTuru tur)
+    {
+        var proje = new Proje { Id = 1, ProjeNo = "PA682-43", ProjeTipiId = 1 };
+        var kayitlar = new[]
+        {
+            new AmbalajUretimKaydi { Id = 1, ProjeId = 1, Tur = tur, AmbalajaDahil = true,
+                Ad = "Transformatör", Adet = 1, Boy = 1000, En = 800, Yukseklik = 700,
+                UretimeAlindi = false, HesaplananToplamM3 = 5m, M3Override = 2m },
+            new AmbalajUretimKaydi { Id = 2, ProjeId = 1, Tur = tur, AmbalajaDahil = false,
+                Adet = 1, UretimeAlindi = true, HesaplananToplamM3 = 10m },
+            new AmbalajUretimKaydi { Id = 3, ProjeId = 1, Tur = tur, AmbalajaDahil = true,
+                Adet = 1, UretimeAlindi = false, SandikCinsi = AmbalajSandikCinsi.Kontrplak,
+                Boy = 1000, En = 800, Yukseklik = 700, HesaplananToplamM3 = 99m }
+        };
+        var uow = PlanlamaDeposu(proje, [], kayitlar);
+        var sonuc = await new GetAmbalajPlanlamaProjeleriQueryHandler(uow)
+            .Handle(new GetAmbalajPlanlamaProjeleriQuery { Grup = grup }, CancellationToken.None);
+        var ozet = Assert.Single(sonuc.Value!.Items);
+        var hacim = grup == 1 ? ozet.ProjeSandiklariHacimM3 : grup == 2 ? ozet.IlaveSandiklarHacimM3 : ozet.IcSandiklarHacimM3;
+
+        Assert.Equal(2m, sonuc.Value.FilteredSummary!.ToplamHacimM3);
+        Assert.Equal(2m, hacim);
+        Assert.Equal(2, sonuc.Value.FilteredSummary.ToplamSandikAdedi);
+        Assert.Equal(0m, ozet.UretimHacimM3);
+        Assert.False(kayitlar[0].UretimeAlindi);
+        Assert.Equal(0, uow.SaveCount);
+    }
+
+    [Fact]
+    public async Task OngorulenCam_KayitliAmaSecilmemisKaynakVeEksikOlcu_OncedenGorunur()
+    {
+        var proje = new Proje { Id = 1, ProjeNo = "PA682-43", ProjeTipiId = 1 };
+        var kaynaklar = new[] { new Sandik { Id = 11, ProjeId = 1, Ad = "Transformatör", SandikNo = "1" } };
+        var kayitlar = new[] { new AmbalajUretimKaydi { Id = 1, ProjeId = 1, KaynakKayitId = 11,
+            Tur = AmbalajSandikTuru.Normal, AmbalajaDahil = true, UretimeAlindi = false,
+            HesaplananToplamM3 = 99m, M3Override = 2m } };
+        var sonuc = await new GetAmbalajPlanlamaProjeleriQueryHandler(PlanlamaDeposu(proje, kaynaklar, kayitlar))
+            .Handle(new GetAmbalajPlanlamaProjeleriQuery(), CancellationToken.None);
+
+        Assert.Equal(2m, sonuc.Value!.FilteredSummary!.ToplamHacimM3);
+        Assert.Equal(1, sonuc.Value.FilteredSummary.EksikOlculuProjeSayisi);
+        var ozet = Assert.Single(sonuc.Value.Items);
+        Assert.Equal(2m, ozet.ProjeSandiklariHacimM3);
+        Assert.Equal(1, ozet.EksikOlculuSandikSayisi);
+        Assert.Equal(0m, ozet.UretimHacimM3);
+    }
+
+    [Fact]
+    public async Task OngorulenCam_TamamlanmisProjeyeYeniKaynakKendiligindenDahilOlmaz()
+    {
+        var proje = new Proje { Id = 1, ProjeNo = "PA682-43", ProjeTipiId = 1 };
+        var kaynaklar = new[] { new Sandik { Id = 11, ProjeId = 1, SandikNo = "1", TipId = 1 },
+            new Sandik { Id = 12, ProjeId = 1, SandikNo = "2", TipId = 1, Boy = 1800, En = 900, Yukseklik = 800 } };
+        var kayitlar = new[] { new AmbalajUretimKaydi { Id = 1, ProjeId = 1, KaynakKayitId = 11,
+            AmbalajaDahil = true, UretimeAlindi = true, HesaplananToplamM3 = 2m,
+            UretimDurumu = AmbalajUretimDurumu.Tamamlandi } };
+        var sonuc = await new GetAmbalajPlanlamaProjeleriQueryHandler(PlanlamaDeposu(proje, kaynaklar, kayitlar))
+            .Handle(new GetAmbalajPlanlamaProjeleriQuery(), CancellationToken.None);
+
+        Assert.Equal(1, sonuc.Value!.FilteredSummary!.ToplamSandikAdedi);
+        Assert.Equal(2m, sonuc.Value.FilteredSummary.ToplamHacimM3);
+        Assert.Equal(2m, Assert.Single(sonuc.Value.Items).ProjeSandiklariHacimM3);
+    }
+
+    private static FakeUnitOfWork PlanlamaDeposu(Proje proje, Sandik[] kaynaklar, AmbalajUretimKaydi[] kayitlar) =>
+        new FakeUnitOfWork().AddRepository(proje).AddRepository(kaynaklar).AddRepository(kayitlar)
+            .AddRepository(new LookupProjeTipi { Id = 1, Anahtar = 1, Deger = "Normal" });
+
+    [Fact]
+    public async Task OngorulenCam_BagimsizHaricKayitListedeKalir_AmaStokToplaminaGirmez()
+    {
+        var dahil = BagimsizKayit(1, 1, AmbalajSandikTuru.Ilave, 1, 2m, false);
+        var haric = BagimsizKayit(2, 1, AmbalajSandikTuru.Ilave, 1, 8m, false);
+        haric.AmbalajaDahil = false;
+        var uow = PlanlamaDeposu(new Proje { Id = 1, ProjeNo = "PA682-43" }, [], [dahil, haric]);
+        var sonuc = await new GetAmbalajBagimsizSandiklarQueryHandler(uow)
+            .Handle(new GetAmbalajBagimsizSandiklarQuery { Tur = 2 }, default);
+
+        Assert.Equal(2, sonuc.Value!.TotalCount);
+        Assert.Equal(2m, sonuc.Value.FilteredSummary!.ToplamHacimM3);
+        Assert.Equal(2m, sonuc.Value.FilteredSummary.TurOzetleri.Single(x => x.Tur == 2).ToplamHacimM3);
+        Assert.Equal(0, sonuc.Value.FilteredSummary.UretimeAlinanSandikAdedi);
+        Assert.Equal(0, uow.SaveCount);
+    }
+
+    [Fact]
     public async Task Projeler_SayfalanirVeFiltreOzetiTumEslesenProjelerdenHesaplanir()
     {
         var projeler = new[]
@@ -69,15 +185,12 @@ public sealed class AmbalajPlanlamaSayfalamaTests
         Assert.Equal(1, Assert.Single(sonuc.Value.Items).ProjeId);
         Assert.Equal(2, sonuc.Value.FilteredSummary!.ProjeSayisi);
         Assert.Equal(3, sonuc.Value.FilteredSummary.ToplamSandikAdedi);
-        Assert.Equal(
-            AmbalajPlanlamaYardimcisi.KaynakSandikToplamHacmiHesapla(
-                null, null, "1-2", 1000, 800, 700),
-            sonuc.Value.FilteredSummary.ToplamHacimM3);
+        Assert.Equal(3m, sonuc.Value.FilteredSummary.ToplamHacimM3);
         Assert.Equal(1, sonuc.Value.FilteredSummary.EksikOlculuProjeSayisi);
     }
 
     [Fact]
-    public async Task Projeler_TasmaYapanSayfaNumarasiniSonSayfayaSinirlarVeGuncelSandikHacminiKullanir()
+    public async Task Projeler_TasmaYapanSayfaNumarasiniSonSayfayaSinirlarVeKayitliHacmiKorur()
     {
         var proje = new Proje { Id = 1, ProjeNo = "PA800-01", Musteri = "ACME", ProjeTipiId = 1 };
         var sandik = new Sandik
@@ -111,7 +224,7 @@ public sealed class AmbalajPlanlamaSayfalamaTests
         var gorunenHacim = Assert.Single(sonuc.Value.Items).ProjeSandiklariHacimM3;
         Assert.Equal(gorunenHacim, sonuc.Value.FilteredSummary!.ToplamHacimM3);
         Assert.NotEqual(999m, gorunenHacim);
-        Assert.NotEqual(777m, gorunenHacim);
+        Assert.Equal(777m, gorunenHacim);
     }
 
     [Fact]
@@ -406,6 +519,7 @@ public sealed class AmbalajPlanlamaSayfalamaTests
         private readonly Dictionary<Type, object> _repositories = new();
 
         public bool HasActiveTransaction => false;
+        public int SaveCount { get; private set; }
 
         public FakeUnitOfWork AddRepository<T>(params T[] entities) where T : BaseEntity
         {
@@ -416,7 +530,11 @@ public sealed class AmbalajPlanlamaSayfalamaTests
         public IGenericRepository<T> GetRepository<T>() where T : BaseEntity =>
             (IGenericRepository<T>)_repositories[typeof(T)];
 
-        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => Task.FromResult(0);
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            SaveCount++;
+            return Task.FromResult(0);
+        }
 
         public Task<TResult> ExecuteInTransactionAsync<TResult>(
             Func<CancellationToken, Task<TResult>> operation,

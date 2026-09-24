@@ -79,7 +79,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
                 kayit,
                 eski,
                 "Ambalaj üretim kaydı güncellendi",
-                _currentUserService.UserId ?? 0,
+                _currentUserService.IslemKullaniciId ?? 0,
                 request.Aciklama);
             await AmbalajFinansSenkronizasyonu.KaydetVeAktarAsync(
                 _unitOfWork, _finansService, kayit, baglanti.Proje, cancellationToken);

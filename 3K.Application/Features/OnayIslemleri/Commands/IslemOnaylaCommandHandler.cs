@@ -144,7 +144,9 @@ namespace _3K.Application.Features.OnayIslemleri.Commands
                         cancellationToken);
                 }
 
-                using var approvedExecution = _approvalExecutionContext.BeginApprovedExecution();
+                var granularModule = originalRequest.GetType().Namespace?.StartsWith("_3K.Application.Features.AmbalajIslemleri", StringComparison.Ordinal) == true ||
+                    originalRequest.GetType().Namespace?.StartsWith("_3K.Application.Features.FinansIslemleri", StringComparison.Ordinal) == true;
+                using var approvedExecution = _approvalExecutionContext.BeginApprovedExecution(islem.TalepEdenKullaniciId, granularModule);
                 var response = await _mediator.Send(originalRequest, cancellationToken);
 
                 if (response is not Result sonuc)

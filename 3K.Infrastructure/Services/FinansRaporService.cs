@@ -11,7 +11,7 @@ using _3K.Core.Models;
 
 namespace _3K.Infrastructure.Services
 {
-    public sealed class FinansRaporService : IFinansRaporService
+    public sealed partial class FinansRaporService : IFinansRaporService
     {
         private readonly IFinansService _finansService;
 
@@ -492,6 +492,7 @@ namespace _3K.Infrastructure.Services
                 var page = await _finansService.SiparislerAsync(
                     filtre with { PageNumber = pageNumber, PageSize = pageSize },
                     cancellationToken);
+                if (page.TotalCount > 20000) throw new InvalidOperationException("Rapor 20.000 siparişi aşamaz; filtreyi daraltın.");
                 items.AddRange(page.Items);
                 if (!page.HasNextPage)
                     return items;

@@ -31,6 +31,8 @@ namespace _3K.Infrastructure.Services
                 container.Page(page => ListeSayfasi(page, form, gruplar, raporTarihi));
                 foreach (var grup in gruplar)
                 {
+                    if (!grup.Temsilci.M3HesaplanabilirMi || !grup.Temsilci.OlcuGorunur || grup.Parcalar.Count == 0)
+                        continue;
                     container.Page(page => DetaySayfasi(page, form, grup, raporTarihi));
                     container.Page(page => CizimSayfasi(page, form, grup, raporTarihi));
                 }
@@ -90,13 +92,18 @@ namespace _3K.Infrastructure.Services
                         ListeVeriHucre(table.Cell(), grup.Adet.ToString(CultureInfo.InvariantCulture), true);
                         ListeVeriHucre(table.Cell(), grup.Temsilci.SandikCinsi);
                         ListeOlcuHucre(table.Cell(), OlcuMetni(grup.Temsilci.DisOlculer));
-                        ListeVeriHucre(table.Cell(), FormatM3(grup.NetM3), true);
+                        ListeVeriHucre(table.Cell(), grup.Temsilci.M3HesaplanabilirMi ? FormatM3(grup.NetM3) : "—", true);
                         ListeVeriHucre(table.Cell(), grup.Temsilci.BrutKg.HasValue
                             ? FormatAdet(grup.Temsilci.BrutKg.Value)
                             : string.Empty);
                         ListeVeriHucre(table.Cell(), grup.Temsilci.KullanimAmaci ?? grup.Temsilci.SandikAdi ?? "-");
                     }
                 });
+
+                if (gruplar.Any(grup => !grup.Temsilci.M3HesaplanabilirMi))
+                    column.Item().PaddingTop(4)
+                        .Text("Kontrplak ve katlanır sandıklarda üretim m³ hesabı uygulanmaz.")
+                        .FontSize(8).FontColor(Colors.Grey.Darken2);
 
                 column.Item().PaddingTop(6).ShowEntire().Background("#DCE8F8")
                     .Border(1).BorderColor(Colors.Blue.Darken3).Column(ozet =>
@@ -105,7 +112,7 @@ namespace _3K.Infrastructure.Services
                         {
                             row.RelativeItem().Text($"TOPLAM SANDIK: {gruplar.Sum(g => g.Adet)} Ad.")
                                 .ExtraBold().FontSize(11).FontColor(Colors.Blue.Darken3);
-                            row.RelativeItem().AlignRight().Text($"TOPLAM ÇAM: {FormatM3(gruplar.Sum(g => g.NetM3))} m³")
+                            row.RelativeItem().AlignRight().Text($"TOPLAM ÇAM: {FormatM3(form.NetM3)} m³")
                                 .ExtraBold().FontSize(11).FontColor(Colors.Blue.Darken3);
                         });
                         ozet.Item().BorderTop(1).BorderColor(Colors.Blue.Darken3).Row(row =>
@@ -115,10 +122,10 @@ namespace _3K.Infrastructure.Services
                                 .Text("KOD NO: FC500208").ExtraBold().FontSize(9).FontColor(Colors.Blue.Darken3);
                             row.RelativeItem(1.25f).BorderRight(1).BorderColor(Colors.Blue.Darken3)
                                 .PaddingVertical(4).PaddingHorizontal(6)
-                                .Text($"SARF KERESTE: {FormatM3(gruplar.Sum(g => g.SarfM3))} m³")
+                                .Text($"SARF KERESTE: {FormatM3(form.SarfM3)} m³")
                                 .ExtraBold().FontSize(9).FontColor(Colors.Blue.Darken3);
                             row.RelativeItem(1.15f).PaddingVertical(4).PaddingHorizontal(6)
-                                .Text($"TOPLAM: {FormatM3(gruplar.Sum(g => g.ToplamM3))} m³")
+                                .Text($"TOPLAM: {FormatM3(form.ToplamM3)} m³")
                                 .ExtraBold().FontSize(9).FontColor(Colors.Blue.Darken3);
                         });
                     });
@@ -586,10 +593,10 @@ namespace _3K.Infrastructure.Services
             _ => "3d-7.png"
         };
 
-        private static string OlcuMetni(AmbalajOlculeri olculer) =>
+        private static string OlcuMetni(AmbalajOlculeri? olculer) => olculer == null ? "—" :
             $"{FormatMm(olculer.Boy)} × {FormatMm(olculer.En)} × {FormatMm(olculer.Yukseklik)}\u00A0mm";
-        private static string FormatMm(decimal value) => Math.Round(value, 0).ToString("0", CultureInfo.InvariantCulture);
-        private static string FormatM3(decimal value) => value.ToString("0.000", CultureInfo.GetCultureInfo("tr-TR"));
+        private static string FormatMm(decimal? value) => value.HasValue ? Math.Round(value.Value, 0).ToString("0", CultureInfo.InvariantCulture) : "—";
+        private static string FormatM3(decimal? value) => value?.ToString("0.000", CultureInfo.GetCultureInfo("tr-TR")) ?? "—";
         private static string FormatAdet(decimal value) => decimal.Truncate(value) == value
             ? decimal.Truncate(value).ToString(CultureInfo.InvariantCulture)
             : value.ToString("0.####", CultureInfo.InvariantCulture);
