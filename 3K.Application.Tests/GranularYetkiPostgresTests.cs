@@ -4,6 +4,7 @@ using Npgsql;
 using _3K.Core.Constants;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
+using _3K.Core.Interfaces;
 using _3K.Core.Models;
 using _3K.Infrastructure.Data;
 using _3K.Infrastructure.Repositories;
@@ -53,9 +54,18 @@ public sealed class GranularYetkiPostgresTests
             Assert.True(await roles.HasUserPermissionAsync(7, YetkiKodlari.Finans.KaliciSil, YetkiTipi.W));
 
             using var uow = new UnitOfWork(context, NullLogger<UnitOfWork>.Instance);
-            var service = new KullaniciYetkiService(context, roles, new OrtakUser(7), uow);
+            var events = new List<(int[] Idler, string Olay, bool TransactionAktif)>();
+            var notifier = new RecordingNotifier((ids, olay) =>
+            {
+                events.Add((ids.ToArray(), olay, uow.HasActiveTransaction));
+            });
+            var service = new KullaniciYetkiService(context, roles, new OrtakUser(7), uow, notifier);
             var denied = await service.UpdateAsync(8, [new KullaniciYetkiKarari(poGir.Id, false)]);
             Assert.True(denied.Basarili, denied.Hata);
+            var sent = Assert.Single(events);
+            Assert.Equal([8], sent.Idler);
+            Assert.Equal(SseOlaylari.YetkiGuncellendi, sent.Olay);
+            Assert.False(sent.TransactionAktif);
             Assert.False(await roles.HasUserPermissionAsync(8, YetkiKodlari.Finans.PoGir, YetkiTipi.W));
             Assert.True(await context.RolYetkileri.AnyAsync(x => x.RolId == 77 && x.MenuTanimiId == poGir.Id));
             Assert.Single(await context.YetkiDegisiklikleri.Where(x => x.HedefTuru == "Kullanici" && x.HedefId == 8).ToListAsync());
@@ -69,7 +79,14 @@ public sealed class GranularYetkiPostgresTests
 
             var invalid = await service.UpdateAsync(8, [new KullaniciYetkiKarari(-1, true)]);
             Assert.False(invalid.Basarili);
+            Assert.Single(events);
             Assert.False(await roles.HasUserPermissionAsync(8, YetkiKodlari.Finans.PoGir, YetkiTipi.W));
+            Assert.Single(await context.KullaniciYetkileri.Where(x => x.KullaniciId == 8).ToListAsync());
+
+            notifier.ThrowAfterNotify = true;
+            var tekrar = await service.UpdateAsync(8, [new KullaniciYetkiKarari(poGir.Id, false)]);
+            Assert.True(tekrar.Basarili, tekrar.Hata);
+            Assert.Equal(2, events.Count);
             Assert.Single(await context.KullaniciYetkileri.Where(x => x.KullaniciId == 8).ToListAsync());
         }
         finally
@@ -78,5 +95,18 @@ public sealed class GranularYetkiPostgresTests
             await using var drop = new NpgsqlCommand($"DROP DATABASE \"{database}\" WITH (FORCE)", admin);
             await drop.ExecuteNonQueryAsync();
         }
+    }
+
+    private sealed class RecordingNotifier(Action<IEnumerable<int>, string> onNotify) : ISseNotifier
+    {
+        public bool ThrowAfterNotify { get; set; }
+        public Task SubscribeAsync(object context, int kullaniciId) => Task.CompletedTask;
+        public Task NotifyUsersAsync(IEnumerable<int> kullaniciIdleri, string eventName, string data = "refresh")
+        {
+            onNotify(kullaniciIdleri, eventName);
+            if (ThrowAfterNotify) throw new IOException("Geçici SSE bağlantı hatası.");
+            return Task.CompletedTask;
+        }
+        public Task BroadcastApprovalUpdateAsync() => Task.CompletedTask;
     }
 }

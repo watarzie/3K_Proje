@@ -9,5 +9,6 @@ namespace _3K.Core.Constants
     {
         public const string BildirimGuncellendi = "notification_update";
         public const string OnayGuncellendi = "approval_update";
+        public const string YetkiGuncellendi = "permission_update";
     }
 }

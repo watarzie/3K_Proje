@@ -50,11 +50,11 @@ namespace _3K_API.Controllers
 
             foreach (var node in nodes)
             {
-                var children = node.Children != null ? FilterTree(node.Children) : new();
                 var hasOwnAccess = node.YetkiTipiId >= 2; // 2=R, 3=W — exclude 1=N
-
-                if (!hasOwnAccess && !children.Any())
+                if (!hasOwnAccess)
                     continue;
+
+                var children = node.Children != null ? FilterTree(node.Children) : new();
 
                 result.Add(new MenuTreeDto
                 {

@@ -82,6 +82,19 @@ public class OrtakYetkiOnayIsKurallariTests
         Assert.False(await service.HasUserPermissionAsync(7, " ", required));
     }
 
+    [Fact]
+    public async Task MenuYetkisi_KokOkumaGenelAltMenununYazmasiniOkumayaIndirir()
+    {
+        using var context = Context(8, "Personel", YetkiTipi.W);
+        context.RolYetkileri = new OrtakMemorySet<RolYetki>([
+            new() { RolId = 8, MenuTanimiId = 5, YetkiTipiId = (int)YetkiTipi.R },
+            new() { RolId = 8, MenuTanimiId = 14, YetkiTipiId = (int)YetkiTipi.W }
+        ]);
+        var service = new RolService(context);
+        Assert.True(await service.HasUserPermissionAsync(7, "grid-modulu", YetkiTipi.R));
+        Assert.False(await service.HasUserPermissionAsync(7, "grid-modulu", YetkiTipi.W));
+    }
+
     [Theory]
     [InlineData(1, "BaskaAd", true, true)]
     [InlineData(42, "aDmIn", true, true)]
@@ -199,7 +212,14 @@ public class OrtakYetkiOnayIsKurallariTests
     {
         var context = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().Options);
         context.Kullanicilar = new OrtakMemorySet<Kullanici>([new() { Id = 7, RolId = roleId, Rol = new() { Id = roleId, Ad = roleName } }]);
-        context.RolYetkileri = new OrtakMemorySet<RolYetki>([new() { RolId = roleId, MenuTanimi = new() { Kod = "grid-modulu" }, YetkiTipiId = (int)granted }]);
+        context.MenuTanimlari = new OrtakMemorySet<MenuTanimi>([
+            new() { Id = 5, Kod = "sandik-yonetimi" },
+            new() { Id = 14, Kod = "grid-modulu", ParentId = 5 }
+        ]);
+        context.RolYetkileri = new OrtakMemorySet<RolYetki>([
+            new() { RolId = roleId, MenuTanimiId = 5, YetkiTipiId = (int)YetkiTipi.W },
+            new() { RolId = roleId, MenuTanimiId = 14, YetkiTipiId = (int)granted }
+        ]);
         context.OnayIslemYetkileri = new OrtakMemorySet<OnayIslemYetki>([]);
         context.KullaniciYetkileri = new OrtakMemorySet<KullaniciYetki>([]);
         return context;

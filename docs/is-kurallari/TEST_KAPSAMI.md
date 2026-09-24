@@ -8,6 +8,12 @@ koşum sayıları tarihsel kayıttır; depo dışında yönetilen 02–04 SQL'le
 bugünkü halini veya canlıda elle uygulanmasını doğrulamaz. Bu geçiş için
 ayrı staging provası ve DBA doğrulaması gerekir.
 
+## Yetki hiyerarşisi doğrulaması — 25 Eylül 2026
+
+Üst menü N/R sınırlandırması, rol/kullanıcı menüsü, rol kaydı, kişisel izin ve rol atama regresyonları eklendikten sonra backend paketinin Debug ve Release koşumlarının her birinde **1.289 başarılı, 0 başarısız, 28 atlanan** test vardır (toplam 1.317). Atlanan testler izole PostgreSQL bağlantısı gerektirir; bu koşum gerçek DB entegrasyonu kanıtı değildir. Kural–test eşlemesi denetiminde 501 kural referansı geçerlidir. Frontend üretim derlemesi ve yeni yetki odak testleri (16/16) başarılıdır. Tam frontend koşumunda 211 testin 209'u geçti; görev dışı finans panelinin mevcut iki testi başarısız kaldı. Canlı rol kayıtları ve tarayıcı kabulü ayrıca doğrulanmalıdır.
+
+Sonraki üç durumlu kutu görsel senkronizasyonu düzeltmesinde rol ekranının gerçek DOM tıklaması, kaydı ve yeniden yüklemesini içeren 7 odak frontend testi ve üretim derlemesi başarılıdır. Bu dar düzeltmeden sonra tam frontend paketi yeniden çalıştırılmadı; yukarıdaki 211 testlik sonuç önceki koşuma aittir.
+
 ## Güncel doğrulama — Üretim planı ve çam öngörüsü, 19 Eylül 2026
 
 Son UI/plan düzeltmesinden sonra tam backend paketi **Debug 1.259/1.259** ve **Release + coverage 1.259/1.259** geçti; atlanan/başarısız test yoktur. Katalog referansları ve 501/501 eşlenen metodun başarılı çalışması iki TRX için doğrulandı. Frontend **194/194** ve production build başarılıdır. Bu sayılar aşağıdaki önceki 1.228 vakalık koşumun yerine geçen son doğrulamadır.

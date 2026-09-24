@@ -4,6 +4,7 @@ using _3K.Application.Features.KullaniciIslemleri.Commands;
 using _3K.Application.Features.KullaniciIslemleri.Queries;
 using _3K.Application.Features.KullaniciIslemleri.Validators;
 using _3K.Application.Features.AuthIslemleri.Commands;
+using _3K.Core.Constants;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
@@ -138,6 +139,71 @@ public sealed class KullaniciIkiFaktorPolitikaTests
         Assert.False(unitOfWork.KullaniciRepository.UpdateCagrildi);
     }
 
+    [Fact]
+    public async Task RolAtamasi_CommitSonrasiYalnizHedefKullanicininYetkisiniYeniler()
+    {
+        var kullanici = KullaniciOlustur(ikiFaktorZorunluMu: false);
+        var unitOfWork = new FakeUnitOfWork(kullanici);
+        await unitOfWork.AddRole(new Rol { Id = 2, Ad = "Operatör" });
+        var events = new List<(int[] Idler, string Olay)>();
+        var notifier = new RecordingNotifier((ids, olay) =>
+        {
+            Assert.False(unitOfWork.HasActiveTransaction);
+            Assert.Equal(1, unitOfWork.SaveChangesSayisi);
+            events.Add((ids.ToArray(), olay));
+        });
+        var handler = new KullaniciGuncelleCommandHandler(unitOfWork,
+            new FakeIkiFaktorService(), new FakeYetkiService(), new OrtakUser(99), notifier);
+
+        var changed = await unitOfWork.ExecuteInTransactionAsync(ct => handler.Handle(new()
+        { Id = kullanici.Id, AdSoyad = kullanici.AdSoyad, RolId = 2 }, ct));
+        Assert.True(changed.IsSuccess);
+        var sent = Assert.Single(events);
+        Assert.Equal([kullanici.Id], sent.Idler);
+        Assert.Equal(SseOlaylari.YetkiGuncellendi, sent.Olay);
+
+        var renamed = await handler.Handle(new()
+        { Id = kullanici.Id, AdSoyad = "Yeni İsim", RolId = 2 }, default);
+        Assert.True(renamed.IsSuccess);
+        Assert.Single(events);
+    }
+
+    [Fact]
+    public async Task RolAtamasi_SseHatasiKaydedilmisDegisikligiBasarisizGostermez()
+    {
+        var kullanici = KullaniciOlustur(ikiFaktorZorunluMu: false);
+        var unitOfWork = new FakeUnitOfWork(kullanici);
+        await unitOfWork.AddRole(new Rol { Id = 2, Ad = "Operatör" });
+        var notifier = new RecordingNotifier((_, _) => throw new IOException("Bağlantı koptu."));
+        var handler = new KullaniciGuncelleCommandHandler(unitOfWork,
+            new FakeIkiFaktorService(), new FakeYetkiService(), new OrtakUser(99), notifier);
+
+        var result = await handler.Handle(new()
+        { Id = kullanici.Id, AdSoyad = kullanici.AdSoyad, RolId = 2 }, default);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, kullanici.RolId);
+        Assert.Equal(1, unitOfWork.SaveChangesSayisi);
+    }
+
+    [Fact]
+    public async Task RolAtamasi_RedHalindeYetkiOlayiGondermez()
+    {
+        var kullanici = KullaniciOlustur(ikiFaktorZorunluMu: false);
+        var unitOfWork = new FakeUnitOfWork(kullanici);
+        var events = new List<string>();
+        var notifier = new RecordingNotifier((_, olay) => events.Add(olay));
+        var handler = new KullaniciGuncelleCommandHandler(unitOfWork,
+            new FakeIkiFaktorService(), new FakeYetkiService(allowed: false), new OrtakUser(99), notifier);
+
+        var result = await handler.Handle(new()
+        { Id = kullanici.Id, AdSoyad = kullanici.AdSoyad, RolId = 2 }, default);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(0, unitOfWork.SaveChangesSayisi);
+        Assert.Empty(events);
+    }
+
     private static Kullanici KullaniciOlustur(bool ikiFaktorZorunluMu)
     {
         var rol = new Rol { Id = 1, Ad = "Admin" };
@@ -157,6 +223,8 @@ public sealed class KullaniciIkiFaktorPolitikaTests
     {
         public FakeRepository<Kullanici> KullaniciRepository { get; }
         private readonly FakeRepository<Rol> _rolRepository;
+        private readonly FakeRepository<YetkiDegisikligi> _yetkiDegisikligiRepository = new([]);
+        private readonly List<Func<CancellationToken, Task>> _afterCommit = [];
 
         public FakeUnitOfWork(params Kullanici[] kullanicilar)
         {
@@ -166,7 +234,9 @@ public sealed class KullaniciIkiFaktorPolitikaTests
         }
 
         public int SaveChangesSayisi { get; private set; }
-        public bool HasActiveTransaction => false;
+        public bool HasActiveTransaction { get; private set; }
+
+        public Task AddRole(Rol rol) => _rolRepository.AddAsync(rol);
 
         public IGenericRepository<T> GetRepository<T>() where T : BaseEntity
         {
@@ -174,6 +244,8 @@ public sealed class KullaniciIkiFaktorPolitikaTests
                 return (IGenericRepository<T>)(object)KullaniciRepository;
             if (typeof(T) == typeof(Rol))
                 return (IGenericRepository<T>)(object)_rolRepository;
+            if (typeof(T) == typeof(YetkiDegisikligi))
+                return (IGenericRepository<T>)(object)_yetkiDegisikligiRepository;
 
             throw new NotSupportedException(typeof(T).Name);
         }
@@ -184,12 +256,26 @@ public sealed class KullaniciIkiFaktorPolitikaTests
             return Task.FromResult(1);
         }
 
-        public Task<TResult> ExecuteInTransactionAsync<TResult>(
+        public async Task<TResult> ExecuteInTransactionAsync<TResult>(
             Func<CancellationToken, Task<TResult>> operation,
-            CancellationToken cancellationToken = default) => operation(cancellationToken);
+            CancellationToken cancellationToken = default)
+        {
+            HasActiveTransaction = true;
+            try
+            {
+                var result = await operation(cancellationToken);
+                HasActiveTransaction = false;
+                foreach (var callback in _afterCommit.ToArray()) await callback(CancellationToken.None);
+                return result;
+            }
+            finally
+            {
+                HasActiveTransaction = false;
+                _afterCommit.Clear();
+            }
+        }
 
-        public void RegisterAfterCommit(Func<CancellationToken, Task> callback) =>
-            throw new NotSupportedException();
+        public void RegisterAfterCommit(Func<CancellationToken, Task> callback) => _afterCommit.Add(callback);
 
         public void RegisterAfterRollback(Func<CancellationToken, Task> callback) =>
             throw new NotSupportedException();
@@ -197,6 +283,29 @@ public sealed class KullaniciIkiFaktorPolitikaTests
         public void Dispose()
         {
         }
+    }
+
+    private sealed class FakeYetkiService(bool allowed = true) : IKullaniciYetkiService
+    {
+        public Task<IReadOnlyList<KullaniciYetkiModel>?> GetAsync(int kullaniciId, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+        public Task<KullaniciYetkiSonucu> UpdateAsync(int kullaniciId,
+            IReadOnlyCollection<KullaniciYetkiKarari> kararlar, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+        public Task<KullaniciYetkiSonucu> RolAtamayiDogrulaAsync(int? hedefKullaniciId, int rolId,
+            CancellationToken cancellationToken = default) => Task.FromResult(
+                allowed ? new KullaniciYetkiSonucu(true) : new KullaniciYetkiSonucu(false, "Reddedildi.", 403));
+    }
+
+    private sealed class RecordingNotifier(Action<IEnumerable<int>, string> onNotify) : ISseNotifier
+    {
+        public Task SubscribeAsync(object context, int kullaniciId) => Task.CompletedTask;
+        public Task NotifyUsersAsync(IEnumerable<int> kullaniciIdleri, string eventName, string data = "refresh")
+        {
+            onNotify(kullaniciIdleri, eventName);
+            return Task.CompletedTask;
+        }
+        public Task BroadcastApprovalUpdateAsync() => Task.CompletedTask;
     }
 
     private sealed class FakeRepository<T> : IGenericRepository<T> where T : BaseEntity

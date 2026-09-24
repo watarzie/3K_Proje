@@ -19,12 +19,18 @@ namespace _3K.Infrastructure.Services
 
         public async Task<List<MenuTanimi>> GetMenuAgaciAsync(CancellationToken ct = default)
         {
-            return await _context.MenuTanimlari
-                .AsNoTracking()
-                .Include(m => m.Children)
-                .Where(m => m.ParentId == null)
-                .OrderBy(m => m.Sira)
-                .ToListAsync(ct);
+            var menus = await _context.MenuTanimlari.AsNoTracking()
+                .OrderBy(m => m.Sira).ToListAsync(ct);
+            var byId = menus.ToDictionary(m => m.Id);
+            var roots = new List<MenuTanimi>();
+            foreach (var menu in menus)
+            {
+                if (menu.ParentId == null)
+                    roots.Add(menu);
+                else if (byId.TryGetValue(menu.ParentId.Value, out var parent))
+                    parent.Children.Add(menu);
+            }
+            return roots;
         }
 
         public async Task<List<RolYetki>> GetRolYetkileriAsync(int rolId, CancellationToken ct = default)
@@ -87,26 +93,48 @@ namespace _3K.Infrastructure.Services
             if (kullanici == null)
                 return false;
 
-            var kisiselKarar = await _context.KullaniciYetkileri
-                .AsNoTracking()
-                .Where(x => x.KullaniciId == userId && x.MenuTanimi.Kod == menuKod)
-                .Select(x => (bool?)x.IzinVerildi)
-                .SingleOrDefaultAsync(ct);
-            if (kisiselKarar.HasValue)
+            var node = await _context.MenuTanimlari.AsNoTracking()
+                .Where(x => x.Kod == menuKod)
+                .Select(x => new { x.Id, x.Kod, x.ParentId }).SingleOrDefaultAsync(ct);
+            if (node == null) return false;
+
+            var path = new List<(int Id, string Kod)>();
+            var visited = new HashSet<int>();
+            while (true)
             {
-                var ekIzinSeviyesi = (int)(YetkiKatalogu.Bul(menuKod)?.GerekenYetki ?? YetkiTipi.W);
-                return YetkiDegerlendirici.EtkinYetki(1, kisiselKarar, ekIzinSeviyesi) >= (int)requiredYetkiTipi;
+                if (!visited.Add(node.Id)) return false;
+                path.Add((node.Id, node.Kod));
+                if (!node.ParentId.HasValue) break;
+                node = await _context.MenuTanimlari.AsNoTracking()
+                    .Where(x => x.Id == node.ParentId.Value)
+                    .Select(x => new { x.Id, x.Kod, x.ParentId }).SingleOrDefaultAsync(ct);
+                if (node == null) return false;
             }
 
-            var requiredYetkiTipiId = (int)requiredYetkiTipi;
-
-            return await _context.RolYetkileri
-                .AsNoTracking()
-                .AnyAsync(ry =>
-                    ry.RolId == kullanici.RolId &&
-                    ry.MenuTanimi.Kod == menuKod &&
-                    ry.YetkiTipiId >= requiredYetkiTipiId,
-                    ct);
+            var pathIds = path.Select(x => x.Id).ToArray();
+            var roleLevels = await _context.RolYetkileri.AsNoTracking()
+                .Where(x => x.RolId == kullanici.RolId && pathIds.Contains(x.MenuTanimiId))
+                .ToDictionaryAsync(x => x.MenuTanimiId, x => x.YetkiTipiId, ct);
+            var decisions = await _context.KullaniciYetkileri.AsNoTracking()
+                .Where(x => x.KullaniciId == userId && pathIds.Contains(x.MenuTanimiId))
+                .ToDictionaryAsync(x => x.MenuTanimiId, x => x.IzinVerildi, ct);
+            var roleEffective = new Dictionary<int, int>();
+            var inherited = (int)YetkiTipi.W;
+            foreach (var menu in path.AsEnumerable().Reverse())
+            {
+                inherited = YetkiDegerlendirici.UstSinirliYetki(menu.Kod,
+                    roleLevels.GetValueOrDefault(menu.Id, (int)YetkiTipi.N), inherited);
+                roleEffective[menu.Id] = inherited;
+            }
+            inherited = (int)YetkiTipi.W;
+            foreach (var menu in path.AsEnumerable().Reverse())
+            {
+                var local = YetkiDegerlendirici.EtkinYetki(roleEffective[menu.Id],
+                    decisions.TryGetValue(menu.Id, out var granted) ? granted : null,
+                    (int)(YetkiKatalogu.Bul(menu.Kod)?.GerekenYetki ?? YetkiTipi.W));
+                inherited = YetkiDegerlendirici.UstSinirliYetki(menu.Kod, local, inherited);
+            }
+            return inherited >= (int)requiredYetkiTipi;
         }
     }
 }

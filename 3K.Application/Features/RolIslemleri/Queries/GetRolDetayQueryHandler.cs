@@ -4,6 +4,7 @@ using _3K.Application.Common;
 using _3K.Application.Features.RolIslemleri.DTOs;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.RolIslemleri.Queries
 {
@@ -40,7 +41,7 @@ namespace _3K.Application.Features.RolIslemleri.Queries
             // Menü ağacını DTO'ya dönüştür (recursive)
             var menuTree = menuAgaci
                 .OrderBy(m => m.Sira)
-                .Select(m => MapToMenuTreeDto(m, yetkiMap))
+                .Select(m => MapToMenuTreeDto(m, yetkiMap, (int)YetkiTipi.W))
                 .ToList();
 
             return Result<RolDetayDto>.Success(new RolDetayDto
@@ -55,8 +56,10 @@ namespace _3K.Application.Features.RolIslemleri.Queries
         /// MenuTanimi → MenuTreeDto recursive dönüşümü.
         /// Her node'a rolün yetkisini ekler (W/R/N).
         /// </summary>
-        private static MenuTreeDto MapToMenuTreeDto(MenuTanimi menu, Dictionary<int, int> yetkiMap)
+        private static MenuTreeDto MapToMenuTreeDto(MenuTanimi menu, Dictionary<int, int> yetkiMap, int ustYetkisi)
         {
+            var atanmisYetki = yetkiMap.GetValueOrDefault(menu.Id, (int)YetkiTipi.N);
+            var etkinYetki = YetkiDegerlendirici.UstSinirliYetki(menu.Kod, atanmisYetki, ustYetkisi);
             return new MenuTreeDto
             {
                 Id = menu.Id,
@@ -68,11 +71,11 @@ namespace _3K.Application.Features.RolIslemleri.Queries
                 Icon = menu.Icon,
                 Route = menu.Route,
                 Sira = menu.Sira,
-                YetkiTipiId = yetkiMap.TryGetValue(menu.Id, out var yetkiId) ? yetkiId : 1,
-                YetkiTipiMetni = yetkiMap.TryGetValue(menu.Id, out var yt) ? ((YetkiTipi)yt).ToString() : "N",
+                YetkiTipiId = etkinYetki,
+                YetkiTipiMetni = ((YetkiTipi)etkinYetki).ToString(),
                 Children = menu.Children?
                     .OrderBy(c => c.Sira)
-                    .Select(c => MapToMenuTreeDto(c, yetkiMap))
+                    .Select(c => MapToMenuTreeDto(c, yetkiMap, etkinYetki))
                     .ToList() ?? new()
             };
         }

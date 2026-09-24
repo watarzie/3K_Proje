@@ -63,6 +63,8 @@ internal sealed class OrtakAsyncEnumerator<T>(IEnumerator<T> inner) : IAsyncEnum
 internal sealed class OrtakMemoryUow : IUnitOfWork
 {
     private readonly Dictionary<Type, object> _repos = [];
+    private readonly List<Func<CancellationToken, Task>> _afterCommit = [];
+    private readonly List<Func<CancellationToken, Task>> _afterRollback = [];
     public int SaveCount { get; private set; }
     public bool HasActiveTransaction { get; private set; }
     public OrtakMemoryRepo<T> Repo<T>() where T : BaseEntity
@@ -75,10 +77,42 @@ internal sealed class OrtakMemoryUow : IUnitOfWork
     public async Task<TResult> ExecuteInTransactionAsync<TResult>(Func<CancellationToken, Task<TResult>> operation, CancellationToken token = default)
     {
         HasActiveTransaction = true;
-        try { return await operation(token); } finally { HasActiveTransaction = false; }
+        TResult result;
+        try
+        {
+            result = await operation(token);
+        }
+        catch
+        {
+            HasActiveTransaction = false;
+            try
+            {
+                foreach (var callback in _afterRollback.ToArray()) await callback(CancellationToken.None);
+            }
+            finally
+            {
+                _afterCommit.Clear();
+                _afterRollback.Clear();
+            }
+            throw;
+        }
+        finally
+        {
+            HasActiveTransaction = false;
+        }
+        try
+        {
+            foreach (var callback in _afterCommit.ToArray()) await callback(CancellationToken.None);
+            return result;
+        }
+        finally
+        {
+            _afterCommit.Clear();
+            _afterRollback.Clear();
+        }
     }
-    public void RegisterAfterCommit(Func<CancellationToken, Task> callback) => throw new NotSupportedException();
-    public void RegisterAfterRollback(Func<CancellationToken, Task> callback) => throw new NotSupportedException();
+    public void RegisterAfterCommit(Func<CancellationToken, Task> callback) => _afterCommit.Add(callback);
+    public void RegisterAfterRollback(Func<CancellationToken, Task> callback) => _afterRollback.Add(callback);
     public void Dispose() { }
 }
 

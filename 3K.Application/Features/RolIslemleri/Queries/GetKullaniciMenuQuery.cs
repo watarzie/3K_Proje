@@ -3,6 +3,9 @@ using _3K.Application.Common;
 using _3K.Application.Features.RolIslemleri.DTOs;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
+using _3K.Core.Enums;
+using _3K.Core.Constants;
 
 namespace _3K.Application.Features.RolIslemleri.Queries;
 
@@ -26,20 +29,22 @@ public sealed class GetKullaniciMenuQueryHandler(
         if (!result.IsSuccess) return result;
         var decisions = (await unitOfWork.GetRepository<KullaniciYetki>().FindAsync(x => x.KullaniciId == userId))
             .ToDictionary(x => x.MenuTanimiId, x => x.IzinVerildi);
-        void Apply(IEnumerable<MenuTreeDto> nodes)
+        void Apply(IEnumerable<MenuTreeDto> nodes, int ustYetkisi)
         {
             foreach (var node in nodes)
             {
+                var kendiYetkisi = node.YetkiTipiId;
                 if (decisions.TryGetValue(node.Id, out var granted))
                 {
-                    node.YetkiTipiId = _3K.Core.Models.YetkiDegerlendirici.EtkinYetki(node.YetkiTipiId, granted,
-                        (int)(_3K.Core.Constants.YetkiKatalogu.Bul(node.Kod)?.GerekenYetki ?? _3K.Core.Enums.YetkiTipi.W));
-                    node.YetkiTipiMetni = ((_3K.Core.Enums.YetkiTipi)node.YetkiTipiId).ToString();
+                    kendiYetkisi = YetkiDegerlendirici.EtkinYetki(kendiYetkisi, granted,
+                        (int)(YetkiKatalogu.Bul(node.Kod)?.GerekenYetki ?? YetkiTipi.W));
                 }
-                Apply(node.Children);
+                node.YetkiTipiId = YetkiDegerlendirici.UstSinirliYetki(node.Kod, kendiYetkisi, ustYetkisi);
+                node.YetkiTipiMetni = ((YetkiTipi)node.YetkiTipiId).ToString();
+                Apply(node.Children, node.YetkiTipiId);
             }
         }
-        Apply(result.Value!.MenuAgaci);
+        Apply(result.Value!.MenuAgaci, (int)YetkiTipi.W);
         return result;
     }
 }

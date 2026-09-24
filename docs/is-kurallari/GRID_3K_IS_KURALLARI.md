@@ -145,7 +145,7 @@ Kaynak: [DurumHesaplaService.cs:13](C:/Users/Watarzie/source/repos/3K_Proje/3K.I
 
 **Y-02.** Korunan işlemin menü/işlem izni sunucudaki açık sözleşme veya `RequestMenuPermissionResolver` kataloğundan gelir. `X-Menu-Kod` yetki sağlamaz. Tanımlanmamış korumalı işlem reddedilir. Proje, sandık ve satır bağlamı gerektiren işlemlerde gerçek proje tipi/ilişkisi veritabanından doğrulanır.
 
-**Y-03.** Okuma için R, değiştiren işlem için W gerekir; rapor indirme komutları okuma olarak açık tanımlıdır. W, R gereksinimini de karşılar. Çoklu izinlerde varsayılan `All` (AND); aynı endpoint'i kullanan izinli ekranlar `Any` (OR) grubuyla belirtilir. Ayrı gruplar ve toplu seçimde ayrı gerçek projelerin gereksinimleri birlikte sağlanır. [Sunucu işlem/yetki kataloğu](../guvenlik/SUNUCU_YETKI_ESLEMESI.md).
+**Y-03.** Okuma için R, değiştiren işlem için W gerekir; rapor indirme komutları okuma olarak açık tanımlıdır. W, R gereksinimini de karşılar. Menü ağacında üst N alt erişimi kapatır; üst R alt W işlemlerini engeller ve alt okuma iznini en fazla R ile sınırlar. Üst W, ayrı alt izni kendiliğinden vermez. Yalnız W anlamı taşıyan işlem düğümünün üst R altında etkin değeri N'dir. Çoklu izinlerde varsayılan `All` (AND); aynı endpoint'i kullanan izinli ekranlar `Any` (OR) grubuyla belirtilir. Ayrı gruplar ve toplu seçimde ayrı gerçek projelerin gereksinimleri birlikte sağlanır. [Sunucu işlem/yetki kataloğu](../guvenlik/SUNUCU_YETKI_ESLEMESI.md).
 
 **Y-04.** Rol, kullanıcı/rol ilişkisi ve `RolYetkileri` kayıtlarıyla doğrulanır. Normal menü yetki kontrolünde genel bir “Admin her menüyü atlar” istisnası yoktur.
 
