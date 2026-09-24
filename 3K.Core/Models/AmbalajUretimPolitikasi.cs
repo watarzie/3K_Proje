@@ -19,18 +19,26 @@ public static class AmbalajUretimPolitikasi
         _ => AmbalajSandikCinsi.Diger
     };
 
-    // Kaynakta amaç kodu bulunmadığından yalnız açık ad terimleri değerlendirilir.
-    // Sandık numarası hiçbir zaman ekipman türünün kanıtı değildir.
+    // Kaynakta amaç kodu bulunmadığından iki sandık adı ayrı ayrı değerlendirilir.
+    // Sandık numarası ekipman türünün kanıtı değildir.
     public static bool VarsayilanYapilmazMi(string? ad, string? ingilizceAd = null)
     {
-        var metin = string.Concat($"{ad} {ingilizceAd}".Normalize(NormalizationForm.FormD)
+        return HedefSandikMi(NormalAd(ad)) || HedefSandikMi(NormalAd(ingilizceAd));
+    }
+
+    private static string NormalAd(string? kaynakAd)
+    {
+        if (string.IsNullOrWhiteSpace(kaynakAd)) return string.Empty;
+        var metin = string.Concat(kaynakAd.Normalize(NormalizationForm.FormD)
             .Where(c => CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark))
             .ToUpperInvariant().Replace('İ', 'I').Replace('ı', 'I');
-        var kelimeler = Regex.Matches(metin, "[A-Z0-9]+").Select(m => m.Value).ToHashSet();
-        if (kelimeler.Overlaps(["TRAFO", "TRANSFORMATOR", "TRANSFORMER"])) return true;
-        return kelimeler.Overlaps(["BUSHING", "BUSING", "BUSINGLER", "BUSHINGS"]) &&
-               kelimeler.Overlaps(["AH", "YG", "HV", "LV"]);
+        return string.Join(' ', Regex.Matches(metin, "[A-Z0-9]+").Select(m => m.Value));
     }
+
+    private static bool HedefSandikMi(string normalAd) =>
+        Regex.IsMatch(normalAd, @"(?:^| )(?:BUSHING|BUSING)") ||
+        Regex.IsMatch(normalAd,
+            @"^(?:(?:TRANSFORMATOR(?: YAGSIZ)?|TRANSFORMER)(?: (?:SANDIGI|SANDIK|CASE|CRATE))?|TRANSFORMER MAIN BODY)$");
 
     public static AmbalajUretimDurumu ProjeDurumu(IEnumerable<AmbalajUretimKaydi> kayitlar)
     {

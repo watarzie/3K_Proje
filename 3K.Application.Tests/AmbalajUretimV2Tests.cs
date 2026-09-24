@@ -37,8 +37,22 @@ public sealed class AmbalajUretimV2Tests
 
     [Theory]
     [InlineData("TRANSFORMATÖR", null, true)]
+    [InlineData("Transformatör sandığı", null, true)]
+    [InlineData("Transformatör (Yağsız)", null, true)]
+    [InlineData(null, "TRANSFORMER CASE", true)]
+    [InlineData(null, "TRANSFORMER MAIN BODY", true)]
     [InlineData("Bushing AH sandığı", null, true)]
     [InlineData(null, "BUSHING YG CASE", true)]
+    [InlineData("AG Bushing", null, true)]
+    [InlineData("YG N Bushing", null, true)]
+    [InlineData("Bushing bağlantı sandığı", null, true)]
+    [InlineData("Aksesuar", "HV Bushing", true)]
+    [InlineData("YG Busingler", null, true)]
+    [InlineData("Trafo Merdiveni + Boru Donanım", null, false)]
+    [InlineData("Trafo Merdiveni + Boru Donanım", "Transformer Ladder + Pipe Assembly", false)]
+    [InlineData("Trafo Montaj", null, false)]
+    [InlineData("Transformatör merdiveni", null, false)]
+    [InlineData(null, "Transformer Ladder", false)]
     [InlineData("Mekanik 1", null, false)]
     [InlineData("Parafudr", null, false)]
     public void U2_Siniflandirma_NumaraSezgisiKullanmaz(string? ad, string? ing, bool expected) =>
@@ -51,10 +65,32 @@ public sealed class AmbalajUretimV2Tests
         Assert.Equal(AmbalajSandikCinsi.Diger, AmbalajUretimPolitikasi.KaynakCinsi(178));
     }
 
+    [Fact]
+    public async Task K03_TrafoMerdiveniKaynaktaVarsayilanDahilOlur()
+    {
+        var proje = new Proje { Id = 20, ProjeNo = "K03", Musteri = "Test", ProjeTipiId = (int)ProjeTipi.Normal };
+        var source = new Sandik { Id = 30, ProjeId = 20, SandikNo = "18",
+            Ad = "Trafo Merdiveni + Boru Donanım", TipId = (int)SandikTipi.AhsapKapali,
+            Boy = 5300, En = 1200, Yukseklik = 1200 };
+        var uow = new Uow().Add(proje).Add(source);
+        var sync = new AmbalajKaynaklariSenkronizeEtCommandHandler(uow, new ApprovalUser(), new Finans(), new Roles());
+
+        var result = await sync.Handle(new() { ProjeId = 20 }, default);
+
+        Assert.True(result.IsSuccess, result.Error?.Message);
+        var row = Assert.Single(uow.Items<AmbalajUretimKaydi>());
+        Assert.Equal("18", row.SandikNo);
+        Assert.True(row.AmbalajaDahil);
+        var plan = AmbalajPlanlamaYardimcisi.PlanDtoOlustur(proje, "Normal", [source], [row]);
+        Assert.True(Assert.Single(plan.Kalemler).AmbalajaDahilMi);
+    }
+
     [Theory]
     [InlineData("TRANSFORMATÖR")]
     [InlineData("Bushing AH sandığı")]
     [InlineData("BUSHING YG CASE")]
+    [InlineData("AG Bushing")]
+    [InlineData("YG N Bushing")]
     public async Task K03K04_KaynakVarsayilanHaric_YetkiliKararResyncteKorunur_FormaDahilOlur(string sourceName)
     {
         var proje = new Proje { Id = 20, ProjeNo = "K03", Musteri = "Test", ProjeTipiId = (int)ProjeTipi.Normal };
