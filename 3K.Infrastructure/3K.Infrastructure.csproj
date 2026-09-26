@@ -11,7 +11,7 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.0-preview.2.25163.8" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0-preview.2" />
     <PackageReference Include="ClosedXML" Version="0.104.2" />
-    <PackageReference Include="QuestPDF" Version="2025.4.0" />
+    <PackageReference Include="QuestPDF" Version="2025.4.0" GeneratePathProperty="true" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0-preview.2.25164.1" />
     <PackageReference Include="Otp.NET" Version="1.4.1" />
@@ -31,6 +31,13 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Sabit rapor fontları sunucudaki LatoFont klasörüne/izinlerine bağlı kalmaz. -->
+    <EmbeddedResource Include="$(PkgQuestPDF)\LatoFont\Lato-Regular.ttf;$(PkgQuestPDF)\LatoFont\Lato-Bold.ttf;$(PkgQuestPDF)\LatoFont\Lato-Italic.ttf;$(PkgQuestPDF)\LatoFont\Lato-BoldItalic.ttf;$(PkgQuestPDF)\LatoFont\Lato-ExtraBold.ttf;$(PkgQuestPDF)\LatoFont\Lato-ExtraBoldItalic.ttf;$(PkgQuestPDF)\LatoFont\OFL.txt">
+      <LogicalName>_3K.Infrastructure.Assets.AmbalajFonts.%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
 </Project>

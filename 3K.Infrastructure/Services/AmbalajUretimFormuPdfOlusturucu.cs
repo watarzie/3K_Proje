@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Globalization;
+using QuestPDF.Drawing;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -14,6 +15,9 @@ namespace _3K.Infrastructure.Services
     /// </summary>
     internal static class AmbalajUretimFormuPdfOlusturucu
     {
+        private const string YaziTipiAilesi = "3K.Ambalaj.UretimFormu.Lato";
+        private static readonly Lazy<bool> YaziTipiKaydi = new(
+            GomuluYaziTipleriniKaydet, LazyThreadSafetyMode.ExecutionAndPublication);
         private static readonly ConcurrentDictionary<string, Lazy<byte[]>> VarlikOnbellegi =
             new(StringComparer.OrdinalIgnoreCase);
 
@@ -24,6 +28,7 @@ namespace _3K.Infrastructure.Services
                 throw new InvalidOperationException("Üretim formunda çizilecek sandık bulunmuyor.");
 
             QuestPDF.Settings.License = LicenseType.Community;
+            _ = YaziTipiKaydi.Value;
             var gruplar = AmbalajUretimFormuGruplayici.Grupla(form.Kalemler);
             var raporTarihi = TurkeyTime.Now;
             var document = Document.Create(container =>
@@ -249,14 +254,16 @@ namespace _3K.Infrastructure.Services
             var yd9 = Parca(grup, "YD_9");
             var yd13 = Parca(grup, "YD_13");
 
-            page.Content().Column(column =>
+            // Tüm teknik çizimleri birlikte tut; uzun etiketlerde gerekirse yalnız
+            // çizim alanını orantılı küçült. Diğer raporların sayfalamasını etkilemez.
+            page.Content().ScaleToFit().ShowEntire().Column(column =>
             {
                 column.Spacing(5);
                 column.Item().Element(container => TeknikGorsel(
                     container,
                     "ÜST TAVAN KUŞAK GÖRÜNÜMÜ",
                     Varlik(AyakGorseliDosyaAdi("ust-tavan", grup.Temsilci.AyakAdedi)),
-                    190,
+                    180,
                     new(
                         Alt: FormatMm(ut7.Uzunluk),
                         Sol: FormatMm(ut6.Uzunluk),
@@ -271,7 +278,7 @@ namespace _3K.Infrastructure.Services
                         container,
                         "ÖN DUVAR KUŞAK GÖRÜNÜMÜ",
                         Varlik(AyakGorseliDosyaAdi("on-duvar", grup.Temsilci.AyakAdedi)),
-                        142,
+                        132,
                         new(
                             Alt: FormatMm(od4.Uzunluk),
                             Sol: FormatMm(od5.Uzunluk),
@@ -282,7 +289,7 @@ namespace _3K.Infrastructure.Services
                         container,
                         "YAN DUVAR GÖRÜNÜMÜ",
                         Varlik($"yan-duvar-{Varyant(grup.Temsilci.YanKusakAdedi, 2, 4)}.jpg"),
-                        142,
+                        132,
                         new(
                             Alt: FormatMm(yd9.Uzunluk),
                             Sol: FormatMm(grup.Temsilci.OnDuvarYuksekligi),
@@ -296,13 +303,13 @@ namespace _3K.Infrastructure.Services
                         container,
                         "ALT PALET ÖN GÖRÜNÜMÜ",
                         Varlik(AyakGorseliDosyaAdi("alt-ayak", grup.Temsilci.AyakAdedi)),
-                        82,
+                        78,
                         new(Ust: FormatMm(ap2.Uzunluk), AltSol: "300")));
                     row.RelativeItem().Element(container => TeknikGorsel(
                         container,
                         "ALT PALET YAN GÖRÜNÜMÜ",
                         Varlik($"ust-kizak-{Varyant(grup.Temsilci.UstKizakAdedi, 2, 6)}.jpg"),
-                        82,
+                        78,
                         new(
                             Ust: FormatMm(ap3.Uzunluk),
                             Alt: FormatMm(ap1.Uzunluk),
@@ -314,7 +321,7 @@ namespace _3K.Infrastructure.Services
                     container,
                     "ALT PALET ÜST GÖRÜNÜMÜ",
                     Varlik(AyakGorseliDosyaAdi("palet-ust", grup.Temsilci.AyakAdedi)),
-                    155,
+                    145,
                     new(Ust: FormatMm(ap2.Uzunluk), Sol: FormatMm(ap1.Uzunluk), Sag: FormatMm(ap3.Uzunluk)),
                     2.21f));
             });
@@ -411,7 +418,7 @@ namespace _3K.Infrastructure.Services
             AmbalajGorselOlculeri olculer,
             float? enBoyOrani = null)
         {
-            container.Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(4).Column(column =>
+            container.ShowEntire().Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(4).Column(column =>
             {
                 column.Item().Background("#EAF0F8").PaddingVertical(2.5f).PaddingHorizontal(5).Row(header =>
                 {
@@ -509,14 +516,14 @@ namespace _3K.Infrastructure.Services
         {
             page.Size(PageSizes.A4);
             page.Margin(24);
-            page.DefaultTextStyle(style => style.FontSize(8).FontColor("#172033"));
+            page.DefaultTextStyle(style => style.FontFamily(YaziTipiAilesi).FontSize(8).FontColor("#172033"));
         }
 
         private static void ListeSayfaAyarlari(PageDescriptor page)
         {
             page.Size(PageSizes.A4);
             page.Margin(18);
-            page.DefaultTextStyle(style => style.FontSize(8).FontColor("#172033"));
+            page.DefaultTextStyle(style => style.FontFamily(YaziTipiAilesi).FontSize(8).FontColor("#172033"));
         }
 
         private static void RaporAltbilgisi(IContainer container, AmbalajUretimFormuModel form)
@@ -546,6 +553,25 @@ namespace _3K.Infrastructure.Services
             text.Span(" / ").FontSize(7);
             text.TotalPages().FontSize(7);
         });
+
+        private static bool GomuluYaziTipleriniKaydet()
+        {
+            // Ayrı aile adı kullanılır: ortam fontlarını ve diğer PDF raporlarının
+            // varsayılan font seçimini değiştirmeden bu şablonun metriklerini sabitler.
+            var assembly = typeof(AmbalajUretimFormuPdfOlusturucu).Assembly;
+            foreach (var dosyaAdi in new[]
+            {
+                "Lato-Regular.ttf", "Lato-Bold.ttf", "Lato-Italic.ttf",
+                "Lato-BoldItalic.ttf", "Lato-ExtraBold.ttf", "Lato-ExtraBoldItalic.ttf"
+            })
+            {
+                using var stream = assembly.GetManifestResourceStream(
+                    $"_3K.Infrastructure.Assets.AmbalajFonts.{dosyaAdi}")
+                    ?? throw new InvalidOperationException($"Gömülü ambalaj rapor fontu bulunamadı: {dosyaAdi}");
+                FontManager.RegisterFontWithCustomName(YaziTipiAilesi, stream);
+            }
+            return true;
+        }
 
         private static byte[] Varlik(string dosyaAdi)
         {
