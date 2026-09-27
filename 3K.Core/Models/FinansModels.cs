@@ -602,7 +602,7 @@ namespace _3K.Core.Models
         decimal? En,
         decimal? Yukseklik,
         int? IcSandikSablonId,
-        bool Aktif);
+        bool Aktif = true);
 
     public sealed class FinansUrunModel
     {

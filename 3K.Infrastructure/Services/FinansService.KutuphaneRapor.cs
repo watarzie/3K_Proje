@@ -88,10 +88,11 @@ namespace _3K.Infrastructure.Services
             };
             foreach (var match in model.Eslesmeler)
                 entity.Eslesmeler.Add(NewMatch(match));
-            ApplyDirectPrice(entity, model);
+            var newTariff = ApplyDirectPrice(entity, model);
             _context.Set<FinansUrun>().Add(entity);
             await _context.SaveChangesAsync(cancellationToken);
             AddAudit(nameof(FinansUrun), entity.Id, "Oluşturma", "*", null, entity.Kod);
+            if (newTariff is not null) AddTariffCreationAudit(newTariff);
             await _context.SaveChangesAsync(cancellationToken);
             await BackfillUnpricedWorksAsync(cancellationToken);
             return await ProductByIdAsync(entity.Id, TurkeyTime.Now.Date, cancellationToken)
@@ -122,7 +123,7 @@ namespace _3K.Infrastructure.Services
             entity.FiyatlandirmaBirimi = model.FiyatlandirmaBirimi;
             entity.Aktif = model.Aktif;
             entity.Sira = model.Sira;
-            ApplyDirectPrice(entity, model);
+            var newTariff = ApplyDirectPrice(entity, model);
             AddAuditChanges(nameof(FinansUrun), entity, auditBefore);
 
             var inputIds = model.Eslesmeler.Where(x => x.Id.HasValue).Select(x => x.Id!.Value).ToHashSet();
@@ -148,7 +149,8 @@ namespace _3K.Infrastructure.Services
             await _context.SaveChangesAsync(cancellationToken);
             foreach (var newMatch in newMatches)
                 AddAudit(nameof(FinansUrunEslesmesi), newMatch.Id, "Oluşturma", "*", null, $"FinansUrunId={entity.Id}");
-            if (newMatches.Count > 0)
+            if (newTariff is not null) AddTariffCreationAudit(newTariff);
+            if (newMatches.Count > 0 || newTariff is not null)
                 await _context.SaveChangesAsync(cancellationToken);
             await BackfillUnpricedWorksAsync(cancellationToken);
             return await ProductByIdAsync(id, tariffDate, cancellationToken);
@@ -192,16 +194,24 @@ namespace _3K.Infrastructure.Services
             return entity;
         }
 
-        private static void ApplyDirectPrice(FinansUrun entity, FinansUrunKaydetModel model)
+        /// <summary>
+        /// Ürün formundaki fiyat bugün geçerli tarifeyi günceller; yoksa bugünden başlayan açık uçlu
+        /// tarife açar. Mevcut tarifedeki değişiklikler denetime yazılır; yeni tarife kimlik aldıktan
+        /// sonra oluşturma kaydı yazılabilsin diye döndürülür.
+        /// </summary>
+        internal FinansFiyatTarifesi? ApplyDirectPrice(FinansUrun entity, FinansUrunKaydetModel model)
         {
             if (!model.BirimFiyat.HasValue)
-                return;
+                return null;
             if (model.BirimFiyat.Value < 0)
                 throw new InvalidOperationException("Birim fiyat sıfırdan küçük olamaz.");
             if (model.KdvOrani is < 0 or > 100)
                 throw new InvalidOperationException("KDV oranı 0-100 aralığında olmalıdır.");
 
             var today = TurkeyTime.Now.Date;
+            var price = model.BirimFiyat.Value;
+            var currency = NormalizeCurrency(model.ParaBirimi ?? "EUR");
+            var vat = model.KdvOrani ?? 0m;
             var tariff = entity.FiyatTarifeleri
                 .Where(x => x.Aktif && x.GecerlilikBaslangici.Date <= today && x.GecerlilikBitisi.Date >= today)
                 .OrderByDescending(x => x.GecerlilikBaslangici)
@@ -213,16 +223,28 @@ namespace _3K.Infrastructure.Services
                 {
                     Yil = today.Year,
                     GecerlilikBaslangici = today,
-                    GecerlilikBitisi = new DateTime(2200, 12, 31),
-                    Aktif = true
+                    GecerlilikBitisi = new DateTime(FinansTarihKurallari.EnBuyukYil, 12, 31),
+                    Aktif = true,
+                    BirimFiyat = price,
+                    ParaBirimi = currency,
+                    KdvOrani = vat
                 };
                 entity.FiyatTarifeleri.Add(tariff);
+                return tariff;
             }
 
-            tariff.BirimFiyat = model.BirimFiyat.Value;
-            tariff.ParaBirimi = NormalizeCurrency(model.ParaBirimi ?? "EUR");
-            tariff.KdvOrani = model.KdvOrani ?? 0m;
+            AddChangedAudit(nameof(FinansFiyatTarifesi), tariff.Id, nameof(tariff.BirimFiyat), tariff.BirimFiyat, price);
+            AddChangedAudit(nameof(FinansFiyatTarifesi), tariff.Id, nameof(tariff.ParaBirimi), tariff.ParaBirimi, currency);
+            AddChangedAudit(nameof(FinansFiyatTarifesi), tariff.Id, nameof(tariff.KdvOrani), tariff.KdvOrani, vat);
+            tariff.BirimFiyat = price;
+            tariff.ParaBirimi = currency;
+            tariff.KdvOrani = vat;
+            return null;
         }
+
+        private void AddTariffCreationAudit(FinansFiyatTarifesi tariff)
+            => AddAudit(nameof(FinansFiyatTarifesi), tariff.Id, "Oluşturma", "*", null,
+                $"FinansUrunId={tariff.FinansUrunId}; {ToAuditString(tariff.BirimFiyat)} {tariff.ParaBirimi}; KDV {ToAuditString(tariff.KdvOrani)}");
 
         private static void ApplyMatch(FinansUrunEslesmesi entity, FinansUrunEslesmesiModel model)
         {
