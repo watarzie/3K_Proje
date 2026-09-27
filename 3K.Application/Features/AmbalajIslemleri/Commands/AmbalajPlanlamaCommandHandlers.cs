@@ -443,36 +443,6 @@ public sealed class AmbalajIcSandikSablonuSilCommandHandler
     }
 }
 
-public sealed class AmbalajTalepEdenEkleCommandHandler
-    : IRequestHandler<AmbalajTalepEdenEkleCommand, Result<AmbalajTalepEdenDto>>
-{
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly ICurrentUserService _currentUser;
-    public AmbalajTalepEdenEkleCommandHandler(IUnitOfWork unitOfWork, ICurrentUserService currentUser)
-    {
-        _unitOfWork = unitOfWork;
-        _currentUser = currentUser;
-    }
-
-    public async Task<Result<AmbalajTalepEdenDto>> Handle(
-        AmbalajTalepEdenEkleCommand request,
-        CancellationToken cancellationToken)
-    {
-        var ad = request.Ad?.Trim();
-        if (string.IsNullOrWhiteSpace(ad))
-            return Result<AmbalajTalepEdenDto>.Failure("Talep eden adı zorunludur.");
-        if (ad.Length > 150)
-            return Result<AmbalajTalepEdenDto>.Failure("Talep eden adı en fazla 150 karakter olabilir.");
-        var repo = _unitOfWork.GetRepository<AmbalajTalepEden>();
-        if (repo.Queryable().Any(x => x.Ad.ToLower() == ad.ToLower()))
-            return Result<AmbalajTalepEdenDto>.Failure("Bu talep eden zaten kayıtlıdır.", 409);
-        var entity = new AmbalajTalepEden { Ad = ad, CreatedBy = _currentUser.IslemKullaniciId?.ToString() };
-        await repo.AddAsync(entity);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-        return Result<AmbalajTalepEdenDto>.Success(new AmbalajTalepEdenDto(entity.Id, entity.Ad));
-    }
-}
-
 public sealed class AmbalajBagimsizSandikKaydetCommandHandler
     : IRequestHandler<AmbalajBagimsizSandikKaydetCommand, Result<AmbalajBagimsizSandikDto>>
 {

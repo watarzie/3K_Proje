@@ -27,11 +27,13 @@ public class RaporTutarliligiTests
     {
         var uow = new OrtakMemoryUow();
         uow.Repo<AmbalajUretimKaydi>().Rows.AddRange([
-            new() { Id = 3, ProjeId = 2, SandikNo = "1", Adet = 3 },
-            new() { Id = 1, ProjeId = 1, SandikNo = "SND-10", Adet = 1 },
-            new() { Id = 2, ProjeId = 1, SandikNo = "SND-2", Adet = 2 }
+            new() { Id = 3, ProjeId = 2, SandikNo = "1", Adet = 3, Tur = AmbalajSandikTuru.Ilave },
+            new() { Id = 1, ProjeId = 1, SandikNo = "SND-10", Adet = 1, Tur = AmbalajSandikTuru.Ilave },
+            new() { Id = 2, ProjeId = 1, SandikNo = "SND-2", Adet = 2, Tur = AmbalajSandikTuru.Ilave },
+            new() { Id = 4, ProjeId = 1, SandikNo = "SND-1", Adet = 9, Tur = AmbalajSandikTuru.Saha },
+            new() { Id = 5, ProjeId = 1, SandikNo = "SND-3", Adet = 9, Tur = AmbalajSandikTuru.Ilave, IptalMi = true }
         ]);
-        var rows = AmbalajRaporVerisi.KayitlariGetir(uow, new GetAmbalajRaporQuery());
+        var rows = AmbalajRaporVerisi.KayitlariGetir(uow, AmbalajSandikTuru.Ilave, izinliDurumlar: null);
         Assert.Equal([2, 1, 3], rows.Select(r => r.Id));
         Assert.Equal(6, rows.Sum(r => r.Adet));
         var groups = AmbalajUretimFormuGruplayici.Grupla([

@@ -307,24 +307,6 @@ public sealed class GetAmbalajIcSandikSablonlariQueryHandler
     }
 }
 
-public sealed class GetAmbalajTalepEdenlerQueryHandler
-    : IRequestHandler<GetAmbalajTalepEdenlerQuery, Result<IReadOnlyList<AmbalajTalepEdenDto>>>
-{
-    private readonly IUnitOfWork _unitOfWork;
-    public GetAmbalajTalepEdenlerQueryHandler(IUnitOfWork unitOfWork) => _unitOfWork = unitOfWork;
-
-    public Task<Result<IReadOnlyList<AmbalajTalepEdenDto>>> Handle(
-        GetAmbalajTalepEdenlerQuery request,
-        CancellationToken cancellationToken)
-    {
-        var sonuc = _unitOfWork.GetRepository<AmbalajTalepEden>().Queryable()
-            .OrderBy(x => x.Ad)
-            .Select(x => new AmbalajTalepEdenDto(x.Id, x.Ad))
-            .ToList();
-        return Task.FromResult(Result<IReadOnlyList<AmbalajTalepEdenDto>>.Success(sonuc));
-    }
-}
-
 public sealed class GetAmbalajTalepEdenKullanicilarQueryHandler
     : IRequestHandler<GetAmbalajTalepEdenKullanicilarQuery,
         Result<IReadOnlyList<AmbalajKullaniciSecenegiDto>>>

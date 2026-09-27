@@ -157,7 +157,6 @@ public sealed class NormalProjeSevkKomutlariTests
     {
         public int? UserId => 7;
         public bool IsAuthenticated => true;
-        public string? MenuKod => null;
     }
 
     private sealed class HareketStub : IHareketService

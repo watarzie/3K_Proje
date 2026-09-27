@@ -34,7 +34,7 @@ public static class DependencyInjection
         services.AddScoped<IApprovalExecutionContext, ApprovalExecutionContext>();
         services.AddScoped<IRequestMenuPermissionResolver, RequestMenuPermissionResolver>();
         services.AddScoped<ISandikLokasyonGuncellemeService, SandikLokasyonGuncellemeService>();
-        services.AddScoped<IAmbalajKaynakSenkronizasyonService, AmbalajKaynaklariSenkronizeEtCommandHandler>();
+        services.AddScoped<IAmbalajKaynakSenkronizasyonService, AmbalajKaynakSenkronizasyonService>();
 
         return services;
     }

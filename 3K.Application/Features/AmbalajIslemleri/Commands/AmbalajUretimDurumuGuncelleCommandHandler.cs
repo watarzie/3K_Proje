@@ -54,10 +54,6 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
             var eski = AmbalajUretimYardimcilari.Snapshot(kayit);
             var ilkTamamlama = kayit.UretimDurumu != AmbalajUretimDurumu.Tamamlandi && request.Durum == AmbalajUretimDurumu.Tamamlandi;
             kayit.UretimDurumu = request.Durum;
-            kayit.FirinPartiNo = AmbalajUretimYardimcilari.Temizle(request.FirinPartiNo) ?? kayit.FirinPartiNo;
-            if (request.UretimTarihi.HasValue)
-                kayit.UretimTarihi = request.UretimTarihi;
-
             if (request.Durum == AmbalajUretimDurumu.Tamamlandi)
             {
                 kayit.UretimTarihi ??= TurkeyTime.Now;
@@ -84,7 +80,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
             await AmbalajFinansSenkronizasyonu.KaydetVeAktarAsync(
                 _unitOfWork, _finansService, kayit, proje, cancellationToken);
             var ust = kayit.UstKayitId.HasValue ? await repo.GetByIdAsync(kayit.UstKayitId.Value) : null;
-            var dto = AmbalajKomutYardimcisi.DtoOlustur(kayit, proje, ust);
+            var dto = AmbalajUretimYardimcilari.DtoOlustur(kayit, proje?.ProjeNo, proje?.Musteri, ust?.SandikNo);
             await AmbalajYetkilendirmeYardimcisi.DtoyuYetkiyeGoreMaskeleAsync(
                 dto, _rolService, _currentUserService, cancellationToken);
             return Result<AmbalajUretimKaydiDto>.Success(dto);

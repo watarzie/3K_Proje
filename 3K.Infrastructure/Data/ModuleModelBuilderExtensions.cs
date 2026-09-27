@@ -136,13 +136,6 @@ internal static class ModuleModelBuilderExtensions
             entity.Property(x => x.Yukseklik).HasPrecision(18, 4);
         });
 
-        modelBuilder.Entity<AmbalajTalepEden>(entity =>
-        {
-            entity.ToTable("AmbalajTalepEdenler");
-            entity.HasIndex(x => x.Ad).IsUnique();
-            entity.Property(x => x.Ad).HasMaxLength(150).IsRequired();
-        });
-
         modelBuilder.Entity<AmbalajKaynakSenkronizasyonKuyrukKaydi>(entity =>
         {
             entity.ToTable("AmbalajKaynakSenkronizasyonKuyrugu", table =>

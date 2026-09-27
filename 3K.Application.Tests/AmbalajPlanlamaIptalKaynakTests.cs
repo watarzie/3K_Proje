@@ -153,9 +153,9 @@ public sealed class AmbalajPlanlamaIptalKaynakTests
     }
     private sealed class Sync : IAmbalajKaynakSenkronizasyonService
     {
-        public Task<Result<AmbalajSenkronizasyonSonucuDto>> SenkronizeEtAsync(int id, ICurrentUserService actor,
-            CancellationToken ct, bool sonucKayitlariniOlustur = true) =>
-            Task.FromResult(Result<AmbalajSenkronizasyonSonucuDto>.Success(new(0, 0, 0, 0, [])));
+        public Task<Result<AmbalajSenkronizasyonSonucu>> SenkronizeEtAsync(int id, ICurrentUserService actor,
+            CancellationToken ct) =>
+            Task.FromResult(Result<AmbalajSenkronizasyonSonucu>.Success(new(0, 0, 0)));
     }
     private sealed class Finans : IFinansUretimAktarimService
     {

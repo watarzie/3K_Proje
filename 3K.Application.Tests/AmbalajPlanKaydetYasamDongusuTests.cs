@@ -14,11 +14,8 @@ namespace _3K.Application.Tests;
 
 public sealed class AmbalajPlanKaydetYasamDongusuTests
 {
-    [Theory]
-    [InlineData(1)]
-    [InlineData(2)]
-    [InlineData(3)]
-    public async Task PlanKaydet_KarmaDurumVeTarihleriKorur_LegacyDurumIdIslemUretmez(int legacyDurum)
+    [Fact]
+    public async Task PlanKaydet_KarmaDurumVeTarihleriKorur_DurumIslemiUretmez()
     {
         var f = new Fixture();
         var bekleyen = f.Add(1);
@@ -29,7 +26,7 @@ public sealed class AmbalajPlanKaydetYasamDongusuTests
             .Select(x => (x.UretimDurumu, x.UretimTarihi, x.TamamlanmaTarihi)).ToArray();
         f.Uow.Repo<AmbalajUretimGerceklesmesi>().Rows.Add(new() { Id = 1, AmbalajUretimKaydiId = 3, Adet = 1 });
 
-        var result = await f.Save(new() { ProjeId = 10, SeciliKaynakSandikIds = [101, 102, 103], DurumId = legacyDurum });
+        var result = await f.Save(new() { ProjeId = 10, SeciliKaynakSandikIds = [101, 102, 103] });
 
         Assert.True(result.IsSuccess, result.Error?.Message);
         Assert.Equal(zamanlar, new[] { bekleyen, uretimde, tamamlanan }
@@ -43,7 +40,7 @@ public sealed class AmbalajPlanKaydetYasamDongusuTests
     public async Task PlanKaydet_IlkFormOncesi_SecimPartiKaydeder_UretimVeAktifFinansBaslatmaz()
     {
         var f = new Fixture(); var row = f.Add(1); row.UretimeAlindi = false;
-        var result = await f.Save(new() { ProjeId = 10, SeciliKaynakSandikIds = [101], FirinPartiNo = " FP-2 ", DurumId = 3 });
+        var result = await f.Save(new() { ProjeId = 10, SeciliKaynakSandikIds = [101], FirinPartiNo = " FP-2 " });
         Assert.True(result.IsSuccess, result.Error?.Message);
         Assert.True(row.UretimeAlindi); Assert.Equal("FP-2", row.FirinPartiNo);
         Assert.Equal(AmbalajUretimDurumu.Planlandi, row.UretimDurumu);
@@ -76,7 +73,7 @@ public sealed class AmbalajPlanKaydetYasamDongusuTests
         var f = new Fixture(kritikIzin ? [YetkiKodlari.Ambalaj.KritikVeriDuzenle] : []);
         var row = f.Add(1, AmbalajUretimDurumu.Uretimde); row.FirinPartiNo = "FP-1";
         var form = f.FormEkle(row); var eskiJson = form.SnapshotJson;
-        var result = await f.Save(new() { ProjeId = 10, SeciliKaynakSandikIds = [101], FirinPartiNo = "FP-2", Gerekce = gerekce, DurumId = 2 });
+        var result = await f.Save(new() { ProjeId = 10, SeciliKaynakSandikIds = [101], FirinPartiNo = "FP-2", Gerekce = gerekce });
         Assert.Equal(expected, result.StatusCode);
         Assert.Equal(expected == 200 ? "FP-2" : "FP-1", row.FirinPartiNo);
         Assert.Equal(eskiJson, form.SnapshotJson);
@@ -194,9 +191,9 @@ public sealed class AmbalajPlanKaydetYasamDongusuTests
     private sealed class Sync : IAmbalajKaynakSenkronizasyonService
     {
         public int Calls { get; private set; }
-        public Task<Result<AmbalajSenkronizasyonSonucuDto>> SenkronizeEtAsync(int projeId, ICurrentUserService user,
-            CancellationToken ct, bool sonucKayitlariniOlustur = true)
-        { Calls++; return Task.FromResult(Result<AmbalajSenkronizasyonSonucuDto>.Success(new(0, 0, 0, 0, []))); }
+        public Task<Result<AmbalajSenkronizasyonSonucu>> SenkronizeEtAsync(int projeId, ICurrentUserService user,
+            CancellationToken ct)
+        { Calls++; return Task.FromResult(Result<AmbalajSenkronizasyonSonucu>.Success(new(0, 0, 0))); }
     }
     private sealed class Finans : IFinansUretimAktarimService
     {

@@ -169,7 +169,7 @@ public sealed class AmbalajUretimV2PostgresTests
             await drop.ExecuteNonQueryAsync();
         }
     }
-    private sealed class User : ICurrentUserService { public int? UserId => 7; public bool IsAuthenticated => true; public string? MenuKod => null; }
+    private sealed class User : ICurrentUserService { public int? UserId => 7; public bool IsAuthenticated => true; }
     private sealed class Roles : IRolService
     {
         public Task<bool> HasUserPermissionAsync(int id, string kod, YetkiTipi tip, CancellationToken ct = default) => Task.FromResult(true);

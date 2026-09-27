@@ -39,9 +39,6 @@ public sealed class GetAmbalajPlanlamaPlanQuery : AmbalajPlanlamaQuery<AmbalajPl
 public sealed class GetAmbalajIcSandikSablonlariQuery
     : AmbalajPlanlamaQuery<IReadOnlyList<AmbalajIcSandikSablonDto>>;
 
-public sealed class GetAmbalajTalepEdenlerQuery
-    : AmbalajPlanlamaQuery<IReadOnlyList<AmbalajTalepEdenDto>>;
-
 public sealed class GetAmbalajTalepEdenKullanicilarQuery
     : AmbalajPlanlamaQuery<IReadOnlyList<AmbalajKullaniciSecenegiDto>>;
 

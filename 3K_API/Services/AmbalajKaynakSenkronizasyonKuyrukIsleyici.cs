@@ -138,7 +138,7 @@ public sealed class AmbalajKaynakSenkronizasyonKuyrukIsleyici
         AmbalajKaynakSenkronizasyonCalismaAyarlari ayarlar,
         CancellationToken cancellationToken)
     {
-        Result<AmbalajSenkronizasyonSonucuDto> result;
+        Result<AmbalajSenkronizasyonSonucu> result;
         try
         {
             using var scope = _scopeFactory.CreateScope();
@@ -147,8 +147,7 @@ public sealed class AmbalajKaynakSenkronizasyonKuyrukIsleyici
             result = await synchronizationService.SenkronizeEtAsync(
                 isKaydi.ProjeId,
                 new FixedCurrentUserService(ayarlar.SystemUserId!.Value),
-                cancellationToken,
-                sonucKayitlariniOlustur: false);
+                cancellationToken);
         }
         catch (OperationCanceledException)
         {

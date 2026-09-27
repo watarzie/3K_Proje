@@ -318,7 +318,6 @@ public sealed class GridSahaIsTamamlamaSenkronizasyonTests
     {
         public int? UserId => 7;
         public bool IsAuthenticated => true;
-        public string? MenuKod => null;
     }
 
     private sealed class LookupStub : ILookupCacheService

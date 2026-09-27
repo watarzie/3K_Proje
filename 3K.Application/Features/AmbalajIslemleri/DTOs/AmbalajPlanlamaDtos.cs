@@ -102,8 +102,6 @@ public sealed record AmbalajIcSandikSablonDto(
     decimal? En,
     decimal? Yukseklik);
 
-public sealed record AmbalajTalepEdenDto(int Id, string Ad);
-
 public sealed record AmbalajKullaniciSecenegiDto(int Id, string AdSoyad);
 
 public sealed record AmbalajIlaveSandikAdayDto(

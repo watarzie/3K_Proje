@@ -506,7 +506,7 @@ public sealed class FinansV2PostgresTests
     private static FinansSiparisOlusturModel Po(string number, int work, decimal amount) => new(number, Date, "QA", [new(work, 0, 0, NetTutar: amount)], "EUR", amount);
     private static FinansFaturaOlusturModel Invoice(string number, int po, int line, decimal amount) => new(po, number, Date, "QA", [new(line, 0, 0, amount)], "EUR", amount, amount * .2m, amount * 1.2m);
     private static FinansService Service(AppDbContext db) => new(db, new User());
-    private sealed class User : ICurrentUserService { public int? UserId => 7; public bool IsAuthenticated => true; public string? MenuKod => null; }
+    private sealed class User : ICurrentUserService { public int? UserId => 7; public bool IsAuthenticated => true; }
     private static FinansIsKaydi Work(string name, decimal amount) => new() { IsAdi = name, ProjeNo = "QA", Musteri = "QA", IsTuru = FinansIsTuru.OzelIs, KaynakTuru = "Manuel", KaynakAktif = true, Adet = 1, Birim = "Adet", FiyatlandirmaBirimiSnapshot = FinansFiyatlandirmaBirimi.SabitTutar, BirimFiyatSnapshot = amount, ParaBirimiSnapshot = "EUR", KdvOraniSnapshot = 20, UretimTarihi = Date, FinansTarihi = Date, FinansDonemi = new(2026, 9, 1), KayitTarihi = Date };
 
     internal static async Task InDatabase(Func<DbContextOptions<AppDbContext>, Task> test)

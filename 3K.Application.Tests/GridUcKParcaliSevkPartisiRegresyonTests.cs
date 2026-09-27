@@ -2244,7 +2244,6 @@ public sealed class GridUcKParcaliSevkPartisiRegresyonTests
     {
         public int? UserId => 7;
         public bool IsAuthenticated => true;
-        public string? MenuKod => null;
     }
 
     private sealed class HareketStub : IHareketService

@@ -61,48 +61,25 @@ public sealed class AmbalajAlanMaskelemeTests
     }
 
     [Fact]
-    public async Task K33_M3VarSarfYok_NetKorunur_SarfVeBirlesikToplamGizlenir()
+    public void K33_M3VarSarfYok_NetKorunur_SarfVeBirlesikToplamGizlenir()
     {
-        var value = new AmbalajUretimSayfasiDto
+        var dto = new AmbalajUretimKaydiDto
         {
-            Items = [new() { Adet = 4, NetM3 = 10, SarfM3 = 2, SarfOrani = 20, ToplamM3 = 12 }],
-            FilteredSummary = new() { KayitSayisi = 1, ToplamSandikAdedi = 4, NetM3 = 10, SarfM3 = 2, ToplamM3 = 12 }
+            Adet = 4, AmbalajaDahil = true, UretimeAlindi = true,
+            NetM3 = 10, SarfM3 = 2, SarfOrani = 20, ToplamM3 = 12
         };
-        var result = await Run(new GetAmbalajUretimSayfasiQuery(), value, YetkiKodlari.Ambalaj.M3Goruntule);
-        Assert.Equal(10, result.Items[0].NetM3);
-        Assert.Equal(10, result.FilteredSummary.NetM3);
-        Assert.Null(result.Items[0].SarfM3);
-        Assert.Null(result.Items[0].SarfOrani);
-        Assert.Null(result.Items[0].ToplamM3);
-        Assert.Null(result.FilteredSummary.SarfM3);
-        Assert.Null(result.FilteredSummary.ToplamM3);
-        Assert.Equal(4, result.FilteredSummary.ToplamSandikAdedi);
-    }
 
-    [Fact]
-    public async Task K33_GecmisIzniYoksa_DetayHareketleriCikmaz()
-    {
-        var value = new AmbalajUretimKaydiDetayDto
-        {
-            Id = 1, Hareketler = [new() { AlanAdi = "Boy", EskiDeger = "1200", YeniDeger = "1500" }]
-        };
-        var result = await Run(new GetAmbalajUretimKaydiDetayQuery { Id = 1 }, value);
-        Assert.Empty(result.Hareketler);
-    }
+        AmbalajYetkilendirmeYardimcisi.DtoyuMaskele(dto, new(M3Gorunur: true, SarfGorunur: false, KaynakGorunur: true));
+        var ozet = AmbalajRaporVerisi.OzetOlustur([dto]);
 
-    [Fact]
-    public void K33_OlcuRet_GerceklesmeAuditSnapshotStringiniDaGizler()
-    {
-        var hareket = new AmbalajUretimHareketiDto
-        {
-            AlanAdi = "GerceklesmeSnapshot", Islem = "Düzeltme", EskiDeger = "{\"Boy\":1200}",
-            YeniDeger = "{\"Boy\":1500}", Aciklama = "1200 yerine 1500"
-        };
-        var result = AmbalajYetkilendirmeYardimcisi.HareketiMaskele(hareket, new(true, true, true, false));
-        Assert.Null(result.EskiDeger);
-        Assert.Null(result.YeniDeger);
-        Assert.Null(result.Aciklama);
-        Assert.True(result.DegerlerGizliMi);
+        Assert.Equal(10, dto.NetM3);
+        Assert.Null(dto.SarfM3);
+        Assert.Null(dto.SarfOrani);
+        Assert.Null(dto.ToplamM3);
+        Assert.Equal(10, ozet.NetM3);
+        Assert.Null(ozet.SarfM3);
+        Assert.Null(ozet.ToplamM3);
+        Assert.Equal(4, ozet.ToplamSandikAdedi);
     }
 
     [Fact]
@@ -128,7 +105,7 @@ public sealed class AmbalajAlanMaskelemeTests
     }
 
     [Fact]
-    public void K33_LegacyRapor_MaskeliNullToplamlarSahteSifiraDonusmez()
+    public void K33_OzelSandikRaporu_MaskeliNullToplamlarSahteSifiraDonusmez()
     {
         var result = AmbalajRaporVerisi.OzetOlustur([new()
         {

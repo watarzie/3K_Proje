@@ -107,8 +107,7 @@ namespace _3K_API.Controllers
             {
                 ProjeId = projeId,
                 Tur = ambalajTuru,
-                BagimsizKayitMi = false,
-                Format = "pdf"
+                BagimsizKayitMi = false
             }, cancellationToken)).ToFileResult();
         }
 
@@ -118,12 +117,8 @@ namespace _3K_API.Controllers
             var ambalajTuru = OzelAmbalajTurunuCoz(tur);
             if (ambalajTuru == null) return BadRequest(new { message = "Özel sandık türü geçersiz." });
 
-            return (await _mediator.Send(new GetAmbalajRaporDosyasiQuery
-            {
-                Tur = ambalajTuru,
-                OzelSandiklar = true,
-                Format = "pdf"
-            }, cancellationToken)).ToFileResult();
+            return (await _mediator.Send(new GetAmbalajRaporDosyasiQuery { Tur = ambalajTuru.Value }, cancellationToken))
+                .ToFileResult();
         }
 
         [HttpGet("ozel-sandik/{tur:int}/proje/{projeId:int}")]
@@ -136,8 +131,7 @@ namespace _3K_API.Controllers
             {
                 ProjeId = projeId,
                 Tur = ambalajTuru,
-                BagimsizKayitMi = true,
-                Format = "pdf"
+                BagimsizKayitMi = true
             }, cancellationToken)).ToFileResult();
         }
 

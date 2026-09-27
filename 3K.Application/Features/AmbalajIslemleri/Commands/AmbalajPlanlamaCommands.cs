@@ -35,9 +35,6 @@ public sealed class AmbalajPlanKaydetCommand : AmbalajPlanlamaCommand<AmbalajPla
     public string? FirinPartiNo { get; init; }
     public IReadOnlyList<int> SeciliKaynakSandikIds { get; init; } = [];
     public int Grup { get; init; } = 1;
-    // Eski istemcilerin payload'ları için korunur; plan kaydı artık durum değiştirmez.
-    // İlk başlangıç FormOlustur, sonraki geçişler UretimDurumuGuncelle ile yapılır.
-    public int DurumId { get; init; } = 1;
 }
 
 public sealed class AmbalajKarariKaydetCommand : AmbalajPlanlamaCommand<AmbalajPlanlamaPlanDto>
@@ -85,11 +82,6 @@ public sealed class AmbalajIcSandikSablonuEkleCommand
 public sealed class AmbalajIcSandikSablonuSilCommand : AmbalajPlanlamaCommand
 {
     public int SablonId { get; init; }
-}
-
-public sealed class AmbalajTalepEdenEkleCommand : AmbalajPlanlamaCommand<AmbalajTalepEdenDto>
-{
-    public string? Ad { get; init; }
 }
 
 public sealed class AmbalajBagimsizSandikKaydetCommand

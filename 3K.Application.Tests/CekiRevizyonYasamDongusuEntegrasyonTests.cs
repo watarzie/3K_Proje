@@ -433,7 +433,6 @@ public sealed class CekiRevizyonYasamDongusuEntegrasyonTests
     {
         public int? UserId { get; set; }
         public bool IsAuthenticated => true;
-        public string? MenuKod => "ceki-revizyon-yukle";
     }
 
     private sealed class NoopNotifier : ISseNotifier

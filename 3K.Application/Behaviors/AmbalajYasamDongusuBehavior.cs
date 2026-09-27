@@ -25,17 +25,7 @@ public sealed class AmbalajYasamDongusuBehavior<TRequest, TResponse>(IUnitOfWork
                 if (await AmbalajYetkilendirmeYardimcisi.YetkiliMiAsync(roles, user, kod, ct, YetkiTipi.R)) allowed.Add(durum);
             kapsam.IzinliDurumlar = allowed.ToArray();
         }
-        if (request is GetAmbalajUretimKaydiDetayQuery detay)
-        {
-            var record = await uow.GetRepository<AmbalajUretimKaydi>().GetByIdAsync(detay.Id);
-            var kod = record?.UretimDurumu switch
-            { AmbalajUretimDurumu.Tamamlandi => YetkiKodlari.Ambalaj.TamamlananGoruntule,
-              AmbalajUretimDurumu.Uretimde => YetkiKodlari.Ambalaj.UretimdeGoruntule, _ => YetkiKodlari.Ambalaj.BekleyenGoruntule };
-            if (record != null && !await AmbalajYetkilendirmeYardimcisi.YetkiliMiAsync(roles, user, kod, ct, YetkiTipi.R))
-                return Failure("Bu durumdaki üretim kaydını görüntüleme yetkiniz bulunmuyor.", 403);
-        }
-        if (request.GetType().Namespace != typeof(AmbalajFormOlusturCommand).Namespace ||
-            request is AmbalajKaynaklariSenkronizeEtCommand)
+        if (request.GetType().Namespace != typeof(AmbalajFormOlusturCommand).Namespace)
             return await MaskeleAsync(await next(), ct);
         try
         {
@@ -44,13 +34,7 @@ public sealed class AmbalajYasamDongusuBehavior<TRequest, TResponse>(IUnitOfWork
                 var records = uow.GetRepository<AmbalajUretimKaydi>().Queryable();
                 var ids = request switch
                 {
-                    AmbalajUretimKaydiGuncelleCommand x => new[] { x.Id },
-                    AmbalajUretimSecimGuncelleCommand x => [x.Id],
-                    AmbalajUretimDurumuGuncelleCommand x => [x.Id],
-                    AmbalajM3OverrideGuncelleCommand x => [x.Id],
-                    AmbalajSarfOraniGuncelleCommand x => [x.Id],
-                    AmbalajUretimKaydiIptalEtCommand x => [x.Id],
-                    AmbalajUretimKaydiAktiflestirCommand x => [x.Id],
+                    AmbalajUretimDurumuGuncelleCommand x => new[] { x.Id },
                     AmbalajPlanKalemKaydetCommand x when x.KalemId.HasValue => [x.KalemId.Value],
                     AmbalajPlanKalemSilCommand x => [x.KalemId],
                     AmbalajBagimsizSandikKaydetCommand x when x.SandikId.HasValue => [x.SandikId.Value],
@@ -87,12 +71,7 @@ public sealed class AmbalajYasamDongusuBehavior<TRequest, TResponse>(IUnitOfWork
                         k.UretimeAlindi != plan.SeciliKaynakSandikIds.Contains(k.KaynakKayitId.Value);
                     if (uretimSecimiDegisti && formIds.Contains(k.Id))
                     { gereken.Add(YetkiKodlari.Ambalaj.FormSonrasiSecimDegistir); gereken.Add(YetkiKodlari.Ambalaj.KritikVeriDuzenle); kritik = true; }
-                    var kararDegisti = request switch
-                    {
-                        AmbalajKarariKaydetCommand x => x.AmbalajaDahilMi != k.AmbalajaDahil,
-                        AmbalajUretimSecimGuncelleCommand x => x.AmbalajaDahil != k.AmbalajaDahil,
-                        _ => false
-                    };
+                    var kararDegisti = request is AmbalajKarariKaydetCommand karar && karar.AmbalajaDahilMi != k.AmbalajaDahil;
                     if (kararDegisti)
                     {
                         gereken.Add(k.AmbalajaDahil ? YetkiKodlari.Ambalaj.HaricTut : YetkiKodlari.Ambalaj.DahilEt);
@@ -104,19 +83,18 @@ public sealed class AmbalajYasamDongusuBehavior<TRequest, TResponse>(IUnitOfWork
                         (parti.Grup == 3 ? !k.KaynakKayitId.HasValue : k.KaynakKayitId.HasValue && k.AmbalajaDahil) &&
                         !string.Equals(AmbalajUretimYardimcilari.Temizle(k.FirinPartiNo),
                             AmbalajUretimYardimcilari.Temizle(parti.FirinPartiNo), StringComparison.Ordinal);
-                    var veriDegisikligi = request is AmbalajUretimKaydiGuncelleCommand or AmbalajM3OverrideGuncelleCommand or
-                        AmbalajSarfOraniGuncelleCommand or AmbalajPlanKalemKaydetCommand or AmbalajBagimsizSandikKaydetCommand || kararDegisti || partiDegisti;
+                    var veriDegisikligi = request is AmbalajPlanKalemKaydetCommand or AmbalajBagimsizSandikKaydetCommand ||
+                        kararDegisti || partiDegisti;
                     var kaynakId = k.IsAkisKimligi.ToString("D");
                     var maliBagli = uow.GetRepository<FinansIsKaydi>().Queryable().Any(f =>
                         f.KaynakTuru.ToUpper() == "AMBALAJURETIM" && f.KaynakKayitId == kaynakId && f.SiparisKalemleri.Any(s => !s.FinansSiparis.IptalEdildi));
                     if (veriDegisikligi && (formIds.Contains(k.Id) || k.UretimDurumu == AmbalajUretimDurumu.Tamamlandi || maliBagli))
                     { gereken.Add(YetkiKodlari.Ambalaj.KritikVeriDuzenle); kritik = true; }
-                    if (request is AmbalajPlanKalemSilCommand or AmbalajBagimsizSandikSilCommand or AmbalajUretimKaydiIptalEtCommand)
+                    if (request is AmbalajPlanKalemSilCommand or AmbalajBagimsizSandikSilCommand)
                     { gereken.Add(YetkiKodlari.Ambalaj.Iptal); kritik = true; }
                 }
                 var yeniProjeId = request switch
                 {
-                    AmbalajUretimKaydiOlusturCommand x => x.ProjeId,
                     AmbalajPlanKalemKaydetCommand x when !x.KalemId.HasValue => x.ProjeId,
                     AmbalajBagimsizSandikKaydetCommand x when !x.SandikId.HasValue => (int?)x.ProjeId,
                     AmbalajKarariKaydetCommand x when x.AmbalajaDahilMi && targets.Count == 0 =>
@@ -141,7 +119,7 @@ public sealed class AmbalajYasamDongusuBehavior<TRequest, TResponse>(IUnitOfWork
                         var value = result?.GetType().GetProperty("Value")?.GetValue(result);
                         if (createdId?.GetValue(value) is int newId && records.FirstOrDefault(k => k.Id == newId) is { } created)
                             targets.Add(created);
-                        if (request is AmbalajKarariKaydetCommand karar && records.FirstOrDefault(k => k.KaynakKayitId == karar.SandikId && !k.IptalMi) is { } source)
+                        if (request is AmbalajKarariKaydetCommand kararKomutu && records.FirstOrDefault(k => k.KaynakKayitId == kararKomutu.SandikId && !k.IptalMi) is { } source)
                             targets.Add(source);
                     }
                     foreach (var k in targets)
@@ -166,7 +144,6 @@ public sealed class AmbalajYasamDongusuBehavior<TRequest, TResponse>(IUnitOfWork
     private async Task<TResponse> MaskeleAsync(TResponse response, CancellationToken ct)
     {
         var izin = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(roles, user, ct);
-        var gecmis = await AmbalajYetkilendirmeYardimcisi.YetkiliMiAsync(roles, user, YetkiKodlari.Ambalaj.GecmisGoruntule, ct, YetkiTipi.R);
         var seen = new HashSet<object>(ReferenceEqualityComparer.Instance);
         void Visit(object? value)
         {
@@ -181,8 +158,6 @@ public sealed class AmbalajYasamDongusuBehavior<TRequest, TResponse>(IUnitOfWork
                     (!izin.SarfGorunur && name is "SarfOrani" or "SarfM3" or "ToplamM3" or "SarfDahilM3");
                 if (hidden && property.CanWrite && (!property.PropertyType.IsValueType || Nullable.GetUnderlyingType(property.PropertyType) != null))
                     property.SetValue(value, null);
-                else if (name == "Hareketler" && !gecmis && property.CanWrite)
-                    property.SetValue(value, Array.Empty<_3K.Application.Features.AmbalajIslemleri.DTOs.AmbalajUretimHareketiDto>());
                 else Visit(property.GetValue(value));
             }
         }

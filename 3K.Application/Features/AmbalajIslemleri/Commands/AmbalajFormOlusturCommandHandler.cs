@@ -4,7 +4,6 @@ using System.Text.Json;
 using MediatR;
 using _3K.Application.Common;
 using _3K.Application.Features.AmbalajIslemleri.DTOs;
-using _3K.Application.Features.AmbalajIslemleri.Queries;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Helpers;
@@ -22,8 +21,10 @@ public sealed class AmbalajFormOlusturCommandHandler(IUnitOfWork uow, ICurrentUs
         if (!user.IslemKullaniciId.HasValue) return Result<AmbalajFormSurumuDto>.Failure("Oturum gereklidir.", 401);
         var ids = request.KayitIdleri.Distinct().Order().ToArray();
         var sources = request.KaynakSandikIdleri.Distinct().Order().ToArray();
-        if (ids.Length + sources.Length is 0 or > 500 || ids.Concat(sources).Any(id => id <= 0) || request.IdempotencyAnahtari == Guid.Empty)
-            return Result<AmbalajFormSurumuDto>.Failure("1–500 geçerli kayıt ve işlem kimliği gereklidir.");
+        if (ids.Length + sources.Length is 0 or > AmbalajUretimFormuOlusturucu.EnFazlaKayit ||
+            ids.Concat(sources).Any(id => id <= 0) || request.IdempotencyAnahtari == Guid.Empty)
+            return Result<AmbalajFormSurumuDto>.Failure(
+                $"1–{AmbalajUretimFormuOlusturucu.EnFazlaKayit} geçerli kayıt ve işlem kimliği gereklidir.");
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
             JsonSerializer.Serialize(new { ids, sources, request.ProjeId, request.YenidenOlustur, Aciklama = request.Aciklama?.Trim() }))));
         var forms = uow.GetRepository<AmbalajUretimFormuSurumu>();
@@ -53,8 +54,7 @@ public sealed class AmbalajFormOlusturCommandHandler(IUnitOfWork uow, ICurrentUs
             }
             var kayitlar = (await repo.FindAsync(x => ids.Contains(x.Id))).ToList();
             // Bütün seçim ve snapshot doğrulanmadan hiçbir kayıt değiştirilmez.
-            var sonuc = await AmbalajUretimFormuOlusturucu.OlusturAsync(uow, null, null,
-                cancellationToken: token, kayitIdleri: ids, ilkForm: true);
+            var sonuc = await AmbalajUretimFormuOlusturucu.OlusturAsync(uow, ids, token);
             if (!sonuc.IsSuccess) return Result<AmbalajFormSurumuDto>.Failure(sonuc.Error!.Message, sonuc.StatusCode);
             var kapsam = kayitlar[0].ProjeId.HasValue ? $"P:{kayitlar[0].ProjeId}" : $"M:{kayitlar[0].ManuelProjeNo?.Trim()}";
             var onceki = forms.Queryable().Where(x => x.KapsamAnahtari == kapsam).OrderByDescending(x => x.Surum).FirstOrDefault();

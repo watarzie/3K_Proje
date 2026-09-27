@@ -151,8 +151,9 @@ public class YetkiModeliTests
         ]);
         context.KullaniciYetkileri = new OrtakMemorySet<KullaniciYetki>([]);
         var result = await new AuthorizationBehavior<
-            _3K.Application.Features.AmbalajIslemleri.Queries.GetAmbalajUretimFormuQuery,
-            Result<AmbalajUretimFormuModel>>(new OrtakUser(), new RolService(context)).Handle(new(),
+            _3K.Application.Features.AmbalajIslemleri.Queries.GetAmbalajFormSurumleriQuery,
+            Result<IReadOnlyList<_3K.Application.Features.AmbalajIslemleri.DTOs.AmbalajFormSurumuDto>>>(
+            new OrtakUser(), new RolService(context)).Handle(new(),
             () => throw new Xunit.Sdk.XunitException("Modül kökü kapalıyken alt işlem çalışmamalı"), default);
         Assert.Equal(403, result.StatusCode);
     }

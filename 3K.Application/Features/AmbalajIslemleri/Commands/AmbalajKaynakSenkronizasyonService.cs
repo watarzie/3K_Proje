@@ -1,6 +1,4 @@
-using MediatR;
 using _3K.Application.Common;
-using _3K.Application.Features.AmbalajIslemleri.DTOs;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Helpers;
@@ -9,50 +7,39 @@ using _3K.Core.Models;
 
 namespace _3K.Application.Features.AmbalajIslemleri.Commands
 {
+    public sealed record AmbalajSenkronizasyonSonucu(int Eklenen, int Guncellenen, int Degismeyen);
+
+    /// <summary>
+    /// Projenin kaynak sandıklarını ambalaj üretim kayıtlarına yansıtır. Plan, ambalaj kararı,
+    /// bağımsız sandık ve form komutları ile arka plan kuyruğu aynı kuralları buradan kullanır.
+    /// </summary>
     public interface IAmbalajKaynakSenkronizasyonService
     {
-        Task<Result<AmbalajSenkronizasyonSonucuDto>> SenkronizeEtAsync(
+        Task<Result<AmbalajSenkronizasyonSonucu>> SenkronizeEtAsync(
             int projeId,
             ICurrentUserService islemiYapan,
-            CancellationToken cancellationToken,
-            bool sonucKayitlariniOlustur = true);
+            CancellationToken cancellationToken);
     }
 
-    public sealed class AmbalajKaynaklariSenkronizeEtCommandHandler
-        : IRequestHandler<AmbalajKaynaklariSenkronizeEtCommand, Result<AmbalajSenkronizasyonSonucuDto>>,
-          IAmbalajKaynakSenkronizasyonService
+    public sealed class AmbalajKaynakSenkronizasyonService : IAmbalajKaynakSenkronizasyonService
     {
         private readonly IUnitOfWork _unitOfWork;
-        private readonly ICurrentUserService _currentUserService;
         private readonly IFinansUretimAktarimService _finansService;
-        private readonly IRolService _rolService;
 
-        public AmbalajKaynaklariSenkronizeEtCommandHandler(
-            IUnitOfWork unitOfWork,
-            ICurrentUserService currentUserService,
-            IFinansUretimAktarimService finansService,
-            IRolService rolService)
+        public AmbalajKaynakSenkronizasyonService(IUnitOfWork unitOfWork, IFinansUretimAktarimService finansService)
         {
             _unitOfWork = unitOfWork;
-            _currentUserService = currentUserService;
             _finansService = finansService;
-            _rolService = rolService;
         }
 
-        public async Task<Result<AmbalajSenkronizasyonSonucuDto>> Handle(
-            AmbalajKaynaklariSenkronizeEtCommand request,
-            CancellationToken cancellationToken)
-            => await SenkronizeEtAsync(request.ProjeId, _currentUserService, cancellationToken);
-
-        public async Task<Result<AmbalajSenkronizasyonSonucuDto>> SenkronizeEtAsync(
+        public async Task<Result<AmbalajSenkronizasyonSonucu>> SenkronizeEtAsync(
             int projeId,
             ICurrentUserService islemiYapan,
-            CancellationToken cancellationToken,
-            bool sonucKayitlariniOlustur = true)
+            CancellationToken cancellationToken)
         {
             var kullaniciId = islemiYapan.IslemKullaniciId;
             if (!kullaniciId.HasValue || kullaniciId <= 0)
-                return Result<AmbalajSenkronizasyonSonucuDto>.Failure("Senkronizasyon için geçerli bir kullanıcı gereklidir.", 401);
+                return Result<AmbalajSenkronizasyonSonucu>.Failure("Senkronizasyon için geçerli bir kullanıcı gereklidir.", 401);
             return await _unitOfWork.ExecuteInTransactionAsync(async transactionToken =>
             {
                 // Proje/kaynak/mevcut kayıt okumaları da SERIALIZABLE transaction'ın
@@ -60,7 +47,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
                 // ayrı ayrı eklemeye karar verebilir.
                 var proje = await _unitOfWork.GetRepository<Proje>().GetByIdAsync(projeId);
                 if (proje == null)
-                    return Result<AmbalajSenkronizasyonSonucuDto>.Failure("Proje bulunamadı.", 404);
+                    return Result<AmbalajSenkronizasyonSonucu>.Failure("Proje bulunamadı.", 404);
 
                 var kaynakModul = KaynakModulBelirle(proje.ProjeTipiId);
                 var tur = TurBelirle(proje.ProjeTipiId);
@@ -201,25 +188,8 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
                         transactionToken);
                 }
 
-                var tumKayitlar = globalMevcutlar.Values.OrderBy(k => k.SandikNo).ToList();
-                IReadOnlyList<AmbalajUretimKaydiDto> dtoKayitlar = [];
-                if (sonucKayitlariniOlustur)
-                {
-                    var detayliKayitlar = tumKayitlar
-                        .Select(k => AmbalajKomutYardimcisi.DtoOlustur(k, proje, null))
-                        .ToList();
-                    var yetkiler = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(
-                        _rolService, islemiYapan, transactionToken);
-                    detayliKayitlar.ForEach(dto => AmbalajYetkilendirmeYardimcisi.DtoyuMaskele(dto, yetkiler));
-                    dtoKayitlar = detayliKayitlar;
-                }
-
-                return Result<AmbalajSenkronizasyonSonucuDto>.Success(new AmbalajSenkronizasyonSonucuDto(
-                    eklenen,
-                    guncellenen,
-                    degismeyen,
-                    tumKayitlar.Count(k => !AmbalajUretimYardimcilari.OlculerGecerli(k)),
-                    dtoKayitlar));
+                return Result<AmbalajSenkronizasyonSonucu>.Success(
+                    new AmbalajSenkronizasyonSonucu(eklenen, guncellenen, degismeyen));
             }, cancellationToken);
         }
 
@@ -256,7 +226,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
             kayit.KaynakSonSenkronizasyonTarihi = TurkeyTime.Now;
             kayit.SandikNo = sandik.SandikNo;
             kayit.Ad = sandik.Ad;
-            kayit.SandikCinsi = CinsBelirle(sandik.TipId);
+            kayit.SandikCinsi = AmbalajUretimPolitikasi.KaynakCinsi(sandik.TipId);
             kayit.Adet = AmbalajUretimYardimcilari.SandikAdediHesapla(sandik.SandikNo);
             kayit.Boy = sandik.Boy ?? 0;
             kayit.En = sandik.En ?? 0;
@@ -280,7 +250,5 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
             (int)ProjeTipi.Yedek => AmbalajSandikTuru.Yedek,
             _ => AmbalajSandikTuru.Normal
         };
-
-        private static AmbalajSandikCinsi CinsBelirle(int tipId) => AmbalajUretimPolitikasi.KaynakCinsi(tipId);
     }
 }

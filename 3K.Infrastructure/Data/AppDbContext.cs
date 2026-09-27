@@ -45,7 +45,6 @@ namespace _3K.Infrastructure.Data
         public DbSet<AmbalajUretimFormuKaydi> AmbalajUretimFormuKayitlari { get; set; } = null!;
         public DbSet<AmbalajUretimGerceklesmesi> AmbalajUretimGerceklesmeleri { get; set; } = null!;
         public DbSet<AmbalajIcSandikSablonu> AmbalajIcSandikSablonlari { get; set; } = null!;
-        public DbSet<AmbalajTalepEden> AmbalajTalepEdenler { get; set; } = null!;
         public DbSet<AmbalajKaynakSenkronizasyonKuyrukKaydi> AmbalajKaynakSenkronizasyonKuyrugu { get; set; } = null!;
 
         // ======= Finans Yönetimi Modülü DbSet'leri =======

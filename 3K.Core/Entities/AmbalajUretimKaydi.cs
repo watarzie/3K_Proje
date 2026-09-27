@@ -114,9 +114,4 @@ namespace _3K.Core.Entities
         public decimal En { get; set; }
         public decimal Yukseklik { get; set; }
     }
-
-    public class AmbalajTalepEden : BaseEntity
-    {
-        public string Ad { get; set; } = string.Empty;
-    }
 }

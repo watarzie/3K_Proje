@@ -3,6 +3,7 @@ using _3K.Application.Common;
 using _3K.Application.Features.AmbalajIslemleri.DTOs;
 using _3K.Core.Common;
 using _3K.Core.Entities;
+using _3K.Core.Enums;
 using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
@@ -10,36 +11,6 @@ using _3K.Core.Constants;
 
 namespace _3K.Application.Features.AmbalajIslemleri.Queries
 {
-    public sealed class GetAmbalajRaporQueryHandler
-        : IRequestHandler<GetAmbalajRaporQuery, Result<AmbalajRaporDto>>
-    {
-        private readonly IUnitOfWork _unitOfWork;
-        private readonly IRolService _rolService;
-        private readonly ICurrentUserService _currentUserService;
-
-        public GetAmbalajRaporQueryHandler(
-            IUnitOfWork unitOfWork,
-            IRolService rolService,
-            ICurrentUserService currentUserService)
-        {
-            _unitOfWork = unitOfWork;
-            _rolService = rolService;
-            _currentUserService = currentUserService;
-        }
-
-        public async Task<Result<AmbalajRaporDto>> Handle(GetAmbalajRaporQuery request, CancellationToken cancellationToken)
-        {
-            var yetkiler = await AmbalajRaporVerisi.RaporYetkileriAsync(
-                _rolService, _currentUserService, cancellationToken);
-            if (!yetkiler.KaynakGorunur)
-                request.KaynakModul = null;
-            var kayitlar = AmbalajRaporVerisi.KayitlariGetir(_unitOfWork, request);
-            var dtolar = AmbalajSorguYardimcisi.DtolariOlustur(_unitOfWork, kayitlar).ToList();
-            dtolar.ForEach(dto => AmbalajYetkilendirmeYardimcisi.DtoyuMaskele(dto, yetkiler));
-            return Result<AmbalajRaporDto>.Success(AmbalajRaporVerisi.OzetDtoOlustur(dtolar, yetkiler));
-        }
-    }
-
     public sealed class GetAmbalajRaporDosyasiQueryHandler
         : IRequestHandler<GetAmbalajRaporDosyasiQuery, Result<DosyaIcerigi>>
     {
@@ -66,27 +37,16 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
         {
             var yetkiler = await AmbalajRaporVerisi.RaporYetkileriAsync(
                 _rolService, _currentUserService, cancellationToken);
-            if (!yetkiler.KaynakGorunur)
-                request.KaynakModul = null;
-            var kayitlar = AmbalajRaporVerisi.KayitlariGetir(_unitOfWork, request);
-            var dtolar = AmbalajSorguYardimcisi.DtolariOlustur(_unitOfWork, kayitlar).ToList();
-            dtolar.ForEach(dto => AmbalajYetkilendirmeYardimcisi.DtoyuMaskele(dto, yetkiler));
-            var satirlar = AmbalajRaporVerisi.RaporSatirlariOlustur(dtolar);
-            var ozet = AmbalajRaporVerisi.OzetOlustur(dtolar);
+            var kayitlar = AmbalajRaporVerisi.KayitlariGetir(_unitOfWork, request.Tur, request.IzinliDurumlar);
+            var dtolar = AmbalajRaporVerisi.DtolariOlustur(_unitOfWork, kayitlar);
+            foreach (var dto in dtolar)
+                AmbalajYetkilendirmeYardimcisi.DtoyuMaskele(dto, yetkiler);
+
             var zaman = TurkeyTime.Now.ToString("yyyyMMdd-HHmmss");
-
-            if (string.Equals(request.Format, "pdf", StringComparison.OrdinalIgnoreCase))
-            {
-                return Result<DosyaIcerigi>.Success(new DosyaIcerigi(
-                    _dosyaService.PdfOlustur(satirlar, ozet),
-                    "application/pdf",
-                    $"ambalaj-uretim-raporu-{zaman}.pdf"));
-            }
-
             return Result<DosyaIcerigi>.Success(new DosyaIcerigi(
-                _dosyaService.ExcelOlustur(satirlar, ozet),
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                $"ambalaj-uretim-raporu-{zaman}.xlsx"));
+                _dosyaService.PdfOlustur(AmbalajRaporVerisi.RaporSatirlariOlustur(dtolar), AmbalajRaporVerisi.OzetOlustur(dtolar)),
+                "application/pdf",
+                $"ambalaj-uretim-raporu-{zaman}.pdf"));
         }
     }
 
@@ -95,14 +55,17 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
         public static async Task<AmbalajGorunumYetkileri> RaporYetkileriAsync(IRolService roles, ICurrentUserService user, CancellationToken ct)
         {
             var izin = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(roles, user, ct);
-            var m3Rapor = await AmbalajYetkilendirmeYardimcisi.YetkiliMiAsync(roles, user, YetkiKodlari.Ambalaj.M3RaporGoruntule, ct, _3K.Core.Enums.YetkiTipi.R);
+            var m3Rapor = await AmbalajYetkilendirmeYardimcisi.YetkiliMiAsync(roles, user, YetkiKodlari.Ambalaj.M3RaporGoruntule, ct, YetkiTipi.R);
             return izin with { M3Gorunur = izin.M3Gorunur && m3Rapor, SarfGorunur = izin.SarfGorunur && m3Rapor };
         }
+
+        /// <summary>Aktif kayıtlar proje ve doğal sandık numarası sırasıyla döner; görülemeyen durumlar dahil edilmez.</summary>
         public static List<AmbalajUretimKaydi> KayitlariGetir(
             IUnitOfWork unitOfWork,
-            IAmbalajRaporFiltresi filtre) =>
-            AmbalajSorguYardimcisi.Filtrele(
-                    unitOfWork.GetRepository<AmbalajUretimKaydi>().Queryable(), filtre)
+            AmbalajSandikTuru tur,
+            int[]? izinliDurumlar) =>
+            AmbalajDurumErisimi.Filtrele(unitOfWork.GetRepository<AmbalajUretimKaydi>().Queryable(), izinliDurumlar)
+                .Where(k => !k.IptalMi && k.Tur == tur)
                 .AsEnumerable()
                 .OrderBy(k => k.ProjeId ?? int.MaxValue)
                 .ThenBy(k => k.ManuelProjeNo)
@@ -110,23 +73,32 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
                 .ThenBy(k => k.Id)
                 .ToList();
 
-        public static AmbalajRaporDto OzetDtoOlustur(
-            IReadOnlyList<AmbalajUretimKaydiDto> dtolar,
-            AmbalajGorunumYetkileri yetkiler)
+        public static IReadOnlyList<AmbalajUretimKaydiDto> DtolariOlustur(
+            IUnitOfWork unitOfWork,
+            IReadOnlyList<AmbalajUretimKaydi> kayitlar)
         {
-            var ozet = OzetOlustur(dtolar);
-            return new AmbalajRaporDto
+            var projeIds = kayitlar.Where(k => k.ProjeId.HasValue).Select(k => k.ProjeId!.Value).Distinct().ToList();
+            var projeler = projeIds.Count == 0
+                ? new Dictionary<int, Proje>()
+                : unitOfWork.GetRepository<Proje>().Queryable()
+                    .Where(p => projeIds.Contains(p.Id))
+                    .ToList()
+                    .ToDictionary(p => p.Id);
+            var ustIds = kayitlar.Where(k => k.UstKayitId.HasValue).Select(k => k.UstKayitId!.Value).Distinct().ToList();
+            var ustler = ustIds.Count == 0
+                ? new Dictionary<int, string>()
+                : unitOfWork.GetRepository<AmbalajUretimKaydi>().Queryable()
+                    .Where(k => ustIds.Contains(k.Id))
+                    .Select(k => new { k.Id, k.SandikNo })
+                    .ToList()
+                    .ToDictionary(k => k.Id, k => k.SandikNo);
+
+            return kayitlar.Select(k =>
             {
-                M3BilgisiGorunurMu = yetkiler.M3Gorunur,
-                SarfBilgisiGorunurMu = yetkiler.SarfGorunur,
-                KaynakBilgisiGorunurMu = yetkiler.KaynakGorunur,
-                Kayitlar = dtolar,
-                KayitSayisi = ozet.KayitSayisi,
-                ToplamSandikAdedi = ozet.ToplamSandikAdedi,
-                NetM3 = yetkiler.M3Gorunur ? ozet.NetM3 : null,
-                SarfM3 = yetkiler.SarfGorunur ? ozet.SarfM3 : null,
-                ToplamM3 = yetkiler.M3Gorunur && yetkiler.SarfGorunur ? ozet.ToplamM3 : null
-            };
+                projeler.TryGetValue(k.ProjeId ?? 0, out var proje);
+                ustler.TryGetValue(k.UstKayitId ?? 0, out var ustSandikNo);
+                return AmbalajUretimYardimcilari.DtoOlustur(k, proje?.ProjeNo, proje?.Musteri, ustSandikNo);
+            }).ToList();
         }
 
         public static AmbalajRaporOzeti OzetOlustur(IReadOnlyList<AmbalajUretimKaydiDto> dtolar)
