@@ -61,7 +61,11 @@ public sealed partial class FinansService
             .Skip((page - 1) * size).Take(size).ToArray(), PageNumber = page, PageSize = size, TotalCount = count };
     }
 
-    private static IQueryable<FinansGider> ExpenseFilter(IQueryable<FinansGider> query, FinansListeFiltre filtre)
+    /// <summary>
+    /// Gider listesi, rapor verisi ve hareketler aynı filtre anlamını kullanır: arama açıklama,
+    /// firma, belge no ve kategori adında büyük/küçük harf duyarsız ve joker karaktersiz eşleşir.
+    /// </summary>
+    internal static IQueryable<FinansGider> ExpenseFilter(IQueryable<FinansGider> query, FinansListeFiltre filtre)
     {
         if (filtre.GiderKategoriId.HasValue) query = query.Where(x => x.FinansGiderKategoriId == filtre.GiderKategoriId);
         if (!string.IsNullOrWhiteSpace(filtre.Firma))
@@ -73,8 +77,16 @@ public sealed partial class FinansService
         if (filtre.Baslangic.HasValue) query = query.Where(x => x.FinansTarihi >= filtre.Baslangic.Value.Date);
         if (filtre.Bitis.HasValue) { var end = filtre.Bitis.Value.Date.AddDays(1); query = query.Where(x => x.FinansTarihi < end); }
         if (filtre.ProjeId.HasValue) query = query.Where(x => x.ProjeId == filtre.ProjeId);
-        if (!string.IsNullOrWhiteSpace(filtre.ProjeNo)) query = query.Where(x => x.ManuelProjeNo == filtre.ProjeNo || (x.Proje != null && x.Proje.ProjeNo == filtre.ProjeNo));
-        if (!string.IsNullOrWhiteSpace(filtre.ParaBirimi)) query = query.Where(x => x.ParaBirimi == filtre.ParaBirimi);
+        if (!string.IsNullOrWhiteSpace(filtre.ProjeNo))
+        {
+            var projeNo = filtre.ProjeNo.Trim();
+            query = query.Where(x => x.ManuelProjeNo == projeNo || (x.Proje != null && x.Proje.ProjeNo == projeNo));
+        }
+        if (!string.IsNullOrWhiteSpace(filtre.ParaBirimi))
+        {
+            var paraBirimi = filtre.ParaBirimi.Trim().ToUpperInvariant();
+            query = query.Where(x => x.ParaBirimi == paraBirimi);
+        }
         if (filtre.IsTuru.HasValue) query = query.Where(x => x.IsTuru == filtre.IsTuru);
         if (!string.IsNullOrWhiteSpace(filtre.Arama))
         {

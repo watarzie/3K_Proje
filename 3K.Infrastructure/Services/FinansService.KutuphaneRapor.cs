@@ -331,28 +331,6 @@ namespace _3K.Infrastructure.Services
             var works = workEntities.Select(MapIsKaydi).ToArray();
             var expenseQuery = _context.Set<FinansGider>().AsNoTracking().Include(x => x.Kategori).Include(x => x.GiderKalemi).Include(x => x.Proje).AsQueryable();
             expenseQuery = ExpenseFilter(expenseQuery, filtre);
-            if (!filtre.IptalEdilenleriDahilEt) expenseQuery = expenseQuery.Where(x => !x.IptalEdildi);
-            if (filtre.ProjeId.HasValue) expenseQuery = expenseQuery.Where(x => x.ProjeId == filtre.ProjeId);
-            if (!string.IsNullOrWhiteSpace(filtre.ProjeNo))
-            {
-                var projectNo = filtre.ProjeNo.Trim();
-                expenseQuery = expenseQuery.Where(x => x.ManuelProjeNo == projectNo || (x.Proje != null && x.Proje.ProjeNo == projectNo));
-            }
-            if (filtre.IsTuru.HasValue) expenseQuery = expenseQuery.Where(x => x.IsTuru == filtre.IsTuru);
-            if (filtre.Baslangic.HasValue) expenseQuery = expenseQuery.Where(x => x.FinansTarihi >= filtre.Baslangic.Value.Date);
-            if (filtre.Bitis.HasValue)
-            {
-                var end = filtre.Bitis.Value.Date.AddDays(1);
-                expenseQuery = expenseQuery.Where(x => x.FinansTarihi < end);
-            }
-            if (!string.IsNullOrWhiteSpace(filtre.ParaBirimi)) expenseQuery = expenseQuery.Where(x => x.ParaBirimi == filtre.ParaBirimi.Trim().ToUpper());
-            if (!string.IsNullOrWhiteSpace(filtre.Arama))
-            {
-                var search = filtre.Arama.Trim().ToLower();
-                expenseQuery = expenseQuery.Where(x => x.Aciklama.ToLower().Contains(search) ||
-                    (x.FirmaVeyaKisi != null && x.FirmaVeyaKisi.ToLower().Contains(search)) ||
-                    x.Kategori.Ad.ToLower().Contains(search));
-            }
             var expenseTotals = await BuildExpenseTotalsQuery(expenseQuery)
                 .OrderBy(x => x.ParaBirimi)
                 .ToArrayAsync(cancellationToken);
