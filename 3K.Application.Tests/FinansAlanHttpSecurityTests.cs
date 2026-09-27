@@ -227,10 +227,10 @@ public sealed class FinansAlanHttpSecurityTests
             builder.Services.AddSingleton(finance);
             builder.Services.AddMediatR(options =>
             {
-                options.RegisterServicesFromAssembly(typeof(FinansQueryHandlers).Assembly);
+                options.RegisterServicesFromAssembly(typeof(FinansPanelQueryHandlers).Assembly);
                 options.AddOpenBehavior(typeof(AuthorizationBehavior<,>));
             });
-            builder.Services.AddControllers().AddApplicationPart(typeof(FinansController).Assembly);
+            builder.Services.AddControllers().AddApplicationPart(typeof(FinansPanelController).Assembly);
             var app = builder.Build();
             app.UseAuthentication();
             app.UseAuthorization();

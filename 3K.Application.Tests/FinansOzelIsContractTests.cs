@@ -28,7 +28,7 @@ public sealed class FinansOzelIsContractTests
         var model = JsonSerializer.Deserialize<FinansOzelIsKaydetModel>(JsonSerializer.Serialize(fields), new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
         var mediator = DispatchProxy.Create<IMediator, CaptureMediator>();
         var capture = (CaptureMediator)mediator;
-        var result = await new FinansController(mediator).OzelIsOlustur(model, CancellationToken.None);
+        var result = await new FinansIslerController(mediator).OzelIsOlustur(model, CancellationToken.None);
         Assert.IsType<OkObjectResult>(result);
         var command = Assert.IsType<FinansIsKaydiOlusturCommand>(capture.Request);
         Assert.Equal("Özel saha montajı", command.Model.OzelIsTuru);

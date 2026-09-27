@@ -54,7 +54,7 @@ public sealed class FinansHataEslemeTests
     public void Gerekce_kurali_servisle_ayni_sinirla_dogrulamada_uygulanir(string? gerekce, bool gecerli)
     {
         Assert.Equal(gecerli, FinansGerekceKurali.Gecerli(gerekce));
-        Assert.Equal(gecerli, new FinansIptalCommandValidators()
+        Assert.Equal(gecerli, new FinansIsKaydiIptalCommandValidator()
             .Validate(new FinansIsKaydiIptalCommand { Id = 1, Aciklama = gerekce! }).IsValid);
         Assert.Equal(gecerli, new FinansSiparisIptalCommandValidator()
             .Validate(new FinansSiparisIptalCommand { Id = 1, Aciklama = gerekce! }).IsValid);
@@ -89,9 +89,9 @@ public sealed class FinansHataEslemeTests
     [Fact]
     public async Task Ozet_rapor_gecersiz_bicimi_400_ile_reddeder()
     {
-        var handler = new FinansV2RaporQueryHandler(new SinirAsanRaporServisi());
+        var handler = new FinansRaporQueryHandlers(new SinirAsanRaporServisi());
 
-        var sonuc = await handler.Handle(new FinansV2RaporQuery { Format = "docx" }, default);
+        var sonuc = await handler.Handle(new FinansOzetRaporuDosyaQuery { Format = "docx" }, default);
 
         Assert.Equal(400, sonuc.StatusCode);
     }
@@ -100,11 +100,12 @@ public sealed class FinansHataEslemeTests
     public async Task Sorgu_is_kurali_hatasi_409_bulunamayan_kayit_ozel_mesajla_404_doner()
     {
         var servis = DispatchProxy.Create<IFinansService, KuralIhlalEdenFinansServisi>();
-        var handler = new FinansQueryHandlers(servis);
+        var isHandler = new FinansIsKaydiQueryHandlers(servis);
+        var faturaHandler = new FinansSiparisFaturaQueryHandlers(servis);
 
         var secimIstegi = new FinansIsKayitlariSecimQuery { Ids = [0] };
-        var secim = await Pipeline(secimIstegi, () => handler.Handle(secimIstegi, default));
-        var fatura = await handler.Handle(new FinansFaturaGetirQuery { Id = 5 }, default);
+        var secim = await Pipeline(secimIstegi, () => isHandler.Handle(secimIstegi, default));
+        var fatura = await faturaHandler.Handle(new FinansFaturaGetirQuery { Id = 5 }, default);
 
         Assert.Equal(409, secim.StatusCode);
         Assert.Equal("İş kaydı seçiminde yalnız pozitif kimlikler kullanılabilir.", secim.Error!.Message);
