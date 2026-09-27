@@ -13,13 +13,19 @@ public sealed class GetAmbalajPlanlamaProjeleriQueryHandler
         Result<AmbalajPlanlamaProjeleriSayfasiDto>>
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IRolService _roller;
+    private readonly ICurrentUserService _kullanici;
     private readonly IReadQueryExecutor _readQueries;
 
     public GetAmbalajPlanlamaProjeleriQueryHandler(
         IUnitOfWork unitOfWork,
+        IRolService roller,
+        ICurrentUserService kullanici,
         IReadQueryExecutor? readQueries = null)
     {
         _unitOfWork = unitOfWork;
+        _roller = roller;
+        _kullanici = kullanici;
         _readQueries = readQueries ?? SynchronousReadQueryExecutor.Instance;
     }
 
@@ -32,6 +38,7 @@ public sealed class GetAmbalajPlanlamaProjeleriQueryHandler
         if (request.Grup is not (1 or 2 or 3))
             return Result<AmbalajPlanlamaProjeleriSayfasiDto>.Failure("Üretim grubu geçersiz.");
 
+        var izinliDurumlar = await AmbalajYetkilendirmeYardimcisi.IzinliDurumlariGetirAsync(_roller, _kullanici, cancellationToken);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
         var projeTipiId = request.ProjeTipiId ?? (int)ProjeTipi.Normal;
         var filtrelenmisProjeler = _readQueries
@@ -39,12 +46,12 @@ public sealed class GetAmbalajPlanlamaProjeleriQueryHandler
             .Where(p => p.ProjeTipiId == projeTipiId);
         filtrelenmisProjeler = AmbalajProjeAramaFiltresi.Uygula(filtrelenmisProjeler, request.Arama);
         filtrelenmisProjeler = AmbalajDurumErisimi.ProjeleriFiltrele(filtrelenmisProjeler,
-            _unitOfWork.GetRepository<AmbalajUretimKaydi>().Queryable(), request.IzinliDurumlar);
+            _unitOfWork.GetRepository<AmbalajUretimKaydi>().Queryable(), izinliDurumlar);
 
         var totalCount = await _readQueries.CountAsync(filtrelenmisProjeler, cancellationToken);
         var sayfa = AmbalajSayfalamaYardimcisi.Olustur(request.PageNumber, pageSize, totalCount);
         var filteredSummary = request.IncludeSummary
-            ? await FiltreOzetiniOlusturAsync(filtrelenmisProjeler, request.Grup, totalCount, request.IzinliDurumlar, cancellationToken)
+            ? await FiltreOzetiniOlusturAsync(filtrelenmisProjeler, request.Grup, totalCount, izinliDurumlar, cancellationToken)
             : null;
         var projeler = await _readQueries.ToListAsync(filtrelenmisProjeler
             .OrderByDescending(p => p.Id)
@@ -75,9 +82,10 @@ public sealed class GetAmbalajPlanlamaProjeleriQueryHandler
                 proje,
                 tipler.GetValueOrDefault(proje.ProjeTipiId, "-"),
                 sandiklar.GetValueOrDefault(proje.Id, []),
-                kayitlar.GetValueOrDefault(proje.Id, []), request.IzinliDurumlar))
+                kayitlar.GetValueOrDefault(proje.Id, []), izinliDurumlar))
             .ToList();
-        return Result<AmbalajPlanlamaProjeleriSayfasiDto>.Success(
+        var izin = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(_roller, _kullanici, cancellationToken);
+        return Result<AmbalajPlanlamaProjeleriSayfasiDto>.Success(AmbalajAlanMaskesi.Maskele(
             new AmbalajPlanlamaProjeleriSayfasiDto
             {
                 Items = sonuc,
@@ -86,7 +94,7 @@ public sealed class GetAmbalajPlanlamaProjeleriQueryHandler
                 TotalCount = totalCount,
                 TotalPages = sayfa.TotalPages,
                 FilteredSummary = filteredSummary
-            });
+            }, izin));
     }
 
     private async Task<AmbalajPlanlamaProjeFiltreOzetiDto> FiltreOzetiniOlusturAsync(
@@ -257,8 +265,15 @@ public sealed class GetAmbalajPlanlamaPlanQueryHandler
     : IRequestHandler<GetAmbalajPlanlamaPlanQuery, Result<AmbalajPlanlamaPlanDto>>
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IRolService _roller;
+    private readonly ICurrentUserService _kullanici;
 
-    public GetAmbalajPlanlamaPlanQueryHandler(IUnitOfWork unitOfWork) => _unitOfWork = unitOfWork;
+    public GetAmbalajPlanlamaPlanQueryHandler(IUnitOfWork unitOfWork, IRolService roller, ICurrentUserService kullanici)
+    {
+        _unitOfWork = unitOfWork;
+        _roller = roller;
+        _kullanici = kullanici;
+    }
 
     public async Task<Result<AmbalajPlanlamaPlanDto>> Handle(
         GetAmbalajPlanlamaPlanQuery request,
@@ -279,8 +294,10 @@ public sealed class GetAmbalajPlanlamaPlanQueryHandler
             .Where(k => k.ProjeId == proje.Id).ToList();
         var tipMetni = _unitOfWork.GetRepository<LookupProjeTipi>().Queryable()
             .Where(x => x.Id == proje.ProjeTipiId).Select(x => x.Deger).FirstOrDefault() ?? "-";
-        return Result<AmbalajPlanlamaPlanDto>.Success(
-            AmbalajPlanlamaYardimcisi.PlanDtoOlustur(proje, tipMetni, sandiklar, kayitlar, request.Grup, request.IzinliDurumlar));
+        var izinliDurumlar = await AmbalajYetkilendirmeYardimcisi.IzinliDurumlariGetirAsync(_roller, _kullanici, cancellationToken);
+        var plan = AmbalajPlanlamaYardimcisi.PlanDtoOlustur(proje, tipMetni, sandiklar, kayitlar, request.Grup, izinliDurumlar);
+        var izin = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(_roller, _kullanici, cancellationToken);
+        return Result<AmbalajPlanlamaPlanDto>.Success(AmbalajAlanMaskesi.Maskele(plan, izin));
     }
 }
 
@@ -289,21 +306,30 @@ public sealed class GetAmbalajIcSandikSablonlariQueryHandler
         Result<IReadOnlyList<AmbalajIcSandikSablonDto>>>
 {
     private readonly IUnitOfWork _unitOfWork;
-    public GetAmbalajIcSandikSablonlariQueryHandler(IUnitOfWork unitOfWork) => _unitOfWork = unitOfWork;
+    private readonly IRolService _roller;
+    private readonly ICurrentUserService _kullanici;
 
-    public Task<Result<IReadOnlyList<AmbalajIcSandikSablonDto>>> Handle(
+    public GetAmbalajIcSandikSablonlariQueryHandler(IUnitOfWork unitOfWork, IRolService roller, ICurrentUserService kullanici)
+    {
+        _unitOfWork = unitOfWork;
+        _roller = roller;
+        _kullanici = kullanici;
+    }
+
+    public async Task<Result<IReadOnlyList<AmbalajIcSandikSablonDto>>> Handle(
         GetAmbalajIcSandikSablonlariQuery request,
         CancellationToken cancellationToken)
     {
+        var izin = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(_roller, _kullanici, cancellationToken);
         var sonuc = _unitOfWork.GetRepository<AmbalajIcSandikSablonu>().Queryable()
             .OrderBy(x => x.Ad)
             .ToList()
-            .Select(x => new AmbalajIcSandikSablonDto(
+            .Select(x => AmbalajAlanMaskesi.Maskele(new AmbalajIcSandikSablonDto(
                 x.Id, x.Ad,
                 AmbalajPlanlamaYardimcisi.SandikTipiMetni(x.SandikCinsi, x.DigerSandikCinsi),
-                x.Boy, x.En, x.Yukseklik))
+                x.Boy, x.En, x.Yukseklik), izin))
             .ToList();
-        return Task.FromResult(Result<IReadOnlyList<AmbalajIcSandikSablonDto>>.Success(sonuc));
+        return Result<IReadOnlyList<AmbalajIcSandikSablonDto>>.Success(sonuc);
     }
 }
 
@@ -353,13 +379,19 @@ public sealed class GetAmbalajBagimsizSandiklarQueryHandler
         Result<AmbalajBagimsizSandiklarSayfasiDto>>
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IRolService _roller;
+    private readonly ICurrentUserService _kullanici;
     private readonly IReadQueryExecutor _readQueries;
 
     public GetAmbalajBagimsizSandiklarQueryHandler(
         IUnitOfWork unitOfWork,
+        IRolService roller,
+        ICurrentUserService kullanici,
         IReadQueryExecutor? readQueries = null)
     {
         _unitOfWork = unitOfWork;
+        _roller = roller;
+        _kullanici = kullanici;
         _readQueries = readQueries ?? SynchronousReadQueryExecutor.Instance;
     }
 
@@ -383,7 +415,8 @@ public sealed class GetAmbalajBagimsizSandiklarQueryHandler
                          k.Tur == AmbalajSandikTuru.Ic ||
                          k.Tur == AmbalajSandikTuru.Saha ||
                          k.Tur == AmbalajSandikTuru.Yedek));
-        aktifBagimsizQuery = AmbalajDurumErisimi.Filtrele(aktifBagimsizQuery, request.IzinliDurumlar);
+        aktifBagimsizQuery = AmbalajDurumErisimi.Filtrele(aktifBagimsizQuery,
+            await AmbalajYetkilendirmeYardimcisi.IzinliDurumlariGetirAsync(_roller, _kullanici, cancellationToken));
 
         var query = AmbalajBagimsizSandikAramaFiltresi.Uygula(
             aktifBagimsizQuery, projelerQuery, kaynakSandiklarQuery, tumKayitlar, request.Arama);
@@ -474,7 +507,8 @@ public sealed class GetAmbalajBagimsizSandiklarQueryHandler
                 k.UstKayitId.HasValue ? ustler.GetValueOrDefault(k.UstKayitId.Value) : null,
                 k.KaynakKayitId.HasValue ? kaynaklar.GetValueOrDefault(k.KaynakKayitId.Value) : null))
             .ToList();
-        return Result<AmbalajBagimsizSandiklarSayfasiDto>.Success(
+        var izin = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(_roller, _kullanici, cancellationToken);
+        return Result<AmbalajBagimsizSandiklarSayfasiDto>.Success(AmbalajAlanMaskesi.Maskele(
             new AmbalajBagimsizSandiklarSayfasiDto
             {
                 Items = sonuc,
@@ -483,7 +517,7 @@ public sealed class GetAmbalajBagimsizSandiklarQueryHandler
                 TotalCount = totalCount,
                 TotalPages = sayfa.TotalPages,
                 FilteredSummary = filteredSummary
-            });
+            }, izin));
     }
 
     private sealed class BagimsizTurToplami
@@ -526,9 +560,17 @@ public sealed class GetAmbalajIlaveSandikAdaylariQueryHandler
         Result<IReadOnlyList<AmbalajIlaveSandikAdayDto>>>
 {
     private readonly IUnitOfWork _unitOfWork;
-    public GetAmbalajIlaveSandikAdaylariQueryHandler(IUnitOfWork unitOfWork) => _unitOfWork = unitOfWork;
+    private readonly IRolService _roller;
+    private readonly ICurrentUserService _kullanici;
 
-    public Task<Result<IReadOnlyList<AmbalajIlaveSandikAdayDto>>> Handle(
+    public GetAmbalajIlaveSandikAdaylariQueryHandler(IUnitOfWork unitOfWork, IRolService roller, ICurrentUserService kullanici)
+    {
+        _unitOfWork = unitOfWork;
+        _roller = roller;
+        _kullanici = kullanici;
+    }
+
+    public async Task<Result<IReadOnlyList<AmbalajIlaveSandikAdayDto>>> Handle(
         GetAmbalajIlaveSandikAdaylariQuery request,
         CancellationToken cancellationToken)
     {
@@ -547,7 +589,9 @@ public sealed class GetAmbalajIlaveSandikAdaylariQueryHandler
             .OrderBy(s => s.SandikNo)
             .Select(s => new AmbalajIlaveSandikAdayDto(s.Id, s.SandikNo, s.Ad, s.Boy, s.En, s.Yukseklik))
             .ToList();
-        return Task.FromResult(Result<IReadOnlyList<AmbalajIlaveSandikAdayDto>>.Success(sonuc));
+        var izin = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(_roller, _kullanici, cancellationToken);
+        return Result<IReadOnlyList<AmbalajIlaveSandikAdayDto>>.Success(
+            sonuc.Select(aday => AmbalajAlanMaskesi.Maskele(aday, izin)).ToList());
     }
 }
 
@@ -556,13 +600,19 @@ public sealed class GetAmbalajProjeSandikSecenekleriQueryHandler
         Result<IReadOnlyList<AmbalajSandikSecenegiDto>>>
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IRolService _roller;
+    private readonly ICurrentUserService _kullanici;
     private readonly IReadQueryExecutor _readQueries;
 
     public GetAmbalajProjeSandikSecenekleriQueryHandler(
         IUnitOfWork unitOfWork,
+        IRolService roller,
+        ICurrentUserService kullanici,
         IReadQueryExecutor? readQueries = null)
     {
         _unitOfWork = unitOfWork;
+        _roller = roller;
+        _kullanici = kullanici;
         _readQueries = readQueries ?? SynchronousReadQueryExecutor.Instance;
     }
 
@@ -581,9 +631,11 @@ public sealed class GetAmbalajProjeSandikSecenekleriQueryHandler
                 sandik.En,
                 sandik.Yukseklik));
 
+        var izin = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(_roller, _kullanici, cancellationToken);
         var sonuc = (await _readQueries.ToListAsync(query, cancellationToken))
             .OrderBy(sandik => AmbalajPlanlamaYardimcisi.SandikSiraAnahtari(sandik.SandikNo))
             .ThenBy(sandik => sandik.SandikNo, StringComparer.OrdinalIgnoreCase)
+            .Select(sandik => AmbalajAlanMaskesi.Maskele(sandik, izin))
             .ToList();
         return Result<IReadOnlyList<AmbalajSandikSecenegiDto>>.Success(sonuc);
     }

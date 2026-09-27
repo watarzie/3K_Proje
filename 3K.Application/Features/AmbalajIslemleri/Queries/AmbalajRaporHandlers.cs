@@ -37,7 +37,9 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
         {
             var yetkiler = await AmbalajRaporVerisi.RaporYetkileriAsync(
                 _rolService, _currentUserService, cancellationToken);
-            var kayitlar = AmbalajRaporVerisi.KayitlariGetir(_unitOfWork, request.Tur, request.IzinliDurumlar);
+            var izinliDurumlar = await AmbalajYetkilendirmeYardimcisi.IzinliDurumlariGetirAsync(
+                _rolService, _currentUserService, cancellationToken);
+            var kayitlar = AmbalajRaporVerisi.KayitlariGetir(_unitOfWork, request.Tur, izinliDurumlar);
             var dtolar = AmbalajRaporVerisi.DtolariOlustur(_unitOfWork, kayitlar);
             foreach (var dto in dtolar)
                 AmbalajYetkilendirmeYardimcisi.DtoyuMaskele(dto, yetkiler);

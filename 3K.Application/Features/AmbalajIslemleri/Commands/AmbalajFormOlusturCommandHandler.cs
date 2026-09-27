@@ -34,7 +34,8 @@ public sealed class AmbalajFormOlusturCommandHandler(IUnitOfWork uow, ICurrentUs
                 ? Result<AmbalajFormSurumuDto>.Failure("İşlem kimliği farklı içerikle kullanıldı.", 409)
                 : Result<AmbalajFormSurumuDto>.Success(await AmbalajYasamDongusuYardimcisi.FormDtoAsync(tekrar, roles, user, ct));
 
-        return await uow.ExecuteInTransactionAsync(async token =>
+        // Senkronizasyon veya snapshot başarısız olursa önceki bütün değişiklikler geri alınır.
+        return await uow.ExecuteAtomicAsync(async token =>
         {
             if (islemKilidi != null) await islemKilidi.KilitleAsync(token);
             var kilitSonrasiTekrar = forms.Queryable().FirstOrDefault(x => x.IdempotencyAnahtari == request.IdempotencyAnahtari);

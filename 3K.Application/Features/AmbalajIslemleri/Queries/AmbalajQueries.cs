@@ -1,4 +1,3 @@
-using System.Text.Json.Serialization;
 using MediatR;
 using _3K.Application.Common;
 using _3K.Core.Constants;
@@ -9,9 +8,8 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
 {
     /// <summary>Tek bir özel sandık türünün (ilave, iç, saha, yedek) aktif kayıtlarından PDF üretim raporu.</summary>
     public sealed class GetAmbalajRaporDosyasiQuery
-        : IRequest<Result<DosyaIcerigi>>, ISecuredRequest, IRequiresMenuPermissions, IAmbalajDurumKapsamli
+        : IRequest<Result<DosyaIcerigi>>, ISecuredRequest, IRequiresMenuPermissions
     {
-        [JsonIgnore] public int[]? IzinliDurumlar { get; set; }
         public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
         [
             MenuPermissionRequirement.Read(YetkiKodlari.Ambalaj.RaporGoruntule),

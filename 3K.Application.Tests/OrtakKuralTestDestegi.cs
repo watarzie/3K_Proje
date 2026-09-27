@@ -3,6 +3,7 @@ using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query;
 using _3K.Core.Entities;
+using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
 
@@ -133,7 +134,30 @@ internal sealed class OrtakMemoryRepo<T> : IGenericRepository<T> where T : BaseE
     public void Remove(T entity) => Rows.Remove(entity);
 }
 
-internal sealed record OrtakUser(int? UserId = 7, bool IsAuthenticated = true, string? MenuKod = "grid-modulu") : ICurrentUserService;
+internal sealed record OrtakUser(int? UserId = 7, bool IsAuthenticated = true) : ICurrentUserService;
+
+/// <summary>Bütün kodlara, yalnız verilen kodlara ya da verilenler dışındaki kodlara izin verir; sorguları kaydeder.</summary>
+internal sealed class OrtakRoller : IRolService
+{
+    private readonly Func<string, bool> _izinVarMi;
+    private OrtakRoller(Func<string, bool> izinVarMi) => _izinVarMi = izinVarMi;
+
+    public static OrtakRoller TumIzinler() => new(_ => true);
+    public static OrtakRoller Yalniz(params string[] kodlar) => new(kodlar.Contains);
+    public static OrtakRoller Haric(params string[] kodlar) => new(kod => !kodlar.Contains(kod));
+
+    public List<(string Kod, YetkiTipi Tip)> Sorgulananlar { get; } = [];
+
+    public Task<bool> HasUserPermissionAsync(int userId, string menuKod, YetkiTipi requiredYetkiTipi, CancellationToken ct = default)
+    {
+        Sorgulananlar.Add((menuKod, requiredYetkiTipi));
+        return Task.FromResult(_izinVarMi(menuKod));
+    }
+
+    public Task<List<MenuTanimi>> GetMenuAgaciAsync(CancellationToken ct = default) => throw new NotSupportedException();
+    public Task<List<RolYetki>> GetRolYetkileriAsync(int rolId, CancellationToken ct = default) => throw new NotSupportedException();
+    public Task YetkileriGuncelleAsync(int rolId, List<RolYetki> yetkiler, CancellationToken ct = default) => throw new NotSupportedException();
+}
 
 internal sealed class OrtakHareket : IHareketService
 {

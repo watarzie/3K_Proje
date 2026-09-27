@@ -19,7 +19,7 @@ Uygulama .NET 10 hedefleyen, PostgreSQL kullanan katmanlı bir monolittir. Komut
 | `3K_API/Program.cs`, `3K_API/Extensions` | Kompozisyon kökü; `AddApi` HTTP kayıtlarını, `UseApiPipeline` middleware sırasını tutar |
 | `3K.Application/DependencyInjection.cs`, `3K.Infrastructure/DependencyInjection.cs` | Katmanın kendi servis, pipeline ve arka plan işi kayıtları |
 | `3K.Application/Features/<Alan>` | Command, Query, Handler, DTO ve Validator |
-| `3K.Application/Behaviors` | Merkezi exception, authorization, validation, approval ve ambalaj yaşam döngüsü adımları (bu sırayla) |
+| `3K.Application/Behaviors` | Merkezi exception, authorization, validation ve approval adımları (bu sırayla) |
 | `3K.Application/Common` | Uygulama düzeyindeki ortak sonuç ve politika yardımcıları |
 | `3K.Core` | Entity, enum, interface, domain modelleri ve ortak kurallar |
 | `3K.Infrastructure` | EF Core, repository/UoW, servis uygulamaları, dosya/Excel/PDF ve altyapı |
@@ -49,6 +49,7 @@ Uygulama .NET 10 hedefleyen, PostgreSQL kullanan katmanlı bir monolittir. Komut
 - İzin modeli tektir: ekran, işlem ve alan kodlarının hepsi `MenuTanimlari` ağacında N/R/W olarak `YetkiAgaci` ile değerlendirilir. Üst düğüm alt düğümün tavanıdır; üst W alt izni kendiliğinden vermez. Kişisel ret/izin rol seviyesinin önüne geçer ama üst tavanı aşamaz. Modüle özel değerlendirici veya ad bazlı istisna yazma; Admin rolü kimliğiyle (`SistemRolleri.AdminId`) tanınır.
 - Yeni kod eklerken `YetkiKodlari`, `MenuTanimlari` kaydını ekleyen `scripts/database/` betiği (`LabelKey` = `MENU.<KOD>`), frontend `yetki-kodlari.ts` ve TR/EN `MENU.*` çevirilerini birlikte güncelle.
 - Ortak endpoint'te gerçek proje tipini, sahipliği/ilişkileri ve gereken izni kayıtlar üzerinden doğrula. Okuma/yazma ayrımını ve izin kombinasyonlarını açık tut.
+- Ambalaj komutlarında kayda bağlı ek izinler (durum geçişi, form sonrası seçim, dahil/haric kararı, kritik veri, iptal, tamamlanmış projeye ekleme), ilk form şartı ve kritik işlem gerekçesi `AmbalajIslemKurallari` + `AmbalajKritikIslemDenetimi` ile handler içinde, değişiklik öncesi kayıt üzerinden ve aynı `ExecuteAtomicAsync` transaction'ında denetlenir. Ölçü, m³ ve sarf alanları yanıt dönmeden `AmbalajAlanMaskesi`/`DtoyuMaskele` ile açıkça maskelenir; yeni ambalaj DTO'su eklerken maskeyi ve maske eşdeğerlik testini güncelle. Namespace'e göre davranış seçme veya reflection ile maskeleme yapma.
 - Login/2FA challenge ile tam oturumu ayır. Yetki eklemek için public giriş akışını yanlışlıkla kilitleme; mevcut servis kullanıcısı/onay yürütme bağlamlarını incele.
 - Approval pipeline, kayıtlı komut bütünlüğü, onay yetkisi ve uygulama durumu kontrollerini atlama. Talep, karar ve fiili uygulama ayrı olaylardır; tekrar istek ikinci kez uygulamamalıdır.
 

@@ -30,7 +30,7 @@ public sealed record AmbalajPlanlamaProjeOzetDto(
     int GerekliSandikAdedi = 0,
     int TamamlananSandikAdedi = 0);
 
-public sealed class AmbalajPlanlamaProjeFiltreOzetiDto
+public sealed record AmbalajPlanlamaProjeFiltreOzetiDto
 {
     public int ProjeSayisi { get; init; }
     public int ToplamSandikAdedi { get; init; }
@@ -38,7 +38,7 @@ public sealed class AmbalajPlanlamaProjeFiltreOzetiDto
     public int EksikOlculuProjeSayisi { get; init; }
 }
 
-public sealed class AmbalajPlanlamaProjeleriSayfasiDto
+public sealed record AmbalajPlanlamaProjeleriSayfasiDto
 {
     public IReadOnlyList<AmbalajPlanlamaProjeOzetDto> Items { get; init; } = [];
     public int PageNumber { get; init; }
@@ -150,7 +150,7 @@ public sealed record AmbalajBagimsizSandikDto(
     int UretimDurumu = 1,
     bool AmbalajaDahilMi = true);
 
-public sealed class AmbalajBagimsizSandikTurOzetiDto
+public sealed record AmbalajBagimsizSandikTurOzetiDto
 {
     public int Tur { get; init; }
     public int KayitSayisi { get; init; }
@@ -158,7 +158,7 @@ public sealed class AmbalajBagimsizSandikTurOzetiDto
     public decimal? ToplamHacimM3 { get; init; }
 }
 
-public sealed class AmbalajBagimsizSandikFiltreOzetiDto
+public sealed record AmbalajBagimsizSandikFiltreOzetiDto
 {
     public int KayitSayisi { get; init; }
     public int ToplamSandikAdedi { get; init; }
@@ -167,7 +167,7 @@ public sealed class AmbalajBagimsizSandikFiltreOzetiDto
     public IReadOnlyList<AmbalajBagimsizSandikTurOzetiDto> TurOzetleri { get; init; } = [];
 }
 
-public sealed class AmbalajBagimsizSandiklarSayfasiDto
+public sealed record AmbalajBagimsizSandiklarSayfasiDto
 {
     public IReadOnlyList<AmbalajBagimsizSandikDto> Items { get; init; } = [];
     public int PageNumber { get; init; }

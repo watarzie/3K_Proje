@@ -1,15 +1,9 @@
-using System.Text.Json.Serialization;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 
 namespace _3K.Application.Features.AmbalajIslemleri.Queries;
 
-/// <summary>HTTP girdisi değildir; pipeline her çalıştırmada güncel izinlerden doldurur.</summary>
-public interface IAmbalajDurumKapsamli
-{
-    [JsonIgnore] int[]? IzinliDurumlar { get; set; }
-}
-
+/// <summary>Kayıt ve projeleri kullanıcının görebildiği üretim durumlarıyla sınırlar; null sınır uygulamaz.</summary>
 internal static class AmbalajDurumErisimi
 {
     public static IQueryable<AmbalajUretimKaydi> Filtrele(IQueryable<AmbalajUretimKaydi> query, int[]? allowed) =>

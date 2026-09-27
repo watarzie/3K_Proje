@@ -5,6 +5,7 @@ using _3K.Application.Features.AmbalajIslemleri.DTOs;
 using _3K.Application.Features.AmbalajIslemleri.Queries;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
+using _3K.Core.Constants;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
 
@@ -107,7 +108,8 @@ public sealed class AmbalajPlanlamaIptalKaynakTests
         var f = new Fixture(); f.Source(11); f.Source(12);
         var iptal = f.Record(1, 11, iptal: true); var aktif = f.Record(2, 12);
         aktif.UretimeAlindi = true;
-        var result = await new AmbalajPlanKaydetCommandHandler(f.Uow, new OrtakUser(), new Sync(), new Finans())
+        var result = await new AmbalajPlanKaydetCommandHandler(f.Uow, new OrtakUser(), OrtakRoller.TumIzinler(), new Sync(), new Finans(),
+                new AmbalajKritikIslemDenetimi(f.Uow, OrtakRoller.TumIzinler(), new OrtakUser()))
             .Handle(new() { ProjeId = 10, SeciliKaynakSandikIds = [12] }, default);
         Assert.True(result.IsSuccess, result.Error?.Message);
         Assert.Equal(12, Assert.Single(result.Value!.Kalemler).KaynakSandikId);
@@ -138,16 +140,26 @@ public sealed class AmbalajPlanlamaIptalKaynakTests
                 Boy = 2000, En = 1000, Yukseklik = 1200, HesaplananToplamM3 = 2m, CreatedDate = new(2026, 2, 1) };
             Uow.Repo<AmbalajUretimKaydi>().Rows.Add(row); return row;
         }
+        /// <summary>İzinli durum listesi verilmezse bütün durumlar görünür.</summary>
+        private static OrtakRoller Roller(int[]? izinliDurumlar) => izinliDurumlar == null
+            ? OrtakRoller.TumIzinler()
+            : OrtakRoller.Haric(new[]
+                {
+                    YetkiKodlari.Ambalaj.BekleyenGoruntule,
+                    YetkiKodlari.Ambalaj.UretimdeGoruntule,
+                    YetkiKodlari.Ambalaj.TamamlananGoruntule
+                }.Where((_, sira) => !izinliDurumlar.Contains(sira + 1)).ToArray());
+
         public async Task<AmbalajPlanlamaProjeleriSayfasiDto> List(int group = 1, int[]? allowed = null)
         {
-            var result = await new GetAmbalajPlanlamaProjeleriQueryHandler(Uow)
-                .Handle(new() { Grup = group, IzinliDurumlar = allowed }, default);
+            var result = await new GetAmbalajPlanlamaProjeleriQueryHandler(Uow, Roller(allowed), new OrtakUser())
+                .Handle(new() { Grup = group }, default);
             Assert.True(result.IsSuccess, result.Error?.Message); return result.Value!;
         }
         public async Task<AmbalajPlanlamaPlanDto> Plan(int[]? allowed = null)
         {
-            var result = await new GetAmbalajPlanlamaPlanQueryHandler(Uow)
-                .Handle(new() { ProjeId = 10, IzinliDurumlar = allowed }, default);
+            var result = await new GetAmbalajPlanlamaPlanQueryHandler(Uow, Roller(allowed), new OrtakUser())
+                .Handle(new() { ProjeId = 10 }, default);
             Assert.True(result.IsSuccess, result.Error?.Message); return result.Value!;
         }
     }

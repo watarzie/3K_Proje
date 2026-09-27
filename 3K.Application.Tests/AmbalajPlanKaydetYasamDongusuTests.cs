@@ -133,11 +133,10 @@ public sealed class AmbalajPlanKaydetYasamDongusuTests
     public async Task DurumKomutu_IlkFormYokken_Hala409VeHicbirDegisiklikYok()
     {
         var f = new Fixture(YetkiKodlari.Ambalaj.DurumDuzenle); var row = f.Add(1);
-        var called = false;
-        var result = await new AmbalajYasamDongusuBehavior<AmbalajUretimDurumuGuncelleCommand, Result<AmbalajUretimKaydiDto>>(
-            f.Uow, f.Roles, f.User).Handle(new() { Id = row.Id, Durum = AmbalajUretimDurumu.Uretimde },
-            () => { called = true; return Task.FromResult(Result<AmbalajUretimKaydiDto>.Success(new())); }, default);
-        Assert.Equal(409, result.StatusCode); Assert.False(called);
+        var handler = new AmbalajUretimDurumuGuncelleCommandHandler(f.Uow, f.User, f.Finans, f.Roles,
+            new AmbalajKritikIslemDenetimi(f.Uow, f.Roles, f.User));
+        var result = await handler.Handle(new() { Id = row.Id, Durum = AmbalajUretimDurumu.Uretimde }, default);
+        Assert.Equal(409, result.StatusCode); Assert.Equal(0, f.Uow.SaveCount);
         Assert.Equal(AmbalajUretimDurumu.Planlandi, row.UretimDurumu); Assert.Null(row.UretimTarihi);
     }
 
@@ -174,9 +173,9 @@ public sealed class AmbalajPlanKaydetYasamDongusuTests
         }
         public Task<Result<AmbalajPlanlamaPlanDto>> Save(AmbalajPlanKaydetCommand command)
         {
-            var handler = new AmbalajPlanKaydetCommandHandler(Uow, User, Sync, Finans);
-            return new AmbalajYasamDongusuBehavior<AmbalajPlanKaydetCommand, Result<AmbalajPlanlamaPlanDto>>(
-                Uow, Roles, User).Handle(command, () => handler.Handle(command, default), default);
+            var handler = new AmbalajPlanKaydetCommandHandler(Uow, User, Roles, Sync, Finans,
+                new AmbalajKritikIslemDenetimi(Uow, Roles, User));
+            return handler.Handle(command, default);
         }
     }
     private sealed class Roles(params string[] allowed) : IRolService

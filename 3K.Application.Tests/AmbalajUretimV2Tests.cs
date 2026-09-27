@@ -113,7 +113,8 @@ public sealed class AmbalajUretimV2Tests
         // Dahil etme kararı pipeline'da ambalaj-dahil-et yazma iznini ister.
         var decision = new AmbalajKarariKaydetCommand { SandikId = source.Id, AmbalajaDahilMi = true };
         Assert.Equal(new[] { MenuPermissionRequirement.Write(YetkiKodlari.Ambalaj.DahilEt) }, decision.RequiredMenuPermissions);
-        var allowed = await new AmbalajKarariKaydetCommandHandler(uow, actor, sync, new Finans()).Handle(decision, default);
+        var allowed = await new AmbalajKarariKaydetCommandHandler(uow, actor, new Roles(), sync, new Finans(),
+            new AmbalajKritikIslemDenetimi(uow, new Roles(), actor)).Handle(decision, default);
         Assert.True(allowed.IsSuccess, allowed.Error?.Message);
         Assert.True(row.AmbalajaDahil); Assert.False(row.UretimeAlindi);
         source.Boy = 2600;
@@ -161,7 +162,10 @@ public sealed class AmbalajUretimV2Tests
     public async Task U4_TamamlaAcTamamla_TekGerceklesme_GuncelKayitDegisimiGecmisiDegistirmez()
     {
         var k = Kayit(1); k.UretimeAlindi = true; k.UretimDurumu = AmbalajUretimDurumu.Uretimde;
-        var uow = new Uow().Add(k); var h = new AmbalajUretimDurumuGuncelleCommandHandler(uow,new User(),new Finans(),new Roles());
+        // İlk form sonrası durum geçişleri; form bağı olmadan ilerletme 409 döner.
+        var uow = new Uow().Add(k).Add(new AmbalajUretimFormuKaydi { Id = 1, FormSurumuId = 1, AmbalajUretimKaydiId = 1 });
+        var h = new AmbalajUretimDurumuGuncelleCommandHandler(uow, new User(), new Finans(), new Roles(),
+            new AmbalajKritikIslemDenetimi(uow, new Roles(), new User()));
         await h.Handle(new() { Id = 1, Durum = AmbalajUretimDurumu.Tamamlandi }, default);
         await h.Handle(new() { Id = 1, Durum = AmbalajUretimDurumu.Uretimde, Aciklama = "Kontrol" }, default);
         k.Adet = 9;
@@ -239,11 +243,12 @@ public sealed class AmbalajUretimV2Tests
     public async Task U6_YenidenAcma_AyriIzinOlmadanHandlerCalismaz()
     {
         var k=Kayit(1); k.UretimDurumu=AmbalajUretimDurumu.Tamamlandi;
-        var behavior=new AmbalajYasamDongusuBehavior<AmbalajUretimDurumuGuncelleCommand,Result<AmbalajUretimKaydiDto>>(new Uow().Add(k),new Roles(false),new User());
-        var called=false;
-        var result=await behavior.Handle(new(){Id=1,Durum=AmbalajUretimDurumu.Uretimde,Aciklama="Kontrol"},
-            ()=>{called=true; return Task.FromResult(Result<AmbalajUretimKaydiDto>.Success(new()));},default);
-        Assert.Equal(403,result.StatusCode); Assert.False(called); Assert.Equal(AmbalajUretimDurumu.Tamamlandi,k.UretimDurumu);
+        var uow=new Uow().Add(k);
+        var handler=new AmbalajUretimDurumuGuncelleCommandHandler(uow,new User(),new Finans(),new Roles(false),
+            new AmbalajKritikIslemDenetimi(uow,new Roles(false),new User()));
+        var result=await handler.Handle(new(){Id=1,Durum=AmbalajUretimDurumu.Uretimde,Aciklama="Kontrol"},default);
+        Assert.Equal(403,result.StatusCode); Assert.Equal(AmbalajUretimDurumu.Tamamlandi,k.UretimDurumu);
+        Assert.Empty(uow.Items<AmbalajUretimHareketi>());
     }
 
     private static AmbalajUretimKaydi Kayit(int id, AmbalajSandikCinsi cins=AmbalajSandikCinsi.AhsapKapali)

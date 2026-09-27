@@ -41,7 +41,8 @@ public sealed class AmbalajUretimAkisRegresyonTests
         var handler = new GetAmbalajRaporDosyasiQueryHandler(
             new FakeUnitOfWork().AddRepository(kayit),
             dosyaService,
-            FakeRolService.Yalniz(YetkiKodlari.Ambalaj.RaporGoruntule, YetkiKodlari.Ambalaj.PdfIndir),
+            // Durum görünürlüğü alan izinlerinden ayrıdır; kayıt üretimde olduğu için yalnız o durum açılır.
+            FakeRolService.Yalniz(YetkiKodlari.Ambalaj.RaporGoruntule, YetkiKodlari.Ambalaj.PdfIndir, YetkiKodlari.Ambalaj.UretimdeGoruntule),
             new FakeCurrentUserService());
 
         var sonuc = await handler.Handle(
@@ -455,11 +456,14 @@ public sealed class AmbalajUretimAkisRegresyonTests
             .AddRepository(proje)
             .AddRepository<AmbalajUretimKaydi>()
             .AddRepository<AmbalajUretimHareketi>();
+        var roller = FakeRolService.TumYetkiler();
         var handler = new AmbalajBagimsizSandikKaydetCommandHandler(
             unitOfWork,
             new FakeCurrentUserService(),
+            roller,
             new BeklenmeyenAmbalajKaynakSenkronizasyonService(),
-            new FakeFinansAktarimService());
+            new FakeFinansAktarimService(),
+            new AmbalajKritikIslemDenetimi(unitOfWork, roller, new FakeCurrentUserService()));
 
         var sonuc = await handler.Handle(new AmbalajBagimsizSandikKaydetCommand
         {

@@ -7,17 +7,16 @@ using _3K.Application.Features.AmbalajIslemleri.Commands;
 
 namespace _3K.Application.Features.AmbalajIslemleri;
 
-internal readonly record struct AmbalajGorunumYetkileri(
+public readonly record struct AmbalajGorunumYetkileri(
     bool M3Gorunur,
     bool SarfGorunur,
     bool KaynakGorunur,
     bool OlcuGorunur = true);
 
 /// <summary>
-/// Handler içindeki kayda/diff'e bağlı yetkileri ve hassas alan maskelemesini
-/// tek yerde tutar. Pipeline sabit ve istek gövdesinden belirlenebilen yetkileri
-/// kontrol eder; bu sınıf ise yalnız DB kaydı okunduktan sonra bilinen kuralları
-/// uygular.
+/// Ambalaj görünüm izinlerini (m³, sarf, kaynak, ölçü, üretim durumu) okur ve kayıt DTO'sunu
+/// bunlara göre maskeler. Sabit işlem izinleri pipeline'da, kayda bağlı kapılar
+/// <see cref="AmbalajKritikIslemDenetimi"/> içinde denetlenir.
 /// </summary>
 internal static class AmbalajYetkilendirmeYardimcisi
 {
@@ -32,17 +31,7 @@ internal static class AmbalajYetkilendirmeYardimcisi
         if (!userId.HasValue)
             return new AmbalajGorunumYetkileri(false, false, false, false);
 
-        // Konsolide rol modelinde üç görünüm alias'ı aynı ana liste yetkisine bağlıdır.
-        // Aynı kod için üç ayrı DB sorgusu üretmeyelim.
-        if (string.Equals(YetkiKodlari.Ambalaj.M3Goruntule, YetkiKodlari.Ambalaj.SarfGoruntule, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(YetkiKodlari.Ambalaj.M3Goruntule, YetkiKodlari.Ambalaj.KaynakGoruntule, StringComparison.OrdinalIgnoreCase))
-        {
-            var gorunur = await rolService.HasUserPermissionAsync(
-                userId.Value, YetkiKodlari.Ambalaj.M3Goruntule, YetkiTipi.R, cancellationToken);
-            return new AmbalajGorunumYetkileri(gorunur, gorunur, gorunur);
-        }
-
-        // Farklı yetki kodlarına dönülürse aynı scoped DbContext nedeniyle sıralı çalışır.
+        // Aynı scoped DbContext kullanıldığı için izinler sıralı okunur.
         var m3 = await rolService.HasUserPermissionAsync(
             userId.Value, YetkiKodlari.Ambalaj.M3Goruntule, YetkiTipi.R, cancellationToken);
         var sarf = await rolService.HasUserPermissionAsync(
@@ -53,6 +42,28 @@ internal static class AmbalajYetkilendirmeYardimcisi
             userId.Value, YetkiKodlari.Ambalaj.OlcuGoruntule, YetkiTipi.R, cancellationToken);
         return new AmbalajGorunumYetkileri(m3, m3 && sarf, kaynak, olcu);
     }
+
+    /// <summary>Kullanıcının görebildiği üretim durumları; her durum ayrı bir görüntüleme iznine bağlıdır.</summary>
+    public static async Task<int[]> IzinliDurumlariGetirAsync(
+        IRolService rolService,
+        ICurrentUserService currentUserService,
+        CancellationToken cancellationToken)
+    {
+        var izinli = new List<int>(DurumGorunumIzinleri.Length);
+        foreach (var (durum, kod) in DurumGorunumIzinleri)
+        {
+            if (await YetkiliMiAsync(rolService, currentUserService, kod, cancellationToken, YetkiTipi.R))
+                izinli.Add((int)durum);
+        }
+        return izinli.ToArray();
+    }
+
+    private static readonly (AmbalajUretimDurumu Durum, string Kod)[] DurumGorunumIzinleri =
+    [
+        (AmbalajUretimDurumu.Planlandi, YetkiKodlari.Ambalaj.BekleyenGoruntule),
+        (AmbalajUretimDurumu.Uretimde, YetkiKodlari.Ambalaj.UretimdeGoruntule),
+        (AmbalajUretimDurumu.Tamamlandi, YetkiKodlari.Ambalaj.TamamlananGoruntule)
+    ];
 
     public static async Task<bool> YetkiliMiAsync(
         IRolService rolService,

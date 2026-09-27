@@ -6,9 +6,8 @@ using _3K.Core.Constants;
 namespace _3K.Application.Features.AmbalajIslemleri.Queries;
 
 public abstract class AmbalajPlanlamaQuery<T> : IRequest<Result<T>>, ISecuredRequest,
-    IRequiresMenuPermissions, IAmbalajDurumKapsamli
+    IRequiresMenuPermissions
 {
-    [System.Text.Json.Serialization.JsonIgnore] public int[]? IzinliDurumlar { get; set; }
     public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
         this switch
         {

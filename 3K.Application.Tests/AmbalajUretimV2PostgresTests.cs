@@ -5,6 +5,7 @@ using _3K.Application.Features.AmbalajIslemleri.Commands;
 using _3K.Application.Features.AmbalajIslemleri.Queries;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
+using _3K.Core.Constants;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
 using _3K.Infrastructure.Data;
@@ -39,7 +40,7 @@ public sealed class AmbalajUretimV2PostgresTests
             await ctx.SaveChangesAsync();
             ctx.ChangeTracker.Clear();
             using var uow = new UnitOfWork(ctx, NullLogger<UnitOfWork>.Instance);
-            var handler = new GetAmbalajPlanlamaProjeleriQueryHandler(uow, new EntityFrameworkReadQueryExecutor());
+            var handler = new GetAmbalajPlanlamaProjeleriQueryHandler(uow, OrtakRoller.TumIzinler(), new OrtakUser(), new EntityFrameworkReadQueryExecutor());
             var firstPage = await handler.Handle(new() { PageSize = 1, PageNumber = 1 }, default);
             var secondPage = await handler.Handle(new() { PageSize = 1, PageNumber = 2 }, default);
             Assert.True(firstPage.IsSuccess);
@@ -48,7 +49,9 @@ public sealed class AmbalajUretimV2PostgresTests
             Assert.Equal(2m, Assert.Single(secondPage.Value.Items).ProjeSandiklariHacimM3);
             Assert.Equal(0m, Assert.Single(secondPage.Value.Items).UretimHacimM3);
 
-            var waitingOnly = await handler.Handle(new() { IzinliDurumlar = [1] }, default);
+            var waitingOnly = await new GetAmbalajPlanlamaProjeleriQueryHandler(uow,
+                OrtakRoller.Haric(YetkiKodlari.Ambalaj.UretimdeGoruntule, YetkiKodlari.Ambalaj.TamamlananGoruntule),
+                new OrtakUser(), new EntityFrameworkReadQueryExecutor()).Handle(new(), default);
             Assert.Equal(2m, waitingOnly.Value!.FilteredSummary!.ToplamHacimM3);
             Assert.Equal(11, Assert.Single(waitingOnly.Value.Items).ProjeId);
             Assert.Empty(ctx.ChangeTracker.Entries());

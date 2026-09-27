@@ -15,20 +15,43 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
         private readonly ICurrentUserService _currentUserService;
         private readonly IFinansUretimAktarimService _finansService;
         private readonly IRolService _rolService;
+        private readonly AmbalajKritikIslemDenetimi _denetim;
 
         public AmbalajUretimDurumuGuncelleCommandHandler(
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUserService,
             IFinansUretimAktarimService finansService,
-            IRolService rolService)
+            IRolService rolService,
+            AmbalajKritikIslemDenetimi denetim)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
             _finansService = finansService;
             _rolService = rolService;
+            _denetim = denetim;
         }
 
-        public async Task<Result<AmbalajUretimKaydiDto>> Handle(
+        public Task<Result<AmbalajUretimKaydiDto>> Handle(
+            AmbalajUretimDurumuGuncelleCommand request,
+            CancellationToken cancellationToken) =>
+            _unitOfWork.ExecuteAtomicAsync(async token =>
+            {
+                var hedefler = _unitOfWork.GetRepository<AmbalajUretimKaydi>().Queryable()
+                    .Where(k => k.Id == request.Id).ToList();
+                var gereksinim = _denetim.Degerlendir(_denetim.DegisiklikleriHazirla(hedefler,
+                    degisiklik => degisiklik with { HedefDurum = request.Durum }));
+                var kapi = await _denetim.KapilariDenetleAsync(gereksinim, request.Aciklama, token);
+                if (!kapi.IsSuccess)
+                    return Result<AmbalajUretimKaydiDto>.Failure(kapi.Error!.Message, kapi.StatusCode);
+
+                var sonuc = await GuncelleAsync(request, token);
+                if (sonuc.IsSuccess)
+                    await _denetim.KritikIslemiKaydetAsync(
+                        gereksinim, hedefler, nameof(AmbalajUretimDurumuGuncelleCommand), request.Aciklama, token);
+                return sonuc;
+            }, cancellationToken);
+
+        private async Task<Result<AmbalajUretimKaydiDto>> GuncelleAsync(
             AmbalajUretimDurumuGuncelleCommand request,
             CancellationToken cancellationToken)
         {

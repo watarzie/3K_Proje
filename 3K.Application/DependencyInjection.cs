@@ -3,6 +3,7 @@ using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using _3K.Application.Behaviors;
 using _3K.Application.Common;
+using _3K.Application.Features.AmbalajIslemleri;
 using _3K.Application.Features.AmbalajIslemleri.Commands;
 using _3K.Application.Features.SandikIslemleri.Services;
 using _3K.Core.Interfaces;
@@ -20,13 +21,12 @@ public static class DependencyInjection
         {
             cfg.RegisterServicesFromAssembly(assembly);
 
-            // Sıra (dıştan içe): hata yakalama → yetki → doğrulama → onay → ambalaj yaşam döngüsü → handler.
+            // Sıra (dıştan içe): hata yakalama → yetki → doğrulama → onay → handler.
             // Doğrulama onaydan önce çalışır; geçersiz bir komut onay kuyruğuna alınmaz.
             cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(UnhandledExceptionBehavior<,>));
             cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(AuthorizationBehavior<,>));
             cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
             cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ApprovalBehavior<,>));
-            cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(AmbalajYasamDongusuBehavior<,>));
         });
 
         services.AddValidatorsFromAssembly(assembly);
@@ -35,6 +35,7 @@ public static class DependencyInjection
         services.AddScoped<IRequestMenuPermissionResolver, RequestMenuPermissionResolver>();
         services.AddScoped<ISandikLokasyonGuncellemeService, SandikLokasyonGuncellemeService>();
         services.AddScoped<IAmbalajKaynakSenkronizasyonService, AmbalajKaynakSenkronizasyonService>();
+        services.AddScoped<AmbalajKritikIslemDenetimi>();
 
         return services;
     }

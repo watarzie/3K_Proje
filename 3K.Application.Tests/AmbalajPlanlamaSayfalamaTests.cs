@@ -23,7 +23,7 @@ public sealed class AmbalajPlanlamaSayfalamaTests
         var kaynaklar = new[] { Kaynak(1, "Radyatör"), Kaynak(2, "Transformatör"),
             Kaynak(3, "YG Bushing"), Kaynak(4, "Aksesuar", 3) };
         var uow = PlanlamaDeposu(proje, kaynaklar, []);
-        var sonuc = await new GetAmbalajPlanlamaProjeleriQueryHandler(uow)
+        var sonuc = await new GetAmbalajPlanlamaProjeleriQueryHandler(uow, OrtakRoller.TumIzinler(), new OrtakUser())
             .Handle(new GetAmbalajPlanlamaProjeleriQuery(), CancellationToken.None);
         var plan = AmbalajPlanlamaYardimcisi.PlanDtoOlustur(proje, "Normal", kaynaklar, []);
         var beklenen = plan.Kalemler.Single(k => k.KaynakSandikId == 1).HacimM3;
@@ -57,7 +57,7 @@ public sealed class AmbalajPlanlamaSayfalamaTests
                 Boy = 1000, En = 800, Yukseklik = 700, HesaplananToplamM3 = 99m }
         };
         var uow = PlanlamaDeposu(proje, [], kayitlar);
-        var sonuc = await new GetAmbalajPlanlamaProjeleriQueryHandler(uow)
+        var sonuc = await new GetAmbalajPlanlamaProjeleriQueryHandler(uow, OrtakRoller.TumIzinler(), new OrtakUser())
             .Handle(new GetAmbalajPlanlamaProjeleriQuery { Grup = grup }, CancellationToken.None);
         var ozet = Assert.Single(sonuc.Value!.Items);
         var hacim = grup == 1 ? ozet.ProjeSandiklariHacimM3 : grup == 2 ? ozet.IlaveSandiklarHacimM3 : ozet.IcSandiklarHacimM3;
@@ -78,7 +78,7 @@ public sealed class AmbalajPlanlamaSayfalamaTests
         var kayitlar = new[] { new AmbalajUretimKaydi { Id = 1, ProjeId = 1, KaynakKayitId = 11,
             Tur = AmbalajSandikTuru.Normal, AmbalajaDahil = true, UretimeAlindi = false,
             HesaplananToplamM3 = 99m, M3Override = 2m } };
-        var sonuc = await new GetAmbalajPlanlamaProjeleriQueryHandler(PlanlamaDeposu(proje, kaynaklar, kayitlar))
+        var sonuc = await new GetAmbalajPlanlamaProjeleriQueryHandler(PlanlamaDeposu(proje, kaynaklar, kayitlar), OrtakRoller.TumIzinler(), new OrtakUser())
             .Handle(new GetAmbalajPlanlamaProjeleriQuery(), CancellationToken.None);
 
         Assert.Equal(2m, sonuc.Value!.FilteredSummary!.ToplamHacimM3);
@@ -98,7 +98,7 @@ public sealed class AmbalajPlanlamaSayfalamaTests
         var kayitlar = new[] { new AmbalajUretimKaydi { Id = 1, ProjeId = 1, KaynakKayitId = 11,
             AmbalajaDahil = true, UretimeAlindi = true, HesaplananToplamM3 = 2m,
             UretimDurumu = AmbalajUretimDurumu.Tamamlandi } };
-        var sonuc = await new GetAmbalajPlanlamaProjeleriQueryHandler(PlanlamaDeposu(proje, kaynaklar, kayitlar))
+        var sonuc = await new GetAmbalajPlanlamaProjeleriQueryHandler(PlanlamaDeposu(proje, kaynaklar, kayitlar), OrtakRoller.TumIzinler(), new OrtakUser())
             .Handle(new GetAmbalajPlanlamaProjeleriQuery(), CancellationToken.None);
 
         Assert.Equal(1, sonuc.Value!.FilteredSummary!.ToplamSandikAdedi);
@@ -117,7 +117,7 @@ public sealed class AmbalajPlanlamaSayfalamaTests
         var haric = BagimsizKayit(2, 1, AmbalajSandikTuru.Ilave, 1, 8m, false);
         haric.AmbalajaDahil = false;
         var uow = PlanlamaDeposu(new Proje { Id = 1, ProjeNo = "PA682-43" }, [], [dahil, haric]);
-        var sonuc = await new GetAmbalajBagimsizSandiklarQueryHandler(uow)
+        var sonuc = await new GetAmbalajBagimsizSandiklarQueryHandler(uow, OrtakRoller.TumIzinler(), new OrtakUser())
             .Handle(new GetAmbalajBagimsizSandiklarQuery { Tur = 2 }, default);
 
         Assert.Equal(2, sonuc.Value!.TotalCount);
@@ -166,7 +166,7 @@ public sealed class AmbalajPlanlamaSayfalamaTests
             .AddRepository(sandiklar)
             .AddRepository(kayitlar)
             .AddRepository(new LookupProjeTipi { Id = 1, Anahtar = 1, Deger = "Normal" });
-        var handler = new GetAmbalajPlanlamaProjeleriQueryHandler(unitOfWork);
+        var handler = new GetAmbalajPlanlamaProjeleriQueryHandler(unitOfWork, OrtakRoller.TumIzinler(), new OrtakUser());
 
         var sonuc = await handler.Handle(new GetAmbalajPlanlamaProjeleriQuery
         {
@@ -208,7 +208,7 @@ public sealed class AmbalajPlanlamaSayfalamaTests
             .AddRepository(proje)
             .AddRepository(sandik)
             .AddRepository(kayit)
-            .AddRepository(new LookupProjeTipi { Id = 1, Anahtar = 1, Deger = "Normal" }));
+            .AddRepository(new LookupProjeTipi { Id = 1, Anahtar = 1, Deger = "Normal" }), OrtakRoller.TumIzinler(), new OrtakUser());
 
         var sonuc = await handler.Handle(new GetAmbalajPlanlamaProjeleriQuery
         {
@@ -252,7 +252,7 @@ public sealed class AmbalajPlanlamaSayfalamaTests
         var handler = new GetAmbalajBagimsizSandiklarQueryHandler(new FakeUnitOfWork()
             .AddRepository(projeler)
             .AddRepository(Array.Empty<Sandik>())
-            .AddRepository(kayitlar));
+            .AddRepository(kayitlar), OrtakRoller.TumIzinler(), new OrtakUser());
 
         var sonuc = await handler.Handle(new GetAmbalajBagimsizSandiklarQuery
         {
@@ -320,7 +320,7 @@ public sealed class AmbalajPlanlamaSayfalamaTests
         var handler = new GetAmbalajBagimsizSandiklarQueryHandler(new FakeUnitOfWork()
             .AddRepository(new Proje { Id = 1, ProjeNo = "PA800-01" })
             .AddRepository(Array.Empty<Sandik>())
-            .AddRepository(kayitlar));
+            .AddRepository(kayitlar), OrtakRoller.TumIzinler(), new OrtakUser());
 
         var sonuc = await handler.Handle(new GetAmbalajBagimsizSandiklarQuery
         {
@@ -343,7 +343,7 @@ public sealed class AmbalajPlanlamaSayfalamaTests
             .AddRepository(Array.Empty<AmbalajUretimKaydi>())
             .AddRepository(Array.Empty<LookupProjeTipi>());
 
-        var projeSonucu = await new GetAmbalajPlanlamaProjeleriQueryHandler(unitOfWork)
+        var projeSonucu = await new GetAmbalajPlanlamaProjeleriQueryHandler(unitOfWork, OrtakRoller.TumIzinler(), new OrtakUser())
             .Handle(new GetAmbalajPlanlamaProjeleriQuery
             {
                 Arama = "bulunmayan",
@@ -351,7 +351,7 @@ public sealed class AmbalajPlanlamaSayfalamaTests
                 PageSize = 15,
                 IncludeSummary = true
             }, CancellationToken.None);
-        var bagimsizSonucu = await new GetAmbalajBagimsizSandiklarQueryHandler(unitOfWork)
+        var bagimsizSonucu = await new GetAmbalajBagimsizSandiklarQueryHandler(unitOfWork, OrtakRoller.TumIzinler(), new OrtakUser())
             .Handle(new GetAmbalajBagimsizSandiklarQuery
             {
                 Arama = "bulunmayan",
@@ -393,7 +393,7 @@ public sealed class AmbalajPlanlamaSayfalamaTests
             .AddRepository(Array.Empty<AmbalajUretimKaydi>())
             .AddRepository(new LookupProjeTipi { Id = 1, Anahtar = 1, Deger = "Normal" });
 
-        var sonuc = await new GetAmbalajPlanlamaProjeleriQueryHandler(unitOfWork, executor)
+        var sonuc = await new GetAmbalajPlanlamaProjeleriQueryHandler(unitOfWork, OrtakRoller.TumIzinler(), new OrtakUser(), executor)
             .Handle(new GetAmbalajPlanlamaProjeleriQuery
             {
                 PageNumber = 1,
@@ -459,7 +459,7 @@ public sealed class AmbalajPlanlamaSayfalamaTests
                     Id = 13, ProjeId = 7, SandikNo = "10", Ad = "Aksesuar",
                     Boy = 1000, En = 800, Yukseklik = 600
                 },
-                new Sandik { Id = 99, ProjeId = 8, SandikNo = "1", Ad = "Başka proje" }));
+                new Sandik { Id = 99, ProjeId = 8, SandikNo = "1", Ad = "Başka proje" }), OrtakRoller.TumIzinler(), new OrtakUser());
 
         var sonuc = await handler.Handle(
             new GetAmbalajProjeSandikSecenekleriQuery { ProjeId = 7 },

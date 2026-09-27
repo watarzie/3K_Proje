@@ -33,13 +33,10 @@ public class OrtakYetkiOnayIsKurallariTests
         Assert.Empty(rol.Calls);
     }
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData(" ")]
-    public async Task GuvenliIstek_MenuBaglamiYoksaReddedilir(string? menu)
+    [Fact]
+    public async Task GuvenliIstek_SunucuYetkiTanimiYoksaReddedilir()
     {
-        var result = await new AuthorizationBehavior<OrtakQuery, Result>(new OrtakUser(MenuKod: menu), new RolFake())
+        var result = await new AuthorizationBehavior<OrtakQuery, Result>(new OrtakUser(), new RolFake())
             .Handle(new OrtakQuery(), () => throw new Xunit.Sdk.XunitException("Handler must not run"), default);
         Assert.Equal(403, result.StatusCode);
     }
@@ -48,9 +45,9 @@ public class OrtakYetkiOnayIsKurallariTests
     public async Task QueryOkuma_CommandYazmaVeSabitMenuyuKullanir()
     {
         var rol = new RolFake();
-        await new AuthorizationBehavior<SabitQuery, Result>(new OrtakUser(MenuKod: "sahte-menu"), rol)
+        await new AuthorizationBehavior<SabitQuery, Result>(new OrtakUser(), rol)
             .Handle(new SabitQuery(), () => Task.FromResult(Result.Success()), default);
-        await new AuthorizationBehavior<SabitCommand, Result>(new OrtakUser(MenuKod: "baska-menu"), rol)
+        await new AuthorizationBehavior<SabitCommand, Result>(new OrtakUser(), rol)
             .Handle(new SabitCommand(), () => Task.FromResult(Result.Success()), default);
         Assert.Equal([(7, "grid-modulu", YetkiTipi.R), (7, "sabit", YetkiTipi.W)], rol.Calls);
     }

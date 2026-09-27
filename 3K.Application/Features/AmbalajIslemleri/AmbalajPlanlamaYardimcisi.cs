@@ -227,6 +227,14 @@ internal static partial class AmbalajPlanlamaYardimcisi
         _ => 0
     };
 
+    /// <summary>Planlama grubunun (1 proje, 2 ilave, 3 iç sandık) kayıt türü.</summary>
+    public static AmbalajSandikTuru GrupTuru(int grup) => grup switch
+    {
+        2 => AmbalajSandikTuru.Ilave,
+        3 => AmbalajSandikTuru.Ic,
+        _ => AmbalajSandikTuru.Normal
+    };
+
     public static AmbalajSandikTuru OzelTurCoz(int tur) => tur switch
     {
         2 => AmbalajSandikTuru.Ilave,
