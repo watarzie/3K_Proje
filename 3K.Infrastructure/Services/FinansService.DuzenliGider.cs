@@ -76,7 +76,13 @@ namespace _3K.Infrastructure.Services
             return MapRecurring(entity);
         }
 
-        public async Task<FinansDuzenliIsModel?> DuzenliIsGuncelleAsync(
+        public Task<FinansDuzenliIsModel?> DuzenliIsGuncelleAsync(
+            int id,
+            FinansDuzenliIsKaydetModel model,
+            CancellationToken cancellationToken)
+            => ExecuteAtomicAsync(() => DuzenliIsGuncelleCoreAsync(id, model, cancellationToken), cancellationToken);
+
+        private async Task<FinansDuzenliIsModel?> DuzenliIsGuncelleCoreAsync(
             int id,
             FinansDuzenliIsKaydetModel model,
             CancellationToken cancellationToken)
@@ -91,52 +97,77 @@ namespace _3K.Infrastructure.Services
             return MapRecurring(entity);
         }
 
-        public Task<FinansDonemOlusturSonucModel> DuzenliIsDonemiOlusturAsync(DateTime referansTarihi, CancellationToken cancellationToken)
-            => ExecuteAtomicAsync(async () =>
+        /// <summary>
+        /// Aktif düzenli işlerin referans tarihine kadarki dönem kayıtlarını üretir. Her şablon kendi
+        /// transaction'ında işlenir: iş kuralına takılan şablon (ör. çakışan tarife) atlanıp sonuçta
+        /// raporlanır, diğer şablonların üretimini engellemez. Aynı dönem anahtarı iki kez üretilmez.
+        /// </summary>
+        public async Task<FinansDonemOlusturSonucModel> DuzenliIsDonemiOlusturAsync(DateTime referansTarihi, CancellationToken cancellationToken)
+        {
+            if (!FinansTarihKurallari.GecerliTarih(referansTarihi)) throw IsKuraliException.Cakisma("Geçerli referans tarihi girin.");
+            var templates = await _context.Set<FinansDuzenliIs>().AsNoTracking().Include(x => x.Proje).Include(x => x.FinansUrun)
+                .Where(x => x.Aktif && x.BaslangicTarihi <= referansTarihi.Date).OrderBy(x => x.Id).ToListAsync(cancellationToken);
+            var created = 0;
+            var hatalar = new List<string>();
+            foreach (var template in templates)
             {
-                if (!FinansTarihKurallari.GecerliTarih(referansTarihi)) throw IsKuraliException.Cakisma("Geçerli referans tarihi girin.");
-                var templates = await _context.Set<FinansDuzenliIs>().AsNoTracking().Include(x => x.Proje).Include(x => x.FinansUrun)
-                    .Where(x => x.Aktif && x.BaslangicTarihi <= referansTarihi.Date).OrderBy(x => x.Id).ToListAsync(cancellationToken);
-                var created = 0;
-                foreach (var template in templates)
+                try
                 {
-                    var final = template.BitisTarihi.HasValue && template.BitisTarihi.Value < referansTarihi ? template.BitisTarihi.Value : referansTarihi;
-                    foreach (var due in DuzenliIsTarihleri(template.BaslangicTarihi, final, template.OlusturmaGunu))
-                    {
-                        cancellationToken.ThrowIfCancellationRequested();
-                        var period = FirstDayOfMonth(due);
-                        var sourceId = $"{template.Id}:{period:yyyyMM}";
-                        if (await _context.Set<FinansIsKaydi>().AnyAsync(x => x.KaynakTuru == "DuzenliIs" && x.KaynakKayitId == sourceId, cancellationToken) ||
-                            await _context.Set<FinansKaynakBastirma>().AnyAsync(x => x.KaynakTuru == "DuzenliIs" && x.KaynakKayitId == sourceId, cancellationToken))
-                            continue;
-                        var product = template.FinansUrun;
-                        var pricing = product?.FiyatlandirmaBirimi ?? (template.HesaplamaYontemi is FinansHesaplamaYontemi.SabitAylik or FinansHesaplamaYontemi.DegiskenTutar
-                            ? FinansFiyatlandirmaBirimi.SabitTutar : template.HesaplamaYontemi == FinansHesaplamaYontemi.Metrekup ? FinansFiyatlandirmaBirimi.Metrekup : FinansFiyatlandirmaBirimi.Adet);
-                        var quantity = FinansMiktarKurallari.DuzenliIsMiktari(pricing, template.Miktar);
-                        var tariff = product is null ? null : await FindTariffAsync(product.Id, due, cancellationToken);
-                        var work = new FinansIsKaydi
-                        {
-                            ProjeId = template.ProjeId, ProjeNo = template.Proje?.ProjeNo ?? template.ManuelProjeNo ?? "BAĞIMSIZ",
-                            Musteri = template.Proje?.Musteri ?? template.ManuelProjeAdi ?? template.Musteri, ManuelProjeMi = !template.ProjeId.HasValue,
-                            IsTuru = template.IsTuru, IsAdi = template.IsAdi, OzelIsTuru = template.OzelIsTuru, HesaplamaYontemi = template.HesaplamaYontemi,
-                            RaporGrubu = template.RaporGrubu, Aciklama = template.Aciklama, Adet = quantity.Adet,
-                            Birim = pricing == FinansFiyatlandirmaBirimi.Metrekup ? "m³" : template.Birim,
-                            BirimM3 = quantity.M3, ToplamM3 = quantity.M3, FinansUrunId = template.FinansUrunId,
-                            UretimTarihi = due, FinansTarihi = due, FinansDonemi = period, KayitTarihi = TurkeyTime.Now,
-                            KaynakTuru = "DuzenliIs", KaynakKayitId = sourceId, KaynakAktif = true, DuzenliIsId = template.Id,
-                            FiyatlandirmaBirimiSnapshot = pricing, BirimFiyatSnapshot = tariff?.BirimFiyat ?? template.BirimFiyat,
-                            ParaBirimiSnapshot = tariff?.ParaBirimi ?? template.ParaBirimi, KdvOraniSnapshot = tariff?.KdvOrani ?? template.KdvOrani,
-                            TarifeYiliSnapshot = tariff?.Yil, TarifeIdSnapshot = tariff?.Id
-                        };
-                        _context.Add(work);
-                        await _context.SaveChangesAsync(cancellationToken);
-                        AddAudit(nameof(FinansIsKaydi), work.Id, "Dönem Oluşturma", "*", null, sourceId);
-                        created++;
-                    }
+                    created += await ExecuteAtomicAsync(
+                        () => DuzenliIsDonemleriniOlusturAsync(template, referansTarihi, cancellationToken), cancellationToken);
                 }
+                catch (IsKuraliException exception)
+                {
+                    // Geri alınan şablonun izlenen kayıtları sonraki şablonun kaydına karışmasın.
+                    _context.ChangeTracker.Clear();
+                    hatalar.Add($"#{template.Id} {template.IsAdi}: {exception.Message}");
+                }
+            }
+            return new FinansDonemOlusturSonucModel(templates.Count, created, referansTarihi) { Hatalar = hatalar };
+        }
+
+        private async Task<int> DuzenliIsDonemleriniOlusturAsync(
+            FinansDuzenliIs template,
+            DateTime referansTarihi,
+            CancellationToken cancellationToken)
+        {
+            var created = 0;
+            var final = template.BitisTarihi.HasValue && template.BitisTarihi.Value < referansTarihi ? template.BitisTarihi.Value : referansTarihi;
+            foreach (var due in DuzenliIsTarihleri(template.BaslangicTarihi, final, template.OlusturmaGunu))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var period = FirstDayOfMonth(due);
+                var sourceId = $"{template.Id}:{period:yyyyMM}";
+                if (await _context.Set<FinansIsKaydi>().AnyAsync(x => x.KaynakTuru == "DuzenliIs" && x.KaynakKayitId == sourceId, cancellationToken) ||
+                    await _context.Set<FinansKaynakBastirma>().AnyAsync(x => x.KaynakTuru == "DuzenliIs" && x.KaynakKayitId == sourceId, cancellationToken))
+                    continue;
+                var product = template.FinansUrun;
+                var pricing = product?.FiyatlandirmaBirimi ?? (template.HesaplamaYontemi is FinansHesaplamaYontemi.SabitAylik or FinansHesaplamaYontemi.DegiskenTutar
+                    ? FinansFiyatlandirmaBirimi.SabitTutar : template.HesaplamaYontemi == FinansHesaplamaYontemi.Metrekup ? FinansFiyatlandirmaBirimi.Metrekup : FinansFiyatlandirmaBirimi.Adet);
+                var quantity = FinansMiktarKurallari.DuzenliIsMiktari(pricing, template.Miktar);
+                var tariff = product is null ? null : await FindTariffAsync(product.Id, due, cancellationToken);
+                var work = new FinansIsKaydi
+                {
+                    ProjeId = template.ProjeId, ProjeNo = template.Proje?.ProjeNo ?? template.ManuelProjeNo ?? "BAĞIMSIZ",
+                    Musteri = template.Proje?.Musteri ?? template.ManuelProjeAdi ?? template.Musteri, ManuelProjeMi = !template.ProjeId.HasValue,
+                    IsTuru = template.IsTuru, IsAdi = template.IsAdi, OzelIsTuru = template.OzelIsTuru, HesaplamaYontemi = template.HesaplamaYontemi,
+                    RaporGrubu = template.RaporGrubu, Aciklama = template.Aciklama, Adet = quantity.Adet,
+                    Birim = pricing == FinansFiyatlandirmaBirimi.Metrekup ? "m³" : template.Birim,
+                    BirimM3 = quantity.M3, ToplamM3 = quantity.M3, FinansUrunId = template.FinansUrunId,
+                    UretimTarihi = due, FinansTarihi = due, FinansDonemi = period, KayitTarihi = TurkeyTime.Now,
+                    KaynakTuru = "DuzenliIs", KaynakKayitId = sourceId, KaynakAktif = true, DuzenliIsId = template.Id,
+                    FiyatlandirmaBirimiSnapshot = pricing, BirimFiyatSnapshot = tariff?.BirimFiyat ?? template.BirimFiyat,
+                    ParaBirimiSnapshot = tariff?.ParaBirimi ?? template.ParaBirimi, KdvOraniSnapshot = tariff?.KdvOrani ?? template.KdvOrani,
+                    TarifeYiliSnapshot = tariff?.Yil, TarifeIdSnapshot = tariff?.Id
+                };
+                _context.Add(work);
                 await _context.SaveChangesAsync(cancellationToken);
-                return new FinansDonemOlusturSonucModel(templates.Count, created, referansTarihi);
-            }, cancellationToken);
+                AddAudit(nameof(FinansIsKaydi), work.Id, "Dönem Oluşturma", "*", null, sourceId);
+                created++;
+            }
+            await _context.SaveChangesAsync(cancellationToken);
+            return created;
+        }
 
         internal static IReadOnlyList<DateTime> DuzenliIsTarihleri(DateTime start, DateTime end, int day)
         {
@@ -256,7 +287,10 @@ namespace _3K.Infrastructure.Services
             return await GetExpenseAsync(entity.Id, cancellationToken);
         }
 
-        public async Task<FinansGiderModel?> GiderGuncelleAsync(int id, FinansGiderKaydetModel model, CancellationToken cancellationToken)
+        public Task<FinansGiderModel?> GiderGuncelleAsync(int id, FinansGiderKaydetModel model, CancellationToken cancellationToken)
+            => ExecuteAtomicAsync(() => GiderGuncelleCoreAsync(id, model, cancellationToken), cancellationToken);
+
+        private async Task<FinansGiderModel?> GiderGuncelleCoreAsync(int id, FinansGiderKaydetModel model, CancellationToken cancellationToken)
         {
             var entity = await _context.Set<FinansGider>().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
             if (entity is null) return null;
@@ -269,7 +303,10 @@ namespace _3K.Infrastructure.Services
             return await GetExpenseAsync(id, cancellationToken);
         }
 
-        public async Task<bool> GiderIptalAsync(int id, string aciklama, CancellationToken cancellationToken)
+        public Task<bool> GiderIptalAsync(int id, string aciklama, CancellationToken cancellationToken)
+            => ExecuteAtomicAsync(() => GiderIptalCoreAsync(id, aciklama, cancellationToken), cancellationToken);
+
+        private async Task<bool> GiderIptalCoreAsync(int id, string aciklama, CancellationToken cancellationToken)
         {
             Gerekce(aciklama);
             var entity = await _context.Set<FinansGider>().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);

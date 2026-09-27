@@ -485,7 +485,11 @@ namespace _3K.Core.Models
         public bool Aktif { get; init; }
     }
 
-    public sealed record FinansDonemOlusturSonucModel(int Taranan, int Olusturulan, DateTime ReferansTarihi);
+    public sealed record FinansDonemOlusturSonucModel(int Taranan, int Olusturulan, DateTime ReferansTarihi)
+    {
+        /// <summary>İş kuralına takıldığı için bu turda üretilemeyen şablonlar ("#id ad: neden").</summary>
+        public IReadOnlyList<string> Hatalar { get; init; } = [];
+    }
 
     public sealed record FinansGiderKaydetModel(
         DateTime Tarih,

@@ -453,16 +453,11 @@ public sealed class FinansV2PostgresTests
                 await db.Database.OpenConnectionAsync(Ct);
                 if (Interlocked.Increment(ref ready) == 2) gate.SetResult();
                 await gate.Task;
-                try { return (await Service(db).DuzenliIsDonemiOlusturAsync(new(2026, 5, 31), Ct)).Olusturulan; }
-                catch (IsKuraliException exception)
-                {
-                    // Serializable/unique yarışındaki kaybeden worker sonraki turda yakalar.
-                    var cause = exception.InnerException;
-                    while (cause is not null && cause is not PostgresException) cause = cause.InnerException;
-                    Assert.True(cause is PostgresException { SqlState: PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.UniqueViolation });
-                    db.ChangeTracker.Clear();
-                    return (await Service(db).DuzenliIsDonemiOlusturAsync(new(2026, 5, 31), Ct)).Olusturulan;
-                }
+                var sonuc = await Service(db).DuzenliIsDonemiOlusturAsync(new(2026, 5, 31), Ct);
+                if (sonuc.Hatalar.Count == 0) return sonuc.Olusturulan;
+                // Serializable/unique yarışını kaybeden şablon hata olarak raporlanır; sonraki tur tamamlar.
+                Assert.All(sonuc.Hatalar, hata => Assert.True(hata.Contains("değiştirildi") || hata.Contains("benzersiz"), hata));
+                return sonuc.Olusturulan + (await Service(db).DuzenliIsDonemiOlusturAsync(new(2026, 5, 31), Ct)).Olusturulan;
             }
             Assert.Equal(5, (await Task.WhenAll(Worker(), Worker())).Sum());
             await using var verify = new AppDbContext(options); var service = Service(verify);

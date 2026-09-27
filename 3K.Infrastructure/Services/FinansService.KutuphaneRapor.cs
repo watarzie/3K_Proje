@@ -1,6 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
-using System.Data;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Helpers;
@@ -175,7 +173,10 @@ namespace _3K.Infrastructure.Services
             DateTime tariffDate)
             => WithProductPageDetails(query.Where(x => x.Id == id), tariffDate);
 
-        public async Task<bool> UrunPasiflestirAsync(int id, CancellationToken cancellationToken)
+        public Task<bool> UrunPasiflestirAsync(int id, CancellationToken cancellationToken)
+            => ExecuteAtomicAsync(() => UrunPasiflestirCoreAsync(id, cancellationToken), cancellationToken);
+
+        private async Task<bool> UrunPasiflestirCoreAsync(int id, CancellationToken cancellationToken)
         {
             var entity = await _context.Set<FinansUrun>().Include(x => x.Eslesmeler)
                 .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
@@ -279,48 +280,32 @@ namespace _3K.Infrastructure.Services
             };
         }
 
+        /// <summary>Ürün kayıt işlemlerinin transaction'ı içinde, fiyatsız ve siparişsiz işleri yeniden fiyatlar.</summary>
         private async Task BackfillUnpricedWorksAsync(CancellationToken cancellationToken)
         {
-            IDbContextTransaction? transaction = null;
-            if (_context.Database.CurrentTransaction is null)
-                transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
-            try
+            var works = await IsKaydiDetayQuery(true)
+                .Where(x => x.KaynakAktif && !x.IptalEdildi &&
+                            x.BirimFiyatSnapshot <= 0 && !x.TarifeYiliSnapshot.HasValue &&
+                            !x.SiparisKalemleri.Any())
+                .OrderBy(x => x.Id)
+                .ToListAsync(cancellationToken);
+            foreach (var work in works)
             {
-                var works = await IsKaydiDetayQuery(true)
-                    .Where(x => x.KaynakAktif && !x.IptalEdildi &&
-                                x.BirimFiyatSnapshot <= 0 && !x.TarifeYiliSnapshot.HasValue &&
-                                !x.SiparisKalemleri.Any())
-                    .OrderBy(x => x.Id)
-                    .ToListAsync(cancellationToken);
-                foreach (var work in works)
-                {
-                    var oldProduct = work.FinansUrunId;
-                    var oldUnit = work.FiyatlandirmaBirimiSnapshot;
-                    var oldPrice = work.BirimFiyatSnapshot;
-                    var oldCurrency = work.ParaBirimiSnapshot;
-                    var oldVat = work.KdvOraniSnapshot;
-                    var oldYear = work.TarifeYiliSnapshot;
-                    await TryApplyAutomaticPriceAsync(work, cancellationToken);
-                    AddChangedAudit(nameof(FinansIsKaydi), work.Id, nameof(work.FinansUrunId), oldProduct, work.FinansUrunId);
-                    AddChangedAudit(nameof(FinansIsKaydi), work.Id, nameof(work.FiyatlandirmaBirimiSnapshot), oldUnit, work.FiyatlandirmaBirimiSnapshot);
-                    AddChangedAudit(nameof(FinansIsKaydi), work.Id, nameof(work.BirimFiyatSnapshot), oldPrice, work.BirimFiyatSnapshot);
-                    AddChangedAudit(nameof(FinansIsKaydi), work.Id, nameof(work.ParaBirimiSnapshot), oldCurrency, work.ParaBirimiSnapshot);
-                    AddChangedAudit(nameof(FinansIsKaydi), work.Id, nameof(work.KdvOraniSnapshot), oldVat, work.KdvOraniSnapshot);
-                    AddChangedAudit(nameof(FinansIsKaydi), work.Id, nameof(work.TarifeYiliSnapshot), oldYear, work.TarifeYiliSnapshot);
-                }
-                await _context.SaveChangesAsync(cancellationToken);
-                if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+                var oldProduct = work.FinansUrunId;
+                var oldUnit = work.FiyatlandirmaBirimiSnapshot;
+                var oldPrice = work.BirimFiyatSnapshot;
+                var oldCurrency = work.ParaBirimiSnapshot;
+                var oldVat = work.KdvOraniSnapshot;
+                var oldYear = work.TarifeYiliSnapshot;
+                await TryApplyAutomaticPriceAsync(work, cancellationToken);
+                AddChangedAudit(nameof(FinansIsKaydi), work.Id, nameof(work.FinansUrunId), oldProduct, work.FinansUrunId);
+                AddChangedAudit(nameof(FinansIsKaydi), work.Id, nameof(work.FiyatlandirmaBirimiSnapshot), oldUnit, work.FiyatlandirmaBirimiSnapshot);
+                AddChangedAudit(nameof(FinansIsKaydi), work.Id, nameof(work.BirimFiyatSnapshot), oldPrice, work.BirimFiyatSnapshot);
+                AddChangedAudit(nameof(FinansIsKaydi), work.Id, nameof(work.ParaBirimiSnapshot), oldCurrency, work.ParaBirimiSnapshot);
+                AddChangedAudit(nameof(FinansIsKaydi), work.Id, nameof(work.KdvOraniSnapshot), oldVat, work.KdvOraniSnapshot);
+                AddChangedAudit(nameof(FinansIsKaydi), work.Id, nameof(work.TarifeYiliSnapshot), oldYear, work.TarifeYiliSnapshot);
             }
-            catch (Exception exception)
-            {
-                if (transaction is not null) await transaction.RollbackAsync(cancellationToken);
-                ThrowIfPersistenceConflict(exception);
-                throw;
-            }
-            finally
-            {
-                if (transaction is not null) await transaction.DisposeAsync();
-            }
+            await _context.SaveChangesAsync(cancellationToken);
         }
 
         public async Task<FinansRaporModel> RaporVerisiAsync(FinansListeFiltre filtre, CancellationToken cancellationToken)

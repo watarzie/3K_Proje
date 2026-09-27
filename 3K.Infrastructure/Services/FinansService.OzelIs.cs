@@ -7,7 +7,13 @@ namespace _3K.Infrastructure.Services
 {
     public sealed partial class FinansService
     {
-        public async Task<bool> OzelIsAylikDegerGuncelleAsync(
+        public Task<bool> OzelIsAylikDegerGuncelleAsync(
+            int id,
+            FinansAylikDegerModel model,
+            CancellationToken cancellationToken)
+            => ExecuteAtomicAsync(() => OzelIsAylikDegerGuncelleCoreAsync(id, model, cancellationToken), cancellationToken);
+
+        private async Task<bool> OzelIsAylikDegerGuncelleCoreAsync(
             int id,
             FinansAylikDegerModel model,
             CancellationToken cancellationToken)

@@ -63,7 +63,7 @@ namespace _3K.Infrastructure.Services
             catch (Exception exception)
             {
                 if (ownedTransaction is not null)
-                    await ownedTransaction.RollbackAsync(cancellationToken);
+                    await RollbackQuietlyAsync(ownedTransaction);
 
                 ThrowIfPersistenceConflict(exception);
                 throw;
@@ -72,6 +72,22 @@ namespace _3K.Infrastructure.Services
             {
                 if (ownedTransaction is not null)
                     await ownedTransaction.DisposeAsync();
+            }
+        }
+
+        /// <summary>
+        /// Başarısız commit sonrası transaction zaten kapanmış olabilir; geri alma hatası asıl hatanın
+        /// (409'a çevrilecek çakışma dahil) yerine geçmemelidir. İptal edilmiş istekte de geri alınır.
+        /// </summary>
+        private static async Task RollbackQuietlyAsync(IDbContextTransaction transaction)
+        {
+            try
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+            }
+            catch (Exception)
+            {
+                // Bağlantı veya transaction kapanmışsa PostgreSQL işlemi zaten geri almıştır.
             }
         }
 

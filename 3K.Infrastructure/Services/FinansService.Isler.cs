@@ -1,6 +1,4 @@
-using System.Data;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Helpers;
@@ -176,7 +174,10 @@ namespace _3K.Infrastructure.Services
             return (await IsKaydiGetirAsync(entity.Id, cancellationToken))!;
         }
 
-        public async Task<bool> IsKaydiIptalAsync(int id, string aciklama, CancellationToken cancellationToken)
+        public Task<bool> IsKaydiIptalAsync(int id, string aciklama, CancellationToken cancellationToken)
+            => ExecuteAtomicAsync(() => IsKaydiIptalCoreAsync(id, aciklama, cancellationToken), cancellationToken);
+
+        private async Task<bool> IsKaydiIptalCoreAsync(int id, string aciklama, CancellationToken cancellationToken)
         {
             Gerekce(aciklama);
             var entity = await IsKaydiDetayQuery(true).FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
@@ -193,7 +194,10 @@ namespace _3K.Infrastructure.Services
             return true;
         }
 
-        public async Task<bool> IsKaydiGeriAlAsync(int id, CancellationToken cancellationToken)
+        public Task<bool> IsKaydiGeriAlAsync(int id, CancellationToken cancellationToken)
+            => ExecuteAtomicAsync(() => IsKaydiGeriAlCoreAsync(id, cancellationToken), cancellationToken);
+
+        private async Task<bool> IsKaydiGeriAlCoreAsync(int id, CancellationToken cancellationToken)
         {
             var entity = await IsKaydiDetayQuery(true).FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
             if (entity is null) return false;
@@ -225,133 +229,124 @@ namespace _3K.Infrastructure.Services
             if (duplicate is not null)
                 throw IsKuraliException.Cakisma("Aynı aktarım paketinde yinelenen üretim kaynak anahtarı bulunuyor.");
 
-            IDbContextTransaction? transaction = null;
-            if (_context.Database.CurrentTransaction is null)
-                transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
-            try
+            return await ExecuteAtomicAsync(
+                () => UretimKayitlariniAktarCoreAsync(modeller, cancellationToken), cancellationToken);
+        }
+
+        private async Task<FinansSenkronizasyonSonucModel> UretimKayitlariniAktarCoreAsync(
+            IReadOnlyList<FinansUretimAktarimModel> modeller,
+            CancellationToken cancellationToken)
+        {
+            var created = 0;
+            var updated = 0;
+            var deactivated = 0;
+            foreach (var model in modeller)
             {
-                var created = 0;
-                var updated = 0;
-                var deactivated = 0;
-                foreach (var model in modeller)
+                var sourceType = model.KaynakTuru.Trim().ToUpperInvariant();
+                var sourceId = model.KaynakKayitId.Trim();
+                var component = model.KaynakBileseni.Trim().ToUpperInvariant();
+                if (sourceType.Length == 0 || sourceId.Length == 0)
+                    throw IsKuraliException.Cakisma("Üretim aktarımında kaynak türü ve kaynak kayıt kimliği zorunludur.");
+
+                var entity = await IsKaydiDetayQuery(true).FirstOrDefaultAsync(
+                    x => x.KaynakTuru == sourceType && x.KaynakKayitId == sourceId && x.KaynakBileseni == component,
+                    cancellationToken);
+                if (entity is null)
                 {
-                    var sourceType = model.KaynakTuru.Trim().ToUpperInvariant();
-                    var sourceId = model.KaynakKayitId.Trim();
-                    var component = model.KaynakBileseni.Trim().ToUpperInvariant();
-                    if (sourceType.Length == 0 || sourceId.Length == 0)
-                        throw IsKuraliException.Cakisma("Üretim aktarımında kaynak türü ve kaynak kayıt kimliği zorunludur.");
-
-                    var entity = await IsKaydiDetayQuery(true).FirstOrDefaultAsync(
-                        x => x.KaynakTuru == sourceType && x.KaynakKayitId == sourceId && x.KaynakBileseni == component,
-                        cancellationToken);
-                    if (entity is null)
+                    if (await _context.Set<FinansKaynakBastirma>().AnyAsync(x => x.KaynakTuru == sourceType && x.KaynakKayitId == sourceId && x.KaynakBileseni == component, cancellationToken))
+                        continue;
+                    // Üretime hiç alınmamış/pasif bir kaynak Finans'ta hayalet
+                    // kayıt oluşturmamalı. Daha önce aktarılmış kayıtlarda false
+                    // güncellemesi aşağıdaki mevcut-entity akışında işlenir.
+                    if (!model.KaynakAktif)
+                        continue;
+                    entity = new FinansIsKaydi
                     {
-                        if (await _context.Set<FinansKaynakBastirma>().AnyAsync(x => x.KaynakTuru == sourceType && x.KaynakKayitId == sourceId && x.KaynakBileseni == component, cancellationToken))
-                            continue;
-                        // Üretime hiç alınmamış/pasif bir kaynak Finans'ta hayalet
-                        // kayıt oluşturmamalı. Daha önce aktarılmış kayıtlarda false
-                        // güncellemesi aşağıdaki mevcut-entity akışında işlenir.
-                        if (!model.KaynakAktif)
-                            continue;
-                        entity = new FinansIsKaydi
-                        {
-                            KaynakTuru = sourceType,
-                            KaynakKayitId = sourceId,
-                            KaynakBileseni = component,
-                            KayitTarihi = TurkeyTime.Now
-                        };
-                        ApplyProductionValues(entity, model);
-                        // Üretim verisi her değiştiğinde fiyatı yeniden hesaplamak tarihsel
-                        // snapshot'ı bozar. Yalnız daha önce eşleşmeyen/fiyatlanmayan ve henüz
-                        // siparişe bağlanmayan kayıt, sonradan tanımlanan tarifeyle tamamlanır.
-                        if (entity.BirimFiyatSnapshot <= 0 &&
-                            !entity.TarifeYiliSnapshot.HasValue &&
-                            !entity.SiparisKalemleri.Any(x => !x.FinansSiparis.IptalEdildi))
-                        {
-                            await TryApplyAutomaticPriceAsync(entity, cancellationToken);
-                        }
-                        _context.Set<FinansIsKaydi>().Add(entity);
-                        await _context.SaveChangesAsync(cancellationToken);
-                        AddAudit(nameof(FinansIsKaydi), entity.Id, "Üretim Aktarımı", "*", null, "Kayıt oluşturuldu");
-                        created++;
-                    }
-                    else
+                        KaynakTuru = sourceType,
+                        KaynakKayitId = sourceId,
+                        KaynakBileseni = component,
+                        KayitTarihi = TurkeyTime.Now
+                    };
+                    ApplyProductionValues(entity, model);
+                    // Üretim verisi her değiştiğinde fiyatı yeniden hesaplamak tarihsel
+                    // snapshot'ı bozar. Yalnız daha önce eşleşmeyen/fiyatlanmayan ve henüz
+                    // siparişe bağlanmayan kayıt, sonradan tanımlanan tarifeyle tamamlanır.
+                    if (entity.BirimFiyatSnapshot <= 0 &&
+                        !entity.TarifeYiliSnapshot.HasValue &&
+                        !entity.SiparisKalemleri.Any(x => !x.FinansSiparis.IptalEdildi))
                     {
-                        var auditBefore = CaptureAuditState(entity);
-                        var oldActive = entity.KaynakAktif;
-                        var activeOrderLines = entity.SiparisKalemleri.Where(x => !x.FinansSiparis.IptalEdildi).ToList();
-                        var orderedAdet = activeOrderLines.Sum(x => x.Adet);
-                        var orderedM3 = activeOrderLines.Sum(x => x.M3);
-                        var requestedM3 = decimal.Round(model.Adet * model.BirimM3, 6);
-                        var pricingUnit = activeOrderLines.Select(x => x.FiyatlandirmaBirimiSnapshot).Distinct().Count() == 1
-                            ? activeOrderLines[0].FiyatlandirmaBirimiSnapshot
-                            : entity.FiyatlandirmaBirimiSnapshot;
-                        if (!entity.FinansMiktariManuel && model.KaynakAktif && FinansMiktarKurallari.KapasiteAsiliyor(
-                                pricingUnit,
-                                model.Adet,
-                                requestedM3,
-                                orderedAdet,
-                                orderedM3,
-                                activeOrderLines.Count))
-                            throw IsKuraliException.Cakisma($"{sourceType}/{sourceId} üretim miktarı aktif sipariş miktarının altına düşürülemez.");
-                        // İptal edilmiş olsa bile oluşturulmuş bir PO, fiyat snapshot'ının
-                        // tarihsel olarak kilitlendiği anlamına gelir. Yalnız aktif PO'ya
-                        // bakmak, iptalden sonraki senkronizasyonda eski fiyatı değiştirebilirdi.
-                        var hasFinancialHistory = entity.SiparisKalemleri.Count > 0;
-                        var priceMatchChanged = ProductionPriceMatchChanged(entity, model);
-                        if (model.KaynakAktif && hasFinancialHistory && priceMatchChanged)
-                            throw IsKuraliException.Cakisma(
-                                $"{sourceType}/{sourceId} kaydının tür/eşleşme veya finans dönemi değişikliği mevcut PO fiyat snapshot'ını etkiliyor. " +
-                                "Önce finansal belgeleri uzlaştırın ya da mevcut kaydı koruyun.");
-
-                        ApplyProductionValues(entity, model);
-                        if (model.KaynakAktif && FinansTutarKurallari.SiparisNet(entity) > FinansTutarKurallari.IsNet(entity))
-                            throw IsKuraliException.Cakisma("Kaynak güncellemesi aktif PO net toplamını iş bedelinin üzerine çıkaramaz.");
-                        if (!hasFinancialHistory && !entity.FinansMiktariManuel && priceMatchChanged && entity.BirimFiyatSnapshot <= 0)
-                        {
-                            ResetAutomaticPriceSnapshot(entity);
-                            await TryApplyAutomaticPriceAsync(entity, cancellationToken);
-                        }
-                        else if (entity.BirimFiyatSnapshot <= 0 &&
-                                 !entity.FinansMiktariManuel &&
-                                 !entity.TarifeYiliSnapshot.HasValue &&
-                                 !hasFinancialHistory)
-                        {
-                            await TryApplyAutomaticPriceAsync(entity, cancellationToken);
-                        }
-                        AddAuditChanges(nameof(FinansIsKaydi), entity, auditBefore);
-                        if (oldActive && !entity.KaynakAktif && hasFinancialHistory)
-                        {
-                            AddAudit(
-                                nameof(FinansIsKaydi),
-                                entity.Id,
-                                "Üretim Kaynağı Pasifleştirme",
-                                nameof(entity.KaynakAktif),
-                                true,
-                                false,
-                                "Kayda bağlı PO/fatura geçmişi korundu; üretim iptali finansal belgeleri değiştirmedi.");
-                        }
-                        if (oldActive && !entity.KaynakAktif) deactivated++;
-                        else updated++;
+                        await TryApplyAutomaticPriceAsync(entity, cancellationToken);
                     }
-
-                    entity.Durum = DetermineWorkStatus(entity);
+                    _context.Set<FinansIsKaydi>().Add(entity);
                     await _context.SaveChangesAsync(cancellationToken);
+                    AddAudit(nameof(FinansIsKaydi), entity.Id, "Üretim Aktarımı", "*", null, "Kayıt oluşturuldu");
+                    created++;
+                }
+                else
+                {
+                    var auditBefore = CaptureAuditState(entity);
+                    var oldActive = entity.KaynakAktif;
+                    var activeOrderLines = entity.SiparisKalemleri.Where(x => !x.FinansSiparis.IptalEdildi).ToList();
+                    var orderedAdet = activeOrderLines.Sum(x => x.Adet);
+                    var orderedM3 = activeOrderLines.Sum(x => x.M3);
+                    var requestedM3 = decimal.Round(model.Adet * model.BirimM3, 6);
+                    var pricingUnit = activeOrderLines.Select(x => x.FiyatlandirmaBirimiSnapshot).Distinct().Count() == 1
+                        ? activeOrderLines[0].FiyatlandirmaBirimiSnapshot
+                        : entity.FiyatlandirmaBirimiSnapshot;
+                    if (!entity.FinansMiktariManuel && model.KaynakAktif && FinansMiktarKurallari.KapasiteAsiliyor(
+                            pricingUnit,
+                            model.Adet,
+                            requestedM3,
+                            orderedAdet,
+                            orderedM3,
+                            activeOrderLines.Count))
+                        throw IsKuraliException.Cakisma($"{sourceType}/{sourceId} üretim miktarı aktif sipariş miktarının altına düşürülemez.");
+                    // İptal edilmiş olsa bile oluşturulmuş bir PO, fiyat snapshot'ının
+                    // tarihsel olarak kilitlendiği anlamına gelir. Yalnız aktif PO'ya
+                    // bakmak, iptalden sonraki senkronizasyonda eski fiyatı değiştirebilirdi.
+                    var hasFinancialHistory = entity.SiparisKalemleri.Count > 0;
+                    var priceMatchChanged = ProductionPriceMatchChanged(entity, model);
+                    if (model.KaynakAktif && hasFinancialHistory && priceMatchChanged)
+                        throw IsKuraliException.Cakisma(
+                            $"{sourceType}/{sourceId} kaydının tür/eşleşme veya finans dönemi değişikliği mevcut PO fiyat snapshot'ını etkiliyor. " +
+                            "Önce finansal belgeleri uzlaştırın ya da mevcut kaydı koruyun.");
+
+                    ApplyProductionValues(entity, model);
+                    if (model.KaynakAktif && FinansTutarKurallari.SiparisNet(entity) > FinansTutarKurallari.IsNet(entity))
+                        throw IsKuraliException.Cakisma("Kaynak güncellemesi aktif PO net toplamını iş bedelinin üzerine çıkaramaz.");
+                    if (!hasFinancialHistory && !entity.FinansMiktariManuel && priceMatchChanged && entity.BirimFiyatSnapshot <= 0)
+                    {
+                        ResetAutomaticPriceSnapshot(entity);
+                        await TryApplyAutomaticPriceAsync(entity, cancellationToken);
+                    }
+                    else if (entity.BirimFiyatSnapshot <= 0 &&
+                             !entity.FinansMiktariManuel &&
+                             !entity.TarifeYiliSnapshot.HasValue &&
+                             !hasFinancialHistory)
+                    {
+                        await TryApplyAutomaticPriceAsync(entity, cancellationToken);
+                    }
+                    AddAuditChanges(nameof(FinansIsKaydi), entity, auditBefore);
+                    if (oldActive && !entity.KaynakAktif && hasFinancialHistory)
+                    {
+                        AddAudit(
+                            nameof(FinansIsKaydi),
+                            entity.Id,
+                            "Üretim Kaynağı Pasifleştirme",
+                            nameof(entity.KaynakAktif),
+                            true,
+                            false,
+                            "Kayda bağlı PO/fatura geçmişi korundu; üretim iptali finansal belgeleri değiştirmedi.");
+                    }
+                    if (oldActive && !entity.KaynakAktif) deactivated++;
+                    else updated++;
                 }
 
-                if (transaction is not null) await transaction.CommitAsync(cancellationToken);
-                return new FinansSenkronizasyonSonucModel(created, updated, deactivated);
+                entity.Durum = DetermineWorkStatus(entity);
+                await _context.SaveChangesAsync(cancellationToken);
             }
-            catch (Exception exception)
-            {
-                if (transaction is not null) await transaction.RollbackAsync(cancellationToken);
-                ThrowIfPersistenceConflict(exception);
-                throw;
-            }
-            finally
-            {
-                if (transaction is not null) await transaction.DisposeAsync();
-            }
+
+            return new FinansSenkronizasyonSonucModel(created, updated, deactivated);
         }
 
         private static void ApplyProductionValues(FinansIsKaydi entity, FinansUretimAktarimModel model)
