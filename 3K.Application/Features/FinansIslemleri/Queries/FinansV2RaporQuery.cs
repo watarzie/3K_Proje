@@ -20,12 +20,14 @@ public sealed class FinansV2RaporQuery : FinansQuery<DosyaIcerigi>
 public sealed class FinansV2RaporQueryHandler(IFinansRaporService service) : IRequestHandler<FinansV2RaporQuery, Result<DosyaIcerigi>>
 {
     public Task<Result<DosyaIcerigi>> Handle(FinansV2RaporQuery request, CancellationToken cancellationToken)
-        => FinansHandlerHelper.ExecuteAsync(async () =>
-        {
-            var format = request.Format.ToLowerInvariant();
-            if (format is not ("pdf" or "xlsx" or "excel")) throw new InvalidOperationException("Geçerli rapor formatı pdf veya xlsx olmalıdır.");
-            var excel = format != "pdf";
-            var bytes = await service.OzetRaporAsync(request.Tur, excel, request.Filtre, cancellationToken);
-            return new DosyaIcerigi(bytes, excel ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "application/pdf", $"finans-{request.Tur}.{(excel ? "xlsx" : "pdf")}");
-        });
+    {
+        var format = request.Format.ToLowerInvariant();
+        if (format is not ("pdf" or "xlsx" or "excel"))
+            return Task.FromResult(Result<DosyaIcerigi>.Failure("Geçerli rapor formatı pdf veya xlsx olmalıdır.", 400));
+        var excel = format != "pdf";
+        return FinansHandlerHelper.ExecuteAsync(async () => new DosyaIcerigi(
+            await service.OzetRaporAsync(request.Tur, excel, request.Filtre, cancellationToken),
+            excel ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "application/pdf",
+            $"finans-{request.Tur}.{(excel ? "xlsx" : "pdf")}"));
+    }
 }

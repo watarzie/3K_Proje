@@ -1,6 +1,5 @@
 using MediatR;
 using _3K.Application.Common;
-using _3K.Application.Features.FinansIslemleri.DTOs;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
 
@@ -28,73 +27,62 @@ namespace _3K.Application.Features.FinansIslemleri.Queries
 
         public FinansQueryHandlers(IFinansService service) => _service = service;
 
-        public async Task<Result<FinansSayfaliSonuc<FinansProjeSecenekModel>>> Handle(FinansProjeSecenekleriQuery request, CancellationToken cancellationToken)
-            => Result<FinansSayfaliSonuc<FinansProjeSecenekModel>>.Success(
-                await _service.ProjeSecenekleriAsync(request.Arama, request.PageNumber, request.PageSize, cancellationToken));
+        public Task<Result<FinansSayfaliSonuc<FinansProjeSecenekModel>>> Handle(FinansProjeSecenekleriQuery request, CancellationToken cancellationToken)
+            => FinansHandlerHelper.ExecuteAsync(() =>
+                _service.ProjeSecenekleriAsync(request.Arama, request.PageNumber, request.PageSize, cancellationToken));
 
-        public async Task<Result<IReadOnlyList<FinansIsKaydiModel>>> Handle(FinansIsKayitlariSecimQuery request, CancellationToken cancellationToken)
-            => Result<IReadOnlyList<FinansIsKaydiModel>>.Success(
-                await _service.IsKayitlariSecimAsync(request.Ids, cancellationToken));
+        public Task<Result<IReadOnlyList<FinansIsKaydiModel>>> Handle(FinansIsKayitlariSecimQuery request, CancellationToken cancellationToken)
+            => FinansHandlerHelper.ExecuteAsync(() => _service.IsKayitlariSecimAsync(request.Ids, cancellationToken));
 
-        public async Task<Result<FinansIsKaydiModel>> Handle(FinansIsKaydiGetirQuery request, CancellationToken cancellationToken)
-        {
-            var value = await _service.IsKaydiGetirAsync(request.Id, cancellationToken);
-            return value is null ? FinansHandlerHelper.NotFound<FinansIsKaydiModel>("Finans iş kaydı bulunamadı.") : Result<FinansIsKaydiModel>.Success(value);
-        }
+        public Task<Result<FinansIsKaydiModel>> Handle(FinansIsKaydiGetirQuery request, CancellationToken cancellationToken)
+            => FinansHandlerHelper.ExecuteOptionalAsync(
+                () => _service.IsKaydiGetirAsync(request.Id, cancellationToken), "Finans iş kaydı bulunamadı.");
 
-        public async Task<Result<FinansSayfaliSonuc<FinansSiparisModel>>> Handle(FinansSiparislerQuery request, CancellationToken cancellationToken)
-            => Result<FinansSayfaliSonuc<FinansSiparisModel>>.Success(await _service.SiparislerAsync(request.Filtre, cancellationToken));
+        public Task<Result<FinansSayfaliSonuc<FinansSiparisModel>>> Handle(FinansSiparislerQuery request, CancellationToken cancellationToken)
+            => FinansHandlerHelper.ExecuteAsync(() => _service.SiparislerAsync(request.Filtre, cancellationToken));
 
-        public async Task<Result<FinansSiparisModel>> Handle(FinansSiparisGetirQuery request, CancellationToken cancellationToken)
-        {
-            var value = await _service.SiparisGetirAsync(request.Id, cancellationToken);
-            return value is null ? FinansHandlerHelper.NotFound<FinansSiparisModel>("Sipariş bulunamadı.") : Result<FinansSiparisModel>.Success(value);
-        }
+        public Task<Result<FinansSiparisModel>> Handle(FinansSiparisGetirQuery request, CancellationToken cancellationToken)
+            => FinansHandlerHelper.ExecuteOptionalAsync(
+                () => _service.SiparisGetirAsync(request.Id, cancellationToken), "Sipariş bulunamadı.");
 
-        public async Task<Result<FinansSayfaliSonuc<FinansFaturaModel>>> Handle(FinansFaturalarQuery request, CancellationToken cancellationToken)
-            => Result<FinansSayfaliSonuc<FinansFaturaModel>>.Success(await _service.FaturalarAsync(request.Filtre, cancellationToken));
+        public Task<Result<FinansSayfaliSonuc<FinansFaturaModel>>> Handle(FinansFaturalarQuery request, CancellationToken cancellationToken)
+            => FinansHandlerHelper.ExecuteAsync(() => _service.FaturalarAsync(request.Filtre, cancellationToken));
 
-        public async Task<Result<FinansFaturaModel>> Handle(FinansFaturaGetirQuery request, CancellationToken cancellationToken)
-        {
-            var value = await _service.FaturaGetirAsync(request.Id, cancellationToken);
-            return value is null ? FinansHandlerHelper.NotFound<FinansFaturaModel>("Fatura bulunamadı.") : Result<FinansFaturaModel>.Success(value);
-        }
+        public Task<Result<FinansFaturaModel>> Handle(FinansFaturaGetirQuery request, CancellationToken cancellationToken)
+            => FinansHandlerHelper.ExecuteOptionalAsync(
+                () => _service.FaturaGetirAsync(request.Id, cancellationToken), "Fatura bulunamadı.");
 
-        public async Task<Result<FinansSayfaliSonuc<FinansDuzenliIsModel>>> Handle(FinansDuzenliIslerQuery request, CancellationToken cancellationToken)
-            => Result<FinansSayfaliSonuc<FinansDuzenliIsModel>>.Success(
-                await _service.DuzenliIslerSayfaliAsync(
-                    request.SadeceAktif, request.Arama, request.PageNumber, request.PageSize, cancellationToken));
+        public Task<Result<FinansSayfaliSonuc<FinansDuzenliIsModel>>> Handle(FinansDuzenliIslerQuery request, CancellationToken cancellationToken)
+            => FinansHandlerHelper.ExecuteAsync(() => _service.DuzenliIslerSayfaliAsync(
+                request.SadeceAktif, request.Arama, request.PageNumber, request.PageSize, cancellationToken));
 
-        public async Task<Result<FinansAylikSayfaliSonuc>> Handle(FinansAylikIslerQuery request, CancellationToken cancellationToken)
-        {
-            if (request.Yil is < 2000 or > 2100 || request.Ay is < 1 or > 12)
-                return Result<FinansAylikSayfaliSonuc>.Failure("Geçerli bir yıl ve ay seçilmelidir.");
-            return Result<FinansAylikSayfaliSonuc>.Success(
-                await _service.AylikOzetSayfaliAsync(request.Yil, request.Ay, request.Filtre, cancellationToken));
-        }
+        public Task<Result<FinansAylikSayfaliSonuc>> Handle(FinansAylikIslerQuery request, CancellationToken cancellationToken)
+            => FinansHandlerHelper.ExecuteAsync(() =>
+                _service.AylikOzetSayfaliAsync(request.Yil, request.Ay, request.Filtre, cancellationToken));
 
-        public async Task<Result<FinansSayfaliSonuc<FinansGiderModel>>> Handle(FinansGiderlerQuery request, CancellationToken cancellationToken)
-            => Result<FinansSayfaliSonuc<FinansGiderModel>>.Success(await _service.GiderlerAsync(request.Filtre, cancellationToken));
+        public Task<Result<FinansSayfaliSonuc<FinansGiderModel>>> Handle(FinansGiderlerQuery request, CancellationToken cancellationToken)
+            => FinansHandlerHelper.ExecuteAsync(() => _service.GiderlerAsync(request.Filtre, cancellationToken));
 
-        public async Task<Result<IReadOnlyList<FinansGiderKategoriModel>>> Handle(FinansGiderKategorileriQuery request, CancellationToken cancellationToken)
-            => Result<IReadOnlyList<FinansGiderKategoriModel>>.Success(await _service.GiderKategorileriAsync(request.SadeceAktif, cancellationToken));
+        public Task<Result<IReadOnlyList<FinansGiderKategoriModel>>> Handle(FinansGiderKategorileriQuery request, CancellationToken cancellationToken)
+            => FinansHandlerHelper.ExecuteAsync(() => _service.GiderKategorileriAsync(request.SadeceAktif, cancellationToken));
 
-        public async Task<Result<IReadOnlyList<FinansGiderKalemiModel>>> Handle(FinansGiderKalemleriQuery request, CancellationToken cancellationToken)
-            => Result<IReadOnlyList<FinansGiderKalemiModel>>.Success(await _service.GiderKalemleriAsync(request.KategoriId, request.SadeceAktif, cancellationToken));
+        public Task<Result<IReadOnlyList<FinansGiderKalemiModel>>> Handle(FinansGiderKalemleriQuery request, CancellationToken cancellationToken)
+            => FinansHandlerHelper.ExecuteAsync(() =>
+                _service.GiderKalemleriAsync(request.KategoriId, request.SadeceAktif, cancellationToken));
 
-        public async Task<Result<IReadOnlyList<FinansGiderKategoriModel>>> Handle(FinansGiderKutuphaneKategorileriQuery request, CancellationToken cancellationToken)
-            => Result<IReadOnlyList<FinansGiderKategoriModel>>.Success(await _service.GiderKategorileriAsync(request.SadeceAktif, cancellationToken));
+        public Task<Result<IReadOnlyList<FinansGiderKategoriModel>>> Handle(FinansGiderKutuphaneKategorileriQuery request, CancellationToken cancellationToken)
+            => FinansHandlerHelper.ExecuteAsync(() => _service.GiderKategorileriAsync(request.SadeceAktif, cancellationToken));
 
-        public async Task<Result<IReadOnlyList<FinansGiderKalemiModel>>> Handle(FinansGiderKutuphaneKalemleriQuery request, CancellationToken cancellationToken)
-            => Result<IReadOnlyList<FinansGiderKalemiModel>>.Success(await _service.GiderKalemleriAsync(request.KategoriId, request.SadeceAktif, cancellationToken));
+        public Task<Result<IReadOnlyList<FinansGiderKalemiModel>>> Handle(FinansGiderKutuphaneKalemleriQuery request, CancellationToken cancellationToken)
+            => FinansHandlerHelper.ExecuteAsync(() =>
+                _service.GiderKalemleriAsync(request.KategoriId, request.SadeceAktif, cancellationToken));
 
-        public async Task<Result<FinansSayfaliSonuc<FinansUrunModel>>> Handle(FinansUrunlerQuery request, CancellationToken cancellationToken)
-            => Result<FinansSayfaliSonuc<FinansUrunModel>>.Success(
-                await _service.UrunlerSayfaliAsync(
-                    request.SadeceAktif, request.TarifeTarihi, request.Arama,
-                    request.PageNumber, request.PageSize, cancellationToken));
+        public Task<Result<FinansSayfaliSonuc<FinansUrunModel>>> Handle(FinansUrunlerQuery request, CancellationToken cancellationToken)
+            => FinansHandlerHelper.ExecuteAsync(() => _service.UrunlerSayfaliAsync(
+                request.SadeceAktif, request.TarifeTarihi, request.Arama, request.PageNumber, request.PageSize, cancellationToken));
 
-        public async Task<Result<FinansSayfaliSonuc<FinansDegisiklikModel>>> Handle(FinansDegisiklikGecmisiQuery request, CancellationToken cancellationToken)
-            => Result<FinansSayfaliSonuc<FinansDegisiklikModel>>.Success(await _service.DegisiklikGecmisiAsync(request.VarlikTuru, request.VarlikId, request.PageNumber, request.PageSize, cancellationToken));
+        public Task<Result<FinansSayfaliSonuc<FinansDegisiklikModel>>> Handle(FinansDegisiklikGecmisiQuery request, CancellationToken cancellationToken)
+            => FinansHandlerHelper.ExecuteAsync(() => _service.DegisiklikGecmisiAsync(
+                request.VarlikTuru, request.VarlikId, request.PageNumber, request.PageSize, cancellationToken));
     }
 }

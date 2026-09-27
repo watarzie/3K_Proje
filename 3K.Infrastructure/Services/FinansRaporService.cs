@@ -484,7 +484,7 @@ namespace _3K.Infrastructure.Services
                 var page = await _finansService.SiparislerAsync(
                     filtre with { PageNumber = pageNumber, PageSize = pageSize },
                     cancellationToken);
-                if (page.TotalCount > 20000) throw new InvalidOperationException("Rapor 20.000 siparişi aşamaz; filtreyi daraltın.");
+                if (page.TotalCount > FinansService.RaporKayitSiniri) throw new InvalidOperationException("Rapor 20.000 siparişi aşamaz; filtreyi daraltın.");
                 items.AddRange(page.Items);
                 if (!page.HasNextPage)
                     return items;

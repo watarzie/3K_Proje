@@ -93,7 +93,7 @@ namespace _3K.Infrastructure.Services
         public Task<FinansDonemOlusturSonucModel> DuzenliIsDonemiOlusturAsync(DateTime referansTarihi, CancellationToken cancellationToken)
             => ExecuteAtomicAsync(async () =>
             {
-                if (referansTarihi.Year is < 2000 or > 2200) throw new InvalidOperationException("Geçerli referans tarihi girin.");
+                if (!FinansTarihKurallari.GecerliTarih(referansTarihi)) throw new InvalidOperationException("Geçerli referans tarihi girin.");
                 var templates = await _context.Set<FinansDuzenliIs>().AsNoTracking().Include(x => x.Proje).Include(x => x.FinansUrun)
                     .Where(x => x.Aktif && x.BaslangicTarihi <= referansTarihi.Date).OrderBy(x => x.Id).ToListAsync(cancellationToken);
                 var created = 0;
@@ -139,7 +139,7 @@ namespace _3K.Infrastructure.Services
 
         internal static IReadOnlyList<DateTime> DuzenliIsTarihleri(DateTime start, DateTime end, int day)
         {
-            if (day is < 1 or > 31 || start.Year < 2000 || end.Year > 2200)
+            if (day is < 1 or > 31 || !FinansTarihKurallari.GecerliTarih(start) || !FinansTarihKurallari.GecerliTarih(end))
                 throw new InvalidOperationException("Düzenli iş başlangıç/bitiş ve gününü kontrol edin.");
             var result = new List<DateTime>();
             for (var month = FirstDayOfMonth(start); month <= FirstDayOfMonth(end); month = month.AddMonths(1))
@@ -306,8 +306,8 @@ namespace _3K.Infrastructure.Services
 
         private async Task ValidateExpenseReferencesAsync(FinansGiderKaydetModel model, CancellationToken cancellationToken)
         {
-            if (model.Miktar <= 0 || model.BirimFiyat < 0 || model.KdvOrani is < 0 or > 100 || model.Tarih.Year is < 2000 or > 2200 ||
-                model.FinansDonemi.Year is < 2000 or > 2200 || (model.FinansTarihi.HasValue && model.FinansTarihi.Value.Year is < 2000 or > 2200))
+            if (model.Miktar <= 0 || model.BirimFiyat < 0 || model.KdvOrani is < 0 or > 100 || !FinansTarihKurallari.GecerliTarih(model.Tarih) ||
+                !FinansTarihKurallari.GecerliTarih(model.FinansDonemi) || (model.FinansTarihi.HasValue && !FinansTarihKurallari.GecerliTarih(model.FinansTarihi.Value)))
                 throw new InvalidOperationException("Gider miktarı, fiyatı, KDV oranı ve tarihlerini kontrol edin.");
             if (NormalizeCurrency(model.ParaBirimi) is not ("EUR" or "USD" or "TRY")) throw new InvalidOperationException("Gider para birimi EUR, USD veya TRY olmalıdır.");
             if (model.MahsupEdilenAvansId.HasValue)

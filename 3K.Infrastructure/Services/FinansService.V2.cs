@@ -23,7 +23,7 @@ public sealed partial class FinansService
         => ExecuteAtomicAsync(async () =>
         {
             Gerekce(model.Aciklama);
-            if (model.FinansTarihi.Year is < 2000 or > 2200) throw new InvalidOperationException("Geçerli finans tarihi girin.");
+            if (!FinansTarihKurallari.GecerliTarih(model.FinansTarihi)) throw new InvalidOperationException("Geçerli finans tarihi girin.");
             var work = await IsKaydiDetayQuery(true).FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
             if (work is null) return null;
             if (work.IptalEdildi) throw new InvalidOperationException("İptal edilmiş işin finans tarihi değiştirilemez.");

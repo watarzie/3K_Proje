@@ -1,5 +1,6 @@
 using FluentValidation;
 using _3K.Application.Features.FinansIslemleri.Commands;
+using _3K.Application.Features.FinansIslemleri.Queries;
 using _3K.Core.Enums;
 using _3K.Core.Models;
 
@@ -8,7 +9,6 @@ namespace _3K.Application.Features.FinansIslemleri.Validators
     internal static class FinansValidationRules
     {
         public static bool Currency(string? value) => !string.IsNullOrWhiteSpace(value) && value.Trim().Length == 3;
-        public static bool ValidDate(DateTime value) => value.Year is >= 2000 and <= 2200;
         public static bool CompleteDocumentTotals(string? currency, decimal? net, decimal? vat, decimal? total)
         {
             var any = !string.IsNullOrWhiteSpace(currency) || net.HasValue || vat.HasValue || total.HasValue;
@@ -16,6 +16,27 @@ namespace _3K.Application.Features.FinansIslemleri.Validators
         }
         public static bool BalancedDocumentTotals(decimal? net, decimal? vat, decimal? total)
             => !net.HasValue || !vat.HasValue || !total.HasValue || Math.Abs(net.Value + vat.Value - total.Value) <= 0.02m;
+    }
+
+    public sealed class FinansPanelQueryValidator : AbstractValidator<FinansPanelQuery>
+    {
+        public FinansPanelQueryValidator() => RuleFor(x => x)
+            .Must(x => FinansTarihKurallari.GecerliAralik(x.Baslangic, x.Bitis))
+            .WithMessage("Geçerli ve en fazla on yıllık tarih aralığı seçin.");
+    }
+
+    public sealed class FinansAylikIslerQueryValidator : AbstractValidator<FinansAylikIslerQuery>
+    {
+        public FinansAylikIslerQueryValidator() => RuleFor(x => x)
+            .Must(x => FinansTarihKurallari.GecerliDonem(x.Yil, x.Ay))
+            .WithMessage("Geçerli bir yıl ve ay seçilmelidir.");
+    }
+
+    public sealed class FinansAylikRaporDosyaQueryValidator : AbstractValidator<FinansAylikRaporDosyaQuery>
+    {
+        public FinansAylikRaporDosyaQueryValidator() => RuleFor(x => x)
+            .Must(x => FinansTarihKurallari.GecerliDonem(x.Yil, x.Ay))
+            .WithMessage("Geçerli bir yıl ve ay seçilmelidir.");
     }
 
     public sealed class FinansIsKaydiKaydetModelValidator : AbstractValidator<FinansIsKaydiKaydetModel>
@@ -30,8 +51,8 @@ namespace _3K.Application.Features.FinansIslemleri.Validators
             RuleFor(x => x.Adet).GreaterThan(0);
             RuleFor(x => x.Birim).NotEmpty().MaximumLength(30);
             RuleFor(x => x.BirimM3).GreaterThanOrEqualTo(0);
-            RuleFor(x => x.UretimTarihi).Must(FinansValidationRules.ValidDate).WithMessage("Geçerli bir üretim tarihi girilmelidir.");
-            RuleFor(x => x.FinansDonemi).Must(FinansValidationRules.ValidDate).WithMessage("Geçerli bir finans dönemi girilmelidir.");
+            RuleFor(x => x.UretimTarihi).Must(FinansTarihKurallari.GecerliTarih).WithMessage("Geçerli bir üretim tarihi girilmelidir.");
+            RuleFor(x => x.FinansDonemi).Must(FinansTarihKurallari.GecerliTarih).WithMessage("Geçerli bir finans dönemi girilmelidir.");
             RuleFor(x => x.ManuelProjeNo).MaximumLength(100);
             RuleFor(x => x.ManuelProjeAdi).MaximumLength(250);
             RuleFor(x => x.Musteri).MaximumLength(250);
@@ -59,7 +80,7 @@ namespace _3K.Application.Features.FinansIslemleri.Validators
         public FinansSiparisOlusturModelValidator()
         {
             RuleFor(x => x.PoNumarasi).NotEmpty().MaximumLength(100);
-            RuleFor(x => x.SiparisTarihi).Must(FinansValidationRules.ValidDate);
+            RuleFor(x => x.SiparisTarihi).Must(FinansTarihKurallari.GecerliTarih);
             RuleFor(x => x.Aciklama).MaximumLength(2000);
             RuleFor(x => x.Kalemler).NotEmpty();
             RuleForEach(x => x.Kalemler).ChildRules(line =>
@@ -86,7 +107,7 @@ namespace _3K.Application.Features.FinansIslemleri.Validators
         public FinansSiparisGuncelleModelValidator()
         {
             RuleFor(x => x.PoNumarasi).NotEmpty().MaximumLength(100);
-            RuleFor(x => x.SiparisTarihi).Must(FinansValidationRules.ValidDate);
+            RuleFor(x => x.SiparisTarihi).Must(FinansTarihKurallari.GecerliTarih);
             RuleFor(x => x.Aciklama).MaximumLength(2000);
         }
     }
@@ -106,7 +127,7 @@ namespace _3K.Application.Features.FinansIslemleri.Validators
         {
             RuleFor(x => x.SiparisId).GreaterThan(0);
             RuleFor(x => x.FaturaNumarasi).NotEmpty().MaximumLength(100);
-            RuleFor(x => x.FaturaTarihi).Must(FinansValidationRules.ValidDate);
+            RuleFor(x => x.FaturaTarihi).Must(FinansTarihKurallari.GecerliTarih);
             RuleFor(x => x.Aciklama).MaximumLength(2000);
             AddDocumentTotalRules();
             RuleFor(x => x.Kalemler).NotEmpty();
@@ -146,7 +167,7 @@ namespace _3K.Application.Features.FinansIslemleri.Validators
         public FinansFaturaGuncelleModelValidator()
         {
             RuleFor(x => x.FaturaNumarasi).NotEmpty().MaximumLength(100);
-            RuleFor(x => x.FaturaTarihi).Must(FinansValidationRules.ValidDate);
+            RuleFor(x => x.FaturaTarihi).Must(FinansTarihKurallari.GecerliTarih);
             RuleFor(x => x.Aciklama).MaximumLength(2000);
             When(x => !x.BelgeMutabakatiniKoru, () =>
             {
@@ -184,7 +205,7 @@ namespace _3K.Application.Features.FinansIslemleri.Validators
             RuleFor(x => x.ManuelProjeAdi).MaximumLength(250);
             RuleFor(x => x.Musteri).NotEmpty().MaximumLength(250);
             RuleFor(x => x.Aciklama).MaximumLength(2000);
-            RuleFor(x => x.BaslangicTarihi).Must(FinansValidationRules.ValidDate);
+            RuleFor(x => x.BaslangicTarihi).Must(FinansTarihKurallari.GecerliTarih);
             RuleFor(x => x.BitisTarihi).GreaterThanOrEqualTo(x => x.BaslangicTarihi).When(x => x.BitisTarihi.HasValue);
             RuleFor(x => x.OlusturmaGunu).InclusiveBetween(1, 31);
             RuleFor(x => x.Miktar).GreaterThan(0);
@@ -218,8 +239,8 @@ namespace _3K.Application.Features.FinansIslemleri.Validators
     {
         public FinansGiderKaydetModelValidator()
         {
-            RuleFor(x => x.Tarih).Must(FinansValidationRules.ValidDate);
-            RuleFor(x => x.FinansDonemi).Must(FinansValidationRules.ValidDate);
+            RuleFor(x => x.Tarih).Must(FinansTarihKurallari.GecerliTarih);
+            RuleFor(x => x.FinansDonemi).Must(FinansTarihKurallari.GecerliTarih);
             RuleFor(x => x.KategoriId).GreaterThan(0);
             RuleFor(x => x.AltKategori).MaximumLength(200);
             RuleFor(x => x.FirmaVeyaKisi).MaximumLength(250);

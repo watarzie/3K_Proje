@@ -167,8 +167,8 @@ namespace _3K.Infrastructure.Services
 
         private static (DateTime Start, DateTime End) AylikDonem(int yil, int ay)
         {
-            if (yil is < 2000 or > 2100 || ay is < 1 or > 12)
-                throw new ArgumentOutOfRangeException(nameof(ay), "Yıl 2000-2100, ay 1-12 aralığında olmalıdır.");
+            if (!FinansTarihKurallari.GecerliDonem(yil, ay))
+                throw new InvalidOperationException("Geçerli bir yıl ve ay seçilmelidir.");
             var start = new DateTime(yil, ay, 1);
             return (start, start.AddMonths(1));
         }

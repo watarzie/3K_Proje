@@ -22,7 +22,7 @@ public sealed partial class FinansRaporService
             while (true)
             {
                 var page = await _finansService.YaslandirmaAsync(filtre.Bitis ?? TurkeyTime.Now.Date, 0, filtre with { PageNumber = pageNumber, PageSize = 250 }, cancellationToken);
-                if (page.TotalCount > 20000) throw new InvalidOperationException("Yaşlandırma raporu 20.000 satırı aşamaz; filtreyi daraltın.");
+                if (page.TotalCount > FinansService.RaporKayitSiniri) throw new InvalidOperationException("Yaşlandırma raporu 20.000 satırı aşamaz; filtreyi daraltın.");
                 foreach (var x in page.Items.Where(x => x.Asama == (tur == "siparis-bekleyen" ? "Sipariş" : "Fatura")))
                     rows.Add([x.ProjeNo, x.IsAdi, x.PoNumarasi, x.Baslangic, x.Gun, x.Grup, x.ParaBirimi, x.KalanNetTutar]);
                 if (!page.HasNextPage) break;

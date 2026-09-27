@@ -78,58 +78,50 @@ namespace _3K.Application.Features.FinansIslemleri.Queries
 
         public FinansRaporQueryHandlers(IFinansRaporService service) => _service = service;
 
-        public async Task<Result<DosyaIcerigi>> Handle(FinansIsRaporuDosyaQuery request, CancellationToken cancellationToken)
+        public Task<Result<DosyaIcerigi>> Handle(FinansIsRaporuDosyaQuery request, CancellationToken cancellationToken)
         {
             if (!TryResolveFormat(request.Format, out var excel))
-                return InvalidFormat();
-            var bytes = excel
+                return Task.FromResult(InvalidFormat());
+            return FinansHandlerHelper.ExecuteAsync(async () => NewFile(excel
                 ? await _service.IslerExcelAsync(request.Filtre, cancellationToken)
-                : await _service.IslerPdfAsync(request.Filtre, cancellationToken);
-            return Result<DosyaIcerigi>.Success(NewFile(bytes, excel, "finans-isleri"));
+                : await _service.IslerPdfAsync(request.Filtre, cancellationToken), excel, "finans-isleri"));
         }
 
-        public async Task<Result<DosyaIcerigi>> Handle(FinansGiderRaporuDosyaQuery request, CancellationToken cancellationToken)
+        public Task<Result<DosyaIcerigi>> Handle(FinansGiderRaporuDosyaQuery request, CancellationToken cancellationToken)
         {
             if (!TryResolveFormat(request.Format, out var excel))
-                return InvalidFormat();
-            var bytes = excel
+                return Task.FromResult(InvalidFormat());
+            return FinansHandlerHelper.ExecuteAsync(async () => NewFile(excel
                 ? await _service.GiderlerExcelAsync(request.Filtre, cancellationToken)
-                : await _service.GiderlerPdfAsync(request.Filtre, cancellationToken);
-            return Result<DosyaIcerigi>.Success(NewFile(bytes, excel, "finans-giderleri"));
+                : await _service.GiderlerPdfAsync(request.Filtre, cancellationToken), excel, "finans-giderleri"));
         }
 
-        public async Task<Result<DosyaIcerigi>> Handle(FinansAylikRaporDosyaQuery request, CancellationToken cancellationToken)
+        public Task<Result<DosyaIcerigi>> Handle(FinansAylikRaporDosyaQuery request, CancellationToken cancellationToken)
         {
-            if (request.Yil is < 2000 or > 2200 || request.Ay is < 1 or > 12)
-                return Result<DosyaIcerigi>.Failure("Geçerli bir yıl ve ay seçilmelidir.");
             var format = request.Format.Trim().ToLowerInvariant();
             if (format is not ("pdf" or "xlsx" or "excel" or "ayri"))
-                return Result<DosyaIcerigi>.Failure("Rapor formatı pdf, xlsx veya ayri olmalıdır.", 400);
+                return Task.FromResult(Result<DosyaIcerigi>.Failure("Rapor formatı pdf, xlsx veya ayri olmalıdır.", 400));
 
             if (format == "ayri")
-            {
-                var zip = await _service.AylikZipAsync(request.Yil, request.Ay, request.Gruplar, cancellationToken);
-                return Result<DosyaIcerigi>.Success(new DosyaIcerigi(
-                    zip,
+                return FinansHandlerHelper.ExecuteAsync(async () => new DosyaIcerigi(
+                    await _service.AylikZipAsync(request.Yil, request.Ay, request.Gruplar, cancellationToken),
                     "application/zip",
                     $"finans-aylik-raporlar-{request.Yil}-{request.Ay:00}-{TurkeyTime.Now:yyyyMMddHHmmss}.zip"));
-            }
 
             var excel = format is "xlsx" or "excel";
-            var bytes = excel
+            return FinansHandlerHelper.ExecuteAsync(async () => NewFile(excel
                 ? await _service.AylikExcelAsync(request.Yil, request.Ay, request.Gruplar, cancellationToken)
-                : await _service.AylikPdfAsync(request.Yil, request.Ay, request.Gruplar, cancellationToken);
-            return Result<DosyaIcerigi>.Success(NewFile(bytes, excel, $"finans-aylik-{request.Yil}-{request.Ay:00}"));
+                : await _service.AylikPdfAsync(request.Yil, request.Ay, request.Gruplar, cancellationToken),
+                excel, $"finans-aylik-{request.Yil}-{request.Ay:00}"));
         }
 
-        public async Task<Result<DosyaIcerigi>> Handle(FinansSiparisDurumRaporuDosyaQuery request, CancellationToken cancellationToken)
+        public Task<Result<DosyaIcerigi>> Handle(FinansSiparisDurumRaporuDosyaQuery request, CancellationToken cancellationToken)
         {
             if (!TryResolveFormat(request.Format, out var excel))
-                return InvalidFormat();
-            var bytes = excel
+                return Task.FromResult(InvalidFormat());
+            return FinansHandlerHelper.ExecuteAsync(async () => NewFile(excel
                 ? await _service.SiparisDurumExcelAsync(request.Filtre, cancellationToken)
-                : await _service.SiparisDurumPdfAsync(request.Filtre, cancellationToken);
-            return Result<DosyaIcerigi>.Success(NewFile(bytes, excel, "finans-siparis-durumu"));
+                : await _service.SiparisDurumPdfAsync(request.Filtre, cancellationToken), excel, "finans-siparis-durumu"));
         }
 
         private static bool TryResolveFormat(string? format, out bool excel)

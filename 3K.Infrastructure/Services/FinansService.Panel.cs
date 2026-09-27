@@ -7,10 +7,12 @@ namespace _3K.Infrastructure.Services;
 
 public sealed partial class FinansService
 {
-    private const int RaporKayitSiniri = 20000;
+    /// <summary>Panel, rapor ve yaşlandırma sorgularının tek seferde tarayacağı en fazla kayıt.</summary>
+    internal const int RaporKayitSiniri = 20000;
+
     private static void TarihAraliginiDogrula(DateTime start, DateTime end)
     {
-        if (start.Year < 2000 || end.Year > 2200 || end.Date < start.Date || (end.Date - start.Date).TotalDays > 3660)
+        if (!FinansTarihKurallari.GecerliAralik(start, end))
             throw new InvalidOperationException("Geçerli ve en fazla on yıllık tarih aralığı seçin.");
     }
 
