@@ -49,6 +49,8 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
                 Boy: kayit.Boy,
                 En: kayit.En,
                 Yukseklik: kayit.Yukseklik,
+                // İç sandık fiyatı kayıtlı iç sandık şablonuna göre eşleşir.
+                IcSandikSablonId: kayit.IcSandikSablonId,
                 Aciklama: kayit.Aciklama,
                 TalepEdenKisi: kayit.TalepEdenKisi,
                 TalepEdenBolum: kayit.TalepEdenBolum,

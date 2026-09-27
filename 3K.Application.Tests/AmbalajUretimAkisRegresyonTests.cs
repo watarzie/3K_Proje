@@ -307,6 +307,20 @@ public sealed class AmbalajUretimAkisRegresyonTests
         Assert.False(AmbalajUretimYardimcilari.DtoOlustur(kayit).FinansAktarimaHazirMi);
     }
 
+
+    [Fact]
+    public void FinansAktarimi_IcSandikSablonunuFiyatEslesmesiIcinTasir()
+    {
+        var kayit = GecerliFormKaydi();
+        kayit.Tur = AmbalajSandikTuru.Ic;
+        kayit.IcSandikSablonId = 12;
+
+        var model = AmbalajFinansSenkronizasyonu.ModelOlustur(kayit, null);
+
+        Assert.Equal(FinansIsTuru.IcSandik, model.IsTuru);
+        Assert.Equal(12, model.IcSandikSablonId);
+    }
+
     [Fact]
     public async Task KaynakSenkronizasyonu_EksileniSistemIptalEder_ReappearOluncaYalnizSistemIptaliniAcar()
     {
