@@ -109,6 +109,7 @@ namespace _3K.Application.Features.FinansIslemleri.Validators
             RuleFor(x => x.PoNumarasi).NotEmpty().MaximumLength(100);
             RuleFor(x => x.SiparisTarihi).Must(FinansTarihKurallari.GecerliTarih);
             RuleFor(x => x.Aciklama).MaximumLength(2000);
+            RuleFor(x => x.Gerekce).Must(FinansGerekceKurali.Gecerli).WithMessage(FinansGerekceKurali.Mesaj).When(x => x.Kalemler is not null);
         }
     }
 
@@ -169,6 +170,7 @@ namespace _3K.Application.Features.FinansIslemleri.Validators
             RuleFor(x => x.FaturaNumarasi).NotEmpty().MaximumLength(100);
             RuleFor(x => x.FaturaTarihi).Must(FinansTarihKurallari.GecerliTarih);
             RuleFor(x => x.Aciklama).MaximumLength(2000);
+            RuleFor(x => x.Gerekce).Must(FinansGerekceKurali.Gecerli).WithMessage(FinansGerekceKurali.Mesaj).When(x => x.Kalemler is not null);
             When(x => !x.BelgeMutabakatiniKoru, () =>
             {
                 RuleFor(x => x.BelgeParaBirimi).Must(x => x is null || FinansValidationRules.Currency(x));
@@ -366,22 +368,50 @@ namespace _3K.Application.Features.FinansIslemleri.Validators
         public FinansIptalCommandValidators()
         {
             RuleFor(x => x.Id).GreaterThan(0);
-            RuleFor(x => x.Aciklama).NotEmpty().MaximumLength(1000);
+            RuleFor(x => x.Aciklama).Must(FinansGerekceKurali.Gecerli).WithMessage(FinansGerekceKurali.Mesaj);
         }
+    }
+
+    public sealed class FinansTarihiDegistirCommandValidator : AbstractValidator<FinansTarihiDegistirCommand>
+    {
+        public FinansTarihiDegistirCommandValidator()
+        {
+            RuleFor(x => x.Id).GreaterThan(0);
+            RuleFor(x => x.Model).NotNull().DependentRules(() =>
+            {
+                RuleFor(x => x.Model.FinansTarihi).Must(FinansTarihKurallari.GecerliTarih).WithMessage("Geçerli finans tarihi girin.");
+                RuleFor(x => x.Model.Aciklama).Must(FinansGerekceKurali.Gecerli).WithMessage(FinansGerekceKurali.Mesaj);
+            });
+        }
+    }
+
+    public sealed class FinansFiyatlandirCommandValidator : AbstractValidator<FinansFiyatlandirCommand>
+    {
+        public FinansFiyatlandirCommandValidator()
+        {
+            RuleFor(x => x.Id).GreaterThan(0);
+            RuleFor(x => x.Model).NotNull().DependentRules(() => RuleFor(x => x.Model.Aciklama).Must(FinansGerekceKurali.Gecerli).WithMessage(FinansGerekceKurali.Mesaj));
+        }
+    }
+
+    public sealed class FinansKaliciSilCommandValidator : AbstractValidator<FinansKaliciSilCommand>
+    {
+        public FinansKaliciSilCommandValidator() =>
+            RuleFor(x => x.Model).NotNull().DependentRules(() => RuleFor(x => x.Model.Aciklama).Must(FinansGerekceKurali.Gecerli).WithMessage(FinansGerekceKurali.Mesaj));
     }
 
     public sealed class FinansSiparisIptalCommandValidator : AbstractValidator<FinansSiparisIptalCommand>
     {
-        public FinansSiparisIptalCommandValidator() { RuleFor(x => x.Id).GreaterThan(0); RuleFor(x => x.Aciklama).NotEmpty().MaximumLength(1000); }
+        public FinansSiparisIptalCommandValidator() { RuleFor(x => x.Id).GreaterThan(0); RuleFor(x => x.Aciklama).Must(FinansGerekceKurali.Gecerli).WithMessage(FinansGerekceKurali.Mesaj); }
     }
 
     public sealed class FinansFaturaIptalCommandValidator : AbstractValidator<FinansFaturaIptalCommand>
     {
-        public FinansFaturaIptalCommandValidator() { RuleFor(x => x.Id).GreaterThan(0); RuleFor(x => x.Aciklama).NotEmpty().MaximumLength(1000); }
+        public FinansFaturaIptalCommandValidator() { RuleFor(x => x.Id).GreaterThan(0); RuleFor(x => x.Aciklama).Must(FinansGerekceKurali.Gecerli).WithMessage(FinansGerekceKurali.Mesaj); }
     }
 
     public sealed class FinansGiderIptalCommandValidator : AbstractValidator<FinansGiderIptalCommand>
     {
-        public FinansGiderIptalCommandValidator() { RuleFor(x => x.Id).GreaterThan(0); RuleFor(x => x.Aciklama).NotEmpty().MaximumLength(1000); }
+        public FinansGiderIptalCommandValidator() { RuleFor(x => x.Id).GreaterThan(0); RuleFor(x => x.Aciklama).Must(FinansGerekceKurali.Gecerli).WithMessage(FinansGerekceKurali.Mesaj); }
     }
 }

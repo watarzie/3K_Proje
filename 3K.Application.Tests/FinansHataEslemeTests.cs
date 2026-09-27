@@ -2,6 +2,7 @@ using System.Reflection;
 using _3K.Application.Behaviors;
 using _3K.Application.Common;
 using _3K.Application.Features.FinansIslemleri;
+using _3K.Application.Features.FinansIslemleri.Commands;
 using _3K.Application.Features.FinansIslemleri.Queries;
 using _3K.Application.Features.FinansIslemleri.Validators;
 using _3K.Core.Exceptions;
@@ -43,6 +44,33 @@ public sealed class FinansHataEslemeTests
         Assert.False(validator.Validate(new FinansPanelQuery { Baslangic = new(2010, 1, 1), Bitis = new(2026, 1, 1) }).IsValid);
         var gecerli = validator.Validate(new FinansPanelQuery { Baslangic = new(2026, 1, 1), Bitis = new(2026, 12, 31) });
         Assert.True(gecerli.IsValid);
+    }
+
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData("   iptal ", true)]
+    [InlineData("kısa", false)]
+    [InlineData("Hatalı giriş", true)]
+    public void Gerekce_kurali_servisle_ayni_sinirla_dogrulamada_uygulanir(string? gerekce, bool gecerli)
+    {
+        Assert.Equal(gecerli, FinansGerekceKurali.Gecerli(gerekce));
+        Assert.Equal(gecerli, new FinansIptalCommandValidators()
+            .Validate(new FinansIsKaydiIptalCommand { Id = 1, Aciklama = gerekce! }).IsValid);
+        Assert.Equal(gecerli, new FinansSiparisIptalCommandValidator()
+            .Validate(new FinansSiparisIptalCommand { Id = 1, Aciklama = gerekce! }).IsValid);
+        Assert.Equal(gecerli, new FinansKaliciSilCommandValidator()
+            .Validate(new FinansKaliciSilCommand { Model = new("Gider", 1, "v1", true, gerekce!) }).IsValid);
+    }
+
+    [Fact]
+    public void Tutar_revizyonu_gerekce_ister_baslik_duzeltmesi_istemez()
+    {
+        var validator = new FinansSiparisGuncelleModelValidator();
+        var kalem = new FinansSiparisDagitimModel(1, 0, 0, NetTutar: 50);
+
+        Assert.True(validator.Validate(new FinansSiparisGuncelleModel("PO-1", new(2026, 9, 1), null)).IsValid);
+        Assert.False(validator.Validate(new FinansSiparisGuncelleModel("PO-1", new(2026, 9, 1), null, [kalem])).IsValid);
+        Assert.True(validator.Validate(new FinansSiparisGuncelleModel("PO-1", new(2026, 9, 1), null, [kalem], "Müşteri revizyonu")).IsValid);
     }
 
     [Fact]

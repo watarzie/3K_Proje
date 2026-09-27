@@ -16,8 +16,8 @@ public sealed partial class FinansService
 {
     private static void Gerekce(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value) || value.Trim().Length < 5 || value.Length > 1000)
-            throw IsKuraliException.Cakisma("İşlem gerekçesi 5–1000 karakter olmalıdır.");
+        if (!FinansGerekceKurali.Gecerli(value))
+            throw IsKuraliException.Cakisma(FinansGerekceKurali.Mesaj);
     }
 
     public Task<FinansIsKaydiModel?> FinansTarihiDegistirAsync(int id, FinansTarihiDegistirModel model, CancellationToken cancellationToken)
