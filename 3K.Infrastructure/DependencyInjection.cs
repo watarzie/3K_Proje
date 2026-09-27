@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using _3K.Core.Interfaces;
@@ -34,8 +33,8 @@ public static class DependencyInjection
         services.AddScoped<AuditInterceptor>();
         services.AddScoped<ProjectLockInterceptor>();
         services.AddDbContext<AppDbContext>((sp, options) =>
+            // Şema EF migration ile değil, scripts/database altındaki PostgreSQL betikleriyle yönetilir.
             options.UseNpgsql(configuration.GetConnectionString("DefaultConnection"))
-                   .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning))
                    .AddInterceptors(
                        sp.GetRequiredService<AuditInterceptor>(),
                        sp.GetRequiredService<ProjectLockInterceptor>()));
