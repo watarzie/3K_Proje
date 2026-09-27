@@ -222,9 +222,10 @@ public sealed class FinansAlanHttpSecurityTests
             builder.Services.AddScoped<IAlanErisimService, AlanErisimService>();
             var roles = new PermissionStore();
             builder.Services.AddSingleton<IRolService>(roles);
-            var finance = DispatchProxy.Create<IFinansService, FinanceProxy>();
+            var finance = DispatchProxy.Create<ITumFinansServisleri, FinanceProxy>();
             var data = (FinanceProxy)finance;
-            builder.Services.AddSingleton(finance);
+            foreach (var servis in typeof(ITumFinansServisleri).GetInterfaces())
+                builder.Services.AddSingleton(servis, finance);
             builder.Services.AddMediatR(options =>
             {
                 options.RegisterServicesFromAssembly(typeof(FinansPanelQueryHandlers).Assembly);
@@ -296,6 +297,14 @@ public sealed class FinansAlanHttpSecurityTests
         public Task<List<MenuTanimi>> GetMenuAgaciAsync(CancellationToken ct = default) => throw new NotSupportedException();
         public Task<List<RolYetki>> GetRolYetkileriAsync(int rolId, CancellationToken ct = default) => throw new NotSupportedException();
         public Task YetkileriGuncelleAsync(int rolId, List<RolYetki> yetkiler, CancellationToken ct = default) => throw new NotSupportedException();
+    }
+
+    /// <summary>Tek sentetik vekil bütün finans alan arayüzlerini karşılar; çağrı sayısı ortaktır.</summary>
+    public interface ITumFinansServisleri :
+        IFinansPanelService, IFinansIsKaydiService, IFinansAylikOzetService, IFinansSiparisFaturaService,
+        IFinansGiderService, IFinansGiderTanimService, IFinansUrunService, IFinansSablonService,
+        IFinansDuzenliIsService, IFinansBelgeService, IFinansKaliciSilmeService, IFinansRaporVerisiService
+    {
     }
 
     public class FinanceProxy : DispatchProxy

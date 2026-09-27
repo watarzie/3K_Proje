@@ -99,9 +99,11 @@ public sealed class FinansHataEslemeTests
     [Fact]
     public async Task Sorgu_is_kurali_hatasi_409_bulunamayan_kayit_ozel_mesajla_404_doner()
     {
-        var servis = DispatchProxy.Create<IFinansService, KuralIhlalEdenFinansServisi>();
-        var isHandler = new FinansIsKaydiQueryHandlers(servis);
-        var faturaHandler = new FinansSiparisFaturaQueryHandlers(servis);
+        var isHandler = new FinansIsKaydiQueryHandlers(
+            DispatchProxy.Create<IFinansIsKaydiService, KuralIhlalEdenFinansServisi>(),
+            DispatchProxy.Create<IFinansAylikOzetService, KuralIhlalEdenFinansServisi>());
+        var faturaHandler = new FinansSiparisFaturaQueryHandlers(
+            DispatchProxy.Create<IFinansSiparisFaturaService, KuralIhlalEdenFinansServisi>());
 
         var secimIstegi = new FinansIsKayitlariSecimQuery { Ids = [0] };
         var secim = await Pipeline(secimIstegi, () => isHandler.Handle(secimIstegi, default));
@@ -150,9 +152,9 @@ public sealed class FinansHataEslemeTests
     {
         protected override object? Invoke(MethodInfo? method, object?[]? args) => method!.Name switch
         {
-            nameof(IFinansService.IsKayitlariSecimAsync) => throw IsKuraliException.Cakisma(
+            nameof(IFinansIsKaydiService.IsKayitlariSecimAsync) => throw IsKuraliException.Cakisma(
                 "İş kaydı seçiminde yalnız pozitif kimlikler kullanılabilir."),
-            nameof(IFinansService.FaturaGetirAsync) => Task.FromResult<FinansFaturaModel?>(null),
+            nameof(IFinansSiparisFaturaService.FaturaGetirAsync) => Task.FromResult<FinansFaturaModel?>(null),
             _ => throw new NotSupportedException(method.Name)
         };
     }

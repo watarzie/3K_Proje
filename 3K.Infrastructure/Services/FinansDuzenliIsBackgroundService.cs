@@ -49,7 +49,7 @@ namespace _3K.Infrastructure.Services
             try
             {
                 await using var scope = _scopeFactory.CreateAsyncScope();
-                var service = scope.ServiceProvider.GetRequiredService<IFinansService>();
+                var service = scope.ServiceProvider.GetRequiredService<IFinansDuzenliIsService>();
                 var result = await service.DuzenliIsDonemiOlusturAsync(TurkeyTime.Now, cancellationToken);
                 foreach (var hata in result.Hatalar)
                     _logger.LogWarning("Düzenli finans işi bu turda oluşturulamadı: {Hata}", hata);

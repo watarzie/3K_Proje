@@ -6,7 +6,7 @@ using _3K.Core.Models;
 namespace _3K.Application.Features.FinansIslemleri.Commands;
 
 /// <summary>İş kaydı, özel iş ve fiyatlandırma komutları.</summary>
-public sealed class FinansIsKaydiCommandHandlers(IFinansService service) :
+public sealed class FinansIsKaydiCommandHandlers(IFinansIsKaydiService service) :
     IRequestHandler<FinansIsKaydiOlusturCommand, Result<FinansIsKaydiModel>>,
     IRequestHandler<FinansIsKaydiIptalCommand, Result>,
     IRequestHandler<FinansIsKaydiGeriAlCommand, Result>,

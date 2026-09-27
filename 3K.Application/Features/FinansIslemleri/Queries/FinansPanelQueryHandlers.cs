@@ -6,7 +6,7 @@ using _3K.Core.Models;
 namespace _3K.Application.Features.FinansIslemleri.Queries;
 
 /// <summary>Panel, hareketler, genel arama, yaşlandırma ve denetim geçmişi sorguları.</summary>
-public sealed class FinansPanelQueryHandlers(IFinansService service) :
+public sealed class FinansPanelQueryHandlers(IFinansPanelService service) :
     IRequestHandler<FinansPanelQuery, Result<FinansPanelModel>>,
     IRequestHandler<FinansHareketlerQuery, Result<FinansSayfaliSonuc<FinansHareketModel>>>,
     IRequestHandler<FinansGenelAramaQuery, Result<FinansSayfaliSonuc<FinansIsKaydiModel>>>,

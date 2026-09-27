@@ -13,7 +13,20 @@ using _3K.Core.Exceptions;
 
 namespace _3K.Infrastructure.Services
 {
-    public sealed partial class FinansService : IFinansService, IFinansUretimAktarimService
+    public sealed partial class FinansService :
+        IFinansPanelService,
+        IFinansIsKaydiService,
+        IFinansAylikOzetService,
+        IFinansSiparisFaturaService,
+        IFinansGiderService,
+        IFinansGiderTanimService,
+        IFinansUrunService,
+        IFinansSablonService,
+        IFinansDuzenliIsService,
+        IFinansBelgeService,
+        IFinansKaliciSilmeService,
+        IFinansRaporVerisiService,
+        IFinansUretimAktarimService
     {
         private readonly AppDbContext _context;
         private readonly ICurrentUserService _currentUser;

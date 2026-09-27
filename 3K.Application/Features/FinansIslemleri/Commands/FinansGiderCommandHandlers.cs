@@ -6,7 +6,7 @@ using _3K.Core.Models;
 namespace _3K.Application.Features.FinansIslemleri.Commands;
 
 /// <summary>Gider komutları.</summary>
-public sealed class FinansGiderCommandHandlers(IFinansService service) :
+public sealed class FinansGiderCommandHandlers(IFinansGiderService service) :
     IRequestHandler<FinansGiderOlusturCommand, Result<FinansGiderModel>>,
     IRequestHandler<FinansGiderGuncelleCommand, Result<FinansGiderModel>>,
     IRequestHandler<FinansGiderIptalCommand, Result>

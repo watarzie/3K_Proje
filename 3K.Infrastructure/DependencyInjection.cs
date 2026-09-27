@@ -80,7 +80,18 @@ public static class DependencyInjection
         services.AddScoped<IAmbalajRaporDosyaService, AmbalajRaporDosyaService>();
 
         services.AddScoped<FinansService>();
-        services.AddScoped<IFinansService>(sp => sp.GetRequiredService<FinansService>());
+        services.AddScoped<IFinansPanelService>(sp => sp.GetRequiredService<FinansService>());
+        services.AddScoped<IFinansIsKaydiService>(sp => sp.GetRequiredService<FinansService>());
+        services.AddScoped<IFinansAylikOzetService>(sp => sp.GetRequiredService<FinansService>());
+        services.AddScoped<IFinansSiparisFaturaService>(sp => sp.GetRequiredService<FinansService>());
+        services.AddScoped<IFinansGiderService>(sp => sp.GetRequiredService<FinansService>());
+        services.AddScoped<IFinansGiderTanimService>(sp => sp.GetRequiredService<FinansService>());
+        services.AddScoped<IFinansUrunService>(sp => sp.GetRequiredService<FinansService>());
+        services.AddScoped<IFinansSablonService>(sp => sp.GetRequiredService<FinansService>());
+        services.AddScoped<IFinansDuzenliIsService>(sp => sp.GetRequiredService<FinansService>());
+        services.AddScoped<IFinansBelgeService>(sp => sp.GetRequiredService<FinansService>());
+        services.AddScoped<IFinansKaliciSilmeService>(sp => sp.GetRequiredService<FinansService>());
+        services.AddScoped<IFinansRaporVerisiService>(sp => sp.GetRequiredService<FinansService>());
         services.AddScoped<IFinansUretimAktarimService>(sp => sp.GetRequiredService<FinansService>());
         services.AddScoped<IFinansRaporService, FinansRaporService>();
     }

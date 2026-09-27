@@ -14,16 +14,26 @@ namespace _3K.Infrastructure.Services
 {
     public sealed partial class FinansRaporService : IFinansRaporService
     {
-        private readonly IFinansService _finansService;
+        private readonly IFinansRaporVerisiService _raporVerisi;
+        private readonly IFinansAylikOzetService _aylikOzet;
+        private readonly IFinansSiparisFaturaService _siparisFatura;
+        private readonly IFinansPanelService _panel;
 
-        public FinansRaporService(IFinansService finansService)
+        public FinansRaporService(
+            IFinansRaporVerisiService raporVerisi,
+            IFinansAylikOzetService aylikOzet,
+            IFinansSiparisFaturaService siparisFatura,
+            IFinansPanelService panel)
         {
-            _finansService = finansService;
+            _raporVerisi = raporVerisi;
+            _aylikOzet = aylikOzet;
+            _siparisFatura = siparisFatura;
+            _panel = panel;
         }
 
         public async Task<byte[]> IslerExcelAsync(FinansListeFiltre filtre, CancellationToken cancellationToken)
         {
-            var report = await _finansService.RaporVerisiAsync(filtre, cancellationToken);
+            var report = await _raporVerisi.RaporVerisiAsync(filtre, cancellationToken);
             using var workbook = new XLWorkbook();
             var sheet = workbook.Worksheets.Add("Finans İşleri");
             var headers = new[]
@@ -52,7 +62,7 @@ namespace _3K.Infrastructure.Services
 
         public async Task<byte[]> GiderlerExcelAsync(FinansListeFiltre filtre, CancellationToken cancellationToken)
         {
-            var report = await _finansService.RaporVerisiAsync(filtre, cancellationToken);
+            var report = await _raporVerisi.RaporVerisiAsync(filtre, cancellationToken);
             using var workbook = new XLWorkbook();
             var sheet = workbook.Worksheets.Add("Giderler");
             var headers = new[]
@@ -211,13 +221,13 @@ namespace _3K.Infrastructure.Services
 
         public async Task<byte[]> IslerPdfAsync(FinansListeFiltre filtre, CancellationToken cancellationToken)
         {
-            var report = await _finansService.RaporVerisiAsync(filtre, cancellationToken);
+            var report = await _raporVerisi.RaporVerisiAsync(filtre, cancellationToken);
             return GenerateJobsPdf("Finans İşleri Raporu", report.Isler);
         }
 
         public async Task<byte[]> GiderlerPdfAsync(FinansListeFiltre filtre, CancellationToken cancellationToken)
         {
-            var report = await _finansService.RaporVerisiAsync(filtre, cancellationToken);
+            var report = await _raporVerisi.RaporVerisiAsync(filtre, cancellationToken);
             return GenerateExpensePdf("Finans Gider Raporu", report.Giderler);
         }
 
@@ -356,7 +366,7 @@ namespace _3K.Infrastructure.Services
             IReadOnlyCollection<string>? gruplar,
             CancellationToken cancellationToken)
         {
-            var satirlar = (await _finansService.AylikOzetAsync(yil, ay, cancellationToken))
+            var satirlar = (await _aylikOzet.AylikOzetAsync(yil, ay, cancellationToken))
                 .Where(x => !x.IptalEdildi);
             var seciliGruplar = gruplar?
                 .Where(x => !string.IsNullOrWhiteSpace(x))
@@ -482,7 +492,7 @@ namespace _3K.Infrastructure.Services
             var pageNumber = 1;
             while (true)
             {
-                var page = await _finansService.SiparislerAsync(
+                var page = await _siparisFatura.SiparislerAsync(
                     filtre with { PageNumber = pageNumber, PageSize = pageSize },
                     cancellationToken);
                 if (page.TotalCount > FinansService.RaporKayitSiniri) throw IsKuraliException.Cakisma("Rapor 20.000 siparişi aşamaz; filtreyi daraltın.");

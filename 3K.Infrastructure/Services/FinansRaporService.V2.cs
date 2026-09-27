@@ -22,7 +22,7 @@ public sealed partial class FinansRaporService
             var pageNumber = 1;
             while (true)
             {
-                var page = await _finansService.YaslandirmaAsync(filtre.Bitis ?? TurkeyTime.Now.Date, 0, filtre with { PageNumber = pageNumber, PageSize = 250 }, cancellationToken);
+                var page = await _panel.YaslandirmaAsync(filtre.Bitis ?? TurkeyTime.Now.Date, 0, filtre with { PageNumber = pageNumber, PageSize = 250 }, cancellationToken);
                 if (page.TotalCount > FinansService.RaporKayitSiniri) throw IsKuraliException.Cakisma("Yaşlandırma raporu 20.000 satırı aşamaz; filtreyi daraltın.");
                 foreach (var x in page.Items.Where(x => x.Asama == (tur == "siparis-bekleyen" ? "Sipariş" : "Fatura")))
                     rows.Add([x.ProjeNo, x.IsAdi, x.PoNumarasi, x.Baslangic, x.Gun, x.Grup, x.ParaBirimi, x.KalanNetTutar]);
@@ -32,7 +32,7 @@ public sealed partial class FinansRaporService
         }
         else
         {
-            var report = await _finansService.RaporVerisiAsync(filtre with { IptalEdilenleriDahilEt = false }, cancellationToken);
+            var report = await _raporVerisi.RaporVerisiAsync(filtre with { IptalEdilenleriDahilEt = false }, cancellationToken);
             var expenses = report.Giderler.Where(x => !x.IptalEdildi && !x.AvansMi).ToArray();
             if (tur == "genel")
             {

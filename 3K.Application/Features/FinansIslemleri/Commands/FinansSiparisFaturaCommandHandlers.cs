@@ -6,7 +6,7 @@ using _3K.Core.Models;
 namespace _3K.Application.Features.FinansIslemleri.Commands;
 
 /// <summary>Sipariş (PO) ve fatura komutları.</summary>
-public sealed class FinansSiparisFaturaCommandHandlers(IFinansService service) :
+public sealed class FinansSiparisFaturaCommandHandlers(IFinansSiparisFaturaService service) :
     IRequestHandler<FinansSiparisOlusturCommand, Result<FinansSiparisModel>>,
     IRequestHandler<FinansSiparisGuncelleCommand, Result<FinansSiparisModel>>,
     IRequestHandler<FinansSiparisIptalCommand, Result>,

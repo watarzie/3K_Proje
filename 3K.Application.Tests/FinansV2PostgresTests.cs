@@ -52,7 +52,7 @@ public sealed class FinansV2PostgresTests
             Assert.Equal(10000, Assert.Single(listed.Toplamlar).NetTutar);
             Assert.Equal(10000, Assert.Single((await service.SiparislerAsync(new() { PageSize = 1 }, Ct)).Toplamlar).NetTutar);
             Assert.Equal(10000, Assert.Single((await service.FaturalarAsync(new() { PageSize = 1 }, Ct)).Toplamlar).NetTutar);
-            var reports = new FinansRaporService(service);
+            var reports = Raporlar(service);
             var filter = new FinansListeFiltre(Baslangic: new(2026, 9, 15), Bitis: new(2026, 9, 30));
             foreach (var reportType in new[] { "genel", "gider-kategori", "proje-maliyet", "siparis-bekleyen", "fatura-bekleyen" })
             {
@@ -193,7 +193,7 @@ public sealed class FinansV2PostgresTests
                 AlanDegerleri = detail.AlanDegerleri, Bilesenler = detail.Bilesenler, ManuelNetTutar = detail.ManuelNetTutar }, Ct);
             Assert.Equal(1200m, (await service.IsKaydiGetirAsync(work.Id, Ct))!.NetTutar);
             var po = await service.SiparisOlusturAsync(Po("DOC", work.Id, 1200), Ct);
-            var pdf = await new FinansRaporService(service).OzetRaporAsync("genel", false, new(), Ct);
+            var pdf = await Raporlar(service).OzetRaporAsync("genel", false, new(), Ct);
             var first = await service.BelgeYukleAsync(new("Siparis", po.Id, "../../test.pdf", pdf), Ct);
             var second = await service.BelgeYukleAsync(new("Siparis", po.Id, "test.pdf", pdf), Ct);
             Assert.Equal(1, first.Surum); Assert.Equal(2, second.Surum); Assert.DoesNotContain("/", first.OrijinalAd);
@@ -253,7 +253,7 @@ public sealed class FinansV2PostgresTests
             Assert.Equal(beforeWorks, await db.Database.SqlQueryRaw<string>(workSnapshotSql).ToArrayAsync());
             Assert.Equal(beforeAudits, await db.Database.SqlQueryRaw<string>(auditSnapshotSql).ToArrayAsync());
             Assert.Equal(1500m, (await service.SiparisGetirAsync(po.Id, Ct))!.Tutarlar.Single().NetTutar);
-            var pdf = await new FinansRaporService(service).OzetRaporAsync("genel", false, new(), Ct);
+            var pdf = await Raporlar(service).OzetRaporAsync("genel", false, new(), Ct);
             await db.Database.ExecuteSqlRawAsync("""
                 CREATE FUNCTION qa_reject_pdf_audit() RETURNS trigger LANGUAGE plpgsql AS $$
                 BEGIN IF NEW."Islem" = 'PDF Yükleme' THEN RAISE EXCEPTION 'QA sentetik audit hatası'; END IF; RETURN NEW; END $$;
@@ -494,6 +494,7 @@ public sealed class FinansV2PostgresTests
     private static FinansSiparisOlusturModel Po(string number, int work, decimal amount) => new(number, Date, "QA", [new(work, 0, 0, NetTutar: amount)], "EUR", amount);
     private static FinansFaturaOlusturModel Invoice(string number, int po, int line, decimal amount) => new(po, number, Date, "QA", [new(line, 0, 0, amount)], "EUR", amount, amount * .2m, amount * 1.2m);
     private static FinansService Service(AppDbContext db) => new(db, new User());
+    private static FinansRaporService Raporlar(FinansService service) => new(service, service, service, service);
     private sealed class User : ICurrentUserService { public int? UserId => 7; public bool IsAuthenticated => true; }
     private static FinansIsKaydi Work(string name, decimal amount) => new() { IsAdi = name, ProjeNo = "QA", Musteri = "QA", IsTuru = FinansIsTuru.OzelIs, KaynakTuru = "Manuel", KaynakAktif = true, Adet = 1, Birim = "Adet", FiyatlandirmaBirimiSnapshot = FinansFiyatlandirmaBirimi.SabitTutar, BirimFiyatSnapshot = amount, ParaBirimiSnapshot = "EUR", KdvOraniSnapshot = 20, UretimTarihi = Date, FinansTarihi = Date, FinansDonemi = new(2026, 9, 1), KayitTarihi = Date };
 

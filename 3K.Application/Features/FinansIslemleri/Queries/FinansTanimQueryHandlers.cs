@@ -6,7 +6,11 @@ using _3K.Core.Models;
 namespace _3K.Application.Features.FinansIslemleri.Queries;
 
 /// <summary>Düzenli iş, gider kütüphanesi, ürün/tarife ve şablon tanım sorguları.</summary>
-public sealed class FinansTanimQueryHandlers(IFinansService service) :
+public sealed class FinansTanimQueryHandlers(
+    IFinansDuzenliIsService duzenliIsler,
+    IFinansGiderTanimService giderTanimlari,
+    IFinansUrunService urunler,
+    IFinansSablonService sablonlar) :
     IRequestHandler<FinansDuzenliIslerQuery, Result<FinansSayfaliSonuc<FinansDuzenliIsModel>>>,
     IRequestHandler<FinansGiderKategorileriQuery, Result<IReadOnlyList<FinansGiderKategoriModel>>>,
     IRequestHandler<FinansGiderKalemleriQuery, Result<IReadOnlyList<FinansGiderKalemiModel>>>,
@@ -16,27 +20,27 @@ public sealed class FinansTanimQueryHandlers(IFinansService service) :
     IRequestHandler<FinansSablonlarQuery, Result<IReadOnlyList<FinansSablonModel>>>
 {
     public Task<Result<FinansSayfaliSonuc<FinansDuzenliIsModel>>> Handle(FinansDuzenliIslerQuery request, CancellationToken cancellationToken)
-        => FinansHandlerHelper.ExecuteAsync(() => service.DuzenliIslerSayfaliAsync(
+        => FinansHandlerHelper.ExecuteAsync(() => duzenliIsler.DuzenliIslerSayfaliAsync(
             request.SadeceAktif, request.Arama, request.PageNumber, request.PageSize, cancellationToken));
 
     public Task<Result<IReadOnlyList<FinansGiderKategoriModel>>> Handle(FinansGiderKategorileriQuery request, CancellationToken cancellationToken)
-        => FinansHandlerHelper.ExecuteAsync(() => service.GiderKategorileriAsync(request.SadeceAktif, cancellationToken));
+        => FinansHandlerHelper.ExecuteAsync(() => giderTanimlari.GiderKategorileriAsync(request.SadeceAktif, cancellationToken));
 
     public Task<Result<IReadOnlyList<FinansGiderKalemiModel>>> Handle(FinansGiderKalemleriQuery request, CancellationToken cancellationToken)
         => FinansHandlerHelper.ExecuteAsync(() =>
-            service.GiderKalemleriAsync(request.KategoriId, request.SadeceAktif, cancellationToken));
+            giderTanimlari.GiderKalemleriAsync(request.KategoriId, request.SadeceAktif, cancellationToken));
 
     public Task<Result<IReadOnlyList<FinansGiderKategoriModel>>> Handle(FinansGiderKutuphaneKategorileriQuery request, CancellationToken cancellationToken)
-        => FinansHandlerHelper.ExecuteAsync(() => service.GiderKategorileriAsync(request.SadeceAktif, cancellationToken));
+        => FinansHandlerHelper.ExecuteAsync(() => giderTanimlari.GiderKategorileriAsync(request.SadeceAktif, cancellationToken));
 
     public Task<Result<IReadOnlyList<FinansGiderKalemiModel>>> Handle(FinansGiderKutuphaneKalemleriQuery request, CancellationToken cancellationToken)
         => FinansHandlerHelper.ExecuteAsync(() =>
-            service.GiderKalemleriAsync(request.KategoriId, request.SadeceAktif, cancellationToken));
+            giderTanimlari.GiderKalemleriAsync(request.KategoriId, request.SadeceAktif, cancellationToken));
 
     public Task<Result<FinansSayfaliSonuc<FinansUrunModel>>> Handle(FinansUrunlerQuery request, CancellationToken cancellationToken)
-        => FinansHandlerHelper.ExecuteAsync(() => service.UrunlerSayfaliAsync(
+        => FinansHandlerHelper.ExecuteAsync(() => urunler.UrunlerSayfaliAsync(
             request.SadeceAktif, request.TarifeTarihi, request.Arama, request.PageNumber, request.PageSize, cancellationToken));
 
     public Task<Result<IReadOnlyList<FinansSablonModel>>> Handle(FinansSablonlarQuery request, CancellationToken cancellationToken)
-        => FinansHandlerHelper.ExecuteAsync(() => service.SablonlarAsync(cancellationToken));
+        => FinansHandlerHelper.ExecuteAsync(() => sablonlar.SablonlarAsync(cancellationToken));
 }

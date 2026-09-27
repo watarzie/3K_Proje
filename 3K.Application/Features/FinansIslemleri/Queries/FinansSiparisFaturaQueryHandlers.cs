@@ -6,7 +6,7 @@ using _3K.Core.Models;
 namespace _3K.Application.Features.FinansIslemleri.Queries;
 
 /// <summary>Sipariş (PO) ve fatura sorguları.</summary>
-public sealed class FinansSiparisFaturaQueryHandlers(IFinansService service) :
+public sealed class FinansSiparisFaturaQueryHandlers(IFinansSiparisFaturaService service) :
     IRequestHandler<FinansSiparislerQuery, Result<FinansSayfaliSonuc<FinansSiparisModel>>>,
     IRequestHandler<FinansSiparisGetirQuery, Result<FinansSiparisModel>>,
     IRequestHandler<FinansFaturalarQuery, Result<FinansSayfaliSonuc<FinansFaturaModel>>>,
