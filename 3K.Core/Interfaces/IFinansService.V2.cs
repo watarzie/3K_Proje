@@ -16,5 +16,5 @@ public partial interface IFinansService
     Task<bool> KaliciSilAsync(FinansKaliciSilModel model, CancellationToken cancellationToken);
     Task<IReadOnlyList<FinansBelgeModel>> BelgelerAsync(string hedefTuru, int hedefId, CancellationToken cancellationToken);
     Task<FinansBelgeModel> BelgeYukleAsync(FinansBelgeYukleModel model, CancellationToken cancellationToken);
-    Task<FinansBelgeIcerikModel?> BelgeIndirAsync(int id, CancellationToken cancellationToken);
+    Task<DosyaIcerigi?> BelgeIndirAsync(int id, CancellationToken cancellationToken);
 }

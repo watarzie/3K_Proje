@@ -3,92 +3,52 @@ using System.Text;
 using MediatR;
 using _3K.Application.Common;
 using _3K.Core.Entities;
-using _3K.Core.Enums;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.PdfIslemleri.Queries
 {
-    public sealed class GetTopluEksikUrunlerRaporuQueryHandler
-        : IRequestHandler<GetTopluEksikUrunlerRaporuQuery, Result<byte[]>>
+    public sealed class GetTopluEksikUrunlerRaporuQueryHandler(IUnitOfWork unitOfWork, IPdfService pdfService)
+        : IRequestHandler<GetTopluEksikUrunlerRaporuQuery, Result<DosyaIcerigi>>
     {
         private const long MaksimumToplamHamRaporBoyutu = 100L * 1024 * 1024;
 
-        private readonly IUnitOfWork _unitOfWork;
-        private readonly IPdfService _pdfService;
-        private readonly ICurrentUserService _currentUser;
-        private readonly IRolService _rolService;
-
-        public GetTopluEksikUrunlerRaporuQueryHandler(
-            IUnitOfWork unitOfWork,
-            IPdfService pdfService,
-            ICurrentUserService currentUser,
-            IRolService rolService)
-        {
-            _unitOfWork = unitOfWork;
-            _pdfService = pdfService;
-            _currentUser = currentUser;
-            _rolService = rolService;
-        }
-
-        public async Task<Result<byte[]>> Handle(
+        public async Task<Result<DosyaIcerigi>> Handle(
             GetTopluEksikUrunlerRaporuQuery request,
             CancellationToken cancellationToken)
         {
             var validation = await new Validators.GetTopluEksikUrunlerRaporuQueryValidator()
                 .ValidateAsync(request, cancellationToken);
             if (!validation.IsValid)
-                return Result<byte[]>.Failure(string.Join(" ", validation.Errors.Select(x => x.ErrorMessage)));
+                return Result<DosyaIcerigi>.Failure(string.Join(" ", validation.Errors.Select(x => x.ErrorMessage)));
 
             var projeIds = request.ProjeIds.ToList();
 
             cancellationToken.ThrowIfCancellationRequested();
-            var projeEntities = await _unitOfWork.GetRepository<Proje>()
-                .FindAsync(proje => projeIds.Contains(proje.Id));
+            var projeMap = (await unitOfWork.GetRepository<Proje>().FindAsync(proje => projeIds.Contains(proje.Id)))
+                .ToDictionary(proje => proje.Id, proje => new { proje.ProjeNo, proje.ProjeTipiId });
             cancellationToken.ThrowIfCancellationRequested();
 
-            var projeler = projeEntities
-                .Select(proje => new
-                {
-                    proje.Id,
-                    proje.ProjeNo,
-                    proje.ProjeTipiId
-                })
-                .ToList();
-
-            var projeMap = projeler.ToDictionary(proje => proje.Id);
-            var bulunamayanIds = projeIds
-                .Where(id => !projeMap.ContainsKey(id))
-                .ToList();
-
+            var bulunamayanIds = projeIds.Where(id => !projeMap.ContainsKey(id)).ToList();
             if (bulunamayanIds.Count > 0)
             {
-                return Result<byte[]>.Failure(
-                    $"Şu projeler bulunamadı: {string.Join(", ", bulunamayanIds)}.",
-                    404);
+                return Result<DosyaIcerigi>.Failure(
+                    $"Şu projeler bulunamadı: {string.Join(", ", bulunamayanIds)}.", 404);
             }
 
-            var kapsamaUymayanProjeler = projeler
-                .Where(proje => proje.ProjeTipiId != (int)request.ProjeTipi)
-                .Select(proje => $"{proje.ProjeNo} ({proje.Id})")
+            var kapsamaUymayanProjeler = projeMap
+                .Where(proje => proje.Value.ProjeTipiId != (int)request.ProjeTipi)
+                .Select(proje => $"{proje.Value.ProjeNo} ({proje.Key})")
                 .ToList();
-
             if (kapsamaUymayanProjeler.Count > 0)
             {
-                return Result<byte[]>.Failure(
+                return Result<DosyaIcerigi>.Failure(
                     $"Seçilen rapor kapsamına uymayan projeler: {string.Join(", ", kapsamaUymayanProjeler)}.", 403);
             }
 
-            // Önce bütün seçim doğrulanır; bir proje yetkisizse hiçbir rapor üretilmez.
-            foreach (var proje in projeler)
-            {
-                if (!await EksikUrunlerRaporYetkisi.YetkiliMiAsync(
-                    (ProjeTipi)proje.ProjeTipiId, _currentUser, _rolService, cancellationToken))
-                    return Result<byte[]>.Failure($"{proje.ProjeNo} projesinin eksik raporunu okuma yetkiniz bulunmuyor.", 403);
-            }
-
-            var uzanti = request.DosyaTuru == EksikUrunlerRaporDosyaTuru.Pdf
-                ? "pdf"
-                : "xlsx";
+            var pdfMi = request.DosyaTuru == EksikUrunlerRaporDosyaTuru.Pdf;
+            var uzanti = pdfMi ? "pdf" : "xlsx";
+            var raporAdi = RaporDosyaAdi.EksikRaporAdi((int)request.ProjeTipi);
 
             using var zipStream = new MemoryStream();
             long toplamHamRaporBoyutu = 0;
@@ -100,9 +60,9 @@ namespace _3K.Application.Features.PdfIslemleri.Queries
 
                     var projeId = projeIds[index];
                     var proje = projeMap[projeId];
-                    var raporBytes = request.DosyaTuru == EksikUrunlerRaporDosyaTuru.Pdf
-                        ? await _pdfService.EksikUrunlerRaporuPdfOlusturAsync(projeId, cancellationToken)
-                        : await _pdfService.EksikUrunlerRaporuExcelOlusturAsync(projeId, cancellationToken);
+                    var raporBytes = pdfMi
+                        ? await pdfService.EksikUrunlerRaporuPdfOlusturAsync(projeId, cancellationToken)
+                        : await pdfService.EksikUrunlerRaporuExcelOlusturAsync(projeId, cancellationToken);
                     cancellationToken.ThrowIfCancellationRequested();
 
                     if (raporBytes.Length == 0)
@@ -113,15 +73,13 @@ namespace _3K.Application.Features.PdfIslemleri.Queries
 
                     if (raporBytes.LongLength > MaksimumToplamHamRaporBoyutu - toplamHamRaporBoyutu)
                     {
-                        return Result<byte[]>.Failure(
+                        return Result<DosyaIcerigi>.Failure(
                             "Seçilen projelerin toplam ham rapor boyutu 100 MiB sınırını aşıyor. Daha az proje seçerek tekrar deneyin.");
                     }
 
                     toplamHamRaporBoyutu += raporBytes.LongLength;
 
-                    var guvenliProjeNo = GuvenliDosyaParcasiOlustur(proje.ProjeNo);
-                    var raporAdi = request.ProjeTipi == ProjeTipi.Saha ? "SevkSonrasiEksikRaporu" : "EksikRaporu";
-                    var entryAdi = $"{index + 1:D2}_{guvenliProjeNo}_{projeId}_{raporAdi}.{uzanti}";
+                    var entryAdi = $"{index + 1:D2}_{GuvenliDosyaParcasiOlustur(proje.ProjeNo)}_{projeId}_{raporAdi}.{uzanti}";
                     var entry = archive.CreateEntry(entryAdi, CompressionLevel.Fastest);
 
                     await using var entryStream = entry.Open();
@@ -129,7 +87,9 @@ namespace _3K.Application.Features.PdfIslemleri.Queries
                 }
             }
 
-            return Result<byte[]>.Success(zipStream.ToArray());
+            var format = pdfMi ? "PDF" : "Excel";
+            return Result<DosyaIcerigi>.Success(DosyaIcerigi.Zip(zipStream.ToArray(),
+                $"TopluEksikRaporlari_{format}_{RaporDosyaAdi.TarihSaat()}.zip"));
         }
 
         private static string GuvenliDosyaParcasiOlustur(string? value)

@@ -2,50 +2,32 @@ using MediatR;
 using _3K.Application.Common;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.PdfIslemleri.Queries
 {
+    /// <summary>Gereken menü izni projenin veritabanındaki gerçek tipinden çözülür.</summary>
     public class GetEksikUrunlerPdfQuery
-        : IRequest<Result<byte[]>>, ISecuredRequest, IRequiresMenuPermission
+        : IRequest<Result<DosyaIcerigi>>, ISecuredRequest, IRequiresProjectMenuPermission
     {
-        public string RequiredMenuKod => EksikUrunlerRaporYetkisi.GetMenuKod(ProjeTipi);
-
         public int ProjeId { get; set; }
 
-        public ProjeTipi ProjeTipi { get; set; }
+        int IRequiresProjectMenuPermission.PermissionProjectId => ProjeId;
+        ProjectMenuOperation IRequiresProjectMenuPermission.PermissionOperation => ProjectMenuOperation.MissingItemsReport;
+        YetkiTipi IRequiresProjectMenuPermission.RequiredYetkiTipi => YetkiTipi.R;
     }
 
-    internal static class EksikUrunlerRaporYetkisi
+    public sealed class GetEksikUrunlerPdfQueryHandler(IUnitOfWork unitOfWork, IPdfService pdfService)
+        : IRequestHandler<GetEksikUrunlerPdfQuery, Result<DosyaIcerigi>>
     {
-        private const string GecersizProjeTipiMenuKodu = "__gecersiz-eksik-raporu-proje-tipi__";
-
-        public static string GetMenuKod(ProjeTipi projeTipi)
+        public async Task<Result<DosyaIcerigi>> Handle(GetEksikUrunlerPdfQuery request, CancellationToken cancellationToken)
         {
-            return projeTipi switch
-            {
-                ProjeTipi.Normal => "eksik-raporu",
-                ProjeTipi.Saha => "saha-sevk-sonrasi-eksik-raporu",
-                ProjeTipi.Yedek => "yedek-eksik-raporu",
-                _ => GecersizProjeTipiMenuKodu
-            };
-        }
-
-        public static bool GecerliMi(ProjeTipi projeTipi)
-        {
-            return projeTipi is ProjeTipi.Normal or ProjeTipi.Saha or ProjeTipi.Yedek;
-        }
-
-        public static async Task<bool> YetkiliMiAsync(
-            ProjeTipi gercekProjeTipi,
-            ICurrentUserService currentUser,
-            IRolService rolService,
-            CancellationToken cancellationToken)
-        {
-            return GecerliMi(gercekProjeTipi)
-                && currentUser.IsAuthenticated
-                && currentUser.UserId.HasValue
-                && await rolService.HasUserPermissionAsync(
-                    currentUser.UserId.Value, GetMenuKod(gercekProjeTipi), YetkiTipi.R, cancellationToken);
+            var proje = await RaporDosyaAdi.ProjeBulAsync(unitOfWork, request.ProjeId, cancellationToken);
+            if (proje == null) return RaporDosyaAdi.ProjeBulunamadi;
+            var pdf = await pdfService.EksikUrunlerRaporuPdfOlusturAsync(request.ProjeId, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            return Result<DosyaIcerigi>.Success(DosyaIcerigi.Pdf(pdf,
+                $"{proje.ProjeNo}_{RaporDosyaAdi.EksikRaporAdi(proje.ProjeTipiId)}.pdf"));
         }
     }
 }

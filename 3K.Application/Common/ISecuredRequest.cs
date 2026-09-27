@@ -51,7 +51,8 @@ namespace _3K.Application.Common
     public enum ProjectMenuOperation
     {
         ProjectRead, CrateRead, CrateWrite, Grid, UcK, Shipment, RevisionHistory,
-        ProjectDelete, PlannedShipmentDate, CrateReport, ActualPackingReport, UcKCrateReport, ProjectUnlock, ProjectCreate
+        ProjectDelete, PlannedShipmentDate, CrateReport, ActualPackingReport, UcKCrateReport, ProjectUnlock, ProjectCreate,
+        MissingItemsReport
     }
 
     public sealed record MenuPermissionGroup(

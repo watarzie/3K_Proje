@@ -8,6 +8,7 @@ using _3K.Application.Common;
 using _3K.Application.Features.AuthIslemleri.Commands;
 using _3K.Application.Features.GridIslemleri.Commands;
 using _3K.Application.Features.GridIslemleri.Queries;
+using _3K.Application.Features.PdfIslemleri.Queries;
 using _3K.Application.Features.ProjeIslemleri.Commands;
 using _3K.Application.Features.RolIslemleri.Commands;
 using _3K.Application.Features.RolIslemleri.Queries;
@@ -189,6 +190,54 @@ public class ServerAuthorizationRegressionTests
         fixture.Uow.Repo<Ceki>().Rows.Add(new() { Id = 21, ProjeId = 11 });
         fixture.Uow.Repo<CekiSatiri>().Rows.Add(new() { Id = 31, CekiId = 21 });
         Assert.True((await fixture.Run(new SahaYedekMalzemeEkleCommand { ProjeId = 10, SandikId = 40, CekiSatiriId = 31 })).IsSuccess);
+    }
+
+    [Theory]
+    [InlineData(ProjeTipi.Normal, "eksik-raporu")]
+    [InlineData(ProjeTipi.Saha, "saha-sevk-sonrasi-eksik-raporu")]
+    [InlineData(ProjeTipi.Yedek, "yedek-eksik-raporu")]
+    public async Task EksikRaporu_GercekProjeTipininRaporMenusunuIster(ProjeTipi type, string menu)
+    {
+        var fixture = new Fixture(menu, YetkiTipi.R);
+        fixture.Seed(type);
+        Assert.True((await fixture.Run(new GetEksikUrunlerPdfQuery { ProjeId = 10 })).IsSuccess);
+        Assert.True((await fixture.Run(new GetEksikUrunlerExcelQuery { ProjeId = 10 })).IsSuccess);
+        Assert.All(fixture.Roles.Calls, x => Assert.Equal((menu, YetkiTipi.R), x));
+    }
+
+    [Theory]
+    [InlineData(ProjeTipi.Normal, "saha-sevk-sonrasi-eksik-raporu")]
+    [InlineData(ProjeTipi.Saha, "eksik-raporu")]
+    [InlineData(ProjeTipi.Yedek, "eksik-raporu")]
+    public async Task EksikRaporu_BaskaTipinRaporIzniGercekProjeyiAcamaz(ProjeTipi actual, string grantedMenu)
+    {
+        var fixture = new Fixture(grantedMenu, YetkiTipi.R);
+        fixture.Seed(actual);
+        Assert.Equal(403, (await fixture.Run(new GetEksikUrunlerPdfQuery { ProjeId = 10 })).StatusCode);
+        Assert.Equal(0, fixture.Executed);
+    }
+
+    [Fact]
+    public async Task TopluEksikRaporu_HerProjeGercekTipineGoreYetkilendirilir()
+    {
+        var fixture = new Fixture("eksik-raporu", YetkiTipi.R);
+        fixture.Seed(ProjeTipi.Normal);
+        fixture.Uow.Repo<Proje>().Rows.Add(new() { Id = 11, ProjeTipiId = (int)ProjeTipi.Normal });
+        Assert.True((await fixture.Run(new GetTopluEksikUrunlerRaporuQuery { ProjeIds = [10, 11] })).IsSuccess);
+
+        // Kapsam Normal bildirilse de ikinci projenin gerçek tipi Saha ise istek bütünüyle reddedilir.
+        fixture.Uow.Repo<Proje>().Rows.Add(new() { Id = 12, ProjeTipiId = (int)ProjeTipi.Saha });
+        Assert.Equal(403, (await fixture.Run(new GetTopluEksikUrunlerRaporuQuery { ProjeIds = [10, 12] })).StatusCode);
+        Assert.Equal(1, fixture.Executed);
+    }
+
+    [Fact]
+    public async Task TopluEksikRaporu_GecersizSecimKapsamIzniyleValidatoraUlasir()
+    {
+        var fixture = new Fixture("eksik-raporu", YetkiTipi.R);
+        Assert.True((await fixture.Run(new GetTopluEksikUrunlerRaporuQuery { ProjeIds = [] })).IsSuccess);
+        Assert.Equal(403, (await fixture.Run(new GetTopluEksikUrunlerRaporuQuery
+        { ProjeIds = [], ProjeTipi = ProjeTipi.Saha })).StatusCode);
     }
 
     [Fact]

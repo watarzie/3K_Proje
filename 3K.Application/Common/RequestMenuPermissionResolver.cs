@@ -85,6 +85,9 @@ public sealed class RequestMenuPermissionResolver(IUnitOfWork unitOfWork, IReadQ
             CekiSatiriAnaVeriGuncelleCommand => One("ceki-verisi-duzenle", YetkiTipi.W),
             CekiSatirlariSilCommand => One("ceki-verisi-sil", YetkiTipi.W),
             GetDepoSandikPdfQuery or GetProjeDepoSandikPdfQuery => One("depo-durumu", YetkiTipi.R),
+            // Geçersiz seçimde istek kapsamının izniyle validator'a ulaşılır; 400 mesajı korunur.
+            GetTopluEksikUrunlerRaporuQuery x when !GecerliProjeSecimi(x.ProjeIds) =>
+                ProjectPolicy((int)x.ProjeTipi, ProjectMenuOperation.MissingItemsReport, YetkiTipi.R),
             ProjeOlusturCommand x => ProjectPolicy(x.ProjeTipiId, ProjectMenuOperation.ProjectCreate, YetkiTipi.W),
             ProjeListeleQuery x => ProjectListPolicy(x.ProjeTipiId, x.IsSevkEdilen),
             // Sadece seçim için asgari proje bilgisi dönen ortak lookup; operasyon izni vermez.
@@ -113,6 +116,8 @@ public sealed class RequestMenuPermissionResolver(IUnitOfWork unitOfWork, IReadQ
         GetSahaGerceklesenCekiListesiPdfQuery x => new(ProjectMenuOperation.ActualPackingReport, YetkiTipi.R, x.ProjeId),
         GetSahaGerceklesenCekiListesiExcelQuery x => new(ProjectMenuOperation.ActualPackingReport, YetkiTipi.R, x.ProjeId),
         GetUcKSandikDurumPdfQuery x => new(ProjectMenuOperation.UcKCrateReport, YetkiTipi.R, x.ProjeId),
+        GetTopluEksikUrunlerRaporuQuery x => new(ProjectMenuOperation.MissingItemsReport, YetkiTipi.R,
+            ProjectIds: x.ProjeIds),
         PdfOlusturCommand x => new(ProjectMenuOperation.CrateReport, YetkiTipi.R, x.ProjeId),
         ExcelOlusturCommand x => new(ProjectMenuOperation.CrateReport, YetkiTipi.R, x.ProjeId),
         ProjeSevkEtCommand x => new(ProjectMenuOperation.Shipment, YetkiTipi.W, x.ProjeId),
@@ -185,6 +190,11 @@ public sealed class RequestMenuPermissionResolver(IUnitOfWork unitOfWork, IReadQ
         {
             if (spec.ProjectId.Value <= 0) return RequestMenuPermissions.Denied;
             projects.Add(spec.ProjectId.Value);
+        }
+        if (spec.ProjectIds != null)
+        {
+            if (spec.ProjectIds.Any(x => x <= 0)) return RequestMenuPermissions.Denied;
+            projects.UnionWith(spec.ProjectIds);
         }
 
         var sandikQuery = unitOfWork.GetRepository<Sandik>().Queryable();
@@ -261,9 +271,18 @@ public sealed class RequestMenuPermissionResolver(IUnitOfWork unitOfWork, IReadQ
             ProjectMenuOperation.UcKCrateReport => One(prefix + "3k-sandik-durum-raporu", yetki),
             ProjectMenuOperation.CrateReport => type == (int)ProjeTipi.Normal
                 ? Any(yetki, "sandik-yonetimi", "aktif-projeler") : One(prefix + "raporu", yetki),
+            ProjectMenuOperation.MissingItemsReport => One(type switch
+            {
+                (int)ProjeTipi.Saha => "saha-sevk-sonrasi-eksik-raporu",
+                (int)ProjeTipi.Yedek => "yedek-eksik-raporu",
+                _ => "eksik-raporu"
+            }, yetki),
             _ => RequestMenuPermissions.Denied
         };
     }
+
+    private static bool GecerliProjeSecimi(IReadOnlyCollection<int>? ids) =>
+        ids is { Count: > 0 and <= 25 } && ids.All(x => x > 0) && ids.Distinct().Count() == ids.Count;
 
     private static RequestMenuPermissions One(string menu, YetkiTipi yetki) => new([new([new(menu, yetki)])]);
     private static RequestMenuPermissions Any(YetkiTipi yetki, params string[] menus) =>
@@ -276,5 +295,6 @@ public sealed class RequestMenuPermissionResolver(IUnitOfWork unitOfWork, IReadQ
     }
     private sealed record ProjectAccess(ProjectMenuOperation Operation, YetkiTipi Yetki, int? ProjectId = null,
         IReadOnlyCollection<int>? SandikIds = null, IReadOnlyCollection<int>? CekiSatiriIds = null,
-        IReadOnlyCollection<int>? IcerikIds = null, IReadOnlyCollection<int>? CekiIds = null);
+        IReadOnlyCollection<int>? IcerikIds = null, IReadOnlyCollection<int>? CekiIds = null,
+        IReadOnlyCollection<int>? ProjectIds = null);
 }

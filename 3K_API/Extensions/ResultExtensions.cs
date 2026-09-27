@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using _3K.Application.Common;
+using _3K.Core.Models;
 
 namespace _3K_API.Extensions
 {
@@ -55,6 +56,20 @@ namespace _3K_API.Extensions
                 500 => new ObjectResult(errorBody) { StatusCode = 500 },
                 _ => new BadRequestObjectResult(errorBody)
             };
+        }
+
+        /// <summary>
+        /// Başarılı dosya sonucunu indirme yanıtına, hatayı standart hata gövdesine çevirir.
+        /// Başarılı ama boş sonuç (ör. silinmiş belge) 404 döner.
+        /// </summary>
+        public static ActionResult ToFileResult(this Result<DosyaIcerigi> result)
+        {
+            if (!result.IsSuccess)
+                return result.ToActionResult();
+
+            return result.Value is { } dosya
+                ? new FileContentResult(dosya.Icerik, dosya.IcerikTuru) { FileDownloadName = dosya.DosyaAdi }
+                : new NotFoundObjectResult(new { message = "Dosya bulunamadı." });
         }
 
         private static object CreateErrorBody(Error error)

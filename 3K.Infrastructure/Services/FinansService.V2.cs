@@ -252,11 +252,11 @@ public sealed partial class FinansService
             return new FinansBelgeModel(entity.Id, entity.HedefTuru, entity.HedefId, entity.Surum, entity.OrijinalAd, entity.Boyut, entity.IcerikTuru, entity.Hash, entity.Yukleyen, entity.CreatedDate);
         }, cancellationToken);
 
-    public async Task<FinansBelgeIcerikModel?> BelgeIndirAsync(int id, CancellationToken cancellationToken)
+    public async Task<DosyaIcerigi?> BelgeIndirAsync(int id, CancellationToken cancellationToken)
     {
         var entity = await _context.Set<FinansBelge>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (entity is null) return null;
         if (await TargetAsync(entity.HedefTuru, entity.HedefId, cancellationToken) is null) throw new InvalidOperationException("Belge hedefi bulunamadı.");
-        return new(entity.Icerik, entity.OrijinalAd, entity.IcerikTuru);
+        return new(entity.Icerik, entity.IcerikTuru, entity.OrijinalAd);
     }
 }

@@ -31,26 +31,8 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             _sahaTamamlamaService = sahaTamamlamaService;
         }
 
-        public async Task<Result<ProjeDto>> Handle(EksiklerdenSahaProjesiOlusturCommand request, CancellationToken cancellationToken)
-        {
-            try
-            {
-                return await _unitOfWork.ExecuteInTransactionAsync(
-                    async transactionCancellationToken =>
-                    {
-                        var result = await HandleInTransactionAsync(request, transactionCancellationToken);
-                        if (!result.IsSuccess)
-                            throw new EksikSahaAktarimRollbackException(result);
-
-                        return result;
-                    },
-                    cancellationToken);
-            }
-            catch (EksikSahaAktarimRollbackException exception)
-            {
-                return exception.Result;
-            }
-        }
+        public Task<Result<ProjeDto>> Handle(EksiklerdenSahaProjesiOlusturCommand request, CancellationToken cancellationToken) =>
+            _unitOfWork.ExecuteAtomicAsync(token => HandleInTransactionAsync(request, token), cancellationToken);
 
         private async Task<Result<ProjeDto>> HandleInTransactionAsync(
             EksiklerdenSahaProjesiOlusturCommand request,
@@ -444,17 +426,6 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 ToplamUrunSayisi = toplamSatir,
                 Lokasyon = yeniProje.Lokasyon
             });
-        }
-
-        private sealed class EksikSahaAktarimRollbackException : Exception
-        {
-            public EksikSahaAktarimRollbackException(Result<ProjeDto> result)
-                : base(result.Error?.Message ?? "Eksik saha aktarımı geri alındı.")
-            {
-                Result = result;
-            }
-
-            public Result<ProjeDto> Result { get; }
         }
 
         private async Task<string> GenerateSahaProjeNoAsync(string baseNo)

@@ -62,27 +62,29 @@ public class RaporTutarliligiTests
     }
 
     [Theory]
-    [InlineData(ProjeTipi.Normal, EksikUrunlerRaporDosyaTuru.Pdf, "eksik-raporu")]
-    [InlineData(ProjeTipi.Normal, EksikUrunlerRaporDosyaTuru.Excel, "eksik-raporu")]
-    [InlineData(ProjeTipi.Saha, EksikUrunlerRaporDosyaTuru.Pdf, "saha-sevk-sonrasi-eksik-raporu")]
-    [InlineData(ProjeTipi.Saha, EksikUrunlerRaporDosyaTuru.Excel, "saha-sevk-sonrasi-eksik-raporu")]
-    [InlineData(ProjeTipi.Yedek, EksikUrunlerRaporDosyaTuru.Pdf, "yedek-eksik-raporu")]
-    [InlineData(ProjeTipi.Yedek, EksikUrunlerRaporDosyaTuru.Excel, "yedek-eksik-raporu")]
-    public async Task TopluEksik_TekilRaporunAyniBytesiniZiplerVeHerProjeyiOnceYetkilendirir(
-        ProjeTipi type, EksikUrunlerRaporDosyaTuru format, string menu)
+    [InlineData(ProjeTipi.Normal, EksikUrunlerRaporDosyaTuru.Pdf, "_EksikRaporu.pdf")]
+    [InlineData(ProjeTipi.Normal, EksikUrunlerRaporDosyaTuru.Excel, "_EksikRaporu.xlsx")]
+    [InlineData(ProjeTipi.Saha, EksikUrunlerRaporDosyaTuru.Pdf, "_SevkSonrasiEksikRaporu.pdf")]
+    [InlineData(ProjeTipi.Saha, EksikUrunlerRaporDosyaTuru.Excel, "_SevkSonrasiEksikRaporu.xlsx")]
+    [InlineData(ProjeTipi.Yedek, EksikUrunlerRaporDosyaTuru.Pdf, "_EksikRaporu.pdf")]
+    [InlineData(ProjeTipi.Yedek, EksikUrunlerRaporDosyaTuru.Excel, "_EksikRaporu.xlsx")]
+    public async Task TopluEksik_TekilRaporunAyniBytesiniZipler(
+        ProjeTipi type, EksikUrunlerRaporDosyaTuru format, string raporSoneki)
     {
+        // Proje başına gerçek tip yetkisi çözümleyicide doğrulanır: ServerAuthorizationRegressionTests.
         var fixture = new Fixture(type);
         var result = await fixture.Handle(type, format);
         Assert.True(result.IsSuccess, result.Error?.Message);
-        Assert.Equal([menu, menu], fixture.Roles.Calls.Select(c => c.Menu));
-        Assert.All(fixture.Roles.Calls, call => Assert.Equal(YetkiTipi.R, call.Permission));
+        Assert.Equal("application/zip", result.Value!.IcerikTuru);
+        Assert.StartsWith("TopluEksikRaporlari_", result.Value.DosyaAdi);
         Assert.Equal([1, 2], fixture.Pdf.Calls.Select(c => c.Id));
         Assert.All(fixture.Pdf.Calls, call => Assert.Equal(format == EksikUrunlerRaporDosyaTuru.Pdf
             ? nameof(IPdfService.EksikUrunlerRaporuPdfOlusturAsync) : nameof(IPdfService.EksikUrunlerRaporuExcelOlusturAsync), call.Method));
-        using var zip = new ZipArchive(new MemoryStream(result.Value!), ZipArchiveMode.Read);
+        using var zip = new ZipArchive(new MemoryStream(result.Value.Icerik), ZipArchiveMode.Read);
         Assert.Equal(2, zip.Entries.Count);
         foreach (var entry in zip.Entries)
         {
+            Assert.EndsWith(raporSoneki, entry.FullName);
             Assert.DoesNotContain("..", entry.FullName);
             Assert.DoesNotContain("/", entry.FullName);
             Assert.DoesNotContain("\\", entry.FullName);
@@ -91,18 +93,6 @@ public class RaporTutarliligiTests
             await stream.CopyToAsync(data);
             Assert.Equal(fixture.Pdf.Bytes, data.ToArray());
         }
-    }
-
-    [Theory]
-    [InlineData(ProjeTipi.Normal)][InlineData(ProjeTipi.Saha)][InlineData(ProjeTipi.Yedek)]
-    public async Task TopluEksik_IkinciProjeYetkisizseIlkRaporDaUretilmez(ProjeTipi type)
-    {
-        var fixture = new Fixture(type);
-        fixture.Roles.DenyCall = 2;
-        var result = await fixture.Handle(type);
-        Assert.False(result.IsSuccess);
-        Assert.Equal(403, result.StatusCode);
-        Assert.Empty(fixture.Pdf.Calls);
     }
 
     [Theory]
@@ -150,34 +140,18 @@ public class RaporTutarliligiTests
         Assert.Empty(fixture.Pdf.Calls);
     }
 
-    [Theory]
-    [InlineData(false)][InlineData(true)]
-    public async Task TekilEksik_GercekMenuOkumaIzniOlmadanRenderEdilmez(bool excel)
-    {
-        var fixture = new Fixture(ProjeTipi.Saha);
-        fixture.Roles.DenyCall = 1;
-        var result = excel
-            ? await new GetEksikUrunlerExcelQueryHandler(fixture.Uow, fixture.Service, new OrtakUser(), fixture.Roles)
-                .Handle(new() { ProjeId = 1, ProjeTipi = ProjeTipi.Saha }, default)
-            : await new GetEksikUrunlerPdfQueryHandler(fixture.Uow, fixture.Service, new OrtakUser(), fixture.Roles)
-                .Handle(new() { ProjeId = 1, ProjeTipi = ProjeTipi.Saha }, default);
-        Assert.Equal(403, result.StatusCode);
-        Assert.Empty(fixture.Pdf.Calls);
-    }
-
     private sealed class Fixture
     {
         public OrtakMemoryUow Uow { get; } = new();
-        public RaporRolService Roles { get; } = new();
         public IPdfService Service { get; } = DispatchProxy.Create<IPdfService, RaporProxy>();
         public RaporProxy Pdf => (RaporProxy)Service;
         public GetTopluEksikUrunlerRaporuQueryHandler Handler { get; }
         public Fixture(ProjeTipi type)
         {
             Uow.Repo<Proje>().Rows.AddRange([new() { Id = 1, ProjeNo = "../../unsafe\\PA-1", ProjeTipiId = (int)type }, new() { Id = 2, ProjeNo = "PA-2", ProjeTipiId = (int)type }]);
-            Handler = new(Uow, Service, new OrtakUser(), Roles);
+            Handler = new(Uow, Service);
         }
-        public Task<_3K.Application.Common.Result<byte[]>> Handle(ProjeTipi type, EksikUrunlerRaporDosyaTuru format = EksikUrunlerRaporDosyaTuru.Pdf) =>
+        public Task<_3K.Application.Common.Result<DosyaIcerigi>> Handle(ProjeTipi type, EksikUrunlerRaporDosyaTuru format = EksikUrunlerRaporDosyaTuru.Pdf) =>
             Handler.Handle(new() { ProjeIds = [1, 2], ProjeTipi = type, DosyaTuru = format }, default);
     }
 
@@ -192,20 +166,4 @@ public class RaporTutarliligiTests
             return Task.FromResult(Bytes);
         }
     }
-}
-
-internal sealed class RaporRolService : IRolService
-{
-    public List<(string Menu, YetkiTipi Permission)> Calls { get; } = [];
-    public int DenyCall { get; set; }
-    public Task<bool> HasUserPermissionAsync(int userId, string menuKod, YetkiTipi requiredYetkiTipi, CancellationToken ct = default)
-    {
-        ct.ThrowIfCancellationRequested();
-        Calls.Add((menuKod, requiredYetkiTipi));
-        return Task.FromResult(Calls.Count != DenyCall);
-    }
-    public Task<bool> IsAdminAsync(int userId, CancellationToken ct = default) => Task.FromResult(false);
-    public Task<List<MenuTanimi>> GetMenuAgaciAsync(CancellationToken ct = default) => Task.FromResult(new List<MenuTanimi>());
-    public Task<List<RolYetki>> GetRolYetkileriAsync(int rolId, CancellationToken ct = default) => Task.FromResult(new List<RolYetki>());
-    public Task YetkileriGuncelleAsync(int rolId, List<RolYetki> yetkiler, CancellationToken ct = default) => Task.CompletedTask;
 }

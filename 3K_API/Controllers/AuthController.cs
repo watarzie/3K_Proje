@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using _3K.Application.Features.AuthIslemleri.Commands;
-using _3K.Core.Entities;
 using _3K.Core.Interfaces;
 using _3K_API.Extensions;
 
@@ -14,82 +13,17 @@ namespace _3K_API.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IMediator _mediator;
-        private readonly IUnitOfWork _unitOfWork;
         private readonly IAuthService _authService;
-        private readonly IWebHostEnvironment _environment;
 
-        public AuthController(
-            IMediator mediator,
-            IUnitOfWork unitOfWork,
-            IAuthService authService,
-            IWebHostEnvironment environment)
+        public AuthController(IMediator mediator, IAuthService authService)
         {
             _mediator = mediator;
-            _unitOfWork = unitOfWork;
             _authService = authService;
-            _environment = environment;
         }
-
-        ///// <summary>
-        ///// İlk admin kullanıcısını oluşturur.
-        ///// GÜVENLİK: Sadece DB'de hiç kullanıcı yokken çalışır.
-        ///// MediatR pipeline'ını bypass eder (yetkilendirme gerekmez).
-        ///// </summary>
-        //[HttpPost("seed-admin")]
-        //public async Task<ActionResult> SeedAdmin([FromBody] SeedAdminRequest request)
-        //{
-        //    // Güvenlik 1: Sistemde zaten kullanıcı varsa engelle
-        //    var kullaniciRepo = _unitOfWork.GetRepository<Kullanici>();
-        //    var mevcutKullanicilar = await kullaniciRepo.GetAllAsync();
-
-        //    if (mevcutKullanicilar.Any())
-        //    {
-        //        return BadRequest(new
-        //        {
-        //            success = false,
-        //            message = "Sistemde zaten kullanıcı mevcut. Bu endpoint sadece ilk kurulumda kullanılabilir."
-        //        });
-        //    }
-
-        //    // Validasyon
-        //    if (string.IsNullOrWhiteSpace(request.AdSoyad) ||
-        //        string.IsNullOrWhiteSpace(request.Email) ||
-        //        string.IsNullOrWhiteSpace(request.Sifre))
-        //    {
-        //        return BadRequest(new
-        //        {
-        //            success = false,
-        //            message = "AdSoyad, Email ve Sifre alanları zorunludur."
-        //        });
-        //    }
-
-        //    // MediatR pipeline bypass — doğrudan AuthService kullan
-        //    // Rol her zaman Admin olarak zorunlu atanır (RolId=1)
-        //    var kullanici = await _authService.RegisterAsync(
-        //        request.AdSoyad,
-        //        request.Email,
-        //        request.Sifre,
-        //        1 // Admin RolId (seed data'da Id=1)
-        //    );
-
-        //    return Ok(new
-        //    {
-        //        success = true,
-        //        message = "İlk admin kullanıcısı başarıyla oluşturuldu.",
-        //        data = new
-        //        {
-        //            kullanici.Id,
-        //            kullanici.AdSoyad,
-        //            kullanici.Email,
-        //            Rol = kullanici.Rol?.Ad ?? "Admin",
-        //            kullanici.BasHarf
-        //        }
-        //    });
-        //}
 
         [HttpPost("login")]
         [AllowAnonymous]
-        [EnableRateLimiting("auth-login")]
+        [EnableRateLimiting(ApiServiceCollectionExtensions.LoginRateLimitPolicy)]
         public async Task<ActionResult> Login([FromBody] LoginCommand command)
         {
             var result = await _mediator.Send(command);
@@ -98,7 +32,7 @@ namespace _3K_API.Controllers
 
         [HttpPost("2fa/setup/start")]
         [AllowAnonymous]
-        [EnableRateLimiting("two-factor")]
+        [EnableRateLimiting(ApiServiceCollectionExtensions.TwoFactorRateLimitPolicy)]
         public async Task<ActionResult> IkiFaktorKurulumBaslat(
             [FromBody] IkiFaktorKurulumBaslatCommand command)
         {
@@ -108,7 +42,7 @@ namespace _3K_API.Controllers
 
         [HttpPost("2fa/setup/confirm")]
         [AllowAnonymous]
-        [EnableRateLimiting("two-factor")]
+        [EnableRateLimiting(ApiServiceCollectionExtensions.TwoFactorRateLimitPolicy)]
         public async Task<ActionResult> IkiFaktorKurulumDogrula(
             [FromBody] IkiFaktorKurulumDogrulaCommand command)
         {
@@ -118,7 +52,7 @@ namespace _3K_API.Controllers
 
         [HttpPost("2fa/verify")]
         [AllowAnonymous]
-        [EnableRateLimiting("two-factor")]
+        [EnableRateLimiting(ApiServiceCollectionExtensions.TwoFactorRateLimitPolicy)]
         public async Task<ActionResult> IkiFaktorGirisDogrula(
             [FromBody] IkiFaktorGirisDogrulaCommand command)
         {
@@ -128,7 +62,7 @@ namespace _3K_API.Controllers
 
         [HttpPost("2fa/recovery/verify")]
         [AllowAnonymous]
-        [EnableRateLimiting("two-factor")]
+        [EnableRateLimiting(ApiServiceCollectionExtensions.TwoFactorRateLimitPolicy)]
         public async Task<ActionResult> IkiFaktorKurtarmaKoduDogrula(
             [FromBody] IkiFaktorKurtarmaKoduDogrulaCommand command)
         {
@@ -165,15 +99,5 @@ namespace _3K_API.Controllers
                 return Unauthorized(new { message = "Oturum yenilenemedi. Lütfen tekrar giriş yapın." });
             }
         }
-    }
-
-    /// <summary>
-    /// Seed Admin için ayrı DTO — RegisterCommand'dan bağımsız (pipeline bypass).
-    /// </summary>
-    public class SeedAdminRequest
-    {
-        public string AdSoyad { get; set; } = string.Empty;
-        public string Email { get; set; } = string.Empty;
-        public string Sifre { get; set; } = string.Empty;
     }
 }

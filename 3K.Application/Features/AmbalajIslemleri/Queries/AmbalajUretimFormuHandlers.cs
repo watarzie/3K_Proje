@@ -34,7 +34,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
     }
 
     public sealed class GetAmbalajUretimFormuDosyasiQueryHandler
-        : IRequestHandler<GetAmbalajUretimFormuDosyasiQuery, Result<AmbalajDosyaDto>>
+        : IRequestHandler<GetAmbalajUretimFormuDosyasiQuery, Result<DosyaIcerigi>>
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IAmbalajRaporDosyaService _dosyaService;
@@ -51,16 +51,16 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
             _user = user;
         }
 
-        public async Task<Result<AmbalajDosyaDto>> Handle(
+        public async Task<Result<DosyaIcerigi>> Handle(
             GetAmbalajUretimFormuDosyasiQuery request,
             CancellationToken cancellationToken)
         {
             if (!request.KayitId.HasValue && !request.ProjeId.HasValue && string.IsNullOrWhiteSpace(request.ManuelProjeNo) && request.KayitIdleri.Count == 0)
-                return Result<AmbalajDosyaDto>.Failure("Form için kayıt veya proje seçiniz.", 400);
+                return Result<DosyaIcerigi>.Failure("Form için kayıt veya proje seçiniz.", 400);
             if (request.KayitIdleri.Any(id => id <= 0) || request.KayitIdleri.Distinct().Count() > GetAmbalajUretimFormuDosyasiQuery.EnFazlaSecilebilirKayit)
-                return Result<AmbalajDosyaDto>.Failure("Form seçimi geçersiz veya 500 kayıt sınırını aşıyor.", 400);
+                return Result<DosyaIcerigi>.Failure("Form seçimi geçersiz veya 500 kayıt sınırını aşıyor.", 400);
             var form = AmbalajYasamDongusuYardimcisi.KayitliForm(_unitOfWork, request.KayitId, request.ProjeId, request.ManuelProjeNo, request.KayitIdleri, request.Tur, request.BagimsizKayitMi);
-            if (form == null) return Result<AmbalajDosyaDto>.Failure("Kaydedilmiş üretim formu bulunamadı. Önce Üretim Formu Oluştur işlemini kullanınız.", 404);
+            if (form == null) return Result<DosyaIcerigi>.Failure("Kaydedilmiş üretim formu bulunamadı. Önce Üretim Formu Oluştur işlemini kullanınız.", 404);
             var izin = _roles != null && _user != null ? await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(_roles, _user, cancellationToken)
                 : new AmbalajGorunumYetkileri(false, false, false, false);
             AmbalajYasamDongusuYardimcisi.Maskele(form, izin);
@@ -69,13 +69,13 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
             var zaman = TurkeyTime.Now.ToString("yyyyMMdd-HHmmss");
             if (string.Equals(request.Format, "xlsx", StringComparison.OrdinalIgnoreCase))
             {
-                return Result<AmbalajDosyaDto>.Success(new AmbalajDosyaDto(
+                return Result<DosyaIcerigi>.Success(new DosyaIcerigi(
                     _dosyaService.UretimFormuExcelOlustur(form),
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     $"ambalaj-uretim-formu-{safeProject}-{zaman}.xlsx"));
             }
 
-            return Result<AmbalajDosyaDto>.Success(new AmbalajDosyaDto(
+            return Result<DosyaIcerigi>.Success(new DosyaIcerigi(
                 _dosyaService.UretimFormuPdfOlustur(form),
                 "application/pdf",
                 $"ambalaj-uretim-formu-{safeProject}-{zaman}.pdf"));

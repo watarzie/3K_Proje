@@ -33,4 +33,3 @@ public sealed class CekiRevizyonGecmisiDetayi
     public CekiRevizyonOnizlemeSonuc? Onizleme { get; set; }
 }
 
-public sealed record CekiRevizyonDosyasi(byte[] Icerik, string DosyaAdi);

@@ -8,6 +8,7 @@ using _3K.Core.Interfaces;
 using _3K.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using _3K.Core.Common;
+using _3K.Core.Exceptions;
 
 namespace _3K.Infrastructure.Services
 {
@@ -686,10 +687,10 @@ namespace _3K.Infrastructure.Services
                 .FirstOrDefaultAsync();
 
             if (ceki == null)
-                throw new KeyNotFoundException($"Proje için çeki bulunamadı: {projeId}");
+                throw new KayitBulunamadiException($"Proje için çeki bulunamadı: {projeId}");
 
             if (!File.Exists(ceki.OrijinalDosyaYolu))
-                throw new FileNotFoundException($"Orijinal Excel dosyası bulunamadı: {ceki.OrijinalDosyaYolu}");
+                throw new KayitBulunamadiException("Projenin orijinal çeki Excel dosyası sunucuda bulunamadı.");
 
             // 2. Operasyon verilerini DB'den getir
             var satirlar = await _context.CekiSatirlari
@@ -835,7 +836,7 @@ namespace _3K.Infrastructure.Services
                 .FirstOrDefaultAsync(p => p.Id == projeId);
 
             if (proje == null)
-                throw new KeyNotFoundException($"Proje bulunamadı: {projeId}");
+                throw new KayitBulunamadiException($"Proje bulunamadı: {projeId}");
 
             var sandiklar = await _context.Sandiklar
                 .Include(s => s.SandikIcerikleri)
@@ -994,7 +995,7 @@ namespace _3K.Infrastructure.Services
                 .FirstOrDefaultAsync(s => s.Id == sandikId);
 
             if (sandik == null)
-                throw new KeyNotFoundException($"Sandık bulunamadı: {sandikId}");
+                throw new KayitBulunamadiException($"Sandık bulunamadı: {sandikId}");
 
             var yedekProjesiMi = sandik.Proje?.ProjeTipiId == (int)ProjeTipi.Yedek;
             var kullaniciDict = await _context.Kullanicilar.ToDictionaryAsync(k => k.Id.ToString(), k => k.AdSoyad);
@@ -1149,12 +1150,12 @@ namespace _3K.Infrastructure.Services
                 .FirstOrDefaultAsync(p => p.Id == projeId);
 
             if (proje == null)
-                throw new KeyNotFoundException($"Proje bulunamadı: {projeId}");
+                throw new KayitBulunamadiException($"Proje bulunamadı: {projeId}");
 
             var sandiklar = proje.Sandiklar.OrderBy(s => s.SandikNo, SandikNumarasiComparer.Instance).ThenBy(s => s.Id).ToList();
 
             if (!sandiklar.Any())
-                throw new InvalidOperationException("Bu projeye ait sandık bulunamadı.");
+                throw new IsKuraliException("Bu projeye ait sandık bulunamadı.");
 
             var kullaniciDict = await _context.Kullanicilar.ToDictionaryAsync(k => k.Id.ToString(), k => k.AdSoyad);
 
@@ -1346,7 +1347,7 @@ namespace _3K.Infrastructure.Services
                 .FirstOrDefaultAsync(p => p.Id == projeId, cancellationToken);
 
             if (proje == null)
-                throw new KeyNotFoundException($"Proje bulunamadı: {projeId}");
+                throw new KayitBulunamadiException($"Proje bulunamadı: {projeId}");
 
             // Grid durumu EksikGeldi veya Gelmedi olan VE kalan > 0 olan ürünler
             var satirlar = await _context.CekiSatirlari
@@ -1600,10 +1601,10 @@ namespace _3K.Infrastructure.Services
                 .SingleOrDefaultAsync();
 
             if (!projeTipiId.HasValue)
-                throw new KeyNotFoundException($"Proje bulunamadı: {projeId}");
+                throw new KayitBulunamadiException($"Proje bulunamadı: {projeId}");
 
             if (!Enum.IsDefined(typeof(ProjeTipi), projeTipiId.Value))
-                throw new InvalidOperationException($"Projenin tipi geçersiz: {projeTipiId.Value}");
+                throw new IsKuraliException($"Projenin tipi geçersiz: {projeTipiId.Value}");
 
             return (ProjeTipi)projeTipiId.Value;
         }
@@ -1631,7 +1632,7 @@ namespace _3K.Infrastructure.Services
                 .FirstOrDefaultAsync(p => p.Id == projeId);
 
             if (proje == null)
-                throw new KeyNotFoundException($"Proje bulunamadi: {projeId}");
+                throw new KayitBulunamadiException($"Proje bulunamadi: {projeId}");
 
             var sahaYedekRaporuMu = raporProjeTipi is ProjeTipi.Saha or ProjeTipi.Yedek;
             if (proje.ProjeTipiId != (int)raporProjeTipi)
@@ -1643,7 +1644,7 @@ namespace _3K.Infrastructure.Services
                     ProjeTipi.Yedek => "yedek",
                     _ => "normal"
                 };
-                throw new InvalidOperationException($"{raporAdi} raporu sadece {beklenenTip} projeleri için alınabilir.");
+                throw new IsKuraliException($"{raporAdi} raporu sadece {beklenenTip} projeleri için alınabilir.");
             }
 
             var sevkEdilmisSandikIdleri = await _context.SevkiyatSandiklari
@@ -1655,7 +1656,7 @@ namespace _3K.Infrastructure.Services
             var sevkiyatKaydiVar = sevkEdilmisSandikIdleri.Any();
 
             if (raporProjeTipi == ProjeTipi.Normal && !ProjeSevkEdilmisSayilir(proje, sevkiyatKaydiVar))
-                throw new InvalidOperationException("Gerçekleşen çeki listesi raporu sadece sevk edilmiş projeler için alınabilir.");
+                throw new IsKuraliException("Gerçekleşen çeki listesi raporu sadece sevk edilmiş projeler için alınabilir.");
 
             var satirlar = await LoadGerceklesenRaporSatirlariAsync(projeId, sahaYedekRaporuMu);
 
@@ -1666,7 +1667,7 @@ namespace _3K.Infrastructure.Services
                 .ToListAsync();
 
             if (!satirlar.Any())
-                throw new KeyNotFoundException($"Projeye ait çeki satırı bulunamadı: {projeId}");
+                throw new KayitBulunamadiException($"Projeye ait çeki satırı bulunamadı: {projeId}");
 
             var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar, sadeceSevkEdilenSandiklar: !sahaYedekRaporuMu);
 
@@ -2103,7 +2104,7 @@ namespace _3K.Infrastructure.Services
                 .FirstOrDefaultAsync(p => p.Id == projeId, cancellationToken);
 
             if (proje == null)
-                throw new KeyNotFoundException($"Proje bulunamadı: {projeId}");
+                throw new KayitBulunamadiException($"Proje bulunamadı: {projeId}");
 
             var satirlar = await _context.CekiSatirlari
                 .AsNoTracking()
@@ -2260,7 +2261,7 @@ namespace _3K.Infrastructure.Services
                 .FirstOrDefaultAsync(p => p.Id == projeId);
 
             if (proje == null)
-                throw new KeyNotFoundException($"Proje bulunamadi: {projeId}");
+                throw new KayitBulunamadiException($"Proje bulunamadi: {projeId}");
 
             var sahaYedekRaporuMu = raporProjeTipi is ProjeTipi.Saha or ProjeTipi.Yedek;
             if (proje.ProjeTipiId != (int)raporProjeTipi)
@@ -2272,7 +2273,7 @@ namespace _3K.Infrastructure.Services
                     ProjeTipi.Yedek => "yedek",
                     _ => "normal"
                 };
-                throw new InvalidOperationException($"{raporAdi} raporu sadece {beklenenTip} projeleri için alınabilir.");
+                throw new IsKuraliException($"{raporAdi} raporu sadece {beklenenTip} projeleri için alınabilir.");
             }
 
             var sevkEdilmisSandikIdleri = await _context.SevkiyatSandiklari
@@ -2284,7 +2285,7 @@ namespace _3K.Infrastructure.Services
             var sevkiyatKaydiVar = sevkEdilmisSandikIdleri.Any();
 
             if (raporProjeTipi == ProjeTipi.Normal && !ProjeSevkEdilmisSayilir(proje, sevkiyatKaydiVar))
-                throw new InvalidOperationException("Gerçekleşen çeki listesi raporu sadece sevk edilmiş projeler için alınabilir.");
+                throw new IsKuraliException("Gerçekleşen çeki listesi raporu sadece sevk edilmiş projeler için alınabilir.");
 
             var satirlar = await LoadGerceklesenRaporSatirlariAsync(projeId, sahaYedekRaporuMu);
 
@@ -2294,7 +2295,7 @@ namespace _3K.Infrastructure.Services
                 .ToListAsync();
 
             if (!satirlar.Any())
-                throw new KeyNotFoundException($"Projeye ait çeki satırı bulunamadı: {projeId}");
+                throw new KayitBulunamadiException($"Projeye ait çeki satırı bulunamadı: {projeId}");
 
             var tamamlamaPlanMap = await GetTamamlamaPlanMapAsync(satirlar, sadeceSevkEdilenSandiklar: !sahaYedekRaporuMu);
 
@@ -2437,7 +2438,7 @@ namespace _3K.Infrastructure.Services
         public async Task<byte[]> DepoSandikRaporuPdfOlusturAsync(int? projeTipiId = null)
         {
             if (projeTipiId.HasValue && !Enum.IsDefined(typeof(ProjeTipi), projeTipiId.Value))
-                throw new ArgumentException("Gecersiz proje tipi filtresi.");
+                throw new IsKuraliException("Geçersiz proje tipi filtresi.");
 
             IQueryable<Sandik> sandikQuery = _context.Sandiklar
                 .AsNoTracking()
@@ -2687,7 +2688,7 @@ namespace _3K.Infrastructure.Services
                 .FirstOrDefaultAsync(p => p.Id == projeId);
 
             if (proje == null)
-                throw new KeyNotFoundException($"Proje bulunamadi: {projeId}");
+                throw new KayitBulunamadiException($"Proje bulunamadi: {projeId}");
 
             var sandiklar = await _context.Sandiklar
                 .AsNoTracking()
@@ -3038,7 +3039,7 @@ namespace _3K.Infrastructure.Services
                 .FirstOrDefaultAsync(p => p.Id == projeId);
 
             if (proje == null)
-                throw new KeyNotFoundException($"Proje bulunamadı: {projeId}");
+                throw new KayitBulunamadiException($"Proje bulunamadı: {projeId}");
 
             var sandiklar = await _context.Sandiklar
                 .AsNoTracking()

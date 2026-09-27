@@ -59,7 +59,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             {
                 CekiId = sonCeki.Id,
                 SiraNo = 9999, // Manuel eklenen
-                BarkodNo = request.BarkodNo,
+                BarkodNo = request.BarkodNo ?? string.Empty,
                 Aciklama = request.Aciklama,
                 IstenenAdet = request.IstenenAdet,
                 BirimId = request.BirimId ?? (int)Birim.Adet,

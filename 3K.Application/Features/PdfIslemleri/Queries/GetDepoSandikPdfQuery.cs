@@ -1,34 +1,31 @@
 using MediatR;
 using _3K.Application.Common;
+using _3K.Core.Enums;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.PdfIslemleri.Queries
 {
-    public class GetDepoSandikPdfQuery : IRequest<Result<byte[]>>, ISecuredRequest
+    public class GetDepoSandikPdfQuery : IRequest<Result<DosyaIcerigi>>, ISecuredRequest
     {
         public int? ProjeTipiId { get; set; }
     }
 
-    public class GetDepoSandikPdfQueryHandler : IRequestHandler<GetDepoSandikPdfQuery, Result<byte[]>>
+    public sealed class GetDepoSandikPdfQueryHandler(IPdfService pdfService)
+        : IRequestHandler<GetDepoSandikPdfQuery, Result<DosyaIcerigi>>
     {
-        private readonly IPdfService _pdfService;
-
-        public GetDepoSandikPdfQueryHandler(IPdfService pdfService)
+        public async Task<Result<DosyaIcerigi>> Handle(GetDepoSandikPdfQuery request, CancellationToken cancellationToken)
         {
-            _pdfService = pdfService;
-        }
-
-        public async Task<Result<byte[]>> Handle(GetDepoSandikPdfQuery request, CancellationToken cancellationToken)
-        {
-            try
+            var pdf = await pdfService.DepoSandikRaporuPdfOlusturAsync(request.ProjeTipiId);
+            var kapsam = request.ProjeTipiId switch
             {
-                var pdf = await _pdfService.DepoSandikRaporuPdfOlusturAsync(request.ProjeTipiId);
-                return Result<byte[]>.Success(pdf);
-            }
-            catch (Exception ex)
-            {
-                return Result<byte[]>.Failure(ex.Message);
-            }
+                (int)ProjeTipi.Normal => "_Normal",
+                (int)ProjeTipi.Saha => "_Saha",
+                (int)ProjeTipi.Yedek => "_Yedek",
+                _ => string.Empty
+            };
+            return Result<DosyaIcerigi>.Success(
+                DosyaIcerigi.Pdf(pdf, $"DepoSandikRaporu{kapsam}_{RaporDosyaAdi.Tarih()}.pdf"));
         }
     }
 }

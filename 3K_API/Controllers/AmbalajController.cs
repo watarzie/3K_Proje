@@ -6,6 +6,7 @@ using _3K.Application.Features.AmbalajIslemleri.Commands;
 using _3K.Application.Features.AmbalajIslemleri.DTOs;
 using _3K.Application.Features.AmbalajIslemleri.Queries;
 using _3K_API.Extensions;
+using _3K.Core.Models;
 
 namespace _3K_API.Controllers
 {
@@ -314,9 +315,6 @@ namespace _3K_API.Controllers
             }));
         }
 
-        private ActionResult DosyayaDonustur(Result<AmbalajDosyaDto> result) =>
-            result.IsSuccess
-                ? File(result.Value!.Icerik, result.Value.IcerikTuru, result.Value.DosyaAdi)
-                : result.ToActionResult();
+        private static ActionResult DosyayaDonustur(Result<DosyaIcerigi> result) => result.ToFileResult();
     }
 }

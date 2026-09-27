@@ -20,7 +20,6 @@ public sealed record FinansKaliciSilOnizlemeModel(string VarlikTuru, int Id, str
 public sealed record FinansBelgeYukleModel(string HedefTuru, int HedefId, string OrijinalAd, byte[] Icerik);
 public sealed record FinansBelgeModel(int Id, string HedefTuru, int HedefId, int Surum, string OrijinalAd, long Boyut,
     string IcerikTuru, string Hash, string Yukleyen, DateTime YuklemeTarihi);
-public sealed record FinansBelgeIcerikModel(byte[] Icerik, string DosyaAdi, string IcerikTuru);
 public sealed record FinansBekleyenModel(int IsKaydiId, int? SiparisKalemiId, string ProjeNo, string IsAdi,
     string? PoNumarasi, string Asama, DateTime Baslangic, int Gun, string Grup, string ParaBirimi, decimal? KalanNetTutar);
 public sealed record FinansGrafikModel(string Grup, string ParaBirimi, decimal? Gelir, decimal? Gider);

@@ -24,7 +24,6 @@ namespace _3K.Application.Features.FinansIslemleri.DTOs
         IReadOnlyList<FinansParaToplamiModel> SiparisAcik,
         IReadOnlyList<FinansParaToplamiModel> Faturalanan);
     public sealed record FinansIptalDto(string Aciklama);
-    public sealed record FinansDosyaDto(byte[] Icerik, string IcerikTuru, string DosyaAdi);
 
     public static class FinansHassasAlanMaskeleme
     {

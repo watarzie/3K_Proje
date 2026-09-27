@@ -1,4 +1,5 @@
 using _3K.Core.Enums;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.AmbalajIslemleri.DTOs
 {
@@ -170,5 +171,4 @@ namespace _3K.Application.Features.AmbalajIslemleri.DTOs
         public List<int> KayitIdleri { get; set; } = [];
     }
 
-    public sealed record AmbalajDosyaDto(byte[] Icerik, string IcerikTuru, string DosyaAdi);
 }

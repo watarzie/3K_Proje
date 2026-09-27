@@ -26,7 +26,7 @@ namespace _3K.Infrastructure.Services
                 var lowerSearch = searchTerm.ToLower();
                 query = query.Where(s => s.MalzemeKodu.ToLower().Contains(lowerSearch) || 
                                          s.MalzemeAdi.ToLower().Contains(lowerSearch) ||
-                                         s.KaynakProje.ToLower().Contains(lowerSearch));
+                                         (s.KaynakProje != null && s.KaynakProje.ToLower().Contains(lowerSearch)));
             }
 
             query = query.OrderByDescending(x => x.Id);

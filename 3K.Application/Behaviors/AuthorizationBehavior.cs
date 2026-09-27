@@ -116,35 +116,9 @@ namespace _3K.Application.Behaviors
             return RequestMenuPermissions.Denied;
         }
 
-        private static TResponse CreateFailureResult(string message, int code)
-        {
-            var responseType = typeof(TResponse);
-
-            if (responseType == typeof(Result))
-                return (TResponse)(object)Result.Failure(message, code);
-
-            if (responseType.IsGenericType && responseType.GetGenericTypeDefinition() == typeof(Result<>))
-            {
-                var failureMethod = responseType.GetMethod("Failure", new[] { typeof(string), typeof(int) });
-                if (failureMethod != null)
-                    return (TResponse)failureMethod.Invoke(null, new object[] { message, code })!;
-            }
-
-            var isSuccessProperty = responseType.GetProperty("IsSuccess");
-            var messageProperty = responseType.GetProperty("Message");
-            if (responseType.GetConstructor(Type.EmptyTypes) != null &&
-                isSuccessProperty?.CanWrite == true &&
-                isSuccessProperty.PropertyType == typeof(bool) &&
-                messageProperty?.CanWrite == true &&
-                messageProperty.PropertyType == typeof(string))
-            {
-                var response = Activator.CreateInstance(responseType)!;
-                isSuccessProperty.SetValue(response, false);
-                messageProperty.SetValue(response, message);
-                return (TResponse)response;
-            }
-
-            throw new UnauthorizedAccessException(message);
-        }
+        private static TResponse CreateFailureResult(string message, int code) =>
+            PipelineResultFactory.TryCreateFailure<TResponse>(message, code, null, out var failure)
+                ? failure
+                : throw new UnauthorizedAccessException(message);
     }
 }

@@ -123,8 +123,7 @@ namespace _3K_API.Controllers
         public async Task<ActionResult> RevizyonDosya(int projeId, string kaynak, int kayitId)
         {
             var result = await _mediator.Send(new GetCekiRevizyonDosyaQuery { ProjeId = projeId, Kaynak = kaynak, KayitId = kayitId }, HttpContext.RequestAborted);
-            if (!result.IsSuccess) return result.ToActionResult();
-            return File(result.Value!.Icerik, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", result.Value.DosyaAdi);
+            return result.ToFileResult();
         }
 
         private int GetKullaniciId()

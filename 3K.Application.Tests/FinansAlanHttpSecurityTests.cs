@@ -311,7 +311,7 @@ public sealed class FinansAlanHttpSecurityTests
                     [new("Ocak", "EUR", 500, 100)], [], [], 7, 2, 3, 1, 4),
                 "DegisiklikGecmisiAsync" => new FinansSayfaliSonuc<FinansDegisiklikModel>
                     { Items = [new(1, "Is", 1, "Fiyatlandirma", "Snapshot", "{\"birimFiyat\":777.25}", "1234x567x890", "777.25 EUR", new(2026, 9, 19), "Sentetik")], TotalCount = 1, PageSize = 25 },
-                "BelgeIndirAsync" => new FinansBelgeIcerikModel(Encoding.ASCII.GetBytes("%PDF-SENTETIK"), "test.pdf", "application/pdf"),
+                "BelgeIndirAsync" => new DosyaIcerigi(Encoding.ASCII.GetBytes("%PDF-SENTETIK"), "application/pdf", "test.pdf"),
                 "RaporVerisiAsync" => new FinansRaporModel { Isler = [Row], GelirToplamlari = [new("EUR", 1000, 200, 1200)], GiderToplamlari = [new("EUR", 100, 20, 120)], NetToplamlari = [new("EUR", 900, 180, 1080)] },
                 _ => throw new NotSupportedException("Beklenmeyen sentetik servis çağrısı: " + method.Name)
             };

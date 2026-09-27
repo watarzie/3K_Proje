@@ -45,10 +45,10 @@ namespace _3K.Infrastructure.Services
                 .AsNoTracking()
                 .Include(s => s.SandikIcerikleri)
                     .ThenInclude(si => si.CekiSatiri)
-                        .ThenInclude(cs => cs.Paketleyen)
+                        .ThenInclude(cs => cs!.Paketleyen)
                 .Include(s => s.SandikIcerikleri)
                     .ThenInclude(si => si.CekiSatiri)
-                        .ThenInclude(cs => cs.KontrolEden)
+                        .ThenInclude(cs => cs!.KontrolEden)
                 .FirstOrDefaultAsync(s => s.Id == sandikId);
         }
 

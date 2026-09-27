@@ -87,45 +87,30 @@ public class OrtakSandikRaporIsKurallariTests
     }
 
     [Theory]
-    [InlineData(ProjeTipi.Normal, "eksik-raporu")]
-    [InlineData(ProjeTipi.Saha, "saha-sevk-sonrasi-eksik-raporu")]
-    [InlineData(ProjeTipi.Yedek, "yedek-eksik-raporu")]
-    public async Task EksikRaporu_GercekProjeTipiVeSabitMenuEslestirilir(ProjeTipi type, string menu)
+    [InlineData(ProjeTipi.Normal, "PA-10_EksikRaporu.pdf")]
+    [InlineData(ProjeTipi.Saha, "PA-10_SevkSonrasiEksikRaporu.pdf")]
+    [InlineData(ProjeTipi.Yedek, "PA-10_EksikRaporu.pdf")]
+    public async Task EksikRaporu_GercekProjeTipineGoreAdlandirilirVeTekKezUretilir(ProjeTipi type, string dosyaAdi)
     {
+        // Gerçek tipe göre menü eşlemesi yetki çözümleyicisindedir: ServerAuthorizationRegressionTests.
         var uow = new OrtakMemoryUow();
-        uow.Repo<Proje>().Rows.Add(new() { Id = 10, ProjeTipiId = (int)type });
+        uow.Repo<Proje>().Rows.Add(new() { Id = 10, ProjeNo = "PA-10", ProjeTipiId = (int)type });
         var pdf = DispatchProxy.Create<IPdfService, RaporProxy>();
         var proxy = (RaporProxy)pdf;
-        var command = new GetEksikUrunlerPdfQuery { ProjeId = 10, ProjeTipi = type };
-        Assert.Equal(menu, command.RequiredMenuKod);
-        var result = await new GetEksikUrunlerPdfQueryHandler(uow, pdf, new OrtakUser(), new RaporRolService()).Handle(command, default);
+        var result = await new GetEksikUrunlerPdfQueryHandler(uow, pdf).Handle(new() { ProjeId = 10 }, default);
         Assert.True(result.IsSuccess);
-        Assert.Equal(proxy.Bytes, result.Value);
+        Assert.Equal(proxy.Bytes, result.Value!.Icerik);
+        Assert.Equal(dosyaAdi, result.Value.DosyaAdi);
+        Assert.Equal("application/pdf", result.Value.IcerikTuru);
         Assert.Equal(10, Assert.Single(proxy.Projeler));
-    }
-
-    [Theory]
-    [InlineData(ProjeTipi.Normal, ProjeTipi.Saha)]
-    [InlineData(ProjeTipi.Saha, ProjeTipi.Normal)]
-    [InlineData(ProjeTipi.Yedek, ProjeTipi.Normal)]
-    [InlineData(ProjeTipi.Normal, (ProjeTipi)999)]
-    public async Task EksikRaporu_YanlisTipBaskaMenuYetkisineGecitVermez(ProjeTipi actual, ProjeTipi requested)
-    {
-        var uow = new OrtakMemoryUow();
-        uow.Repo<Proje>().Rows.Add(new() { Id = 10, ProjeTipiId = (int)actual });
-        var pdf = DispatchProxy.Create<IPdfService, RaporProxy>();
-        var result = await new GetEksikUrunlerPdfQueryHandler(uow, pdf, new OrtakUser(), new RaporRolService()).Handle(new() { ProjeId = 10, ProjeTipi = requested }, default);
-        Assert.False(result.IsSuccess);
-        Assert.Equal(403, result.StatusCode);
-        Assert.Empty(((RaporProxy)pdf).Projeler);
     }
 
     [Fact]
     public async Task EksikRaporu_ProjeYoksaVeyaIstekIptalseServisiCalistirmaz()
     {
         var pdf = DispatchProxy.Create<IPdfService, RaporProxy>();
-        var handler = new GetEksikUrunlerPdfQueryHandler(new OrtakMemoryUow(), pdf, new OrtakUser(), new RaporRolService());
-        var query = new GetEksikUrunlerPdfQuery { ProjeId = 10, ProjeTipi = ProjeTipi.Normal };
+        var handler = new GetEksikUrunlerPdfQueryHandler(new OrtakMemoryUow(), pdf);
+        var query = new GetEksikUrunlerPdfQuery { ProjeId = 10 };
         Assert.Equal(404, (await handler.Handle(query, default)).StatusCode);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => handler.Handle(query, new CancellationToken(true)));
         Assert.Empty(((RaporProxy)pdf).Projeler);

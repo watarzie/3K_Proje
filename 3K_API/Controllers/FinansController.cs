@@ -62,7 +62,7 @@ namespace _3K_API.Controllers
         [RequestSizeLimit(11 * 1024 * 1024)]
         public async Task<ActionResult> BelgeYukle([FromForm] string hedefTuru, [FromForm] int hedefId, [FromForm] IFormFile dosya, CancellationToken ct)
         {
-            if (dosya.Length > 10 * 1024 * 1024) return BadRequest("PDF en fazla 10 MB olabilir.");
+            if (dosya.Length > 10 * 1024 * 1024) return BadRequest(new { message = "PDF en fazla 10 MB olabilir." });
             using var buffer = new MemoryStream();
             await dosya.CopyToAsync(buffer, ct);
             return (await _mediator.Send(new FinansBelgeYukleCommand { Model = new(hedefTuru, hedefId, dosya.FileName, buffer.ToArray()) }, ct)).ToActionResult();
@@ -71,9 +71,7 @@ namespace _3K_API.Controllers
         public async Task<ActionResult> BelgeIndir(int id, CancellationToken ct)
         {
             var result = await _mediator.Send(new FinansBelgeIndirQuery { Id = id }, ct);
-            if (!result.IsSuccess) return result.ToActionResult();
-            if (result.Value is null) return NotFound();
-            return File(result.Value.Icerik, result.Value.IcerikTuru, result.Value.DosyaAdi);
+            return result.ToFileResult();
         }
 
         [HttpGet("dashboard")]
@@ -457,11 +455,9 @@ namespace _3K_API.Controllers
                 PageSize = pageSize
             }, cancellationToken)).ToActionResult();
 
-        private async Task<ActionResult> FileResultAsync(FinansQuery<FinansDosyaDto> query, CancellationToken cancellationToken)
+        private async Task<ActionResult> FileResultAsync(FinansQuery<DosyaIcerigi> query, CancellationToken cancellationToken)
         {
-            var result = await _mediator.Send(query, cancellationToken);
-            if (!result.IsSuccess || result.Value is null) return result.ToActionResult();
-            return File(result.Value.Icerik, result.Value.IcerikTuru, result.Value.DosyaAdi);
+            return (await _mediator.Send(query, cancellationToken)).ToFileResult();
         }
 
         private static FinansIsKaydiKaydetModel OzelIsModeli(FinansOzelIsKaydetModel model) => new(

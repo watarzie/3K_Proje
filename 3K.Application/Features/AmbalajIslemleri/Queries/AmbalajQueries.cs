@@ -2,6 +2,7 @@ using MediatR;
 using _3K.Application.Common;
 using _3K.Application.Features.AmbalajIslemleri.DTOs;
 using _3K.Core.Enums;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.AmbalajIslemleri.Queries
 {
@@ -137,7 +138,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
     }
 
     public sealed class GetAmbalajRaporDosyasiQuery
-        : AmbalajRaporFiltresi, IRequest<Result<AmbalajDosyaDto>>, ISecuredRequest, IRequiresMenuPermission,
+        : AmbalajRaporFiltresi, IRequest<Result<DosyaIcerigi>>, ISecuredRequest, IRequiresMenuPermission,
           IRequiresMenuPermissions
     {
         public string RequiredMenuKod => AmbalajMenuKodlari.RaporGoruntule;
@@ -167,7 +168,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
     }
 
     public sealed class GetAmbalajUretimFormuDosyasiQuery
-        : IRequest<Result<AmbalajDosyaDto>>, ISecuredRequest, IRequiresMenuPermission, IRequiresMenuPermissions
+        : IRequest<Result<DosyaIcerigi>>, ISecuredRequest, IRequiresMenuPermission, IRequiresMenuPermissions
     {
         internal const int EnFazlaSecilebilirKayit = 500;
 

@@ -79,7 +79,7 @@ namespace _3K.Application.Features.HareketGecmisiIslemleri.Queries
                         refTipi = "Sandık İçeriği";
                         if (icerikDict.TryGetValue(refId, out var icerik))
                         {
-                            var urunTanim = cekiDict.TryGetValue(icerik.CekiSatiriId.ToString(), out var urun) ? urun.Aciklama : "Ürün";
+                            var urunTanim = icerik.CekiSatiriId is int satirId && cekiDict.TryGetValue(satirId.ToString(), out var urun) ? urun.Aciklama : "Ürün";
                             var sandikNo = sandikDict.TryGetValue(icerik.SandikId.ToString(), out var s) ? s.SandikNo : "?";
                             refId = $"Sandık {sandikNo} -> {urunTanim}";
                         }

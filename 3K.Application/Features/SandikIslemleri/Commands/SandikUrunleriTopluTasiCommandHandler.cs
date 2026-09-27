@@ -35,7 +35,7 @@ public sealed class SandikUrunleriTopluTasiCommandHandler(
 
         try
         {
-            return await unitOfWork.ExecuteInTransactionAsync(async ct =>
+            return await unitOfWork.ExecuteAtomicAsync(async ct =>
             {
                 var transactionTekrari = await TekrariDogrulaAsync();
                 if (transactionTekrari != null)
@@ -49,10 +49,10 @@ public sealed class SandikUrunleriTopluTasiCommandHandler(
                 {
                     var kaynak = await icerikRepo.GetByIdAsync(satir.KaynakSandikIcerikId);
                     if (kaynak == null || kaynak.SandikId != request.KaynakSandikId)
-                        throw SatirHatasi(satir.KaynakSandikIcerikId,
+                        return SatirHatasi(satir.KaynakSandikIcerikId,
                             Result.Failure("İçerik seçilen kaynak sandığa ait değil veya bulunamadı.", 409));
                     if (kaynak.CekiSatiriId is int cekiSatiriId && !seciliCekiSatirlari.Add(cekiSatiriId))
-                        throw SatirHatasi(satir.KaynakSandikIcerikId, Result.Failure(
+                        return SatirHatasi(satir.KaynakSandikIcerikId, Result.Failure(
                             "Kaynak sandıkta aynı çeki satırına ait birden fazla içerik var. Ayrı kayıtlar birleştirilemez; belirsiz tahsis önce düzeltilmelidir.", 409));
                 }
 
@@ -81,15 +81,11 @@ public sealed class SandikUrunleriTopluTasiCommandHandler(
                         IslemAnahtari = SatirAnahtariOlustur(request.IslemAnahtari, satir.KaynakSandikIcerikId)
                     }, kullaniciId, ct);
                     if (!sonuc.IsSuccess)
-                        throw SatirHatasi(satir.KaynakSandikIcerikId, sonuc);
+                        return SatirHatasi(satir.KaynakSandikIcerikId, sonuc);
                 }
 
                 return Result.Success();
             }, cancellationToken);
-        }
-        catch (SandikTasimaReddedildiException ex)
-        {
-            return ex.Sonuc;
         }
         catch (ConcurrencyConflictException)
         {
@@ -116,9 +112,9 @@ public sealed class SandikUrunleriTopluTasiCommandHandler(
         }
     }
 
-    private static SandikTasimaReddedildiException SatirHatasi(int id, Result sonuc) =>
-        new(Result.Failure($"İçerik #{id}: {sonuc.Error!.Message} Toplu taşıma uygulanmadı.", sonuc.StatusCode,
-            new[] { new { SandikIcerikId = id, Mesaj = sonuc.Error.Message } }));
+    private static Result SatirHatasi(int id, Result sonuc) =>
+        Result.Failure($"İçerik #{id}: {sonuc.Error!.Message} Toplu taşıma uygulanmadı.", sonuc.StatusCode,
+            new[] { new { SandikIcerikId = id, Mesaj = sonuc.Error.Message } });
 
     private static string IstekHashOlustur(SandikUrunleriTopluTasiCommand request)
     {

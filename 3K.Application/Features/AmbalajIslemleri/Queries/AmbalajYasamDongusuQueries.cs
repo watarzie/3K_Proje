@@ -1,6 +1,7 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Application.Features.AmbalajIslemleri.DTOs;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.AmbalajIslemleri.Queries;
 
@@ -12,7 +13,7 @@ public sealed class GetAmbalajFormSurumleriQuery : IRequest<Result<IReadOnlyList
     public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions => [AmbalajMenuKodlari.Read(AmbalajMenuKodlari.FormGoruntule)];
 }
 
-public sealed class GetAmbalajFormSurumuDosyasiQuery : IRequest<Result<AmbalajDosyaDto>>, ISecuredRequest, IRequiresMenuPermissions
+public sealed class GetAmbalajFormSurumuDosyasiQuery : IRequest<Result<DosyaIcerigi>>, ISecuredRequest, IRequiresMenuPermissions
 {
     public int Id { get; set; }
     public string Format { get; set; } = "pdf";
@@ -28,7 +29,7 @@ public sealed class GetAmbalajGerceklesenRaporQuery : IRequest<Result<AmbalajGer
     public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions => [AmbalajMenuKodlari.Read(AmbalajMenuKodlari.RaporGoruntule)];
 }
 
-public sealed class GetAmbalajGerceklesenRaporDosyasiQuery : IRequest<Result<AmbalajDosyaDto>>, ISecuredRequest, IRequiresMenuPermissions
+public sealed class GetAmbalajGerceklesenRaporDosyasiQuery : IRequest<Result<DosyaIcerigi>>, ISecuredRequest, IRequiresMenuPermissions
 {
     public DateTime Baslangic { get; set; }
     public DateTime Bitis { get; set; }

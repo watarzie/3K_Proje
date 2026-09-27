@@ -40,7 +40,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
     }
 
     public sealed class GetAmbalajRaporDosyasiQueryHandler
-        : IRequestHandler<GetAmbalajRaporDosyasiQuery, Result<AmbalajDosyaDto>>
+        : IRequestHandler<GetAmbalajRaporDosyasiQuery, Result<DosyaIcerigi>>
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IAmbalajRaporDosyaService _dosyaService;
@@ -59,7 +59,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
             _currentUserService = currentUserService;
         }
 
-        public async Task<Result<AmbalajDosyaDto>> Handle(
+        public async Task<Result<DosyaIcerigi>> Handle(
             GetAmbalajRaporDosyasiQuery request,
             CancellationToken cancellationToken)
         {
@@ -76,13 +76,13 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
 
             if (string.Equals(request.Format, "pdf", StringComparison.OrdinalIgnoreCase))
             {
-                return Result<AmbalajDosyaDto>.Success(new AmbalajDosyaDto(
+                return Result<DosyaIcerigi>.Success(new DosyaIcerigi(
                     _dosyaService.PdfOlustur(satirlar, ozet),
                     "application/pdf",
                     $"ambalaj-uretim-raporu-{zaman}.pdf"));
             }
 
-            return Result<AmbalajDosyaDto>.Success(new AmbalajDosyaDto(
+            return Result<DosyaIcerigi>.Success(new DosyaIcerigi(
                 _dosyaService.ExcelOlustur(satirlar, ozet),
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 $"ambalaj-uretim-raporu-{zaman}.xlsx"));

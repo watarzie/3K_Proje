@@ -157,26 +157,10 @@ namespace _3K.Application.Behaviors
                     onay.Id);
             }
 
-            var resType = typeof(TResponse);
-
-            if (resType.IsGenericType && resType.GetGenericTypeDefinition() == typeof(Result<>))
-            {
-                var valueType = resType.GetGenericArguments()[0];
-                var genericSuccess = resType.GetMethod("Success", new[] { valueType, typeof(int) });
-                if (genericSuccess != null)
-                {
-                    var resultObj = genericSuccess.Invoke(
-                        null,
-                        new object?[] { null, StatusConstants.ActionQueuedForApproval });
-                    return (TResponse)resultObj!;
-                }
-            }
-            else if (resType == typeof(Result))
-            {
-                return (TResponse)(object)Result.Success(StatusConstants.ActionQueuedForApproval);
-            }
-
-            throw new InvalidOperationException("ApprovalBehavior sadece Result veya Result<T> dönen command'lerle çalışır.");
+            return PipelineResultFactory.TryCreateSuccessWithoutValue<TResponse>(
+                StatusConstants.ActionQueuedForApproval, out var queued)
+                ? queued
+                : throw new InvalidOperationException("ApprovalBehavior sadece Result veya Result<T> dönen command'lerle çalışır.");
         }
 
         private static string? GuvenliHedefUrl(string? hedefUrl)

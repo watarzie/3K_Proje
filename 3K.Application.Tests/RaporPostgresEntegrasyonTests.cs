@@ -84,12 +84,12 @@ public class RaporPostgresEntegrasyonTests
                 var proxy = (RaporKayitProxy)recording;
                 proxy.Service = service;
                 var uow = new UnitOfWork(context, NullLogger<UnitOfWork>.Instance);
-                var bulk = new GetTopluEksikUrunlerRaporuQueryHandler(uow, recording, new OrtakUser(), new RaporRolService());
+                var bulk = new GetTopluEksikUrunlerRaporuQueryHandler(uow, recording);
                 foreach (var format in new[] { EksikUrunlerRaporDosyaTuru.Pdf, EksikUrunlerRaporDosyaTuru.Excel })
                 {
                     var result = await bulk.Handle(new() { ProjeIds = [project.Id], ProjeTipi = type, DosyaTuru = format }, default);
                     Assert.True(result.IsSuccess, result.Error?.Message);
-                    using var zip = new ZipArchive(new MemoryStream(result.Value!), ZipArchiveMode.Read);
+                    using var zip = new ZipArchive(new MemoryStream(result.Value!.Icerik), ZipArchiveMode.Read);
                     using var entry = Assert.Single(zip.Entries).Open();
                     using var bytes = new MemoryStream();
                     await entry.CopyToAsync(bytes);

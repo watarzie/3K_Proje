@@ -43,7 +43,7 @@ namespace _3K_API.Controllers
         {
             if (id != command.Id)
             {
-                return BadRequest("ID uyuşmazlığı.");
+                return BadRequest(new { message = "ID uyuşmazlığı." });
             }
             var result = await _mediator.Send(command);
             return result.ToActionResult();

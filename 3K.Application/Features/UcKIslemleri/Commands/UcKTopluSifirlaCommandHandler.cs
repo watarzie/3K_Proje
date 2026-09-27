@@ -32,26 +32,8 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             _sahaTamamlamaService = sahaTamamlamaService;
         }
 
-        public async Task<Result> Handle(UcKTopluSifirlaCommand request, CancellationToken cancellationToken)
-        {
-            try
-            {
-                return await _unitOfWork.ExecuteInTransactionAsync(
-                    async transactionCancellationToken =>
-                    {
-                        var result = await HandleInTransactionAsync(request, transactionCancellationToken);
-                        if (!result.IsSuccess)
-                            throw new UcKTopluSifirlamaRollbackException(result);
-
-                        return result;
-                    },
-                    cancellationToken);
-            }
-            catch (UcKTopluSifirlamaRollbackException exception)
-            {
-                return exception.Result;
-            }
-        }
+        public Task<Result> Handle(UcKTopluSifirlaCommand request, CancellationToken cancellationToken) =>
+            _unitOfWork.ExecuteAtomicAsync(token => HandleInTransactionAsync(request, token), cancellationToken);
 
         private async Task<Result> HandleInTransactionAsync(
             UcKTopluSifirlaCommand request,
@@ -324,21 +306,8 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             if (kaynakSatirIds.Count > 0)
                 await _sahaTamamlamaService.SenkronizeKaynakProjelerAsync(kaynakSatirIds, cancellationToken);
 
-            if (hatalar.Any())
-                return Result.Success();
-
+            // En az bir satır sıfırlandıysa atlanan satırlar işlemi başarısız saymaz.
             return Result.Success();
-        }
-
-        private sealed class UcKTopluSifirlamaRollbackException : Exception
-        {
-            public UcKTopluSifirlamaRollbackException(Result result)
-                : base(result.Error?.Message ?? "Toplu 3K geri alma islemi geri alindi.")
-            {
-                Result = result;
-            }
-
-            public Result Result { get; }
         }
     }
 }
