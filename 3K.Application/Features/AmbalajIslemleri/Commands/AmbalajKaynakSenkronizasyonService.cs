@@ -76,7 +76,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
                                 k.KaynakKayitId.HasValue)
                     .ToList()
                     .Where(k => !kaynakKayitIdleri.Contains(k.KaynakKayitId!.Value) &&
-                                AmbalajKaynakSenkronizasyonPolitikasi.KaynakEksigindeSistemIptalineUygunMu(k))
+                                k.KaynakEksikligindeIptalEdilebilirMi())
                     .ToList();
 
                 var eklenen = 0;
@@ -87,11 +87,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
                 foreach (var eksilen in eksilenKayitlar)
                 {
                     var eski = AmbalajUretimYardimcilari.Snapshot(eksilen);
-                    eksilen.IptalOncesiUretimDurumu = eksilen.UretimDurumu;
-                    eksilen.IptalMi = true;
-                    eksilen.IptalTarihi = TurkeyTime.Now;
-                    eksilen.IptalEdenKullaniciId = null;
-                    eksilen.IptalNedeni = AmbalajKaynakSenkronizasyonPolitikasi.SistemKaynakEksigiNedeni;
+                    eksilen.KaynakEksikligindenIptalEt();
                     kayitRepo.Update(eksilen);
                     await AmbalajUretimYardimcilari.AlanHareketleriniEkleAsync(
                         _unitOfWork,
@@ -99,7 +95,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
                         eski,
                         "Kaynakta bulunmayan planlı kayıt sistem tarafından pasifleştirildi",
                         kullaniciId.Value,
-                        AmbalajKaynakSenkronizasyonPolitikasi.SistemKaynakEksigiNedeni);
+                        AmbalajUretimKaydi.SistemKaynakEksigiNedeni);
                     finansaAktarilacaklar[eksilen.IsAkisKimligi] = eksilen;
                     guncellenen++;
                 }
@@ -112,7 +108,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
                     if (!globalMevcutlar.TryGetValue(sandik.Id, out var kayit))
                     {
                         kayit = YeniKayitOlustur(proje, sandik, kaynakModul, tur);
-                        if (tamamlanmisProje) kayit.AmbalajaDahil = false;
+                        if (tamamlanmisProje) kayit.AmbalajKarariniUygula(false);
                         await kayitRepo.AddAsync(kayit);
                         await AmbalajUretimYardimcilari.AlanHareketleriniEkleAsync(
                             _unitOfWork,
@@ -126,8 +122,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
                         continue;
                     }
 
-                    var sistemIptalindenDonuyor =
-                        AmbalajKaynakSenkronizasyonPolitikasi.SistemIptalindenOtomatikAktiflesebilirMi(kayit);
+                    var sistemIptalindenDonuyor = kayit.SistemIptaliGeriAlinabilirMi();
                     if ((kayit.IptalMi && !sistemIptalindenDonuyor) ||
                         kayit.BagimsizKayitMi ||
                         kayit.KaynakSenkronizasyonuKilitliMi ||
@@ -140,15 +135,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
                     }
 
                     var eski = AmbalajUretimYardimcilari.Snapshot(kayit);
-                    if (sistemIptalindenDonuyor)
-                    {
-                        kayit.IptalMi = false;
-                        kayit.IptalTarihi = null;
-                        kayit.IptalEdenKullaniciId = null;
-                        kayit.IptalNedeni = null;
-                        kayit.UretimDurumu = kayit.IptalOncesiUretimDurumu ?? AmbalajUretimDurumu.Planlandi;
-                        kayit.IptalOncesiUretimDurumu = null;
-                    }
+                    if (sistemIptalindenDonuyor) kayit.SistemIptaliniGeriAl();
 
                     KaynakAlanlariniUygula(kayit, proje, sandik, kaynakModul, tur);
                     var yeni = AmbalajUretimYardimcilari.Snapshot(kayit);

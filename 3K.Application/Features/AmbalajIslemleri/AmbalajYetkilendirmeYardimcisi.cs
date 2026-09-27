@@ -3,7 +3,6 @@ using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Core.Constants;
-using _3K.Application.Features.AmbalajIslemleri.Commands;
 
 namespace _3K.Application.Features.AmbalajIslemleri;
 
@@ -127,7 +126,7 @@ internal static class AmbalajYetkilendirmeYardimcisi
             dto.KaynakSonSenkronizasyonTarihi = null;
             if (string.Equals(
                     dto.IptalNedeni,
-                    AmbalajKaynakSenkronizasyonPolitikasi.SistemKaynakEksigiNedeni,
+                    AmbalajUretimKaydi.SistemKaynakEksigiNedeni,
                     StringComparison.Ordinal))
                 dto.IptalNedeni = null;
         }

@@ -250,8 +250,7 @@ public sealed class AmbalajKarariKaydetCommandHandler
             return Result<AmbalajPlanlamaPlanDto>.Failure("Ambalaj kaynak kaydı bulunamadı.", 404);
 
         var eski = AmbalajUretimYardimcilari.Snapshot(kayit);
-        kayit.AmbalajaDahil = request.AmbalajaDahilMi;
-        if (!request.AmbalajaDahilMi) kayit.UretimeAlindi = false;
+        kayit.AmbalajKarariniUygula(request.AmbalajaDahilMi);
         kayit.UpdatedDate = TurkeyTime.Now;
         kayit.UpdatedBy = _currentUser.IslemKullaniciId.Value.ToString();
         kayitRepo.Update(kayit);
@@ -491,10 +490,8 @@ public sealed class AmbalajPlanKalemSilCommandHandler
             ? await _unitOfWork.GetRepository<Proje>().GetByIdAsync(kayit.ProjeId.Value)
             : null;
         var eski = AmbalajUretimYardimcilari.Snapshot(kayit);
-        kayit.IptalMi = true;
-        kayit.IptalTarihi = TurkeyTime.Now;
-        kayit.IptalEdenKullaniciId = _currentUser.IslemKullaniciId.Value;
-        kayit.IptalNedeni = AmbalajUretimYardimcilari.Temizle(request.Gerekce) ?? "Kullanıcı tarafından silindi.";
+        kayit.KullaniciAdinaIptalEt(
+            _currentUser.IslemKullaniciId.Value, AmbalajUretimYardimcilari.Temizle(request.Gerekce));
         repo.Update(kayit);
         await AmbalajUretimYardimcilari.AlanHareketleriniEkleAsync(
             _unitOfWork, kayit, eski, "Ambalaj kalemi silindi", _currentUser.IslemKullaniciId.Value);
@@ -849,10 +846,8 @@ public sealed class AmbalajBagimsizSandikSilCommandHandler
             ? await _unitOfWork.GetRepository<Proje>().GetByIdAsync(kayit.ProjeId.Value)
             : null;
         var eski = AmbalajUretimYardimcilari.Snapshot(kayit);
-        kayit.IptalMi = true;
-        kayit.IptalTarihi = TurkeyTime.Now;
-        kayit.IptalEdenKullaniciId = _currentUser.IslemKullaniciId.Value;
-        kayit.IptalNedeni = AmbalajUretimYardimcilari.Temizle(request.Gerekce) ?? "Kullanıcı tarafından silindi.";
+        kayit.KullaniciAdinaIptalEt(
+            _currentUser.IslemKullaniciId.Value, AmbalajUretimYardimcilari.Temizle(request.Gerekce));
         repo.Update(kayit);
         await AmbalajUretimYardimcilari.AlanHareketleriniEkleAsync(
             _unitOfWork, kayit, eski, "Bağımsız ambalaj sandığı silindi", _currentUser.IslemKullaniciId.Value);

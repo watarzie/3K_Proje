@@ -10,6 +10,10 @@ namespace _3K.Core.Entities
     /// </summary>
     public class AmbalajUretimKaydi : BaseEntity
     {
+        /// <summary>Kaynak sandığı kaybolduğu için sistemin iptal ettiği kaydın iptal nedeni.</summary>
+        public const string SistemKaynakEksigiNedeni = "system-source-missing";
+        private const string KullaniciIptalNedeni = "Kullanıcı tarafından silindi.";
+
         /// <summary>
         /// Finans gibi aşağı akış modüllerinin idempotent biçimde referans alabileceği,
         /// kaydın bütün yaşamı boyunca değişmeyen iş anahtarıdır.
@@ -84,6 +88,66 @@ namespace _3K.Core.Entities
         public virtual AmbalajIcSandikSablonu? IcSandikSablonu { get; set; }
         public virtual ICollection<AmbalajUretimKaydi> IcKayitlar { get; set; } = new List<AmbalajUretimKaydi>();
         public virtual ICollection<AmbalajUretimHareketi> Hareketler { get; set; } = new List<AmbalajUretimHareketi>();
+
+        /// <summary>
+        /// Ambalaj kararını uygular. Hariç tutulan kayıt üretim seçiminden de çıkar;
+        /// veritabanı aynı kuralı CK_AmbalajUretimKayitlari_UretimSecimi ile korur.
+        /// </summary>
+        public void AmbalajKarariniUygula(bool dahil)
+        {
+            AmbalajaDahil = dahil;
+            if (!dahil) UretimeAlindi = false;
+        }
+
+        /// <summary>Kullanıcının sildiği kayıt fiziksel olarak silinmez, iptal edilir.</summary>
+        public void KullaniciAdinaIptalEt(int kullaniciId, string? neden)
+        {
+            IptalMi = true;
+            IptalTarihi = TurkeyTime.Now;
+            IptalEdenKullaniciId = kullaniciId;
+            IptalNedeni = neden ?? KullaniciIptalNedeni;
+        }
+
+        /// <summary>
+        /// Kaynağı kaybolduğunda yalnız planlı ve kilitsiz kaynak kaydı sistem tarafından
+        /// iptal edilir; üretime girmiş kayıtlar korunur.
+        /// </summary>
+        public bool KaynakEksikligindeIptalEdilebilirMi() =>
+            KaynakKayitId.HasValue &&
+            !IptalMi &&
+            !KaynakSenkronizasyonuKilitliMi &&
+            UretimDurumu == AmbalajUretimDurumu.Planlandi;
+
+        /// <summary>
+        /// Kaynak sandığı kaybolan kaydı sistem adına iptal eder. İptal öncesi durum,
+        /// kaynak yeniden görüldüğünde geri yüklenmek üzere saklanır.
+        /// </summary>
+        public void KaynakEksikligindenIptalEt()
+        {
+            IptalOncesiUretimDurumu = UretimDurumu;
+            IptalMi = true;
+            IptalTarihi = TurkeyTime.Now;
+            IptalEdenKullaniciId = null;
+            IptalNedeni = SistemKaynakEksigiNedeni;
+        }
+
+        /// <summary>Kullanıcı iptali geri alınmaz; yalnız sistemin kaynak eksikliği iptali geri döner.</summary>
+        public bool SistemIptaliGeriAlinabilirMi() =>
+            KaynakKayitId.HasValue &&
+            IptalMi &&
+            IptalEdenKullaniciId == null &&
+            string.Equals(IptalNedeni, SistemKaynakEksigiNedeni, StringComparison.Ordinal);
+
+        /// <summary>Sistem iptalini geri alır ve iptal öncesi üretim durumunu yükler.</summary>
+        public void SistemIptaliniGeriAl()
+        {
+            IptalMi = false;
+            IptalTarihi = null;
+            IptalEdenKullaniciId = null;
+            IptalNedeni = null;
+            UretimDurumu = IptalOncesiUretimDurumu ?? AmbalajUretimDurumu.Planlandi;
+            IptalOncesiUretimDurumu = null;
+        }
     }
 
     /// <summary>
