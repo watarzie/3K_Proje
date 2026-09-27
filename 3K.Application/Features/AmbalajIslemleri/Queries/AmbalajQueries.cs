@@ -3,6 +3,7 @@ using _3K.Application.Common;
 using _3K.Application.Features.AmbalajIslemleri.DTOs;
 using _3K.Core.Enums;
 using _3K.Core.Models;
+using _3K.Core.Constants;
 
 namespace _3K.Application.Features.AmbalajIslemleri.Queries
 {
@@ -11,9 +12,10 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
           IRequiresMenuPermissions
     {
         [System.Text.Json.Serialization.JsonIgnore] public int[]? IzinliDurumlar { get; set; }
-        public string RequiredMenuKod => AmbalajMenuKodlari.Listele;
+        public string RequiredMenuKod => YetkiKodlari.Ambalaj.Listele;
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.R;
         public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
-            [AmbalajMenuKodlari.Read(AmbalajMenuKodlari.Listele)];
+            [MenuPermissionRequirement.Read(YetkiKodlari.Ambalaj.Listele)];
         public string? Arama { get; set; }
         public int? ProjeTipiId { get; set; }
     }
@@ -23,9 +25,10 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
           IRequiresMenuPermissions, IAmbalajRaporFiltresi, IAmbalajDurumKapsamli
     {
         [System.Text.Json.Serialization.JsonIgnore] public int[]? IzinliDurumlar { get; set; }
-        public string RequiredMenuKod => AmbalajMenuKodlari.Listele;
+        public string RequiredMenuKod => YetkiKodlari.Ambalaj.Listele;
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.R;
         public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
-            [AmbalajMenuKodlari.Read(AmbalajMenuKodlari.Listele)];
+            [MenuPermissionRequirement.Read(YetkiKodlari.Ambalaj.Listele)];
         public int? ProjeId { get; set; }
         public string? ManuelProjeNo { get; set; }
         public AmbalajSandikTuru? Tur { get; set; }
@@ -51,9 +54,10 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
         : IRequest<Result<AmbalajUretimKaydiDetayDto>>, ISecuredRequest, IRequiresMenuPermission,
           IRequiresMenuPermissions
     {
-        public string RequiredMenuKod => AmbalajMenuKodlari.Listele;
+        public string RequiredMenuKod => YetkiKodlari.Ambalaj.Listele;
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.R;
         public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
-            [AmbalajMenuKodlari.Read(AmbalajMenuKodlari.Listele)];
+            [MenuPermissionRequirement.Read(YetkiKodlari.Ambalaj.Listele)];
         public int Id { get; set; }
     }
 
@@ -61,9 +65,10 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
         : AmbalajRaporFiltresi, IRequest<Result<AmbalajUretimSayfasiDto>>, ISecuredRequest,
           IRequiresMenuPermission, IRequiresMenuPermissions
     {
-        public string RequiredMenuKod => AmbalajMenuKodlari.Listele;
+        public string RequiredMenuKod => YetkiKodlari.Ambalaj.Listele;
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.R;
         public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
-            [AmbalajMenuKodlari.Read(AmbalajMenuKodlari.Listele)];
+            [MenuPermissionRequirement.Read(YetkiKodlari.Ambalaj.Listele)];
         public int PageNumber { get; set; } = 1;
         public int PageSize { get; set; } = 50;
     }
@@ -73,9 +78,10 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
           IRequiresMenuPermission, IRequiresMenuPermissions
     {
         [System.Text.Json.Serialization.JsonIgnore] public int[]? IzinliDurumlar { get; set; }
-        public string RequiredMenuKod => AmbalajMenuKodlari.Listele;
+        public string RequiredMenuKod => YetkiKodlari.Ambalaj.Listele;
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.R;
         public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
-            [AmbalajMenuKodlari.Read(AmbalajMenuKodlari.Listele)];
+            [MenuPermissionRequirement.Read(YetkiKodlari.Ambalaj.Listele)];
         public string? Arama { get; set; }
         public int PageNumber { get; set; } = 1;
         public int PageSize { get; set; } = 50;
@@ -132,22 +138,24 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
         : AmbalajRaporFiltresi, IRequest<Result<AmbalajRaporDto>>, ISecuredRequest, IRequiresMenuPermission,
           IRequiresMenuPermissions
     {
-        public string RequiredMenuKod => AmbalajMenuKodlari.RaporGoruntule;
+        public string RequiredMenuKod => YetkiKodlari.Ambalaj.RaporGoruntule;
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.R;
         public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
-            [AmbalajMenuKodlari.Read(AmbalajMenuKodlari.RaporGoruntule)];
+            [MenuPermissionRequirement.Read(YetkiKodlari.Ambalaj.RaporGoruntule)];
     }
 
     public sealed class GetAmbalajRaporDosyasiQuery
         : AmbalajRaporFiltresi, IRequest<Result<DosyaIcerigi>>, ISecuredRequest, IRequiresMenuPermission,
           IRequiresMenuPermissions
     {
-        public string RequiredMenuKod => AmbalajMenuKodlari.RaporGoruntule;
+        public string RequiredMenuKod => YetkiKodlari.Ambalaj.RaporGoruntule;
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.R;
         public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
         [
-            AmbalajMenuKodlari.Read(AmbalajMenuKodlari.RaporGoruntule),
-            AmbalajMenuKodlari.Read(string.Equals(Format, "pdf", StringComparison.OrdinalIgnoreCase)
-                ? AmbalajMenuKodlari.PdfIndir
-                : AmbalajMenuKodlari.ExcelIndir)
+            MenuPermissionRequirement.Read(YetkiKodlari.Ambalaj.RaporGoruntule),
+            MenuPermissionRequirement.Read(string.Equals(Format, "pdf", StringComparison.OrdinalIgnoreCase)
+                ? YetkiKodlari.Ambalaj.PdfIndir
+                : YetkiKodlari.Ambalaj.ExcelIndir)
         ];
         /// <summary>xlsx veya pdf</summary>
         public string Format { get; set; } = "xlsx";
@@ -157,10 +165,11 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
         : IRequest<Result<_3K.Core.Models.AmbalajUretimFormuModel>>, ISecuredRequest, IRequiresMenuPermission,
           IRequiresMenuPermissions
     {
-        public string RequiredMenuKod => AmbalajMenuKodlari.FormGoruntule;
+        public string RequiredMenuKod => YetkiKodlari.Ambalaj.FormGoruntule;
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.R;
         public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
         [
-            AmbalajMenuKodlari.Read(AmbalajMenuKodlari.FormGoruntule)
+            MenuPermissionRequirement.Read(YetkiKodlari.Ambalaj.FormGoruntule)
         ];
         public int? KayitId { get; set; }
         public int? ProjeId { get; set; }
@@ -172,14 +181,15 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
     {
         internal const int EnFazlaSecilebilirKayit = 500;
 
-        public string RequiredMenuKod => AmbalajMenuKodlari.FormIndir;
+        public string RequiredMenuKod => YetkiKodlari.Ambalaj.FormIndir;
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.R;
         public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
         [
-            AmbalajMenuKodlari.Read(AmbalajMenuKodlari.FormGoruntule),
-            AmbalajMenuKodlari.Read(AmbalajMenuKodlari.FormIndir),
-            AmbalajMenuKodlari.Read(string.Equals(Format, "xlsx", StringComparison.OrdinalIgnoreCase)
-                ? AmbalajMenuKodlari.ExcelIndir
-                : AmbalajMenuKodlari.PdfIndir)
+            MenuPermissionRequirement.Read(YetkiKodlari.Ambalaj.FormGoruntule),
+            MenuPermissionRequirement.Read(YetkiKodlari.Ambalaj.FormIndir),
+            MenuPermissionRequirement.Read(string.Equals(Format, "xlsx", StringComparison.OrdinalIgnoreCase)
+                ? YetkiKodlari.Ambalaj.ExcelIndir
+                : YetkiKodlari.Ambalaj.PdfIndir)
         ];
         public int? KayitId { get; set; }
         public int? ProjeId { get; set; }

@@ -97,7 +97,8 @@ public class OrtakYetkiOnayIsKurallariTests
 
     [Theory]
     [InlineData(1, "BaskaAd", true, true)]
-    [InlineData(42, "aDmIn", true, true)]
+    // Yönetici rol kimliğiyle tanınır; başka bir rolün adı yönetici yetkisi vermez.
+    [InlineData(42, "aDmIn", true, false)]
     [InlineData(8, "Personel", true, false)]
     [InlineData(8, "Sistem Yönetici", false, false)]
     public async Task OnayYetkisi_MenuYazmaYetkisindenAyridirVeKendiTalebiKuraliVardir(int roleId, string roleName, bool configured, bool admin)
@@ -226,8 +227,8 @@ public class OrtakYetkiOnayIsKurallariTests
     }
 
     private sealed record OrtakQuery : IRequest<Result>, ISecuredRequest;
-    private sealed record SabitCommand : IRequest<Result>, ISecuredRequest, IRequiresMenuPermission { public string RequiredMenuKod => "sabit"; }
-    private sealed record SabitQuery : IRequest<Result>, ISecuredRequest, IRequiresMenuPermission { public string RequiredMenuKod => "grid-modulu"; }
+    private sealed record SabitCommand : IRequest<Result>, ISecuredRequest, IRequiresMenuPermission { public string RequiredMenuKod => "sabit"; public YetkiTipi RequiredYetkiTipi => YetkiTipi.W; }
+    private sealed record SabitQuery : IRequest<Result>, ISecuredRequest, IRequiresMenuPermission { public string RequiredMenuKod => "grid-modulu"; public YetkiTipi RequiredYetkiTipi => YetkiTipi.R; }
     private sealed record CokluCommand : IRequest<Result>, ISecuredRequest, IRequiresMenuPermissions
     { public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions => [new("ilk", YetkiTipi.R), new("ikinci", YetkiTipi.W)]; }
     public sealed record AyarliCommand : IRequest<Result>, IConfigurableApproval
@@ -239,7 +240,6 @@ public class OrtakYetkiOnayIsKurallariTests
         public List<(int UserId, string Menu, YetkiTipi Yetki)> Calls { get; } = [];
         public Task<bool> HasUserPermissionAsync(int user, string menu, YetkiTipi permission, CancellationToken token = default)
         { Calls.Add((user, menu, permission)); return Task.FromResult(menu != DeniedMenu); }
-        public Task<bool> IsAdminAsync(int user, CancellationToken token = default) => throw new NotSupportedException();
         public Task<List<MenuTanimi>> GetMenuAgaciAsync(CancellationToken token = default) => throw new NotSupportedException();
         public Task<List<RolYetki>> GetRolYetkileriAsync(int id, CancellationToken token = default) => throw new NotSupportedException();
         public Task YetkileriGuncelleAsync(int id, List<RolYetki> rows, CancellationToken token = default) => throw new NotSupportedException();

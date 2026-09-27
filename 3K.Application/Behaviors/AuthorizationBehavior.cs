@@ -1,15 +1,14 @@
 using MediatR;
 using _3K.Application.Common;
-using _3K.Core.Constants;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Behaviors
 {
     /// <summary>
-    /// Central authorization pipeline.
-    /// ISecuredRequest marks the request; requirements are defined by server code.
-    /// X-Menu-Kod is never an authorization source.
+    /// Merkezi yetki adımı. Gereksinimler sunucu kodunda tanımlıdır (RequestMenuPermissionResolver
+    /// veya isteğin açık bildirimi) ve bütün modüllerde aynı değerlendiriciyle kontrol edilir.
+    /// X-Menu-Kod başlığı, route veya gövde değeri yetki kaynağı değildir.
     /// </summary>
     public class AuthorizationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
         where TRequest : notnull
@@ -40,8 +39,7 @@ namespace _3K.Application.Behaviors
             if (!_currentUserService.IsAuthenticated)
                 return CreateFailureResult("Oturum açmanız gerekiyor.", 401);
 
-            var userId = _currentUserService.UserId;
-            if (!userId.HasValue)
+            if (_currentUserService.UserId is not int userId)
                 return CreateFailureResult("Kullanıcı bilgisi alınamadı.", 401);
 
             if (MenuAuthorizationExceptions.IsOwnAuthenticatedData(request))
@@ -49,36 +47,21 @@ namespace _3K.Application.Behaviors
 
             // Bu bağlam yalnız onay handler'ında kayıt/karar/meta veri kontrollerinden
             // sonra açılır. Onay yetkisi, talep edenin ekran yazma izniyle aynı değildir.
-            var granularModule = request.GetType().Namespace?.StartsWith("_3K.Application.Features.AmbalajIslemleri", StringComparison.Ordinal) == true ||
-                request.GetType().Namespace?.StartsWith("_3K.Application.Features.FinansIslemleri", StringComparison.Ordinal) == true;
-            if (_approvalExecutionContext?.IsExecutingApprovedCommand == true && !granularModule &&
+            if (_approvalExecutionContext?.IsExecutingApprovedCommand == true &&
                 request is IApprovalOperation && RequestMenuPermissionResolver.HasServerDefinition(request))
                 return await next();
-
-            if (_approvalExecutionContext?.IsExecutingApprovedCommand == true && granularModule)
-            {
-                if (_approvalExecutionContext.InitiatorUserId is not int initiator || initiator <= 0)
-                    return CreateFailureResult("Onay işleminin başlatan kullanıcısı doğrulanamadı.", 403);
-                userId = initiator;
-            }
-
-            // Üretim/finans kök erişimi ile bağımsız eylem izni birlikte gerekir.
-            // Kökün kişisel açık reddi, elde kalmış alt izinle API'den aşılamaz.
-            // Diğer modüllerin mevcut All/Any sözleşmelerine ek gereksinim koymayız.
-            if (granularModule)
-            {
-                var root = request.GetType().Namespace!.StartsWith("_3K.Application.Features.AmbalajIslemleri", StringComparison.Ordinal)
-                    ? YetkiKodlari.Ambalaj.Listele : YetkiKodlari.Finans.Modul;
-                if (!await _rolService.HasUserPermissionAsync(userId.Value, root, YetkiTipi.R, cancellationToken))
-                    return CreateFailureResult("Bu modüle erişim yetkiniz bulunmuyor.", 403);
-            }
 
             var policy = _permissionResolver != null
                 ? await _permissionResolver.ResolveAsync(request, cancellationToken)
                 : DeclaredPermissions(request);
 
             if (policy.Groups.Count == 0)
-                return CreateFailureResult("Bu işlem için sunucu yetki tanımı bulunamadı.", 403);
+            {
+                // Tanımlı işlemde boş politika, kayıt bulunamadığı veya başka bir projeye ait olduğu anlamına gelir.
+                return CreateFailureResult(RequestMenuPermissionResolver.HasServerDefinition(request)
+                    ? "Kayıt bulunamadı veya bu işlem için yetkiniz bulunmuyor."
+                    : "Bu işlem için sunucu yetki tanımı bulunamadı.", 403);
+            }
 
             foreach (var group in policy.Groups)
             {
@@ -88,10 +71,9 @@ namespace _3K.Application.Behaviors
                     return CreateFailureResult("Geçersiz sunucu yetki tanımı.", 403);
 
                 var anyGranted = false;
-                // Aynı scoped DbContext: kontroller kasıtlı olarak sıralıdır.
                 foreach (var requirement in group.Requirements.Distinct())
                 {
-                    var granted = await _rolService.HasUserPermissionAsync(userId.Value,
+                    var granted = await _rolService.HasUserPermissionAsync(userId,
                         requirement.MenuKod, requirement.YetkiTipi, cancellationToken);
                     if (!granted && group.Match == MenuPermissionMatch.All)
                         return CreateFailureResult("Bu işlem için gerekli yetkileriniz bulunmuyor.", 403);
@@ -111,8 +93,7 @@ namespace _3K.Application.Behaviors
             if (request is IRequiresMenuPermissions multiple && multiple.RequiredMenuPermissions.Count > 0)
                 return new([new(multiple.RequiredMenuPermissions, multiple.PermissionMatch)]);
             if (request is IRequiresMenuPermission single && !string.IsNullOrWhiteSpace(single.RequiredMenuKod))
-                return new([new([new(single.RequiredMenuKod,
-                    request.GetType().Name.EndsWith("Query", StringComparison.Ordinal) ? YetkiTipi.R : YetkiTipi.W)])]);
+                return new([new([new(single.RequiredMenuKod, single.RequiredYetkiTipi)])]);
             return RequestMenuPermissions.Denied;
         }
 

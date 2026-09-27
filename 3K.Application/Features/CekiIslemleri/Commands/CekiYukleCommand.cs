@@ -11,6 +11,7 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
     public class CekiYukleCommand : IRequest<Result<CekiYuklemeResultDto>>, ISecuredRequest, IRequiresMenuPermission
     {
         public string RequiredMenuKod => "ceki-yukle";
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
 
         public Stream ExcelDosya { get; set; } = null!;
         public string DosyaAdi { get; set; } = string.Empty;

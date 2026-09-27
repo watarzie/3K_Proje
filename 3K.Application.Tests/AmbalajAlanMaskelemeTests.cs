@@ -7,6 +7,7 @@ using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
+using _3K.Core.Constants;
 
 namespace _3K.Application.Tests;
 
@@ -67,7 +68,7 @@ public sealed class AmbalajAlanMaskelemeTests
             Items = [new() { Adet = 4, NetM3 = 10, SarfM3 = 2, SarfOrani = 20, ToplamM3 = 12 }],
             FilteredSummary = new() { KayitSayisi = 1, ToplamSandikAdedi = 4, NetM3 = 10, SarfM3 = 2, ToplamM3 = 12 }
         };
-        var result = await Run(new GetAmbalajUretimSayfasiQuery(), value, AmbalajMenuKodlari.M3Goruntule);
+        var result = await Run(new GetAmbalajUretimSayfasiQuery(), value, YetkiKodlari.Ambalaj.M3Goruntule);
         Assert.Equal(10, result.Items[0].NetM3);
         Assert.Equal(10, result.FilteredSummary.NetM3);
         Assert.Null(result.Items[0].SarfM3);
@@ -152,7 +153,6 @@ public sealed class AmbalajAlanMaskelemeTests
     {
         public Task<bool> HasUserPermissionAsync(int userId, string menuKod, YetkiTipi requiredYetkiTipi, CancellationToken ct = default) =>
             Task.FromResult(allowed.Contains(menuKod) && requiredYetkiTipi == YetkiTipi.R);
-        public Task<bool> IsAdminAsync(int userId, CancellationToken ct = default) => Task.FromResult(false);
         public Task<List<MenuTanimi>> GetMenuAgaciAsync(CancellationToken ct = default) => throw new NotSupportedException();
         public Task<List<RolYetki>> GetRolYetkileriAsync(int rolId, CancellationToken ct = default) => throw new NotSupportedException();
         public Task YetkileriGuncelleAsync(int rolId, List<RolYetki> yetkiler, CancellationToken ct = default) => throw new NotSupportedException();

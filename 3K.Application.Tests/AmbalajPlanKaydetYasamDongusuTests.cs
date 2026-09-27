@@ -8,6 +8,7 @@ using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
+using _3K.Core.Constants;
 
 namespace _3K.Application.Tests;
 
@@ -34,8 +35,8 @@ public sealed class AmbalajPlanKaydetYasamDongusuTests
         Assert.Equal(zamanlar, new[] { bekleyen, uretimde, tamamlanan }
             .Select(x => (x.UretimDurumu, x.UretimTarihi, x.TamamlanmaTarihi)).ToArray());
         Assert.Single(f.Uow.Repo<AmbalajUretimGerceklesmesi>().Rows);
-        Assert.DoesNotContain(f.Roles.Checked, x => x == AmbalajMenuKodlari.DurumDuzenle ||
-            x == AmbalajMenuKodlari.DurumuGeriAl || x == AmbalajMenuKodlari.UretimiTamamla);
+        Assert.DoesNotContain(f.Roles.Checked, x => x == YetkiKodlari.Ambalaj.DurumDuzenle ||
+            x == YetkiKodlari.Ambalaj.DurumuGeriAl || x == YetkiKodlari.Ambalaj.UretimiTamamla);
     }
 
     [Fact]
@@ -72,7 +73,7 @@ public sealed class AmbalajPlanKaydetYasamDongusuTests
     public async Task PlanKaydet_FormSonrasiParti_GercekDegisimKritikIzinVeGerekceIster(
         bool kritikIzin, string? gerekce, int expected)
     {
-        var f = new Fixture(kritikIzin ? [AmbalajMenuKodlari.KritikVeriDuzenle] : []);
+        var f = new Fixture(kritikIzin ? [YetkiKodlari.Ambalaj.KritikVeriDuzenle] : []);
         var row = f.Add(1, AmbalajUretimDurumu.Uretimde); row.FirinPartiNo = "FP-1";
         var form = f.FormEkle(row); var eskiJson = form.SnapshotJson;
         var result = await f.Save(new() { ProjeId = 10, SeciliKaynakSandikIds = [101], FirinPartiNo = "FP-2", Gerekce = gerekce, DurumId = 2 });
@@ -96,7 +97,7 @@ public sealed class AmbalajPlanKaydetYasamDongusuTests
         row.FirinPartiNo = "FP-1"; f.FormEkle(row);
         var result = await f.Save(new() { ProjeId = 10, SeciliKaynakSandikIds = [101], FirinPartiNo = " FP-1 " });
         Assert.True(result.IsSuccess, result.Error?.Message);
-        Assert.DoesNotContain(AmbalajMenuKodlari.KritikVeriDuzenle, f.Roles.Checked);
+        Assert.DoesNotContain(YetkiKodlari.Ambalaj.KritikVeriDuzenle, f.Roles.Checked);
         Assert.Empty(f.Uow.Repo<AmbalajUretimHareketi>().Rows); Assert.Empty(f.Finans.Models);
         Assert.Equal(0, f.Uow.Repo<AmbalajUretimKaydi>().UpdateCount);
     }
@@ -107,7 +108,7 @@ public sealed class AmbalajPlanKaydetYasamDongusuTests
     [InlineData(true, "Seçim düzeltme", 200)]
     public async Task PlanKaydet_FormSonrasiSecim_EskiKritikKapiVeTarihleriKorur(bool allowed, string? reason, int expected)
     {
-        var f = new Fixture(allowed ? [AmbalajMenuKodlari.KritikVeriDuzenle, AmbalajMenuKodlari.FormSonrasiSecimDegistir] : []);
+        var f = new Fixture(allowed ? [YetkiKodlari.Ambalaj.KritikVeriDuzenle, YetkiKodlari.Ambalaj.FormSonrasiSecimDegistir] : []);
         var row = f.Add(1, AmbalajUretimDurumu.Tamamlandi); f.FormEkle(row);
         var tarih = row.UretimTarihi; var bitis = row.TamamlanmaTarihi;
         var result = await f.Save(new() { ProjeId = 10, SeciliKaynakSandikIds = [], Gerekce = reason });
@@ -134,7 +135,7 @@ public sealed class AmbalajPlanKaydetYasamDongusuTests
     [Fact]
     public async Task DurumKomutu_IlkFormYokken_Hala409VeHicbirDegisiklikYok()
     {
-        var f = new Fixture(AmbalajMenuKodlari.DurumDuzenle); var row = f.Add(1);
+        var f = new Fixture(YetkiKodlari.Ambalaj.DurumDuzenle); var row = f.Add(1);
         var called = false;
         var result = await new AmbalajYasamDongusuBehavior<AmbalajUretimDurumuGuncelleCommand, Result<AmbalajUretimKaydiDto>>(
             f.Uow, f.Roles, f.User).Handle(new() { Id = row.Id, Durum = AmbalajUretimDurumu.Uretimde },
@@ -186,7 +187,6 @@ public sealed class AmbalajPlanKaydetYasamDongusuTests
         public List<string> Checked { get; } = [];
         public Task<bool> HasUserPermissionAsync(int userId, string code, YetkiTipi type, CancellationToken ct = default)
         { Checked.Add(code); return Task.FromResult(type == YetkiTipi.R || allowed.Contains(code)); }
-        public Task<bool> IsAdminAsync(int userId, CancellationToken ct = default) => Task.FromResult(false);
         public Task<List<MenuTanimi>> GetMenuAgaciAsync(CancellationToken ct = default) => throw new NotSupportedException();
         public Task<List<RolYetki>> GetRolYetkileriAsync(int rolId, CancellationToken ct = default) => throw new NotSupportedException();
         public Task YetkileriGuncelleAsync(int rolId, List<RolYetki> yetkiler, CancellationToken ct = default) => throw new NotSupportedException();

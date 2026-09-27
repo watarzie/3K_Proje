@@ -5,18 +5,19 @@ using _3K.Application.Features.FinansIslemleri;
 using _3K.Core.Interfaces;
 using _3K.Core.Helpers;
 using _3K.Core.Models;
+using _3K.Core.Constants;
 
 namespace _3K.Application.Features.FinansIslemleri.Queries
 {
     public sealed class FinansIsRaporuDosyaQuery : FinansQuery<DosyaIcerigi>
     {
-        public override string RequiredMenuKod => FinansYetkiKodlari.RaporGoruntule;
+        public override string RequiredMenuKod => YetkiKodlari.Finans.RaporGoruntule;
         public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
         [
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.RaporGoruntule),
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.GelirGoruntule),
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.BirimFiyatGoruntule),
-            FinansYetkiKodlari.Read(FinansRaporPermissionRules.ExportPermission(Format))
+            MenuPermissionRequirement.Read(YetkiKodlari.Finans.RaporGoruntule),
+            MenuPermissionRequirement.Read(YetkiKodlari.Finans.GelirGoruntule),
+            MenuPermissionRequirement.Read(YetkiKodlari.Finans.BirimFiyatGoruntule),
+            MenuPermissionRequirement.Read(FinansRaporPermissionRules.ExportPermission(Format))
         ];
         public string Format { get; init; } = "pdf";
         public FinansListeFiltre Filtre { get; init; } = new();
@@ -24,12 +25,12 @@ namespace _3K.Application.Features.FinansIslemleri.Queries
 
     public sealed class FinansGiderRaporuDosyaQuery : FinansQuery<DosyaIcerigi>
     {
-        public override string RequiredMenuKod => FinansYetkiKodlari.RaporGoruntule;
+        public override string RequiredMenuKod => YetkiKodlari.Finans.RaporGoruntule;
         public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
         [
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.RaporGoruntule),
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.GiderGoruntule),
-            FinansYetkiKodlari.Read(FinansRaporPermissionRules.ExportPermission(Format))
+            MenuPermissionRequirement.Read(YetkiKodlari.Finans.RaporGoruntule),
+            MenuPermissionRequirement.Read(YetkiKodlari.Finans.GiderGoruntule),
+            MenuPermissionRequirement.Read(FinansRaporPermissionRules.ExportPermission(Format))
         ];
         public string Format { get; init; } = "pdf";
         public FinansListeFiltre Filtre { get; init; } = new();
@@ -37,15 +38,15 @@ namespace _3K.Application.Features.FinansIslemleri.Queries
 
     public sealed class FinansAylikRaporDosyaQuery : FinansQuery<DosyaIcerigi>
     {
-        public override string RequiredMenuKod => FinansYetkiKodlari.RaporGoruntule;
+        public override string RequiredMenuKod => YetkiKodlari.Finans.RaporGoruntule;
         public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
         [
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.RaporGoruntule),
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.GelirGoruntule),
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.GiderGoruntule),
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.KarlilikGoruntule),
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.BirimFiyatGoruntule),
-            FinansYetkiKodlari.Read(FinansRaporPermissionRules.ExportPermission(Format))
+            MenuPermissionRequirement.Read(YetkiKodlari.Finans.RaporGoruntule),
+            MenuPermissionRequirement.Read(YetkiKodlari.Finans.GelirGoruntule),
+            MenuPermissionRequirement.Read(YetkiKodlari.Finans.GiderGoruntule),
+            MenuPermissionRequirement.Read(YetkiKodlari.Finans.KarlilikGoruntule),
+            MenuPermissionRequirement.Read(YetkiKodlari.Finans.BirimFiyatGoruntule),
+            MenuPermissionRequirement.Read(FinansRaporPermissionRules.ExportPermission(Format))
         ];
         public string Format { get; init; } = "pdf";
         public int Yil { get; init; }
@@ -55,13 +56,13 @@ namespace _3K.Application.Features.FinansIslemleri.Queries
 
     public sealed class FinansSiparisDurumRaporuDosyaQuery : FinansQuery<DosyaIcerigi>
     {
-        public override string RequiredMenuKod => FinansYetkiKodlari.RaporGoruntule;
+        public override string RequiredMenuKod => YetkiKodlari.Finans.RaporGoruntule;
         public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
         [
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.RaporGoruntule),
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.GelirGoruntule),
-            FinansYetkiKodlari.Read(FinansYetkiKodlari.BirimFiyatGoruntule),
-            FinansYetkiKodlari.Read(FinansRaporPermissionRules.ExportPermission(Format))
+            MenuPermissionRequirement.Read(YetkiKodlari.Finans.RaporGoruntule),
+            MenuPermissionRequirement.Read(YetkiKodlari.Finans.GelirGoruntule),
+            MenuPermissionRequirement.Read(YetkiKodlari.Finans.BirimFiyatGoruntule),
+            MenuPermissionRequirement.Read(FinansRaporPermissionRules.ExportPermission(Format))
         ];
         public string Format { get; init; } = "pdf";
         public FinansListeFiltre Filtre { get; init; } = new();
@@ -153,7 +154,7 @@ namespace _3K.Application.Features.FinansIslemleri.Queries
         public static string ExportPermission(string? format)
             => string.Equals(format, "xlsx", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(format, "excel", StringComparison.OrdinalIgnoreCase)
-                ? FinansYetkiKodlari.ExcelAktar
-                : FinansYetkiKodlari.PdfAktar;
+                ? YetkiKodlari.Finans.ExcelAktar
+                : YetkiKodlari.Finans.PdfAktar;
     }
 }

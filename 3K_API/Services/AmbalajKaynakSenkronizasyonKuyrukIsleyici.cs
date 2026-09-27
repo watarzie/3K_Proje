@@ -7,6 +7,7 @@ using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
+using _3K.Core.Constants;
 
 namespace _3K_API.Services;
 
@@ -89,7 +90,7 @@ public sealed class AmbalajKaynakSenkronizasyonKuyrukIsleyici
         var rolService = scope.ServiceProvider.GetRequiredService<IRolService>();
         var duzenlemeyeYetkiliMi = await rolService.HasUserPermissionAsync(
             ayarlar.SystemUserId.Value,
-            AmbalajMenuKodlari.KayitDuzenle,
+            YetkiKodlari.Ambalaj.KayitDuzenle,
             YetkiTipi.W,
             cancellationToken);
         if (duzenlemeyeYetkiliMi)

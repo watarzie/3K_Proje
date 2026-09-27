@@ -44,8 +44,11 @@ Uygulama .NET 10 hedefleyen, PostgreSQL kullanan katmanlı bir monolittir. Komut
 
 ## Yetki ve onay
 
-- İşlem iznini sunucuda tanımla; `X-Menu-Kod`, route veya body değeri tek başına yetki kanıtı değildir. Mevcut `ISecuredRequest` ve sabit/çoklu menü gereksinimlerini uygun şekilde kullan.
-- Ortak endpoint'te gerçek proje tipini, sahipliği/ilişkileri ve gereken izni kayıtlar üzerinden doğrula. Okuma/yazma ayrımını ve izin kombinasyonlarını açık tut. Eski header fallback davranışını yeni güvenlik örüntüsü olarak kopyalama.
+- Yetki kodları yalnız `3K.Core/Constants/YetkiKodlari` içinde tanımlıdır; kod literali yazma. Proje tipine bağlı kodları `ProjeTipiYetkiKodlari.Getir(tip)` ile çöz.
+- İşlem iznini sunucuda tanımla: request ya `IRequiresMenuPermission` ile `RequiredMenuKod` ve açık `RequiredYetkiTipi` (R görüntüleme, W işlem) bildirir ya da politikası `RequestMenuPermissionResolver` içindedir. İstemcinin gönderdiği menü, route veya body değeri yetki kanıtı değildir; ekran bağlamı başlığı (`X-Menu-Kod`) kullanılmaz.
+- İzin modeli tektir: ekran, işlem ve alan kodlarının hepsi `MenuTanimlari` ağacında N/R/W olarak `YetkiAgaci` ile değerlendirilir. Üst düğüm alt düğümün tavanıdır; üst W alt izni kendiliğinden vermez. Kişisel ret/izin rol seviyesinin önüne geçer ama üst tavanı aşamaz. Modüle özel değerlendirici veya ad bazlı istisna yazma; Admin rolü kimliğiyle (`SistemRolleri.AdminId`) tanınır.
+- Yeni kod eklerken `YetkiKodlari`, `MenuTanimlari` kaydını ekleyen `scripts/database/` betiği (`LabelKey` = `MENU.<KOD>`), frontend `yetki-kodlari.ts` ve TR/EN `MENU.*` çevirilerini birlikte güncelle.
+- Ortak endpoint'te gerçek proje tipini, sahipliği/ilişkileri ve gereken izni kayıtlar üzerinden doğrula. Okuma/yazma ayrımını ve izin kombinasyonlarını açık tut.
 - Login/2FA challenge ile tam oturumu ayır. Yetki eklemek için public giriş akışını yanlışlıkla kilitleme; mevcut servis kullanıcısı/onay yürütme bağlamlarını incele.
 - Approval pipeline, kayıtlı komut bütünlüğü, onay yetkisi ve uygulama durumu kontrollerini atlama. Talep, karar ve fiili uygulama ayrı olaylardır; tekrar istek ikinci kez uygulamamalıdır.
 

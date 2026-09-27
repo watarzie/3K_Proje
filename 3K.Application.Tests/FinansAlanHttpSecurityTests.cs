@@ -257,7 +257,9 @@ public sealed class FinansAlanHttpSecurityTests
         public void GrantAll()
         {
             Roles.Grant(YetkiKodlari.Finans.Modul);
-            foreach (var permission in YetkiKatalogu.Tum) Roles.Grant(permission.Kod, permission.GerekenYetki);
+            foreach (var kod in typeof(YetkiKodlari.Finans).GetFields().Concat(typeof(YetkiKodlari.Ambalaj).GetFields())
+                         .Where(f => f.IsLiteral).Select(f => (string)f.GetRawConstantValue()!))
+                Roles.Grant(kod, YetkiTipi.W);
         }
         public async Task<JsonNode> Json(string path)
         {
@@ -279,9 +281,19 @@ public sealed class FinansAlanHttpSecurityTests
         private readonly ConcurrentDictionary<string, YetkiTipi> _permissions = new();
         public void Grant(string code, YetkiTipi level = YetkiTipi.R) => _permissions[code] = level;
         public void Revoke(string code) => _permissions.TryRemove(code, out _);
+        // Gerçek değerlendirici gibi modül kökü alt kodların tavanıdır.
         public Task<bool> HasUserPermissionAsync(int userId, string menuKod, YetkiTipi requiredYetkiTipi, CancellationToken ct = default) =>
-            Task.FromResult(userId == 7 && _permissions.TryGetValue(menuKod, out var level) && level >= requiredYetkiTipi);
-        public Task<bool> IsAdminAsync(int userId, CancellationToken ct = default) => Task.FromResult(false);
+            Task.FromResult(userId == 7 && Seviye(menuKod) >= requiredYetkiTipi);
+        private YetkiTipi Seviye(string kod)
+        {
+            var kendi = _permissions.TryGetValue(kod, out var level) ? level : YetkiTipi.N;
+            var ust = kod == YetkiKodlari.Finans.Modul || kod == YetkiKodlari.Ambalaj.Listele ? null
+                : kod.StartsWith("finans-") ? YetkiKodlari.Finans.Modul
+                : kod.StartsWith("ambalaj-") ? YetkiKodlari.Ambalaj.Listele : null;
+            if (ust == null) return kendi;
+            var ustSeviye = Seviye(ust);
+            return kendi < ustSeviye ? kendi : ustSeviye;
+        }
         public Task<List<MenuTanimi>> GetMenuAgaciAsync(CancellationToken ct = default) => throw new NotSupportedException();
         public Task<List<RolYetki>> GetRolYetkileriAsync(int rolId, CancellationToken ct = default) => throw new NotSupportedException();
         public Task YetkileriGuncelleAsync(int rolId, List<RolYetki> yetkiler, CancellationToken ct = default) => throw new NotSupportedException();

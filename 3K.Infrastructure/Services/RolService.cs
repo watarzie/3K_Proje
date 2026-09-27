@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
-using _3K.Core.Constants;
 using _3K.Core.Models;
 using _3K.Infrastructure.Data;
 
@@ -11,6 +10,10 @@ namespace _3K.Infrastructure.Services
     public class RolService : IRolService
     {
         private readonly AppDbContext _context;
+
+        // Scoped servis: bir istek içindeki bütün yetki kontrolleri aynı anlık görüntüyü kullanır.
+        // Sonraki istek yeni örnek alır ve güncel rol/kişisel karar kayıtlarını yeniden okur.
+        private readonly Dictionary<int, KullaniciYetkiSeti> _kullaniciYetkileri = new();
 
         public RolService(AppDbContext context)
         {
@@ -43,14 +46,13 @@ namespace _3K.Infrastructure.Services
 
         public async Task YetkileriGuncelleAsync(int rolId, List<RolYetki> yeniYetkiler, CancellationToken ct = default)
         {
-            // Mevcut yetkileri sil
             var mevcutYetkiler = await _context.RolYetkileri
                 .Where(ry => ry.RolId == rolId)
                 .ToListAsync(ct);
 
             _context.RolYetkileri.RemoveRange(mevcutYetkiler);
 
-            // Yeni yetkileri ekle (sadece W ve R olanlar — N olanlar kayıt edilmez)
+            // N kaydedilmez; kaydı olmayan düğüm zaten N'dir.
             var kaydedilecek = yeniYetkiler
                 .Where(y => y.YetkiTipiId == (int)YetkiTipi.W || y.YetkiTipiId == (int)YetkiTipi.R)
                 .Select(y => new RolYetki
@@ -63,17 +65,7 @@ namespace _3K.Infrastructure.Services
 
             await _context.RolYetkileri.AddRangeAsync(kaydedilecek, ct);
             await _context.SaveChangesAsync(ct);
-        }
-
-        public async Task<bool> IsAdminAsync(int userId, CancellationToken ct = default)
-        {
-            var kullanici = await _context.Kullanicilar
-                .AsNoTracking()
-                .Include(k => k.Rol)
-                .FirstOrDefaultAsync(k => k.Id == userId, ct);
-
-            return kullanici?.RolId == 1 ||
-                string.Equals(kullanici?.Rol?.Ad, "Admin", StringComparison.OrdinalIgnoreCase);
+            _kullaniciYetkileri.Clear();
         }
 
         public async Task<bool> HasUserPermissionAsync(int userId, string menuKod, YetkiTipi requiredYetkiTipi, CancellationToken ct = default)
@@ -81,60 +73,37 @@ namespace _3K.Infrastructure.Services
             if (string.IsNullOrWhiteSpace(menuKod))
                 return false;
 
-            var kullanici = await _context.Kullanicilar
-                .AsNoTracking()
+            if (!_kullaniciYetkileri.TryGetValue(userId, out var yetkiler))
+            {
+                yetkiler = await KullaniciYetkileriniOkuAsync(userId, ct);
+                _kullaniciYetkileri[userId] = yetkiler;
+            }
+
+            return yetkiler.Saglar(menuKod, requiredYetkiTipi);
+        }
+
+        private async Task<KullaniciYetkiSeti> KullaniciYetkileriniOkuAsync(int userId, CancellationToken ct)
+        {
+            var rolId = await _context.Kullanicilar.AsNoTracking()
                 .Where(k => k.Id == userId)
-                .Select(k => new
-                {
-                    k.RolId
-                })
+                .Select(k => (int?)k.RolId)
                 .FirstOrDefaultAsync(ct);
+            if (rolId == null)
+                return KullaniciYetkiSeti.Bos;
 
-            if (kullanici == null)
-                return false;
-
-            var node = await _context.MenuTanimlari.AsNoTracking()
-                .Where(x => x.Kod == menuKod)
-                .Select(x => new { x.Id, x.Kod, x.ParentId }).SingleOrDefaultAsync(ct);
-            if (node == null) return false;
-
-            var path = new List<(int Id, string Kod)>();
-            var visited = new HashSet<int>();
-            while (true)
-            {
-                if (!visited.Add(node.Id)) return false;
-                path.Add((node.Id, node.Kod));
-                if (!node.ParentId.HasValue) break;
-                node = await _context.MenuTanimlari.AsNoTracking()
-                    .Where(x => x.Id == node.ParentId.Value)
-                    .Select(x => new { x.Id, x.Kod, x.ParentId }).SingleOrDefaultAsync(ct);
-                if (node == null) return false;
-            }
-
-            var pathIds = path.Select(x => x.Id).ToArray();
-            var roleLevels = await _context.RolYetkileri.AsNoTracking()
-                .Where(x => x.RolId == kullanici.RolId && pathIds.Contains(x.MenuTanimiId))
+            var menuler = await _context.MenuTanimlari.AsNoTracking()
+                .Select(x => new YetkiDugumu(x.Id, x.Kod, x.ParentId))
+                .ToListAsync(ct);
+            var rolAtamalari = await _context.RolYetkileri.AsNoTracking()
+                .Where(x => x.RolId == rolId)
                 .ToDictionaryAsync(x => x.MenuTanimiId, x => x.YetkiTipiId, ct);
-            var decisions = await _context.KullaniciYetkileri.AsNoTracking()
-                .Where(x => x.KullaniciId == userId && pathIds.Contains(x.MenuTanimiId))
+            var kararlar = await _context.KullaniciYetkileri.AsNoTracking()
+                .Where(x => x.KullaniciId == userId)
                 .ToDictionaryAsync(x => x.MenuTanimiId, x => x.IzinVerildi, ct);
-            var roleEffective = new Dictionary<int, int>();
-            var inherited = (int)YetkiTipi.W;
-            foreach (var menu in path.AsEnumerable().Reverse())
-            {
-                inherited = YetkiDegerlendirici.UstSinirliYetki(menu.Kod,
-                    roleLevels.GetValueOrDefault(menu.Id, (int)YetkiTipi.N), inherited);
-                roleEffective[menu.Id] = inherited;
-            }
-            inherited = (int)YetkiTipi.W;
-            foreach (var menu in path.AsEnumerable().Reverse())
-            {
-                var local = YetkiDegerlendirici.EtkinYetki(roleEffective[menu.Id],
-                    decisions.TryGetValue(menu.Id, out var granted) ? granted : null,
-                    (int)(YetkiKatalogu.Bul(menu.Kod)?.GerekenYetki ?? YetkiTipi.W));
-                inherited = YetkiDegerlendirici.UstSinirliYetki(menu.Kod, local, inherited);
-            }
-            return inherited >= (int)requiredYetkiTipi;
+
+            var agac = new YetkiAgaci(menuler);
+            var seviyeler = agac.KullaniciSeviyeleri(rolAtamalari, kararlar);
+            return new KullaniciYetkiSeti(menuler.ToDictionary(x => x.Kod, x => seviyeler[x.Id]));
         }
     }
 }

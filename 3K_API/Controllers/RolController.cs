@@ -39,10 +39,6 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
 
-        [HttpGet("sablonlar")]
-        public async Task<ActionResult> GetSablonlar(CancellationToken cancellationToken)
-            => (await _mediator.Send(new GetRolSablonlariQuery(), cancellationToken)).ToActionResult();
-
         /// <summary>Yeni rol oluşturur.</summary>
         [HttpPost("olustur")]
         public async Task<ActionResult> RolOlustur([FromBody] RolOlusturCommand command)

@@ -1,6 +1,7 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Application.Features.AmbalajIslemleri.DTOs;
+using _3K.Core.Constants;
 
 namespace _3K.Application.Features.AmbalajIslemleri.Queries;
 
@@ -11,9 +12,9 @@ public abstract class AmbalajPlanlamaQuery<T> : IRequest<Result<T>>, ISecuredReq
     public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
         this switch
         {
-            GetAmbalajPlanlamaPlanQuery => [AmbalajMenuKodlari.Read(AmbalajMenuKodlari.PlanGoruntule), AmbalajMenuKodlari.Read(AmbalajMenuKodlari.ProjeDetayGoruntule)],
-            GetAmbalajProjeSandikSecenekleriQuery or GetAmbalajIlaveSandikAdaylariQuery => [AmbalajMenuKodlari.Read(AmbalajMenuKodlari.SandikListesiGoruntule)],
-            _ => [AmbalajMenuKodlari.Read(AmbalajMenuKodlari.Listele)]
+            GetAmbalajPlanlamaPlanQuery => [MenuPermissionRequirement.Read(YetkiKodlari.Ambalaj.PlanGoruntule), MenuPermissionRequirement.Read(YetkiKodlari.Ambalaj.ProjeDetayGoruntule)],
+            GetAmbalajProjeSandikSecenekleriQuery or GetAmbalajIlaveSandikAdaylariQuery => [MenuPermissionRequirement.Read(YetkiKodlari.Ambalaj.SandikListesiGoruntule)],
+            _ => [MenuPermissionRequirement.Read(YetkiKodlari.Ambalaj.Listele)]
         };
 }
 

@@ -3,14 +3,15 @@ using _3K.Application.Common;
 using _3K.Application.Features.FinansIslemleri.DTOs;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
+using _3K.Core.Constants;
 
 namespace _3K.Application.Features.FinansIslemleri.Queries;
 
 public sealed class FinansV2RaporQuery : FinansQuery<DosyaIcerigi>
 {
-    public override string RequiredMenuKod => FinansYetkiKodlari.RaporGoruntule;
+    public override string RequiredMenuKod => YetkiKodlari.Finans.RaporGoruntule;
     public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
-        [FinansYetkiKodlari.Read(FinansYetkiKodlari.RaporGoruntule), FinansYetkiKodlari.Read(FinansRaporPermissionRules.ExportPermission(Format))];
+        [MenuPermissionRequirement.Read(YetkiKodlari.Finans.RaporGoruntule), MenuPermissionRequirement.Read(FinansRaporPermissionRules.ExportPermission(Format))];
     public string Tur { get; init; } = "genel";
     public string Format { get; init; } = "pdf";
     public FinansListeFiltre Filtre { get; init; } = new();

@@ -31,9 +31,7 @@ public static class DependencyInjection
 
         services.AddValidatorsFromAssembly(assembly);
 
-        services.AddScoped<ApprovalExecutionContext>();
-        services.AddScoped<IApprovalExecutionContext>(sp => sp.GetRequiredService<ApprovalExecutionContext>());
-        services.AddScoped<IIslemKullaniciBaglami>(sp => sp.GetRequiredService<ApprovalExecutionContext>());
+        services.AddScoped<IApprovalExecutionContext, ApprovalExecutionContext>();
         services.AddScoped<IRequestMenuPermissionResolver, RequestMenuPermissionResolver>();
         services.AddScoped<ISandikLokasyonGuncellemeService, SandikLokasyonGuncellemeService>();
         services.AddScoped<IAmbalajKaynakSenkronizasyonService, AmbalajKaynaklariSenkronizeEtCommandHandler>();

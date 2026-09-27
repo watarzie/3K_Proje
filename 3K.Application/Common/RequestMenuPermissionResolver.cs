@@ -18,11 +18,13 @@ using _3K.Application.Features.StokIslemleri.Commands;
 using _3K.Application.Features.StokIslemleri.Queries;
 using _3K.Application.Features.UcKIslemleri.Commands;
 using _3K.Application.Features.UcKIslemleri.Queries;
+using _3K.Core.Constants;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using SandikKapat = _3K.Application.Features.SandikIslemleri.Commands.SandikKapatCommand;
 using EskiSandikKapat = _3K.Application.Features.ProjeIslemleri.Commands.SandikKapatCommand;
+using K = _3K.Core.Constants.YetkiKodlari;
 
 namespace _3K.Application.Common;
 
@@ -68,33 +70,34 @@ public sealed class RequestMenuPermissionResolver(IUnitOfWork unitOfWork, IReadQ
 
     private static RequestMenuPermissions? GetFixedPolicy(object request) => request switch
         {
-            RolOlusturCommand or RolGuncelleCommand or RolSilCommand => One("rol-yonetimi", YetkiTipi.W),
-            GetRolDetayQuery => One("rol-yonetimi", YetkiTipi.R),
-            GetRollerQuery => Any(YetkiTipi.R, "rol-yonetimi", "kullanicilar", "onay-kurallari-yonet"),
+            RolOlusturCommand or RolGuncelleCommand or RolSilCommand => One(K.RolYonetimi, YetkiTipi.W),
+            GetRolDetayQuery => One(K.RolYonetimi, YetkiTipi.R),
+            GetRollerQuery => Any(YetkiTipi.R, K.RolYonetimi, K.Kullanicilar, K.Onay.KurallariYonet),
             DashboardOzetQuery or DashboardProjelerQuery or DashboardKritikEksiklerQuery or
                 DashboardEksikSiralamaQuery or DashboardSahayaAktarilanSandiklarQuery or
-                DashboardProjeFilterOptionsQuery or DashboardProjeSandikDurumQuery => One("dashboard", YetkiTipi.R),
-            GetUcKIsListesiQuery => One("3k-is-listesi", YetkiTipi.R),
-            GetProjeHareketleriQuery => One("hareket-gecmisi", YetkiTipi.R),
-            GetEksikUrunlerByProjeQuery => Any(YetkiTipi.R, "sahaya-aktar", "saha-sandiklar", "yedek-sandiklar", "sandik-yonetimi"),
-            StokListeleQuery or GetStokPdfQuery => One("stok", YetkiTipi.R),
-            StokKaydiGuncelleCommand or StokKaydiOlusturCommand or StokKarsilaCommand => One("stok", YetkiTipi.W),
-            DepoLokasyonOlusturCommand or DepoLokasyonSilCommand => One("depo-durumu", YetkiTipi.W),
-            KaliteDurumGuncelleCommand => One("kalite-modulu", YetkiTipi.W),
-            SurecDurumGuncelleCommand => One("surec-modulu", YetkiTipi.W),
-            CekiSatiriAnaVeriGuncelleCommand => One("ceki-verisi-duzenle", YetkiTipi.W),
-            CekiSatirlariSilCommand => One("ceki-verisi-sil", YetkiTipi.W),
-            GetDepoSandikPdfQuery or GetProjeDepoSandikPdfQuery => One("depo-durumu", YetkiTipi.R),
+                DashboardProjeFilterOptionsQuery or DashboardProjeSandikDurumQuery => One(K.Dashboard, YetkiTipi.R),
+            GetUcKIsListesiQuery => One(K.Sandik.UcKIsListesi, YetkiTipi.R),
+            GetProjeHareketleriQuery => One(K.HareketGecmisi, YetkiTipi.R),
+            GetEksikUrunlerByProjeQuery => Any(YetkiTipi.R, K.Saha.SahayaAktar, K.Saha.Sandiklar, K.Yedek.Sandiklar,
+                K.Sandik.Yonetimi),
+            StokListeleQuery or GetStokPdfQuery => One(K.Stok.Kok, YetkiTipi.R),
+            StokKaydiGuncelleCommand or StokKaydiOlusturCommand or StokKarsilaCommand => One(K.Stok.Kok, YetkiTipi.W),
+            DepoLokasyonOlusturCommand or DepoLokasyonSilCommand => One(K.DepoDurumu, YetkiTipi.W),
+            KaliteDurumGuncelleCommand => One(K.Sandik.KaliteModulu, YetkiTipi.W),
+            SurecDurumGuncelleCommand => One(K.Sandik.SurecModulu, YetkiTipi.W),
+            CekiSatiriAnaVeriGuncelleCommand => One(K.Sandik.CekiVerisiDuzenle, YetkiTipi.W),
+            CekiSatirlariSilCommand => One(K.Sandik.CekiVerisiSil, YetkiTipi.W),
+            GetDepoSandikPdfQuery or GetProjeDepoSandikPdfQuery => One(K.DepoDurumu, YetkiTipi.R),
             // Geçersiz seçimde istek kapsamının izniyle validator'a ulaşılır; 400 mesajı korunur.
             GetTopluEksikUrunlerRaporuQuery x when !GecerliProjeSecimi(x.ProjeIds) =>
                 ProjectPolicy((int)x.ProjeTipi, ProjectMenuOperation.MissingItemsReport, YetkiTipi.R),
             ProjeOlusturCommand x => ProjectPolicy(x.ProjeTipiId, ProjectMenuOperation.ProjectCreate, YetkiTipi.W),
             ProjeListeleQuery x => ProjectListPolicy(x.ProjeTipiId, x.IsSevkEdilen),
             // Sadece seçim için asgari proje bilgisi dönen ortak lookup; operasyon izni vermez.
-            ProjeDropdownQuery => Any(YetkiTipi.R, "aktif-projeler", "sevk-edilen", "sandik-yonetimi",
-                "saha-yonetimi", "yedek-yonetimi", "grid-modulu", "3k-modulu", "saha-grid-modulu",
-                "saha-3k-modulu", "yedek-grid-modulu", "yedek-3k-modulu", "sahaya-aktar",
-                "depo-durumu", "stok", "hareket-gecmisi", "grid-is-listesi", "3k-is-listesi"),
+            ProjeDropdownQuery => Any(YetkiTipi.R, K.Proje.AktifProjeler, K.Proje.SevkEdilen, K.Sandik.Yonetimi,
+                K.Saha.Yonetimi, K.Yedek.Yonetimi, K.Sandik.GridModulu, K.Sandik.UcKModulu, K.Saha.GridModulu,
+                K.Saha.UcKModulu, K.Yedek.GridModulu, K.Yedek.UcKModulu, K.Saha.SahayaAktar,
+                K.DepoDurumu, K.Stok.Kok, K.HareketGecmisi, K.Sandik.GridIsListesi, K.Sandik.UcKIsListesi),
             _ => null
         };
 
@@ -240,43 +243,42 @@ public sealed class RequestMenuPermissionResolver(IUnitOfWork unitOfWork, IReadQ
 
     private static RequestMenuPermissions ProjectListPolicy(int? type, bool? shipped)
     {
-        if (shipped == true) return One("sevk-edilen", YetkiTipi.R);
+        if (shipped == true) return One(K.Proje.SevkEdilen, YetkiTipi.R);
         if (type.HasValue) return ProjectPolicy(type.Value, ProjectMenuOperation.ProjectRead, YetkiTipi.R);
-        return Any(YetkiTipi.R, "aktif-projeler", "sandik-yonetimi", "sevk-edilen", "depo-durumu");
+        return Any(YetkiTipi.R, K.Proje.AktifProjeler, K.Sandik.Yonetimi, K.Proje.SevkEdilen, K.DepoDurumu);
     }
 
+    /// <summary>Gerçek proje tipinin ilgili işlem için gerektirdiği menü kodları.</summary>
     public static RequestMenuPermissions ProjectPolicy(int type, ProjectMenuOperation operation, YetkiTipi yetki)
     {
-        if (!Enum.IsDefined((ProjeTipi)type)) return RequestMenuPermissions.Denied;
-        var prefix = type == (int)ProjeTipi.Saha ? "saha-" : type == (int)ProjeTipi.Yedek ? "yedek-" : "";
-        var projectMenu = type == (int)ProjeTipi.Normal ? "sandik-yonetimi" : prefix + "yonetimi";
-        var crateMenu = type == (int)ProjeTipi.Normal ? "sandik-yonetimi" : prefix + "sandiklar";
+        if (ProjeTipiYetkiKodlari.Getir(type) is not { } p) return RequestMenuPermissions.Denied;
+        var normal = p.Tip == ProjeTipi.Normal;
         return operation switch
         {
-            ProjectMenuOperation.Grid => One(prefix + "grid-modulu", yetki),
-            ProjectMenuOperation.UcK => One(prefix + "3k-modulu", yetki),
-            ProjectMenuOperation.CrateWrite => Any(yetki, crateMenu, prefix + "3k-modulu"),
-            ProjectMenuOperation.CrateRead => Any(yetki, crateMenu, projectMenu, prefix + "3k-modulu", prefix + "grid-modulu", "depo-durumu", "sahaya-aktar"),
-            ProjectMenuOperation.ProjectRead => type == (int)ProjeTipi.Normal
-                ? Any(yetki, "aktif-projeler", "sandik-yonetimi", "sevk-edilen", "depo-durumu", "grid-modulu", "3k-modulu", "sahaya-aktar")
-                : Any(yetki, projectMenu, crateMenu, prefix + "grid-modulu", prefix + "3k-modulu", "sevk-edilen", "depo-durumu", "sahaya-aktar"),
-            ProjectMenuOperation.ProjectCreate => type == (int)ProjeTipi.Normal
-                ? Any(yetki, "aktif-projeler", "sandik-yonetimi") : One(projectMenu, yetki),
-            ProjectMenuOperation.RevisionHistory => Any(yetki, projectMenu, "ceki-revizyon-yukle", "sevk-edilen"),
-            ProjectMenuOperation.ProjectUnlock => Any(yetki, projectMenu, "sevk-edilen"),
-            ProjectMenuOperation.Shipment => One(type == (int)ProjeTipi.Normal ? "proje-sevk-et" : prefix + "sevk-et", yetki),
-            ProjectMenuOperation.ProjectDelete => One(prefix + "proje-sil", yetki),
-            ProjectMenuOperation.PlannedShipmentDate => One(type == (int)ProjeTipi.Yedek ? "yedek-planlanan-sevk-tarihi" : "planlanan-sevk-tarihi", yetki),
-            ProjectMenuOperation.ActualPackingReport => One(prefix + "gerceklesen-ceki-raporu", yetki),
-            ProjectMenuOperation.UcKCrateReport => One(prefix + "3k-sandik-durum-raporu", yetki),
-            ProjectMenuOperation.CrateReport => type == (int)ProjeTipi.Normal
-                ? Any(yetki, "sandik-yonetimi", "aktif-projeler") : One(prefix + "raporu", yetki),
-            ProjectMenuOperation.MissingItemsReport => One(type switch
-            {
-                (int)ProjeTipi.Saha => "saha-sevk-sonrasi-eksik-raporu",
-                (int)ProjeTipi.Yedek => "yedek-eksik-raporu",
-                _ => "eksik-raporu"
-            }, yetki),
+            ProjectMenuOperation.Grid => One(p.GridModulu, yetki),
+            ProjectMenuOperation.UcK => One(p.UcKModulu, yetki),
+            ProjectMenuOperation.CrateWrite => Any(yetki, p.Sandiklar, p.UcKModulu),
+            ProjectMenuOperation.CrateRead => Any(yetki, p.Sandiklar, p.ProjeYonetimi, p.UcKModulu, p.GridModulu,
+                K.DepoDurumu, K.Saha.SahayaAktar),
+            ProjectMenuOperation.ProjectRead => normal
+                ? Any(yetki, K.Proje.AktifProjeler, K.Sandik.Yonetimi, K.Proje.SevkEdilen, K.DepoDurumu,
+                    p.GridModulu, p.UcKModulu, K.Saha.SahayaAktar)
+                : Any(yetki, p.ProjeYonetimi, p.Sandiklar, p.GridModulu, p.UcKModulu, K.Proje.SevkEdilen,
+                    K.DepoDurumu, K.Saha.SahayaAktar),
+            ProjectMenuOperation.ProjectCreate => normal
+                ? Any(yetki, K.Proje.AktifProjeler, K.Sandik.Yonetimi)
+                : One(p.ProjeYonetimi, yetki),
+            ProjectMenuOperation.RevisionHistory => Any(yetki, p.ProjeYonetimi, K.Sandik.CekiRevizyonYukle, K.Proje.SevkEdilen),
+            ProjectMenuOperation.ProjectUnlock => Any(yetki, p.ProjeYonetimi, K.Proje.SevkEdilen),
+            ProjectMenuOperation.Shipment => One(p.SevkEt, yetki),
+            ProjectMenuOperation.ProjectDelete => One(p.ProjeSil, yetki),
+            ProjectMenuOperation.PlannedShipmentDate => One(p.PlanlananSevkTarihi, yetki),
+            ProjectMenuOperation.ActualPackingReport => One(p.GerceklesenCekiRaporu, yetki),
+            ProjectMenuOperation.UcKCrateReport => One(p.UcKSandikDurumRaporu, yetki),
+            ProjectMenuOperation.CrateReport => p.SandikRaporu is { } rapor
+                ? One(rapor, yetki)
+                : Any(yetki, K.Sandik.Yonetimi, K.Proje.AktifProjeler),
+            ProjectMenuOperation.MissingItemsReport => One(p.EksikRaporu, yetki),
             _ => RequestMenuPermissions.Denied
         };
     }

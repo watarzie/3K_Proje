@@ -6,6 +6,7 @@ using _3K.Core.Entities;
 using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
+using _3K.Core.Constants;
 
 namespace _3K.Application.Features.AmbalajIslemleri.Queries
 {
@@ -94,7 +95,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
         public static async Task<AmbalajGorunumYetkileri> RaporYetkileriAsync(IRolService roles, ICurrentUserService user, CancellationToken ct)
         {
             var izin = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(roles, user, ct);
-            var m3Rapor = await AmbalajYetkilendirmeYardimcisi.YetkiliMiAsync(roles, user, AmbalajMenuKodlari.M3RaporGoruntule, ct, _3K.Core.Enums.YetkiTipi.R);
+            var m3Rapor = await AmbalajYetkilendirmeYardimcisi.YetkiliMiAsync(roles, user, YetkiKodlari.Ambalaj.M3RaporGoruntule, ct, _3K.Core.Enums.YetkiTipi.R);
             return izin with { M3Gorunur = izin.M3Gorunur && m3Rapor, SarfGorunur = izin.SarfGorunur && m3Rapor };
         }
         public static List<AmbalajUretimKaydi> KayitlariGetir(

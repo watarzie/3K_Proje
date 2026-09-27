@@ -1,6 +1,7 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Application.Features.AuthIslemleri.DTOs;
+using _3K.Core.Enums;
 
 namespace _3K.Application.Features.KullaniciIslemleri.Queries
 {
@@ -11,5 +12,6 @@ namespace _3K.Application.Features.KullaniciIslemleri.Queries
         : IRequest<Result<IEnumerable<KullaniciDto>>>, ISecuredRequest, IRequiresMenuPermission
     {
         public string RequiredMenuKod => "kullanicilar";
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.R;
     }
 }

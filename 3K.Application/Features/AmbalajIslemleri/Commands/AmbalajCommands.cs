@@ -2,6 +2,7 @@ using MediatR;
 using _3K.Application.Common;
 using _3K.Application.Features.AmbalajIslemleri.DTOs;
 using _3K.Core.Enums;
+using _3K.Core.Constants;
 
 namespace _3K.Application.Features.AmbalajIslemleri.Commands
 {
@@ -32,24 +33,25 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
         : IRequest<Result<AmbalajUretimKaydiDto>>, ISecuredRequest, IRequiresMenuPermission,
           IRequiresMenuPermissions, IAmbalajKayitAlanlari
     {
-        public string RequiredMenuKod => AmbalajMenuKodlari.KayitEkle;
+        public string RequiredMenuKod => YetkiKodlari.Ambalaj.KayitEkle;
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
         public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions
         {
             get
             {
                 var requirements = new List<MenuPermissionRequirement>
                 {
-                    AmbalajMenuKodlari.Write(AmbalajMenuKodlari.KayitEkle)
+                    MenuPermissionRequirement.Write(YetkiKodlari.Ambalaj.KayitEkle)
                 };
-                var turKodu = AmbalajMenuKodlari.TurOlusturmaKodu(Tur);
+                var turKodu = AmbalajYetkilendirmeYardimcisi.TurOlusturmaKodu(Tur);
                 if (turKodu != null)
-                    requirements.Add(AmbalajMenuKodlari.Write(turKodu));
+                    requirements.Add(MenuPermissionRequirement.Write(turKodu));
                 if (!ProjeId.HasValue)
-                    requirements.Add(AmbalajMenuKodlari.Write(AmbalajMenuKodlari.ManuelProje));
+                    requirements.Add(MenuPermissionRequirement.Write(YetkiKodlari.Ambalaj.ManuelProje));
                 if (!AmbalajaDahil)
-                    requirements.Add(AmbalajMenuKodlari.Write(AmbalajMenuKodlari.HaricTut));
+                    requirements.Add(MenuPermissionRequirement.Write(YetkiKodlari.Ambalaj.HaricTut));
                 if (UretimeAlindi)
-                    requirements.Add(AmbalajMenuKodlari.Write(AmbalajMenuKodlari.UretimeAl));
+                    requirements.Add(MenuPermissionRequirement.Write(YetkiKodlari.Ambalaj.UretimeAl));
                 return requirements;
             }
         }
@@ -82,9 +84,10 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
         : IRequest<Result<AmbalajUretimKaydiDto>>, ISecuredRequest, IRequiresMenuPermission,
           IRequiresMenuPermissions, IAmbalajKayitAlanlari
     {
-        public string RequiredMenuKod => AmbalajMenuKodlari.KayitDuzenle;
+        public string RequiredMenuKod => YetkiKodlari.Ambalaj.KayitDuzenle;
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
         public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
-            [AmbalajMenuKodlari.Write(AmbalajMenuKodlari.KayitDuzenle)];
+            [MenuPermissionRequirement.Write(YetkiKodlari.Ambalaj.KayitDuzenle)];
         public int Id { get; set; }
         public int? ProjeId { get; set; }
         public string? ManuelProjeNo { get; set; }
@@ -113,9 +116,10 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
     {
         // Gerçek geçiş (dahil/haric, üretime al/çıkar) mevcut kayıt okunduktan
         // sonra handler içinde ayrıca doğrulanır.
-        public string RequiredMenuKod => AmbalajMenuKodlari.Listele;
+        public string RequiredMenuKod => YetkiKodlari.Ambalaj.Listele;
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
         public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
-            [AmbalajMenuKodlari.Read(AmbalajMenuKodlari.Listele)];
+            [MenuPermissionRequirement.Read(YetkiKodlari.Ambalaj.Listele)];
         public int Id { get; set; }
         public bool AmbalajaDahil { get; set; }
         public bool UretimeAlindi { get; set; }
@@ -125,9 +129,10 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
     public sealed class AmbalajUretimDurumuGuncelleCommand
         : IRequest<Result<AmbalajUretimKaydiDto>>, ISecuredRequest, IRequiresMenuPermission, IRequiresMenuPermissions
     {
-        public string RequiredMenuKod => AmbalajMenuKodlari.DurumDuzenle;
+        public string RequiredMenuKod => YetkiKodlari.Ambalaj.DurumDuzenle;
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
         public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
-            [AmbalajMenuKodlari.Write(AmbalajMenuKodlari.DurumDuzenle)];
+            [MenuPermissionRequirement.Write(YetkiKodlari.Ambalaj.DurumDuzenle)];
         public int Id { get; set; }
         public AmbalajUretimDurumu Durum { get; set; }
         public DateTime? UretimTarihi { get; set; }
@@ -138,9 +143,10 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
     public sealed class AmbalajM3OverrideGuncelleCommand
         : IRequest<Result<AmbalajUretimKaydiDto>>, ISecuredRequest, IRequiresMenuPermission, IRequiresMenuPermissions
     {
-        public string RequiredMenuKod => AmbalajMenuKodlari.M3Duzenle;
+        public string RequiredMenuKod => YetkiKodlari.Ambalaj.M3Duzenle;
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
         public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
-            [AmbalajMenuKodlari.Write(AmbalajMenuKodlari.M3Duzenle)];
+            [MenuPermissionRequirement.Write(YetkiKodlari.Ambalaj.M3Duzenle)];
         public int Id { get; set; }
         /// <summary>Null gönderildiğinde manuel override kaldırılır ve hesaplanan m³ kullanılır.</summary>
         public decimal? M3Override { get; set; }
@@ -150,9 +156,10 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
     public sealed class AmbalajSarfOraniGuncelleCommand
         : IRequest<Result<AmbalajUretimKaydiDto>>, ISecuredRequest, IRequiresMenuPermission, IRequiresMenuPermissions
     {
-        public string RequiredMenuKod => AmbalajMenuKodlari.SarfDuzenle;
+        public string RequiredMenuKod => YetkiKodlari.Ambalaj.SarfDuzenle;
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
         public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
-            [AmbalajMenuKodlari.Write(AmbalajMenuKodlari.SarfDuzenle)];
+            [MenuPermissionRequirement.Write(YetkiKodlari.Ambalaj.SarfDuzenle)];
         public int Id { get; set; }
         /// <summary>Örn. %11 için 0.11.</summary>
         public decimal SarfOrani { get; set; }
@@ -162,9 +169,10 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
     public sealed class AmbalajUretimKaydiIptalEtCommand
         : IRequest<Result>, ISecuredRequest, IRequiresMenuPermission, IRequiresMenuPermissions
     {
-        public string RequiredMenuKod => AmbalajMenuKodlari.Iptal;
+        public string RequiredMenuKod => YetkiKodlari.Ambalaj.Iptal;
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
         public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
-            [AmbalajMenuKodlari.Write(AmbalajMenuKodlari.Iptal)];
+            [MenuPermissionRequirement.Write(YetkiKodlari.Ambalaj.Iptal)];
         public int Id { get; set; }
         public string Neden { get; set; } = string.Empty;
     }
@@ -172,9 +180,10 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
     public sealed class AmbalajUretimKaydiAktiflestirCommand
         : IRequest<Result<AmbalajUretimKaydiDto>>, ISecuredRequest, IRequiresMenuPermission, IRequiresMenuPermissions
     {
-        public string RequiredMenuKod => AmbalajMenuKodlari.GeriYukle;
+        public string RequiredMenuKod => YetkiKodlari.Ambalaj.GeriYukle;
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
         public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
-            [AmbalajMenuKodlari.Write(AmbalajMenuKodlari.GeriYukle)];
+            [MenuPermissionRequirement.Write(YetkiKodlari.Ambalaj.GeriYukle)];
         public int Id { get; set; }
         public string? Aciklama { get; set; }
     }
@@ -183,9 +192,10 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
         : IRequest<Result<AmbalajSenkronizasyonSonucuDto>>, ISecuredRequest, IRequiresMenuPermission,
           IRequiresMenuPermissions
     {
-        public string RequiredMenuKod => AmbalajMenuKodlari.KaynakSenkronizeEt;
+        public string RequiredMenuKod => YetkiKodlari.Ambalaj.KaynakSenkronizeEt;
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
         public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
-            [AmbalajMenuKodlari.Write(AmbalajMenuKodlari.KaynakSenkronizeEt)];
+            [MenuPermissionRequirement.Write(YetkiKodlari.Ambalaj.KaynakSenkronizeEt)];
         public int ProjeId { get; set; }
     }
 

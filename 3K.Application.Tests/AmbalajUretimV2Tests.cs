@@ -301,7 +301,6 @@ public sealed class AmbalajUretimV2Tests
     private sealed class Roles(bool allow=true):IRolService
     {
         public Task<bool> HasUserPermissionAsync(int id,string kod,YetkiTipi tip,CancellationToken ct=default)=>Task.FromResult(allow);
-        public Task<bool> IsAdminAsync(int id,CancellationToken ct=default)=>Task.FromResult(false);
         public Task<List<MenuTanimi>> GetMenuAgaciAsync(CancellationToken ct=default)=>Task.FromResult(new List<MenuTanimi>());
         public Task<List<RolYetki>> GetRolYetkileriAsync(int id,CancellationToken ct=default)=>Task.FromResult(new List<RolYetki>());
         public Task YetkileriGuncelleAsync(int id,List<RolYetki> list,CancellationToken ct=default)=>Task.CompletedTask;

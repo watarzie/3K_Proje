@@ -1,6 +1,7 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Core.Models;
+using _3K.Core.Enums;
 
 namespace _3K.Application.Features.CekiIslemleri.Commands
 {
@@ -9,5 +10,6 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
         public Stream ExcelDosya { get; set; } = null!;
         public string DosyaAdi { get; set; } = string.Empty;
         public string RequiredMenuKod => "ceki-revizyon-yukle";
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
     }
 }

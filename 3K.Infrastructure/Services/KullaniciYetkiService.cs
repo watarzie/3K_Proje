@@ -16,34 +16,28 @@ public sealed class KullaniciYetkiService(AppDbContext context, IRolService rolS
         CancellationToken cancellationToken = default)
     {
         if (!currentUser.IsAuthenticated || currentUser.UserId is not int actor ||
-            !await rolService.HasUserPermissionAsync(actor, "kullanicilar", YetkiTipi.W, cancellationToken))
+            !await rolService.HasUserPermissionAsync(actor, YetkiKodlari.Kullanicilar, YetkiTipi.W, cancellationToken))
             return new(false, "Rol atama yetkiniz bulunmuyor.", 403);
         if (hedefKullaniciId == actor)
             return new(false, "Kendi rolünüzü değiştiremezsiniz.", 403);
         if (!await context.Roller.AnyAsync(x => x.Id == rolId, cancellationToken))
             return new(false, "Rol bulunamadı.", 404);
         // Onay sisteminin sabit Admin rolü istisnası ancak mevcut Admin tarafından atanabilir.
-        if (rolId == 1 && !await context.Kullanicilar.AnyAsync(x => x.Id == actor && x.RolId == 1, cancellationToken))
+        if (SistemRolleri.AdminMi(rolId) &&
+            !await context.Kullanicilar.AnyAsync(x => x.Id == actor && x.RolId == SistemRolleri.AdminId, cancellationToken))
             return new(false, "Yönetici rolünü yalnız mevcut yönetici atayabilir.", 403);
-        var roleLevels = await context.RolYetkileri.AsNoTracking().Where(x => x.RolId == rolId)
-            .ToDictionaryAsync(x => x.MenuTanimiId, x => x.YetkiTipiId, cancellationToken);
-        var menus = await context.MenuTanimlari.AsNoTracking().ToListAsync(cancellationToken);
-        var effectiveLevels = EtkinYetkiler(menus, roleLevels);
-        if (hedefKullaniciId is int targetUserId)
-        {
-            var decisions = await context.KullaniciYetkileri.AsNoTracking()
-                .Where(x => x.KullaniciId == targetUserId)
-                .ToDictionaryAsync(x => x.MenuTanimiId, x => x.IzinVerildi, cancellationToken);
-            var localLevels = menus.ToDictionary(menu => menu.Id, menu =>
-                YetkiDegerlendirici.EtkinYetki(effectiveLevels[menu.Id],
-                    decisions.TryGetValue(menu.Id, out var granted) ? granted : null,
-                    (int)(YetkiKatalogu.Bul(menu.Kod)?.GerekenYetki ?? YetkiTipi.W)));
-            effectiveLevels = EtkinYetkiler(menus, localLevels);
-        }
-        foreach (var menu in menus)
-            if (effectiveLevels[menu.Id] >= (int)YetkiTipi.R &&
-                !await rolService.HasUserPermissionAsync(actor, menu.Kod,
-                    (YetkiTipi)effectiveLevels[menu.Id], cancellationToken))
+
+        var agac = await YetkiAgaciAsync(cancellationToken);
+        var rolAtamalari = await RolAtamalariAsync(rolId, cancellationToken);
+        var kararlar = hedefKullaniciId is int hedef
+            ? await KararlarAsync(hedef, cancellationToken)
+            : new Dictionary<int, bool>();
+        var hedefSeviyeleri = agac.KullaniciSeviyeleri(rolAtamalari, kararlar);
+
+        // Kullanıcı, sahip olmadığı bir izni rol üzerinden başkasına veremez.
+        foreach (var dugum in agac.Dugumler)
+            if (hedefSeviyeleri[dugum.Id] >= YetkiTipi.R &&
+                !await rolService.HasUserPermissionAsync(actor, dugum.Kod, hedefSeviyeleri[dugum.Id], cancellationToken))
                 return new(false, "Sahip olmadığınız izinler içeren bir rolü atayamazsınız.", 403);
         return new(true);
     }
@@ -52,34 +46,26 @@ public sealed class KullaniciYetkiService(AppDbContext context, IRolService rolS
     {
         var user = await context.Kullanicilar.AsNoTracking().FirstOrDefaultAsync(x => x.Id == kullaniciId, cancellationToken);
         if (user == null) return null;
-        var roles = await context.RolYetkileri.AsNoTracking().Where(x => x.RolId == user.RolId)
-            .ToDictionaryAsync(x => x.MenuTanimiId, x => x.YetkiTipiId, cancellationToken);
-        var overrides = await context.KullaniciYetkileri.AsNoTracking().Where(x => x.KullaniciId == kullaniciId)
-            .ToDictionaryAsync(x => x.MenuTanimiId, x => x.IzinVerildi, cancellationToken);
-        var menus = await context.MenuTanimlari.AsNoTracking().OrderBy(x => x.ParentId).ThenBy(x => x.Sira).ToListAsync(cancellationToken);
-        var roleLevels = EtkinYetkiler(menus, menus.ToDictionary(menu => menu.Id,
-            menu => roles.GetValueOrDefault(menu.Id, (int)YetkiTipi.N)));
-        var localLevels = menus.ToDictionary(menu => menu.Id, menu =>
-            YetkiDegerlendirici.EtkinYetki(roleLevels[menu.Id],
-                overrides.TryGetValue(menu.Id, out var decision) ? decision : null,
-                (int)(YetkiKatalogu.Bul(menu.Kod)?.GerekenYetki ?? YetkiTipi.W)));
-        var effectiveLevels = EtkinYetkiler(menus, localLevels);
-        return menus.Select(menu =>
-        {
-            var catalog = YetkiKatalogu.Bul(menu.Kod);
-            bool? karar = overrides.TryGetValue(menu.Id, out var granted) ? granted : null;
-            var rol = roles.GetValueOrDefault(menu.Id, 1);
-            return new KullaniciYetkiModel(menu.Id, menu.Kod, catalog?.Ad ?? menu.LabelKey,
-                rol, effectiveLevels[menu.Id],
-                karar, catalog?.Kritik ?? false);
-        }).ToArray();
+
+        var menus = await context.MenuTanimlari.AsNoTracking()
+            .OrderBy(x => x.ParentId).ThenBy(x => x.Sira).ToListAsync(cancellationToken);
+        var agac = new YetkiAgaci(menus.Select(x => new YetkiDugumu(x.Id, x.Kod, x.ParentId)));
+        var rolAtamalari = await RolAtamalariAsync(user.RolId, cancellationToken);
+        var kararlar = await KararlarAsync(kullaniciId, cancellationToken);
+        var etkin = agac.KullaniciSeviyeleri(rolAtamalari, kararlar);
+
+        return menus.Select(menu => new KullaniciYetkiModel(
+            menu.Id, menu.Kod, menu.LabelKey,
+            rolAtamalari.GetValueOrDefault(menu.Id, (int)YetkiTipi.N),
+            (int)etkin[menu.Id],
+            kararlar.TryGetValue(menu.Id, out var karar) ? karar : null)).ToArray();
     }
 
     public async Task<KullaniciYetkiSonucu> UpdateAsync(int kullaniciId,
         IReadOnlyCollection<KullaniciYetkiKarari> kararlar, CancellationToken cancellationToken = default)
     {
         if (!currentUser.IsAuthenticated || currentUser.UserId is not int actor ||
-            !await rolService.HasUserPermissionAsync(actor, "kullanicilar", YetkiTipi.W, cancellationToken))
+            !await rolService.HasUserPermissionAsync(actor, YetkiKodlari.Kullanicilar, YetkiTipi.W, cancellationToken))
             return new(false, "Kişisel izin atama yetkiniz bulunmuyor.", 403);
         if (actor == kullaniciId)
             return new(false, "Kendi kişisel izinlerinizi değiştiremezsiniz.", 403);
@@ -93,28 +79,27 @@ public sealed class KullaniciYetkiService(AppDbContext context, IRolService rolS
             var byId = mevcut.ToDictionary(x => x.MenuTanimiId);
             if (kararlar.Any(x => !byId.ContainsKey(x.MenuTanimiId)))
                 return new KullaniciYetkiSonucu(false, "Bilinmeyen izin kodu.", 400);
+
             // Rolden devralmak da mevcut açık reddi kaldırabilir; etkili artışlar aynı kontrolü kullanır.
-            var decisions = kararlar.ToDictionary(x => x.MenuTanimiId, x => x.IzinVerildi);
-            var menus = await context.MenuTanimlari.AsNoTracking().ToListAsync(ct);
-            var roleLevels = EtkinYetkiler(menus, mevcut.ToDictionary(row => row.MenuTanimiId,
-                row => row.RolYetkiTipiId));
-            var localLevels = mevcut.ToDictionary(row => row.MenuTanimiId, row =>
-                YetkiDegerlendirici.EtkinYetki(roleLevels[row.MenuTanimiId],
-                    decisions.GetValueOrDefault(row.MenuTanimiId),
-                    (int)(YetkiKatalogu.Bul(row.Kod)?.GerekenYetki ?? YetkiTipi.W)));
-            var nextLevels = EtkinYetkiler(menus, localLevels);
+            var agac = await YetkiAgaciAsync(ct);
+            var yeniKararlar = kararlar.Where(x => x.IzinVerildi.HasValue)
+                .ToDictionary(x => x.MenuTanimiId, x => x.IzinVerildi!.Value);
+            var sonrakiSeviyeler = agac.KullaniciSeviyeleri(
+                mevcut.ToDictionary(row => row.MenuTanimiId, row => row.RolYetkiTipiId), yeniKararlar);
             foreach (var row in mevcut)
             {
-                var next = nextLevels[row.MenuTanimiId];
-                if (next > row.EtkinYetkiTipiId && !await rolService.HasUserPermissionAsync(actor, row.Kod, (YetkiTipi)next, ct))
+                var sonraki = sonrakiSeviyeler[row.MenuTanimiId];
+                if ((int)sonraki > row.EtkinYetkiTipiId &&
+                    !await rolService.HasUserPermissionAsync(actor, row.Kod, sonraki, ct))
                     return new KullaniciYetkiSonucu(false, "Sahip olmadığınız bir yetkiyi başka kullanıcıya veremezsiniz.", 403);
             }
+
             var entities = await context.KullaniciYetkileri.Where(x => x.KullaniciId == kullaniciId).ToListAsync(ct);
             context.KullaniciYetkileri.RemoveRange(entities);
             await context.SaveChangesAsync(ct);
-            context.KullaniciYetkileri.AddRange(kararlar.Where(x => x.IzinVerildi.HasValue).Select(x => new KullaniciYetki
+            context.KullaniciYetkileri.AddRange(yeniKararlar.Select(x => new KullaniciYetki
             {
-                KullaniciId = kullaniciId, MenuTanimiId = x.MenuTanimiId, IzinVerildi = x.IzinVerildi!.Value
+                KullaniciId = kullaniciId, MenuTanimiId = x.Key, IzinVerildi = x.Value
             }));
             context.YetkiDegisiklikleri.Add(new YetkiDegisikligi
             {
@@ -130,22 +115,16 @@ public sealed class KullaniciYetkiService(AppDbContext context, IRolService rolS
         }, cancellationToken);
     }
 
-    private static Dictionary<int, int> EtkinYetkiler(IReadOnlyCollection<MenuTanimi> menus,
-        IReadOnlyDictionary<int, int> localLevels)
-    {
-        var byId = menus.ToDictionary(x => x.Id);
-        var result = new Dictionary<int, int>();
-        var visiting = new HashSet<int>();
-        int Calculate(int id)
-        {
-            if (result.TryGetValue(id, out var value)) return value;
-            if (!byId.TryGetValue(id, out var menu) || !visiting.Add(id)) return (int)YetkiTipi.N;
-            var parentLevel = menu.ParentId is int parentId ? Calculate(parentId) : (int)YetkiTipi.W;
-            visiting.Remove(id);
-            return result[id] = YetkiDegerlendirici.UstSinirliYetki(menu.Kod,
-                localLevels.GetValueOrDefault(id, (int)YetkiTipi.N), parentLevel);
-        }
-        foreach (var menu in menus) Calculate(menu.Id);
-        return result;
-    }
+    private async Task<YetkiAgaci> YetkiAgaciAsync(CancellationToken ct) =>
+        new(await context.MenuTanimlari.AsNoTracking()
+            .Select(x => new YetkiDugumu(x.Id, x.Kod, x.ParentId))
+            .ToListAsync(ct));
+
+    private Task<Dictionary<int, int>> RolAtamalariAsync(int rolId, CancellationToken ct) =>
+        context.RolYetkileri.AsNoTracking().Where(x => x.RolId == rolId)
+            .ToDictionaryAsync(x => x.MenuTanimiId, x => x.YetkiTipiId, ct);
+
+    private Task<Dictionary<int, bool>> KararlarAsync(int kullaniciId, CancellationToken ct) =>
+        context.KullaniciYetkileri.AsNoTracking().Where(x => x.KullaniciId == kullaniciId)
+            .ToDictionaryAsync(x => x.MenuTanimiId, x => x.IzinVerildi, ct);
 }

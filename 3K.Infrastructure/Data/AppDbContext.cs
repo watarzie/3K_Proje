@@ -123,7 +123,7 @@ namespace _3K.Infrastructure.Data
             modelBuilder.ConfigureFinansModule();
             modelBuilder.ConfigureUretimYasamDongusuModule();
             modelBuilder.ConfigureFinansV2Module();
-            modelBuilder.ConfigureGranularPermissions();
+            modelBuilder.ConfigureYetkiKayitlari();
 
             // ===============================================================
             // 2. UNIQUE CONSTRAINTS

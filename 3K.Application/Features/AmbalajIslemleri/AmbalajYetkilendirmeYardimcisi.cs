@@ -3,6 +3,7 @@ using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Application.Features.AmbalajIslemleri.Commands;
+using _3K.Core.Constants;
 
 namespace _3K.Application.Features.AmbalajIslemleri;
 
@@ -50,23 +51,23 @@ internal static class AmbalajYetkilendirmeYardimcisi
 
         // Konsolide rol modelinde üç görünüm alias'ı aynı ana liste yetkisine bağlıdır.
         // Aynı kod için üç ayrı DB sorgusu üretmeyelim.
-        if (string.Equals(AmbalajMenuKodlari.M3Goruntule, AmbalajMenuKodlari.SarfGoruntule, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(AmbalajMenuKodlari.M3Goruntule, AmbalajMenuKodlari.KaynakGoruntule, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(YetkiKodlari.Ambalaj.M3Goruntule, YetkiKodlari.Ambalaj.SarfGoruntule, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(YetkiKodlari.Ambalaj.M3Goruntule, YetkiKodlari.Ambalaj.KaynakGoruntule, StringComparison.OrdinalIgnoreCase))
         {
             var gorunur = await rolService.HasUserPermissionAsync(
-                userId.Value, AmbalajMenuKodlari.M3Goruntule, YetkiTipi.R, cancellationToken);
+                userId.Value, YetkiKodlari.Ambalaj.M3Goruntule, YetkiTipi.R, cancellationToken);
             return new AmbalajGorunumYetkileri(gorunur, gorunur, gorunur);
         }
 
         // Farklı yetki kodlarına dönülürse aynı scoped DbContext nedeniyle sıralı çalışır.
         var m3 = await rolService.HasUserPermissionAsync(
-            userId.Value, AmbalajMenuKodlari.M3Goruntule, YetkiTipi.R, cancellationToken);
+            userId.Value, YetkiKodlari.Ambalaj.M3Goruntule, YetkiTipi.R, cancellationToken);
         var sarf = await rolService.HasUserPermissionAsync(
-            userId.Value, AmbalajMenuKodlari.SarfGoruntule, YetkiTipi.R, cancellationToken);
+            userId.Value, YetkiKodlari.Ambalaj.SarfGoruntule, YetkiTipi.R, cancellationToken);
         var kaynak = await rolService.HasUserPermissionAsync(
-            userId.Value, AmbalajMenuKodlari.KaynakGoruntule, YetkiTipi.R, cancellationToken);
+            userId.Value, YetkiKodlari.Ambalaj.KaynakGoruntule, YetkiTipi.R, cancellationToken);
         var olcu = await rolService.HasUserPermissionAsync(
-            userId.Value, AmbalajMenuKodlari.OlcuGoruntule, YetkiTipi.R, cancellationToken);
+            userId.Value, YetkiKodlari.Ambalaj.OlcuGoruntule, YetkiTipi.R, cancellationToken);
         return new AmbalajGorunumYetkileri(m3, m3 && sarf, kaynak, olcu);
     }
 
@@ -97,6 +98,17 @@ internal static class AmbalajYetkilendirmeYardimcisi
         return null;
     }
 
+    /// <summary>Ambalaj sandık türüne göre yeni kayıt oluşturma izni; Normal tür ayrı izin gerektirmez.</summary>
+    public static string? TurOlusturmaKodu(AmbalajSandikTuru tur) => tur switch
+    {
+        AmbalajSandikTuru.Ilave => YetkiKodlari.Ambalaj.IlaveOlustur,
+        AmbalajSandikTuru.Saha => YetkiKodlari.Ambalaj.SahaOlustur,
+        AmbalajSandikTuru.Yedek => YetkiKodlari.Ambalaj.YedekOlustur,
+        AmbalajSandikTuru.Ic => YetkiKodlari.Ambalaj.IcOlustur,
+        AmbalajSandikTuru.Diger => YetkiKodlari.Ambalaj.DigerOlustur,
+        _ => null
+    };
+
     public static async Task<bool> KaynakMudahalesineYetkiliMiAsync(
         AmbalajUretimKaydi kayit,
         IRolService rolService,
@@ -105,7 +117,7 @@ internal static class AmbalajYetkilendirmeYardimcisi
         !KaynakliKayitMi(kayit) || await YetkiliMiAsync(
             rolService,
             currentUserService,
-            AmbalajMenuKodlari.KaynakMudahalesi,
+            YetkiKodlari.Ambalaj.KaynakMudahalesi,
             cancellationToken);
 
     public static IReadOnlyList<string> GuncellemeEkYetkiKodlariniBelirle(
@@ -115,8 +127,8 @@ internal static class AmbalajYetkilendirmeYardimcisi
         var kodlar = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (mevcut.Tur != yeni.Tur)
         {
-            kodlar.Add(AmbalajMenuKodlari.TurDuzenle);
-            var turOlusturmaKodu = AmbalajMenuKodlari.TurOlusturmaKodu(yeni.Tur);
+            kodlar.Add(YetkiKodlari.Ambalaj.TurDuzenle);
+            var turOlusturmaKodu = AmbalajYetkilendirmeYardimcisi.TurOlusturmaKodu(yeni.Tur);
             if (turOlusturmaKodu != null)
                 kodlar.Add(turOlusturmaKodu);
         }
@@ -126,28 +138,28 @@ internal static class AmbalajYetkilendirmeYardimcisi
             Farkli(mevcut.ManuelProjeAdi, yeni.ManuelProjeAdi) ||
             mevcut.UstKayitId != yeni.UstKayitId)
         {
-            kodlar.Add(AmbalajMenuKodlari.ProjeDuzenle);
+            kodlar.Add(YetkiKodlari.Ambalaj.ProjeDuzenle);
             if (!yeni.ProjeId.HasValue)
-                kodlar.Add(AmbalajMenuKodlari.ManuelProje);
+                kodlar.Add(YetkiKodlari.Ambalaj.ManuelProje);
         }
 
         if (mevcut.SandikCinsi != yeni.SandikCinsi ||
             Farkli(mevcut.DigerSandikCinsi, yeni.DigerSandikCinsi))
-            kodlar.Add(AmbalajMenuKodlari.CinsDuzenle);
+            kodlar.Add(YetkiKodlari.Ambalaj.CinsDuzenle);
 
         if (mevcut.Adet != yeni.Adet || mevcut.Boy != yeni.Boy ||
             mevcut.En != yeni.En || mevcut.Yukseklik != yeni.Yukseklik)
-            kodlar.Add(AmbalajMenuKodlari.OlcuDuzenle);
+            kodlar.Add(YetkiKodlari.Ambalaj.OlcuDuzenle);
 
         if (Farkli(mevcut.KullanimAmaci, yeni.KullanimAmaci) ||
             Farkli(mevcut.TalepEdenKisi, yeni.TalepEdenKisi) ||
             Farkli(mevcut.TalepEdenBolum, yeni.TalepEdenBolum) ||
             Farkli(mevcut.TalimatVeren, yeni.TalimatVeren))
-            kodlar.Add(AmbalajMenuKodlari.TalepBilgileriDuzenle);
+            kodlar.Add(YetkiKodlari.Ambalaj.TalepBilgileriDuzenle);
 
         if (mevcut.UretimTarihi != yeni.UretimTarihi ||
             Farkli(mevcut.FirinPartiNo, yeni.FirinPartiNo))
-            kodlar.Add(AmbalajMenuKodlari.DurumDuzenle);
+            kodlar.Add(YetkiKodlari.Ambalaj.DurumDuzenle);
 
         return kodlar.ToArray();
     }
@@ -159,9 +171,9 @@ internal static class AmbalajYetkilendirmeYardimcisi
     {
         var kodlar = new List<string>(2);
         if (mevcut.AmbalajaDahil != ambalajaDahil)
-            kodlar.Add(ambalajaDahil ? AmbalajMenuKodlari.DahilEt : AmbalajMenuKodlari.HaricTut);
+            kodlar.Add(ambalajaDahil ? YetkiKodlari.Ambalaj.DahilEt : YetkiKodlari.Ambalaj.HaricTut);
         if (mevcut.UretimeAlindi != uretimeAlindi)
-            kodlar.Add(uretimeAlindi ? AmbalajMenuKodlari.UretimeAl : AmbalajMenuKodlari.UretimdenCikar);
+            kodlar.Add(uretimeAlindi ? YetkiKodlari.Ambalaj.UretimeAl : YetkiKodlari.Ambalaj.UretimdenCikar);
         return kodlar;
     }
 

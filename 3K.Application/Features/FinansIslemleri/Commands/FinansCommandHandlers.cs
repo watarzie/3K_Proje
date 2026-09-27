@@ -4,6 +4,7 @@ using _3K.Application.Features.FinansIslemleri.DTOs;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
+using _3K.Core.Constants;
 
 namespace _3K.Application.Features.FinansIslemleri.Commands
 {
@@ -69,13 +70,13 @@ namespace _3K.Application.Features.FinansIslemleri.Commands
                 var requestedPeriod = new DateTime(request.Model.FinansDonemi.Year, request.Model.FinansDonemi.Month, 1);
                 var dateChanged = current.UretimTarihi != request.Model.UretimTarihi ||
                                   current.FinansDonemi.Date != requestedPeriod;
-                if (dateChanged && !await HasWritePermissionAsync(FinansYetkiKodlari.TarihDegistir, cancellationToken))
+                if (dateChanged && !await HasWritePermissionAsync(YetkiKodlari.Finans.TarihDegistir, cancellationToken))
                     return Result<FinansIsKaydiModel>.Failure("Üretim tarihi veya finans dönemi değiştirme yetkiniz bulunmuyor.", 403);
 
                 var indirectPriceChange = current.FinansUrunId != request.Model.FinansUrunId ||
                                           (current.FinansDonemi.Date != requestedPeriod &&
                                            (current.FinansUrunId.HasValue || request.Model.FinansUrunId.HasValue));
-                if (indirectPriceChange && !await HasWritePermissionAsync(FinansYetkiKodlari.BirimFiyatDegistir, cancellationToken))
+                if (indirectPriceChange && !await HasWritePermissionAsync(YetkiKodlari.Finans.BirimFiyatDegistir, cancellationToken))
                     return Result<FinansIsKaydiModel>.Failure("Bu değişiklik fiyat snapshot'ını etkileyebileceği için birim fiyat değiştirme yetkisi gerektirir.", 403);
 
                 var value = await _service.IsKaydiGuncelleAsync(request.Id, request.Model, cancellationToken);

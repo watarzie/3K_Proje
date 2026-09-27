@@ -11,6 +11,7 @@ using _3K.Core.Interfaces;
 using _3K.Core.Models;
 using _3K.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using _3K.Core.Constants;
 
 namespace _3K.Application.Tests;
 
@@ -29,9 +30,9 @@ public sealed class AmbalajUretimAkisRegresyonTests
 
         var kodlar = command.RequiredMenuPermissions.Select(x => x.MenuKod).ToArray();
 
-        Assert.Contains(AmbalajMenuKodlari.KayitEkle, kodlar);
-        Assert.Contains(AmbalajMenuKodlari.IlaveOlustur, kodlar);
-        Assert.Contains(AmbalajMenuKodlari.ManuelProje, kodlar);
+        Assert.Contains(YetkiKodlari.Ambalaj.KayitEkle, kodlar);
+        Assert.Contains(YetkiKodlari.Ambalaj.IlaveOlustur, kodlar);
+        Assert.Contains(YetkiKodlari.Ambalaj.ManuelProje, kodlar);
         Assert.All(command.RequiredMenuPermissions, requirement => Assert.Equal(YetkiTipi.W, requirement.YetkiTipi));
     }
 
@@ -45,11 +46,11 @@ public sealed class AmbalajUretimAkisRegresyonTests
         var query = new GetAmbalajRaporDosyasiQuery { Format = format };
         var kodlar = query.RequiredMenuPermissions.Select(x => x.MenuKod).ToArray();
 
-        Assert.Contains(AmbalajMenuKodlari.RaporGoruntule, kodlar);
+        Assert.Contains(YetkiKodlari.Ambalaj.RaporGoruntule, kodlar);
         // Alan izinleri rapora giriş şartı değildir; izin verilmeyen kolonlar null kalır.
-        Assert.DoesNotContain(AmbalajMenuKodlari.M3Goruntule, kodlar);
-        Assert.DoesNotContain(AmbalajMenuKodlari.SarfGoruntule, kodlar);
-        Assert.DoesNotContain(AmbalajMenuKodlari.KaynakGoruntule, kodlar);
+        Assert.DoesNotContain(YetkiKodlari.Ambalaj.M3Goruntule, kodlar);
+        Assert.DoesNotContain(YetkiKodlari.Ambalaj.SarfGoruntule, kodlar);
+        Assert.DoesNotContain(YetkiKodlari.Ambalaj.KaynakGoruntule, kodlar);
         Assert.Contains(beklenenFormatKodu, kodlar);
         Assert.All(query.RequiredMenuPermissions, x => Assert.Equal(YetkiTipi.R, x.YetkiTipi));
     }
@@ -65,7 +66,7 @@ public sealed class AmbalajUretimAkisRegresyonTests
         var unitOfWork = new FakeUnitOfWork().AddRepository(kayit);
         var handler = new GetAmbalajUretimKayitlariQueryHandler(
             unitOfWork,
-            FakeRolService.Yalniz(AmbalajMenuKodlari.Listele),
+            FakeRolService.Yalniz(YetkiKodlari.Ambalaj.Listele),
             new FakeCurrentUserService());
 
         var sonuc = await handler.Handle(new GetAmbalajUretimKayitlariQuery(), CancellationToken.None);
@@ -103,7 +104,7 @@ public sealed class AmbalajUretimAkisRegresyonTests
             .AddRepository(hareket);
         var handler = new GetAmbalajUretimKaydiDetayQueryHandler(
             unitOfWork,
-            FakeRolService.Yalniz(AmbalajMenuKodlari.Listele),
+            FakeRolService.Yalniz(YetkiKodlari.Ambalaj.Listele),
             new FakeCurrentUserService());
 
         var sonuc = await handler.Handle(
@@ -131,7 +132,7 @@ public sealed class AmbalajUretimAkisRegresyonTests
             unitOfWork,
             new FakeCurrentUserService(),
             new FakeFinansAktarimService(),
-            FakeRolService.Yalniz(AmbalajMenuKodlari.Listele));
+            FakeRolService.Yalniz(YetkiKodlari.Ambalaj.Listele));
 
         var sonuc = await handler.Handle(new AmbalajUretimSecimGuncelleCommand
         {
@@ -161,10 +162,10 @@ public sealed class AmbalajUretimAkisRegresyonTests
             new FakeCurrentUserService(),
             new FakeFinansAktarimService(),
             FakeRolService.Yalniz(
-                AmbalajMenuKodlari.Listele,
-                AmbalajMenuKodlari.KaynakMudahalesi,
-                AmbalajMenuKodlari.HaricTut,
-                AmbalajMenuKodlari.UretimdenCikar));
+                YetkiKodlari.Ambalaj.Listele,
+                YetkiKodlari.Ambalaj.KaynakMudahalesi,
+                YetkiKodlari.Ambalaj.HaricTut,
+                YetkiKodlari.Ambalaj.UretimdenCikar));
 
         var sonuc = await handler.Handle(new AmbalajUretimSecimGuncelleCommand
         {
@@ -225,7 +226,7 @@ public sealed class AmbalajUretimAkisRegresyonTests
             unitOfWork,
             new FakeCurrentUserService(),
             new FakeFinansAktarimService(),
-            FakeRolService.Yalniz(AmbalajMenuKodlari.KayitDuzenle, AmbalajMenuKodlari.OlcuDuzenle));
+            FakeRolService.Yalniz(YetkiKodlari.Ambalaj.KayitDuzenle, YetkiKodlari.Ambalaj.OlcuDuzenle));
         var command = GuncellemeKomutu(kayit);
         command.Boy += 100;
 
@@ -839,7 +840,7 @@ public sealed class AmbalajUretimAkisRegresyonTests
         var unitOfWork = new FakeUnitOfWork()
             .AddRepository<AmbalajUretimKaydi>()
             .AddRepository<AmbalajUretimHareketi>();
-        var roller = FakeRolService.Sinirli(AmbalajMenuKodlari.KayitDuzenle, AmbalajMenuKodlari.Listele);
+        var roller = FakeRolService.Yalniz(YetkiKodlari.Ambalaj.KayitDuzenle, YetkiKodlari.Ambalaj.Listele);
         var olustur = new AmbalajUretimKaydiOlusturCommandHandler(
             unitOfWork, new FakeCurrentUserService(), new FakeFinansAktarimService(), roller);
 
@@ -1588,18 +1589,13 @@ public sealed class AmbalajUretimAkisRegresyonTests
     private sealed class FakeRolService : IRolService
     {
         private readonly HashSet<string> _yetkiler;
-        private readonly bool _admin;
 
-        private FakeRolService(IEnumerable<string> yetkiler, bool admin = true)
-        {
+        private FakeRolService(IEnumerable<string> yetkiler) =>
             _yetkiler = yetkiler.ToHashSet(StringComparer.OrdinalIgnoreCase);
-            _admin = admin;
-        }
 
         public static FakeRolService Yalniz(params string[] yetkiler) => new(yetkiler);
-        public static FakeRolService Sinirli(params string[] yetkiler) => new(yetkiler, false);
 
-        public static FakeRolService TumYetkiler() => new(typeof(AmbalajMenuKodlari)
+        public static FakeRolService TumYetkiler() => new(typeof(YetkiKodlari.Ambalaj)
             .GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
             .Where(field => field.IsLiteral && field.FieldType == typeof(string))
             .Select(field => (string)field.GetRawConstantValue()!));
@@ -1610,7 +1606,6 @@ public sealed class AmbalajUretimAkisRegresyonTests
             YetkiTipi requiredYetkiTipi,
             CancellationToken ct = default) => Task.FromResult(_yetkiler.Contains(menuKod));
 
-        public Task<bool> IsAdminAsync(int userId, CancellationToken ct = default) => Task.FromResult(_admin);
         public Task<List<MenuTanimi>> GetMenuAgaciAsync(CancellationToken ct = default) => Task.FromResult(new List<MenuTanimi>());
         public Task<List<RolYetki>> GetRolYetkileriAsync(int rolId, CancellationToken ct = default) => Task.FromResult(new List<RolYetki>());
         public Task YetkileriGuncelleAsync(int rolId, List<RolYetki> yetkiler, CancellationToken ct = default) => Task.CompletedTask;

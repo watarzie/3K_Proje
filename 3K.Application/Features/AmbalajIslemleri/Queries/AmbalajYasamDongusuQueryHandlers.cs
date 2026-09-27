@@ -5,6 +5,7 @@ using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
+using _3K.Core.Constants;
 
 namespace _3K.Application.Features.AmbalajIslemleri.Queries;
 
@@ -68,7 +69,7 @@ public sealed class AmbalajGerceklesenRaporQueryHandler(IUnitOfWork uow, IRolSer
         if (veriler.Count > 50000) return Result<AmbalajGerceklesenRaporDto>.Failure("50.000 kayıt sınırı aşıldı. Tarih aralığını daraltınız.");
         ct.ThrowIfCancellationRequested();
         var izin = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(roles, user, ct);
-        var raporM3 = await AmbalajYetkilendirmeYardimcisi.YetkiliMiAsync(roles, user, AmbalajMenuKodlari.M3RaporGoruntule, ct, YetkiTipi.R);
+        var raporM3 = await AmbalajYetkilendirmeYardimcisi.YetkiliMiAsync(roles, user, YetkiKodlari.Ambalaj.M3RaporGoruntule, ct, YetkiTipi.R);
         var m3 = izin.M3Gorunur && raporM3;
         var sarf = izin.SarfGorunur && m3;
         var dtos = veriler.Select(x => Dto(x, m3, sarf)).ToList();

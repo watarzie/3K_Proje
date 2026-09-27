@@ -4,35 +4,36 @@ using _3K.Application.Features.FinansIslemleri.Commands;
 using _3K.Application.Features.FinansIslemleri.Queries;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
+using _3K.Core.Constants;
 
 namespace _3K.Application.Features.FinansIslemleri;
 
 public sealed class FinansTarihiDegistirCommand : FinansCommand<FinansIsKaydiModel>
-{ public override string RequiredMenuKod => FinansYetkiKodlari.FinansTarihiDegistir; public int Id { get; init; } public FinansTarihiDegistirModel Model { get; init; } = null!; }
+{ public override string RequiredMenuKod => YetkiKodlari.Finans.TarihDegistir; public int Id { get; init; } public FinansTarihiDegistirModel Model { get; init; } = null!; }
 public sealed class FinansFiyatlandirCommand : FinansCommand<FinansIsKaydiModel>
-{ public override string RequiredMenuKod => FinansYetkiKodlari.FiyatlandirmaDegistir; public int Id { get; init; } public FinansFiyatlandirmaModel Model { get; init; } = null!; }
+{ public override string RequiredMenuKod => YetkiKodlari.Finans.FiyatlandirmaDegistir; public int Id { get; init; } public FinansFiyatlandirmaModel Model { get; init; } = null!; }
 public sealed class FinansPanelQuery : FinansQuery<FinansPanelModel>
-{ public override string RequiredMenuKod => FinansYetkiKodlari.Modul; public DateTime Baslangic { get; init; } public DateTime Bitis { get; init; } }
+{ public override string RequiredMenuKod => YetkiKodlari.Finans.Modul; public DateTime Baslangic { get; init; } public DateTime Bitis { get; init; } }
 public sealed class FinansHareketlerQuery : FinansQuery<FinansSayfaliSonuc<FinansHareketModel>>
-{ public override string RequiredMenuKod => FinansYetkiKodlari.KayitGoruntule; public FinansListeFiltre Filtre { get; init; } = new(); public string? Tur { get; init; } }
+{ public override string RequiredMenuKod => YetkiKodlari.Finans.KayitGoruntule; public FinansListeFiltre Filtre { get; init; } = new(); public string? Tur { get; init; } }
 public sealed class FinansGenelAramaQuery : FinansQuery<FinansSayfaliSonuc<FinansIsKaydiModel>>
-{ public override string RequiredMenuKod => FinansYetkiKodlari.KayitGoruntule; public FinansListeFiltre Filtre { get; init; } = new(); }
+{ public override string RequiredMenuKod => YetkiKodlari.Finans.KayitGoruntule; public FinansListeFiltre Filtre { get; init; } = new(); }
 public sealed class FinansYaslandirmaQuery : FinansQuery<FinansSayfaliSonuc<FinansBekleyenModel>>
-{ public override string RequiredMenuKod => FinansYetkiKodlari.RaporGoruntule; public FinansListeFiltre Filtre { get; init; } = new(); public DateTime ReferansTarihi { get; init; } public int MinimumGun { get; init; } }
+{ public override string RequiredMenuKod => YetkiKodlari.Finans.RaporGoruntule; public FinansListeFiltre Filtre { get; init; } = new(); public DateTime ReferansTarihi { get; init; } public int MinimumGun { get; init; } }
 public sealed class FinansSablonlarQuery : FinansQuery<IReadOnlyList<FinansSablonModel>>
-{ public override string RequiredMenuKod => FinansYetkiKodlari.KayitGoruntule; }
+{ public override string RequiredMenuKod => YetkiKodlari.Finans.KayitGoruntule; }
 public sealed class FinansSablonKaydetCommand : FinansCommand<FinansSablonModel>
-{ public override string RequiredMenuKod => FinansYetkiKodlari.SablonYonet; public int? Id { get; init; } public FinansSablonKaydetModel Model { get; init; } = null!; }
+{ public override string RequiredMenuKod => YetkiKodlari.Finans.SablonYonet; public int? Id { get; init; } public FinansSablonKaydetModel Model { get; init; } = null!; }
 public sealed class FinansKaliciSilOnizlemeQuery : FinansQuery<FinansKaliciSilOnizlemeModel>
-{ public override string RequiredMenuKod => FinansYetkiKodlari.KaliciSil; public string VarlikTuru { get; init; } = ""; public int Id { get; init; } }
+{ public override string RequiredMenuKod => YetkiKodlari.Finans.KaliciSil; public string VarlikTuru { get; init; } = ""; public int Id { get; init; } }
 public sealed class FinansKaliciSilCommand : FinansCommand
-{ public override string RequiredMenuKod => FinansYetkiKodlari.KaliciSil; public FinansKaliciSilModel Model { get; init; } = null!; }
+{ public override string RequiredMenuKod => YetkiKodlari.Finans.KaliciSil; public FinansKaliciSilModel Model { get; init; } = null!; }
 public sealed class FinansBelgelerQuery : FinansQuery<IReadOnlyList<FinansBelgeModel>>
-{ public override string RequiredMenuKod => FinansYetkiKodlari.BelgeIndir; public string HedefTuru { get; init; } = ""; public int HedefId { get; init; } }
+{ public override string RequiredMenuKod => YetkiKodlari.Finans.BelgeIndir; public string HedefTuru { get; init; } = ""; public int HedefId { get; init; } }
 public sealed class FinansBelgeYukleCommand : FinansCommand<FinansBelgeModel>
-{ public override string RequiredMenuKod => FinansYetkiKodlari.BelgeYukle; public FinansBelgeYukleModel Model { get; init; } = null!; }
+{ public override string RequiredMenuKod => YetkiKodlari.Finans.BelgeYukle; public FinansBelgeYukleModel Model { get; init; } = null!; }
 public sealed class FinansBelgeIndirQuery : FinansQuery<DosyaIcerigi>
-{ public override string RequiredMenuKod => FinansYetkiKodlari.BelgeIndir; public int Id { get; init; } }
+{ public override string RequiredMenuKod => YetkiKodlari.Finans.BelgeIndir; public int Id { get; init; } }
 
 public sealed class FinansV2Handlers(IFinansService service) :
     IRequestHandler<FinansTarihiDegistirCommand, Result<FinansIsKaydiModel>>,

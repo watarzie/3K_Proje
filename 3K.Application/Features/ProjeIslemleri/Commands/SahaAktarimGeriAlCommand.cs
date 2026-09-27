@@ -10,6 +10,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
     public class SahaAktarimGeriAlCommand : IRequest<Result>, ISecuredRequest, IRequiresMenuPermission
     {
         public string RequiredMenuKod => "saha-aktarim-geri-al";
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
         public int SahaCekiSatiriId { get; set; }
         public string? Aciklama { get; set; }
     }

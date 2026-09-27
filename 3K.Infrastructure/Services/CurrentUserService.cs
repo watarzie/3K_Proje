@@ -4,19 +4,14 @@ using Microsoft.AspNetCore.Http;
 
 namespace _3K.Infrastructure.Services
 {
-    /// <summary>
-    /// JWT Token'dan mevcut kullanıcı bilgilerini çıkaran servis.
-    /// IHttpContextAccessor üzerinden ClaimsPrincipal'e erişir.
-    /// </summary>
+    /// <summary>JWT'deki doğrulanmış kullanıcıyı IHttpContextAccessor üzerinden okur.</summary>
     public class CurrentUserService : ICurrentUserService
     {
         private readonly IHttpContextAccessor _httpContextAccessor;
-        private readonly IIslemKullaniciBaglami? _islemBaglami;
 
-        public CurrentUserService(IHttpContextAccessor httpContextAccessor, IIslemKullaniciBaglami? islemBaglami = null)
+        public CurrentUserService(IHttpContextAccessor httpContextAccessor)
         {
             _httpContextAccessor = httpContextAccessor;
-            _islemBaglami = islemBaglami;
         }
 
         public int? UserId
@@ -30,18 +25,7 @@ namespace _3K.Infrastructure.Services
             }
         }
 
-        public int? IslemKullaniciId => _islemBaglami?.IslemKullaniciId ?? UserId;
-
         public bool IsAuthenticated =>
             _httpContextAccessor.HttpContext?.User?.Identity?.IsAuthenticated ?? false;
-
-        public string? MenuKod
-        {
-            get
-            {
-                var value = _httpContextAccessor.HttpContext?.Request.Headers["X-Menu-Kod"].FirstOrDefault();
-                return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-            }
-        }
     }
 }

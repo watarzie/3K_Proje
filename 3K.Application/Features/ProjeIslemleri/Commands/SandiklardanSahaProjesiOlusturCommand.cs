@@ -11,6 +11,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
     public class SandiklardanSahaProjesiOlusturCommand : IRequest<Result<ProjeDto>>, ISecuredRequest, IRequiresMenuPermission
     {
         public string RequiredMenuKod => "sahaya-aktar";
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
 
         public int KaynakProjeId { get; set; }
         public int? HedefSahaProjeId { get; set; }

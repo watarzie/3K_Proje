@@ -1,6 +1,7 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Application.Features.DashboardIslemleri.DTOs;
+using _3K.Core.Enums;
 
 namespace _3K.Application.Features.DashboardIslemleri.Queries
 {
@@ -51,6 +52,7 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
         : IRequest<Result<DashboardPagedResultDto<DashboardSandikDrillDownDto>>>, ISecuredRequest, IRequiresMenuPermission
     {
         public string RequiredMenuKod => "dashboard";
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.R;
         public int ProjeId { get; set; }
         public int DurumId { get; set; }
         public string? SearchTerm { get; set; }

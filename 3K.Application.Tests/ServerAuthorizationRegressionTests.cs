@@ -267,7 +267,7 @@ public class ServerAuthorizationRegressionTests
         var result = await new GetKullaniciMenuQueryHandler(new OrtakUser(7), uow, roles)
             .Handle(new GetKullaniciMenuQuery(), default);
         Assert.True(result.IsSuccess);
-        Assert.Equal(8, result.Value!.Id);
+        Assert.Equal([8], roles.OkunanRoller);
         Assert.Empty(roles.Calls);
         var denied = await new GetKullaniciMenuQueryHandler(new OrtakUser(7, false), uow, roles)
             .Handle(new GetKullaniciMenuQuery(), default);
@@ -366,11 +366,12 @@ public class ServerAuthorizationRegressionTests
     private sealed class Roles(string grantedMenu, YetkiTipi granted) : IRolService
     {
         public List<(string Menu, YetkiTipi Yetki)> Calls { get; } = [];
+        public List<int> OkunanRoller { get; } = [];
         public Task<bool> HasUserPermissionAsync(int user, string menu, YetkiTipi required, CancellationToken ct = default)
         { Calls.Add((menu, required)); return Task.FromResult(menu == grantedMenu && granted >= required); }
-        public Task<bool> IsAdminAsync(int userId, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<List<MenuTanimi>> GetMenuAgaciAsync(CancellationToken ct = default) => Task.FromResult(new List<MenuTanimi>());
-        public Task<List<RolYetki>> GetRolYetkileriAsync(int rolId, CancellationToken ct = default) => Task.FromResult(new List<RolYetki>());
+        public Task<List<RolYetki>> GetRolYetkileriAsync(int rolId, CancellationToken ct = default)
+        { OkunanRoller.Add(rolId); return Task.FromResult(new List<RolYetki>()); }
         public Task YetkileriGuncelleAsync(int rolId, List<RolYetki> yetkiler, CancellationToken ct = default) => throw new NotSupportedException();
     }
     private class ReadExecutor : IReadQueryExecutor
