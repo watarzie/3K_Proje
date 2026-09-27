@@ -8,6 +8,7 @@ using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Core.Helpers;
 using _3K.Core.Models;
+using _3K.Core.Exceptions;
 
 namespace _3K.Infrastructure.Services
 {
@@ -484,7 +485,7 @@ namespace _3K.Infrastructure.Services
                 var page = await _finansService.SiparislerAsync(
                     filtre with { PageNumber = pageNumber, PageSize = pageSize },
                     cancellationToken);
-                if (page.TotalCount > FinansService.RaporKayitSiniri) throw new InvalidOperationException("Rapor 20.000 siparişi aşamaz; filtreyi daraltın.");
+                if (page.TotalCount > FinansService.RaporKayitSiniri) throw IsKuraliException.Cakisma("Rapor 20.000 siparişi aşamaz; filtreyi daraltın.");
                 items.AddRange(page.Items);
                 if (!page.HasNextPage)
                     return items;

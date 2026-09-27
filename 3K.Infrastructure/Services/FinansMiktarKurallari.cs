@@ -1,4 +1,5 @@
 using _3K.Core.Enums;
+using _3K.Core.Exceptions;
 
 namespace _3K.Infrastructure.Services
 {
@@ -25,7 +26,7 @@ namespace _3K.Infrastructure.Services
         {
             if (istenenAdet < 0 || istenenM3 < 0 ||
                 (istenenAdet <= Tolerance && istenenM3 <= Tolerance))
-                throw new InvalidOperationException($"{islemAdi} miktarı sıfırdan büyük olmalıdır.");
+                throw IsKuraliException.Cakisma($"{islemAdi} miktarı sıfırdan büyük olmalıdır.");
 
             return fiyatlandirmaBirimi switch
             {
@@ -35,7 +36,7 @@ namespace _3K.Infrastructure.Services
                     istenenM3, kapasiteAdet, kapasiteM3, kullanilanM3, islemAdi),
                 FinansFiyatlandirmaBirimi.SabitTutar => SabitDagitim(
                     kapasiteAdet, kapasiteM3, mevcutDagitimVar, islemAdi),
-                _ => throw new InvalidOperationException("Geçerli bir fiyatlandırma birimi bulunamadı.")
+                _ => throw IsKuraliException.Cakisma("Geçerli bir fiyatlandırma birimi bulunamadı.")
             };
         }
 
@@ -74,7 +75,7 @@ namespace _3K.Infrastructure.Services
             decimal miktar)
         {
             if (miktar <= Tolerance)
-                throw new InvalidOperationException("Düzenli iş miktarı sıfırdan büyük olmalıdır.");
+                throw IsKuraliException.Cakisma("Düzenli iş miktarı sıfırdan büyük olmalıdır.");
             return fiyatlandirmaBirimi switch
             {
                 FinansFiyatlandirmaBirimi.Metrekup => new FinansDagitimMiktari(1, miktar),
@@ -91,12 +92,12 @@ namespace _3K.Infrastructure.Services
             string islemAdi)
         {
             if (istenenAdet <= Tolerance)
-                throw new InvalidOperationException($"{islemAdi} adedi sıfırdan büyük olmalıdır.");
+                throw IsKuraliException.Cakisma($"{islemAdi} adedi sıfırdan büyük olmalıdır.");
             if (kapasiteAdet <= Tolerance)
-                throw new InvalidOperationException($"{islemAdi} için adet kapasitesi bulunamadı.");
+                throw IsKuraliException.Cakisma($"{islemAdi} için adet kapasitesi bulunamadı.");
             var kalan = Math.Max(0, kapasiteAdet - kullanilanAdet);
             if (istenenAdet > kalan + Tolerance)
-                throw new InvalidOperationException($"{islemAdi} adedi kalanı aşamaz. Kalan: {kalan}.");
+                throw IsKuraliException.Cakisma($"{islemAdi} adedi kalanı aşamaz. Kalan: {kalan}.");
             var m3 = kapasiteM3 <= Tolerance
                 ? 0
                 : decimal.Round(kapasiteM3 * istenenAdet / kapasiteAdet, 6, MidpointRounding.AwayFromZero);
@@ -111,12 +112,12 @@ namespace _3K.Infrastructure.Services
             string islemAdi)
         {
             if (istenenM3 <= Tolerance)
-                throw new InvalidOperationException($"{islemAdi} m³ değeri sıfırdan büyük olmalıdır.");
+                throw IsKuraliException.Cakisma($"{islemAdi} m³ değeri sıfırdan büyük olmalıdır.");
             if (kapasiteM3 <= Tolerance)
-                throw new InvalidOperationException($"{islemAdi} için m³ kapasitesi bulunamadı.");
+                throw IsKuraliException.Cakisma($"{islemAdi} için m³ kapasitesi bulunamadı.");
             var kalan = Math.Max(0, kapasiteM3 - kullanilanM3);
             if (istenenM3 > kalan + Tolerance)
-                throw new InvalidOperationException($"{islemAdi} m³ değeri kalanı aşamaz. Kalan: {kalan}.");
+                throw IsKuraliException.Cakisma($"{islemAdi} m³ değeri kalanı aşamaz. Kalan: {kalan}.");
             var adet = kapasiteAdet <= Tolerance
                 ? 0
                 : decimal.Round(kapasiteAdet * istenenM3 / kapasiteM3, 6, MidpointRounding.AwayFromZero);
@@ -130,7 +131,7 @@ namespace _3K.Infrastructure.Services
             string islemAdi)
         {
             if (mevcutDagitimVar)
-                throw new InvalidOperationException($"Sabit tutarlı kayıt {islemAdi.ToLowerInvariant()} için yalnız bir kez kullanılabilir.");
+                throw IsKuraliException.Cakisma($"Sabit tutarlı kayıt {islemAdi.ToLowerInvariant()} için yalnız bir kez kullanılabilir.");
             return new FinansDagitimMiktari(kapasiteAdet, kapasiteM3);
         }
     }

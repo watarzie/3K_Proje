@@ -6,14 +6,15 @@ namespace _3K.Core.Exceptions;
 /// </summary>
 public class IsKuraliException : Exception
 {
-    public IsKuraliException(string message, int statusCode = 400) : base(message)
+    public IsKuraliException(string message, int statusCode = 400, Exception? innerException = null)
+        : base(message, innerException)
     {
         StatusCode = statusCode;
     }
 
     public int StatusCode { get; }
 
-    public static IsKuraliException Cakisma(string message) => new(message, 409);
+    public static IsKuraliException Cakisma(string message, Exception? innerException = null) => new(message, 409, innerException);
 }
 
 /// <summary>İstenen kayıt bulunamadı (HTTP 404).</summary>

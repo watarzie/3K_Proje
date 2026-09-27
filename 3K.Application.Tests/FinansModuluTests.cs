@@ -6,6 +6,7 @@ using _3K.Application.Features.FinansIslemleri.DTOs;
 using _3K.Application.Features.FinansIslemleri.Queries;
 using _3K.Application.Features.FinansIslemleri.Validators;
 using _3K.Core.Enums;
+using _3K.Core.Exceptions;
 using _3K.Core.Constants;
 using _3K.Core.Models;
 using _3K.Core.Entities;
@@ -381,7 +382,7 @@ public sealed class FinansModuluTests
 
         Assert.Equal(10, first.Adet);
         Assert.Equal(5, first.M3);
-        Assert.Throws<InvalidOperationException>(() => FinansMiktarKurallari.DagitimiNormalizeEt(
+        Assert.Throws<IsKuraliException>(() => FinansMiktarKurallari.DagitimiNormalizeEt(
             FinansFiyatlandirmaBirimi.SabitTutar,
             1,
             0,
@@ -454,7 +455,7 @@ public sealed class FinansModuluTests
         decimal adet,
         decimal m3)
     {
-        Assert.Throws<InvalidOperationException>(() => FinansMiktarKurallari.DagitimiNormalizeEt(
+        Assert.Throws<IsKuraliException>(() => FinansMiktarKurallari.DagitimiNormalizeEt(
             birim,
             adet,
             m3,
@@ -1069,9 +1070,9 @@ public sealed class FinansModuluTests
         var normalized = FinansService.NormalizeWorkSelectionIds(ids);
 
         Assert.Equal(300, normalized.Count);
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<IsKuraliException>(() =>
             FinansService.NormalizeWorkSelectionIds(Enumerable.Range(1, 2001).ToArray()));
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<IsKuraliException>(() =>
             FinansService.NormalizeWorkSelectionIds([1, 0]));
     }
 

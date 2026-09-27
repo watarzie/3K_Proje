@@ -9,6 +9,7 @@ using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
 using _3K.Infrastructure.Data;
+using _3K.Core.Exceptions;
 
 namespace _3K.Infrastructure.Services
 {
@@ -83,11 +84,11 @@ namespace _3K.Infrastructure.Services
         private static void ThrowIfPersistenceConflict(Exception exception)
         {
             if (IsUniqueViolation(exception))
-                throw new InvalidOperationException(
+                throw IsKuraliException.Cakisma(
                     "Aynı benzersiz değer başka bir işlem tarafından daha önce kaydedildi. Verileri yenileyip tekrar deneyin.",
                     exception);
             if (IsSerializationFailure(exception))
-                throw new InvalidOperationException(
+                throw IsKuraliException.Cakisma(
                     "Kayıt aynı anda başka bir kullanıcı tarafından değiştirildi. Verileri yenileyip tekrar deneyin.",
                     exception);
         }
@@ -268,7 +269,7 @@ namespace _3K.Infrastructure.Services
                 .OrderByDescending(x => x.GecerlilikBaslangici)
                 .ThenByDescending(x => x.Id)
                 .Take(2).ToListAsync(cancellationToken);
-            if (tariffs.Count > 1) throw new InvalidOperationException("Çakışan aktif fiyat tarifeleri var; fiyatlandırmadan önce tarifeleri düzeltin.");
+            if (tariffs.Count > 1) throw IsKuraliException.Cakisma("Çakışan aktif fiyat tarifeleri var; fiyatlandırmadan önce tarifeleri düzeltin.");
             return tariffs.SingleOrDefault();
         }
 
@@ -287,9 +288,9 @@ namespace _3K.Infrastructure.Services
                 var urun = await _context.Set<FinansUrun>()
                     .AsNoTracking()
                     .FirstOrDefaultAsync(x => x.Id == finansUrunId && x.Aktif, cancellationToken)
-                    ?? throw new InvalidOperationException("Seçilen finans ürünü bulunamadı veya pasif.");
+                    ?? throw IsKuraliException.Cakisma("Seçilen finans ürünü bulunamadı veya pasif.");
                 var tarife = await FindTariffAsync(urun.Id, tarih, cancellationToken)
-                    ?? throw new InvalidOperationException($"{urun.Ad} için {tarih:yyyy} yılına ait geçerli fiyat tarifesi bulunamadı.");
+                    ?? throw IsKuraliException.Cakisma($"{urun.Ad} için {tarih:yyyy} yılına ait geçerli fiyat tarifesi bulunamadı.");
 
                 entity.FiyatlandirmaBirimiSnapshot = urun.FiyatlandirmaBirimi;
                 // Ürün seçimi fiyatlandırma birimini sabitler. Yetkili kullanıcı açıkça
@@ -331,7 +332,7 @@ namespace _3K.Infrastructure.Services
         {
             var normalized = value.Trim().ToUpperInvariant();
             if (normalized.Length != 3)
-                throw new InvalidOperationException("Para birimi ISO-4217 biçiminde üç karakter olmalıdır.");
+                throw IsKuraliException.Cakisma("Para birimi ISO-4217 biçiminde üç karakter olmalıdır.");
             return normalized;
         }
 
@@ -343,13 +344,13 @@ namespace _3K.Infrastructure.Services
             CancellationToken cancellationToken)
         {
             if (projeId.HasValue && !string.IsNullOrWhiteSpace(manuelProjeNo))
-                throw new InvalidOperationException("Sistem projesi ile manuel proje aynı anda seçilemez.");
+                throw IsKuraliException.Cakisma("Sistem projesi ile manuel proje aynı anda seçilemez.");
             if (projeId.HasValue)
             {
                 var proje = await _context.Set<Proje>()
                     .AsNoTracking()
                     .FirstOrDefaultAsync(x => x.Id == projeId.Value, cancellationToken)
-                    ?? throw new InvalidOperationException("Proje bulunamadı.");
+                    ?? throw IsKuraliException.Cakisma("Proje bulunamadı.");
                 return (proje.Id, proje.ProjeNo, proje.Musteri, false);
             }
 

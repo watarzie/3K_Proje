@@ -1,9 +1,13 @@
 using System.Reflection;
+using _3K.Application.Behaviors;
+using _3K.Application.Common;
 using _3K.Application.Features.FinansIslemleri;
 using _3K.Application.Features.FinansIslemleri.Queries;
 using _3K.Application.Features.FinansIslemleri.Validators;
+using _3K.Core.Exceptions;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace _3K.Application.Tests;
 
@@ -45,8 +49,9 @@ public sealed class FinansHataEslemeTests
     public async Task Rapor_is_kurali_hatasi_409_doner()
     {
         var handler = new FinansRaporQueryHandlers(new SinirAsanRaporServisi());
+        var istek = new FinansIsRaporuDosyaQuery { Format = "pdf" };
 
-        var sonuc = await handler.Handle(new FinansIsRaporuDosyaQuery { Format = "pdf" }, default);
+        var sonuc = await Pipeline(istek, () => handler.Handle(istek, default));
 
         Assert.False(sonuc.IsSuccess);
         Assert.Equal(409, sonuc.StatusCode);
@@ -69,7 +74,8 @@ public sealed class FinansHataEslemeTests
         var servis = DispatchProxy.Create<IFinansService, KuralIhlalEdenFinansServisi>();
         var handler = new FinansQueryHandlers(servis);
 
-        var secim = await handler.Handle(new FinansIsKayitlariSecimQuery { Ids = [0] }, default);
+        var secimIstegi = new FinansIsKayitlariSecimQuery { Ids = [0] };
+        var secim = await Pipeline(secimIstegi, () => handler.Handle(secimIstegi, default));
         var fatura = await handler.Handle(new FinansFaturaGetirQuery { Id = 5 }, default);
 
         Assert.Equal(409, secim.StatusCode);
@@ -78,10 +84,27 @@ public sealed class FinansHataEslemeTests
         Assert.Equal("Fatura bulunamadı.", fatura.Error!.Message);
     }
 
+    [Fact]
+    public async Task Beklenmeyen_framework_hatasi_ic_mesaji_sizdirmadan_500_doner()
+    {
+        var istek = new FinansIsRaporuDosyaQuery { Format = "pdf" };
+
+        var sonuc = await Pipeline<FinansIsRaporuDosyaQuery, Result<DosyaIcerigi>>(istek,
+            () => throw new InvalidOperationException("A second operation was started on this context instance."));
+
+        Assert.Equal(500, sonuc.StatusCode);
+        Assert.DoesNotContain("context", sonuc.Error!.Message);
+    }
+
+    private static Task<TResponse> Pipeline<TRequest, TResponse>(TRequest istek, Func<Task<TResponse>> handler)
+        where TRequest : notnull
+        => new UnhandledExceptionBehavior<TRequest, TResponse>(NullLogger<UnhandledExceptionBehavior<TRequest, TResponse>>.Instance)
+            .Handle(istek, () => handler(), CancellationToken.None);
+
     private sealed class SinirAsanRaporServisi : IFinansRaporService
     {
         private static Task<byte[]> Sinir() =>
-            throw new InvalidOperationException("Rapor en fazla 20.000 iş içerebilir; filtreyi daraltın.");
+            throw IsKuraliException.Cakisma("Rapor en fazla 20.000 iş içerebilir; filtreyi daraltın.");
         public Task<byte[]> OzetRaporAsync(string tur, bool excel, FinansListeFiltre filtre, CancellationToken ct) => Sinir();
         public Task<byte[]> IslerExcelAsync(FinansListeFiltre filtre, CancellationToken ct) => Sinir();
         public Task<byte[]> IslerPdfAsync(FinansListeFiltre filtre, CancellationToken ct) => Sinir();
@@ -98,7 +121,7 @@ public sealed class FinansHataEslemeTests
     {
         protected override object? Invoke(MethodInfo? method, object?[]? args) => method!.Name switch
         {
-            nameof(IFinansService.IsKayitlariSecimAsync) => throw new InvalidOperationException(
+            nameof(IFinansService.IsKayitlariSecimAsync) => throw IsKuraliException.Cakisma(
                 "İş kaydı seçiminde yalnız pozitif kimlikler kullanılabilir."),
             nameof(IFinansService.FaturaGetirAsync) => Task.FromResult<FinansFaturaModel?>(null),
             _ => throw new NotSupportedException(method.Name)

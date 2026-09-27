@@ -5,6 +5,7 @@ using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Helpers;
 using _3K.Core.Models;
+using _3K.Core.Exceptions;
 
 namespace _3K.Infrastructure.Services
 {
@@ -103,11 +104,11 @@ namespace _3K.Infrastructure.Services
                     return null;
                 }
                 if (entity.IptalEdildi)
-                    throw new InvalidOperationException("İptal edilmiş sipariş güncellenemez.");
+                    throw IsKuraliException.Cakisma("İptal edilmiş sipariş güncellenemez.");
 
                 var po = model.PoNumarasi.Trim().ToUpperInvariant();
                 if (await _context.Set<FinansSiparis>().AnyAsync(x => x.Id != id && x.PoNumarasi == po, cancellationToken))
-                    throw new InvalidOperationException("Bu PO numarası daha önce kullanılmış; finansal belge numaraları tekrar kullanılamaz.");
+                    throw IsKuraliException.Cakisma("Bu PO numarası daha önce kullanılmış; finansal belge numaraları tekrar kullanılamaz.");
 
                 var auditBefore = CaptureAuditState(entity);
                 entity.PoNumarasi = po;
@@ -117,19 +118,19 @@ namespace _3K.Infrastructure.Services
                 {
                     Gerekce(model.Gerekce);
                     if (model.Kalemler.Count == 0 || model.Kalemler.Select(x => x.IsKaydiId).Distinct().Count() != model.Kalemler.Count)
-                        throw new InvalidOperationException("Tekil mevcut PO kalemlerini seçin.");
+                        throw IsKuraliException.Cakisma("Tekil mevcut PO kalemlerini seçin.");
                     foreach (var requested in model.Kalemler)
                     {
                         var line = entity.Kalemler.SingleOrDefault(x => x.FinansIsKaydiId == requested.IsKaydiId)
-                            ?? throw new InvalidOperationException("Revizyon yalnız bu PO'nun mevcut kalemlerinde yapılabilir.");
-                        if (!requested.NetTutar.HasValue) throw new InvalidOperationException("Revizyon net tutarı zorunludur.");
+                            ?? throw IsKuraliException.Cakisma("Revizyon yalnız bu PO'nun mevcut kalemlerinde yapılabilir.");
+                        if (!requested.NetTutar.HasValue) throw IsKuraliException.Cakisma("Revizyon net tutarı zorunludur.");
                         var work = await IsKaydiDetayQuery(true).FirstAsync(x => x.Id == requested.IsKaydiId, cancellationToken);
                         var used = work.SiparisKalemleri.Where(x => x.Id != line.Id && !x.FinansSiparis.IptalEdildi).Sum(x => x.NetTutarSnapshot);
                         FinansTutarKurallari.Kapasite(requested.NetTutar.Value, used, FinansTutarKurallari.IsNet(work), "PO revizyonu");
                         var money = CalculateMoney(1, requested.NetTutar.Value, line.KdvOraniSnapshot);
                         var billed = line.FaturaKalemleri.Where(x => !x.FinansFatura.IptalEdildi).ToArray();
                         if (billed.Sum(x => x.NetTutarSnapshot) > money.Net || billed.Sum(x => x.KdvTutariSnapshot) > money.Kdv || billed.Sum(x => x.ToplamTutarSnapshot) > money.Toplam)
-                            throw new InvalidOperationException("PO tutarı aktif faturalanan net/KDV/brüt tutarının altına indirilemez.");
+                            throw IsKuraliException.Cakisma("PO tutarı aktif faturalanan net/KDV/brüt tutarının altına indirilemez.");
                         var beforeLine = CaptureAuditState(line);
                         line.NetTutarSnapshot = money.Net; line.KdvTutariSnapshot = money.Kdv; line.ToplamTutarSnapshot = money.Toplam;
                         line.TutarBazli = true;
@@ -162,14 +163,14 @@ namespace _3K.Infrastructure.Services
             {
                 var po = model.PoNumarasi.Trim().ToUpperInvariant();
                 if (await _context.Set<FinansSiparis>().AnyAsync(x => x.PoNumarasi == po, cancellationToken))
-                    throw new InvalidOperationException("Bu PO numarası daha önce kullanılmış; finansal belge numaraları tekrar kullanılamaz.");
+                    throw IsKuraliException.Cakisma("Bu PO numarası daha önce kullanılmış; finansal belge numaraları tekrar kullanılamaz.");
                 var requestedIds = model.Kalemler.Select(x => x.IsKaydiId).Distinct().ToArray();
-                if (requestedIds.Length == 0) throw new InvalidOperationException("Sipariş en az bir iş kalemi içermelidir.");
+                if (requestedIds.Length == 0) throw IsKuraliException.Cakisma("Sipariş en az bir iş kalemi içermelidir.");
                 if (requestedIds.Length != model.Kalemler.Count)
-                    throw new InvalidOperationException("Aynı iş kaydı bir siparişte birden fazla kez dağıtılamaz.");
+                    throw IsKuraliException.Cakisma("Aynı iş kaydı bir siparişte birden fazla kez dağıtılamaz.");
                 var works = await IsKaydiDetayQuery(true).Where(x => requestedIds.Contains(x.Id)).ToListAsync(cancellationToken);
                 if (works.Count != requestedIds.Length)
-                    throw new InvalidOperationException("Sipariş kalemlerinden en az biri bulunamadı.");
+                    throw IsKuraliException.Cakisma("Sipariş kalemlerinden en az biri bulunamadı.");
 
                 var order = new FinansSiparis
                 {
@@ -183,7 +184,7 @@ namespace _3K.Infrastructure.Services
                 {
                     var work = works.Single(x => x.Id == requested.IsKaydiId);
                     if (work.IptalEdildi || !work.KaynakAktif)
-                        throw new InvalidOperationException($"{work.IsAdi} aktif olmadığı için siparişe eklenemez.");
+                        throw IsKuraliException.Cakisma($"{work.IsAdi} aktif olmadığı için siparişe eklenemez.");
                     var productId = requested.FinansUrunId ?? work.FinansUrunId;
                     var pricingUnit = work.FiyatlandirmaBirimiSnapshot;
                     var unitPrice = requested.BirimFiyat ?? work.BirimFiyatSnapshot;
@@ -193,17 +194,17 @@ namespace _3K.Infrastructure.Services
                     var vat = requested.KdvOrani ?? work.KdvOraniSnapshot;
                     if (productId != work.FinansUrunId || unitPrice != work.BirimFiyatSnapshot || currency != work.ParaBirimiSnapshot || vat != work.KdvOraniSnapshot)
                     {
-                        throw new InvalidOperationException("PO işin fiyat snapshot'ını kullanır. Önce ayrı fiyatlandırma işlemiyle iş bedelini düzeltin.");
+                        throw IsKuraliException.Cakisma("PO işin fiyat snapshot'ını kullanır. Önce ayrı fiyatlandırma işlemiyle iş bedelini düzeltin.");
                     }
                     if (FinansTutarKurallari.IsNet(work) <= 0)
-                        throw new InvalidOperationException($"{work.IsAdi} kalemi için geçerli fiyat bulunamadı.");
+                        throw IsKuraliException.Cakisma($"{work.IsAdi} kalemi için geçerli fiyat bulunamadı.");
                     order.ParaBirimi ??= currency;
                     if (order.ParaBirimi != currency)
-                        throw new InvalidOperationException("Tek PO yalnız aynı para birimindeki işleri içerebilir.");
+                        throw IsKuraliException.Cakisma("Tek PO yalnız aynı para birimindeki işleri içerebilir.");
 
                     var activeLines = work.SiparisKalemleri.Where(x => !x.FinansSiparis.IptalEdildi).ToList();
                     if (activeLines.Any(x => x.FiyatlandirmaBirimiSnapshot != pricingUnit))
-                        throw new InvalidOperationException("Kısmi siparişte fiyatlandırma birimi değiştirilemez.");
+                        throw IsKuraliException.Cakisma("Kısmi siparişte fiyatlandırma birimi değiştirilemez.");
                     var distribution = requested.NetTutar.HasValue
                         ? new FinansDagitimMiktari(0, 0)
                         : FinansMiktarKurallari.DagitimiNormalizeEt(
@@ -240,7 +241,7 @@ namespace _3K.Infrastructure.Services
                 }
 
                 if (model.BelgeNetTutar.HasValue && model.BelgeNetTutar != order.Kalemler.Sum(x => x.NetTutarSnapshot))
-                    throw new InvalidOperationException("PO belge net tutarı satırların net tutar toplamına eşit olmalıdır.");
+                    throw IsKuraliException.Cakisma("PO belge net tutarı satırların net tutar toplamına eşit olmalıdır.");
                 _context.Set<FinansSiparis>().Add(order);
                 await _context.SaveChangesAsync(cancellationToken);
                 AddAudit(nameof(FinansSiparis), order.Id, "Oluşturma", "*", null, $"PO: {order.PoNumarasi}");
@@ -267,7 +268,7 @@ namespace _3K.Infrastructure.Services
                 if (entity is null) return false;
                 if (entity.IptalEdildi) return true;
                 if (entity.Kalemler.SelectMany(x => x.FaturaKalemleri).Any(x => !x.FinansFatura.IptalEdildi))
-                    throw new InvalidOperationException("Aktif faturası bulunan sipariş iptal edilemez. Önce faturaları iptal edin.");
+                    throw IsKuraliException.Cakisma("Aktif faturası bulunan sipariş iptal edilemez. Önce faturaları iptal edin.");
                 entity.IptalEdildi = true;
                 entity.IptalTarihi = TurkeyTime.Now;
                 entity.IptalAciklamasi = aciklama.Trim();
@@ -378,11 +379,11 @@ namespace _3K.Infrastructure.Services
                     return null;
                 }
                 if (entity.IptalEdildi)
-                    throw new InvalidOperationException("İptal edilmiş fatura güncellenemez.");
+                    throw IsKuraliException.Cakisma("İptal edilmiş fatura güncellenemez.");
 
                 var invoiceNo = model.FaturaNumarasi.Trim().ToUpperInvariant();
                 if (await _context.Set<FinansFatura>().AnyAsync(x => x.Id != id && x.FaturaNumarasi == invoiceNo, cancellationToken))
-                    throw new InvalidOperationException("Bu fatura numarası daha önce kullanılmış; finansal belge numaraları tekrar kullanılamaz.");
+                    throw IsKuraliException.Cakisma("Bu fatura numarası daha önce kullanılmış; finansal belge numaraları tekrar kullanılamaz.");
 
                 var auditBefore = CaptureAuditState(entity);
                 entity.FaturaNumarasi = invoiceNo;
@@ -391,25 +392,25 @@ namespace _3K.Infrastructure.Services
                 if (model.Kalemler is not null)
                 {
                     Gerekce(model.Gerekce);
-                    if (model.BelgeMutabakatiniKoru) throw new InvalidOperationException("Kalem revizyonunda eski belge tutarları korunamaz; gerçek belge toplamlarını yeniden girin.");
+                    if (model.BelgeMutabakatiniKoru) throw IsKuraliException.Cakisma("Kalem revizyonunda eski belge tutarları korunamaz; gerçek belge toplamlarını yeniden girin.");
                     if (model.Kalemler.Count == 0 || model.Kalemler.Select(x => x.SiparisKalemiId).Distinct().Count() != model.Kalemler.Count)
-                        throw new InvalidOperationException("Tekil mevcut fatura kalemlerini seçin.");
+                        throw IsKuraliException.Cakisma("Tekil mevcut fatura kalemlerini seçin.");
                     var order = await SiparisDetayQuery(true).FirstAsync(x => x.Id == entity.FinansSiparisId, cancellationToken);
-                    if (order.IptalEdildi) throw new InvalidOperationException("Pasif PO faturası değiştirilemez.");
+                    if (order.IptalEdildi) throw IsKuraliException.Cakisma("Pasif PO faturası değiştirilemez.");
                     foreach (var requested in model.Kalemler)
                     {
                         var line = entity.Kalemler.SingleOrDefault(x => x.FinansSiparisKalemiId == requested.SiparisKalemiId)
-                            ?? throw new InvalidOperationException("Revizyon yalnız bu faturanın mevcut kalemlerinde yapılabilir.");
+                            ?? throw IsKuraliException.Cakisma("Revizyon yalnız bu faturanın mevcut kalemlerinde yapılabilir.");
                         var poLine = order.Kalemler.Single(x => x.Id == line.FinansSiparisKalemiId);
                         var others = poLine.FaturaKalemleri.Where(x => x.Id != line.Id && !x.FinansFatura.IptalEdildi).ToArray();
-                        if (!requested.NetTutar.HasValue) throw new InvalidOperationException("Revizyon net tutarı zorunludur.");
+                        if (!requested.NetTutar.HasValue) throw IsKuraliException.Cakisma("Revizyon net tutarı zorunludur.");
                         var net = requested.NetTutar.Value;
                         FinansTutarKurallari.Kapasite(net, others.Sum(x => x.NetTutarSnapshot), poLine.NetTutarSnapshot, "Fatura revizyonu");
                         var money = CalculateMoney(1, net, poLine.KdvOraniSnapshot);
                         if (net + others.Sum(x => x.NetTutarSnapshot) == poLine.NetTutarSnapshot)
                             money = (net, poLine.KdvTutariSnapshot - others.Sum(x => x.KdvTutariSnapshot), net + poLine.KdvTutariSnapshot - others.Sum(x => x.KdvTutariSnapshot));
                         if (money.Kdv < 0 || money.Toplam + others.Sum(x => x.ToplamTutarSnapshot) > poLine.ToplamTutarSnapshot)
-                            throw new InvalidOperationException("Fatura revizyonu PO KDV/brüt bakiyesini aşamaz.");
+                            throw IsKuraliException.Cakisma("Fatura revizyonu PO KDV/brüt bakiyesini aşamaz.");
                         var beforeLine = CaptureAuditState(line);
                         line.NetTutarSnapshot = money.Net; line.KdvTutariSnapshot = money.Kdv; line.ToplamTutarSnapshot = money.Toplam; line.TutarBazli = true;
                         AddAuditChanges(nameof(FinansFaturaKalemi), line, beforeLine);
@@ -442,16 +443,16 @@ namespace _3K.Infrastructure.Services
             {
                 var invoiceNo = model.FaturaNumarasi.Trim().ToUpperInvariant();
                 if (await _context.Set<FinansFatura>().AnyAsync(x => x.FaturaNumarasi == invoiceNo, cancellationToken))
-                    throw new InvalidOperationException("Bu fatura numarası daha önce kullanılmış; finansal belge numaraları tekrar kullanılamaz.");
+                    throw IsKuraliException.Cakisma("Bu fatura numarası daha önce kullanılmış; finansal belge numaraları tekrar kullanılamaz.");
                 var order = await SiparisDetayQuery(true).FirstOrDefaultAsync(x => x.Id == model.SiparisId, cancellationToken)
-                    ?? throw new InvalidOperationException("Sipariş bulunamadı.");
-                if (order.IptalEdildi) throw new InvalidOperationException("İptal edilmiş sipariş faturalanamaz.");
+                    ?? throw IsKuraliException.Cakisma("Sipariş bulunamadı.");
+                if (order.IptalEdildi) throw IsKuraliException.Cakisma("İptal edilmiş sipariş faturalanamaz.");
                 if (order.Kalemler.Select(x => x.ParaBirimiSnapshot).Distinct().Count() != 1)
-                    throw new InvalidOperationException("Fatura oluşturmak için PO satırlarının para birimleri aynı olmalıdır.");
+                    throw IsKuraliException.Cakisma("Fatura oluşturmak için PO satırlarının para birimleri aynı olmalıdır.");
                 var requestedIds = model.Kalemler.Select(x => x.SiparisKalemiId).Distinct().ToArray();
                 if (requestedIds.Length != model.Kalemler.Count)
-                    throw new InvalidOperationException("Aynı sipariş kalemi faturada birden fazla kez kullanılamaz.");
-                if (model.Kalemler.Count == 0) throw new InvalidOperationException("En az bir fatura kalemi seçilmelidir.");
+                    throw IsKuraliException.Cakisma("Aynı sipariş kalemi faturada birden fazla kez kullanılamaz.");
+                if (model.Kalemler.Count == 0) throw IsKuraliException.Cakisma("En az bir fatura kalemi seçilmelidir.");
 
                 var invoice = new FinansFatura
                 {
@@ -464,7 +465,7 @@ namespace _3K.Infrastructure.Services
                 foreach (var requested in model.Kalemler)
                 {
                     var line = order.Kalemler.FirstOrDefault(x => x.Id == requested.SiparisKalemiId)
-                        ?? throw new InvalidOperationException("Fatura kalemi siparişe ait değil.");
+                        ?? throw IsKuraliException.Cakisma("Fatura kalemi siparişe ait değil.");
                     var activeInvoiceLines = line.FaturaKalemleri.Where(x => !x.FinansFatura.IptalEdildi).ToList();
                     var distribution = requested.NetTutar.HasValue
                         ? new FinansDagitimMiktari(0, 0)
@@ -488,7 +489,7 @@ namespace _3K.Infrastructure.Services
                         money = (requestedNet, remainingVat, requestedNet + remainingVat);
                     }
                     if (money.Kdv < 0 || money.Toplam + activeInvoiceLines.Sum(x => x.ToplamTutarSnapshot) > line.ToplamTutarSnapshot)
-                        throw new InvalidOperationException("Fatura KDV/brüt tutarı PO kaleminin kalanını aşamaz.");
+                        throw IsKuraliException.Cakisma("Fatura KDV/brüt tutarı PO kaleminin kalanını aşamaz.");
                     invoice.Kalemler.Add(new FinansFaturaKalemi
                     {
                         FinansSiparisKalemiId = line.Id,
@@ -520,7 +521,7 @@ namespace _3K.Infrastructure.Services
                 await transaction.CommitAsync(cancellationToken);
                 return (await FaturaDetayQuery().Where(x => x.Id == invoice.Id).Select(x => x).FirstAsync(cancellationToken)) is { } loaded
                     ? MapFatura(loaded)
-                    : throw new InvalidOperationException("Fatura oluşturuldu ancak okunamadı.");
+                    : throw IsKuraliException.Cakisma("Fatura oluşturuldu ancak okunamadı.");
             }
             catch (Exception exception)
             {
@@ -756,33 +757,33 @@ namespace _3K.Infrastructure.Services
                 !documentNet.HasValue ||
                 !documentVat.HasValue ||
                 !documentTotal.HasValue)
-                throw new InvalidOperationException("Belge para birimi, net, KDV ve brüt toplam alanları birlikte girilmelidir.");
+                throw IsKuraliException.Cakisma("Belge para birimi, net, KDV ve brüt toplam alanları birlikte girilmelidir.");
 
             if (documentNet.Value < 0 || documentVat.Value < 0 || documentTotal.Value < 0)
-                throw new InvalidOperationException("Belge tutarları negatif olamaz.");
+                throw IsKuraliException.Cakisma("Belge tutarları negatif olamaz.");
             if (documentNet.Value + documentVat.Value != documentTotal.Value)
-                throw new InvalidOperationException("Belge net + KDV toplamı brüt toplamla eşleşmelidir.");
+                throw IsKuraliException.Cakisma("Belge net + KDV toplamı brüt toplamla eşleşmelidir.");
 
             var lineCurrencies = invoice.Kalemler
                 .Select(x => NormalizeCurrency(x.FinansSiparisKalemi.ParaBirimiSnapshot))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
             if (lineCurrencies.Length != 1)
-                throw new InvalidOperationException("Farklı para birimindeki fatura kalemleri için tek belge toplamı girilemez.");
+                throw IsKuraliException.Cakisma("Farklı para birimindeki fatura kalemleri için tek belge toplamı girilemez.");
 
             var normalizedCurrency = NormalizeCurrency(documentCurrency);
             if (!string.Equals(lineCurrencies[0], normalizedCurrency, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Belge para birimi fatura kalemlerinin para birimiyle eşleşmelidir.");
+                throw IsKuraliException.Cakisma("Belge para birimi fatura kalemlerinin para birimiyle eşleşmelidir.");
 
             var calculatedTotal = invoice.Kalemler.Sum(x => x.ToplamTutarSnapshot);
             if (documentNet.Value != invoice.Kalemler.Sum(x => x.NetTutarSnapshot) ||
                 documentVat.Value != invoice.Kalemler.Sum(x => x.KdvTutariSnapshot) ||
                 documentTotal.Value != calculatedTotal)
-                throw new InvalidOperationException("Belge net/KDV/brüt tutarları satır toplamlarıyla eşleşmelidir. Farkı PO kapasitesini aşmadan satırlara dağıtın.");
+                throw IsKuraliException.Cakisma("Belge net/KDV/brüt tutarları satır toplamlarıyla eşleşmelidir. Farkı PO kapasitesini aşmadan satırlara dağıtın.");
             var difference = decimal.Round(documentTotal.Value - calculatedTotal, 2, MidpointRounding.AwayFromZero);
             var normalizedNote = reconciliationNote?.Trim();
             if (Math.Abs(difference) > 0.02m && string.IsNullOrWhiteSpace(normalizedNote))
-                throw new InvalidOperationException("Belge ile hesaplanan brüt toplam arasındaki fark için mutabakat açıklaması zorunludur.");
+                throw IsKuraliException.Cakisma("Belge ile hesaplanan brüt toplam arasındaki fark için mutabakat açıklaması zorunludur.");
 
             invoice.BelgeParaBirimiSnapshot = normalizedCurrency;
             invoice.BelgeNetTutarSnapshot = decimal.Round(documentNet.Value, 2, MidpointRounding.AwayFromZero);

@@ -5,6 +5,7 @@ using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Helpers;
 using _3K.Core.Models;
+using _3K.Core.Exceptions;
 
 namespace _3K.Infrastructure.Services
 {
@@ -77,7 +78,7 @@ namespace _3K.Infrastructure.Services
         {
             var code = model.Kod.Trim().ToUpperInvariant();
             if (await _context.Set<FinansUrun>().AnyAsync(x => x.Kod == code, cancellationToken))
-                throw new InvalidOperationException("Finans ürün kodu benzersiz olmalıdır.");
+                throw IsKuraliException.Cakisma("Finans ürün kodu benzersiz olmalıdır.");
             var entity = new FinansUrun
             {
                 Kod = code,
@@ -96,7 +97,7 @@ namespace _3K.Infrastructure.Services
             await _context.SaveChangesAsync(cancellationToken);
             await BackfillUnpricedWorksAsync(cancellationToken);
             return await ProductByIdAsync(entity.Id, TurkeyTime.Now.Date, cancellationToken)
-                ?? throw new InvalidOperationException("Kaydedilen finans ürünü tekrar okunamadı.");
+                ?? throw IsKuraliException.Cakisma("Kaydedilen finans ürünü tekrar okunamadı.");
         }
 
         public Task<FinansUrunModel?> UrunGuncelleAsync(int id, FinansUrunKaydetModel model, CancellationToken cancellationToken)
@@ -112,11 +113,11 @@ namespace _3K.Infrastructure.Services
             if (entity is null) return null;
             var code = model.Kod.Trim().ToUpperInvariant();
             if (await _context.Set<FinansUrun>().AnyAsync(x => x.Id != id && x.Kod == code, cancellationToken))
-                throw new InvalidOperationException("Finans ürün kodu benzersiz olmalıdır.");
+                throw IsKuraliException.Cakisma("Finans ürün kodu benzersiz olmalıdır.");
             var requestedExistingIds = model.Eslesmeler.Where(x => x.Id.HasValue).Select(x => x.Id!.Value).ToHashSet();
             var actualIds = entity.Eslesmeler.Select(x => x.Id).ToHashSet();
             if (requestedExistingIds.Except(actualIds).Any())
-                throw new InvalidOperationException("Ürün eşleşmelerinden en az biri bu ürüne ait değil veya bulunamadı.");
+                throw IsKuraliException.Cakisma("Ürün eşleşmelerinden en az biri bu ürüne ait değil veya bulunamadı.");
             var auditBefore = CaptureAuditState(entity);
             entity.Kod = code;
             entity.Ad = model.Ad.Trim();
@@ -204,9 +205,9 @@ namespace _3K.Infrastructure.Services
             if (!model.BirimFiyat.HasValue)
                 return null;
             if (model.BirimFiyat.Value < 0)
-                throw new InvalidOperationException("Birim fiyat sıfırdan küçük olamaz.");
+                throw IsKuraliException.Cakisma("Birim fiyat sıfırdan küçük olamaz.");
             if (model.KdvOrani is < 0 or > 100)
-                throw new InvalidOperationException("KDV oranı 0-100 aralığında olmalıdır.");
+                throw IsKuraliException.Cakisma("KDV oranı 0-100 aralığında olmalıdır.");
 
             var today = TurkeyTime.Now.Date;
             var price = model.BirimFiyat.Value;
@@ -326,7 +327,7 @@ namespace _3K.Infrastructure.Services
         {
             if (filtre.Baslangic.HasValue && filtre.Bitis.HasValue) TarihAraliginiDogrula(filtre.Baslangic.Value, filtre.Bitis.Value);
             if (await ApplyFilter(_context.Set<FinansIsKaydi>(), filtre).CountAsync(cancellationToken) > RaporKayitSiniri)
-                throw new InvalidOperationException("Rapor en fazla 20.000 iş içerebilir; filtreyi daraltın.");
+                throw IsKuraliException.Cakisma("Rapor en fazla 20.000 iş içerebilir; filtreyi daraltın.");
             var workEntities = await ApplyFilter(IsKaydiDetayQuery(), filtre).OrderBy(x => x.FinansDonemi).ThenBy(x => x.Id).ToListAsync(cancellationToken);
             var works = workEntities.Select(MapIsKaydi).ToArray();
             var expenseQuery = _context.Set<FinansGider>().AsNoTracking().Include(x => x.Kategori).Include(x => x.GiderKalemi).Include(x => x.Proje).AsQueryable();
@@ -335,7 +336,7 @@ namespace _3K.Infrastructure.Services
                 .OrderBy(x => x.ParaBirimi)
                 .ToArrayAsync(cancellationToken);
             if (await expenseQuery.CountAsync(cancellationToken) > RaporKayitSiniri)
-                throw new InvalidOperationException("Rapor en fazla 20.000 gider içerebilir; filtreyi daraltın.");
+                throw IsKuraliException.Cakisma("Rapor en fazla 20.000 gider içerebilir; filtreyi daraltın.");
             var expenses = (await expenseQuery
                     .OrderBy(x => x.FinansDonemi)
                     .ThenBy(x => x.Id)

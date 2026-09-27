@@ -4,6 +4,7 @@ using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Helpers;
 using _3K.Core.Models;
+using _3K.Core.Exceptions;
 
 namespace _3K.Infrastructure.Services
 {
@@ -93,7 +94,7 @@ namespace _3K.Infrastructure.Services
         public Task<FinansDonemOlusturSonucModel> DuzenliIsDonemiOlusturAsync(DateTime referansTarihi, CancellationToken cancellationToken)
             => ExecuteAtomicAsync(async () =>
             {
-                if (!FinansTarihKurallari.GecerliTarih(referansTarihi)) throw new InvalidOperationException("Geçerli referans tarihi girin.");
+                if (!FinansTarihKurallari.GecerliTarih(referansTarihi)) throw IsKuraliException.Cakisma("Geçerli referans tarihi girin.");
                 var templates = await _context.Set<FinansDuzenliIs>().AsNoTracking().Include(x => x.Proje).Include(x => x.FinansUrun)
                     .Where(x => x.Aktif && x.BaslangicTarihi <= referansTarihi.Date).OrderBy(x => x.Id).ToListAsync(cancellationToken);
                 var created = 0;
@@ -140,7 +141,7 @@ namespace _3K.Infrastructure.Services
         internal static IReadOnlyList<DateTime> DuzenliIsTarihleri(DateTime start, DateTime end, int day)
         {
             if (day is < 1 or > 31 || !FinansTarihKurallari.GecerliTarih(start) || !FinansTarihKurallari.GecerliTarih(end))
-                throw new InvalidOperationException("Düzenli iş başlangıç/bitiş ve gününü kontrol edin.");
+                throw IsKuraliException.Cakisma("Düzenli iş başlangıç/bitiş ve gününü kontrol edin.");
             var result = new List<DateTime>();
             for (var month = FirstDayOfMonth(start); month <= FirstDayOfMonth(end); month = month.AddMonths(1))
             {
@@ -156,7 +157,7 @@ namespace _3K.Infrastructure.Services
             await ResolveProjectAsync(model.ProjeId, model.ManuelProjeNo, model.ManuelProjeAdi, model.Musteri, cancellationToken);
             if (!model.FinansUrunId.HasValue) return;
             if (!await _context.Set<FinansUrun>().AnyAsync(x => x.Id == model.FinansUrunId && x.Aktif, cancellationToken))
-                throw new InvalidOperationException("Seçilen finans ürünü bulunamadı veya pasif.");
+                throw IsKuraliException.Cakisma("Seçilen finans ürünü bulunamadı veya pasif.");
         }
 
         private static void ApplyRecurring(FinansDuzenliIs entity, FinansDuzenliIsKaydetModel model)
@@ -259,7 +260,7 @@ namespace _3K.Infrastructure.Services
         {
             var entity = await _context.Set<FinansGider>().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
             if (entity is null) return null;
-            if (entity.IptalEdildi) throw new InvalidOperationException("İptal edilmiş gider güncellenemez.");
+            if (entity.IptalEdildi) throw IsKuraliException.Cakisma("İptal edilmiş gider güncellenemez.");
             await ValidateExpenseReferencesAsync(model, cancellationToken);
             var auditBefore = CaptureAuditState(entity);
             ApplyExpense(entity, model);
@@ -286,23 +287,23 @@ namespace _3K.Infrastructure.Services
         {
             if (model.Miktar <= 0 || model.BirimFiyat < 0 || model.KdvOrani is < 0 or > 100 || !FinansTarihKurallari.GecerliTarih(model.Tarih) ||
                 !FinansTarihKurallari.GecerliTarih(model.FinansDonemi) || (model.FinansTarihi.HasValue && !FinansTarihKurallari.GecerliTarih(model.FinansTarihi.Value)))
-                throw new InvalidOperationException("Gider miktarı, fiyatı, KDV oranı ve tarihlerini kontrol edin.");
-            if (NormalizeCurrency(model.ParaBirimi) is not ("EUR" or "USD" or "TRY")) throw new InvalidOperationException("Gider para birimi EUR, USD veya TRY olmalıdır.");
+                throw IsKuraliException.Cakisma("Gider miktarı, fiyatı, KDV oranı ve tarihlerini kontrol edin.");
+            if (NormalizeCurrency(model.ParaBirimi) is not ("EUR" or "USD" or "TRY")) throw IsKuraliException.Cakisma("Gider para birimi EUR, USD veya TRY olmalıdır.");
             if (model.MahsupEdilenAvansId.HasValue)
             {
                 var advance = await _context.Set<FinansGider>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == model.MahsupEdilenAvansId, cancellationToken);
                 if (model.AvansMi || advance is null || !advance.AvansMi || advance.IptalEdildi || advance.ParaBirimi != NormalizeCurrency(model.ParaBirimi) || advance.FirmaVeyaKisi != model.FirmaVeyaKisi?.Trim())
-                    throw new InvalidOperationException("Avans mahsubu aynı kişi/para birimindeki aktif avansa bağlanmalıdır; avansın kendisi maliyete dahil edilmez.");
+                    throw IsKuraliException.Cakisma("Avans mahsubu aynı kişi/para birimindeki aktif avansa bağlanmalıdır; avansın kendisi maliyete dahil edilmez.");
             }
             if (model.ProjeId.HasValue && !string.IsNullOrWhiteSpace(model.ManuelProjeNo))
-                throw new InvalidOperationException("Sistem projesi ile manuel proje aynı anda seçilemez.");
+                throw IsKuraliException.Cakisma("Sistem projesi ile manuel proje aynı anda seçilemez.");
             if (!await _context.Set<FinansGiderKategori>().AnyAsync(x => x.Id == model.KategoriId && x.Aktif, cancellationToken))
-                throw new InvalidOperationException("Gider kategorisi bulunamadı veya pasif.");
+                throw IsKuraliException.Cakisma("Gider kategorisi bulunamadı veya pasif.");
             if (model.GiderKalemiId.HasValue && !await _context.Set<FinansGiderKalemi>()
                     .AnyAsync(x => x.Id == model.GiderKalemiId && x.FinansGiderKategoriId == model.KategoriId && x.Aktif, cancellationToken))
-                throw new InvalidOperationException("Gider kalemi kategoriyle eşleşmiyor veya pasif.");
+                throw IsKuraliException.Cakisma("Gider kalemi kategoriyle eşleşmiyor veya pasif.");
             if (model.ProjeId.HasValue && !await _context.Set<Proje>().AnyAsync(x => x.Id == model.ProjeId, cancellationToken))
-                throw new InvalidOperationException("Proje bulunamadı.");
+                throw IsKuraliException.Cakisma("Proje bulunamadı.");
         }
 
         private static void ApplyExpense(FinansGider entity, FinansGiderKaydetModel model)
@@ -403,7 +404,7 @@ namespace _3K.Infrastructure.Services
         private async Task<FinansGiderKategoriModel> GiderKategoriOlusturCoreAsync(FinansGiderKategoriKaydetModel model, CancellationToken cancellationToken)
         {
             if (await _context.Set<FinansGiderKategori>().AnyAsync(x => x.Ad.ToLower() == model.Ad.Trim().ToLower(), cancellationToken))
-                throw new InvalidOperationException("Aynı isimde gider kategorisi zaten var.");
+                throw IsKuraliException.Cakisma("Aynı isimde gider kategorisi zaten var.");
             var entity = new FinansGiderKategori { Ad = model.Ad.Trim(), Aktif = model.Aktif };
             _context.Set<FinansGiderKategori>().Add(entity);
             await _context.SaveChangesAsync(cancellationToken);
@@ -420,7 +421,7 @@ namespace _3K.Infrastructure.Services
             var entity = await _context.Set<FinansGiderKategori>().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
             if (entity is null) return null;
             if (await _context.Set<FinansGiderKategori>().AnyAsync(x => x.Id != id && x.Ad.ToLower() == model.Ad.Trim().ToLower(), cancellationToken))
-                throw new InvalidOperationException("Aynı isimde gider kategorisi zaten var.");
+                throw IsKuraliException.Cakisma("Aynı isimde gider kategorisi zaten var.");
             AddChangedAudit(nameof(FinansGiderKategori), id, nameof(entity.Ad), entity.Ad, model.Ad.Trim());
             AddChangedAudit(nameof(FinansGiderKategori), id, nameof(entity.Aktif), entity.Aktif, model.Aktif);
             entity.Ad = model.Ad.Trim();
@@ -449,10 +450,10 @@ namespace _3K.Infrastructure.Services
         private async Task<FinansGiderKalemiModel> GiderKalemiOlusturCoreAsync(FinansGiderKalemiKaydetModel model, CancellationToken cancellationToken)
         {
             if (!await _context.Set<FinansGiderKategori>().AnyAsync(x => x.Id == model.KategoriId && x.Aktif, cancellationToken))
-                throw new InvalidOperationException("Gider kategorisi bulunamadı veya pasif.");
+                throw IsKuraliException.Cakisma("Gider kategorisi bulunamadı veya pasif.");
             var code = model.Kod.Trim().ToUpperInvariant();
             if (await _context.Set<FinansGiderKalemi>().AnyAsync(x => x.Kod == code, cancellationToken))
-                throw new InvalidOperationException("Gider kalemi kodu benzersiz olmalıdır.");
+                throw IsKuraliException.Cakisma("Gider kalemi kodu benzersiz olmalıdır.");
             var entity = new FinansGiderKalemi
             {
                 FinansGiderKategoriId = model.KategoriId,
@@ -476,10 +477,10 @@ namespace _3K.Infrastructure.Services
             var entity = await _context.Set<FinansGiderKalemi>().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
             if (entity is null) return null;
             if (!await _context.Set<FinansGiderKategori>().AnyAsync(x => x.Id == model.KategoriId && x.Aktif, cancellationToken))
-                throw new InvalidOperationException("Gider kategorisi bulunamadı veya pasif.");
+                throw IsKuraliException.Cakisma("Gider kategorisi bulunamadı veya pasif.");
             var code = model.Kod.Trim().ToUpperInvariant();
             if (await _context.Set<FinansGiderKalemi>().AnyAsync(x => x.Id != id && x.Kod == code, cancellationToken))
-                throw new InvalidOperationException("Gider kalemi kodu benzersiz olmalıdır.");
+                throw IsKuraliException.Cakisma("Gider kalemi kodu benzersiz olmalıdır.");
             AddChangedAudit(nameof(FinansGiderKalemi), id, nameof(entity.FinansGiderKategoriId), entity.FinansGiderKategoriId, model.KategoriId);
             AddChangedAudit(nameof(FinansGiderKalemi), id, nameof(entity.Kod), entity.Kod, code);
             AddChangedAudit(nameof(FinansGiderKalemi), id, nameof(entity.Ad), entity.Ad, model.Ad.Trim());

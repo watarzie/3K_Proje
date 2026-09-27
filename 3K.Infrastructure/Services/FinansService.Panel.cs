@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Models;
+using _3K.Core.Exceptions;
 
 namespace _3K.Infrastructure.Services;
 
@@ -13,7 +14,7 @@ public sealed partial class FinansService
     private static void TarihAraliginiDogrula(DateTime start, DateTime end)
     {
         if (!FinansTarihKurallari.GecerliAralik(start, end))
-            throw new InvalidOperationException("Geçerli ve en fazla on yıllık tarih aralığı seçin.");
+            throw IsKuraliException.Cakisma("Geçerli ve en fazla on yıllık tarih aralığı seçin.");
     }
 
     public Task<FinansSayfaliSonuc<FinansIsKaydiModel>> GenelAramaAsync(FinansListeFiltre filtre, CancellationToken cancellationToken)
@@ -22,10 +23,10 @@ public sealed partial class FinansService
     public async Task<FinansSayfaliSonuc<FinansHareketModel>> HareketlerAsync(FinansListeFiltre filtre, string? tur, CancellationToken cancellationToken)
     {
         if (!string.IsNullOrWhiteSpace(tur) && tur is not ("IsKaydi" or "Siparis" or "Fatura" or "Gider"))
-            throw new InvalidOperationException("Hareket türü geçerli değil.");
+            throw IsKuraliException.Cakisma("Hareket türü geçerli değil.");
         var page = Math.Max(1, filtre.PageNumber); var size = Math.Clamp(filtre.PageSize, 1, 250);
         var take = checked(page * size);
-        if (take > RaporKayitSiniri) throw new InvalidOperationException("Bu sayfa için filtreyi daraltın; en fazla 20.000 hareket taranabilir.");
+        if (take > RaporKayitSiniri) throw IsKuraliException.Cakisma("Bu sayfa için filtreyi daraltın; en fazla 20.000 hareket taranabilir.");
         var workQuery = ApplyFilter(_context.Set<FinansIsKaydi>().AsNoTracking(), filtre);
         var expenseQuery = ExpenseFilter(_context.Set<FinansGider>().AsNoTracking(), filtre);
         var linkedWorkIds = ApplyFilter(_context.Set<FinansIsKaydi>().AsNoTracking(), filtre with { Baslangic = null, Bitis = null }).Select(x => x.Id);
@@ -104,11 +105,11 @@ public sealed partial class FinansService
         var loadStart = baslangic < yearStart ? baslangic.Date : yearStart;
         var end = bitis.Date.AddDays(1);
         var worksQuery = IsKaydiDetayQuery().Where(x => !x.IptalEdildi && x.KaynakAktif && x.FinansTarihi >= loadStart && x.FinansTarihi < end);
-        if (await worksQuery.CountAsync(cancellationToken) > RaporKayitSiniri) throw new InvalidOperationException("Panel aralığında 20.000'den fazla iş var; tarih aralığını daraltın.");
+        if (await worksQuery.CountAsync(cancellationToken) > RaporKayitSiniri) throw IsKuraliException.Cakisma("Panel aralığında 20.000'den fazla iş var; tarih aralığını daraltın.");
         var allWorks = await worksQuery.ToListAsync(cancellationToken);
         var expenseQuery = _context.Set<FinansGider>().AsNoTracking().Include(x => x.Kategori).Include(x => x.Proje)
             .Where(x => !x.IptalEdildi && !x.AvansMi && x.FinansTarihi >= loadStart && x.FinansTarihi < end);
-        if (await expenseQuery.CountAsync(cancellationToken) > RaporKayitSiniri) throw new InvalidOperationException("Panel aralığında 20.000'den fazla gider var; tarih aralığını daraltın.");
+        if (await expenseQuery.CountAsync(cancellationToken) > RaporKayitSiniri) throw IsKuraliException.Cakisma("Panel aralığında 20.000'den fazla gider var; tarih aralığını daraltın.");
         var allExpenses = await expenseQuery.ToListAsync(cancellationToken);
         var works = allWorks.Where(x => x.FinansTarihi >= baslangic.Date).Select(MapIsKaydi).ToArray();
         var expenses = allExpenses.Where(x => x.FinansTarihi >= baslangic.Date).ToArray();
@@ -143,9 +144,9 @@ public sealed partial class FinansService
 
     public async Task<FinansSayfaliSonuc<FinansBekleyenModel>> YaslandirmaAsync(DateTime referansTarihi, int minimumGun, FinansListeFiltre filtre, CancellationToken cancellationToken)
     {
-        if (minimumGun < 0 || minimumGun > 36600) throw new InvalidOperationException("Geçerli bekleme gününü girin.");
+        if (minimumGun < 0 || minimumGun > 36600) throw IsKuraliException.Cakisma("Geçerli bekleme gününü girin.");
         var query = ApplyFilter(IsKaydiDetayQuery(), filtre with { Baslangic = null, Bitis = null, IptalEdilenleriDahilEt = false });
-        if (await query.CountAsync(cancellationToken) > RaporKayitSiniri) throw new InvalidOperationException("Yaşlandırma için proje veya iş türü filtresini daraltın (en fazla 20.000 iş).");
+        if (await query.CountAsync(cancellationToken) > RaporKayitSiniri) throw IsKuraliException.Cakisma("Yaşlandırma için proje veya iş türü filtresini daraltın (en fazla 20.000 iş).");
         var works = await query.ToListAsync(cancellationToken);
         var items = new List<FinansBekleyenModel>();
         foreach (var work in works)

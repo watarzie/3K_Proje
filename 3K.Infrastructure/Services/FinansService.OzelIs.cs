@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using _3K.Core.Enums;
 using _3K.Core.Models;
+using _3K.Core.Exceptions;
 
 namespace _3K.Infrastructure.Services
 {
@@ -15,17 +16,17 @@ namespace _3K.Infrastructure.Services
                 .FirstOrDefaultAsync(x => x.Id == id && x.IsTuru == FinansIsTuru.OzelIs, cancellationToken);
             if (entity is null) return false;
             if (entity.IptalEdildi)
-                throw new InvalidOperationException("İptal edilmiş özel iş güncellenemez.");
+                throw IsKuraliException.Cakisma("İptal edilmiş özel iş güncellenemez.");
             if (entity.SiparisKalemleri.Count != 0)
-                throw new InvalidOperationException("PO geçmişi bulunan özel işin fiyat snapshot'ı güncellenemez.");
+                throw IsKuraliException.Cakisma("PO geçmişi bulunan özel işin fiyat snapshot'ı güncellenemez.");
             if (!model.Miktar.HasValue && !model.NetBirimFiyat.HasValue)
-                throw new InvalidOperationException("Miktar veya net birim fiyat gönderilmelidir.");
+                throw IsKuraliException.Cakisma("Miktar veya net birim fiyat gönderilmelidir.");
             if (model.Miktar is <= 0 || model.NetBirimFiyat is < 0)
-                throw new InvalidOperationException("Miktar pozitif, net birim fiyat sıfır veya daha büyük olmalıdır.");
+                throw IsKuraliException.Cakisma("Miktar pozitif, net birim fiyat sıfır veya daha büyük olmalıdır.");
             if (model.Miktar.HasValue && entity.HesaplamaYontemi != FinansHesaplamaYontemi.DegiskenAdet)
-                throw new InvalidOperationException("Bu işin miktarı düzenlenemez.");
+                throw IsKuraliException.Cakisma("Bu işin miktarı düzenlenemez.");
             if (model.NetBirimFiyat.HasValue && entity.HesaplamaYontemi != FinansHesaplamaYontemi.DegiskenTutar)
-                throw new InvalidOperationException("Bu işin tutarı düzenlenemez.");
+                throw IsKuraliException.Cakisma("Bu işin tutarı düzenlenemez.");
 
             var auditBefore = CaptureAuditState(entity);
             if (model.Miktar.HasValue)

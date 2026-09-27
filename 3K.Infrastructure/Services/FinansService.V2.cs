@@ -8,6 +8,7 @@ using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Helpers;
 using _3K.Core.Models;
+using _3K.Core.Exceptions;
 
 namespace _3K.Infrastructure.Services;
 
@@ -16,17 +17,17 @@ public sealed partial class FinansService
     private static void Gerekce(string? value)
     {
         if (string.IsNullOrWhiteSpace(value) || value.Trim().Length < 5 || value.Length > 1000)
-            throw new InvalidOperationException("İşlem gerekçesi 5–1000 karakter olmalıdır.");
+            throw IsKuraliException.Cakisma("İşlem gerekçesi 5–1000 karakter olmalıdır.");
     }
 
     public Task<FinansIsKaydiModel?> FinansTarihiDegistirAsync(int id, FinansTarihiDegistirModel model, CancellationToken cancellationToken)
         => ExecuteAtomicAsync(async () =>
         {
             Gerekce(model.Aciklama);
-            if (!FinansTarihKurallari.GecerliTarih(model.FinansTarihi)) throw new InvalidOperationException("Geçerli finans tarihi girin.");
+            if (!FinansTarihKurallari.GecerliTarih(model.FinansTarihi)) throw IsKuraliException.Cakisma("Geçerli finans tarihi girin.");
             var work = await IsKaydiDetayQuery(true).FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
             if (work is null) return null;
-            if (work.IptalEdildi) throw new InvalidOperationException("İptal edilmiş işin finans tarihi değiştirilemez.");
+            if (work.IptalEdildi) throw IsKuraliException.Cakisma("İptal edilmiş işin finans tarihi değiştirilemez.");
             AddAudit(nameof(FinansIsKaydi), id, "Finans Tarihi", nameof(work.FinansTarihi), work.FinansTarihi, model.FinansTarihi.Date, model.Aciklama);
             work.FinansTarihi = model.FinansTarihi.Date;
             work.FinansDonemi = FirstDayOfMonth(model.FinansTarihi);
@@ -40,21 +41,21 @@ public sealed partial class FinansService
         {
             Gerekce(model.Aciklama);
             if (!Enum.IsDefined(model.FiyatlandirmaBirimi) || model.Adet <= 0 || model.BirimM3 < 0 || model.BirimFiyat < 0 || model.KdvOrani is < 0 or > 100)
-                throw new InvalidOperationException("Fiyatlandırma yöntemi, miktar ve KDV değerlerini kontrol edin.");
+                throw IsKuraliException.Cakisma("Fiyatlandırma yöntemi, miktar ve KDV değerlerini kontrol edin.");
             var work = await IsKaydiDetayQuery(true).FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
             if (work is null) return null;
-            if (work.IptalEdildi || !work.KaynakAktif) throw new InvalidOperationException("Pasif iş fiyatlandırılamaz.");
+            if (work.IptalEdildi || !work.KaynakAktif) throw IsKuraliException.Cakisma("Pasif iş fiyatlandırılamaz.");
             if (work.SiparisKalemleri.Count > 0)
-                throw new InvalidOperationException("PO geçmişi bulunan işin fiyat snapshot'ı değiştirilemez; ek/düzeltme işi oluşturun.");
+                throw IsKuraliException.Cakisma("PO geçmişi bulunan işin fiyat snapshot'ı değiştirilemez; ek/düzeltme işi oluşturun.");
             var currency = NormalizeCurrency(model.ParaBirimi);
-            if (currency is not ("EUR" or "USD" or "TRY")) throw new InvalidOperationException("Desteklenen para birimleri TRY, EUR ve USD'dir.");
+            if (currency is not ("EUR" or "USD" or "TRY")) throw IsKuraliException.Cakisma("Desteklenen para birimleri TRY, EUR ve USD'dir.");
             var componentTotal = ValidatePriceComponents(model.Bilesenler);
             if (model.FiyatlandirmaBirimi == FinansFiyatlandirmaBirimi.ManuelToplam && model.ManuelNetTutar is not > 0 && componentTotal is null)
-                throw new InvalidOperationException("Manuel toplam yönteminde pozitif net tutar zorunludur.");
+                throw IsKuraliException.Cakisma("Manuel toplam yönteminde pozitif net tutar zorunludur.");
             if (model.FiyatlandirmaBirimi != FinansFiyatlandirmaBirimi.ManuelToplam && (model.ManuelNetTutar.HasValue || componentTotal.HasValue))
-                throw new InvalidOperationException("Manuel toplam veya bileşenler için ManuelToplam yöntemini seçin.");
+                throw IsKuraliException.Cakisma("Manuel toplam veya bileşenler için ManuelToplam yöntemini seçin.");
             if (componentTotal.HasValue && model.ManuelNetTutar.HasValue && model.ManuelNetTutar.Value != componentTotal)
-                throw new InvalidOperationException("Manuel net tutar bileşen toplamına eşit olmalıdır.");
+                throw IsKuraliException.Cakisma("Manuel net tutar bileşen toplamına eşit olmalıdır.");
             await ValidateTemplateValuesAsync(model, cancellationToken);
             var before = CaptureAuditState(work);
             work.FiyatlandirmaBirimiSnapshot = model.FiyatlandirmaBirimi;
@@ -64,14 +65,14 @@ public sealed partial class FinansService
             work.BirimFiyatSnapshot = model.BirimFiyat;
             work.ManuelNetTutar = componentTotal ?? model.ManuelNetTutar;
             if (work.ManuelNetTutar.HasValue && work.ManuelNetTutar != FinansTutarKurallari.Para(work.ManuelNetTutar.Value))
-                throw new InvalidOperationException("Net tutar en fazla iki ondalıklı olmalıdır.");
+                throw IsKuraliException.Cakisma("Net tutar en fazla iki ondalıklı olmalıdır.");
             work.ParaBirimiSnapshot = currency;
             work.KdvOraniSnapshot = model.KdvOrani;
             work.FinansMiktariManuel = true;
             work.SablonSurumId = model.SablonSurumId;
             work.AlanDegerleriJson = model.AlanDegerleri is null ? null : JsonSerializer.Serialize(model.AlanDegerleri);
             work.FiyatBilesenleriJson = model.Bilesenler is null ? null : JsonSerializer.Serialize(model.Bilesenler);
-            if (FinansTutarKurallari.IsNet(work) <= 0) throw new InvalidOperationException("İş net bedeli sıfırdan büyük olmalıdır.");
+            if (FinansTutarKurallari.IsNet(work) <= 0) throw IsKuraliException.Cakisma("İş net bedeli sıfırdan büyük olmalıdır.");
             work.Durum = DetermineWorkStatus(work);
             AddAuditChanges(nameof(FinansIsKaydi), work, before);
             AddAudit(nameof(FinansIsKaydi), id, "Fiyatlandırma", "Gerekçe", null, null, model.Aciklama);
@@ -82,9 +83,9 @@ public sealed partial class FinansService
     internal static decimal? ValidatePriceComponents(IReadOnlyList<FinansFiyatBileseniModel>? components)
     {
         if (components is null || components.Count == 0) return null;
-        if (components.Count > 100) throw new InvalidOperationException("En fazla 100 fiyat bileşeni tanımlanabilir.");
+        if (components.Count > 100) throw IsKuraliException.Cakisma("En fazla 100 fiyat bileşeni tanımlanabilir.");
         if (components.Any(x => x is null || string.IsNullOrWhiteSpace(x.Ad) || x.Ad.Length > 150 || !Enum.IsDefined(x.Yontem) || x.Miktar <= 0 || x.BirimFiyat < 0))
-            throw new InvalidOperationException("Bileşenin adı, yöntemi, pozitif miktarı ve geçerli fiyatı zorunludur.");
+            throw IsKuraliException.Cakisma("Bileşenin adı, yöntemi, pozitif miktarı ve geçerli fiyatı zorunludur.");
         return components.Sum(x => FinansTutarKurallari.Para((x.Yontem is FinansFiyatlandirmaBirimi.SabitTutar or FinansFiyatlandirmaBirimi.ManuelToplam ? 1 : x.Miktar) * x.BirimFiyat));
     }
 
@@ -92,22 +93,22 @@ public sealed partial class FinansService
     {
         if (!model.SablonSurumId.HasValue)
         {
-            if (model.AlanDegerleri?.Count > 0) throw new InvalidOperationException("Dinamik alanlar için şablon sürümü seçilmelidir.");
+            if (model.AlanDegerleri?.Count > 0) throw IsKuraliException.Cakisma("Dinamik alanlar için şablon sürümü seçilmelidir.");
             return;
         }
         var version = await _context.Set<FinansIsSablonSurumu>().AsNoTracking().Include(x => x.Sablon)
             .FirstOrDefaultAsync(x => x.Id == model.SablonSurumId, cancellationToken)
-            ?? throw new InvalidOperationException("Şablon sürümü bulunamadı.");
-        if (!version.Sablon.Aktif) throw new InvalidOperationException("Pasif şablonla yeni fiyatlandırma yapılamaz.");
+            ?? throw IsKuraliException.Cakisma("Şablon sürümü bulunamadı.");
+        if (!version.Sablon.Aktif) throw IsKuraliException.Cakisma("Pasif şablonla yeni fiyatlandırma yapılamaz.");
         var fields = JsonSerializer.Deserialize<FinansSablonAlanModel[]>(version.AlanlarJson)!;
         var values = model.AlanDegerleri ?? new Dictionary<string, string?>();
-        if (values.Keys.Any(key => fields.All(x => x.Kod != key))) throw new InvalidOperationException("Şablonda tanımlanmamış alan gönderildi.");
+        if (values.Keys.Any(key => fields.All(x => x.Kod != key))) throw IsKuraliException.Cakisma("Şablonda tanımlanmamış alan gönderildi.");
         foreach (var field in fields)
         {
             values.TryGetValue(field.Kod, out var value);
             if (string.IsNullOrWhiteSpace(value))
             {
-                if (field.Zorunlu) throw new InvalidOperationException($"{field.Ad} alanı zorunludur.");
+                if (field.Zorunlu) throw IsKuraliException.Cakisma($"{field.Ad} alanı zorunludur.");
                 continue;
             }
             var valid = value.Length <= 2000 && (field.VeriTuru switch
@@ -118,7 +119,7 @@ public sealed partial class FinansService
                 "mantiksal" => bool.TryParse(value, out _),
                 _ => false
             });
-            if (!valid) throw new InvalidOperationException($"{field.Ad} alanının veri türü geçersiz.");
+            if (!valid) throw IsKuraliException.Cakisma($"{field.Ad} alanının veri türü geçersiz.");
         }
     }
 
@@ -139,11 +140,11 @@ public sealed partial class FinansService
         => ExecuteAtomicAsync(async () =>
         {
             if (string.IsNullOrWhiteSpace(model.Kod) || model.Kod.Length > 80 || string.IsNullOrWhiteSpace(model.Ad) || model.Ad.Length > 200 || model.Alanlar is null || model.Alanlar.Count > 100)
-                throw new InvalidOperationException("Şablon kodu, adı ve en fazla 100 alan gereklidir.");
+                throw IsKuraliException.Cakisma("Şablon kodu, adı ve en fazla 100 alan gereklidir.");
             if (model.Alanlar.Any(x => x is null || string.IsNullOrWhiteSpace(x.Kod) || !Regex.IsMatch(x.Kod, "^[A-Za-z][A-Za-z0-9_]{0,49}$") || string.IsNullOrWhiteSpace(x.Ad) || x.Ad.Length > 150 || x.VeriTuru is not ("metin" or "sayi" or "tarih" or "mantiksal")) || model.Alanlar.GroupBy(x => x.Kod).Any(x => x.Count() > 1))
-                throw new InvalidOperationException("Alan kodları tekil, adları dolu ve veri türleri metin/sayi/tarih/mantiksal olmalıdır.");
+                throw IsKuraliException.Cakisma("Alan kodları tekil, adları dolu ve veri türleri metin/sayi/tarih/mantiksal olmalıdır.");
             var entity = id.HasValue ? await _context.Set<FinansIsSablonu>().Include(x => x.Surumler).FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-                ?? throw new InvalidOperationException("Şablon bulunamadı.") : new FinansIsSablonu();
+                ?? throw IsKuraliException.Cakisma("Şablon bulunamadı.") : new FinansIsSablonu();
             entity.Kod = model.Kod.Trim().ToUpperInvariant();
             entity.Ad = model.Ad.Trim();
             entity.Aktif = model.Aktif;
@@ -161,7 +162,7 @@ public sealed partial class FinansService
         "Siparis" => await _context.Set<FinansSiparis>().FirstOrDefaultAsync(x => x.Id == id, cancellationToken),
         "Fatura" => await _context.Set<FinansFatura>().FirstOrDefaultAsync(x => x.Id == id, cancellationToken),
         "Gider" => await _context.Set<FinansGider>().FirstOrDefaultAsync(x => x.Id == id, cancellationToken),
-        _ => throw new InvalidOperationException("Varlık türü IsKaydi, Siparis, Fatura veya Gider olmalıdır.")
+        _ => throw IsKuraliException.Cakisma("Varlık türü IsKaydi, Siparis, Fatura veya Gider olmalıdır.")
     };
 
     public async Task<FinansKaliciSilOnizlemeModel?> KaliciSilOnizlemeAsync(string varlikTuru, int id, CancellationToken cancellationToken)
@@ -200,11 +201,11 @@ public sealed partial class FinansService
         => ExecuteAtomicAsync(async () =>
         {
             Gerekce(model.Aciklama);
-            if (!model.IkinciOnay) throw new InvalidOperationException("Geri alınamaz kalıcı silme için ikinci onay zorunludur.");
+            if (!model.IkinciOnay) throw IsKuraliException.Cakisma("Geri alınamaz kalıcı silme için ikinci onay zorunludur.");
             var preview = await KaliciSilOnizlemeAsync(model.VarlikTuru, model.Id, cancellationToken);
             if (preview is null) return false;
-            if (preview.Surum != model.Surum) throw new InvalidOperationException("Kayıt veya ilişkileri değişti; bağımlılık önizlemesini yeniden açın.");
-            if (!preview.Silinebilir) throw new InvalidOperationException(string.Join(" ", preview.Engeller));
+            if (preview.Surum != model.Surum) throw IsKuraliException.Cakisma("Kayıt veya ilişkileri değişti; bağımlılık önizlemesini yeniden açın.");
+            if (!preview.Silinebilir) throw IsKuraliException.Cakisma(string.Join(" ", preview.Engeller));
             var entity = (await TargetAsync(model.VarlikTuru, model.Id, cancellationToken))!;
             if (entity is FinansIsKaydi work && work.KaynakKayitId is not null)
                 _context.Add(new FinansKaynakBastirma { KaynakTuru = work.KaynakTuru, KaynakKayitId = work.KaynakKayitId, KaynakBileseni = work.KaynakBileseni, Aciklama = model.Aciklama.Trim() });
@@ -216,7 +217,7 @@ public sealed partial class FinansService
 
     public async Task<IReadOnlyList<FinansBelgeModel>> BelgelerAsync(string hedefTuru, int hedefId, CancellationToken cancellationToken)
     {
-        if (await TargetAsync(hedefTuru, hedefId, cancellationToken) is null) throw new InvalidOperationException("Belge hedefi bulunamadı.");
+        if (await TargetAsync(hedefTuru, hedefId, cancellationToken) is null) throw IsKuraliException.Cakisma("Belge hedefi bulunamadı.");
         return await _context.Set<FinansBelge>().AsNoTracking().Where(x => x.HedefTuru == hedefTuru && x.HedefId == hedefId).OrderByDescending(x => x.Surum)
             .Select(x => new FinansBelgeModel(x.Id, x.HedefTuru, x.HedefId, x.Surum, x.OrijinalAd, x.Boyut, x.IcerikTuru, x.Hash, x.Yukleyen, x.CreatedDate)).ToListAsync(cancellationToken);
     }
@@ -225,15 +226,15 @@ public sealed partial class FinansService
     {
         if (bytes.Length is < 8 or > 10 * 1024 * 1024 || !name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) ||
             !bytes.AsSpan(0, 5).SequenceEqual("%PDF-"u8) || !Encoding.ASCII.GetString(bytes.AsSpan(Math.Max(0, bytes.Length - 1024))).Contains("%%EOF", StringComparison.Ordinal))
-            throw new InvalidOperationException("En fazla 10 MB boyutunda geçerli bir PDF yükleyin.");
+            throw IsKuraliException.Cakisma("En fazla 10 MB boyutunda geçerli bir PDF yükleyin.");
     }
 
     public Task<FinansBelgeModel> BelgeYukleAsync(FinansBelgeYukleModel model, CancellationToken cancellationToken)
         => ExecuteAtomicAsync(async () =>
         {
             ValidatePdf(model.Icerik, model.OrijinalAd);
-            if (model.HedefTuru == "IsKaydi") throw new InvalidOperationException("PDF yalnız PO, fatura veya gider belgesine bağlanabilir.");
-            if (await TargetAsync(model.HedefTuru, model.HedefId, cancellationToken) is null) throw new InvalidOperationException("Belge hedefi bulunamadı.");
+            if (model.HedefTuru == "IsKaydi") throw IsKuraliException.Cakisma("PDF yalnız PO, fatura veya gider belgesine bağlanabilir.");
+            if (await TargetAsync(model.HedefTuru, model.HedefId, cancellationToken) is null) throw IsKuraliException.Cakisma("Belge hedefi bulunamadı.");
             var name = Path.GetFileName(model.OrijinalAd.Replace('\\', '/'));
             name = new string(name.Where(c => !char.IsControl(c)).ToArray());
             if (name.Length > 250) name = name[..246] + ".pdf";
@@ -256,7 +257,7 @@ public sealed partial class FinansService
     {
         var entity = await _context.Set<FinansBelge>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (entity is null) return null;
-        if (await TargetAsync(entity.HedefTuru, entity.HedefId, cancellationToken) is null) throw new InvalidOperationException("Belge hedefi bulunamadı.");
+        if (await TargetAsync(entity.HedefTuru, entity.HedefId, cancellationToken) is null) throw IsKuraliException.Cakisma("Belge hedefi bulunamadı.");
         return new(entity.Icerik, entity.IcerikTuru, entity.OrijinalAd);
     }
 }

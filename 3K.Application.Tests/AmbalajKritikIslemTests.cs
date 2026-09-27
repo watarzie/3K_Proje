@@ -1,10 +1,14 @@
+using _3K.Application.Behaviors;
+using _3K.Application.Common;
 using _3K.Application.Features.AmbalajIslemleri;
 using _3K.Application.Features.AmbalajIslemleri.Commands;
 using _3K.Core.Constants;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
+using _3K.Core.Exceptions;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace _3K.Application.Tests;
 
@@ -217,6 +221,23 @@ public sealed class AmbalajKritikIslemTests
         TalimatVeren = "Planlama", Gerekce = gerekce
     };
 
+    [Fact]
+    public async Task Finans_reddi_500_degil_409_ve_finans_mesajiyla_doner()
+    {
+        var f = new Fixture(OrtakRoller.TumIzinler());
+        f.Finans.Red = "PA-10/1 üretim miktarı aktif sipariş miktarının altına düşürülemez.";
+        var kalem = f.ManuelKalem(1);
+        var komut = new AmbalajPlanKalemSilCommand { KalemId = kalem.Id, Gerekce = "Hatalı giriş" };
+        var handler = new AmbalajPlanKalemSilCommandHandler(f.Uow, f.User, f.Finans, f.Denetim);
+        var pipeline = new UnhandledExceptionBehavior<AmbalajPlanKalemSilCommand, Result>(
+            NullLogger<UnhandledExceptionBehavior<AmbalajPlanKalemSilCommand, Result>>.Instance);
+
+        var sonuc = await pipeline.Handle(komut, () => handler.Handle(komut, default), CancellationToken.None);
+
+        Assert.Equal(409, sonuc.StatusCode);
+        Assert.Equal(f.Finans.Red, sonuc.Error!.Message);
+    }
+
     private sealed class Fixture
     {
         public Fixture(OrtakRoller roller, OrtakMemoryUow? uow = null)
@@ -263,8 +284,13 @@ public sealed class AmbalajKritikIslemTests
 
     private sealed class FinansAktarimi : IFinansUretimAktarimService
     {
+        /// <summary>Doluysa Finans aktarımı bu iş kuralı mesajıyla reddeder.</summary>
+        public string? Red { get; set; }
+
         public Task<FinansSenkronizasyonSonucModel> UretimKayitlariniAktarAsync(
             IReadOnlyList<FinansUretimAktarimModel> modeller, CancellationToken cancellationToken) =>
-            Task.FromResult(new FinansSenkronizasyonSonucModel(0, modeller.Count, 0));
+            Red is null
+                ? Task.FromResult(new FinansSenkronizasyonSonucModel(0, modeller.Count, 0))
+                : throw IsKuraliException.Cakisma(Red);
     }
 }

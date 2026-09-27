@@ -5,6 +5,7 @@ using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Helpers;
 using _3K.Core.Models;
+using _3K.Core.Exceptions;
 
 namespace _3K.Infrastructure.Services
 {
@@ -57,11 +58,11 @@ namespace _3K.Infrastructure.Services
         {
             ArgumentNullException.ThrowIfNull(ids);
             if (ids.Any(x => x <= 0))
-                throw new InvalidOperationException("İş kaydı seçiminde yalnız pozitif kimlikler kullanılabilir.");
+                throw IsKuraliException.Cakisma("İş kaydı seçiminde yalnız pozitif kimlikler kullanılabilir.");
 
             var normalized = ids.Distinct().ToArray();
             if (normalized.Length > 2000)
-                throw new InvalidOperationException("Tek işlemde en fazla 2000 iş kaydı seçilebilir.");
+                throw IsKuraliException.Cakisma("Tek işlemde en fazla 2000 iş kaydı seçilebilir.");
 
             return normalized;
         }
@@ -182,7 +183,7 @@ namespace _3K.Infrastructure.Services
             if (entity is null) return false;
             if (entity.IptalEdildi) return true;
             if (entity.SiparisKalemleri.Any(x => !x.FinansSiparis.IptalEdildi))
-                throw new InvalidOperationException("Aktif siparişi bulunan iş iptal edilemez. Önce bağlı siparişleri iptal edin.");
+                throw IsKuraliException.Cakisma("Aktif siparişi bulunan iş iptal edilemez. Önce bağlı siparişleri iptal edin.");
             entity.IptalEdildi = true;
             entity.IptalTarihi = TurkeyTime.Now;
             entity.IptalAciklamasi = aciklama.Trim();
@@ -198,7 +199,7 @@ namespace _3K.Infrastructure.Services
             if (entity is null) return false;
             if (!entity.IptalEdildi) return true;
             if (!string.Equals(entity.KaynakTuru, "Manuel", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Üretim kaynaklı kayıtlar Finans ekranından aktifleştirilemez; işlemi Üretim modülünden yönetin.");
+                throw IsKuraliException.Cakisma("Üretim kaynaklı kayıtlar Finans ekranından aktifleştirilemez; işlemi Üretim modülünden yönetin.");
             entity.IptalEdildi = false;
             entity.IptalTarihi = null;
             entity.IptalAciklamasi = null;
@@ -222,7 +223,7 @@ namespace _3K.Infrastructure.Services
             var duplicate = modeller.GroupBy(x => new { Tur = x.KaynakTuru.Trim().ToUpperInvariant(), Id = x.KaynakKayitId.Trim(), x.KaynakBileseni })
                 .FirstOrDefault(x => x.Count() > 1);
             if (duplicate is not null)
-                throw new InvalidOperationException("Aynı aktarım paketinde yinelenen üretim kaynak anahtarı bulunuyor.");
+                throw IsKuraliException.Cakisma("Aynı aktarım paketinde yinelenen üretim kaynak anahtarı bulunuyor.");
 
             IDbContextTransaction? transaction = null;
             if (_context.Database.CurrentTransaction is null)
@@ -238,7 +239,7 @@ namespace _3K.Infrastructure.Services
                     var sourceId = model.KaynakKayitId.Trim();
                     var component = model.KaynakBileseni.Trim().ToUpperInvariant();
                     if (sourceType.Length == 0 || sourceId.Length == 0)
-                        throw new InvalidOperationException("Üretim aktarımında kaynak türü ve kaynak kayıt kimliği zorunludur.");
+                        throw IsKuraliException.Cakisma("Üretim aktarımında kaynak türü ve kaynak kayıt kimliği zorunludur.");
 
                     var entity = await IsKaydiDetayQuery(true).FirstOrDefaultAsync(
                         x => x.KaynakTuru == sourceType && x.KaynakKayitId == sourceId && x.KaynakBileseni == component,
@@ -292,20 +293,20 @@ namespace _3K.Infrastructure.Services
                                 orderedAdet,
                                 orderedM3,
                                 activeOrderLines.Count))
-                            throw new InvalidOperationException($"{sourceType}/{sourceId} üretim miktarı aktif sipariş miktarının altına düşürülemez.");
+                            throw IsKuraliException.Cakisma($"{sourceType}/{sourceId} üretim miktarı aktif sipariş miktarının altına düşürülemez.");
                         // İptal edilmiş olsa bile oluşturulmuş bir PO, fiyat snapshot'ının
                         // tarihsel olarak kilitlendiği anlamına gelir. Yalnız aktif PO'ya
                         // bakmak, iptalden sonraki senkronizasyonda eski fiyatı değiştirebilirdi.
                         var hasFinancialHistory = entity.SiparisKalemleri.Count > 0;
                         var priceMatchChanged = ProductionPriceMatchChanged(entity, model);
                         if (model.KaynakAktif && hasFinancialHistory && priceMatchChanged)
-                            throw new InvalidOperationException(
+                            throw IsKuraliException.Cakisma(
                                 $"{sourceType}/{sourceId} kaydının tür/eşleşme veya finans dönemi değişikliği mevcut PO fiyat snapshot'ını etkiliyor. " +
                                 "Önce finansal belgeleri uzlaştırın ya da mevcut kaydı koruyun.");
 
                         ApplyProductionValues(entity, model);
                         if (model.KaynakAktif && FinansTutarKurallari.SiparisNet(entity) > FinansTutarKurallari.IsNet(entity))
-                            throw new InvalidOperationException("Kaynak güncellemesi aktif PO net toplamını iş bedelinin üzerine çıkaramaz.");
+                            throw IsKuraliException.Cakisma("Kaynak güncellemesi aktif PO net toplamını iş bedelinin üzerine çıkaramaz.");
                         if (!hasFinancialHistory && !entity.FinansMiktariManuel && priceMatchChanged && entity.BirimFiyatSnapshot <= 0)
                         {
                             ResetAutomaticPriceSnapshot(entity);

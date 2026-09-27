@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Models;
+using _3K.Core.Exceptions;
 
 namespace _3K.Infrastructure.Services
 {
@@ -14,7 +15,7 @@ namespace _3K.Infrastructure.Services
         {
             var (baslangic, bitis) = AylikDonem(yil, ay);
             if (await AylikKayitlariFiltrele(_context.Set<FinansIsKaydi>(), baslangic, bitis).CountAsync(cancellationToken) > RaporKayitSiniri)
-                throw new InvalidOperationException("Aylık rapor 20.000 işi aşamaz; filtreli rapor kullanın.");
+                throw IsKuraliException.Cakisma("Aylık rapor 20.000 işi aşamaz; filtreli rapor kullanın.");
             var kayitlar = await AylikKayitlariFiltrele(IsKaydiDetayQuery(), baslangic, bitis)
                 .OrderBy(x => x.UretimTarihi)
                 .ThenBy(x => x.Id)
@@ -168,7 +169,7 @@ namespace _3K.Infrastructure.Services
         private static (DateTime Start, DateTime End) AylikDonem(int yil, int ay)
         {
             if (!FinansTarihKurallari.GecerliDonem(yil, ay))
-                throw new InvalidOperationException("Geçerli bir yıl ve ay seçilmelidir.");
+                throw IsKuraliException.Cakisma("Geçerli bir yıl ve ay seçilmelidir.");
             var start = new DateTime(yil, ay, 1);
             return (start, start.AddMonths(1));
         }

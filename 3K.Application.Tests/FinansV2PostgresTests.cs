@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
+using _3K.Core.Exceptions;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
 using _3K.Infrastructure.Data;
@@ -29,7 +30,7 @@ public sealed class FinansV2PostgresTests
             Assert.True(po.Kalemler[0].TutarBazli);
             Assert.Equal(4000, (await service.IsKaydiGetirAsync(work.Id, Ct))!.KalanSiparisNetTutar);
             var beforeAudits = await db.Set<FinansDegisiklikGecmisi>().CountAsync();
-            await Assert.ThrowsAsync<InvalidOperationException>(() => service.FaturaOlusturAsync(Invoice("INV-BAD", po.Id, po.Kalemler[0].Id, 6001), Ct));
+            await Assert.ThrowsAsync<IsKuraliException>(() => service.FaturaOlusturAsync(Invoice("INV-BAD", po.Id, po.Kalemler[0].Id, 6001), Ct));
             db.ChangeTracker.Clear();
             Assert.Empty(await db.Set<FinansFatura>().ToArrayAsync());
             Assert.Equal(beforeAudits, await db.Set<FinansDegisiklikGecmisi>().CountAsync());
@@ -109,14 +110,14 @@ public sealed class FinansV2PostgresTests
             {
                 await using var concurrent = new AppDbContext(options);
                 try { await Service(concurrent).SiparisOlusturAsync(Po(number, id, 6000), Ct); return true; }
-                catch (InvalidOperationException) { return false; }
+                catch (IsKuraliException) { return false; }
             }
             var results = await Task.WhenAll(Attempt("RACE-A"), Attempt("RACE-B"));
             Assert.Single(results, x => x);
             await using var verify = new AppDbContext(options);
             Assert.Equal(6000m, await verify.Set<FinansSiparisKalemi>().SumAsync(x => x.NetTutarSnapshot));
             var service = Service(verify);
-            await Assert.ThrowsAsync<InvalidOperationException>(() => service.BelgeYukleAsync(new("Siparis", 99999, "test.pdf", Encoding.ASCII.GetBytes("%PDF-1.7\n%%EOF")), Ct));
+            await Assert.ThrowsAsync<IsKuraliException>(() => service.BelgeYukleAsync(new("Siparis", 99999, "test.pdf", Encoding.ASCII.GetBytes("%PDF-1.7\n%%EOF")), Ct));
             Assert.Empty(await verify.Set<FinansBelge>().ToArrayAsync());
         });
     }
@@ -140,9 +141,9 @@ public sealed class FinansV2PostgresTests
             var preview = (await service.KaliciSilOnizlemeAsync("IsKaydi", jobs[0].Id, Ct))!;
             Assert.True(preview.Silinebilir);
             await service.FinansTarihiDegistirAsync(jobs[0].Id, new(new(2026, 10, 4), "İkinci tarih düzenlemesi"), Ct);
-            await Assert.ThrowsAsync<InvalidOperationException>(() => service.KaliciSilAsync(new("IsKaydi", jobs[0].Id, preview.Surum, true, "Eski sürüm ile silme"), Ct));
+            await Assert.ThrowsAsync<IsKuraliException>(() => service.KaliciSilAsync(new("IsKaydi", jobs[0].Id, preview.Surum, true, "Eski sürüm ile silme"), Ct));
             preview = (await service.KaliciSilOnizlemeAsync("IsKaydi", jobs[0].Id, Ct))!;
-            await Assert.ThrowsAsync<InvalidOperationException>(() => service.KaliciSilAsync(new("IsKaydi", jobs[0].Id, preview.Surum, false, "Deneme silme gerekçesi"), Ct));
+            await Assert.ThrowsAsync<IsKuraliException>(() => service.KaliciSilAsync(new("IsKaydi", jobs[0].Id, preview.Surum, false, "Deneme silme gerekçesi"), Ct));
             await service.KaliciSilAsync(new("IsKaydi", jobs[0].Id, preview.Surum, true, "Deneme silme gerekçesi"), Ct);
             db.ChangeTracker.Clear();
             await service.UretimKayitlariniAktarAsync([source], Ct);
@@ -168,7 +169,7 @@ public sealed class FinansV2PostgresTests
             var price = new FinansFiyatlandirmaModel(FinansFiyatlandirmaBirimi.ManuelToplam, 1, 0, 0, "EUR", 20, "Bileşenli hesaplama", SablonSurumId: template.SurumId, AlanDegerleri: new Dictionary<string, string?> { ["uzunluk"] = "2.5" },
                 Bilesenler: [new("Ahşap hacmi", FinansFiyatlandirmaBirimi.Metrekup, 1.2m, 500), new("Sarf hacmi", FinansFiyatlandirmaBirimi.Metrekup, .5m, 800), new("Sabit", FinansFiyatlandirmaBirimi.SabitTutar, 1, 200)]);
             var beforeAudit = await db.Set<FinansDegisiklikGecmisi>().CountAsync();
-            var missingField = await Assert.ThrowsAsync<InvalidOperationException>(() => service.FiyatlandirAsync(work.Id,
+            var missingField = await Assert.ThrowsAsync<IsKuraliException>(() => service.FiyatlandirAsync(work.Id,
                 price with { AlanDegerleri = new Dictionary<string, string?>() }, Ct));
             Assert.Contains("zorunludur", missingField.Message);
             db.ChangeTracker.Clear();
@@ -221,7 +222,7 @@ public sealed class FinansV2PostgresTests
             var b = Work("Proje B", 1500); b.ProjeNo = "B";
             var usd = Work("USD", 2000); usd.ParaBirimiSnapshot = "USD";
             db.AddRange(a, b, usd); await db.SaveChangesAsync();
-            await Assert.ThrowsAsync<InvalidOperationException>(() => service.SiparisOlusturAsync(new("MIXED", Date, "QA",
+            await Assert.ThrowsAsync<IsKuraliException>(() => service.SiparisOlusturAsync(new("MIXED", Date, "QA",
                 [new(a.Id, 0, 0, NetTutar: 500), new(usd.Id, 0, 0, NetTutar: 500)]), Ct));
             db.ChangeTracker.Clear(); Assert.Empty(await db.Set<FinansSiparis>().ToArrayAsync());
             var po = await service.SiparisOlusturAsync(new("MULTI", Date, "QA", [new(a.Id, 0, 0, NetTutar: 1000), new(b.Id, 0, 0, NetTutar: 500)], "EUR", 1500), Ct);
@@ -238,7 +239,7 @@ public sealed class FinansV2PostgresTests
             var deletePreview = (await service.KaliciSilOnizlemeAsync("IsKaydi", a.Id, Ct))!;
             Assert.False(deletePreview.Silinebilir);
             Assert.NotEmpty(deletePreview.Bagimliliklar);
-            var blockedDelete = await Assert.ThrowsAsync<InvalidOperationException>(() => service.KaliciSilAsync(
+            var blockedDelete = await Assert.ThrowsAsync<IsKuraliException>(() => service.KaliciSilAsync(
                 new("IsKaydi", a.Id, deletePreview.Surum, true, "Bağlı iş için zorlanmış silme denemesi"), Ct));
             Assert.Contains("Bağlı kayıtlar bulundu", blockedDelete.Message);
             db.ChangeTracker.Clear();
@@ -273,12 +274,12 @@ public sealed class FinansV2PostgresTests
             var po = await service.SiparisOlusturAsync(Po("REV-PO", work.Id, 6000), Ct);
             var invoice = await service.FaturaOlusturAsync(Invoice("REV-INV", po.Id, po.Kalemler[0].Id, 3000), Ct);
             Assert.Single(invoice.Kalemler);
-            await Assert.ThrowsAsync<InvalidOperationException>(() => service.SiparisGuncelleAsync(po.Id,
+            await Assert.ThrowsAsync<IsKuraliException>(() => service.SiparisGuncelleAsync(po.Id,
                 new(po.PoNumarasi, Date, "QA", [new(work.Id, 0, 0, NetTutar: 2999)], "Geçersiz azaltma"), Ct));
             db.ChangeTracker.Clear();
             Assert.Equal(6000, (await service.SiparisGetirAsync(po.Id, Ct))!.Tutarlar[0].NetTutar);
             await service.SiparisGuncelleAsync(po.Id, new(po.PoNumarasi, Date, "QA", [new(work.Id, 0, 0, NetTutar: 7000)], "PO tutar düzeltmesi"), Ct);
-            await Assert.ThrowsAsync<InvalidOperationException>(() => service.FaturaGuncelleAsync(invoice.Id,
+            await Assert.ThrowsAsync<IsKuraliException>(() => service.FaturaGuncelleAsync(invoice.Id,
                 new(invoice.FaturaNumarasi, Date, "QA", "EUR", 7001, 1400.2m, 8401.2m, Kalemler: [new(po.Kalemler[0].Id, 0, 0, 7001)], Gerekce: "Geçersiz artış"), Ct));
             db.ChangeTracker.Clear();
             Assert.Equal(3000, (await service.FaturaGetirAsync(invoice.Id, Ct))!.Kalemler[0].NetTutar);
@@ -379,13 +380,13 @@ public sealed class FinansV2PostgresTests
             var other = Work("Diğer proje", 2000); other.ProjeNo = "K22-B";
             db.AddRange(main, sarf, other); await db.SaveChangesAsync();
 
-            var missing = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            var missing = await Assert.ThrowsAsync<IsKuraliException>(() =>
                 service.FaturaOlusturAsync(Invoice("NO-PO", 999999, 999999, 1), Ct));
             Assert.Contains("Sipariş bulunamadı", missing.Message);
             Assert.Empty(await db.Set<FinansFatura>().ToArrayAsync());
             var cancelled = await service.SiparisOlusturAsync(Po("CANCEL-PO", sarf.Id, 500), Ct);
             await service.SiparisIptalAsync(cancelled.Id, "İptal edilmiş PO kontrolü", Ct);
-            var inactive = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            var inactive = await Assert.ThrowsAsync<IsKuraliException>(() =>
                 service.FaturaOlusturAsync(Invoice("CANCEL-INV", cancelled.Id, cancelled.Kalemler[0].Id, 500), Ct));
             Assert.Contains("İptal edilmiş sipariş", inactive.Message);
             db.ChangeTracker.Clear();
@@ -453,7 +454,7 @@ public sealed class FinansV2PostgresTests
                 if (Interlocked.Increment(ref ready) == 2) gate.SetResult();
                 await gate.Task;
                 try { return (await Service(db).DuzenliIsDonemiOlusturAsync(new(2026, 5, 31), Ct)).Olusturulan; }
-                catch (InvalidOperationException exception)
+                catch (IsKuraliException exception)
                 {
                     // Serializable/unique yarışındaki kaybeden worker sonraki turda yakalar.
                     var cause = exception.InnerException;

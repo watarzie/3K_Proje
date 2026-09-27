@@ -4,6 +4,7 @@ using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using _3K.Core.Helpers;
 using _3K.Core.Models;
+using _3K.Core.Exceptions;
 
 namespace _3K.Infrastructure.Services;
 
@@ -22,7 +23,7 @@ public sealed partial class FinansRaporService
             while (true)
             {
                 var page = await _finansService.YaslandirmaAsync(filtre.Bitis ?? TurkeyTime.Now.Date, 0, filtre with { PageNumber = pageNumber, PageSize = 250 }, cancellationToken);
-                if (page.TotalCount > FinansService.RaporKayitSiniri) throw new InvalidOperationException("Yaşlandırma raporu 20.000 satırı aşamaz; filtreyi daraltın.");
+                if (page.TotalCount > FinansService.RaporKayitSiniri) throw IsKuraliException.Cakisma("Yaşlandırma raporu 20.000 satırı aşamaz; filtreyi daraltın.");
                 foreach (var x in page.Items.Where(x => x.Asama == (tur == "siparis-bekleyen" ? "Sipariş" : "Fatura")))
                     rows.Add([x.ProjeNo, x.IsAdi, x.PoNumarasi, x.Baslangic, x.Gun, x.Grup, x.ParaBirimi, x.KalanNetTutar]);
                 if (!page.HasNextPage) break;
@@ -64,7 +65,7 @@ public sealed partial class FinansRaporService
                     rows.Add([key.ProjeNo, key.ParaBirimi, work, works.Sum(x => x.FaturalananNetTutar), cost, work - cost]);
                 }
             }
-            else throw new InvalidOperationException("Rapor türü genel, gider-kategori, proje-maliyet, siparis-bekleyen veya fatura-bekleyen olmalıdır.");
+            else throw IsKuraliException.Cakisma("Rapor türü genel, gider-kategori, proje-maliyet, siparis-bekleyen veya fatura-bekleyen olmalıdır.");
         }
         if (excel)
         {

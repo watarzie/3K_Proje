@@ -1,5 +1,6 @@
 using _3K.Core.Entities;
 using _3K.Core.Enums;
+using _3K.Core.Exceptions;
 
 namespace _3K.Infrastructure.Services;
 
@@ -19,9 +20,9 @@ internal static class FinansTutarKurallari
     internal static void Kapasite(decimal requested, decimal used, decimal capacity, string operation)
     {
         if (requested <= 0 || requested != Para(requested))
-            throw new InvalidOperationException($"{operation} net tutarı sıfırdan büyük ve en fazla iki ondalıklı olmalıdır.");
+            throw IsKuraliException.Cakisma($"{operation} net tutarı sıfırdan büyük ve en fazla iki ondalıklı olmalıdır.");
         if (used + requested > capacity)
-            throw new InvalidOperationException($"{operation} net tutarı kalan kapasiteyi aşamaz. Kalan: {Math.Max(0, capacity - used):0.00}.");
+            throw IsKuraliException.Cakisma($"{operation} net tutarı kalan kapasiteyi aşamaz. Kalan: {Math.Max(0, capacity - used):0.00}.");
     }
     internal static FinansIsDurumu Durum(FinansIsKaydi work)
     {
