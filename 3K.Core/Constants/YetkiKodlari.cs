@@ -130,13 +130,9 @@ public static class YetkiKodlari
         public const string Modul = "finans-yonetimi";
         public const string GelirGoruntule = "finans-gelir-goruntule";
         public const string GiderGoruntule = "finans-gider-goruntule";
-        public const string GiderYonet = "finans-gider-yonet";
         public const string SiparisOperasyonGoruntule = "finans-siparis-goruntule";
-        public const string FaturaYonet = "finans-fatura-yonet";
-        public const string TarifeYonet = "finans-tarife-yonet";
         public const string RaporGoruntule = "finans-rapor-goruntule";
         public const string ManuelIsEkle = "finans-is-ekle";
-        public const string ManuelIsDuzenle = "finans-is-duzenle";
         public const string IsIptal = "finans-is-iptal";
         public const string TarihDegistir = "finans-tarih-degistir";
         public const string PoGir = "finans-po-gir";
