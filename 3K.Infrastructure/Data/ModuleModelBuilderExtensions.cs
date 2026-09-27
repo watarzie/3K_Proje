@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
+using _3K.Core.Models;
 
 namespace _3K.Infrastructure.Data;
 
@@ -66,7 +67,7 @@ internal static class ModuleModelBuilderExtensions
             entity.Property(x => x.HesaplananBirimM3).HasPrecision(18, 6);
             entity.Property(x => x.HesaplananToplamM3).HasPrecision(18, 6);
             entity.Property(x => x.M3Override).HasPrecision(18, 6);
-            entity.Property(x => x.SarfOrani).HasPrecision(7, 6).HasDefaultValue(0.11m);
+            entity.Property(x => x.SarfOrani).HasPrecision(7, 6).HasDefaultValue(AmbalajHesaplayici.VarsayilanSarfOrani);
             entity.Property(x => x.SarfM3).HasPrecision(18, 6);
             entity.Property(x => x.ToplamM3).HasPrecision(18, 6);
             entity.Property(x => x.AmbalajaDahil).HasDefaultValue(true);

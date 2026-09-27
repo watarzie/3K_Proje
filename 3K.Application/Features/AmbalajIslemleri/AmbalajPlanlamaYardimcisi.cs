@@ -296,13 +296,14 @@ internal static partial class AmbalajPlanlamaYardimcisi
         decimal? en,
         decimal? yukseklik)
     {
-        if (boy is not > 92m || en is not > 92m || yukseklik is not > 255m)
+        if (!AmbalajHesaplayici.KaynakDisOlculeriGecerli(boy, en, yukseklik))
             return 0;
         var profil = AmbalajAyakProfiliBelirleyici.Belirle(ad, adIngilizce);
+        var ic = AmbalajHesaplayici.KaynakIcOlculeri(boy!.Value, en!.Value, yukseklik!.Value);
         var birimHacim = AmbalajHesaplayici.M3OzetiHesapla(
-            boy.Value - 92m,
-            en.Value - 92m,
-            yukseklik.Value - 255m,
+            ic.Boy,
+            ic.En,
+            ic.Yukseklik,
             1,
             ayakProfili: profil,
             ayakHesapBoyu: boy.Value).HesaplananToplamM3;

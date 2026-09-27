@@ -58,7 +58,7 @@ namespace _3K.Core.Entities
         public decimal? M3Override { get; set; }
         public string? M3OverrideNedeni { get; set; }
         public string M3HesaplamaVersiyonu { get; set; } = AmbalajHesaplayici.FormulVersiyonu;
-        public decimal SarfOrani { get; set; } = 0.11m;
+        public decimal SarfOrani { get; set; } = AmbalajHesaplayici.VarsayilanSarfOrani;
         public decimal SarfM3 { get; set; }
         public decimal ToplamM3 { get; set; }
 
