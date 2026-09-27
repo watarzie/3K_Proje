@@ -345,22 +345,10 @@ namespace _3K.Infrastructure.Services
 
         private static void ApplyExpense(FinansGider entity, FinansGiderKaydetModel model)
         {
-            var baseAmount = decimal.Round(model.Miktar * model.BirimFiyat, 2, MidpointRounding.AwayFromZero);
-            decimal net;
-            decimal vat;
-            decimal gross;
-            if (model.KdvDahil)
-            {
-                gross = baseAmount;
-                net = model.KdvOrani <= 0 ? gross : decimal.Round(gross / (1 + model.KdvOrani / 100m), 2, MidpointRounding.AwayFromZero);
-                vat = gross - net;
-            }
-            else
-            {
-                net = baseAmount;
-                vat = decimal.Round(net * model.KdvOrani / 100m, 2, MidpointRounding.AwayFromZero);
-                gross = net + vat;
-            }
+            var baseAmount = FinansTutarKurallari.Para(model.Miktar * model.BirimFiyat);
+            var amount = model.KdvDahil
+                ? FinansTutarKurallari.KdvDahilHesapla(baseAmount, model.KdvOrani)
+                : FinansTutarKurallari.Hesapla(model.Miktar, model.BirimFiyat, model.KdvOrani);
             entity.Tarih = model.Tarih;
             entity.FinansTarihi = (model.FinansTarihi ?? (FirstDayOfMonth(model.Tarih) == FirstDayOfMonth(model.FinansDonemi) ? model.Tarih : model.FinansDonemi)).Date;
             entity.FinansDonemi = FirstDayOfMonth(entity.FinansTarihi);
@@ -376,9 +364,9 @@ namespace _3K.Infrastructure.Services
             entity.ParaBirimi = NormalizeCurrency(model.ParaBirimi);
             entity.KdvDahil = model.KdvDahil;
             entity.KdvOrani = model.KdvOrani;
-            entity.Matrah = net;
-            entity.KdvTutari = vat;
-            entity.ToplamTutar = gross;
+            entity.Matrah = amount.Net;
+            entity.KdvTutari = amount.Kdv;
+            entity.ToplamTutar = amount.Toplam;
             entity.ProjeId = model.ProjeId;
             entity.ManuelProjeNo = model.ManuelProjeNo?.Trim();
             entity.IsTuru = model.IsTuru;

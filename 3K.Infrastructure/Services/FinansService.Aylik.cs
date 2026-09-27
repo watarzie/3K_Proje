@@ -467,10 +467,10 @@ namespace _3K.Infrastructure.Services
 
         private static string Durum(decimal miktar, decimal siparisMiktari, decimal faturalananMiktar)
         {
-            if (miktar <= Tolerance) return "Miktar Bekliyor";
-            if (siparisMiktari <= Tolerance) return "Sipariş Bekliyor";
-            if (miktar - siparisMiktari > Tolerance) return "Kısmi Sipariş";
-            return siparisMiktari - faturalananMiktar > Tolerance ? "Fatura Bekliyor" : "Tamamlandı";
+            if (miktar <= FinansMiktarKurallari.Tolerance) return "Miktar Bekliyor";
+            if (siparisMiktari <= FinansMiktarKurallari.Tolerance) return "Sipariş Bekliyor";
+            if (miktar - siparisMiktari > FinansMiktarKurallari.Tolerance) return "Kısmi Sipariş";
+            return siparisMiktari - faturalananMiktar > FinansMiktarKurallari.Tolerance ? "Fatura Bekliyor" : "Tamamlandı";
         }
 
         private static string IsGrubu(FinansIsTuru tur) => tur switch

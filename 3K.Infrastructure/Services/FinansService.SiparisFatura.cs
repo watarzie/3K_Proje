@@ -126,7 +126,7 @@ namespace _3K.Infrastructure.Services
                     var work = await IsKaydiDetayQuery(true).FirstAsync(x => x.Id == requested.IsKaydiId, cancellationToken);
                     var used = work.SiparisKalemleri.Where(x => x.Id != line.Id && !x.FinansSiparis.IptalEdildi).Sum(x => x.NetTutarSnapshot);
                     FinansTutarKurallari.Kapasite(requested.NetTutar.Value, used, FinansTutarKurallari.IsNet(work), "PO revizyonu");
-                    var money = CalculateMoney(1, requested.NetTutar.Value, line.KdvOraniSnapshot);
+                    var money = FinansTutarKurallari.Hesapla(1, requested.NetTutar.Value, line.KdvOraniSnapshot);
                     var billed = line.FaturaKalemleri.Where(x => !x.FinansFatura.IptalEdildi).ToArray();
                     if (billed.Sum(x => x.NetTutarSnapshot) > money.Net || billed.Sum(x => x.KdvTutariSnapshot) > money.Kdv || billed.Sum(x => x.ToplamTutarSnapshot) > money.Toplam)
                         throw IsKuraliException.Cakisma("PO tutarı aktif faturalanan net/KDV/brüt tutarının altına indirilemez.");
@@ -210,10 +210,10 @@ namespace _3K.Infrastructure.Services
                     activeLines.Sum(x => x.M3),
                     activeLines.Count > 0,
                     "Sipariş");
-                var pricingQuantity = PricingQuantity(pricingUnit, distribution.Adet, distribution.M3);
-                var requestedNet = requested.NetTutar ?? CalculateMoney(pricingQuantity, unitPrice, vat).Net;
+                var pricingQuantity = FinansTutarKurallari.FiyatlandirmaMiktari(pricingUnit, distribution.Adet, distribution.M3);
+                var requestedNet = requested.NetTutar ?? FinansTutarKurallari.Hesapla(pricingQuantity, unitPrice, vat).Net;
                 FinansTutarKurallari.Kapasite(requestedNet, activeLines.Sum(x => x.NetTutarSnapshot), FinansTutarKurallari.IsNet(work), "Sipariş");
-                var money = CalculateMoney(1, requestedNet, vat);
+                var money = FinansTutarKurallari.Hesapla(1, requestedNet, vat);
                 order.Kalemler.Add(new FinansSiparisKalemi
                 {
                     FinansIsKaydiId = work.Id,
@@ -382,9 +382,8 @@ namespace _3K.Infrastructure.Services
                     if (!requested.NetTutar.HasValue) throw IsKuraliException.Cakisma("Revizyon net tutarı zorunludur.");
                     var net = requested.NetTutar.Value;
                     FinansTutarKurallari.Kapasite(net, others.Sum(x => x.NetTutarSnapshot), poLine.NetTutarSnapshot, "Fatura revizyonu");
-                    var money = CalculateMoney(1, net, poLine.KdvOraniSnapshot);
-                    if (net + others.Sum(x => x.NetTutarSnapshot) == poLine.NetTutarSnapshot)
-                        money = (net, poLine.KdvTutariSnapshot - others.Sum(x => x.KdvTutariSnapshot), net + poLine.KdvTutariSnapshot - others.Sum(x => x.KdvTutariSnapshot));
+                    var money = FinansTutarKurallari.FaturaKalemiTutari(net, poLine.KdvOraniSnapshot,
+                        poLine.NetTutarSnapshot, poLine.KdvTutariSnapshot, others.Sum(x => x.NetTutarSnapshot), others.Sum(x => x.KdvTutariSnapshot));
                     if (money.Kdv < 0 || money.Toplam + others.Sum(x => x.ToplamTutarSnapshot) > poLine.ToplamTutarSnapshot)
                         throw IsKuraliException.Cakisma("Fatura revizyonu PO KDV/brüt bakiyesini aşamaz.");
                     var beforeLine = CaptureAuditState(line);
@@ -449,15 +448,11 @@ namespace _3K.Infrastructure.Services
                     activeInvoiceLines.Sum(x => x.M3),
                     activeInvoiceLines.Count > 0,
                     "Fatura");
-                var pricingQuantity = PricingQuantity(line.FiyatlandirmaBirimiSnapshot, distribution.Adet, distribution.M3);
-                var requestedNet = requested.NetTutar ?? CalculateMoney(pricingQuantity, line.BirimFiyatSnapshot, line.KdvOraniSnapshot).Net;
+                var pricingQuantity = FinansTutarKurallari.FiyatlandirmaMiktari(line.FiyatlandirmaBirimiSnapshot, distribution.Adet, distribution.M3);
+                var requestedNet = requested.NetTutar ?? FinansTutarKurallari.Hesapla(pricingQuantity, line.BirimFiyatSnapshot, line.KdvOraniSnapshot).Net;
                 FinansTutarKurallari.Kapasite(requestedNet, activeInvoiceLines.Sum(x => x.NetTutarSnapshot), line.NetTutarSnapshot, "Fatura");
-                var money = CalculateMoney(1, requestedNet, line.KdvOraniSnapshot);
-                if (requestedNet + activeInvoiceLines.Sum(x => x.NetTutarSnapshot) == line.NetTutarSnapshot)
-                {
-                    var remainingVat = line.KdvTutariSnapshot - activeInvoiceLines.Sum(x => x.KdvTutariSnapshot);
-                    money = (requestedNet, remainingVat, requestedNet + remainingVat);
-                }
+                var money = FinansTutarKurallari.FaturaKalemiTutari(requestedNet, line.KdvOraniSnapshot, line.NetTutarSnapshot,
+                    line.KdvTutariSnapshot, activeInvoiceLines.Sum(x => x.NetTutarSnapshot), activeInvoiceLines.Sum(x => x.KdvTutariSnapshot));
                 if (money.Kdv < 0 || money.Toplam + activeInvoiceLines.Sum(x => x.ToplamTutarSnapshot) > line.ToplamTutarSnapshot)
                     throw IsKuraliException.Cakisma("Fatura KDV/brüt tutarı PO kaleminin kalanını aşamaz.");
                 invoice.Kalemler.Add(new FinansFaturaKalemi
@@ -572,7 +567,7 @@ namespace _3K.Infrastructure.Services
                     UrunKodu = line.FinansUrun?.Kod ?? string.Empty,
                     UrunAdi = line.FinansUrun?.Ad ?? string.Empty,
                     FiyatlandirmaBirimi = line.FiyatlandirmaBirimiSnapshot,
-                    FiyatlandirmaMiktari = PricingQuantity(line.FiyatlandirmaBirimiSnapshot, line.Adet, line.M3),
+                    FiyatlandirmaMiktari = FinansTutarKurallari.FiyatlandirmaMiktari(line.FiyatlandirmaBirimiSnapshot, line.Adet, line.M3),
                     BirimFiyat = line.BirimFiyatSnapshot,
                     ParaBirimi = line.ParaBirimiSnapshot,
                     KdvOrani = line.KdvOraniSnapshot,

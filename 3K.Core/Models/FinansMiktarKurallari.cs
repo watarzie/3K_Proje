@@ -1,19 +1,19 @@
 using _3K.Core.Enums;
 using _3K.Core.Exceptions;
 
-namespace _3K.Infrastructure.Services
+namespace _3K.Core.Models
 {
-    internal readonly record struct FinansDagitimMiktari(decimal Adet, decimal M3);
+    public readonly record struct FinansDagitimMiktari(decimal Adet, decimal M3);
 
     /// <summary>
     /// Sipariş ve fatura dağıtımlarında yalnız fiyatlandırma birimini esas miktar kabul eder.
     /// İkincil miktarı kaynak oranından türeterek adet ve m³'ün birbirinden kopmasını önler.
     /// </summary>
-    internal static class FinansMiktarKurallari
+    public static class FinansMiktarKurallari
     {
-        internal const decimal Tolerance = 0.000001m;
+        public const decimal Tolerance = 0.000001m;
 
-        internal static FinansDagitimMiktari DagitimiNormalizeEt(
+        public static FinansDagitimMiktari DagitimiNormalizeEt(
             FinansFiyatlandirmaBirimi fiyatlandirmaBirimi,
             decimal istenenAdet,
             decimal istenenM3,
@@ -40,7 +40,7 @@ namespace _3K.Infrastructure.Services
             };
         }
 
-        internal static bool TamamiDagitildi(
+        public static bool TamamiDagitildi(
             FinansFiyatlandirmaBirimi fiyatlandirmaBirimi,
             decimal kapasiteAdet,
             decimal kapasiteM3,
@@ -55,7 +55,7 @@ namespace _3K.Infrastructure.Services
                 _ => kullanilanAdet + Tolerance >= kapasiteAdet && kullanilanM3 + Tolerance >= kapasiteM3
             };
 
-        internal static bool KapasiteAsiliyor(
+        public static bool KapasiteAsiliyor(
             FinansFiyatlandirmaBirimi fiyatlandirmaBirimi,
             decimal kapasiteAdet,
             decimal kapasiteM3,
@@ -70,7 +70,7 @@ namespace _3K.Infrastructure.Services
                 _ => kullanilanAdet > kapasiteAdet + Tolerance || kullanilanM3 > kapasiteM3 + Tolerance
             };
 
-        internal static FinansDagitimMiktari DuzenliIsMiktari(
+        public static FinansDagitimMiktari DuzenliIsMiktari(
             FinansFiyatlandirmaBirimi fiyatlandirmaBirimi,
             decimal miktar)
         {

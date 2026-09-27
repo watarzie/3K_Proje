@@ -15,7 +15,6 @@ namespace _3K.Infrastructure.Services
 {
     public sealed partial class FinansService : IFinansService, IFinansUretimAktarimService
     {
-        private const decimal Tolerance = 0.000001m;
         private readonly AppDbContext _context;
         private readonly ICurrentUserService _currentUser;
         private readonly Guid _auditGroup = Guid.NewGuid();
@@ -248,29 +247,6 @@ namespace _3K.Infrastructure.Services
                 .Replace("%", "\\%", StringComparison.Ordinal)
                 .Replace("_", "\\_", StringComparison.Ordinal) + "%";
 
-        private static (decimal Net, decimal Kdv, decimal Toplam) CalculateMoney(
-            decimal miktar,
-            decimal birimFiyat,
-            decimal kdvOrani)
-        {
-            var net = decimal.Round(miktar * birimFiyat, 2, MidpointRounding.AwayFromZero);
-            var kdv = decimal.Round(net * kdvOrani / 100m, 2, MidpointRounding.AwayFromZero);
-            return (net, kdv, net + kdv);
-        }
-
-        private static decimal PricingQuantity(
-            FinansFiyatlandirmaBirimi birim,
-            decimal adet,
-            decimal m3)
-            => birim switch
-            {
-                FinansFiyatlandirmaBirimi.Adet => adet,
-                FinansFiyatlandirmaBirimi.Metrekup => m3,
-                FinansFiyatlandirmaBirimi.SabitTutar => 1m,
-                FinansFiyatlandirmaBirimi.ManuelToplam => 1m,
-                _ => 0m
-            };
-
         private async Task<FinansFiyatTarifesi?> FindTariffAsync(
             int finansUrunId,
             DateTime tarih,
@@ -471,8 +447,7 @@ namespace _3K.Infrastructure.Services
             var orderedM3 = activeOrderLines.Sum(x => x.M3);
             var invoicedAdet = activeInvoiceLines.Sum(x => x.Adet);
             var invoicedM3 = activeInvoiceLines.Sum(x => x.M3);
-            var priceQuantity = PricingQuantity(entity.FiyatlandirmaBirimiSnapshot, entity.Adet, entity.ToplamM3);
-            var money = CalculateMoney(1, FinansTutarKurallari.IsNet(entity), entity.KdvOraniSnapshot);
+            var money = FinansTutarKurallari.Hesapla(1, FinansTutarKurallari.IsNet(entity), entity.KdvOraniSnapshot);
 
             return new FinansIsKaydiModel
             {
