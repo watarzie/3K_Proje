@@ -16,9 +16,10 @@ Uygulama .NET 10 hedefleyen, PostgreSQL kullanan katmanlı bir monolittir. Komut
 | Yer | Sorumluluk |
 |---|---|
 | `3K_API/Controllers` | HTTP giriş/çıkışı, request bağlama, MediatR çağrısı |
-| `3K_API/Program.cs` | DI, middleware, authentication ve worker kayıtları |
+| `3K_API/Program.cs`, `3K_API/Extensions` | Kompozisyon kökü; `AddApi` HTTP kayıtlarını, `UseApiPipeline` middleware sırasını tutar |
+| `3K.Application/DependencyInjection.cs`, `3K.Infrastructure/DependencyInjection.cs` | Katmanın kendi servis, pipeline ve arka plan işi kayıtları |
 | `3K.Application/Features/<Alan>` | Command, Query, Handler, DTO ve Validator |
-| `3K.Application/Behaviors` | Merkezi exception, authorization, approval, validation ve cache adımları |
+| `3K.Application/Behaviors` | Merkezi exception, authorization, validation, approval ve ambalaj yaşam döngüsü adımları (bu sırayla) |
 | `3K.Application/Common` | Uygulama düzeyindeki ortak sonuç ve politika yardımcıları |
 | `3K.Core` | Entity, enum, interface, domain modelleri ve ortak kurallar |
 | `3K.Infrastructure` | EF Core, repository/UoW, servis uygulamaları, dosya/Excel/PDF ve altyapı |
@@ -34,7 +35,9 @@ Uygulama .NET 10 hedefleyen, PostgreSQL kullanan katmanlı bir monolittir. Komut
 - Değiştirilen dosyanın namespace, girinti, parantez ve isimlendirme stilini koru. Mevcut Türkçe domain terimlerini, `_3K` namespace'lerini ve DTO alanlarını sebepsiz İngilizceleştirme.
 - Türkçe karakterleri ve dosyanın geçerli UTF-8 içeriğini koru; bozuk encoding üretme. Açıklamalar kararın nedenini anlatsın.
 - Mevcut `Result`/`Result<T>`, FluentValidation ve `ResultExtensions.ToActionResult()` sözleşmesini izle. Normal başarılı JSON çoğunlukla ham DTO'dur; tüm API'yi yeni bir wrapper'a taşıma.
-- `202` onay kuyruğuna alındığını ifade eder; işlem uygulanmış değildir. `401`, `403`, `404`, `409` ve yapılandırılmış hata ayrımını koru. Kullanıcıya iç exception, secret veya fiziksel dosya yolu döndürme.
+- `202` onay kuyruğuna alındığını ifade eder; işlem uygulanmış değildir. `401`, `403`, `404`, `409` ve yapılandırılmış hata ayrımını koru. Kullanıcıya iç exception, secret veya fiziksel dosya yolu döndürme. Hata gövdesi her yerde `{ message, issues? }` biçimindedir.
+- Handler beklenen reddi `Result.Failure` ile döner. Result dönemeyen derin servisler kullanıcıya gösterilebilir reddi `IsKuraliException`/`KayitBulunamadiException` ile bildirir; pipeline bunları HTTP koduna çevirir. `InvalidOperationException` mesajı kullanıcıya taşınmaz.
+- Dosya indiren kullanım senaryosu `Result<DosyaIcerigi>` döner ve dosya adını kendisi üretir; controller yalnız `ToFileResult()` çağırır, veri erişimi yapmaz.
 - Destekleyen çağrılara `CancellationToken` ilet. Async akışlarda `.Result`/`.Wait()` kullanma. Aynı scoped DbContext üzerinde sorgu/yazmaları `Task.WhenAll` ile paralelleştirme.
 - Operasyon tarihleri ile JWT/2FA sürelerinin zaman dilimi sözleşmelerini ayrı koru; ilgili akışın `TurkeyTime`/UTC kullanımını incelemeden genel tarih dönüşümü yapma.
 - Büyük listelerde filtre/sayfalama/projection'ı mümkün olduğunca veritabanında yap; yalnız tek kayıt aramak için tüm tabloyu belleğe alma.
@@ -59,11 +62,11 @@ Uygulama .NET 10 hedefleyen, PostgreSQL kullanan katmanlı bir monolittir. Komut
 
 ## Transaction, veri ve dosyalar
 
-- Bir işteki miktar/stok/tahsis/transfer değişiklikleri birlikte başarılı olmalıdır. Uygun yerde mevcut `IUnitOfWork.ExecuteInTransactionAsync` kullan; birkaç `SaveChanges` çağrısını tek transaction sanma.
-- Bu yardımcı delegate normal dönerse commit eder: yazmadan sonra `Result.Failure` döndürmek otomatik rollback değildir. Red kontrollerini yazmadan önce tamamla veya mevcut exception/rollback yolunu doğru uygula.
+- Bir işteki miktar/stok/tahsis/transfer değişiklikleri birlikte başarılı olmalıdır. "Ya hepsi ya hiçbiri" akışında `ExecuteAtomicAsync` kullan: delegate başarısız `Result` dönerse bütün değişiklikler geri alınır ve aynı sonuç döner; iç içe çağrıda dış transaction da geri alınır. Birkaç `SaveChanges` çağrısını tek transaction sanma.
+- `IUnitOfWork.ExecuteInTransactionAsync` delegate normal döndüğünde commit eder; yalnız bilinçli kısmi başarı akışlarında (ör. atlanan satırları raporlayan toplu 3K komutları) kullan. Kendi "exception fırlatıp rollback yaptır" sınıfını yazma.
 - `xmin` concurrency, idempotency anahtarı, unique constraint ve hareket geçmişini koru. Aynı anahtar + aynı işlem tekrarı çift kayıt üretmemeli; farklı payload çakışma olarak ele alınmalı.
 - Dosya ve bildirim yan etkilerini transaction sınırıyla uyumlu yürüt; mevcut commit/rollback callback'lerini değerlendir. Kullanıcı dosya adını güvenilmez kabul et; güvenli sunucu adı ve hedef dizin kontrolü kullan.
-- Şema değişikliğinde model/configuration ile sürümlü migration/SQL ve veri geçişini birlikte ele al. Mevcut migration'ın canlı şemayı tamamen temsil ettiğini varsayma; trigger/seed bağımlılıklarını da kontrol et. Uyarı bastırmak şema düzeltmesi değildir.
+- EF migration kullanılmaz. Şema/veri değişikliğinde EF model/configuration ile `scripts/database/` altındaki idempotent, transaction içindeki PostgreSQL betiğini birlikte güncelle; trigger/seed bağımlılıklarını da kontrol et. Betik ayrı dağıtım adımıdır, uygulama açılışında çalışmaz.
 - Secret, connection string, JWT anahtarı, TOTP secret/kurtarma kodu veya gerçek kullanıcı verisini koda/loga ekleme. Test için üretim ayarlarıyla API/worker başlatma veya canlı veriyi değiştirme.
 - Rapor değişikliğinde mevcut ortak stil, doğru sandık kimliği/adı, doğal numara sırası ve tekil/toplu PDF/Excel içerik tutarlılığını koru; örnek çıktıyı kontrol et.
 
