@@ -1,6 +1,5 @@
 using MediatR;
 using _3K.Application.Common;
-using _3K.Application.Features.FinansIslemleri.DTOs;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
 
@@ -35,8 +34,7 @@ namespace _3K.Application.Features.FinansIslemleri.Commands
         public FinansCommandHandlers(IFinansService service) => _service = service;
 
         public Task<Result<FinansIsKaydiModel>> Handle(FinansIsKaydiOlusturCommand request, CancellationToken cancellationToken)
-            => FinansHandlerHelper.ExecuteAsync(async () =>
-                FinansHassasAlanMaskeleme.IsKaydi(await _service.IsKaydiOlusturAsync(request.Model, cancellationToken)));
+            => FinansHandlerHelper.ExecuteAsync(() => _service.IsKaydiOlusturAsync(request.Model, cancellationToken));
 
         public Task<Result> Handle(FinansIsKaydiIptalCommand request, CancellationToken cancellationToken)
             => FinansHandlerHelper.ExecuteAsync(
@@ -51,28 +49,22 @@ namespace _3K.Application.Features.FinansIslemleri.Commands
                 () => _service.OzelIsAylikDegerGuncelleAsync(request.Id, request.Model, cancellationToken), "Özel iş kaydı bulunamadı.");
 
         public Task<Result<FinansSiparisModel>> Handle(FinansSiparisOlusturCommand request, CancellationToken cancellationToken)
-            => FinansHandlerHelper.ExecuteAsync(async () =>
-                FinansHassasAlanMaskeleme.Siparis(await _service.SiparisOlusturAsync(request.Model, cancellationToken)));
+            => FinansHandlerHelper.ExecuteAsync(() => _service.SiparisOlusturAsync(request.Model, cancellationToken));
 
         public Task<Result<FinansSiparisModel>> Handle(FinansSiparisGuncelleCommand request, CancellationToken cancellationToken)
-            => FinansHandlerHelper.ExecuteOptionalAsync(async () =>
-                await _service.SiparisGuncelleAsync(request.Id, request.Model, cancellationToken) is { } siparis
-                    ? FinansHassasAlanMaskeleme.Siparis(siparis)
-                    : null, "Sipariş bulunamadı.");
+            => FinansHandlerHelper.ExecuteOptionalAsync(
+                () => _service.SiparisGuncelleAsync(request.Id, request.Model, cancellationToken), "Sipariş bulunamadı.");
 
         public Task<Result> Handle(FinansSiparisIptalCommand request, CancellationToken cancellationToken)
             => FinansHandlerHelper.ExecuteAsync(
                 () => _service.SiparisIptalAsync(request.Id, request.Aciklama, cancellationToken), "Sipariş bulunamadı.");
 
         public Task<Result<FinansFaturaModel>> Handle(FinansFaturaOlusturCommand request, CancellationToken cancellationToken)
-            => FinansHandlerHelper.ExecuteAsync(async () =>
-                FinansHassasAlanMaskeleme.Fatura(await _service.FaturaOlusturAsync(request.Model, cancellationToken)));
+            => FinansHandlerHelper.ExecuteAsync(() => _service.FaturaOlusturAsync(request.Model, cancellationToken));
 
         public Task<Result<FinansFaturaModel>> Handle(FinansFaturaGuncelleCommand request, CancellationToken cancellationToken)
-            => FinansHandlerHelper.ExecuteOptionalAsync(async () =>
-                await _service.FaturaGuncelleAsync(request.Id, request.Model, cancellationToken) is { } fatura
-                    ? FinansHassasAlanMaskeleme.Fatura(fatura)
-                    : null, "Fatura bulunamadı.");
+            => FinansHandlerHelper.ExecuteOptionalAsync(
+                () => _service.FaturaGuncelleAsync(request.Id, request.Model, cancellationToken), "Fatura bulunamadı.");
 
         public Task<Result> Handle(FinansFaturaIptalCommand request, CancellationToken cancellationToken)
             => FinansHandlerHelper.ExecuteAsync(

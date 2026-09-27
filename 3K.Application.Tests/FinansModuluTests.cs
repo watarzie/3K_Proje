@@ -68,91 +68,6 @@ public sealed class FinansModuluTests
     }
 
     [Fact]
-    public void Operasyon_is_kaydi_parasal_alanlari_maskeler_ve_operasyon_bilgilerini_korur()
-    {
-        var source = new FinansIsKaydiModel
-        {
-            Id = 42,
-            ProjeNo = "PA-1",
-            IsAdi = "Ana ambalaj",
-            SiparisBekleyenAdet = 3,
-            PoNumaralari = new[] { "PO-1" },
-            BirimFiyat = 100,
-            ParaBirimi = "EUR",
-            KdvOrani = 20,
-            NetTutar = 300,
-            KdvTutari = 60,
-            ToplamTutar = 360
-        };
-
-        var masked = FinansHassasAlanMaskeleme.IsKaydi(source);
-
-        Assert.Equal(42, masked.Id);
-        Assert.Equal("PA-1", masked.ProjeNo);
-        Assert.Equal(3, masked.SiparisBekleyenAdet);
-        Assert.Equal(new[] { "PO-1" }, masked.PoNumaralari);
-        Assert.Equal(0, masked.BirimFiyat);
-        Assert.Equal(string.Empty, masked.ParaBirimi);
-        Assert.Equal(0, masked.KdvOrani);
-        Assert.Equal(0, masked.NetTutar);
-        Assert.Equal(0, masked.KdvTutari);
-        Assert.Equal(0, masked.ToplamTutar);
-    }
-
-    [Fact]
-    public void Operasyon_siparis_ve_fatura_donusleri_parasal_alanlari_maskeler()
-    {
-        var order = new FinansSiparisModel
-        {
-            Id = 7,
-            PoNumarasi = "PO-7",
-            Tutarlar = new[] { new FinansParaToplamiModel("EUR", 100, 20, 120) },
-            Kalemler = new[]
-            {
-                new FinansSiparisKalemiModel
-                {
-                    Id = 8,
-                    IsKaydiId = 9,
-                    Adet = 2,
-                    BirimFiyat = 50,
-                    ParaBirimi = "EUR",
-                    KdvOrani = 20,
-                    NetTutar = 100,
-                    KdvTutari = 20,
-                    ToplamTutar = 120
-                }
-            }
-        };
-        var invoice = new FinansFaturaModel
-        {
-            Id = 10,
-            FaturaNumarasi = "F-10",
-            Tutarlar = new[] { new FinansParaToplamiModel("EUR", 100, 20, 120) },
-            BelgeParaBirimi = "EUR",
-            BelgeNetTutar = 99,
-            BelgeKdvTutari = 19.8m,
-            BelgeToplamTutar = 118.8m,
-            MutabakatFarki = -1.2m,
-            MutabakatAciklamasi = "İskonto"
-        };
-
-        var maskedOrder = FinansHassasAlanMaskeleme.Siparis(order);
-        var maskedInvoice = FinansHassasAlanMaskeleme.Fatura(invoice);
-
-        Assert.Equal("PO-7", maskedOrder.PoNumarasi);
-        Assert.Empty(maskedOrder.Tutarlar);
-        Assert.Equal(2, maskedOrder.Kalemler.Single().Adet);
-        Assert.Equal(0, maskedOrder.Kalemler.Single().BirimFiyat);
-        Assert.Equal(string.Empty, maskedOrder.Kalemler.Single().ParaBirimi);
-        Assert.Equal("F-10", maskedInvoice.FaturaNumarasi);
-        Assert.Empty(maskedInvoice.Tutarlar);
-        Assert.Null(maskedInvoice.BelgeParaBirimi);
-        Assert.Null(maskedInvoice.BelgeToplamTutar);
-        Assert.Equal(0, maskedInvoice.MutabakatFarki);
-        Assert.Null(maskedInvoice.MutabakatAciklamasi);
-    }
-
-    [Fact]
     public void Po_komutu_fiyat_override_edilirse_ek_fiyat_yetkisi_ister()
     {
         var plain = new FinansSiparisOlusturCommand
@@ -303,68 +218,11 @@ public sealed class FinansModuluTests
     }
 
     [Fact]
-    public void Fatura_maskesi_basligi_korur_parasal_alanlari_temizler()
-    {
-        var source = new FinansFaturaModel
-        {
-            Id = 7,
-            FaturaNumarasi = "F-7",
-            SiparisId = 9,
-            PoNumarasi = "PO-9",
-            Tutarlar = new[] { new FinansParaToplamiModel("EUR", 100, 20, 120) },
-            BelgeParaBirimi = "EUR",
-            BelgeNetTutar = 100,
-            BelgeKdvTutari = 20,
-            BelgeToplamTutar = 120,
-            MutabakatFarki = 1,
-            MutabakatAciklamasi = "Fark"
-        };
-
-        var masked = FinansHassasAlanMaskeleme.Fatura(source);
-
-        Assert.Equal("F-7", masked.FaturaNumarasi);
-        Assert.Equal(9, masked.SiparisId);
-        Assert.Empty(masked.Tutarlar);
-        Assert.Null(masked.BelgeParaBirimi);
-        Assert.Null(masked.BelgeNetTutar);
-        Assert.Null(masked.BelgeToplamTutar);
-        Assert.Equal(0, masked.MutabakatFarki);
-        Assert.Null(masked.MutabakatAciklamasi);
-    }
-
-    [Fact]
     public void Kutuphane_okuma_endpointleri_yonetici_yetkisini_baska_gorme_yetkisine_baglamaz()
     {
         Assert.Equal(YetkiKodlari.Finans.GiderKutuphanesiYonet, new FinansGiderKutuphaneKategorileriQuery().RequiredMenuKod);
         Assert.Equal(YetkiKodlari.Finans.GiderKutuphanesiYonet, new FinansGiderKutuphaneKalemleriQuery().RequiredMenuKod);
         Assert.Equal(YetkiKodlari.Finans.IsKutuphanesiYonet, new FinansUrunlerQuery().RequiredMenuKod);
-    }
-
-    [Fact]
-    public void Urun_kutuphanesi_fiyatlari_maskeler_eslesmeleri_korur()
-    {
-        var match = new FinansUrunEslesmesiModel(null, FinansIsTuru.AnaAmbalaj, "Tip A", null, null, null, null, null, true);
-        var source = new FinansUrunModel
-        {
-            Id = 7,
-            Kod = "AMB",
-            Ad = "Ambalaj",
-            FiyatlandirmaBirimi = FinansFiyatlandirmaBirimi.Metrekup,
-            Aktif = true,
-            Sira = 1,
-            GuncelBirimFiyat = 100,
-            GuncelParaBirimi = "EUR",
-            GuncelKdvOrani = 20,
-            Eslesmeler = new[] { match }
-        };
-
-        var masked = FinansHassasAlanMaskeleme.Urun(source);
-
-        Assert.Equal("AMB", masked.Kod);
-        Assert.Single(masked.Eslesmeler);
-        Assert.Null(masked.GuncelBirimFiyat);
-        Assert.Null(masked.GuncelParaBirimi);
-        Assert.Null(masked.GuncelKdvOrani);
     }
 
     [Fact]

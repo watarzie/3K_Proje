@@ -171,6 +171,25 @@ public sealed class FinansAlanHttpSecurityTests
         Assert.Equal(0, host.Data.Calls);
     }
 
+    [Fact]
+    public async Task Http_OlusturmaYanitiSahteSifirUretmez_AlanIzniKaldirilincaNullOlur()
+    {
+        await using var host = await Host.StartAsync();
+        host.Authenticate();
+        host.GrantAll();
+        var govde = new { poNumarasi = "PO-1", siparisTarihi = "2026-09-01", kalemler = new[] { new { isKaydiId = 1, adet = 0, m3 = 0, netTutar = 777.25m } } };
+
+        var tam = await host.PostJson("api/finans/siparisler", govde);
+        Assert.Equal(777.25m, tam["kalemler"]![0]!["birimFiyat"]!.GetValue<decimal>());
+        Assert.Equal("EUR", tam["kalemler"]![0]!["paraBirimi"]!.GetValue<string>());
+        Assert.Equal(932.70m, tam["tutarlar"]![0]!["toplamTutar"]!.GetValue<decimal>());
+
+        host.Roles.Revoke(YetkiKodlari.Finans.BirimFiyatGoruntule);
+        var maskeli = await host.PostJson("api/finans/siparisler", govde);
+        Assert.Null(maskeli["kalemler"]![0]!["birimFiyat"]);
+        Assert.Equal(777.25m, maskeli["kalemler"]![0]!["netTutar"]!.GetValue<decimal>());
+    }
+
     private sealed class Host : IAsyncDisposable
     {
         private readonly WebApplication _app;
@@ -240,6 +259,14 @@ public sealed class FinansAlanHttpSecurityTests
             Assert.True(response.StatusCode == HttpStatusCode.OK, $"{path}: {(int)response.StatusCode} {body}");
             return JsonNode.Parse(body)!;
         }
+        public async Task<JsonNode> PostJson(string path, object body)
+        {
+            using var response = await Client.PostAsync(path, new StringContent(
+                System.Text.Json.JsonSerializer.Serialize(body), Encoding.UTF8, "application/json"));
+            var text = await response.Content.ReadAsStringAsync();
+            Assert.True(response.StatusCode == HttpStatusCode.OK, $"{path}: {(int)response.StatusCode} {text}");
+            return JsonNode.Parse(text)!;
+        }
         public async ValueTask DisposeAsync()
         {
             Client.Dispose();
@@ -294,6 +321,11 @@ public sealed class FinansAlanHttpSecurityTests
                     [new("Ocak", "EUR", 500, 100)], [], [], 7, 2, 3, 1, 4),
                 "DegisiklikGecmisiAsync" => new FinansSayfaliSonuc<FinansDegisiklikModel>
                     { Items = [new(1, "Is", 1, "Fiyatlandirma", "Snapshot", "{\"birimFiyat\":777.25}", "1234x567x890", "777.25 EUR", new(2026, 9, 19), "Sentetik")], TotalCount = 1, PageSize = 25 },
+                "SiparisOlusturAsync" => new FinansSiparisModel
+                {
+                    Id = 9, PoNumarasi = "PO-1", Tutarlar = [new("EUR", 777.25m, 155.45m, 932.70m)],
+                    Kalemler = [new FinansSiparisKalemiModel { Id = 1, IsKaydiId = 1, BirimFiyat = 777.25m, ParaBirimi = "EUR", NetTutar = 777.25m, KdvTutari = 155.45m, ToplamTutar = 932.70m }]
+                },
                 "BelgeIndirAsync" => new DosyaIcerigi(Encoding.ASCII.GetBytes("%PDF-SENTETIK"), "application/pdf", "test.pdf"),
                 _ => throw new NotSupportedException("Beklenmeyen sentetik servis çağrısı: " + method.Name)
             };
