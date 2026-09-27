@@ -9,16 +9,6 @@ namespace _3K.Infrastructure.Services
 {
     public sealed partial class FinansService
     {
-        public async Task<IReadOnlyList<FinansDuzenliIsModel>> DuzenliIslerAsync(
-            bool sadeceAktif,
-            CancellationToken cancellationToken)
-        {
-            var query = _context.Set<FinansDuzenliIs>().AsNoTracking();
-            if (sadeceAktif) query = query.Where(x => x.Aktif);
-            var entities = await query.OrderBy(x => x.IsAdi).ThenBy(x => x.Id).ToListAsync(cancellationToken);
-            return entities.Select(MapRecurring).ToArray();
-        }
-
         public async Task<FinansSayfaliSonuc<FinansDuzenliIsModel>> DuzenliIslerSayfaliAsync(
             bool sadeceAktif,
             string? arama,
@@ -314,19 +304,6 @@ namespace _3K.Infrastructure.Services
             return true;
         }
 
-        public async Task<bool> GiderGeriAlAsync(int id, CancellationToken cancellationToken)
-        {
-            var entity = await _context.Set<FinansGider>().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
-            if (entity is null) return false;
-            if (!entity.IptalEdildi) return true;
-            entity.IptalEdildi = false;
-            entity.IptalTarihi = null;
-            entity.IptalAciklamasi = null;
-            AddAudit(nameof(FinansGider), id, "Aktifleştirme", nameof(entity.IptalEdildi), true, false);
-            await _context.SaveChangesAsync(cancellationToken);
-            return true;
-        }
-
         private async Task ValidateExpenseReferencesAsync(FinansGiderKaydetModel model, CancellationToken cancellationToken)
         {
             if (model.Miktar <= 0 || model.BirimFiyat < 0 || model.KdvOrani is < 0 or > 100 || model.Tarih.Year is < 2000 or > 2200 ||
@@ -538,36 +515,6 @@ namespace _3K.Infrastructure.Services
             AddAuditChanges(nameof(FinansGiderKalemi), entity, defaultsBefore);
             await _context.SaveChangesAsync(cancellationToken);
             return MapExpenseItem(entity);
-        }
-
-        public Task<FinansGiderKalemiModel?> GideriKutuphaneyeKaydetAsync(
-            int giderId,
-            FinansGideriKutuphaneyeKaydetModel model,
-            CancellationToken cancellationToken)
-            => ExecuteAtomicAsync(() => GideriKutuphaneyeKaydetCoreAsync(giderId, model, cancellationToken), cancellationToken);
-
-        private async Task<FinansGiderKalemiModel?> GideriKutuphaneyeKaydetCoreAsync(
-            int giderId,
-            FinansGideriKutuphaneyeKaydetModel model,
-            CancellationToken cancellationToken)
-        {
-            var expense = await _context.Set<FinansGider>()
-                .AsNoTracking()
-                .FirstOrDefaultAsync(x => x.Id == giderId, cancellationToken);
-            if (expense is null) return null;
-
-            return await GiderKalemiOlusturCoreAsync(new FinansGiderKalemiKaydetModel(
-                expense.FinansGiderKategoriId,
-                model.Kod,
-                model.Ad,
-                model.Aktif,
-                expense.FirmaVeyaKisi,
-                expense.Miktar,
-                expense.Birim,
-                expense.BirimFiyat,
-                expense.ParaBirimi,
-                expense.KdvDahil,
-                expense.KdvOrani), cancellationToken);
         }
 
         private static void ApplyExpenseItemDefaults(FinansGiderKalemi entity, FinansGiderKalemiKaydetModel model)

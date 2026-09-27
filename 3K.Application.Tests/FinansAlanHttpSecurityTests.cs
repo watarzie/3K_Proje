@@ -39,16 +39,16 @@ public sealed class FinansAlanHttpSecurityTests
     public async Task Http_JwtGerekir_SahteHeaderYetkiVermez_AyniTokenIleIptalAnindaEtkin()
     {
         await using var host = await Host.StartAsync();
-        Assert.Equal(HttpStatusCode.Unauthorized, (await host.Client.GetAsync("api/finans/is-kayitlari")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await host.Client.GetAsync("api/finans/genel-arama")).StatusCode);
         host.Authenticate();
         host.Client.DefaultRequestHeaders.Add("X-Menu-Kod", "stok");
         host.Roles.Grant("stok", YetkiTipi.W);
-        Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync("api/finans/is-kayitlari")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync("api/finans/genel-arama")).StatusCode);
         Assert.Equal(0, host.Data.Calls);
 
         host.Roles.Grant(YetkiKodlari.Finans.KayitGoruntule);
         host.Roles.Grant(YetkiKodlari.Finans.Modul);
-        var json = await host.Json("api/finans/is-kayitlari");
+        var json = await host.Json("api/finans/genel-arama");
         var item = json["items"]![0]!;
         Assert.Equal("TEST-PROJE", item["projeNo"]!.GetValue<string>());
         Assert.Equal(3m, item["adet"]!.GetValue<decimal>());
@@ -57,7 +57,7 @@ public sealed class FinansAlanHttpSecurityTests
         Assert.Equal(1, host.Data.Calls);
 
         host.Roles.Revoke(YetkiKodlari.Finans.KayitGoruntule);
-        Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync("api/finans/is-kayitlari")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync("api/finans/genel-arama")).StatusCode);
         Assert.Equal(1, host.Data.Calls);
     }
 
@@ -69,7 +69,7 @@ public sealed class FinansAlanHttpSecurityTests
         host.GrantAll();
         host.Roles.Revoke(YetkiKodlari.Finans.Modul);
         host.Client.DefaultRequestHeaders.Add("X-Menu-Kod", YetkiKodlari.Finans.KayitGoruntule);
-        Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync("api/finans/is-kayitlari")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync("api/finans/genel-arama")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync("api/finans/belgeler/1/indir")).StatusCode);
         Assert.Equal(0, host.Data.Calls);
     }
@@ -110,19 +110,6 @@ public sealed class FinansAlanHttpSecurityTests
         Assert.Null(json["tutarlar"]![0]![field]);
         Assert.Equal(7, json["siparisBekleyen"]!.GetValue<int>());
         if (field != "karOrani") Assert.Null(json["aylik"]![0]![field]);
-    }
-
-    [Fact]
-    public async Task Http_ParasalIzinYoksa_LegacyDashboardSayaclariGorunurKalir()
-    {
-        await using var host = await Host.StartAsync();
-        host.Authenticate();
-        host.Roles.Grant(YetkiKodlari.Finans.Modul);
-        var json = await host.Json("api/finans/dashboard");
-        Assert.Equal(7, json["siparisBekleyen"]!.GetValue<int>());
-        Assert.Equal(2, json["faturaBekleyen"]!.GetValue<int>());
-        Assert.Null(json["buAyGider"]);
-        Assert.Null(json["toplamM3"]);
     }
 
     [Theory]
@@ -182,21 +169,6 @@ public sealed class FinansAlanHttpSecurityTests
         host.Roles.Revoke(YetkiKodlari.Ambalaj.SarfGoruntule);
         Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync("api/finans/raporlar/isler/pdf")).StatusCode);
         Assert.Equal(0, host.Data.Calls);
-    }
-
-    [Fact]
-    public async Task Http_RaporVerisiIndirmeKapisiDegildir_HassasAlanlarNullOlur()
-    {
-        await using var host = await Host.StartAsync();
-        host.Authenticate();
-        host.GrantAll();
-        host.Roles.Revoke(YetkiKodlari.Finans.ParasalVeriGoruntule);
-        var json = await host.Json("api/finans/raporlar/veri");
-        Assert.Equal("TEST-PROJE", json["isler"]![0]!["projeNo"]!.GetValue<string>());
-        Assert.Null(json["isler"]![0]!["netTutar"]);
-        Assert.Null(json["gelirToplamlari"]);
-        Assert.Null(json["giderToplamlari"]);
-        Assert.Null(json["netToplamlari"]);
     }
 
     private sealed class Host : IAsyncDisposable
@@ -315,16 +287,14 @@ public sealed class FinansAlanHttpSecurityTests
             Interlocked.Increment(ref Calls);
             object result = method!.Name switch
             {
-                "IsKayitlariAsync" => new FinansSayfaliSonuc<FinansIsKaydiModel> { Items = [Row], TotalCount = 1, PageSize = 25 },
+                "GenelAramaAsync" => new FinansSayfaliSonuc<FinansIsKaydiModel> { Items = [Row], TotalCount = 1, PageSize = 25 },
                 "IsKaydiGetirAsync" => Row,
-                "DashboardAsync" => new FinansDashboardModel { ToplamIs = 20, SiparisBekleyen = 7, FaturaBekleyen = 2, ToplamM3 = 500, BuAyGiderler = [new("EUR", 100, 20, 120)] },
                 "PanelAsync" => new FinansPanelModel(new(2026, 1, 1), new(2026, 12, 31), "FinansTarihi",
                     [new("EUR", 1000, 1000, 400, 600, 500, 100, 400, 300, 40, 9000, 2000)],
                     [new("Ocak", "EUR", 500, 100)], [], [], 7, 2, 3, 1, 4),
                 "DegisiklikGecmisiAsync" => new FinansSayfaliSonuc<FinansDegisiklikModel>
                     { Items = [new(1, "Is", 1, "Fiyatlandirma", "Snapshot", "{\"birimFiyat\":777.25}", "1234x567x890", "777.25 EUR", new(2026, 9, 19), "Sentetik")], TotalCount = 1, PageSize = 25 },
                 "BelgeIndirAsync" => new DosyaIcerigi(Encoding.ASCII.GetBytes("%PDF-SENTETIK"), "application/pdf", "test.pdf"),
-                "RaporVerisiAsync" => new FinansRaporModel { Isler = [Row], GelirToplamlari = [new("EUR", 1000, 200, 1200)], GiderToplamlari = [new("EUR", 100, 20, 120)], NetToplamlari = [new("EUR", 900, 180, 1080)] },
                 _ => throw new NotSupportedException("Beklenmeyen sentetik servis çağrısı: " + method.Name)
             };
             return typeof(Task).GetMethod(nameof(Task.FromResult))!.MakeGenericMethod(method.ReturnType.GenericTypeArguments[0]).Invoke(null, [result]);

@@ -517,19 +517,6 @@ namespace _3K.Infrastructure.Services
             public int Sira { get; init; }
         }
 
-        private sealed class FinansAylikHesapGrubu
-        {
-            public bool OzelIs { get; set; }
-            public FinansIsTuru IsTuru { get; set; }
-            public string? RaporGrubu { get; set; }
-            public FinansFiyatlandirmaBirimi FiyatlandirmaBirimi { get; set; }
-            public decimal BirimFiyat { get; set; }
-            public string ParaBirimi { get; set; } = string.Empty;
-            public decimal KdvOrani { get; set; }
-            public decimal Adet { get; set; }
-            public decimal ToplamM3 { get; set; }
-        }
-
         private sealed class FinansAylikTutarProjection
         {
             public string ParaBirimi { get; set; } = string.Empty;

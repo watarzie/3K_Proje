@@ -31,17 +31,6 @@ namespace _3K.Application.Features.FinansIslemleri.Commands
         public FinansIsKaydiKaydetModel Model { get; init; } = null!;
     }
 
-    public sealed class FinansIsKaydiGuncelleCommand : FinansCommand<FinansIsKaydiModel>
-    {
-        public override string RequiredMenuKod => YetkiKodlari.Finans.ManuelIsDuzenle;
-        public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions
-            => FinansCommandPermissionRules.RequiresPriceOverride(Model)
-                ? [MenuPermissionRequirement.Write(RequiredMenuKod), MenuPermissionRequirement.Write(YetkiKodlari.Finans.BirimFiyatDegistir)]
-                : [MenuPermissionRequirement.Write(RequiredMenuKod)];
-        public int Id { get; init; }
-        public FinansIsKaydiKaydetModel Model { get; init; } = null!;
-    }
-
     public sealed class FinansIsKaydiIptalCommand : FinansCommand
     {
         public override string RequiredMenuKod => YetkiKodlari.Finans.IsIptal;
@@ -60,15 +49,6 @@ namespace _3K.Application.Features.FinansIslemleri.Commands
         public override string RequiredMenuKod => YetkiKodlari.Finans.FiyatlandirmaDegistir;
         public int Id { get; init; }
         public FinansAylikDegerModel Model { get; init; } = null!;
-    }
-
-    /// <summary>
-    /// Yalnız uygulama içi üretim handler'ları içindir; controller tarafından dışarı açılmaz.
-    /// Üretim kullanıcısının ayrıca finans rolü taşımasını zorunlu kılmamak için secured request değildir.
-    /// </summary>
-    public sealed class FinansUretimAktarCommand : IRequest<Result<FinansSenkronizasyonSonucModel>>
-    {
-        public IReadOnlyList<FinansUretimAktarimModel> Kayitlar { get; init; } = Array.Empty<FinansUretimAktarimModel>();
     }
 
     public sealed class FinansSiparisOlusturCommand : FinansCommand<FinansSiparisModel>
@@ -95,12 +75,6 @@ namespace _3K.Application.Features.FinansIslemleri.Commands
         public string Aciklama { get; init; } = string.Empty;
     }
 
-    public sealed class FinansSiparisGeriAlCommand : FinansCommand
-    {
-        public override string RequiredMenuKod => YetkiKodlari.Finans.PoDegistir;
-        public int Id { get; init; }
-    }
-
     public sealed class FinansFaturaOlusturCommand : FinansCommand<FinansFaturaModel>
     {
         public override string RequiredMenuKod => YetkiKodlari.Finans.FaturaGir;
@@ -121,12 +95,6 @@ namespace _3K.Application.Features.FinansIslemleri.Commands
         public string Aciklama { get; init; } = string.Empty;
     }
 
-    public sealed class FinansFaturaGeriAlCommand : FinansCommand
-    {
-        public override string RequiredMenuKod => YetkiKodlari.Finans.FaturaYonet;
-        public int Id { get; init; }
-    }
-
     public sealed class FinansDuzenliIsOlusturCommand : FinansCommand<FinansDuzenliIsModel>
     {
         public override string RequiredMenuKod => YetkiKodlari.Finans.DuzenliIsYonet;
@@ -138,12 +106,6 @@ namespace _3K.Application.Features.FinansIslemleri.Commands
         public override string RequiredMenuKod => YetkiKodlari.Finans.DuzenliIsYonet;
         public int Id { get; init; }
         public FinansDuzenliIsKaydetModel Model { get; init; } = null!;
-    }
-
-    public sealed class FinansDuzenliIsDonemOlusturCommand : FinansCommand<FinansDonemOlusturSonucModel>
-    {
-        public override string RequiredMenuKod => YetkiKodlari.Finans.DuzenliIsYonet;
-        public DateTime ReferansTarihi { get; init; }
     }
 
     public sealed class FinansGiderOlusturCommand : FinansCommand<FinansGiderModel>
@@ -164,12 +126,6 @@ namespace _3K.Application.Features.FinansIslemleri.Commands
         public override string RequiredMenuKod => YetkiKodlari.Finans.GiderIptal;
         public int Id { get; init; }
         public string Aciklama { get; init; } = string.Empty;
-    }
-
-    public sealed class FinansGiderGeriAlCommand : FinansCommand
-    {
-        public override string RequiredMenuKod => YetkiKodlari.Finans.GiderDuzenle;
-        public int Id { get; init; }
     }
 
     public sealed class FinansGiderKategoriOlusturCommand : FinansCommand<FinansGiderKategoriModel>
@@ -198,13 +154,6 @@ namespace _3K.Application.Features.FinansIslemleri.Commands
         public FinansGiderKalemiKaydetModel Model { get; init; } = null!;
     }
 
-    public sealed class FinansGideriKutuphaneyeKaydetCommand : FinansCommand<FinansGiderKalemiModel>
-    {
-        public override string RequiredMenuKod => YetkiKodlari.Finans.GiderKutuphanesiYonet;
-        public int GiderId { get; init; }
-        public FinansGideriKutuphaneyeKaydetModel Model { get; init; } = null!;
-    }
-
     public sealed class FinansUrunOlusturCommand : FinansCommand<FinansUrunModel>
     {
         public override string RequiredMenuKod => YetkiKodlari.Finans.IsKutuphanesiYonet;
@@ -222,19 +171,6 @@ namespace _3K.Application.Features.FinansIslemleri.Commands
     {
         public override string RequiredMenuKod => YetkiKodlari.Finans.IsKutuphanesiYonet;
         public int Id { get; init; }
-    }
-
-    public sealed class FinansFiyatTarifesiOlusturCommand : FinansCommand<FinansFiyatTarifesiModel>
-    {
-        public override string RequiredMenuKod => YetkiKodlari.Finans.TarifeYonet;
-        public FinansFiyatTarifesiKaydetModel Model { get; init; } = null!;
-    }
-
-    public sealed class FinansFiyatTarifesiGuncelleCommand : FinansCommand<FinansFiyatTarifesiModel>
-    {
-        public override string RequiredMenuKod => YetkiKodlari.Finans.TarifeYonet;
-        public int Id { get; init; }
-        public FinansFiyatTarifesiKaydetModel Model { get; init; } = null!;
     }
 
     internal static class FinansCommandPermissionRules

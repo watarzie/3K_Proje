@@ -54,19 +54,6 @@ namespace _3K.Infrastructure.Services
                 _ => kullanilanAdet + Tolerance >= kapasiteAdet && kullanilanM3 + Tolerance >= kapasiteM3
             };
 
-        internal static bool DagitimVar(
-            FinansFiyatlandirmaBirimi fiyatlandirmaBirimi,
-            decimal adet,
-            decimal m3,
-            bool kayitVar)
-            => fiyatlandirmaBirimi switch
-            {
-                FinansFiyatlandirmaBirimi.Adet => adet > Tolerance,
-                FinansFiyatlandirmaBirimi.Metrekup => m3 > Tolerance,
-                FinansFiyatlandirmaBirimi.SabitTutar => kayitVar,
-                _ => adet > Tolerance || m3 > Tolerance
-            };
-
         internal static bool KapasiteAsiliyor(
             FinansFiyatlandirmaBirimi fiyatlandirmaBirimi,
             decimal kapasiteAdet,

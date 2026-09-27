@@ -2,27 +2,6 @@ using _3K.Core.Models;
 
 namespace _3K.Application.Features.FinansIslemleri.DTOs
 {
-    /// <summary>
-    /// Menüye erişebilen herkesin görebileceği, parasal veri içermeyen operasyon özeti.
-    /// Gelir, gider ve net tutarlar ayrı izinli sorgulardan döner.
-    /// </summary>
-    public sealed record FinansDashboardDto(
-        int ToplamIs,
-        decimal ToplamSandik,
-        decimal ToplamM3,
-        int SiparisBekleyen,
-        int SiparisAcik,
-        int KismiSiparis,
-        int FaturaBekleyen,
-        int Faturalanan,
-        int BuAyOzelIs,
-        decimal? BuAyGider);
-
-    public sealed record FinansHassasOzetDto(IReadOnlyList<FinansParaToplamiModel> Tutarlar);
-    public sealed record FinansDurumTutarOzetiDto(
-        IReadOnlyList<FinansParaToplamiModel> SiparisBekleyen,
-        IReadOnlyList<FinansParaToplamiModel> SiparisAcik,
-        IReadOnlyList<FinansParaToplamiModel> Faturalanan);
     public sealed record FinansIptalDto(string Aciklama);
 
     public static class FinansHassasAlanMaskeleme

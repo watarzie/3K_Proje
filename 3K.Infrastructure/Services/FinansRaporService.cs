@@ -472,14 +472,6 @@ namespace _3K.Infrastructure.Services
             return stream.ToArray();
         }
 
-        private static FinansListeFiltre MonthFilter(int year, int month)
-        {
-            if (year is < 2000 or > 2200 || month is < 1 or > 12)
-                throw new InvalidOperationException("Geçerli bir yıl ve ay seçilmelidir.");
-            var start = new DateTime(year, month, 1);
-            return new FinansListeFiltre(PageSize: 250, Baslangic: start, Bitis: start.AddMonths(1).AddDays(-1));
-        }
-
         private async Task<IReadOnlyList<FinansSiparisModel>> GetAllOrdersAsync(
             FinansListeFiltre filtre,
             CancellationToken cancellationToken)
@@ -540,13 +532,6 @@ namespace _3K.Infrastructure.Services
             sheet.Range(1, 1, Math.Max(1, lastRow), columnCount).Style.Border.BottomBorderColor = XLColor.LightGray;
         }
 
-        private static int WriteMoneySummary(IXLWorksheet sheet, int row, string type, IReadOnlyList<FinansParaToplamiModel> values)
-        {
-            foreach (var item in values)
-                WriteRow(sheet, row++, new object?[] { type, item.ParaBirimi, item.NetTutar, item.KdvTutari, item.ToplamTutar });
-            return row;
-        }
-
         private static byte[] Save(XLWorkbook workbook)
         {
             using var stream = new MemoryStream();
@@ -581,18 +566,6 @@ namespace _3K.Infrastructure.Services
 
         private static void PdfCell(TableDescriptor table, string value)
             => table.Cell().BorderBottom(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(3).Text(value ?? string.Empty);
-
-        private static void AddMoneyRows(TableDescriptor table, string type, IEnumerable<FinansParaToplamiModel> values)
-        {
-            foreach (var item in values)
-            {
-                PdfCell(table, type);
-                PdfCell(table, item.ParaBirimi);
-                PdfCell(table, Format(item.NetTutar));
-                PdfCell(table, Format(item.KdvTutari));
-                PdfCell(table, Format(item.ToplamTutar));
-            }
-        }
 
         private static string Format(decimal value) => value.ToString("N2", CultureInfo.GetCultureInfo("tr-TR"));
     }

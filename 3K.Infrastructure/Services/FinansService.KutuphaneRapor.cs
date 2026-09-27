@@ -10,37 +10,6 @@ namespace _3K.Infrastructure.Services
 {
     public sealed partial class FinansService
     {
-        public async Task<IReadOnlyList<FinansUrunModel>> UrunlerAsync(
-            bool sadeceAktif,
-            DateTime? tarifeTarihi,
-            CancellationToken cancellationToken)
-        {
-            var tariffDate = (tarifeTarihi ?? TurkeyTime.Now).Date;
-            var query = _context.Set<FinansUrun>()
-                .AsNoTracking()
-                .Include(x => x.Eslesmeler)
-                .Include(x => x.FiyatTarifeleri)
-                .AsQueryable();
-            if (sadeceAktif) query = query.Where(x => x.Aktif);
-            var entities = await query.OrderBy(x => x.Sira).ThenBy(x => x.Ad).ToListAsync(cancellationToken);
-            return entities.Select(x => MapProduct(x, tariffDate)).ToArray();
-        }
-
-        public async Task<IReadOnlyList<FinansUrunSecenekModel>> UrunSecenekleriAsync(
-            CancellationToken cancellationToken)
-            => await BuildProductOptionsQuery(_context.Set<FinansUrun>().AsNoTracking())
-                .ToListAsync(cancellationToken);
-
-        internal static IQueryable<FinansUrunSecenekModel> BuildProductOptionsQuery(
-            IQueryable<FinansUrun> query)
-            => query
-                .Where(x => x.Aktif)
-                .OrderBy(x => x.Sira)
-                .ThenBy(x => x.Ad)
-                .ThenBy(x => x.Id)
-                .Select(x => new FinansUrunSecenekModel(
-                    x.Id, x.Kod, x.Ad, x.FiyatlandirmaBirimi));
-
         public async Task<FinansSayfaliSonuc<FinansUrunModel>> UrunlerSayfaliAsync(
             bool sadeceAktif,
             DateTime? tarifeTarihi,
@@ -287,123 +256,6 @@ namespace _3K.Infrastructure.Services
             };
         }
 
-        public async Task<IReadOnlyList<FinansFiyatTarifesiModel>> FiyatTarifeleriAsync(
-            int? urunId,
-            int? yil,
-            bool sadeceAktif,
-            CancellationToken cancellationToken)
-        {
-            var query = _context.Set<FinansFiyatTarifesi>().AsNoTracking().Include(x => x.FinansUrun).AsQueryable();
-            if (urunId.HasValue) query = query.Where(x => x.FinansUrunId == urunId);
-            if (yil.HasValue) query = query.Where(x => x.Yil == yil);
-            if (sadeceAktif) query = query.Where(x => x.Aktif);
-            return await query.OrderByDescending(x => x.Yil).ThenBy(x => x.FinansUrun.Ad).ThenBy(x => x.GecerlilikBaslangici)
-                .Select(x => new FinansFiyatTarifesiModel(x.Id, x.FinansUrunId, x.FinansUrun.Kod, x.FinansUrun.Ad, x.Yil,
-                    x.GecerlilikBaslangici, x.GecerlilikBitisi, x.BirimFiyat, x.ParaBirimi, x.KdvOrani, x.Aktif))
-                .ToListAsync(cancellationToken);
-        }
-
-        public async Task<FinansSayfaliSonuc<FinansFiyatTarifesiModel>> FiyatTarifeleriSayfaliAsync(
-            int? urunId,
-            int? yil,
-            bool sadeceAktif,
-            string? arama,
-            int pageNumber,
-            int pageSize,
-            CancellationToken cancellationToken)
-        {
-            var query = ApplyTariffFilter(
-                _context.Set<FinansFiyatTarifesi>().AsNoTracking(),
-                urunId, yil, sadeceAktif, arama);
-            var count = await query.CountAsync(cancellationToken);
-            var (page, size, skip) = NormalizePagination(pageNumber, pageSize, count, 100);
-            var items = await query
-                .OrderByDescending(x => x.Yil)
-                .ThenBy(x => x.FinansUrun.Ad)
-                .ThenBy(x => x.GecerlilikBaslangici)
-                .ThenBy(x => x.Id)
-                .Skip(skip)
-                .Take(size)
-                .Select(x => new FinansFiyatTarifesiModel(
-                    x.Id, x.FinansUrunId, x.FinansUrun.Kod, x.FinansUrun.Ad, x.Yil,
-                    x.GecerlilikBaslangici, x.GecerlilikBitisi, x.BirimFiyat,
-                    x.ParaBirimi, x.KdvOrani, x.Aktif))
-                .ToListAsync(cancellationToken);
-
-            return new FinansSayfaliSonuc<FinansFiyatTarifesiModel>
-            {
-                Items = items,
-                PageNumber = page,
-                PageSize = size,
-                TotalCount = count
-            };
-        }
-
-        internal static IQueryable<FinansFiyatTarifesi> ApplyTariffFilter(
-            IQueryable<FinansFiyatTarifesi> query,
-            int? urunId,
-            int? yil,
-            bool sadeceAktif,
-            string? arama)
-        {
-            if (urunId.HasValue)
-                query = query.Where(x => x.FinansUrunId == urunId.Value);
-            if (yil.HasValue)
-                query = query.Where(x => x.Yil == yil.Value);
-            if (sadeceAktif)
-                query = query.Where(x => x.Aktif);
-            if (string.IsNullOrWhiteSpace(arama))
-                return query;
-
-            var search = arama.Trim().ToLower();
-            return query.Where(x =>
-                x.FinansUrun.Kod.ToLower().Contains(search) ||
-                x.FinansUrun.Ad.ToLower().Contains(search) ||
-                x.ParaBirimi.ToLower().Contains(search));
-        }
-
-        public Task<FinansFiyatTarifesiModel> FiyatTarifesiOlusturAsync(
-            FinansFiyatTarifesiKaydetModel model,
-            CancellationToken cancellationToken)
-            => ExecuteAtomicAsync(() => FiyatTarifesiOlusturCoreAsync(model, cancellationToken), cancellationToken);
-
-        private async Task<FinansFiyatTarifesiModel> FiyatTarifesiOlusturCoreAsync(
-            FinansFiyatTarifesiKaydetModel model,
-            CancellationToken cancellationToken)
-        {
-            await ValidateTariffAsync(null, model, cancellationToken);
-            var entity = new FinansFiyatTarifesi();
-            ApplyTariff(entity, model);
-            _context.Set<FinansFiyatTarifesi>().Add(entity);
-            await _context.SaveChangesAsync(cancellationToken);
-            AddAudit(nameof(FinansFiyatTarifesi), entity.Id, "Oluşturma", "*", null, $"{model.Yil}/{model.BirimFiyat}");
-            await _context.SaveChangesAsync(cancellationToken);
-            await BackfillUnpricedWorksAsync(cancellationToken);
-            return (await FiyatTarifeleriAsync(model.FinansUrunId, null, false, cancellationToken)).Single(x => x.Id == entity.Id);
-        }
-
-        public Task<FinansFiyatTarifesiModel?> FiyatTarifesiGuncelleAsync(
-            int id,
-            FinansFiyatTarifesiKaydetModel model,
-            CancellationToken cancellationToken)
-            => ExecuteAtomicAsync(() => FiyatTarifesiGuncelleCoreAsync(id, model, cancellationToken), cancellationToken);
-
-        private async Task<FinansFiyatTarifesiModel?> FiyatTarifesiGuncelleCoreAsync(
-            int id,
-            FinansFiyatTarifesiKaydetModel model,
-            CancellationToken cancellationToken)
-        {
-            var entity = await _context.Set<FinansFiyatTarifesi>().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
-            if (entity is null) return null;
-            await ValidateTariffAsync(id, model, cancellationToken);
-            var auditBefore = CaptureAuditState(entity);
-            ApplyTariff(entity, model);
-            AddAuditChanges(nameof(FinansFiyatTarifesi), entity, auditBefore);
-            await _context.SaveChangesAsync(cancellationToken);
-            await BackfillUnpricedWorksAsync(cancellationToken);
-            return (await FiyatTarifeleriAsync(model.FinansUrunId, null, false, cancellationToken)).Single(x => x.Id == id);
-        }
-
         private async Task BackfillUnpricedWorksAsync(CancellationToken cancellationToken)
         {
             IDbContextTransaction? transaction = null;
@@ -446,35 +298,6 @@ namespace _3K.Infrastructure.Services
             {
                 if (transaction is not null) await transaction.DisposeAsync();
             }
-        }
-
-        private async Task ValidateTariffAsync(int? id, FinansFiyatTarifesiKaydetModel model, CancellationToken cancellationToken)
-        {
-            if (!await _context.Set<FinansUrun>().AnyAsync(x => x.Id == model.FinansUrunId, cancellationToken))
-                throw new InvalidOperationException("Finans ürünü bulunamadı.");
-            if (model.GecerlilikBaslangici.Date > model.GecerlilikBitisi.Date)
-                throw new InvalidOperationException("Tarife başlangıcı bitişinden sonra olamaz.");
-            if (model.GecerlilikBaslangici.Year != model.Yil || model.GecerlilikBitisi.Year != model.Yil)
-                throw new InvalidOperationException("Tarife tarihleri seçilen yılın içinde olmalıdır.");
-            var overlaps = await _context.Set<FinansFiyatTarifesi>().AnyAsync(x =>
-                x.Id != id && x.FinansUrunId == model.FinansUrunId && x.Aktif && model.Aktif &&
-                x.GecerlilikBaslangici <= model.GecerlilikBitisi.Date &&
-                x.GecerlilikBitisi >= model.GecerlilikBaslangici.Date,
-                cancellationToken);
-            if (overlaps)
-                throw new InvalidOperationException("Aynı ürün için tarih aralığı çakışan aktif bir tarife zaten var.");
-        }
-
-        private static void ApplyTariff(FinansFiyatTarifesi entity, FinansFiyatTarifesiKaydetModel model)
-        {
-            entity.FinansUrunId = model.FinansUrunId;
-            entity.Yil = model.Yil;
-            entity.GecerlilikBaslangici = model.GecerlilikBaslangici.Date;
-            entity.GecerlilikBitisi = model.GecerlilikBitisi.Date;
-            entity.BirimFiyat = model.BirimFiyat;
-            entity.ParaBirimi = NormalizeCurrency(model.ParaBirimi);
-            entity.KdvOrani = model.KdvOrani;
-            entity.Aktif = model.Aktif;
         }
 
         public async Task<FinansRaporModel> RaporVerisiAsync(FinansListeFiltre filtre, CancellationToken cancellationToken)

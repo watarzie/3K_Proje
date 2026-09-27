@@ -41,29 +41,6 @@ namespace _3K.Core.Models
         AmbalajSandikCinsi? SandikCinsi = null,
         int? GiderKategoriId = null);
 
-    public sealed class FinansDashboardModel
-    {
-        public int ToplamIs { get; init; }
-        public decimal ToplamSandik { get; init; }
-        public decimal ToplamM3 { get; init; }
-        public int SiparisBekleyen { get; init; }
-        public int SiparisAcik { get; init; }
-        public int KismiSiparis { get; init; }
-        public int FaturaBekleyen { get; init; }
-        public int Faturalanan { get; init; }
-        public int BuAyOzelIs { get; init; }
-        public int BuAyGiderKaydi { get; init; }
-        /// <summary>Referans Finans ekranının kullandığı bu ay toplam gider tutarı.</summary>
-        public decimal? BuAyGider => BuAyGiderler.Select(x => x.ParaBirimi).Distinct().Count() > 1 ? null : BuAyGiderler.Sum(x => x.NetTutar);
-        public IReadOnlyList<FinansParaToplamiModel> BuAyGiderler { get; init; } = Array.Empty<FinansParaToplamiModel>();
-        public IReadOnlyList<FinansParaToplamiModel> Gelirler { get; init; } = Array.Empty<FinansParaToplamiModel>();
-        public IReadOnlyList<FinansParaToplamiModel> Giderler { get; init; } = Array.Empty<FinansParaToplamiModel>();
-        public IReadOnlyList<FinansParaToplamiModel> Netler { get; init; } = Array.Empty<FinansParaToplamiModel>();
-        public IReadOnlyList<FinansParaToplamiModel> SiparisBekleyenTutarlar { get; init; } = Array.Empty<FinansParaToplamiModel>();
-        public IReadOnlyList<FinansParaToplamiModel> SiparisAcikTutarlar { get; init; } = Array.Empty<FinansParaToplamiModel>();
-        public IReadOnlyList<FinansParaToplamiModel> FaturalananTutarlar { get; init; } = Array.Empty<FinansParaToplamiModel>();
-    }
-
     public sealed record FinansParaToplamiModel(
         string ParaBirimi,
         decimal NetTutar,
@@ -138,33 +115,6 @@ namespace _3K.Core.Models
         public string? IptalAciklamasi { get; init; }
         public DateTime CreatedDate { get; init; }
         public string? CreatedBy { get; init; }
-    }
-
-    public sealed class FinansProjeOzetModel
-    {
-        public int? ProjeId { get; init; }
-        public string ProjeNo { get; init; } = string.Empty;
-        public string Musteri { get; init; } = string.Empty;
-        public int ToplamIsAdedi { get; init; }
-        public decimal ToplamSandikAdedi { get; init; }
-        public decimal ToplamM3 { get; init; }
-        public decimal SiparisAcikM3 { get; init; }
-        public decimal SiparisBekleyenM3 { get; init; }
-        public decimal FaturalananM3 { get; init; }
-        public decimal FaturaBekleyenM3 { get; init; }
-        public DateTime? SonUretimeAlmaTarihi { get; init; }
-        public string GenelDurum { get; init; } = string.Empty;
-        public IReadOnlyList<FinansParaToplamiModel> Tutarlar { get; init; } = Array.Empty<FinansParaToplamiModel>();
-        public decimal BirimFiyat { get; init; }
-        public string ParaBirimi { get; init; } = "EUR";
-        public decimal KdvOrani { get; init; }
-        public decimal NetTutar { get; init; }
-        public decimal KdvTutari { get; init; }
-        public decimal ToplamTutar { get; init; }
-        public bool TarifeEksik { get; init; }
-        public IReadOnlyList<string> PoNumaralari { get; init; } = Array.Empty<string>();
-        public IReadOnlyList<string> FaturaNumaralari { get; init; } = Array.Empty<string>();
-        public int? FaturaBekleyenSiparisId { get; init; }
     }
 
     /// <summary>
@@ -334,24 +284,6 @@ namespace _3K.Core.Models
         decimal NetTutar,
         decimal KdvTutari,
         decimal ToplamTutar);
-
-    public sealed record FinansOzelIsModel(
-        int Id,
-        string KayitNo,
-        string IsTuru,
-        string Musteri,
-        string IsAdi,
-        decimal Miktar,
-        string Birim,
-        decimal BirimFiyat,
-        string ParaBirimi,
-        decimal KdvOrani,
-        int? FinansKaydiId,
-        DateTime IsTarihi,
-        int? DuzenliIsId,
-        IReadOnlyList<string> PoNumaralari,
-        IReadOnlyList<string> FaturaNumaralari,
-        int? FaturaBekleyenSiparisId);
 
     public sealed record FinansSiparisDagitimModel(
         int IsKaydiId,
@@ -661,11 +593,6 @@ namespace _3K.Core.Models
         bool VarsayilanKdvDahil = false,
         decimal? VarsayilanKdvOrani = null);
 
-    public sealed record FinansGideriKutuphaneyeKaydetModel(
-        string Kod,
-        string Ad,
-        bool Aktif = true);
-
     public sealed record FinansUrunEslesmesiModel(
         int? Id,
         FinansIsTuru IsTuru,
@@ -694,16 +621,6 @@ namespace _3K.Core.Models
         public IReadOnlyList<FinansUrunEslesmesiModel> Eslesmeler { get; init; } = Array.Empty<FinansUrunEslesmesiModel>();
     }
 
-    /// <summary>
-    /// Fiyat görme yetkisi olmayan operasyon kullanıcılarının ürün seçebilmesi için
-    /// yalnız fiyat dışı alanları taşıyan güvenli seçenek modeli.
-    /// </summary>
-    public sealed record FinansUrunSecenekModel(
-        int Id,
-        string Kod,
-        string Ad,
-        FinansFiyatlandirmaBirimi FiyatlandirmaBirimi);
-
     public sealed record FinansUrunKaydetModel(
         string Kod,
         string Ad,
@@ -714,29 +631,6 @@ namespace _3K.Core.Models
         decimal? BirimFiyat = null,
         string? ParaBirimi = null,
         decimal? KdvOrani = null);
-
-    public sealed record FinansFiyatTarifesiKaydetModel(
-        int FinansUrunId,
-        int Yil,
-        DateTime GecerlilikBaslangici,
-        DateTime GecerlilikBitisi,
-        decimal BirimFiyat,
-        string ParaBirimi,
-        decimal KdvOrani,
-        bool Aktif);
-
-    public sealed record FinansFiyatTarifesiModel(
-        int Id,
-        int FinansUrunId,
-        string UrunKodu,
-        string UrunAdi,
-        int Yil,
-        DateTime GecerlilikBaslangici,
-        DateTime GecerlilikBitisi,
-        decimal BirimFiyat,
-        string ParaBirimi,
-        decimal KdvOrani,
-        bool Aktif);
 
     public sealed record FinansDegisiklikModel(
         int Id,

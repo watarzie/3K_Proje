@@ -26,8 +26,8 @@ public static class MenuAuthorizationExceptions
         GetOkunmamisBildirimlerQuery or BildirimiOkunduIsaretleCommand or TumBildirimleriOkunduIsaretleCommand or
         GetOnayGecmisiQuery or GetOnayGecmisiDetayiQuery;
 
-    // Bu komutların HTTP endpoint'i yoktur. İlk iki komut ApprovalBehavior'dan
-    // geçerek doğrudan veya onay sonrası uygulanır; finans aktarımı iç üretim akışıdır.
+    // Bu komutların HTTP endpoint'i yoktur; ApprovalBehavior'dan geçerek doğrudan
+    // veya onay sonrası uygulanır.
     public static bool IsServerInternal(object request) => request is
-        CekiRevizyonOnayliUygulaCommand or SandikLokasyonOnayliUygulaCommand or FinansUretimAktarCommand;
+        CekiRevizyonOnayliUygulaCommand or SandikLokasyonOnayliUygulaCommand;
 }

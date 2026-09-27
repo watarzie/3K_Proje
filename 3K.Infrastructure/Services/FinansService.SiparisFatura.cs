@@ -286,43 +286,6 @@ namespace _3K.Infrastructure.Services
             }
         }
 
-        public async Task<bool> SiparisGeriAlAsync(int id, CancellationToken cancellationToken)
-        {
-            await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
-            try
-            {
-                var entity = await SiparisDetayQuery(true).FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
-                if (entity is null) return false;
-                if (!entity.IptalEdildi) return true;
-                foreach (var line in entity.Kalemler)
-                {
-                    var work = await IsKaydiDetayQuery(true).FirstAsync(x => x.Id == line.FinansIsKaydiId, cancellationToken);
-                    if (work.IptalEdildi || !work.KaynakAktif)
-                        throw new InvalidOperationException("Kaynağı pasif olan işin siparişi aktifleştirilemez.");
-                    var otherLines = work.SiparisKalemleri.Where(x => x.FinansSiparisId != entity.Id && !x.FinansSiparis.IptalEdildi).ToList();
-                    var allLines = otherLines.Append(line).ToList();
-                    if (allLines.Sum(x => x.NetTutarSnapshot) > FinansTutarKurallari.IsNet(work) ||
-                        allLines.Any(x => x.ParaBirimiSnapshot != work.ParaBirimiSnapshot))
-                        throw new InvalidOperationException("Sipariş geri alındığında iş kaydının kalan miktarı aşılacağı için işlem yapılamadı.");
-                }
-                entity.IptalEdildi = false;
-                entity.IptalTarihi = null;
-                entity.IptalAciklamasi = null;
-                await RefreshOrderStatusAsync(entity, cancellationToken);
-                AddAudit(nameof(FinansSiparis), id, "Aktifleştirme", nameof(entity.IptalEdildi), true, false);
-                await RefreshWorkStatusesAsync(entity.Kalemler.Select(x => x.FinansIsKaydiId), cancellationToken);
-                await _context.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
-                return true;
-            }
-            catch (Exception exception)
-            {
-                await transaction.RollbackAsync(cancellationToken);
-                ThrowIfPersistenceConflict(exception);
-                throw;
-            }
-        }
-
         public async Task<FinansSayfaliSonuc<FinansFaturaModel>> FaturalarAsync(
             FinansListeFiltre filtre,
             CancellationToken cancellationToken)
@@ -582,46 +545,6 @@ namespace _3K.Infrastructure.Services
                 invoice.Durum = FinansFaturaDurumu.IptalEdildi;
                 AddAudit(nameof(FinansFatura), id, "İptal", nameof(invoice.IptalEdildi), false, true, aciklama);
                 var order = await SiparisDetayQuery(true).FirstAsync(x => x.Id == invoice.FinansSiparisId, cancellationToken);
-                await RefreshOrderStatusAsync(order, cancellationToken);
-                await RefreshWorkStatusesAsync(order.Kalemler.Select(x => x.FinansIsKaydiId), cancellationToken);
-                await _context.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
-                return true;
-            }
-            catch (Exception exception)
-            {
-                await transaction.RollbackAsync(cancellationToken);
-                ThrowIfPersistenceConflict(exception);
-                throw;
-            }
-        }
-
-        public async Task<bool> FaturaGeriAlAsync(int id, CancellationToken cancellationToken)
-        {
-            await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
-            try
-            {
-                var invoice = await FaturaDetayQuery(true).FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
-                if (invoice is null) return false;
-                if (!invoice.IptalEdildi) return true;
-                var order = await SiparisDetayQuery(true).FirstAsync(x => x.Id == invoice.FinansSiparisId, cancellationToken);
-                if (order.IptalEdildi)
-                    throw new InvalidOperationException("İptal edilmiş siparişin faturası aktifleştirilemez.");
-                foreach (var invoiceLine in invoice.Kalemler)
-                {
-                    var orderLine = order.Kalemler.Single(x => x.Id == invoiceLine.FinansSiparisKalemiId);
-                    var otherActive = orderLine.FaturaKalemleri
-                        .Where(x => x.FinansFaturaId != invoice.Id && !x.FinansFatura.IptalEdildi).ToList();
-                    var allLines = otherActive.Append(invoiceLine).ToList();
-                    if (allLines.Sum(x => x.NetTutarSnapshot) > orderLine.NetTutarSnapshot ||
-                        allLines.Sum(x => x.ToplamTutarSnapshot) > orderLine.ToplamTutarSnapshot)
-                        throw new InvalidOperationException("Fatura geri alındığında sipariş kaleminin kalan miktarı aşılacağı için işlem yapılamadı.");
-                }
-                invoice.IptalEdildi = false;
-                invoice.IptalTarihi = null;
-                invoice.IptalAciklamasi = null;
-                invoice.Durum = FinansFaturaDurumu.Aktif;
-                AddAudit(nameof(FinansFatura), id, "Aktifleştirme", nameof(invoice.IptalEdildi), true, false);
                 await RefreshOrderStatusAsync(order, cancellationToken);
                 await RefreshWorkStatusesAsync(order.Kalemler.Select(x => x.FinansIsKaydiId), cancellationToken);
                 await _context.SaveChangesAsync(cancellationToken);

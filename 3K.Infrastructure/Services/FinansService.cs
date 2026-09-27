@@ -12,7 +12,7 @@ using _3K.Infrastructure.Data;
 
 namespace _3K.Infrastructure.Services
 {
-    public sealed partial class FinansService : IFinansService, IFinansUretimAktarimService, IFinansAktarimService
+    public sealed partial class FinansService : IFinansService, IFinansUretimAktarimService
     {
         private const decimal Tolerance = 0.000001m;
         private readonly AppDbContext _context;

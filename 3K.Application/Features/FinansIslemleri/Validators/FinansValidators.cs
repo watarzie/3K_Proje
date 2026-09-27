@@ -54,47 +54,6 @@ namespace _3K.Application.Features.FinansIslemleri.Validators
         public FinansIsKaydiOlusturCommandValidator() => RuleFor(x => x.Model).NotNull().SetValidator(new FinansIsKaydiKaydetModelValidator());
     }
 
-    public sealed class FinansIsKaydiGuncelleCommandValidator : AbstractValidator<FinansIsKaydiGuncelleCommand>
-    {
-        public FinansIsKaydiGuncelleCommandValidator()
-        {
-            RuleFor(x => x.Id).GreaterThan(0);
-            RuleFor(x => x.Model).NotNull().SetValidator(new FinansIsKaydiKaydetModelValidator());
-        }
-    }
-
-    public sealed class FinansUretimAktarimModelValidator : AbstractValidator<FinansUretimAktarimModel>
-    {
-        public FinansUretimAktarimModelValidator()
-        {
-            RuleFor(x => x.KaynakTuru).NotEmpty().MaximumLength(50);
-            RuleFor(x => x.KaynakKayitId).NotEmpty().MaximumLength(100);
-            RuleFor(x => x.ProjeNo).NotEmpty().MaximumLength(100);
-            RuleFor(x => x.Musteri).MaximumLength(250);
-            RuleFor(x => x.IsTuru).IsInEnum();
-            RuleFor(x => x.IsAdi).NotEmpty().MaximumLength(250);
-            RuleFor(x => x.Aciklama).MaximumLength(2000);
-            RuleFor(x => x.TalepEdenKisi).MaximumLength(200);
-            RuleFor(x => x.TalepEdenBolum).MaximumLength(200);
-            RuleFor(x => x.SandikNo).MaximumLength(100);
-            RuleFor(x => x.SandikAdi).MaximumLength(250);
-            RuleFor(x => x.SandikTipi).MaximumLength(100);
-            RuleFor(x => x.Adet).GreaterThan(0).When(x => x.KaynakAktif);
-            RuleFor(x => x.BirimM3).GreaterThanOrEqualTo(0);
-            RuleFor(x => x.UretimTarihi).Must(FinansValidationRules.ValidDate);
-            RuleFor(x => x.FinansDonemi).Must(FinansValidationRules.ValidDate);
-        }
-    }
-
-    public sealed class FinansUretimAktarCommandValidator : AbstractValidator<FinansUretimAktarCommand>
-    {
-        public FinansUretimAktarCommandValidator()
-        {
-            RuleFor(x => x.Kayitlar).NotNull();
-            RuleForEach(x => x.Kayitlar).SetValidator(new FinansUretimAktarimModelValidator());
-        }
-    }
-
     public sealed class FinansSiparisOlusturModelValidator : AbstractValidator<FinansSiparisOlusturModel>
     {
         public FinansSiparisOlusturModelValidator()
@@ -341,19 +300,6 @@ namespace _3K.Application.Features.FinansIslemleri.Validators
         }
     }
 
-    public sealed class FinansGideriKutuphaneyeKaydetCommandValidator : AbstractValidator<FinansGideriKutuphaneyeKaydetCommand>
-    {
-        public FinansGideriKutuphaneyeKaydetCommandValidator()
-        {
-            RuleFor(x => x.GiderId).GreaterThan(0);
-            RuleFor(x => x.Model).NotNull().DependentRules(() =>
-            {
-                RuleFor(x => x.Model.Kod).NotEmpty().MaximumLength(50);
-                RuleFor(x => x.Model.Ad).NotEmpty().MaximumLength(150);
-            });
-        }
-    }
-
     public sealed class FinansUrunKaydetModelValidator : AbstractValidator<FinansUrunKaydetModel>
     {
         public FinansUrunKaydetModelValidator()
@@ -390,36 +336,6 @@ namespace _3K.Application.Features.FinansIslemleri.Validators
         {
             RuleFor(x => x.Id).GreaterThan(0);
             RuleFor(x => x.Model).NotNull().SetValidator(new FinansUrunKaydetModelValidator());
-        }
-    }
-
-    public sealed class FinansFiyatTarifesiKaydetModelValidator : AbstractValidator<FinansFiyatTarifesiKaydetModel>
-    {
-        public FinansFiyatTarifesiKaydetModelValidator()
-        {
-            RuleFor(x => x.FinansUrunId).GreaterThan(0);
-            RuleFor(x => x.Yil).InclusiveBetween(2000, 2200);
-            RuleFor(x => x.GecerlilikBaslangici).Must(FinansValidationRules.ValidDate);
-            RuleFor(x => x.GecerlilikBitisi).GreaterThanOrEqualTo(x => x.GecerlilikBaslangici);
-            RuleFor(x => x.BirimFiyat).GreaterThanOrEqualTo(0);
-            RuleFor(x => x.ParaBirimi).Must(FinansValidationRules.Currency);
-            RuleFor(x => x.KdvOrani).InclusiveBetween(0, 100);
-            RuleFor(x => x).Must(x => x.GecerlilikBaslangici.Year == x.Yil && x.GecerlilikBitisi.Year == x.Yil)
-                .WithMessage("Tarife tarihleri tarife yılı içinde olmalıdır.");
-        }
-    }
-
-    public sealed class FinansFiyatTarifesiOlusturCommandValidator : AbstractValidator<FinansFiyatTarifesiOlusturCommand>
-    {
-        public FinansFiyatTarifesiOlusturCommandValidator() => RuleFor(x => x.Model).NotNull().SetValidator(new FinansFiyatTarifesiKaydetModelValidator());
-    }
-
-    public sealed class FinansFiyatTarifesiGuncelleCommandValidator : AbstractValidator<FinansFiyatTarifesiGuncelleCommand>
-    {
-        public FinansFiyatTarifesiGuncelleCommandValidator()
-        {
-            RuleFor(x => x.Id).GreaterThan(0);
-            RuleFor(x => x.Model).NotNull().SetValidator(new FinansFiyatTarifesiKaydetModelValidator());
         }
     }
 

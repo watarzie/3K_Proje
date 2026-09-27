@@ -82,7 +82,6 @@ public static class DependencyInjection
         services.AddScoped<FinansService>();
         services.AddScoped<IFinansService>(sp => sp.GetRequiredService<FinansService>());
         services.AddScoped<IFinansUretimAktarimService>(sp => sp.GetRequiredService<FinansService>());
-        services.AddScoped<IFinansAktarimService>(sp => sp.GetRequiredService<FinansService>());
         services.AddScoped<IFinansRaporService, FinansRaporService>();
     }
 

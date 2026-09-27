@@ -47,12 +47,10 @@ public sealed class FinansV2PostgresTests
             var panel = await service.PanelAsync(new(2026, 9, 15), new(2026, 9, 30), Ct);
             var euro = Assert.Single(panel.Tutarlar, x => x.ParaBirimi == "EUR");
             Assert.Equal(10000m, euro.Gelir); Assert.Equal(2500m, euro.Gider); Assert.Equal(7500m, euro.TahminiKar);
-            var listed = await service.IsKayitlariAsync(new() { PageSize = 1 }, Ct);
+            var listed = await service.GenelAramaAsync(new() { PageSize = 1 }, Ct);
             Assert.Equal(10000, Assert.Single(listed.Toplamlar).NetTutar);
             Assert.Equal(10000, Assert.Single((await service.SiparislerAsync(new() { PageSize = 1 }, Ct)).Toplamlar).NetTutar);
             Assert.Equal(10000, Assert.Single((await service.FaturalarAsync(new() { PageSize = 1 }, Ct)).Toplamlar).NetTutar);
-            var dashboard = await service.DashboardAsync(new(2026, 9, 15), new(2026, 9, 30), Ct);
-            Assert.Equal(10000, Assert.Single(dashboard.Gelirler).NetTutar);
             var reports = new FinansRaporService(service);
             var filter = new FinansListeFiltre(Baslangic: new(2026, 9, 15), Bitis: new(2026, 9, 30));
             foreach (var reportType in new[] { "genel", "gider-kategori", "proje-maliyet", "siparis-bekleyen", "fatura-bekleyen" })
@@ -332,7 +330,6 @@ public sealed class FinansV2PostgresTests
             foreach (var term in new[] { old.ProjeNo, "K15-PO-ESKI", "K15-FATURA-ESKI", "k15-proje-gecmis", "k15-po-eski", "k15-fatura-eski" })
             {
                 var filter = selectedMonth with { Arama = term };
-                Assert.Empty((await service.IsKayitlariAsync(filter, Ct)).Items);
                 var global = await service.GenelAramaAsync(filter, Ct);
                 Assert.True(global.TotalCount == 1, $"Genel arama terimi '{term}' seçili ay dışında da bulunmalıdır; kültür={System.Globalization.CultureInfo.CurrentCulture.Name}.");
                 var found = Assert.Single(global.Items);
@@ -426,11 +423,6 @@ public sealed class FinansV2PostgresTests
             Assert.Equal(FinansSiparisDurumu.Faturalandi, (await service.SiparisGetirAsync(po.Id, Ct))!.Durum);
             Assert.Equal(FinansIsDurumu.Faturalandi, (await service.IsKaydiGetirAsync(main.Id, Ct))!.Durum);
             Assert.Equal(FinansIsDurumu.SiparisBekliyor, (await service.IsKaydiGetirAsync(sarf.Id, Ct))!.Durum);
-            // Ana iş seçen filtre, açık sarfı hesap dışına çıkarıp projeyi tamamlandı gösteremez.
-            var project = Assert.Single((await service.ProjelerAsync(filter with { IsTuru = FinansIsTuru.AnaAmbalaj }, Ct)).Items);
-            Assert.Equal(2, project.ToplamIsAdedi);
-            Assert.Equal("Devam Ediyor", project.GenelDurum);
-            Assert.Equal(10500m, Assert.Single(project.Tutarlar).NetTutar);
         });
     }
 

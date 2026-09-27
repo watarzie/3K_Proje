@@ -10,7 +10,7 @@ namespace _3K.Infrastructure.Services
 {
     public sealed partial class FinansService
     {
-        public async Task<FinansSayfaliSonuc<FinansIsKaydiModel>> IsKayitlariAsync(
+        private async Task<FinansSayfaliSonuc<FinansIsKaydiModel>> IsKayitlariAsync(
             FinansListeFiltre filtre,
             CancellationToken cancellationToken)
         {
@@ -83,82 +83,6 @@ namespace _3K.Infrastructure.Services
             };
         }
 
-        public async Task<FinansSayfaliSonuc<FinansProjeOzetModel>> ProjelerAsync(
-            FinansListeFiltre filtre,
-            CancellationToken cancellationToken)
-        {
-            var pageNumber = Math.Max(1, filtre.PageNumber);
-            var pageSize = Math.Clamp(filtre.PageSize, 1, 250);
-
-            // Önce yalnız proje anahtarlarını SQL tarafında gruplayıp sayfala. Eski
-            // akış tüm iş/sipariş/fatura graph'ını belleğe alıp daha sonra sayfalıyordu.
-            var baseQuery = ApplyFilter(
-                    _context.Set<FinansIsKaydi>().AsNoTracking(),
-                    filtre)
-                .Where(x => x.KaynakAktif);
-            var totalCount = await baseQuery
-                .Select(x => new { x.ProjeId, x.ProjeNo, x.Musteri })
-                .Distinct()
-                .CountAsync(cancellationToken);
-            var pageKeys = await BuildProjectPageQuery(baseQuery, pageNumber, pageSize)
-                .ToListAsync(cancellationToken);
-
-            if (pageKeys.Count == 0)
-            {
-                return new FinansSayfaliSonuc<FinansProjeOzetModel>
-                {
-                    PageNumber = pageNumber,
-                    PageSize = pageSize,
-                    TotalCount = totalCount
-                };
-            }
-
-            // MapProjectSummary mevcut finansal miktar/snapshot kurallarını korur.
-            // Bunun için gereken detay graph'ı yalnız seçilmiş sayfadaki proje
-            // anahtarlarıyla sınırlandırılır; sorgu sayısı sayfadaki kayıt adedine
-            // göre artmaz (AsSplitQuery sabit sayıda SQL üretir, N+1 oluşturmaz).
-            var projectIds = pageKeys
-                .Where(x => x.ProjeId.HasValue)
-                .Select(x => x.ProjeId!.Value)
-                .Distinct()
-                .ToArray();
-            var manualProjectNos = pageKeys
-                .Where(x => !x.ProjeId.HasValue)
-                .Select(x => x.ProjeNo)
-                .Distinct()
-                .ToArray();
-            // Dönem/arama proje seçer; tamamlanma bütün aktif alt işleri kapsar.
-            var pageEntityIds = _context.Set<FinansIsKaydi>().Where(x => !x.IptalEdildi && x.KaynakAktif)
-                .Where(x =>
-                    (x.ProjeId.HasValue && projectIds.Contains(x.ProjeId.Value)) ||
-                    (!x.ProjeId.HasValue && manualProjectNos.Contains(x.ProjeNo)))
-                .Select(x => x.Id);
-            var detailQuery = IsKaydiDetayQuery()
-                .Where(x => pageEntityIds.Contains(x.Id));
-            var pageEntities = await detailQuery
-                .OrderByDescending(x => x.UretimTarihi)
-                .ThenByDescending(x => x.Id)
-                .ToListAsync(cancellationToken);
-            var groupedEntities = pageEntities
-                .GroupBy(x => (x.ProjeId, x.ProjeNo, x.Musteri))
-                .ToDictionary(x => x.Key, x => x.ToList());
-            var items = pageKeys
-                .Select(key => groupedEntities.TryGetValue((key.ProjeId, key.ProjeNo, key.Musteri), out var entities)
-                    ? MapProjectSummary(key.ProjeId, key.ProjeNo, key.Musteri, entities)
-                    : null)
-                .Where(x => x is not null)
-                .Select(x => x!)
-                .ToArray();
-
-            return new FinansSayfaliSonuc<FinansProjeOzetModel>
-            {
-                Items = items,
-                PageNumber = pageNumber,
-                PageSize = pageSize,
-                TotalCount = totalCount
-            };
-        }
-
         public async Task<FinansSayfaliSonuc<FinansProjeSecenekModel>> ProjeSecenekleriAsync(
             string? arama,
             int pageNumber,
@@ -191,76 +115,6 @@ namespace _3K.Infrastructure.Services
                 PageNumber = pageNumber,
                 PageSize = pageSize,
                 TotalCount = totalCount
-            };
-        }
-
-        internal static IQueryable<FinansProjeSayfaAnahtari> BuildProjectPageQuery(
-            IQueryable<FinansIsKaydi> query,
-            int pageNumber,
-            int pageSize)
-            => query
-                .GroupBy(x => new { x.ProjeId, x.ProjeNo, x.Musteri })
-                .Select(group => new
-                {
-                    group.Key.ProjeId,
-                    group.Key.ProjeNo,
-                    group.Key.Musteri,
-                    SonUretimeAlmaTarihi = group.Max(x => x.UretimTarihi)
-                })
-                .OrderByDescending(x => x.SonUretimeAlmaTarihi)
-                .ThenBy(x => x.ProjeNo)
-                .ThenBy(x => x.Musteri)
-                .Skip((Math.Max(1, pageNumber) - 1) * Math.Clamp(pageSize, 1, 250))
-                .Take(Math.Clamp(pageSize, 1, 250))
-                .Select(x => new FinansProjeSayfaAnahtari(
-                    x.ProjeId,
-                    x.ProjeNo,
-                    x.Musteri,
-                    x.SonUretimeAlmaTarihi));
-
-        private static FinansProjeOzetModel MapProjectSummary(int? projeId, string projeNo, string musteri, List<FinansIsKaydi> entities)
-        {
-            var normalEntities = entities.Where(x => !x.IptalEdildi && x.KaynakAktif).ToList();
-            var normalModels = normalEntities.Select(MapIsKaydi).ToList();
-            var allOrderLines = normalEntities.SelectMany(x => x.SiparisKalemleri).Where(x => !x.FinansSiparis.IptalEdildi).ToList();
-            var invoiceLines = allOrderLines.SelectMany(x => x.FaturaKalemleri).Where(x => !x.FinansFatura.IptalEdildi).ToList();
-            var toplamM3 = normalModels.Where(x => x.IsTuru != FinansIsTuru.SarfKereste).Sum(x => x.ToplamM3);
-            var tarife = normalModels.OrderBy(x => x.Id).FirstOrDefault(x => x.BirimFiyat > 0);
-            var tarifeEksik = normalModels.Count == 0 || normalModels.Any(x => !x.FiyatlandirmaHazir);
-            var totals = normalModels.GroupBy(x => x.ParaBirimi).Select(g => new FinansParaToplamiModel(
-                g.Key, g.Sum(x => x.NetTutar), g.Sum(x => x.KdvTutari), g.Sum(x => x.ToplamTutar))).ToArray();
-            var netTutar = totals.Length == 1 ? totals[0].NetTutar : 0;
-            var kdvTutari = totals.Length == 1 ? totals[0].KdvTutari : 0;
-            var allCompleted = normalModels.Count > 0 && normalModels.All(x => x.Durum == FinansIsDurumu.Faturalandi);
-            var invoiceWaitingOrder = allOrderLines.Select(x => x.FinansSiparis)
-                .Where(x => x.Durum is FinansSiparisDurumu.Acik or FinansSiparisDurumu.KismiFaturalandi)
-                .OrderBy(x => x.SiparisTarihi).FirstOrDefault();
-
-            return new FinansProjeOzetModel
-            {
-                ProjeId = projeId,
-                ProjeNo = projeNo,
-                Musteri = musteri,
-                ToplamIsAdedi = normalModels.Count,
-                ToplamSandikAdedi = normalModels.Where(x => x.IsTuru != FinansIsTuru.SarfKereste).Sum(x => x.Adet),
-                ToplamM3 = toplamM3,
-                SiparisAcikM3 = normalModels.Sum(x => x.SiparisM3),
-                SiparisBekleyenM3 = normalModels.Sum(x => x.SiparisBekleyenM3),
-                FaturalananM3 = normalModels.Sum(x => x.FaturalananM3),
-                FaturaBekleyenM3 = Math.Max(0, normalModels.Sum(x => x.SiparisM3 - x.FaturalananM3)),
-                SonUretimeAlmaTarihi = normalModels.Count == 0 ? null : normalModels.Max(x => (DateTime?)x.UretimTarihi),
-                GenelDurum = allCompleted ? "Tamamlandı" : normalModels.Any(x => x.Durum != FinansIsDurumu.SiparisBekliyor) ? "Devam Ediyor" : "Sipariş Bekliyor",
-                Tutarlar = totals,
-                BirimFiyat = tarife?.BirimFiyat ?? 0m,
-                ParaBirimi = tarife?.ParaBirimi ?? "EUR",
-                KdvOrani = tarife?.KdvOrani ?? 0m,
-                NetTutar = netTutar,
-                KdvTutari = kdvTutari,
-                ToplamTutar = netTutar + kdvTutari,
-                TarifeEksik = tarifeEksik,
-                PoNumaralari = allOrderLines.Select(x => x.FinansSiparis.PoNumarasi).Distinct().Order().ToArray(),
-                FaturaNumaralari = invoiceLines.Select(x => x.FinansFatura.FaturaNumarasi).Distinct().Order().ToArray(),
-                FaturaBekleyenSiparisId = invoiceWaitingOrder?.Id
             };
         }
 
@@ -319,89 +173,6 @@ namespace _3K.Infrastructure.Services
             AddAudit(nameof(FinansIsKaydi), entity.Id, "Oluşturma", "*", null, "Kayıt oluşturuldu");
             await _context.SaveChangesAsync(cancellationToken);
             return (await IsKaydiGetirAsync(entity.Id, cancellationToken))!;
-        }
-
-        public async Task<FinansIsKaydiModel?> IsKaydiGuncelleAsync(
-            int id,
-            FinansIsKaydiKaydetModel model,
-            CancellationToken cancellationToken)
-        {
-            var entity = await IsKaydiDetayQuery(true).FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
-            if (entity is null) return null;
-            if (!string.Equals(entity.KaynakTuru, "Manuel", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Üretim kaynaklı kayıtlar manuel olarak değiştirilemez; üretim modülünden senkronize edilmelidir.");
-            if (entity.IptalEdildi)
-                throw new InvalidOperationException("İptal edilmiş kayıt güncellenemez. Önce kaydı geri alın.");
-            var auditBefore = CaptureAuditState(entity);
-            var previousProductId = entity.FinansUrunId;
-            var previousFinancePeriod = entity.FinansDonemi;
-            if (model.Adet != entity.Adet || model.BirimM3 != entity.BirimM3 || model.FinansUrunId != entity.FinansUrunId ||
-                (model.ManuelBirimFiyat.HasValue && model.ManuelBirimFiyat != entity.BirimFiyatSnapshot) ||
-                (!string.IsNullOrWhiteSpace(model.ParaBirimi) && NormalizeCurrency(model.ParaBirimi) != entity.ParaBirimiSnapshot) ||
-                (model.KdvOrani.HasValue && model.KdvOrani != entity.KdvOraniSnapshot))
-                throw new InvalidOperationException("Finansal miktar/fiyat alanları gerekçeli fiyatlandırma komutuyla değiştirilmelidir.");
-            if (FirstDayOfMonth(model.FinansDonemi) != entity.FinansDonemi)
-                throw new InvalidOperationException("Finans tarihi ayrı finans tarihi değiştirme işlemiyle güncellenmelidir.");
-            if (entity.SiparisKalemleri.Count > 0 && (model.ManuelBirimFiyat != null && model.ManuelBirimFiyat != entity.BirimFiyatSnapshot ||
-                model.Adet != entity.Adet || model.BirimM3 != entity.BirimM3 || model.FinansUrunId != entity.FinansUrunId))
-                throw new InvalidOperationException("Belgesi bulunan işin miktar/fiyat geçmişi genel düzenlemeden değiştirilemez.");
-
-            var activeOrderLines = entity.SiparisKalemleri.Where(x => !x.FinansSiparis.IptalEdildi).ToList();
-            var orderedAdet = activeOrderLines.Sum(x => x.Adet);
-            var orderedM3 = activeOrderLines.Sum(x => x.M3);
-            var newTotalM3 = decimal.Round(model.Adet * model.BirimM3, 6);
-            var activePricingUnit = activeOrderLines.Select(x => x.FiyatlandirmaBirimiSnapshot).Distinct().Count() == 1
-                ? activeOrderLines[0].FiyatlandirmaBirimiSnapshot
-                : entity.FiyatlandirmaBirimiSnapshot;
-            if (FinansMiktarKurallari.KapasiteAsiliyor(
-                    activePricingUnit,
-                    model.Adet,
-                    newTotalM3,
-                    orderedAdet,
-                    orderedM3,
-                    activeOrderLines.Count))
-                throw new InvalidOperationException("Miktar, daha önce siparişe bağlanan miktarın altına düşürülemez.");
-
-            var project = await ResolveProjectAsync(model.ProjeId, model.ManuelProjeNo, model.ManuelProjeAdi, model.Musteri, cancellationToken);
-
-            entity.ProjeId = project.ProjeId;
-            entity.ProjeNo = project.ProjeNo;
-            entity.Musteri = project.Musteri;
-            entity.ManuelProjeMi = project.Manuel;
-            entity.IsTuru = model.IsTuru;
-            entity.IsAdi = model.IsAdi.Trim();
-            entity.OzelIsTuru = model.OzelIsTuru?.Trim();
-            entity.HesaplamaYontemi = model.HesaplamaYontemi;
-            entity.RaporGrubu = model.RaporGrubu?.Trim();
-            entity.Aciklama = model.Aciklama?.Trim();
-            entity.TalepEdenKisi = model.TalepEdenKisi?.Trim();
-            entity.TalepEdenBolum = model.TalepEdenBolum?.Trim();
-            entity.SandikNo = model.SandikNo?.Trim();
-            entity.SandikAdi = model.SandikAdi?.Trim();
-            entity.SandikTipi = model.SandikTipi?.Trim();
-            entity.Boy = model.Boy;
-            entity.En = model.En;
-            entity.Yukseklik = model.Yukseklik;
-            entity.IcSandikSablonId = model.IcSandikSablonId;
-            entity.Adet = model.Adet;
-            entity.Birim = model.Birim.Trim();
-            entity.BirimM3 = model.BirimM3;
-            entity.ToplamM3 = newTotalM3;
-            entity.UretimTarihi = model.UretimTarihi;
-            entity.FinansDonemi = FirstDayOfMonth(model.FinansDonemi);
-            var explicitPriceOverride = model.ManuelBirimFiyat.HasValue ||
-                                        !string.IsNullOrWhiteSpace(model.ParaBirimi) ||
-                                        model.KdvOrani.HasValue;
-            var shouldReprice = previousProductId != model.FinansUrunId ||
-                                explicitPriceOverride;
-            if (shouldReprice)
-                await ApplyPriceSnapshotAsync(entity, model.FinansUrunId, model.ManuelBirimFiyat, model.ParaBirimi, model.KdvOrani, entity.FinansDonemi, cancellationToken);
-            if (activeOrderLines.Count > 0 && entity.FiyatlandirmaBirimiSnapshot != activePricingUnit)
-                throw new InvalidOperationException("Aktif siparişi bulunan işin fiyatlandırma birimi değiştirilemez.");
-            entity.Durum = DetermineWorkStatus(entity);
-            AddAuditChanges(nameof(FinansIsKaydi), entity, auditBefore);
-            await _context.SaveChangesAsync(cancellationToken);
-            return await IsKaydiGetirAsync(id, cancellationToken);
         }
 
         public async Task<bool> IsKaydiIptalAsync(int id, string aciklama, CancellationToken cancellationToken)
@@ -701,10 +472,4 @@ namespace _3K.Infrastructure.Services
 
         private static DateTime FirstDayOfMonth(DateTime value) => new(value.Year, value.Month, 1);
     }
-
-    internal sealed record FinansProjeSayfaAnahtari(
-        int? ProjeId,
-        string ProjeNo,
-        string Musteri,
-        DateTime SonUretimeAlmaTarihi);
 }
