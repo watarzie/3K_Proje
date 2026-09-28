@@ -260,6 +260,11 @@ namespace _3K.Infrastructure.Data
                 .HasForeignKey(p => p.ProjeTipiId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // Proje listeleri en yeni kayıttan başlar.
+            modelBuilder.Entity<Proje>()
+                .HasIndex(p => new { p.CreatedDate, p.Id })
+                .IsDescending();
+
             // --- Sandik.DurumId → LookupSandikDurum.Id ---
             modelBuilder.Entity<Sandik>()
                 .HasOne(s => s.DurumLookup)
@@ -369,6 +374,9 @@ namespace _3K.Infrastructure.Data
                 e.HasIndex(p => new { p.SandikId, p.CekiSatiriId })
                     .IsUnique()
                     .HasFilter("\"CekiSatiriId\" IS NOT NULL AND \"TahsisMiktari\" > 0");
+
+                // Kısmi benzersiz indeks manuel içerikleri kapsamaz; sandığa göre okuma tüm satırlar için ayrı indeksle yapılır.
+                e.HasIndex(p => p.SandikId);
             });
 
             modelBuilder.Entity<SandikTopluTasimaIslemi>(e =>
@@ -583,7 +591,6 @@ namespace _3K.Infrastructure.Data
                 e.HasIndex(p => p.SahaAktarimId);
                 e.HasIndex(p => p.KaynakProjeId);
                 e.HasIndex(p => p.SahaProjeId);
-                e.HasIndex(p => p.KaynakCekiSatiriId);
                 e.HasIndex(p => p.SahaCekiSatiriId);
                 e.HasIndex(p => p.KaynakSandikId);
                 e.HasIndex(p => p.SahaSandikId);
@@ -726,7 +733,6 @@ namespace _3K.Infrastructure.Data
                     .HasMaxLength(100)
                     .IsRequired();
 
-                e.HasIndex(o => o.IslemKodu);
                 e.HasIndex(o => new { o.IslemKodu, o.RolId }).IsUnique();
 
                 e.HasOne(o => o.Rol)
@@ -1064,6 +1070,11 @@ namespace _3K.Infrastructure.Data
                 .WithMany(k => k.HareketGecmisleri)
                 .HasForeignKey(hg => hg.KullaniciId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Proje hareketleri en yeniden eskiye okunur; arşiv tablosuyla aynı indeks proje yabancı anahtarını da karşılar.
+            modelBuilder.Entity<HareketGecmisi>()
+                .HasIndex(hg => new { hg.ProjeId, hg.Tarih })
+                .IsDescending(false, true);
 
             // HareketGecmisiArsiv — arsiv tablosu (FK yok, self-contained)
             modelBuilder.Entity<HareketGecmisiArsiv>(entity =>
