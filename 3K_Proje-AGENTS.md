@@ -29,6 +29,9 @@ Uygulama .NET 10 hedefleyen, PostgreSQL kullanan katmanlı bir monolittir. Komut
 - Application sorgularında mevcut repository ve `IReadQueryExecutor` soyutlamalarını kullan. Infrastructure'daki büyük servislerde mevcut iş mantığı bulunduğunu dikkate al; görev dışı toplu katman taşıması yapma.
 - Controller içine miktar, stok, tahsis veya onay iş kuralı yazma. Yeni kullanım senaryosunu ilgili feature'a yerleştir; tekrar eden kuralı ortak servis/politikaya çıkar.
 - DI kayıtlarını ve gerçek çağrıları tamamla; kullanılmayan soyutlama üretme. Ayrı worker, cache ürünü veya framework eklemeyi bu dosya gerektirmez.
+- Finans modülü alanlara bölünmüştür (Panel, IsKaydi, SiparisFatura, Gider, Tanim, Belge, Rapor): `FinansControllerBase` türevi controller'lar, `Finans<Alan>Commands/Queries` ve handler'ları, validator'lar ve `Finans<Alan>Modelleri` aynı adları izler. Her `IFinans*Service` arayüzünün `3K.Infrastructure/Services/Finans` altında internal bir uygulaması vardır. Servisler birbirini çağırmaz; ortak davranış `FinansIslemYurutucu`, `FinansDenetimKaydi`, `FinansFiyatBelirleyici`, `FinansSorgulari` ve `FinansModelEslemeleri` üzerinden paylaşılır.
+- Finans iş kuralları Core'dadır (`FinansTutarKurallari`, `FinansMiktarKurallari`, `FinansTarihKurallari`, `FinansGerekceKurali`, `FinansParaBirimiKurali`); validator ve servis aynı kuralı çağırır. Kuralın SQL karşılığı gerekiyorsa `FinansSorgulari` içinde tek ifade olarak tanımla (ör. `IsNetIfadesi`) ve domain kuralıyla eşitliğini testle sabitle.
+- İş varsayılanı gerektiren ekran istekleri Application `DTOs` altında durur ve servis modeline kendi yöntemleriyle dönüşür (ör. `FinansGiderKaydetDto.GiderModeli()`); controller yalnız bağlar ve iletir.
 
 ## Kod ve API sözleşmesi
 
@@ -50,6 +53,7 @@ Uygulama .NET 10 hedefleyen, PostgreSQL kullanan katmanlı bir monolittir. Komut
 - Yeni kod eklerken `YetkiKodlari`, `MenuTanimlari` kaydını ekleyen `scripts/database/` betiği (`LabelKey` = `MENU.<KOD>`), frontend `yetki-kodlari.ts` ve TR/EN `MENU.*` çevirilerini birlikte güncelle.
 - Ortak endpoint'te gerçek proje tipini, sahipliği/ilişkileri ve gereken izni kayıtlar üzerinden doğrula. Okuma/yazma ayrımını ve izin kombinasyonlarını açık tut.
 - Ambalaj komutlarında kayda bağlı ek izinler (durum geçişi, form sonrası seçim, dahil/haric kararı, kritik veri, iptal, tamamlanmış projeye ekleme), ilk form şartı ve kritik işlem gerekçesi `AmbalajIslemKurallari` + `AmbalajKritikIslemDenetimi` ile handler içinde, değişiklik öncesi kayıt üzerinden ve aynı `ExecuteAtomicAsync` transaction'ında denetlenir. Ölçü, m³ ve sarf alanları yanıt dönmeden `AmbalajAlanMaskesi`/`DtoyuMaskele` ile açıkça maskelenir; yeni ambalaj DTO'su eklerken maskeyi ve maske eşdeğerlik testini güncelle. Namespace'e göre davranış seçme veya reflection ile maskeleme yapma.
+- Finans alan izinleri (parasal veri, birim fiyat, tutar, gelir, gider, kârlılık, ölçü, m³, sarf) yalnız HTTP sınırında `FinansAlanErisimFiltresi` + `FinansAlanProjeksiyonu` ile uygulanır; izinsiz alan `null` döner, sıfır değil. Servis ve handler ham modeli döndürür. Rapor ve belge indirme gibi dosya yanıtları bütün alan izinlerini gerektirir; frontend kapıları aynı kuralı `finans-izinleri.ts` üzerinden yansıtır.
 - Login/2FA challenge ile tam oturumu ayır. Yetki eklemek için public giriş akışını yanlışlıkla kilitleme; mevcut servis kullanıcısı/onay yürütme bağlamlarını incele.
 - Approval pipeline, kayıtlı komut bütünlüğü, onay yetkisi ve uygulama durumu kontrollerini atlama. Talep, karar ve fiili uygulama ayrı olaylardır; tekrar istek ikinci kez uygulamamalıdır.
 
@@ -67,6 +71,7 @@ Uygulama .NET 10 hedefleyen, PostgreSQL kullanan katmanlı bir monolittir. Komut
 ## Transaction, veri ve dosyalar
 
 - Bir işteki miktar/stok/tahsis/transfer değişiklikleri birlikte başarılı olmalıdır. "Ya hepsi ya hiçbiri" akışında `ExecuteAtomicAsync` kullan: delegate başarısız `Result` dönerse bütün değişiklikler geri alınır ve aynı sonuç döner; iç içe çağrıda dış transaction da geri alınır. Birkaç `SaveChanges` çağrısını tek transaction sanma.
+- Finans yazmaları `FinansIslemYurutucu.AtomikAsync` ile Serializable transaction'da çalışır ve dışarıda açılmış transaction'a katılır. Değişiklik geçmişi aynı transaction'da `FinansDenetimKaydi` ile yazılır; aynı kapsamdaki kayıtlar tek işlem grubunu paylaşır. Benzersizlik ve serileştirme çakışmaları 409 iş kuralı hatasına çevrilir.
 - `IUnitOfWork.ExecuteInTransactionAsync` delegate normal döndüğünde commit eder; yalnız bilinçli kısmi başarı akışlarında (ör. atlanan satırları raporlayan toplu 3K komutları) kullan. Kendi "exception fırlatıp rollback yaptır" sınıfını yazma.
 - `xmin` concurrency, idempotency anahtarı, unique constraint ve hareket geçmişini koru. Aynı anahtar + aynı işlem tekrarı çift kayıt üretmemeli; farklı payload çakışma olarak ele alınmalı.
 - Dosya ve bildirim yan etkilerini transaction sınırıyla uyumlu yürüt; mevcut commit/rollback callback'lerini değerlendir. Kullanıcı dosya adını güvenilmez kabul et; güvenli sunucu adı ve hedef dizin kontrolü kullan.
@@ -93,6 +98,7 @@ dotnet test 3K.Application.Tests/3K.Application.Tests.csproj --configuration Rel
 
 - Önce etkilenen senaryoyla hızlı doğrulama yap; iş kuralı değişikliğinde gereken tam kapıyı bunun yerine sayma. Sadece metin/yorum değişikliği için tüm sistemi çalıştırma.
 - Hata düzeltmesinde gerçek işlem sırasını ve red halinde değişmeyen veriyi test et. Gerektiğinde tekil/toplu, çoklu tahsis, ondalık, legacy null, saha/sevk ve tekrar istek senaryolarını kapsa. İlgili kural–test eşlemesini güncelle.
+- Finans servislerini testte `FinansTestServisleri` ile üretim DI kaydından kur. EF eşlemesini değiştiren yeniden düzenlemede veritabanı oluşturma betiğinin değişmediğini karşılaştır.
 - Bellek içi testleri PostgreSQL transaction/trigger/FK/concurrency veya HTTP authorization kanıtı sayma. Bu sınırlar değiştiğinde izole entegrasyon doğrulaması yap; yapılamazsa eksikliği açıkça belirt.
 - Testleri geçsin diye devre dışı bırakma veya beklentiyi hatalı davranışa uydurma. Eski rapordaki başarı sayılarını yeni koşum sonucu olarak sunma.
 
