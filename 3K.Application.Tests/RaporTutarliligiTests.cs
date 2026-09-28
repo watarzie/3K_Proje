@@ -8,6 +8,7 @@ using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
 using _3K.Infrastructure.Services;
+using _3K.Infrastructure.Services.Raporlar;
 
 namespace _3K.Application.Tests;
 
@@ -55,8 +56,7 @@ public class RaporTutarliligiTests
         row.SandikIcerikleri.Add(new() { Sandik = crate2, TahsisMiktari = 2m });
         row.SandikIcerikleri.Add(new() { Sandik = crate2, TahsisMiktari = 0m });
         row.SandikIcerikleri.Add(new() { Sandik = new() { Id = 30, ProjeId = 999, SandikNo = "3", Ad = "Başka proje" } });
-        var method = typeof(PdfService).GetMethod("GetEksikRaporSandikMetni", BindingFlags.NonPublic | BindingFlags.Static)!;
-        var text = (string)method.Invoke(null, [row, project])!;
+        var text = EksikUrunlerRaporService.GetEksikRaporSandikMetni(row, project);
         Assert.Equal("SND-2: Mekanik / Mechanical\nSND-10: -", text);
         Assert.Equal(3.5m, row.IstenenAdet);
         Assert.Equal(1m, row.GelenMiktar);
@@ -81,7 +81,7 @@ public class RaporTutarliligiTests
         Assert.StartsWith("TopluEksikRaporlari_", result.Value.DosyaAdi);
         Assert.Equal([1, 2], fixture.Pdf.Calls.Select(c => c.Id));
         Assert.All(fixture.Pdf.Calls, call => Assert.Equal(format == EksikUrunlerRaporDosyaTuru.Pdf
-            ? nameof(IPdfService.EksikUrunlerRaporuPdfOlusturAsync) : nameof(IPdfService.EksikUrunlerRaporuExcelOlusturAsync), call.Method));
+            ? nameof(IEksikUrunlerRaporService.EksikUrunlerRaporuPdfOlusturAsync) : nameof(IEksikUrunlerRaporService.EksikUrunlerRaporuExcelOlusturAsync), call.Method));
         using var zip = new ZipArchive(new MemoryStream(result.Value.Icerik), ZipArchiveMode.Read);
         Assert.Equal(2, zip.Entries.Count);
         foreach (var entry in zip.Entries)
@@ -145,7 +145,7 @@ public class RaporTutarliligiTests
     private sealed class Fixture
     {
         public OrtakMemoryUow Uow { get; } = new();
-        public IPdfService Service { get; } = DispatchProxy.Create<IPdfService, RaporProxy>();
+        public IEksikUrunlerRaporService Service { get; } = DispatchProxy.Create<IEksikUrunlerRaporService, RaporProxy>();
         public RaporProxy Pdf => (RaporProxy)Service;
         public GetTopluEksikUrunlerRaporuQueryHandler Handler { get; }
         public Fixture(ProjeTipi type)

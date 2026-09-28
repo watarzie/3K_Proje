@@ -10,14 +10,14 @@ namespace _3K.Application.Features.PdfIslemleri.Queries
         public int ProjeId { get; set; }
     }
 
-    public sealed class GetUcKSandikDurumPdfQueryHandler(IUnitOfWork unitOfWork, IPdfService pdfService)
+    public sealed class GetUcKSandikDurumPdfQueryHandler(IUnitOfWork unitOfWork, IUcKSandikDurumRaporService uckSandikDurumRaporu)
         : IRequestHandler<GetUcKSandikDurumPdfQuery, Result<DosyaIcerigi>>
     {
         public async Task<Result<DosyaIcerigi>> Handle(GetUcKSandikDurumPdfQuery request, CancellationToken cancellationToken)
         {
             var proje = await RaporDosyaAdi.ProjeBulAsync(unitOfWork, request.ProjeId, cancellationToken);
             if (proje == null) return RaporDosyaAdi.ProjeBulunamadi;
-            var pdf = await pdfService.UcKSandikDurumRaporuPdfOlusturAsync(request.ProjeId);
+            var pdf = await uckSandikDurumRaporu.UcKSandikDurumRaporuPdfOlusturAsync(request.ProjeId);
             return Result<DosyaIcerigi>.Success(DosyaIcerigi.Pdf(pdf, $"{proje.ProjeNo}_SandikDurumRaporu.pdf"));
         }
     }

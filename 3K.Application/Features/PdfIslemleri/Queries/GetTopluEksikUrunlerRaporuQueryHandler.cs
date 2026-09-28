@@ -8,7 +8,7 @@ using _3K.Core.Models;
 
 namespace _3K.Application.Features.PdfIslemleri.Queries
 {
-    public sealed class GetTopluEksikUrunlerRaporuQueryHandler(IUnitOfWork unitOfWork, IPdfService pdfService)
+    public sealed class GetTopluEksikUrunlerRaporuQueryHandler(IUnitOfWork unitOfWork, IEksikUrunlerRaporService eksikUrunlerRaporu)
         : IRequestHandler<GetTopluEksikUrunlerRaporuQuery, Result<DosyaIcerigi>>
     {
         private const long MaksimumToplamHamRaporBoyutu = 100L * 1024 * 1024;
@@ -61,8 +61,8 @@ namespace _3K.Application.Features.PdfIslemleri.Queries
                     var projeId = projeIds[index];
                     var proje = projeMap[projeId];
                     var raporBytes = pdfMi
-                        ? await pdfService.EksikUrunlerRaporuPdfOlusturAsync(projeId, cancellationToken)
-                        : await pdfService.EksikUrunlerRaporuExcelOlusturAsync(projeId, cancellationToken);
+                        ? await eksikUrunlerRaporu.EksikUrunlerRaporuPdfOlusturAsync(projeId, cancellationToken)
+                        : await eksikUrunlerRaporu.EksikUrunlerRaporuExcelOlusturAsync(projeId, cancellationToken);
                     cancellationToken.ThrowIfCancellationRequested();
 
                     if (raporBytes.Length == 0)

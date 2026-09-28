@@ -10,7 +10,7 @@ using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Infrastructure.Data;
 using _3K.Infrastructure.Repositories;
-using _3K.Infrastructure.Services;
+using _3K.Infrastructure.Services.Raporlar;
 
 namespace _3K.Application.Tests;
 
@@ -47,7 +47,8 @@ public class RaporPostgresEntegrasyonTests
                 context.Projeler.Add(project);
                 await context.SaveChangesAsync();
                 context.ChangeTracker.Clear();
-                var service = new PdfService(context);
+                var service = new EksikUrunlerRaporService(context);
+                var sahaService = new SahaSandikRaporService(context);
                 var pdf = await service.EksikUrunlerRaporuPdfOlusturAsync(project.Id);
                 var excel = await service.EksikUrunlerRaporuExcelOlusturAsync(project.Id);
                 Assert.Equal("%PDF", System.Text.Encoding.ASCII.GetString(pdf, 0, 4));
@@ -70,8 +71,8 @@ public class RaporPostgresEntegrasyonTests
                     Assert.Contains("SND-2: Mekanik", rows[0].Cell(6).GetString());
                     Assert.Contains("SND-10: -", rows[1].Cell(6).GetString());
                     Assert.Contains("SND-10: -", rows[0].Cell(6).GetString());
-                    var combined = await service.SahaProjeSandiklariPdfOlusturAsync(project.Id);
-                    var single = await service.SahaSandikPdfOlusturAsync(project.Sandiklar.First(s => s.SandikNo == "SND-2").Id);
+                    var combined = await sahaService.SahaProjeSandiklariPdfOlusturAsync(project.Id);
+                    var single = await sahaService.SahaSandikPdfOlusturAsync(project.Sandiklar.First(s => s.SandikNo == "SND-2").Id);
                     await SaveSampleAsync($"{type}-sandiklar.pdf", combined);
                     await SaveSampleAsync($"{type}-tek-sandik.pdf", single);
                 }
@@ -80,7 +81,7 @@ public class RaporPostgresEntegrasyonTests
 
                 // Gerçek servis çıktısı ZIP'e değiştirilmeden girer; ayrıca tekil Excel
                 // hücre/miktarları bağımsız ikinci üretimle karşılaştırılır.
-                var recording = DispatchProxy.Create<IPdfService, RaporKayitProxy>();
+                var recording = DispatchProxy.Create<IEksikUrunlerRaporService, RaporKayitProxy>();
                 var proxy = (RaporKayitProxy)recording;
                 proxy.Service = service;
                 var uow = new UnitOfWork(context, NullLogger<UnitOfWork>.Instance);
@@ -109,7 +110,7 @@ public class RaporPostgresEntegrasyonTests
             var empty = new Proje { ProjeNo = "QA-EMPTY", Musteri = "Sentetik Test", ProjeTipiId = (int)ProjeTipi.Yedek };
             context.Projeler.Add(empty);
             await context.SaveChangesAsync();
-            var emptyService = new PdfService(context);
+            var emptyService = new EksikUrunlerRaporService(context);
             Assert.NotEmpty(await emptyService.EksikUrunlerRaporuPdfOlusturAsync(empty.Id));
             using var emptyWorkbook = new XLWorkbook(new MemoryStream(await emptyService.EksikUrunlerRaporuExcelOlusturAsync(empty.Id)));
             Assert.Equal(6, emptyWorkbook.Worksheet(1).LastRowUsed()!.RowNumber());
@@ -172,7 +173,7 @@ public class RaporPostgresEntegrasyonTests
 
     public class RaporKayitProxy : DispatchProxy
     {
-        public IPdfService Service { get; set; } = null!;
+        public IEksikUrunlerRaporService Service { get; set; } = null!;
         public byte[] LastBytes { get; private set; } = [];
         protected override object? Invoke(MethodInfo? method, object?[]? args) => Capture((Task<byte[]>)method!.Invoke(Service, args)!);
         private async Task<byte[]> Capture(Task<byte[]> render)

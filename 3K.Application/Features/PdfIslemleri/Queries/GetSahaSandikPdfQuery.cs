@@ -10,14 +10,14 @@ namespace _3K.Application.Features.PdfIslemleri.Queries
         public int SandikId { get; set; }
     }
 
-    public sealed class GetSahaSandikPdfQueryHandler(IUnitOfWork unitOfWork, IPdfService pdfService)
+    public sealed class GetSahaSandikPdfQueryHandler(IUnitOfWork unitOfWork, ISahaSandikRaporService sahaSandikRaporu)
         : IRequestHandler<GetSahaSandikPdfQuery, Result<DosyaIcerigi>>
     {
         public async Task<Result<DosyaIcerigi>> Handle(GetSahaSandikPdfQuery request, CancellationToken cancellationToken)
         {
             var proje = await RaporDosyaAdi.SandikProjesiBulAsync(unitOfWork, request.SandikId, cancellationToken);
             if (proje == null) return RaporDosyaAdi.SandikBulunamadi;
-            var pdf = await pdfService.SahaSandikPdfOlusturAsync(request.SandikId);
+            var pdf = await sahaSandikRaporu.SahaSandikPdfOlusturAsync(request.SandikId);
             return Result<DosyaIcerigi>.Success(
                 DosyaIcerigi.Pdf(pdf, $"{proje.ProjeNo}_{RaporDosyaAdi.SahaRaporAdi(proje)}.pdf"));
         }

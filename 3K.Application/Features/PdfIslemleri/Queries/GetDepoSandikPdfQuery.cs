@@ -11,12 +11,12 @@ namespace _3K.Application.Features.PdfIslemleri.Queries
         public int? ProjeTipiId { get; set; }
     }
 
-    public sealed class GetDepoSandikPdfQueryHandler(IPdfService pdfService)
+    public sealed class GetDepoSandikPdfQueryHandler(IDepoSandikRaporService depoSandikRaporu)
         : IRequestHandler<GetDepoSandikPdfQuery, Result<DosyaIcerigi>>
     {
         public async Task<Result<DosyaIcerigi>> Handle(GetDepoSandikPdfQuery request, CancellationToken cancellationToken)
         {
-            var pdf = await pdfService.DepoSandikRaporuPdfOlusturAsync(request.ProjeTipiId);
+            var pdf = await depoSandikRaporu.DepoSandikRaporuPdfOlusturAsync(request.ProjeTipiId);
             var kapsam = request.ProjeTipiId switch
             {
                 (int)ProjeTipi.Normal => "_Normal",

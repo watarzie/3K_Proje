@@ -10,14 +10,14 @@ namespace _3K.Application.Features.PdfIslemleri.Queries
         public int ProjeId { get; set; }
     }
 
-    public sealed class GetGerceklesenCekiListesiPdfQueryHandler(IUnitOfWork unitOfWork, IPdfService pdfService)
+    public sealed class GetGerceklesenCekiListesiPdfQueryHandler(IUnitOfWork unitOfWork, IGerceklesenCekiListesiRaporService gerceklesenCekiListesiRaporu)
         : IRequestHandler<GetGerceklesenCekiListesiPdfQuery, Result<DosyaIcerigi>>
     {
         public async Task<Result<DosyaIcerigi>> Handle(GetGerceklesenCekiListesiPdfQuery request, CancellationToken cancellationToken)
         {
             var proje = await RaporDosyaAdi.ProjeBulAsync(unitOfWork, request.ProjeId, cancellationToken);
             if (proje == null) return RaporDosyaAdi.ProjeBulunamadi;
-            var pdf = await pdfService.GerceklesenCekiListesiRaporuPdfOlusturAsync(request.ProjeId);
+            var pdf = await gerceklesenCekiListesiRaporu.GerceklesenCekiListesiRaporuPdfOlusturAsync(request.ProjeId);
             var tipEki = RaporDosyaAdi.YedekMi(proje) ? "_Yedek" : string.Empty;
             return Result<DosyaIcerigi>.Success(
                 DosyaIcerigi.Pdf(pdf, $"{proje.ProjeNo}{tipEki}_GerceklesenCekiListesi.pdf"));

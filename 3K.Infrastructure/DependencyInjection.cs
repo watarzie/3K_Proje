@@ -7,6 +7,7 @@ using _3K.Infrastructure.Data.Interceptors;
 using _3K.Infrastructure.Repositories;
 using _3K.Infrastructure.Services;
 using _3K.Infrastructure.Services.Finans;
+using _3K.Infrastructure.Services.Raporlar;
 
 namespace _3K.Infrastructure;
 
@@ -18,6 +19,7 @@ public static class DependencyInjection
         services.AddPersistence(configuration);
         services.AddDomainServices();
         services.AddFinansServices();
+        services.AddRaporServices();
         services.AddBackgroundJobs();
 
         services.AddHttpContextAccessor();
@@ -62,7 +64,6 @@ public static class DependencyInjection
         services.AddScoped<IStokService, StokService>();
         services.AddScoped<IHareketService, HareketService>();
         services.AddScoped<IArsivService, ArsivService>();
-        services.AddScoped<IPdfService, PdfService>();
         services.AddScoped<IMailService, MailService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IIkiFaktorService, IkiFaktorService>();
@@ -107,6 +108,18 @@ public static class DependencyInjection
         services.AddScoped<IFinansUretimAktarimService, FinansUretimAktarimService>();
         services.AddScoped<IFinansRaporService, FinansRaporService>();
         return services;
+    }
+
+    /// <summary>Operasyon raporları; her rapor ailesi kendi arayüzünün arkasındadır.</summary>
+    private static void AddRaporServices(this IServiceCollection services)
+    {
+        services.AddScoped<ICekiListesiDosyaService, CekiListesiDosyaService>();
+        services.AddScoped<IDepoSandikRaporService, DepoSandikRaporService>();
+        services.AddScoped<IEksikUrunlerRaporService, EksikUrunlerRaporService>();
+        services.AddScoped<IGerceklesenCekiListesiRaporService, GerceklesenCekiListesiRaporService>();
+        services.AddScoped<ISahaSandikRaporService, SahaSandikRaporService>();
+        services.AddScoped<IStokRaporService, StokRaporService>();
+        services.AddScoped<IUcKSandikDurumRaporService, UcKSandikDurumRaporService>();
     }
 
     private static void AddBackgroundJobs(this IServiceCollection services)

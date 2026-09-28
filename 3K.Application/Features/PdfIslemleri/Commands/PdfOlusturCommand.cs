@@ -15,7 +15,7 @@ namespace _3K.Application.Features.PdfIslemleri.Commands
 
     public sealed class PdfOlusturCommandHandler(
         IUnitOfWork unitOfWork,
-        IPdfService pdfService,
+        ICekiListesiDosyaService cekiListesiDosyasi,
         IHareketService hareketService,
         ICurrentUserService currentUser) : IRequestHandler<PdfOlusturCommand, Result<DosyaIcerigi>>
     {
@@ -23,7 +23,7 @@ namespace _3K.Application.Features.PdfIslemleri.Commands
         {
             var proje = await RaporDosyaAdi.ProjeBulAsync(unitOfWork, request.ProjeId, cancellationToken);
             if (proje == null) return RaporDosyaAdi.ProjeBulunamadi;
-            var pdf = await pdfService.PdfOlusturAsync(request.ProjeId);
+            var pdf = await cekiListesiDosyasi.PdfOlusturAsync(request.ProjeId);
 
             await hareketService.HareketKaydetAsync(new HareketGecmisi
             {

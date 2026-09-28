@@ -95,7 +95,7 @@ public class OrtakSandikRaporIsKurallariTests
         // Gerçek tipe göre menü eşlemesi yetki çözümleyicisindedir: ServerAuthorizationRegressionTests.
         var uow = new OrtakMemoryUow();
         uow.Repo<Proje>().Rows.Add(new() { Id = 10, ProjeNo = "PA-10", ProjeTipiId = (int)type });
-        var pdf = DispatchProxy.Create<IPdfService, RaporProxy>();
+        var pdf = DispatchProxy.Create<IEksikUrunlerRaporService, RaporProxy>();
         var proxy = (RaporProxy)pdf;
         var result = await new GetEksikUrunlerPdfQueryHandler(uow, pdf).Handle(new() { ProjeId = 10 }, default);
         Assert.True(result.IsSuccess);
@@ -108,7 +108,7 @@ public class OrtakSandikRaporIsKurallariTests
     [Fact]
     public async Task EksikRaporu_ProjeYoksaVeyaIstekIptalseServisiCalistirmaz()
     {
-        var pdf = DispatchProxy.Create<IPdfService, RaporProxy>();
+        var pdf = DispatchProxy.Create<IEksikUrunlerRaporService, RaporProxy>();
         var handler = new GetEksikUrunlerPdfQueryHandler(new OrtakMemoryUow(), pdf);
         var query = new GetEksikUrunlerPdfQuery { ProjeId = 10 };
         Assert.Equal(404, (await handler.Handle(query, default)).StatusCode);
@@ -122,7 +122,7 @@ public class OrtakSandikRaporIsKurallariTests
         public byte[] Bytes { get; } = [1, 2, 3]; // Gerçek PDF render testi değildir.
         protected override object? Invoke(MethodInfo? method, object?[]? args)
         {
-            if (method?.Name != nameof(IPdfService.EksikUrunlerRaporuPdfOlusturAsync)) throw new NotSupportedException();
+            if (method?.Name != nameof(IEksikUrunlerRaporService.EksikUrunlerRaporuPdfOlusturAsync)) throw new NotSupportedException();
             Projeler.Add((int)args![0]!);
             return Task.FromResult(Bytes);
         }

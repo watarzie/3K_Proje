@@ -15,7 +15,7 @@ namespace _3K.Application.Features.PdfIslemleri.Commands
 
     public sealed class ExcelOlusturCommandHandler(
         IUnitOfWork unitOfWork,
-        IPdfService pdfService,
+        ICekiListesiDosyaService cekiListesiDosyasi,
         IHareketService hareketService,
         ICurrentUserService currentUser) : IRequestHandler<ExcelOlusturCommand, Result<DosyaIcerigi>>
     {
@@ -23,7 +23,7 @@ namespace _3K.Application.Features.PdfIslemleri.Commands
         {
             var proje = await RaporDosyaAdi.ProjeBulAsync(unitOfWork, request.ProjeId, cancellationToken);
             if (proje == null) return RaporDosyaAdi.ProjeBulunamadi;
-            var excel = await pdfService.ExcelOlusturAsync(request.ProjeId);
+            var excel = await cekiListesiDosyasi.ExcelOlusturAsync(request.ProjeId);
 
             await hareketService.HareketKaydetAsync(new HareketGecmisi
             {

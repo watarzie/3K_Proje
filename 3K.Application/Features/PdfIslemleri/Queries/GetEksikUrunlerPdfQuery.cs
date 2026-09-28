@@ -17,14 +17,14 @@ namespace _3K.Application.Features.PdfIslemleri.Queries
         YetkiTipi IRequiresProjectMenuPermission.RequiredYetkiTipi => YetkiTipi.R;
     }
 
-    public sealed class GetEksikUrunlerPdfQueryHandler(IUnitOfWork unitOfWork, IPdfService pdfService)
+    public sealed class GetEksikUrunlerPdfQueryHandler(IUnitOfWork unitOfWork, IEksikUrunlerRaporService eksikUrunlerRaporu)
         : IRequestHandler<GetEksikUrunlerPdfQuery, Result<DosyaIcerigi>>
     {
         public async Task<Result<DosyaIcerigi>> Handle(GetEksikUrunlerPdfQuery request, CancellationToken cancellationToken)
         {
             var proje = await RaporDosyaAdi.ProjeBulAsync(unitOfWork, request.ProjeId, cancellationToken);
             if (proje == null) return RaporDosyaAdi.ProjeBulunamadi;
-            var pdf = await pdfService.EksikUrunlerRaporuPdfOlusturAsync(request.ProjeId, cancellationToken);
+            var pdf = await eksikUrunlerRaporu.EksikUrunlerRaporuPdfOlusturAsync(request.ProjeId, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             return Result<DosyaIcerigi>.Success(DosyaIcerigi.Pdf(pdf,
                 $"{proje.ProjeNo}_{RaporDosyaAdi.EksikRaporAdi(proje.ProjeTipiId)}.pdf"));
