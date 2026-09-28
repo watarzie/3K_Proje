@@ -42,7 +42,7 @@ Uygulama .NET 10 hedefleyen, PostgreSQL kullanan katmanlı bir monolittir. Komut
 - Handler beklenen reddi `Result.Failure` ile döner. Result dönemeyen derin servisler kullanıcıya gösterilebilir reddi `IsKuraliException`/`KayitBulunamadiException` ile bildirir; pipeline bunları HTTP koduna çevirir. `InvalidOperationException` mesajı kullanıcıya taşınmaz.
 - Dosya indiren kullanım senaryosu `Result<DosyaIcerigi>` döner ve dosya adını kendisi üretir; controller yalnız `ToFileResult()` çağırır, veri erişimi yapmaz.
 - Destekleyen çağrılara `CancellationToken` ilet. Async akışlarda `.Result`/`.Wait()` kullanma. Aynı scoped DbContext üzerinde sorgu/yazmaları `Task.WhenAll` ile paralelleştirme.
-- Operasyon tarihleri ile JWT/2FA sürelerinin zaman dilimi sözleşmelerini ayrı koru; ilgili akışın `TurkeyTime`/UTC kullanımını incelemeden genel tarih dönüşümü yapma.
+- Operasyon tarihleri ile JWT/2FA sürelerinin zaman dilimi sözleşmelerini ayrı koru; ilgili akışın `TurkeyTime`/UTC kullanımını incelemeden genel tarih dönüşümü yapma. Kaydedilen ve kullanıcıya gösterilen operasyon/rapor zamanları `TurkeyTime.Now` ile alınır; `DateTime.Now` sunucunun saat dilimine bağlıdır, kullanma.
 - Büyük listelerde filtre/sayfalama/projection'ı mümkün olduğunca veritabanında yap; yalnız tek kayıt aramak için tüm tabloyu belleğe alma.
 
 ## Yetki ve onay

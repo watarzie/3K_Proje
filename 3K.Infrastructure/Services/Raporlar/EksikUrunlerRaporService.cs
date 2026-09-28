@@ -2,6 +2,7 @@ using ClosedXML.Excel;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using _3K.Core.Helpers;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
@@ -74,7 +75,7 @@ internal sealed class EksikUrunlerRaporService(AppDbContext context) : IEksikUru
         var raporAltBasligi = sahaEksikRaporuMu
             ? "3K Sevkiyat Yönetim Sistemi - Saha Sevk Sonrası Eksik Çıktısı"
             : "3K Sevkiyat Yönetim Sistemi - Proje Eksik Ürün Çıktısı";
-        var raporTarihi = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
+        var raporTarihi = TurkeyTime.Now.ToString("dd.MM.yyyy HH:mm");
         var toplamRaporUrun = raporSatirlari.Count;
         var toplamEksikUrun = raporSatirlari.Count(s => RaporSorgulari.GetEksikRaporKalan(s, tamamlamaPlanMap) > 0);
         var toplamTamamlananUrun = toplamRaporUrun - toplamEksikUrun;
@@ -332,7 +333,7 @@ internal sealed class EksikUrunlerRaporService(AppDbContext context) : IEksikUru
         worksheet.Cell(2, 4).Value = "Müşteri";
         worksheet.Cell(2, 5).Value = proje.Musteri ?? "-";
         worksheet.Cell(2, 8).Value = "Rapor Tarihi";
-        worksheet.Cell(2, 9).Value = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
+        worksheet.Cell(2, 9).Value = TurkeyTime.Now.ToString("dd.MM.yyyy HH:mm");
 
         if (sahaEksikRaporuMu)
         {

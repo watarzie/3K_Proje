@@ -1,6 +1,7 @@
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using _3K.Core.Helpers;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
@@ -77,7 +78,7 @@ internal sealed class DepoSandikRaporService(AppDbContext context) : IDepoSandik
         var headerText = Colors.White;
         var tableBorderColor = Colors.Grey.Lighten2;
         var altRowBg = "#F8FAFE";
-        var raporTarihi = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
+        var raporTarihi = TurkeyTime.Now.ToString("dd.MM.yyyy HH:mm");
         var raporKapsami = projeTipiId switch
         {
             (int)ProjeTipi.Normal => "Normal Projeler",
@@ -371,7 +372,7 @@ internal sealed class DepoSandikRaporService(AppDbContext context) : IDepoSandik
         var headerText = Colors.White;
         var tableBorderColor = Colors.Grey.Lighten2;
         var altRowBg = "#F8FAFE";
-        var raporTarihi = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
+        var raporTarihi = TurkeyTime.Now.ToString("dd.MM.yyyy HH:mm");
         var projeTipi = proje.ProjeTipiLookup?.Deger ?? (proje.ProjeTipiId switch
         {
             (int)ProjeTipi.Saha => "Saha",

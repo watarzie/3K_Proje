@@ -1,6 +1,7 @@
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
 using _3K.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -22,7 +23,7 @@ internal sealed class StokRaporService(AppDbContext context) : IStokRaporService
         var headerText = Colors.White;
         var tableBorderColor = Colors.Grey.Lighten2;
         var altRowBg = "#F8FAFE";
-        var raporTarihi = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
+        var raporTarihi = TurkeyTime.Now.ToString("dd.MM.yyyy HH:mm");
         var toplamKayit = stoklar.Count;
         var toplamMiktar = stoklar.Sum(s => s.Miktar);
 

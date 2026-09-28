@@ -1,6 +1,7 @@
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using _3K.Core.Helpers;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Infrastructure.Data;
@@ -42,7 +43,7 @@ internal sealed class UcKSandikDurumRaporService(AppDbContext context) : IUcKSan
         var headerText = Colors.White;
         var tableBorderColor = Colors.Grey.Lighten2;
         var altRowBg = "#F8FAFE";
-        var raporTarihi = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
+        var raporTarihi = TurkeyTime.Now.ToString("dd.MM.yyyy HH:mm");
         var toplamSandik = raporSandiklari.Count;
         var kapandi = raporSandiklari.Count(s => s.DurumId == (int)SandikDurum.Kapandi);
         var sevkEdildi = raporSandiklari.Count(s => s.DurumId == (int)SandikDurum.Sevkedildi);

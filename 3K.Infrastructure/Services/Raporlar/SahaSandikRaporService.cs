@@ -1,6 +1,7 @@
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using _3K.Core.Helpers;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
@@ -210,7 +211,7 @@ internal sealed class SahaSandikRaporService(AppDbContext context) : ISahaSandik
         var accentColor = "#1565C0";
         var projeTipiStr = proje.ProjeTipiId == (int)ProjeTipi.Yedek ? "Yedek" : "Saha";
         var yedekProjesiMi = proje.ProjeTipiId == (int)ProjeTipi.Yedek;
-        var raporTarihi = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
+        var raporTarihi = TurkeyTime.Now.ToString("dd.MM.yyyy HH:mm");
         var toplamUrun = sandiklar.Sum(s => s.SandikIcerikleri.Count);
 
         var document = Document.Create(container =>

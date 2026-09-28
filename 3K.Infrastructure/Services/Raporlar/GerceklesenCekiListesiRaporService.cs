@@ -2,6 +2,7 @@ using ClosedXML.Excel;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using _3K.Core.Helpers;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
@@ -76,7 +77,7 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context) :
         var headerText = Colors.White;
         var tableBorderColor = Colors.Grey.Lighten2;
         var altRowBg = "#F8FAFE";
-        var raporTarihi = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
+        var raporTarihi = TurkeyTime.Now.ToString("dd.MM.yyyy HH:mm");
         var sevkTarihi = proje.GerceklesenSevkTarihi?.ToString("dd.MM.yyyy") ?? proje.PlanlananSevkTarihi?.ToString("dd.MM.yyyy") ?? "-";
 
         // Sandıkları sayısal sıraya göre sırala
@@ -582,7 +583,7 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context) :
             sandikSheet.Cell(2, 4).Value = "Müşteri";
             sandikSheet.Cell(2, 5).Value = proje.Musteri ?? "-";
             sandikSheet.Cell(2, 8).Value = "Rapor Tarihi";
-            sandikSheet.Cell(2, 9).Value = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
+            sandikSheet.Cell(2, 9).Value = TurkeyTime.Now.ToString("dd.MM.yyyy HH:mm");
             sandikSheet.Cell(3, 1).Value = "Toplam Sandık";
             RaporExcelStilleri.SetDecimalCell(sandikSheet.Cell(3, 2), projeSandiklari.Count);
             sandikSheet.Cell(3, 4).Value = "Sevk Tarihi";
@@ -630,7 +631,7 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context) :
         worksheet.Cell(2, 4).Value = "Müşteri";
         worksheet.Cell(2, 5).Value = proje.Musteri ?? "-";
         worksheet.Cell(2, 8).Value = "Rapor Tarihi";
-        worksheet.Cell(2, 9).Value = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
+        worksheet.Cell(2, 9).Value = TurkeyTime.Now.ToString("dd.MM.yyyy HH:mm");
         worksheet.Cell(3, 1).Value = "Sevk Tarihi";
         worksheet.Cell(3, 2).Value = sevkTarihi;
         worksheet.Cell(3, 4).Value = "Toplam";
