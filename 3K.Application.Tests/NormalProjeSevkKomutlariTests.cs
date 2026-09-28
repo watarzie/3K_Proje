@@ -1,7 +1,6 @@
 using System.Linq.Expressions;
 using _3K.Application.Common;
 using _3K.Application.Features.ProjeIslemleri.Commands;
-using _3K.Application.Features.SandikIslemleri.Commands;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
@@ -12,21 +11,17 @@ namespace _3K.Application.Tests;
 public sealed class NormalProjeSevkKomutlariTests
 {
     [Theory]
-    [InlineData(true, ProjeTipi.Normal, 0, ProjeDurum.EksikSevkEdildi)]
-    [InlineData(false, ProjeTipi.Normal, 0, ProjeDurum.EksikSevkEdildi)]
-    [InlineData(true, ProjeTipi.Normal, 1, ProjeDurum.SevkEdildi)]
-    [InlineData(false, ProjeTipi.Normal, 1, ProjeDurum.SevkEdildi)]
-    [InlineData(true, ProjeTipi.Saha, 0, ProjeDurum.SevkEdildi)]
-    [InlineData(false, ProjeTipi.Saha, 0, ProjeDurum.SevkEdildi)]
-    [InlineData(true, ProjeTipi.Yedek, 0, ProjeDurum.SevkEdildi)]
-    [InlineData(false, ProjeTipi.Yedek, 0, ProjeDurum.SevkEdildi)]
+    [InlineData(ProjeTipi.Normal, 0, ProjeDurum.EksikSevkEdildi)]
+    [InlineData(ProjeTipi.Normal, 1, ProjeDurum.SevkEdildi)]
+    [InlineData(ProjeTipi.Saha, 0, ProjeDurum.SevkEdildi)]
+    [InlineData(ProjeTipi.Yedek, 0, ProjeDurum.SevkEdildi)]
     public async Task SonSandikSevki_NormaldeEksigiDikkateAlir_SahaYedekKurallariDegismez(
-        bool toplu, ProjeTipi tip, decimal gerceklesenSaha, ProjeDurum beklenen)
+        ProjeTipi tip, decimal gerceklesenSaha, ProjeDurum beklenen)
     {
         using var kurgu = new Kurgu(tip);
         kurgu.Saha.Gerceklesen = gerceklesenSaha;
 
-        var sonuc = await kurgu.SevkEtAsync(toplu);
+        var sonuc = await kurgu.SevkEtAsync();
 
         Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
         Assert.Equal((int)beklenen, kurgu.Proje.DurumId);
@@ -42,10 +37,8 @@ public sealed class NormalProjeSevkKomutlariTests
         Assert.Equal(tip == ProjeTipi.Saha ? 1 : 0, kurgu.Saha.SenkronizasyonSayisi);
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task NormalSevk_SahaUzerindenTamSandikSevkiIstisnasiniVeKaynakKilitleriniKorur(bool toplu)
+    [Fact]
+    public async Task NormalSevk_SahaUzerindenTamSandikSevkiIstisnasiniVeKaynakKilitleriniKorur()
     {
         using var kurgu = new Kurgu(ProjeTipi.Normal);
         var sahaSandigi = new Sandik { Id = 21, ProjeId = 10, DurumId = (int)SandikDurum.Kapandi };
@@ -56,7 +49,7 @@ public sealed class NormalProjeSevkKomutlariTests
             SahaUzerindenSevkEdilenSandikIds = new HashSet<int> { 21 }
         };
 
-        var sonuc = await kurgu.SevkEtAsync(toplu);
+        var sonuc = await kurgu.SevkEtAsync();
 
         Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
         Assert.Equal((int)ProjeDurum.SevkEdildi, kurgu.Proje.DurumId);
@@ -64,16 +57,14 @@ public sealed class NormalProjeSevkKomutlariTests
         Assert.Equal(20, Assert.Single(kurgu.Uow.Repo<SevkiyatSandik>().Rows).SandikId);
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task AktifSahaAktarimliSandik_AnaProjedenYenidenSevkEdilemez(bool toplu)
+    [Fact]
+    public async Task AktifSahaAktarimliSandik_AnaProjedenYenidenSevkEdilemez()
     {
         using var kurgu = new Kurgu(ProjeTipi.Normal);
         kurgu.Saha.SandikDurumu = new KaynakSandikSahaAktarimDurumu
         { AktifAktarimaBagliSandikIds = new HashSet<int> { 20 } };
 
-        var sonuc = await kurgu.SevkEtAsync(toplu);
+        var sonuc = await kurgu.SevkEtAsync();
 
         Assert.False(sonuc.IsSuccess);
         Assert.Equal(0, kurgu.Uow.SaveCount);
@@ -104,11 +95,9 @@ public sealed class NormalProjeSevkKomutlariTests
             Uow.Repo<CekiSatiri>().Rows.Add(new CekiSatiri { Id = 51, Ceki = new Ceki { ProjeId = 11 }, IstenenAdet = 100 });
         }
 
-        public Task<Result> SevkEtAsync(bool toplu) => toplu
-            ? new ProjeSevkEtCommandHandler(Uow, new HareketStub(), new KullaniciStub(), Saha, new ReadQueries()).Handle(
-                new ProjeSevkEtCommand { ProjeId = 10, SandikIds = [20] }, default)
-            : new SandikSevkEtCommandHandler(Uow, new HareketStub(), new KullaniciStub(), Saha, new ReadQueries()).Handle(
-                new SandikSevkEtCommand { ProjeId = 10, SandikId = 20 }, default);
+        public Task<Result> SevkEtAsync() =>
+            new ProjeSevkEtCommandHandler(Uow, new HareketStub(), new KullaniciStub(), Saha, new ReadQueries()).Handle(
+                new ProjeSevkEtCommand { ProjeId = 10, SandikIds = [20] }, default);
 
         public void Dispose() => Uow.Dispose();
     }

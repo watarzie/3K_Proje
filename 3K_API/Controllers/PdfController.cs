@@ -1,7 +1,6 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using _3K.Application.Features.AmbalajIslemleri.Queries;
-using _3K.Application.Features.PdfIslemleri.Commands;
 using _3K.Application.Features.PdfIslemleri.Queries;
 using _3K.Core.Enums;
 using _3K_API.Extensions;
@@ -19,18 +18,6 @@ namespace _3K_API.Controllers
         {
             _mediator = mediator;
         }
-
-        [HttpGet("{projeId}/indir")]
-        public async Task<IActionResult> Indir(int projeId, CancellationToken cancellationToken) =>
-            (await _mediator.Send(new PdfOlusturCommand { ProjeId = projeId }, cancellationToken)).ToFileResult();
-
-        [HttpGet("{projeId}/excel")]
-        public async Task<IActionResult> ExcelIndir(int projeId, CancellationToken cancellationToken) =>
-            (await _mediator.Send(new ExcelOlusturCommand { ProjeId = projeId }, cancellationToken)).ToFileResult();
-
-        [HttpGet("saha-sandik/{sandikId}")]
-        public async Task<IActionResult> SahaSandikPdfIndir(int sandikId, CancellationToken cancellationToken) =>
-            (await _mediator.Send(new GetSahaSandikPdfQuery { SandikId = sandikId }, cancellationToken)).ToFileResult();
 
         [HttpGet("saha-proje/{projeId}")]
         public async Task<IActionResult> SahaProjePdfIndir(int projeId, CancellationToken cancellationToken) =>

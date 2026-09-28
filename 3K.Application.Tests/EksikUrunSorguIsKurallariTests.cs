@@ -1,10 +1,6 @@
-using System.Reflection;
-using _3K.Application.Common;
-using _3K.Application.Features.SandikIslemleri.DTOs;
 using _3K.Application.Features.SandikIslemleri.Queries;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
-using _3K.Core.Interfaces;
 
 namespace _3K.Application.Tests;
 
@@ -13,65 +9,24 @@ namespace _3K.Application.Tests;
 public sealed class EksikUrunSorguIsKurallariTests
 {
     [Fact]
-    public async Task AyniKaynaktaOperasyonelEksikVePlanlanabilirEksik_FarkliSahaMiktarlariniKullanir()
+    public async Task PlanlanabilirEksik_SahaTamamlamaPlaniniDuserVeKaynagiDegistirmez()
     {
         using var data = new Kurgu();
         var kaynak = data.Ekle(1, 1, 5m, 1m);
         data.Ekle(2, 2, 3m, 1m, kaynak.Id);
-        data.Map.Miktarlar[kaynak.Id] = 1m;
 
-        var operasyonel = await data.Operasyonel(1);
         var plan = await new GetEksikUrunlerByProjeQueryHandler(data.Uow)
             .Handle(new GetEksikUrunlerByProjeQuery { ProjeId = 1 }, default);
 
-        Assert.True(operasyonel.IsSuccess, operasyonel.Error?.Message);
         Assert.True(plan.IsSuccess, plan.Error?.Message);
-        Assert.Equal(3m, Assert.Single(operasyonel.Value!).EksikMiktar);
         var secilebilir = Assert.Single(plan.Value!);
         Assert.Equal(1m, secilebilir.KalanMiktar);
         Assert.Equal(3m, secilebilir.TamamlamaPlanlananAdet);
         Assert.Equal(5m, secilebilir.IstenenAdet);
         Assert.Equal(1m, secilebilir.GelenMiktar);
         Assert.Equal("FIILI", secilebilir.SandikNo);
-        Assert.Equal([kaynak.Id], data.Map.IstenenIdler);
         Assert.Equal(0, data.Uow.SaveCount);
         Assert.Equal(4m, kaynak.KalanMiktar);
-    }
-
-    [Fact]
-    public async Task SahaKopyasi_KendiEksigindenSahaHaritasiniTekrarDusmez()
-    {
-        using var data = new Kurgu();
-        var kopya = data.Ekle(2, 2, 3.5001m, 1.25m, kaynakId: 1);
-        data.Map.Miktarlar[kopya.Id] = 100m;
-
-        var sonuc = await data.Operasyonel(2);
-
-        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
-        Assert.Equal(2.2501m, Assert.Single(sonuc.Value!).EksikMiktar);
-        Assert.Empty(data.Map.IstenenIdler);
-        Assert.Equal(0, data.Uow.SaveCount);
-    }
-
-    [Fact]
-    public async Task OperasyonelListe_SifirVeTerminalSatirlariEler_ProjeIzolasyonuVeSiraKorunur()
-    {
-        using var data = new Kurgu();
-        data.Ekle(5, 1, 1m, 0m);
-        data.Ekle(2, 1, 1.0001m, 1m);
-        data.Ekle(1, 1, 1m, 1m);
-        data.Ekle(3, 1, 1m, 0m).GridDurumuId = (int)GridDurum.Iptal;
-        data.Ekle(4, 1, 1m, 0m).GridDurumuId = (int)GridDurum.GridKapandi;
-        data.Ekle(6, 1, 1m, 0m);
-        data.Map.Miktarlar[6] = 10m;
-        data.Ekle(7, 2, 99m, 0m);
-
-        var sonuc = await data.Operasyonel(1);
-
-        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
-        Assert.Equal([2, 5], sonuc.Value!.Select(x => x.CekiSatiriId));
-        Assert.Equal(.0001m, sonuc.Value![0].EksikMiktar);
-        Assert.Equal(0, data.Uow.SaveCount);
     }
 
     [Fact]
@@ -106,22 +61,17 @@ public sealed class EksikUrunSorguIsKurallariTests
     }
 
     [Fact]
-    public async Task ProjeVeyaCekiYoksa_NotFoundDonerVeSahaSorgusuYapilmaz()
+    public async Task ProjeYoksa_NotFoundDoner()
     {
         using var data = new Kurgu();
         var proje = await new GetEksikUrunlerByProjeQueryHandler(data.Uow)
             .Handle(new GetEksikUrunlerByProjeQuery { ProjeId = 99 }, default);
-        var ceki = await data.Operasyonel(99);
         Assert.Equal(404, proje.StatusCode);
-        Assert.Equal(404, ceki.StatusCode);
-        Assert.False(data.Map.Cagirildi);
     }
 
     private sealed class Kurgu : IDisposable
     {
         public OrtakMemoryUow Uow { get; } = new();
-        public ISahaTamamlamaService Saha { get; } = DispatchProxy.Create<ISahaTamamlamaService, SahaIsMapProxy>();
-        public SahaIsMapProxy Map => (SahaIsMapProxy)Saha;
 
         public Kurgu()
         {
@@ -148,31 +98,6 @@ public sealed class EksikUrunSorguIsKurallariTests
             return satir;
         }
 
-        public Task<Result<List<EksikUrunDto>>> Operasyonel(int proje) =>
-            new GetEksikUrunlerQueryHandler(Uow, new Lookup(), Saha)
-                .Handle(new GetEksikUrunlerQuery { ProjeId = proje }, default);
         public void Dispose() => Uow.Dispose();
-    }
-
-    public class SahaIsMapProxy : DispatchProxy
-    {
-        public Dictionary<int, decimal> Miktarlar { get; } = [];
-        public int[] IstenenIdler { get; private set; } = [];
-        public bool Cagirildi { get; private set; }
-        protected override object? Invoke(MethodInfo? method, object?[]? args)
-        {
-            if (method?.Name != nameof(ISahaTamamlamaService.GetAktifIsTamamlamaMapAsync))
-                throw new InvalidOperationException("Operasyonel eksik, aktarma/sevk haritasini degil is tamamlama haritasini istemelidir.");
-            Cagirildi = true;
-            IstenenIdler = ((IEnumerable<int>)args![0]!).ToArray();
-            return Task.FromResult(Miktarlar);
-        }
-    }
-
-    private sealed class Lookup : ILookupCacheService
-    {
-        public string GetDeger<TLookup>(int id) where TLookup : LookupBase => id.ToString();
-        public Task WarmupAsync(CancellationToken ct = default) => Task.CompletedTask;
-        public Task RefreshAsync<TLookup>(CancellationToken ct = default) where TLookup : LookupBase => Task.CompletedTask;
     }
 }

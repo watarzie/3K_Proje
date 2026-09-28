@@ -183,61 +183,6 @@ public class OrtakSilmeSevkiyatHandlerIsKurallariTests
         Assert.Equal(1, data.Uow.SaveCount);
     }
 
-    [Theory]
-    [InlineData("baskaProje")][InlineData("sandikYok")][InlineData("projeYok")]
-    [InlineData("oturum")][InlineData("bos")][InlineData("hazirlaniyor")]
-    public async Task SandikSevkEt_ProjeSandikOturumVeKapaliDurumuDogrulamadanKayitUretmez(string reason)
-    {
-        var data = new Fixture(ProjeTipi.Yedek);
-        if (reason == "sandikYok") data.Uow.Repo<Sandik>().Rows.Clear();
-        if (reason == "projeYok") data.Uow.Repo<Proje>().Rows.Clear();
-        if (reason == "bos") data.Sandik.DurumId = (int)SandikDurum.Bos;
-        if (reason == "hazirlaniyor") data.Sandik.DurumId = (int)SandikDurum.Hazirlaniyor;
-        var before = data.Sandik.DurumId;
-        var result = await data.Sevk(reason == "baskaProje" ? 2 : 1, reason != "oturum");
-        Assert.False(result.IsSuccess);
-        Assert.Equal(before, data.Sandik.DurumId);
-        Assert.Empty(data.Uow.Repo<Sevkiyat>().Rows);
-        Assert.Empty(data.Uow.Repo<SevkiyatSandik>().Rows);
-        Assert.Equal(0, data.Uow.SaveCount);
-        Assert.Empty(data.Hareket.Rows);
-    }
-
-    [Theory]
-    [InlineData(false)][InlineData(true)]
-    public async Task SandikSevkEt_IlkSevkTarihiniYazarTekrarIstegiIkinciSevkiyatUretmez(bool correction)
-    {
-        var data = new Fixture(ProjeTipi.Yedek);
-        Assert.True((await data.Sevk()).IsSuccess);
-        var firstDate = data.Proje.GerceklesenSevkTarihi;
-        Assert.NotNull(firstDate);
-        Assert.Equal((int)SandikDurum.Kapandi, data.Sandik.SevkOncesiDurumId);
-        data.Sandik.SevkiyatDuzeltmeAcikMi = correction;
-        var result = await data.Sevk();
-        Assert.False(result.IsSuccess);
-        if (correction) Assert.Contains("Düzeltmeyi Tamamla", result.Error!.Message);
-        Assert.Equal(firstDate, data.Proje.GerceklesenSevkTarihi);
-        Assert.Single(data.Uow.Repo<Sevkiyat>().Rows);
-        Assert.Single(data.Uow.Repo<SevkiyatSandik>().Rows);
-        Assert.Single(data.Hareket.Rows);
-        Assert.Equal(1, data.Uow.SaveCount);
-    }
-
-    [Fact]
-    public async Task SandikSevkEt_MevcutSevkiyatBaginiVeIlkTarihiKorumakIcinYeniKayitUretmez()
-    {
-        var data = new Fixture(ProjeTipi.Yedek);
-        var date = new DateTime(2026, 9, 1);
-        data.Proje.GerceklesenSevkTarihi = date;
-        data.Uow.Repo<Sevkiyat>().Rows.Add(new() { Id = 50, ProjeId = 1, SevkiyatNo = 1, SevkTarihi = date });
-        data.Uow.Repo<SevkiyatSandik>().Rows.Add(new() { Id = 51, SevkiyatId = 50, SandikId = 20 });
-        Assert.True((await data.Sevk()).IsSuccess);
-        Assert.Equal(50, Assert.Single(data.Uow.Repo<Sevkiyat>().Rows).Id);
-        Assert.Equal(51, Assert.Single(data.Uow.Repo<SevkiyatSandik>().Rows).Id);
-        Assert.Equal(date, data.Proje.GerceklesenSevkTarihi);
-        Assert.Equal((int)SandikDurum.Sevkedildi, data.Sandik.DurumId);
-    }
-
     private sealed class Fixture
     {
         public OrtakMemoryUow Uow { get; } = new();
@@ -285,8 +230,6 @@ public class OrtakSilmeSevkiyatHandlerIsKurallariTests
             .Handle(new() { ProjeId = proje, CekiSatiriId = content ? null : 10, SandikIcerikId = content ? 30 : null }, default);
         public Task<Result<CekiSatirlariSilDto>> CekiSil(List<int> ids) => new CekiSatirlariSilCommandHandler(Uow, new OrtakUser(), new DurumHesaplaService(), Koruma)
             .Handle(new() { CekiSatiriIds = ids }, default);
-        public Task<Result> Sevk(int proje = 1, bool auth = true) => new SandikSevkEtCommandHandler(Uow, Hareket, new OrtakUser(UserId: auth ? 7 : null), new OrtakSaha(), new ReadQueries())
-            .Handle(new() { ProjeId = proje, SandikId = 20 }, default);
     }
 
     private sealed class SilmeKoruma : ISahaAktarimSilmeKorumaService
@@ -294,11 +237,5 @@ public class OrtakSilmeSevkiyatHandlerIsKurallariTests
         public HashSet<int> BagliSatirlar { get; } = [];
         public Task<HashSet<int>> GetAktifAktarimBagliCekiSatiriIdsAsync(IEnumerable<int> ids, CancellationToken token = default) => Task.FromResult(ids.Where(BagliSatirlar.Contains).ToHashSet());
         public Task<HashSet<int>> GetAktifAktarimBagliSandikIdsAsync(IEnumerable<int> ids, CancellationToken token = default) => Task.FromResult(new HashSet<int>());
-    }
-    private sealed class ReadQueries : IReadQueryExecutor
-    {
-        public IQueryable<T> AsNoTracking<T>(IQueryable<T> query) where T : class => query;
-        public Task<int> CountAsync<T>(IQueryable<T> query, CancellationToken token = default) => Task.FromResult(query.Count());
-        public Task<List<T>> ToListAsync<T>(IQueryable<T> query, CancellationToken token = default) => Task.FromResult(query.ToList());
     }
 }

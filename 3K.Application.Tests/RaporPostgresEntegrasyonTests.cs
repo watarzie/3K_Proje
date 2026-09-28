@@ -72,9 +72,7 @@ public class RaporPostgresEntegrasyonTests
                     Assert.Contains("SND-10: -", rows[1].Cell(6).GetString());
                     Assert.Contains("SND-10: -", rows[0].Cell(6).GetString());
                     var combined = await sahaService.SahaProjeSandiklariPdfOlusturAsync(project.Id);
-                    var single = await sahaService.SahaSandikPdfOlusturAsync(project.Sandiklar.First(s => s.SandikNo == "SND-2").Id);
                     await SaveSampleAsync($"{type}-sandiklar.pdf", combined);
-                    await SaveSampleAsync($"{type}-tek-sandik.pdf", single);
                 }
                 await SaveSampleAsync($"{type}-eksik.pdf", pdf);
                 await SaveSampleAsync($"{type}-eksik.xlsx", excel);

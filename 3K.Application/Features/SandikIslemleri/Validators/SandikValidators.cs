@@ -29,17 +29,6 @@ namespace _3K.Application.Features.SandikIslemleri.Validators
         }
     }
 
-    public class StoktanKarsilaCommandValidator : AbstractValidator<StoktanKarsilaCommand>
-    {
-        public StoktanKarsilaCommandValidator()
-        {
-            RuleFor(x => x.CekiSatiriId).GreaterThan(0).WithMessage("Geçerli bir ürün ID belirtilmeli.");
-            RuleFor(x => x.StokKaydiId).GreaterThan(0).WithMessage("Geçerli bir stok kaydı ID belirtilmeli.");
-            RuleFor(x => x.KarsilananAdet).GreaterThan(0).WithMessage("Karşılanan adet 0'dan büyük olmalı.");
-            RuleFor(x => x.ProjeId).GreaterThan(0).WithMessage("Geçerli bir proje ID belirtilmeli.");
-        }
-    }
-
     public class ManuelUrunEkleCommandValidator : AbstractValidator<ManuelUrunEkleCommand>
     {
         public ManuelUrunEkleCommandValidator()
@@ -49,36 +38,6 @@ namespace _3K.Application.Features.SandikIslemleri.Validators
             RuleFor(x => x.BarkodNo).NotEmpty().WithMessage("Barkod numarası boş olamaz.");
             RuleFor(x => x.Aciklama).NotEmpty().WithMessage("Açıklama boş olamaz.");
             RuleFor(x => x.IstenenAdet).GreaterThan(0).WithMessage("İstenen adet 0'dan büyük olmalı.");
-        }
-    }
-
-    public class UrunIptalCommandValidator : AbstractValidator<UrunIptalCommand>
-    {
-        public UrunIptalCommandValidator()
-        {
-            RuleFor(x => x.CekiSatiriId).GreaterThan(0).WithMessage("Geçerli bir ürün ID belirtilmeli.");
-            RuleFor(x => x.Neden).NotEmpty().WithMessage("İptal nedeni belirtilmeli.");
-        }
-    }
-
-    public class FiiliSandikDegistirCommandValidator : AbstractValidator<FiiliSandikDegistirCommand>
-    {
-        public FiiliSandikDegistirCommandValidator()
-        {
-            RuleFor(x => x.CekiSatiriId).GreaterThan(0).WithMessage("Geçerli bir ürün ID belirtilmeli.");
-            RuleFor(x => x.YeniFiiliSandikNo).NotEmpty().WithMessage("Yeni sandık numarası belirtilmeli.");
-            RuleFor(x => x.ProjeId).GreaterThan(0).WithMessage("Proje ID belirtilmeli.");
-        }
-    }
-
-    public class FBDenKarsilaCommandValidator : AbstractValidator<FBDenKarsilaCommand>
-    {
-        public FBDenKarsilaCommandValidator()
-        {
-            RuleFor(x => x.CekiSatiriId).GreaterThan(0).WithMessage("Geçerli bir ürün ID belirtilmeli.");
-            RuleFor(x => x.AsilFB).NotEmpty().WithMessage("Asıl FB belirtilmeli.");
-            RuleFor(x => x.AlinanFB).NotEmpty().WithMessage("Alınan FB belirtilmeli.");
-            RuleFor(x => x.KarsilananAdet).GreaterThan(0).WithMessage("Karşılanan adet 0'dan büyük olmalı.");
         }
     }
 
@@ -103,15 +62,6 @@ namespace _3K.Application.Features.SandikIslemleri.Validators
         }
     }
 
-    public class SandikSevkEtCommandValidator : AbstractValidator<SandikSevkEtCommand>
-    {
-        public SandikSevkEtCommandValidator()
-        {
-            RuleFor(x => x.ProjeId).GreaterThan(0).WithMessage("Geçerli bir proje ID belirtilmeli.");
-            RuleFor(x => x.SandikId).GreaterThan(0).WithMessage("Geçerli bir sandık ID belirtilmeli.");
-        }
-    }
-
     public class SandikUrunTasiCommandValidator : AbstractValidator<SandikUrunTasiCommand>
     {
         public SandikUrunTasiCommandValidator()
@@ -130,41 +80,6 @@ namespace _3K.Application.Features.SandikIslemleri.Validators
             RuleFor(x => x.IslemAnahtari)
                 .NotEmpty()
                 .WithMessage("İşlem anahtarı zorunludur.");
-        }
-    }
-
-    public class UcKTeslimAlCommandValidator : AbstractValidator<UcKTeslimAlCommand>
-    {
-        public UcKTeslimAlCommandValidator()
-        {
-            RuleFor(x => x.CekiSatiriId).GreaterThan(0).WithMessage("Geçerli bir ürün ID belirtilmeli.");
-            RuleFor(x => x.ProjeId).GreaterThan(0).WithMessage("Geçerli bir proje ID belirtilmeli.");
-            RuleFor(x => x.GelenMiktar).GreaterThan(0).WithMessage("Gelen miktar 0'dan büyük olmalıdır.");
-            RuleFor(x => x.GelenMiktar)
-                .PrecisionScale(18, 4, false)
-                .WithMessage("Gelen miktar en fazla 14 tam ve 4 ondalık basamak içerebilir.");
-        }
-    }
-
-    public class TopluTeslimItemValidator : AbstractValidator<TopluTeslimItem>
-    {
-        public TopluTeslimItemValidator()
-        {
-            RuleFor(x => x.CekiSatiriId).GreaterThan(0).WithMessage("Geçerli bir ürün ID belirtilmeli.");
-            RuleFor(x => x.GelenMiktar).GreaterThan(0).WithMessage("Gelen miktar 0'dan büyük olmalıdır.");
-            RuleFor(x => x.GelenMiktar)
-                .PrecisionScale(18, 4, false)
-                .WithMessage("Gelen miktar en fazla 14 tam ve 4 ondalık basamak içerebilir.");
-        }
-    }
-
-    public class UcKTopluTeslimAlCommandValidator : AbstractValidator<UcKTopluTeslimAlCommand>
-    {
-        public UcKTopluTeslimAlCommandValidator()
-        {
-            RuleFor(x => x.ProjeId).GreaterThan(0).WithMessage("Geçerli bir proje ID belirtilmeli.");
-            RuleFor(x => x.Urunler).NotEmpty().WithMessage("En az bir ürün seçilmelidir.");
-            RuleForEach(x => x.Urunler).SetValidator(new TopluTeslimItemValidator());
         }
     }
 }

@@ -95,13 +95,6 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
 
-        [HttpGet("{cekiId}/satirlar")]
-        public async Task<ActionResult> GetSatirlari(int cekiId)
-        {
-            var result = await _mediator.Send(new CekiSatirlariQuery { CekiId = cekiId });
-            return result.ToActionResult();
-        }
-
         [Authorize]
         [HttpGet("revizyon-gecmisi/{projeId:int}")]
         public async Task<ActionResult> RevizyonGecmisi(int projeId, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)

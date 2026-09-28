@@ -31,13 +31,6 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
 
-        [HttpPost("karsila")]
-        public async Task<ActionResult> Karsila([FromBody] StokKarsilaCommand command)
-        {
-            var result = await _mediator.Send(command);
-            return result.ToActionResult();
-        }
-
         [HttpPut("{id}")]
         public async Task<ActionResult> Update(int id, [FromBody] StokKaydiGuncelleCommand command)
         {

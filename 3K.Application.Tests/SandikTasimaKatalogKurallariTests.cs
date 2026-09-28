@@ -150,35 +150,6 @@ public sealed class SandikTasimaKatalogKurallariTests
         Assert.Equal(1, hedef.EksikAdet);
     }
 
-    [Fact]
-    public async Task FiiliSandikDegistir_CokluTahsisliSatiri409IleMutasyonsuzReddeder()
-    {
-        using var kurgu = new Kurgu(tahsis: 3, konulan: 2);
-        var ucuncu = kurgu.SandikEkle(3, "3");
-        kurgu.IcerikEkle(ucuncu, tahsis: 2, konulan: 1);
-        var once = kurgu.AnlikDurum();
-
-        var sonuc = await new FiiliSandikDegistirCommandHandler(
-                kurgu.Uow,
-                kurgu.Hareket,
-                kurgu.Saha)
-            .Handle(new FiiliSandikDegistirCommand
-            {
-                CekiSatiriId = kurgu.Satir.Id,
-                YeniFiiliSandikNo = "4",
-                ProjeId = Kurgu.ProjeId,
-                KullaniciId = 7
-            }, default);
-
-        Assert.False(sonuc.IsSuccess);
-        Assert.Equal(409, sonuc.StatusCode);
-        Assert.Equal(once, kurgu.AnlikDurum());
-        Assert.Equal(0, kurgu.Uow.SaveCount);
-        Assert.Empty(kurgu.Uow.Repo<Revizyon>().Rows);
-        Assert.Empty(kurgu.Hareket.Rows);
-        Assert.DoesNotContain(kurgu.Uow.Repo<Sandik>().Rows, s => s.SandikNo == "4");
-    }
-
     private sealed class Kurgu : IDisposable
     {
         public const int ProjeId = 10;

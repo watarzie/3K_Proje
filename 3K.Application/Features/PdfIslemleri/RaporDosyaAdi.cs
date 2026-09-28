@@ -13,9 +13,6 @@ internal static class RaporDosyaAdi
     public static readonly Result<DosyaIcerigi> ProjeBulunamadi =
         Result<DosyaIcerigi>.Failure("Proje bulunamadı.", 404);
 
-    public static readonly Result<DosyaIcerigi> SandikBulunamadi =
-        Result<DosyaIcerigi>.Failure("Sandık bulunamadı.", 404);
-
     public static string Tarih() => TurkeyTime.Now.ToString("yyyyMMdd");
 
     public static string TarihSaat() => TurkeyTime.Now.ToString("yyyyMMdd_HHmmss");
@@ -25,12 +22,6 @@ internal static class RaporDosyaAdi
         var proje = await unitOfWork.GetRepository<Proje>().GetByIdAsync(projeId);
         cancellationToken.ThrowIfCancellationRequested();
         return proje;
-    }
-
-    public static async Task<Proje?> SandikProjesiBulAsync(IUnitOfWork unitOfWork, int sandikId, CancellationToken cancellationToken)
-    {
-        var sandik = await unitOfWork.GetRepository<Sandik>().GetByIdAsync(sandikId);
-        return sandik == null ? null : await ProjeBulAsync(unitOfWork, sandik.ProjeId, cancellationToken);
     }
 
     public static bool YedekMi(Proje proje) => proje.ProjeTipiId == (int)ProjeTipi.Yedek;

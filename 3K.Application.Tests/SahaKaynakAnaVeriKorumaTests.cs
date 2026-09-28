@@ -5,7 +5,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using _3K.Application.Common;
 using _3K.Application.Features.CekiIslemleri.Commands;
-using _3K.Application.Features.SandikIslemleri.Commands;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
@@ -17,20 +16,15 @@ namespace _3K.Application.Tests;
 public sealed class SahaKaynakAnaVeriKorumaTests
 {
     [Theory]
-    [InlineData(true, false, ProjeDurum.SevkEdildi)]
-    [InlineData(false, false, ProjeDurum.SevkEdildi)]
-    [InlineData(true, true, ProjeDurum.SevkEdildi)]
-    [InlineData(false, true, ProjeDurum.SevkEdildi)]
-    [InlineData(true, false, ProjeDurum.EksikSevkEdildi)]
-    [InlineData(false, false, ProjeDurum.EksikSevkEdildi)]
-    [InlineData(true, true, ProjeDurum.EksikSevkEdildi)]
-    [InlineData(false, true, ProjeDurum.EksikSevkEdildi)]
-    public async Task AktifSahaKaynakSatiri_OnaylaSandikAcilsaDaDegistirilemez(
-        bool anaVeri, bool legacy, ProjeDurum projeDurumu)
+    [InlineData(false, ProjeDurum.SevkEdildi)]
+    [InlineData(true, ProjeDurum.SevkEdildi)]
+    [InlineData(false, ProjeDurum.EksikSevkEdildi)]
+    [InlineData(true, ProjeDurum.EksikSevkEdildi)]
+    public async Task AktifSahaKaynakSatiri_OnaylaSandikAcilsaDaDegistirilemez(bool legacy, ProjeDurum projeDurumu)
     {
         using var kurgu = new Kurgu(projeDurumu, yeniDefter: !legacy, legacy: legacy);
 
-        var sonuc = await kurgu.CalistirAsync(anaVeri);
+        var sonuc = await kurgu.CalistirAsync();
 
         Assert.False(sonuc.IsSuccess);
         Assert.Equal(SahaAktarimBlokajHelper.SandikMesaji, sonuc.Error!.Message);
@@ -44,31 +38,20 @@ public sealed class SahaKaynakAnaVeriKorumaTests
         Assert.Equal(legacy ? 2 : 1, kurgu.SahaOkumalari.OkumaSayisi);
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task SahaAktarimiOlmayanSatir_MevcutKomutAkisiniKorur(bool anaVeri)
+    [Fact]
+    public async Task SahaAktarimiOlmayanSatir_MevcutKomutAkisiniKorur()
     {
         using var kurgu = new Kurgu(ProjeDurum.EksikSevkEdildi, yeniDefter: false, legacy: false);
 
-        var sonuc = await kurgu.CalistirAsync(anaVeri);
+        var sonuc = await kurgu.CalistirAsync();
 
         Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
         Assert.Equal(1, kurgu.Uow.SaveCount);
         Assert.Equal(2, kurgu.SahaOkumalari.OkumaSayisi);
         Assert.Equal(4, kurgu.Satir.IstenenAdet);
-        if (anaVeri)
-        {
-            Assert.Equal("YENI", kurgu.Satir.Aciklama);
-            Assert.Equal("1", kurgu.Satir.FiiliSandikNo);
-            Assert.Equal(4, Assert.Single(kurgu.Uow.Repo<SandikIcerik>().Rows).TahsisMiktari);
-        }
-        else
-        {
-            Assert.Equal("2", kurgu.Satir.FiiliSandikNo);
-            Assert.Equal(21, Assert.Single(kurgu.Uow.Repo<SandikIcerik>().Rows).SandikId);
-            Assert.Single(kurgu.Uow.Repo<Revizyon>().Rows);
-        }
+        Assert.Equal("YENI", kurgu.Satir.Aciklama);
+        Assert.Equal("1", kurgu.Satir.FiiliSandikNo);
+        Assert.Equal(4, Assert.Single(kurgu.Uow.Repo<SandikIcerik>().Rows).TahsisMiktari);
     }
 
     private sealed class Kurgu : IDisposable
@@ -99,12 +82,8 @@ public sealed class SahaKaynakAnaVeriKorumaTests
                 TahsisMiktari = 4, KonulanAdet = 3, EksikAdet = 1 });
         }
 
-        public async Task<Result> CalistirAsync(bool anaVeri)
+        public async Task<Result> CalistirAsync()
         {
-            if (!anaVeri)
-                return await new FiiliSandikDegistirCommandHandler(Uow, new HareketStub(), _saha).Handle(
-                    new FiiliSandikDegistirCommand { CekiSatiriId = 50, ProjeId = 10, YeniFiiliSandikNo = "2", KullaniciId = 7 }, default);
-
             var sonuc = await new CekiSatiriAnaVeriGuncelleCommandHandler(Uow, new DurumStub(), _saha).Handle(
                 new CekiSatiriAnaVeriGuncelleCommand { CekiSatiriId = 50, SiraNo = 1, BarkodNo = "TEST",
                     Aciklama = "YENI", IstenenAdet = 4, BirimId = (int)Birim.Adet, SandikNo = "1" }, default);
