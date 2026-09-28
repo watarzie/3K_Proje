@@ -111,23 +111,6 @@ public sealed record FinansIsKaydiKaydetModel(
     FinansHesaplamaYontemi? HesaplamaYontemi = null,
     string? RaporGrubu = null);
 
-public sealed record FinansOzelIsKaydetModel(
-    string IsTuru,
-    string Musteri,
-    int? ProjeId,
-    string IsAdi,
-    string? Aciklama,
-    decimal Miktar,
-    string Birim,
-    DateTime IsTarihi,
-    FinansHesaplamaYontemi HesaplamaYontemi,
-    string RaporGrubu,
-    decimal BirimFiyat,
-    string ParaBirimi,
-    decimal KdvOrani,
-    string? TalepEdenKisi = null,
-    string? TalepEdenBolum = null);
-
 public sealed record FinansAylikDegerModel(decimal? Miktar = null, decimal? NetBirimFiyat = null);
 
 public sealed record FinansTarihiDegistirModel(DateTime FinansTarihi, string Aciklama);

@@ -24,28 +24,6 @@ public sealed record FinansGiderKaydetModel(
     int? MahsupEdilenAvansId = null,
     DateTime? FinansTarihi = null);
 
-public sealed record FinansGiderUyumKaydetModel(
-    DateTime Tarih,
-    int KategoriId,
-    string? AltKategori,
-    string? FirmaVeyaKisi,
-    string Aciklama,
-    decimal Tutar,
-    string ParaBirimi,
-    bool KdvDahil,
-    decimal KdvOrani,
-    int? ProjeId,
-    FinansIsTuru? IsTuru,
-    decimal? Miktar = null,
-    string? Birim = null,
-    decimal? BirimFiyat = null,
-    int? GiderKalemiId = null,
-    DateTime? FinansDonemi = null,
-    string? BelgeNo = null,
-    bool AvansMi = false,
-    int? MahsupEdilenAvansId = null,
-    DateTime? FinansTarihi = null);
-
 public sealed class FinansGiderModel
 {
     public int Id { get; init; }

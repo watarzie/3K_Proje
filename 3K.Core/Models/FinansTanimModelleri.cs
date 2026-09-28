@@ -24,25 +24,6 @@ public sealed record FinansDuzenliIsKaydetModel(
     FinansHesaplamaYontemi HesaplamaYontemi = FinansHesaplamaYontemi.DegiskenAdet,
     string RaporGrubu = "Özel İş");
 
-public sealed record FinansDuzenliIsUyumKaydetModel(
-    int? ProjeId,
-    string IsAdi,
-    string IsTuru,
-    string Musteri,
-    string? Aciklama,
-    string TekrarSikligi,
-    DateTime BaslangicTarihi,
-    DateTime? BitisTarihi,
-    int OlusturmaGunu,
-    decimal Miktar,
-    string Birim,
-    decimal BirimFiyat,
-    string ParaBirimi,
-    decimal KdvOrani,
-    bool Aktif,
-    FinansHesaplamaYontemi HesaplamaYontemi = FinansHesaplamaYontemi.DegiskenAdet,
-    string RaporGrubu = "Özel İş");
-
 public sealed class FinansDuzenliIsModel
 {
     public int Id { get; init; }

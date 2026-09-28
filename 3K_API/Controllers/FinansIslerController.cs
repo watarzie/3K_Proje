@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using _3K.Application.Features.FinansIslemleri.Commands;
 using _3K.Application.Features.FinansIslemleri.DTOs;
 using _3K.Application.Features.FinansIslemleri.Queries;
-using _3K.Core.Enums;
 using _3K.Core.Models;
 using _3K_API.Extensions;
 
@@ -50,8 +49,8 @@ public sealed class FinansIslerController(IMediator mediator) : FinansController
         => (await Mediator.Send(new FinansIsKaydiIptalCommand { Id = id, Aciklama = model.Aciklama }, cancellationToken)).ToActionResult();
 
     [HttpPost("ozel-isler")]
-    public async Task<ActionResult> OzelIsOlustur([FromBody] FinansOzelIsKaydetModel model, CancellationToken cancellationToken)
-        => (await Mediator.Send(new FinansIsKaydiOlusturCommand { Model = OzelIsModeli(model) }, cancellationToken)).ToActionResult();
+    public async Task<ActionResult> OzelIsOlustur([FromBody] FinansOzelIsKaydetDto model, CancellationToken cancellationToken)
+        => (await Mediator.Send(new FinansIsKaydiOlusturCommand { Model = model.IsKaydiModeli() }, cancellationToken)).ToActionResult();
 
     [HttpPut("ozel-isler/{id:int}/aylik-deger")]
     public async Task<ActionResult> OzelIsAylikDegerGuncelle(int id, [FromBody] FinansAylikDegerModel model, CancellationToken cancellationToken)
@@ -64,13 +63,4 @@ public sealed class FinansIslerController(IMediator mediator) : FinansController
     [HttpPost("ozel-isler/{id:int}/geri-al")]
     public async Task<ActionResult> OzelIsGeriAl(int id, CancellationToken cancellationToken)
         => (await Mediator.Send(new FinansIsKaydiGeriAlCommand { Id = id }, cancellationToken)).ToActionResult();
-
-    private static FinansIsKaydiKaydetModel OzelIsModeli(FinansOzelIsKaydetModel model) => new(
-        model.ProjeId, null, null, model.Musteri, FinansIsTuru.OzelIs,
-        model.IsAdi, model.Aciklama, model.TalepEdenKisi, model.TalepEdenBolum, model.Miktar, model.Birim, 0m,
-        null, model.BirimFiyat, model.ParaBirimi, model.KdvOrani,
-        model.IsTarihi.Date, model.IsTarihi.Date,
-        OzelIsTuru: model.IsTuru,
-        HesaplamaYontemi: model.HesaplamaYontemi,
-        RaporGrubu: model.RaporGrubu);
 }

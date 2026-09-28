@@ -1,8 +1,8 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using _3K.Application.Features.FinansIslemleri.Commands;
+using _3K.Application.Features.FinansIslemleri.DTOs;
 using _3K.Application.Features.FinansIslemleri.Queries;
-using _3K.Core.Enums;
 using _3K.Core.Models;
 using _3K_API.Extensions;
 
@@ -27,12 +27,12 @@ public sealed class FinansTanimController(IMediator mediator) : FinansController
         }, cancellationToken)).ToActionResult();
 
     [HttpPost("duzenli-isler")]
-    public async Task<ActionResult> DuzenliIsOlustur([FromBody] FinansDuzenliIsUyumKaydetModel model, CancellationToken cancellationToken)
-        => (await Mediator.Send(new FinansDuzenliIsOlusturCommand { Model = DuzenliIsModeli(model) }, cancellationToken)).ToActionResult();
+    public async Task<ActionResult> DuzenliIsOlustur([FromBody] FinansDuzenliIsKaydetDto model, CancellationToken cancellationToken)
+        => (await Mediator.Send(new FinansDuzenliIsOlusturCommand { Model = model.DuzenliIsModeli() }, cancellationToken)).ToActionResult();
 
     [HttpPut("duzenli-isler/{id:int}")]
-    public async Task<ActionResult> DuzenliIsGuncelle(int id, [FromBody] FinansDuzenliIsUyumKaydetModel model, CancellationToken cancellationToken)
-        => (await Mediator.Send(new FinansDuzenliIsGuncelleCommand { Id = id, Model = DuzenliIsModeli(model) }, cancellationToken)).ToActionResult();
+    public async Task<ActionResult> DuzenliIsGuncelle(int id, [FromBody] FinansDuzenliIsKaydetDto model, CancellationToken cancellationToken)
+        => (await Mediator.Send(new FinansDuzenliIsGuncelleCommand { Id = id, Model = model.DuzenliIsModeli() }, cancellationToken)).ToActionResult();
 
     [HttpGet("gider-kategorileri")]
     public async Task<ActionResult> GiderKategorileri([FromQuery] bool sadeceAktif, CancellationToken cancellationToken)
@@ -106,11 +106,4 @@ public sealed class FinansTanimController(IMediator mediator) : FinansController
     [HttpPut("sablonlar/{id:int}")]
     public async Task<ActionResult> SablonGuncelle(int id, [FromBody] FinansSablonKaydetModel model, CancellationToken ct)
         => (await Mediator.Send(new FinansSablonKaydetCommand { Id = id, Model = model }, ct)).ToActionResult();
-
-    private static FinansDuzenliIsKaydetModel DuzenliIsModeli(FinansDuzenliIsUyumKaydetModel model) => new(
-        model.ProjeId, null, null, model.IsAdi, FinansIsTuru.OzelIs,
-        model.Musteri, model.Aciklama, model.BaslangicTarihi, model.BitisTarihi,
-        model.OlusturmaGunu, model.Miktar, model.Birim, null, model.BirimFiyat,
-        model.ParaBirimi, model.KdvOrani, model.Aktif, model.IsTuru,
-        model.HesaplamaYontemi, model.RaporGrubu);
 }
