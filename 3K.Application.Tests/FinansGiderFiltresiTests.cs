@@ -1,7 +1,7 @@
 using _3K.Core.Entities;
 using _3K.Core.Models;
 using _3K.Infrastructure.Data;
-using _3K.Infrastructure.Services;
+using _3K.Infrastructure.Services.Finans;
 using Microsoft.EntityFrameworkCore;
 
 namespace _3K.Application.Tests;
@@ -15,7 +15,7 @@ public sealed class FinansGiderFiltresiTests
         using var context = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql("Host=localhost;Database=model_validation;Username=test;Password=test").Options);
 
-        var sql = FinansService.ExpenseFilter(
+        var sql = FinansSorgulari.ExpenseFilter(
                 context.Set<FinansGider>(),
                 new FinansListeFiltre(Arama: "BLG-7", ParaBirimi: " eur ", ProjeNo: " P-1 "))
             .ToQueryString();

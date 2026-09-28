@@ -4,14 +4,14 @@ using Microsoft.Extensions.Logging;
 using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
 
-namespace _3K.Infrastructure.Services
+namespace _3K.Infrastructure.Services.Finans
 {
     /// <summary>
     /// Aylık düzenli finans işlerini günlük ve idempotent olarak üretir.
     /// Bir şablon/dönem çifti veritabanındaki kaynak unique anahtarı sayesinde
     /// birden fazla API instance'ı çalışsa dahi tek finans kaydına dönüşür.
     /// </summary>
-    public sealed class FinansDuzenliIsBackgroundService : BackgroundService
+    internal sealed class FinansDuzenliIsBackgroundService : BackgroundService
     {
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<FinansDuzenliIsBackgroundService> _logger;

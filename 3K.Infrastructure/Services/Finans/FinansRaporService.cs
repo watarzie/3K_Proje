@@ -10,9 +10,9 @@ using _3K.Core.Helpers;
 using _3K.Core.Models;
 using _3K.Core.Exceptions;
 
-namespace _3K.Infrastructure.Services
+namespace _3K.Infrastructure.Services.Finans
 {
-    public sealed partial class FinansRaporService : IFinansRaporService
+    internal sealed partial class FinansRaporService : IFinansRaporService
     {
         private readonly IFinansRaporVerisiService _raporVerisi;
         private readonly IFinansAylikOzetService _aylikOzet;
@@ -495,7 +495,7 @@ namespace _3K.Infrastructure.Services
                 var page = await _siparisFatura.SiparislerAsync(
                     filtre with { PageNumber = pageNumber, PageSize = pageSize },
                     cancellationToken);
-                if (page.TotalCount > FinansService.RaporKayitSiniri) throw IsKuraliException.Cakisma("Rapor 20.000 siparişi aşamaz; filtreyi daraltın.");
+                if (page.TotalCount > FinansSorgulari.RaporKayitSiniri) throw IsKuraliException.Cakisma("Rapor 20.000 siparişi aşamaz; filtreyi daraltın.");
                 items.AddRange(page.Items);
                 if (!page.HasNextPage)
                     return items;

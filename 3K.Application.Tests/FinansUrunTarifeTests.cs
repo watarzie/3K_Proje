@@ -5,8 +5,7 @@ using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
 using _3K.Infrastructure.Data;
-using _3K.Infrastructure.Services;
-using Microsoft.EntityFrameworkCore;
+using _3K.Infrastructure.Services.Finans;
 
 namespace _3K.Application.Tests;
 
@@ -30,8 +29,8 @@ public sealed class FinansUrunTarifeTests
     [Fact]
     public void Bugun_gecerli_tarifenin_fiyat_degisikligi_denetime_yazilir()
     {
-        using var context = BaglanmayanContext();
-        var service = new FinansService(context, new Kullanici());
+        using var context = FinansTestServisleri.BaglanmayanContext();
+        var service = UrunServisi(context);
         var tarife = new FinansFiyatTarifesi
         {
             Id = 5, FinansUrunId = 3, Yil = 2026, GecerlilikBaslangici = TurkeyTime.Now.Date.AddDays(-3),
@@ -55,8 +54,8 @@ public sealed class FinansUrunTarifeTests
     [Fact]
     public void Gecerli_tarife_yoksa_bugunden_baslayan_acik_uclu_tarife_acilir()
     {
-        using var context = BaglanmayanContext();
-        var service = new FinansService(context, new Kullanici());
+        using var context = FinansTestServisleri.BaglanmayanContext();
+        var service = UrunServisi(context);
         var urun = new FinansUrun { Id = 3, Kod = "AMB", Ad = "Ambalaj" };
 
         var yeni = service.ApplyDirectPrice(urun, Model(600, "usd", 18));
@@ -72,9 +71,8 @@ public sealed class FinansUrunTarifeTests
     private static FinansUrunKaydetModel Model(decimal fiyat, string paraBirimi, decimal kdv) =>
         new("AMB", "Ambalaj", FinansFiyatlandirmaBirimi.Metrekup, true, 0, [], fiyat, paraBirimi, kdv);
 
-    // Sorgu çalıştırılmadıkça bağlantı açılmaz; yalnız change tracker kullanılır.
-    private static AppDbContext BaglanmayanContext() => new(new DbContextOptionsBuilder<AppDbContext>()
-        .UseNpgsql("Host=localhost;Database=model_validation;Username=test;Password=test").Options);
+    private static FinansUrunService UrunServisi(AppDbContext context) => new(context, new FinansIslemYurutucu(context),
+        new FinansDenetimKaydi(context, new Kullanici()), new FinansFiyatBelirleyici(context));
 
     private sealed class Kullanici : ICurrentUserService
     {

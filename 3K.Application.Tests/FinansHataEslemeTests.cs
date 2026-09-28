@@ -1,7 +1,6 @@
 using System.Reflection;
 using _3K.Application.Behaviors;
 using _3K.Application.Common;
-using _3K.Application.Features.FinansIslemleri;
 using _3K.Application.Features.FinansIslemleri.Commands;
 using _3K.Application.Features.FinansIslemleri.Queries;
 using _3K.Application.Features.FinansIslemleri.Validators;

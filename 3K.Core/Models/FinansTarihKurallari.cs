@@ -1,3 +1,5 @@
+using _3K.Core.Exceptions;
+
 namespace _3K.Core.Models;
 
 /// <summary>
@@ -23,4 +25,14 @@ public static class FinansTarihKurallari
         GecerliTarih(bitis) &&
         bitis.Date >= baslangic.Date &&
         (bitis.Date - baslangic.Date).TotalDays <= EnUzunAralikGun;
+
+    /// <summary>Servis koruması: aralık geçersizse iş kuralı hatası fırlatır.</summary>
+    public static void AraligiDogrula(DateTime baslangic, DateTime bitis)
+    {
+        if (!GecerliAralik(baslangic, bitis))
+            throw IsKuraliException.Cakisma("Geçerli ve en fazla on yıllık tarih aralığı seçin.");
+    }
+
+    /// <summary>Tarihin ait olduğu finans dönemi: ayın ilk günü.</summary>
+    public static DateTime AyBasi(DateTime tarih) => new(tarih.Year, tarih.Month, 1);
 }

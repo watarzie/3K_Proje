@@ -6,6 +6,7 @@ using _3K.Infrastructure.Data;
 using _3K.Infrastructure.Data.Interceptors;
 using _3K.Infrastructure.Repositories;
 using _3K.Infrastructure.Services;
+using _3K.Infrastructure.Services.Finans;
 
 namespace _3K.Infrastructure;
 
@@ -16,6 +17,7 @@ public static class DependencyInjection
     {
         services.AddPersistence(configuration);
         services.AddDomainServices();
+        services.AddFinansServices();
         services.AddBackgroundJobs();
 
         services.AddHttpContextAccessor();
@@ -78,22 +80,33 @@ public static class DependencyInjection
         services.AddScoped<IProjeSilmeService, ProjeSilmeService>();
         services.AddScoped<IBildirimService, BildirimService>();
         services.AddScoped<IAmbalajRaporDosyaService, AmbalajRaporDosyaService>();
+    }
 
-        services.AddScoped<FinansService>();
-        services.AddScoped<IFinansPanelService>(sp => sp.GetRequiredService<FinansService>());
-        services.AddScoped<IFinansIsKaydiService>(sp => sp.GetRequiredService<FinansService>());
-        services.AddScoped<IFinansAylikOzetService>(sp => sp.GetRequiredService<FinansService>());
-        services.AddScoped<IFinansSiparisFaturaService>(sp => sp.GetRequiredService<FinansService>());
-        services.AddScoped<IFinansGiderService>(sp => sp.GetRequiredService<FinansService>());
-        services.AddScoped<IFinansGiderTanimService>(sp => sp.GetRequiredService<FinansService>());
-        services.AddScoped<IFinansUrunService>(sp => sp.GetRequiredService<FinansService>());
-        services.AddScoped<IFinansSablonService>(sp => sp.GetRequiredService<FinansService>());
-        services.AddScoped<IFinansDuzenliIsService>(sp => sp.GetRequiredService<FinansService>());
-        services.AddScoped<IFinansBelgeService>(sp => sp.GetRequiredService<FinansService>());
-        services.AddScoped<IFinansKaliciSilmeService>(sp => sp.GetRequiredService<FinansService>());
-        services.AddScoped<IFinansRaporVerisiService>(sp => sp.GetRequiredService<FinansService>());
-        services.AddScoped<IFinansUretimAktarimService>(sp => sp.GetRequiredService<FinansService>());
+    /// <summary>
+    /// Finans alan servisleri. Transaction, denetim ve fiyat bileşenleri istek kapsamındadır; aynı
+    /// istekteki servisler tek transaction ve tek denetim işlem grubunu paylaşır.
+    /// </summary>
+    internal static IServiceCollection AddFinansServices(this IServiceCollection services)
+    {
+        services.AddScoped<FinansIslemYurutucu>();
+        services.AddScoped<FinansDenetimKaydi>();
+        services.AddScoped<FinansFiyatBelirleyici>();
+
+        services.AddScoped<IFinansPanelService, FinansPanelService>();
+        services.AddScoped<IFinansIsKaydiService, FinansIsKaydiService>();
+        services.AddScoped<IFinansAylikOzetService, FinansAylikOzetService>();
+        services.AddScoped<IFinansSiparisFaturaService, FinansSiparisFaturaService>();
+        services.AddScoped<IFinansGiderService, FinansGiderService>();
+        services.AddScoped<IFinansGiderTanimService, FinansGiderTanimService>();
+        services.AddScoped<IFinansUrunService, FinansUrunService>();
+        services.AddScoped<IFinansSablonService, FinansSablonService>();
+        services.AddScoped<IFinansDuzenliIsService, FinansDuzenliIsService>();
+        services.AddScoped<IFinansBelgeService, FinansBelgeService>();
+        services.AddScoped<IFinansKaliciSilmeService, FinansKaliciSilmeService>();
+        services.AddScoped<IFinansRaporVerisiService, FinansRaporVerisiService>();
+        services.AddScoped<IFinansUretimAktarimService, FinansUretimAktarimService>();
         services.AddScoped<IFinansRaporService, FinansRaporService>();
+        return services;
     }
 
     private static void AddBackgroundJobs(this IServiceCollection services)

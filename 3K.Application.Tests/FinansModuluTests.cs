@@ -1,8 +1,6 @@
 using _3K.Application.Common;
-using _3K.Application.Features.AmbalajIslemleri;
 using _3K.Application.Features.FinansIslemleri;
 using _3K.Application.Features.FinansIslemleri.Commands;
-using _3K.Application.Features.FinansIslemleri.DTOs;
 using _3K.Application.Features.FinansIslemleri.Queries;
 using _3K.Application.Features.FinansIslemleri.Validators;
 using _3K.Core.Enums;
@@ -11,9 +9,8 @@ using _3K.Core.Constants;
 using _3K.Core.Models;
 using _3K.Core.Entities;
 using _3K.Infrastructure.Data;
-using _3K.Infrastructure.Services;
+using _3K.Infrastructure.Services.Finans;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace _3K.Application.Tests;
@@ -63,7 +60,7 @@ public sealed class FinansModuluTests
         Assert.Equal(YetkiKodlari.Finans.Modul, requirement.MenuKod);
         Assert.Equal(YetkiTipi.R, requirement.YetkiTipi);
 
-        var constructor = Assert.Single(typeof(FinansService).GetConstructors());
+        var constructor = Assert.Single(typeof(FinansIsKaydiService).GetConstructors());
         Assert.DoesNotContain(constructor.GetParameters(), parameter =>
             parameter.ParameterType == typeof(_3K.Core.Interfaces.IRolService));
     }
@@ -140,7 +137,7 @@ public sealed class FinansModuluTests
             null,
             BelgeMutabakatiniKoru: true);
 
-        FinansService.ApplyInvoiceDocumentReconciliationForUpdate(invoice, model);
+        FinansSiparisFaturaService.ApplyInvoiceDocumentReconciliationForUpdate(invoice, model);
 
         Assert.Equal("EUR", invoice.BelgeParaBirimiSnapshot);
         Assert.Equal(100, invoice.BelgeNetTutarSnapshot);
@@ -164,7 +161,7 @@ public sealed class FinansModuluTests
         };
         var clearModel = new FinansFaturaGuncelleModel("F-1", new DateTime(2026, 8, 29), null);
 
-        FinansService.ApplyInvoiceDocumentReconciliationForUpdate(invoice, clearModel);
+        FinansSiparisFaturaService.ApplyInvoiceDocumentReconciliationForUpdate(invoice, clearModel);
 
         Assert.Null(invoice.BelgeParaBirimiSnapshot);
         Assert.Null(invoice.BelgeNetTutarSnapshot);
@@ -188,7 +185,7 @@ public sealed class FinansModuluTests
             BelgeToplamTutar = 60,
             MutabakatAciklamasi = "Yeni"
         };
-        FinansService.ApplyInvoiceDocumentReconciliationForUpdate(invoice, updateModel);
+        FinansSiparisFaturaService.ApplyInvoiceDocumentReconciliationForUpdate(invoice, updateModel);
 
         Assert.Equal("USD", invoice.BelgeParaBirimiSnapshot);
         Assert.Equal(50, invoice.BelgeNetTutarSnapshot);
@@ -209,13 +206,13 @@ public sealed class FinansModuluTests
             new FinansSiparis { Id = 5, Durum = FinansSiparisDurumu.Acik, IptalEdildi = true }
         }.AsQueryable();
 
-        var visibleIds = FinansService.ApplyFaturalamaBekleyenFilter(orders, true)
+        var visibleIds = FinansSiparisFaturaService.ApplyFaturalamaBekleyenFilter(orders, true)
             .Select(x => x.Id)
             .Order()
             .ToArray();
 
         Assert.Equal(new[] { 1, 2 }, visibleIds);
-        Assert.Equal(5, FinansService.ApplyFaturalamaBekleyenFilter(orders, false).Count());
+        Assert.Equal(5, FinansSiparisFaturaService.ApplyFaturalamaBekleyenFilter(orders, false).Count());
     }
 
     [Fact]
@@ -339,10 +336,10 @@ public sealed class FinansModuluTests
             .Options;
         using var context = new AppDbContext(options);
 
-        var incomeSql = FinansService.BuildInvoiceTotalsQuery(
+        var incomeSql = FinansSorgulari.BuildInvoiceTotalsQuery(
                 context.Set<FinansFaturaKalemi>().Where(x => !x.FinansFatura.IptalEdildi))
             .ToQueryString();
-        var expenseSql = FinansService.BuildExpenseTotalsQuery(
+        var expenseSql = FinansSorgulari.BuildExpenseTotalsQuery(
                 context.Set<FinansGider>().Where(x => !x.IptalEdildi))
             .ToQueryString();
 
@@ -549,7 +546,7 @@ public sealed class FinansModuluTests
             }
         };
 
-        var filtered = FinansService.ApplyInvoiceLineFilter(
+        var filtered = FinansRaporVerisiService.ApplyInvoiceLineFilter(
             lines.AsQueryable(),
             new FinansListeFiltre(
                 ProjeId: 1,
@@ -588,7 +585,7 @@ public sealed class FinansModuluTests
             }
         };
 
-        var filtered = FinansService.ApplyInvoiceLineFilter(
+        var filtered = FinansRaporVerisiService.ApplyInvoiceLineFilter(
             lines.AsQueryable(),
             new FinansListeFiltre(FaturaDurumu: FinansFaturaDurumu.IptalEdildi)).ToArray();
 
@@ -627,20 +624,20 @@ public sealed class FinansModuluTests
 
         Assert.Equal(
             new[] { 12 },
-            FinansService.ApplyFilter(new[] { activeWork, cancelledWork }.AsQueryable(), cancelledFilter)
+            FinansSorgulari.ApplyFilter(new[] { activeWork, cancelledWork }.AsQueryable(), cancelledFilter)
                 .Select(x => x.Id).ToArray());
         Assert.Equal(
             new[] { 11 },
-            FinansService.ApplyFilter(new[] { activeWork, cancelledWork }.AsQueryable(), activeFilter)
+            FinansSorgulari.ApplyFilter(new[] { activeWork, cancelledWork }.AsQueryable(), activeFilter)
                 .Select(x => x.Id).ToArray());
         Assert.Equal(
             new[] { 2 },
-            FinansService.ApplyInvoiceStatusFilter(
+            FinansSiparisFaturaService.ApplyInvoiceStatusFilter(
                     new[] { activeInvoice, cancelledInvoice }.AsQueryable(), cancelledFilter)
                 .Select(x => x.Id).ToArray());
         Assert.Equal(
             new[] { 1 },
-            FinansService.ApplyInvoiceStatusFilter(
+            FinansSiparisFaturaService.ApplyInvoiceStatusFilter(
                     new[] { activeInvoice, cancelledInvoice }.AsQueryable(), activeFilter)
                 .Select(x => x.Id).ToArray());
     }
@@ -654,8 +651,8 @@ public sealed class FinansModuluTests
         using var context = new AppDbContext(options);
         var filter = new FinansListeFiltre(FaturaDurumu: FinansFaturaDurumu.IptalEdildi);
 
-        var workSql = FinansService.ApplyFilter(context.Set<FinansIsKaydi>(), filter).ToQueryString();
-        var invoiceSql = FinansService.ApplyInvoiceStatusFilter(context.Set<FinansFatura>(), filter).ToQueryString();
+        var workSql = FinansSorgulari.ApplyFilter(context.Set<FinansIsKaydi>(), filter).ToQueryString();
+        var invoiceSql = FinansSiparisFaturaService.ApplyInvoiceStatusFilter(context.Set<FinansFatura>(), filter).ToQueryString();
 
         Assert.Contains("IptalEdildi", workSql, StringComparison.Ordinal);
         Assert.Contains("KaynakAktif", workSql, StringComparison.Ordinal);
@@ -698,7 +695,7 @@ public sealed class FinansModuluTests
             new FinansIsKaydi { Id = 4, Durum = FinansIsDurumu.Faturalandi }
         }.AsQueryable();
 
-        var filtered = FinansService.ApplyFilter(
+        var filtered = FinansSorgulari.ApplyFilter(
             records,
             new FinansListeFiltre(PageNumber: 1, PageSize: 1, FaturaBekleyen: true));
         var totalCount = filtered.Count();
@@ -720,7 +717,7 @@ public sealed class FinansModuluTests
             .Options;
         using var context = new AppDbContext(options);
 
-        var sql = FinansService.ApplyFilter(
+        var sql = FinansSorgulari.ApplyFilter(
                 context.Set<FinansIsKaydi>(),
                 new FinansListeFiltre(FaturaBekleyen: true))
             .ToQueryString();
@@ -747,10 +744,10 @@ public sealed class FinansModuluTests
         };
         var kayitlar = new[] { aktif, pasif, tutarsizEskiKayit }.AsQueryable();
 
-        var varsayilan = FinansService.ApplyFilter(kayitlar, new FinansListeFiltre())
+        var varsayilan = FinansSorgulari.ApplyFilter(kayitlar, new FinansListeFiltre())
             .Select(x => x.Id)
             .ToArray();
-        var gecmisDahil = FinansService.ApplyFilter(
+        var gecmisDahil = FinansSorgulari.ApplyFilter(
                 kayitlar,
                 new FinansListeFiltre(IptalEdilenleriDahilEt: true))
             .Select(x => x.Id)
@@ -792,7 +789,7 @@ public sealed class FinansModuluTests
             IptalEdildi = true
         };
 
-        var sonuc = FinansService.AylikKayitlariFiltrele(
+        var sonuc = FinansAylikOzetService.AylikKayitlariFiltrele(
                 new[] { aktifAmbalaj, pasifAmbalaj, iptalOzelIs }.AsQueryable(),
                 ay,
                 ay.AddMonths(1))
@@ -812,7 +809,7 @@ public sealed class FinansModuluTests
         using var context = new AppDbContext(options);
         var ay = new DateTime(2026, 9, 1);
 
-        var sql = FinansService.AylikKayitlariFiltrele(
+        var sql = FinansAylikOzetService.AylikKayitlariFiltrele(
                 context.Set<FinansIsKaydi>(),
                 ay,
                 ay.AddMonths(1))
@@ -834,8 +831,8 @@ public sealed class FinansModuluTests
             new FinansIsKaydi { Id = 3, IsTuru = FinansIsTuru.OzelIs, UretimTarihi = month, FinansDonemi = month, KaynakAktif = true, IptalEdildi = true }
         }.AsQueryable();
 
-        var scoped = FinansService.AylikKayitlariFiltrele(records, month, month.AddMonths(1));
-        var result = FinansService.ApplyFilter(
+        var scoped = FinansAylikOzetService.AylikKayitlariFiltrele(records, month, month.AddMonths(1));
+        var result = FinansSorgulari.ApplyFilter(
                 scoped,
                 new FinansListeFiltre(IptalEdilenleriDahilEt: true))
             .Select(x => x.Id)
@@ -856,7 +853,7 @@ public sealed class FinansModuluTests
             new FinansIsKaydi { Id = 4, ProjeNo = "BAĞIMSIZ", Musteri = "M", IsTuru = FinansIsTuru.OzelIs, IsAdi = "Kira", RaporGrubu = "Kira" }
         }.AsQueryable();
 
-        var units = FinansService.BuildMonthlyPageUnitsQuery(records).ToArray();
+        var units = FinansAylikOzetService.BuildMonthlyPageUnitsQuery(records).ToArray();
 
         Assert.Equal(3, units.Length);
         Assert.Single(units, x => x.ProjeId == 10 && !x.OzelIsId.HasValue);
@@ -872,20 +869,20 @@ public sealed class FinansModuluTests
         using var context = new AppDbContext(options);
         var month = new DateTime(2026, 9, 1);
 
-        var monthlySql = FinansService.BuildMonthlyPageUnitsQuery(
-                FinansService.AylikKayitlariFiltrele(
+        var monthlySql = FinansAylikOzetService.BuildMonthlyPageUnitsQuery(
+                FinansAylikOzetService.AylikKayitlariFiltrele(
                     context.Set<FinansIsKaydi>(), month, month.AddMonths(1)))
             .OrderBy(x => x.Sira)
             .Skip(25)
             .Take(25)
             .ToQueryString();
-        var recurringSql = FinansService.ApplyRecurringFilter(
+        var recurringSql = FinansDuzenliIsService.ApplyRecurringFilter(
                 context.Set<FinansDuzenliIs>(), false, "kira")
             .OrderBy(x => x.Id)
             .Skip(25)
             .Take(25)
             .ToQueryString();
-        var productSql = FinansService.ApplyProductFilter(
+        var productSql = FinansUrunService.ApplyProductFilter(
                 context.Set<FinansUrun>(), false, "ahsap")
             .OrderBy(x => x.Id)
             .Skip(25)
@@ -951,8 +948,8 @@ public sealed class FinansModuluTests
             }
         };
 
-        var units = FinansService.BuildMonthlyPageUnitsQuery(records.AsQueryable()).ToArray();
-        var rows = FinansService.AylikModelleriOlustur(
+        var units = FinansAylikOzetService.BuildMonthlyPageUnitsQuery(records.AsQueryable()).ToArray();
+        var rows = FinansAylikOzetService.AylikModelleriOlustur(
             records,
             new Dictionary<int, string>());
 
@@ -991,7 +988,7 @@ public sealed class FinansModuluTests
             }
         };
 
-        var rows = FinansService.AylikModelleriOlustur(records, new Dictionary<int, string>());
+        var rows = FinansAylikOzetService.AylikModelleriOlustur(records, new Dictionary<int, string>());
 
         Assert.Equal(2, rows.Count);
         Assert.Contains(rows, x => x.ParaBirimi == "EUR" && x.Miktar == 2m && x.NetTutar == 20m && x.ToplamTutar == 24m);
@@ -1018,7 +1015,7 @@ public sealed class FinansModuluTests
             context.AddRange(records);
             await context.SaveChangesAsync();
 
-            var result = await FinansService.BuildMonthlyExpandedFilterQuery(
+            var result = await FinansAylikOzetService.BuildMonthlyExpandedFilterQuery(
                     context.Set<FinansIsKaydi>().AsNoTracking(),
                     new FinansListeFiltre(Arama: "needle"))
                 .Select(x => x.Id)
@@ -1037,7 +1034,7 @@ public sealed class FinansModuluTests
             .Options;
         using var context = new AppDbContext(options);
 
-        var sql = FinansService.BuildMonthlyExpandedFilterQuery(
+        var sql = FinansAylikOzetService.BuildMonthlyExpandedFilterQuery(
                 context.Set<FinansIsKaydi>().AsNoTracking(),
                 new FinansListeFiltre(Arama: "radyatör"))
             .ToQueryString();
@@ -1050,7 +1047,7 @@ public sealed class FinansModuluTests
     [Fact]
     public void Aylik_rapor_kanonik_gruplari_gercek_is_gruplarina_esler()
     {
-        var rows = FinansService.AylikModelleriOlustur(
+        var rows = FinansAylikOzetService.AylikModelleriOlustur(
         [
             new FinansIsKaydi { Id = 1, ProjeId = 10, ProjeNo = "PA-10", Musteri = "M", IsAdi = "Ana", IsTuru = FinansIsTuru.AnaAmbalaj, KaynakAktif = true },
             new FinansIsKaydi { Id = 2, ProjeNo = "KIRA", Musteri = "M", IsAdi = "Kira", IsTuru = FinansIsTuru.OzelIs, RaporGrubu = "Kira", KaynakAktif = true },
@@ -1067,13 +1064,13 @@ public sealed class FinansModuluTests
     {
         var ids = Enumerable.Range(1, 300).Concat([1, 2]).ToArray();
 
-        var normalized = FinansService.NormalizeWorkSelectionIds(ids);
+        var normalized = FinansIsKaydiService.NormalizeWorkSelectionIds(ids);
 
         Assert.Equal(300, normalized.Count);
         Assert.Throws<IsKuraliException>(() =>
-            FinansService.NormalizeWorkSelectionIds(Enumerable.Range(1, 2001).ToArray()));
+            FinansIsKaydiService.NormalizeWorkSelectionIds(Enumerable.Range(1, 2001).ToArray()));
         Assert.Throws<IsKuraliException>(() =>
-            FinansService.NormalizeWorkSelectionIds([1, 0]));
+            FinansIsKaydiService.NormalizeWorkSelectionIds([1, 0]));
     }
 
     [Theory]
@@ -1090,7 +1087,7 @@ public sealed class FinansModuluTests
         int expectedSize,
         int expectedSkip)
     {
-        var actual = FinansService.NormalizePagination(
+        var actual = FinansSorgulari.NormalizePagination(
             requestedPage, requestedSize, totalCount, maxSize);
 
         Assert.Equal(expectedPage, actual.PageNumber);
@@ -1106,7 +1103,7 @@ public sealed class FinansModuluTests
             .Options;
         using var context = new AppDbContext(options);
 
-        var pageSql = FinansService.WithProductPageDetails(
+        var pageSql = FinansUrunService.WithProductPageDetails(
                 context.Set<FinansUrun>(), new DateTime(2026, 9, 2))
             .Take(25)
             .ToQueryString();
@@ -1115,7 +1112,7 @@ public sealed class FinansModuluTests
         Assert.Contains("GecerlilikBaslangici", pageSql, StringComparison.Ordinal);
         Assert.Contains("GecerlilikBitisi", pageSql, StringComparison.Ordinal);
 
-        var byIdSql = FinansService.BuildProductByIdQuery(
+        var byIdSql = FinansUrunService.BuildProductByIdQuery(
                 context.Set<FinansUrun>(), 42, new DateTime(2026, 9, 2))
             .ToQueryString();
         Assert.Contains("Id", byIdSql, StringComparison.Ordinal);

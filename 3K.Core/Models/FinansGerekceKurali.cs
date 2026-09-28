@@ -1,3 +1,5 @@
+using _3K.Core.Exceptions;
+
 namespace _3K.Core.Models;
 
 /// <summary>
@@ -12,4 +14,11 @@ public static class FinansGerekceKurali
 
     public static bool Gecerli(string? gerekce) =>
         !string.IsNullOrWhiteSpace(gerekce) && gerekce.Trim().Length >= EnKisa && gerekce.Length <= EnUzun;
+
+    /// <summary>Servis koruması: gerekçe kurala uymuyorsa iş kuralı hatası fırlatır.</summary>
+    public static void Dogrula(string? gerekce)
+    {
+        if (!Gecerli(gerekce))
+            throw IsKuraliException.Cakisma(Mesaj);
+    }
 }

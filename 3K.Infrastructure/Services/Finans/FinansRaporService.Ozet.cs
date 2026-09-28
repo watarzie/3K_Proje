@@ -6,9 +6,9 @@ using _3K.Core.Helpers;
 using _3K.Core.Models;
 using _3K.Core.Exceptions;
 
-namespace _3K.Infrastructure.Services;
+namespace _3K.Infrastructure.Services.Finans;
 
-public sealed partial class FinansRaporService
+internal sealed partial class FinansRaporService
 {
     public async Task<byte[]> OzetRaporAsync(string tur, bool excel, FinansListeFiltre filtre, CancellationToken cancellationToken)
     {
@@ -23,7 +23,7 @@ public sealed partial class FinansRaporService
             while (true)
             {
                 var page = await _panel.YaslandirmaAsync(filtre.Bitis ?? TurkeyTime.Now.Date, 0, filtre with { PageNumber = pageNumber, PageSize = 250 }, cancellationToken);
-                if (page.TotalCount > FinansService.RaporKayitSiniri) throw IsKuraliException.Cakisma("Yaşlandırma raporu 20.000 satırı aşamaz; filtreyi daraltın.");
+                if (page.TotalCount > FinansSorgulari.RaporKayitSiniri) throw IsKuraliException.Cakisma("Yaşlandırma raporu 20.000 satırı aşamaz; filtreyi daraltın.");
                 foreach (var x in page.Items.Where(x => x.Asama == (tur == "siparis-bekleyen" ? "Sipariş" : "Fatura")))
                     rows.Add([x.ProjeNo, x.IsAdi, x.PoNumarasi, x.Baslangic, x.Gun, x.Grup, x.ParaBirimi, x.KalanNetTutar]);
                 if (!page.HasNextPage) break;
