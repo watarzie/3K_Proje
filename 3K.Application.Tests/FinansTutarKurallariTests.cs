@@ -1,6 +1,7 @@
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Models;
+using _3K.Infrastructure.Services.Finans;
 
 namespace _3K.Application.Tests;
 
@@ -48,6 +49,25 @@ public sealed class FinansTutarKurallariTests
 
         Assert.Equal(miktar, FinansTutarKurallari.FiyatlandirmaMiktari(birim, 4, 2.5m));
         Assert.Equal(FinansTutarKurallari.Para(100 * miktar), FinansTutarKurallari.IsNet(is_));
+    }
+
+    /// <summary>
+    /// SQL projeksiyonlarındaki iş net tutarı domain kuralıyla aynı kalmalıdır. Derlenen ifade yarımları
+    /// bankacı yuvarlamasıyla, PostgreSQL round sıfırdan uzağa yuvarlar; örnekler yarım değer içermez.
+    /// </summary>
+    [Theory]
+    [InlineData(FinansFiyatlandirmaBirimi.Adet)]
+    [InlineData(FinansFiyatlandirmaBirimi.Metrekup)]
+    [InlineData(FinansFiyatlandirmaBirimi.SabitTutar)]
+    [InlineData(FinansFiyatlandirmaBirimi.ManuelToplam)]
+    public void Sql_net_ifadesi_is_net_kuraliyla_ayni_sonucu_verir(FinansFiyatlandirmaBirimi birim)
+    {
+        var sqlNet = FinansSorgulari.IsNetIfadesi.Compile();
+        var is_ = new FinansIsKaydi { FiyatlandirmaBirimiSnapshot = birim, Adet = 3, ToplamM3 = 2.4567m, BirimFiyatSnapshot = 10.2345m };
+
+        Assert.Equal(FinansTutarKurallari.IsNet(is_), sqlNet(is_));
+        is_.ManuelNetTutar = 75.5m;
+        Assert.Equal(FinansTutarKurallari.IsNet(is_), sqlNet(is_));
     }
 
     [Fact]

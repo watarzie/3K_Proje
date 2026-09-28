@@ -79,9 +79,8 @@ internal sealed class FinansPanelService(AppDbContext context) : IFinansPanelSer
             await orderQuery.CountAsync(cancellationToken) + await invoiceQuery.CountAsync(cancellationToken);
         // Sıralama ve sınır domain sorgusunda uygulanır; record constructor üstüne ORDER BY EF tarafından çevrilemez.
         var works = await workQuery.OrderByDescending(x => x.FinansTarihi).ThenByDescending(x => x.Id).Take(take)
-            .Select(x => new FinansHareketModel("IsKaydi", x.Id, x.ProjeNo, x.IsAdi, x.UretimTarihi, x.FinansTarihi, x.FinansDonemi,
-                x.ParaBirimiSnapshot, x.ManuelNetTutar ?? decimal.Round(x.BirimFiyatSnapshot *
-                    (x.FiyatlandirmaBirimiSnapshot == FinansFiyatlandirmaBirimi.Adet ? x.Adet : x.FiyatlandirmaBirimiSnapshot == FinansFiyatlandirmaBirimi.Metrekup ? x.ToplamM3 : 1m), 2), x.Durum.ToString())).ToListAsync(cancellationToken);
+            .Select(FinansSorgulari.IsNetIle((x, net) => new FinansHareketModel("IsKaydi", x.Id, x.ProjeNo, x.IsAdi, x.UretimTarihi,
+                x.FinansTarihi, x.FinansDonemi, x.ParaBirimiSnapshot, net, x.Durum.ToString()))).ToListAsync(cancellationToken);
         var expenses = await expenseQuery.OrderByDescending(x => x.FinansTarihi).ThenByDescending(x => x.Id).Take(take)
             .Select(x => new FinansHareketModel("Gider", x.Id, x.Proje != null ? x.Proje.ProjeNo : x.ManuelProjeNo ?? "", x.Aciklama,
                 x.Tarih, x.FinansTarihi, x.FinansDonemi, x.ParaBirimi, x.Matrah, x.IptalEdildi ? "İptal" : x.AvansMi ? "Avans" : "Gider")).ToListAsync(cancellationToken);
@@ -123,8 +122,7 @@ internal sealed class FinansPanelService(AppDbContext context) : IFinansPanelSer
     }
 
     private static async Task<IReadOnlyList<FinansParaToplamiModel>> WorkMoneyTotalsAsync(IQueryable<FinansIsKaydi> query, CancellationToken cancellationToken)
-        => await query.Select(x => new { Currency = x.ParaBirimiSnapshot, Vat = x.KdvOraniSnapshot,
-            Net = x.ManuelNetTutar ?? decimal.Round(x.BirimFiyatSnapshot * (x.FiyatlandirmaBirimiSnapshot == FinansFiyatlandirmaBirimi.Adet ? x.Adet : x.FiyatlandirmaBirimiSnapshot == FinansFiyatlandirmaBirimi.Metrekup ? x.ToplamM3 : 1m), 2) })
+        => await query.Select(FinansSorgulari.IsNetIle((x, net) => new { Currency = x.ParaBirimiSnapshot, Vat = x.KdvOraniSnapshot, Net = net }))
             .GroupBy(x => x.Currency).Select(g => new FinansParaToplamiModel(g.Key, g.Sum(x => x.Net),
                 g.Sum(x => decimal.Round(x.Net * x.Vat / 100m, 2)), g.Sum(x => x.Net + decimal.Round(x.Net * x.Vat / 100m, 2))))
             .ToArrayAsync(cancellationToken);

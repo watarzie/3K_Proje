@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
@@ -15,6 +16,24 @@ internal static class FinansSorgulari
 {
     /// <summary>Panel, rapor ve yaşlandırma sorgularının tek seferde tarayacağı en fazla kayıt.</summary>
     internal const int RaporKayitSiniri = 20000;
+
+    /// <summary>
+    /// <see cref="FinansTutarKurallari.IsNet"/> kuralının SQL'e çevrilen karşılığı. PostgreSQL <c>round</c>
+    /// yarımları sıfırdan uzağa yuvarlar; kuralın para yuvarlamasıyla aynıdır.
+    /// </summary>
+    internal static readonly Expression<Func<FinansIsKaydi, decimal>> IsNetIfadesi = x =>
+        x.ManuelNetTutar ?? decimal.Round(x.BirimFiyatSnapshot *
+            (x.FiyatlandirmaBirimiSnapshot == FinansFiyatlandirmaBirimi.Adet ? x.Adet
+                : x.FiyatlandirmaBirimiSnapshot == FinansFiyatlandirmaBirimi.Metrekup ? x.ToplamM3 : 1m), 2);
+
+    /// <summary>Projeksiyona iş net tutarını ekler: seçici işi ve <see cref="IsNetIfadesi"/> değerini alır.</summary>
+    internal static Expression<Func<FinansIsKaydi, T>> IsNetIle<T>(Expression<Func<FinansIsKaydi, decimal, T>> secici)
+    {
+        var isKaydi = secici.Parameters[0];
+        var net = new ParametreDegistirici(IsNetIfadesi.Parameters[0], isKaydi).Visit(IsNetIfadesi.Body);
+        var govde = new ParametreDegistirici(secici.Parameters[1], net).Visit(secici.Body);
+        return Expression.Lambda<Func<FinansIsKaydi, T>>(govde, isKaydi);
+    }
 
     internal static (int PageNumber, int PageSize, int Skip) NormalizePagination(
         int requestedPageNumber,
@@ -217,4 +236,9 @@ internal static class FinansSorgulari
         "Gider" => await context.Set<FinansGider>().FirstOrDefaultAsync(x => x.Id == id, cancellationToken),
         _ => throw IsKuraliException.Cakisma("Varlık türü IsKaydi, Siparis, Fatura veya Gider olmalıdır.")
     };
+
+    private sealed class ParametreDegistirici(ParameterExpression eski, Expression yeni) : ExpressionVisitor
+    {
+        protected override Expression VisitParameter(ParameterExpression node) => node == eski ? yeni : base.VisitParameter(node);
+    }
 }

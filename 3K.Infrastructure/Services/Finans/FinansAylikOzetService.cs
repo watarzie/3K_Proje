@@ -317,13 +317,10 @@ internal sealed class FinansAylikOzetService(AppDbContext context) : IFinansAyli
 
     private async Task<IReadOnlyList<FinansAylikGrupToplamiModel>> AylikIsToplamlariAsync(IQueryable<FinansIsKaydi> query, CancellationToken cancellationToken)
     {
-        var values = await query.Select(x => new
+        var values = await query.Select(FinansSorgulari.IsNetIle((x, net) => new
         {
-            x.IsTuru, x.RaporGrubu, x.ParaBirimiSnapshot, x.KdvOraniSnapshot,
-            Net = x.ManuelNetTutar ?? decimal.Round(x.BirimFiyatSnapshot *
-                (x.FiyatlandirmaBirimiSnapshot == FinansFiyatlandirmaBirimi.Adet ? x.Adet :
-                 x.FiyatlandirmaBirimiSnapshot == FinansFiyatlandirmaBirimi.Metrekup ? x.ToplamM3 : 1m), 2)
-        }).GroupBy(x => new { x.IsTuru, x.RaporGrubu, x.ParaBirimiSnapshot })
+            x.IsTuru, x.RaporGrubu, x.ParaBirimiSnapshot, x.KdvOraniSnapshot, Net = net
+        })).GroupBy(x => new { x.IsTuru, x.RaporGrubu, x.ParaBirimiSnapshot })
           .Select(g => new { g.Key.IsTuru, g.Key.RaporGrubu, g.Key.ParaBirimiSnapshot,
               Net = g.Sum(x => x.Net), Vat = g.Sum(x => decimal.Round(x.Net * x.KdvOraniSnapshot / 100m, 2)) })
           .ToListAsync(cancellationToken);
