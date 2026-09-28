@@ -1,4 +1,3 @@
-using System.Reflection;
 using Microsoft.Extensions.Logging.Abstractions;
 using _3K.Core.Constants;
 using _3K.Core.Entities;
@@ -6,7 +5,7 @@ using _3K.Core.Enums;
 using _3K.Core.Exceptions;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
-using _3K.Infrastructure.Services;
+using _3K.Infrastructure.Services.Cekiler;
 
 namespace _3K.Application.Tests;
 
@@ -182,20 +181,13 @@ public sealed class CekiRevizyonAktifSahaKaynakKorumaTests
     private static Task OnizlemeyiKontrolEtAsync(KorumaStub koruma, ProjeTipi tip,
         IReadOnlyCollection<CekiRevizyonOnizlemeSatiri> onizleme,
         IReadOnlyCollection<CekiSatiri> kaynaklar) =>
-        InvokeAsync(koruma, "RevizyonSahaAktarimRiskleriniEkleAsync", onizleme, (int)tip, kaynaklar);
+        // Koruma birim testi: DbContext yok; bu aşamada sorgu veya değişiklik yapılmamalı.
+        new CekiRevizyonOnizleyici(null!, koruma, null!).RevizyonSahaAktarimRiskleriniEkleAsync(onizleme, (int)tip, kaynaklar);
 
     private static Task UygulamayiKontrolEtAsync(KorumaStub koruma, ProjeTipi tip,
         IReadOnlyCollection<CekiSatiri> kaynaklar, CancellationToken cancellationToken = default) =>
-        InvokeAsync(koruma, "RevizyonKaynakSahaGuncellemeleriniDogrulaAsync", (int)tip, kaynaklar, cancellationToken);
-
-    private static Task InvokeAsync(KorumaStub koruma, string methodName, params object[] args)
-    {
-        // Koruma birim testi: DbContext/UoW yok; bu asamada sorgu/degisiklik yapilmamali.
-        var service = new CekiService(null!, null!, null!, null!, koruma, NullLogger<CekiService>.Instance);
-        var method = typeof(CekiService).GetMethod(methodName, BindingFlags.NonPublic | BindingFlags.Instance);
-        Assert.NotNull(method);
-        return Assert.IsAssignableFrom<Task>(method.Invoke(service, args));
-    }
+        new CekiRevizyonUygulayici(null!, null!, koruma, null!, NullLogger<CekiRevizyonUygulayici>.Instance)
+            .RevizyonKaynakSahaGuncellemeleriniDogrulaAsync((int)tip, kaynaklar, cancellationToken);
 
     private sealed class KorumaStub(params int[] aktifIds) : ISahaAktarimSilmeKorumaService
     {

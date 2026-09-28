@@ -11,20 +11,20 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
     public sealed class CekiRevizyonOnayliUygulaCommandHandler
         : IRequestHandler<CekiRevizyonOnayliUygulaCommand, Result<CekiRevizyonSonuc>>
     {
-        private readonly ICekiService _cekiService;
+        private readonly ICekiRevizyonService _cekiRevizyon;
         private readonly ICurrentUserService _currentUserService;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IPublisher _publisher;
         private readonly ILogger<CekiRevizyonOnayliUygulaCommandHandler> _logger;
 
         public CekiRevizyonOnayliUygulaCommandHandler(
-            ICekiService cekiService,
+            ICekiRevizyonService cekiRevizyon,
             ICurrentUserService currentUserService,
             IUnitOfWork unitOfWork,
             IPublisher publisher,
             ILogger<CekiRevizyonOnayliUygulaCommandHandler> logger)
         {
-            _cekiService = cekiService;
+            _cekiRevizyon = cekiRevizyon;
             _currentUserService = currentUserService;
             _unitOfWork = unitOfWork;
             _publisher = publisher;
@@ -49,7 +49,7 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
             // Bildirim meta verisini veri değişikliğinden önce yükle. Böylece
             // revizyon commit edildikten sonra yapılacak ek bir veritabanı
             // sorgusu, başarılı işlemin hatalı görünmesine neden olamaz.
-            var sonuc = await _cekiService.OnayliCekiRevizyonunuUygulaAsync(
+            var sonuc = await _cekiRevizyon.OnayliCekiRevizyonunuUygulaAsync(
                 request.TalepId,
                 onaylayanKullaniciId.Value,
                 cancellationToken);

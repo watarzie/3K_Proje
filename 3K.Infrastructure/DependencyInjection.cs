@@ -6,6 +6,7 @@ using _3K.Infrastructure.Data;
 using _3K.Infrastructure.Data.Interceptors;
 using _3K.Infrastructure.Repositories;
 using _3K.Infrastructure.Services;
+using _3K.Infrastructure.Services.Cekiler;
 using _3K.Infrastructure.Services.Finans;
 using _3K.Infrastructure.Services.Raporlar;
 
@@ -20,6 +21,7 @@ public static class DependencyInjection
         services.AddDomainServices();
         services.AddFinansServices();
         services.AddRaporServices();
+        services.AddCekiServices();
         services.AddBackgroundJobs();
 
         services.AddHttpContextAccessor();
@@ -56,7 +58,6 @@ public static class DependencyInjection
 
     private static void AddDomainServices(this IServiceCollection services)
     {
-        services.AddScoped<ICekiService, CekiService>();
         services.AddScoped<ICekiRevizyonGecmisiService, CekiRevizyonGecmisiService>();
         services.AddScoped<IYedekCekiImportService, YedekCekiImportService>();
         services.AddScoped<ISandikService, SandikService>();
@@ -107,6 +108,21 @@ public static class DependencyInjection
         services.AddScoped<IFinansRaporVerisiService, FinansRaporVerisiService>();
         services.AddScoped<IFinansUretimAktarimService, FinansUretimAktarimService>();
         services.AddScoped<IFinansRaporService, FinansRaporService>();
+        return services;
+    }
+
+    /// <summary>
+    /// Çeki yükleme, revizyon (ön izleme, onaya sunma, uygulama) ve çeki satırı sorgusu. Revizyon
+    /// bileşenleri aynı istek kapsamındaki bağlamı ve transaction'ı paylaşır.
+    /// </summary>
+    internal static IServiceCollection AddCekiServices(this IServiceCollection services)
+    {
+        services.AddScoped<CekiRevizyonSorgulari>();
+        services.AddScoped<CekiRevizyonOnizleyici>();
+        services.AddScoped<CekiRevizyonUygulayici>();
+        services.AddScoped<ICekiYuklemeService, CekiYuklemeService>();
+        services.AddScoped<ICekiRevizyonService, CekiRevizyonService>();
+        services.AddScoped<ICekiSorguService, CekiSorguService>();
         return services;
     }
 

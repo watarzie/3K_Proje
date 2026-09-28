@@ -8,16 +8,16 @@ namespace _3K.Application.Features.CekiIslemleri.Queries
 {
     public class CekiSatirlariQueryHandler : IRequestHandler<CekiSatirlariQuery, Result<IEnumerable<CekiSatiriDto>>>
     {
-        private readonly ICekiService _cekiService;
+        private readonly ICekiSorguService _cekiSorgu;
 
-        public CekiSatirlariQueryHandler(ICekiService cekiService)
+        public CekiSatirlariQueryHandler(ICekiSorguService cekiSorgu)
         {
-            _cekiService = cekiService;
+            _cekiSorgu = cekiSorgu;
         }
 
         public async Task<Result<IEnumerable<CekiSatiriDto>>> Handle(CekiSatirlariQuery request, CancellationToken cancellationToken)
         {
-            var satirlar = await _cekiService.GetCekiSatirlariAsync(request.CekiId);
+            var satirlar = await _cekiSorgu.GetCekiSatirlariAsync(request.CekiId);
 
             var result = satirlar.Select(s => new CekiSatiriDto
             {
