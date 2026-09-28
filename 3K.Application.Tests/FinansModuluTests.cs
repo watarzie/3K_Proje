@@ -1,5 +1,4 @@
 using _3K.Application.Common;
-using _3K.Application.Features.FinansIslemleri;
 using _3K.Application.Features.FinansIslemleri.Commands;
 using _3K.Application.Features.FinansIslemleri.Queries;
 using _3K.Application.Features.FinansIslemleri.Validators;
@@ -11,7 +10,6 @@ using _3K.Core.Entities;
 using _3K.Infrastructure.Data;
 using _3K.Infrastructure.Services.Finans;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace _3K.Application.Tests;
 
@@ -998,7 +996,7 @@ public sealed class FinansModuluTests
     [PostgresRaporFact, Trait("Category", "Postgres")]
     public async Task Aylik_arama_bir_alt_satira_eslesince_ayni_proje_biriminin_tum_satirlarini_toplama_dahil_eder()
     {
-        await FinansV2PostgresTests.InDatabase(async options =>
+        await FinansPostgresTests.InDatabase(async options =>
         {
             await using var context = new AppDbContext(options);
             context.AddRange(new Proje { Id = 10, ProjeNo = "PA-10", Musteri = "A" },

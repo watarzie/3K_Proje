@@ -2,7 +2,6 @@ using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
-using _3K.Application.Features.AmbalajIslemleri;
 
 namespace _3K.Application.Features.AmbalajIslemleri.Commands
 {

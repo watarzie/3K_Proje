@@ -121,7 +121,6 @@ namespace _3K.Infrastructure.Data
             modelBuilder.ConfigureAmbalajUretimModule();
             modelBuilder.ConfigureFinansModule();
             modelBuilder.ConfigureUretimYasamDongusuModule();
-            modelBuilder.ConfigureFinansV2Module();
             modelBuilder.ConfigureYetkiKayitlari();
 
             // ===============================================================

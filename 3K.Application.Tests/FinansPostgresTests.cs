@@ -12,7 +12,7 @@ using _3K.Infrastructure.Services.Finans;
 
 namespace _3K.Application.Tests;
 
-public sealed class FinansV2PostgresTests
+public sealed class FinansPostgresTests
 {
     private static readonly DateTime Date = new(2026, 9, 19);
     private static readonly CancellationToken Ct = CancellationToken.None;
@@ -501,7 +501,7 @@ public sealed class FinansV2PostgresTests
     {
         var cs = new NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable("THREEK_TEST_POSTGRES"));
         Assert.True(cs.Host is "127.0.0.1" or "localhost"); Assert.Equal(55439, cs.Port); Assert.Equal("postgres", cs.Database);
-        var name = $"finance_v2_test_{Guid.NewGuid():N}";
+        var name = $"finans_test_{Guid.NewGuid():N}";
         await using var admin = new NpgsqlConnection(cs.ConnectionString); await admin.OpenAsync();
         await using (var create = new NpgsqlCommand($"CREATE DATABASE \"{name}\"", admin)) await create.ExecuteNonQueryAsync();
         try
