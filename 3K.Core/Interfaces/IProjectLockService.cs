@@ -1,6 +1,3 @@
-using _3K.Core.Entities;
-using System.Threading.Tasks;
-
 namespace _3K.Core.Interfaces
 {
     public interface IProjectLockService

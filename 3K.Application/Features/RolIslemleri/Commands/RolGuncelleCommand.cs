@@ -1,7 +1,6 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Application.Features.RolIslemleri.DTOs;
-using _3K.Core.Enums;
 
 namespace _3K.Application.Features.RolIslemleri.Commands
 {

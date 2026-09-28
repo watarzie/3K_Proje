@@ -1,5 +1,4 @@
 using _3K.Core.Entities;
-using _3K.Core.Interfaces;
 
 namespace _3K.Core.Interfaces
 {

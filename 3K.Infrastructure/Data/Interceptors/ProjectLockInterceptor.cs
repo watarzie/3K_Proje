@@ -4,10 +4,6 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Exceptions;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace _3K.Infrastructure.Data.Interceptors
 {

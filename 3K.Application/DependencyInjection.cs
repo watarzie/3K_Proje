@@ -6,7 +6,6 @@ using _3K.Application.Common;
 using _3K.Application.Features.AmbalajIslemleri;
 using _3K.Application.Features.AmbalajIslemleri.Commands;
 using _3K.Application.Features.SandikIslemleri.Services;
-using _3K.Core.Interfaces;
 
 namespace _3K.Application;
 

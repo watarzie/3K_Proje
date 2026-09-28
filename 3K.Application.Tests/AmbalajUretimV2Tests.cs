@@ -1,9 +1,7 @@
 using System.Linq.Expressions;
-using _3K.Application.Behaviors;
 using _3K.Application.Common;
 using _3K.Application.Features.AmbalajIslemleri;
 using _3K.Application.Features.AmbalajIslemleri.Commands;
-using _3K.Application.Features.AmbalajIslemleri.DTOs;
 using _3K.Application.Features.AmbalajIslemleri.Queries;
 using _3K.Core.Entities;
 using _3K.Core.Enums;

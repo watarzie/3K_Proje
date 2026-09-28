@@ -1,5 +1,4 @@
 using System.Text.Json;
-using _3K.Application.Behaviors;
 using _3K.Application.Common;
 using _3K.Application.Features.AmbalajIslemleri;
 using _3K.Application.Features.AmbalajIslemleri.Commands;

@@ -1,5 +1,3 @@
-using _3K.Core.Enums;
-
 namespace _3K.Core.Entities
 {
     /// <summary>

@@ -1,5 +1,4 @@
 using _3K.Core.Enums;
-using _3K.Core.Models;
 
 namespace _3K.Application.Features.AmbalajIslemleri.DTOs
 {

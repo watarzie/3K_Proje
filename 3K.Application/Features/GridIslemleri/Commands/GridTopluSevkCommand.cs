@@ -1,5 +1,4 @@
 using MediatR;
-using _3K.Core.Enums;
 using _3K.Application.Common;
 
 namespace _3K.Application.Features.GridIslemleri.Commands

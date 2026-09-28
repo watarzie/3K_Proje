@@ -1,6 +1,5 @@
 using _3K.Application.Common;
 using _3K.Application.Features.SandikIslemleri.Commands;
-using _3K.Application.Features.SandikIslemleri.DTOs;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;

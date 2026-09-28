@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-using System.Linq;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 
