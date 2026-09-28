@@ -76,6 +76,7 @@ Uygulama .NET 10 hedefleyen, PostgreSQL kullanan katmanlı bir monolittir. Komut
 - `xmin` concurrency, idempotency anahtarı, unique constraint ve hareket geçmişini koru. Aynı anahtar + aynı işlem tekrarı çift kayıt üretmemeli; farklı payload çakışma olarak ele alınmalı.
 - Dosya ve bildirim yan etkilerini transaction sınırıyla uyumlu yürüt; mevcut commit/rollback callback'lerini değerlendir. Kullanıcı dosya adını güvenilmez kabul et; güvenli sunucu adı ve hedef dizin kontrolü kullan.
 - EF migration kullanılmaz. Şema/veri değişikliğinde EF model/configuration ile `scripts/database/` altındaki idempotent, transaction içindeki PostgreSQL betiğini birlikte güncelle; trigger/seed bağımlılıklarını da kontrol et. Betik ayrı dağıtım adımıdır, uygulama açılışında çalışmaz.
+- EF eşlemesi alan başına `3K.Infrastructure/Data/<Alan>ModelBuilderExtensions` dosyalarındadır; `AppDbContext.OnModelCreating` yalnız bunları çağırır. Yeni eşlemeyi ilgili alanın dosyasına ekle; bir varlığın eşlemesini tek alanda tut. Eşleme taşıma/bölme gibi davranış değiştirmemesi gereken değişikliklerde model görünümünü (`ToDebugString`) ve `GenerateCreateScript` çıktısını önce/sonra karşılaştır.
 - Secret, connection string, JWT anahtarı, TOTP secret/kurtarma kodu veya gerçek kullanıcı verisini koda/loga ekleme. Test için üretim ayarlarıyla API/worker başlatma veya canlı veriyi değiştirme.
 - Rapor değişikliğinde mevcut ortak stil, doğru sandık kimliği/adı, doğal numara sırası ve tekil/toplu PDF/Excel içerik tutarlılığını koru; örnek çıktıyı kontrol et.
 
