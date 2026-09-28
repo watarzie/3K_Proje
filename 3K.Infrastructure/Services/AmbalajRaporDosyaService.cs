@@ -298,22 +298,6 @@ namespace _3K.Infrastructure.Services
         public byte[] UretimFormuPdfOlustur(AmbalajUretimFormuModel form)
             => AmbalajUretimFormuPdfOlusturucu.Olustur(form);
 
-        private static AmbalajRaporOzeti FormOzeti(AmbalajUretimFormuModel form) =>
-            new(form.Kalemler.Count, form.Kalemler.Sum(k => k.Adet), form.NetM3, form.SarfM3, form.ToplamM3);
-
-        private static IReadOnlyList<AmbalajRaporSatiri> FormSatirlari(AmbalajUretimFormuModel form) =>
-            form.Kalemler.Select(k => new AmbalajRaporSatiri
-            {
-                KayitId = k.KayitId, IsAkisKimligi = k.IsAkisKimligi, ProjeNo = form.ProjeNo,
-                ProjeAdi = form.ProjeAdi, SandikNo = k.SandikNo, SandikAdi = k.SandikAdi,
-                SandikCinsi = k.SandikCinsi, Adet = k.Adet, Boy = k.DisOlculer?.Boy,
-                En = k.DisOlculer?.En, Yukseklik = k.DisOlculer?.Yukseklik,
-                NetM3 = k.NetM3, SarfOrani = k.SarfOrani, SarfM3 = k.SarfM3, ToplamM3 = k.ToplamM3,
-                BirimM3 = k.NetM3 / k.Adet, AmbalajaDahil = true, UretimeAlindi = true,
-                Aciklama = k.M3HesaplanabilirMi ? k.Aciklama : "Bu ürün cinsinde üretim m³ hesabı uygulanmaz.",
-                UretimTarihi = k.UretimTarihi
-            }).ToList();
-
         private static void Baslik(IContainer container, string text) =>
             container.Background(Colors.Blue.Darken2).Padding(4).AlignMiddle().Text(text).Bold().FontColor(Colors.White);
 

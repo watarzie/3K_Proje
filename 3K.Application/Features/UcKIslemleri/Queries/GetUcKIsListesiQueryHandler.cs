@@ -248,14 +248,6 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
             return null;
         }
 
-        private static decimal CalculateUcKGelenEksik(int gridDurumuId, decimal gridSevkMiktari, decimal gelenMiktar)
-        {
-            if (gridDurumuId == (int)GridDurum.Iptal || gridDurumuId == (int)GridDurum.GridKapandi)
-                return 0;
-
-            return Math.Max(gridSevkMiktari - gelenMiktar, 0);
-        }
-
         private static decimal CalculateKalan(
             int gridDurumuId,
             decimal istenenAdet,
