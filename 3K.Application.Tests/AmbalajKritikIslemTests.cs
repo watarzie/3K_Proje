@@ -155,6 +155,40 @@ public sealed class AmbalajKritikIslemTests
             Assert.Contains(f.Hareketler, h => h.AlanAdi == "YetkiliRevizyon" && h.Aciklama == "Ölçü düzeltmesi");
     }
 
+    /// <summary>
+    /// RR Q1 (A): ölçü görme izni olmayan kullanıcı ölçüleri maskeli görür; düzenlemede gönderdiği boş ölçüler
+    /// kayıtlı ölçüleri silmez ve kayıt reddedilmez. Yeni kayıtta ölçü yine zorunludur.
+    /// </summary>
+    [Fact]
+    public async Task KalemGuncelle_OlcuIzniYoksaKayitliOlculerKorunur()
+    {
+        var f = new Fixture(OrtakRoller.Haric(YetkiKodlari.Ambalaj.OlcuGoruntule));
+        var kalem = f.ManuelKalem(1);
+        var birimM3 = kalem.HesaplananBirimM3;
+        var maskeli = new AmbalajPlanKalemKaydetCommand
+        {
+            KalemId = kalem.Id, ProjeId = 10, Tur = 2, SandikNo = "ILV-001", Ad = "İlave sandık (düzeltildi)",
+            SandikTipi = "Ahşap Kapalı", Adet = 2, TalimatVeren = "Planlama", Gerekce = "Adet düzeltmesi"
+        };
+
+        var sonuc = await new AmbalajPlanKalemKaydetCommandHandler(f.Uow, f.User, f.Roller, f.Finans, f.Denetim).Handle(maskeli, default);
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.Equal((1200m, 1000m, 900m, 2), (kalem.Boy, kalem.En, kalem.Yukseklik, kalem.Adet));
+        Assert.Equal(birimM3, kalem.HesaplananBirimM3);
+        Assert.True(kalem.HesaplananToplamM3 > birimM3);
+        Assert.Equal("İlave sandık (düzeltildi)", kalem.Ad);
+        Assert.Null(sonuc.Value!.Boy);
+
+        var yeni = await new AmbalajPlanKalemKaydetCommandHandler(f.Uow, f.User, f.Roller, f.Finans, f.Denetim)
+            .Handle(new AmbalajPlanKalemKaydetCommand
+            {
+                ProjeId = 10, Tur = 2, Ad = "Yeni ilave", SandikTipi = "Ahşap Kapalı", Adet = 1, TalimatVeren = "Planlama"
+            }, default);
+        Assert.False(yeni.IsSuccess);
+        Assert.Contains("Boy, en ve yükseklik", yeni.Error!.Message);
+    }
+
     [Fact]
     public async Task KalemEkle_TamamlanmisProjeyeEklemeIzinGerekceVeGecmisIster()
     {
@@ -175,7 +209,7 @@ public sealed class AmbalajKritikIslemTests
     }
 
     [Fact]
-    public async Task Karar_TamamlanmisProjedeYeniKaynagiDahilEtmek_SenkronizeKaydiGecmiseYazar()
+    public async Task Karar_TamamlanmisProjedeYeniKaynagiDahilEtmek_GerekcesizDeSenkronizeKaydiGecmiseYazar()
     {
         var f = new Fixture(OrtakRoller.TumIzinler());
         f.TamamlanmisKayit(1);
@@ -187,12 +221,8 @@ public sealed class AmbalajKritikIslemTests
         var senkronizasyon = new AmbalajKaynakSenkronizasyonService(f.Uow, f.Finans);
         var handler = new AmbalajKarariKaydetCommandHandler(f.Uow, f.User, f.Roller, senkronizasyon, f.Finans, f.Denetim);
 
-        var gerekcesiz = await handler.Handle(new AmbalajKarariKaydetCommand { SandikId = 202, AmbalajaDahilMi = true }, default);
-        Assert.Equal(400, gerekcesiz.StatusCode);
-        Assert.DoesNotContain(f.Uow.Repo<AmbalajUretimKaydi>().Rows, k => k.KaynakKayitId == 202);
-
-        var sonuc = await handler.Handle(
-            new AmbalajKarariKaydetCommand { SandikId = 202, AmbalajaDahilMi = true, Gerekce = "Sonradan eklendi" }, default);
+        // A2/D11: ambalaj kararı üretim planı işlemidir, gerekçe istemez; kritik işlem yine geçmişe yazılır.
+        var sonuc = await handler.Handle(new AmbalajKarariKaydetCommand { SandikId = 202, AmbalajaDahilMi = true }, default);
 
         Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
         var kaynakKaydi = Assert.Single(f.Uow.Repo<AmbalajUretimKaydi>().Rows, k => k.KaynakKayitId == 202);

@@ -24,7 +24,7 @@ public sealed class FinansPanelQueryHandlers(IFinansPanelService service) :
 
     public Task<Result<FinansSayfaliSonuc<FinansBekleyenModel>>> Handle(FinansYaslandirmaQuery request, CancellationToken cancellationToken)
         => FinansHandlerHelper.ExecuteAsync(() =>
-            service.YaslandirmaAsync(request.ReferansTarihi, request.MinimumGun, request.Filtre, cancellationToken));
+            service.YaslandirmaAsync(request.ReferansTarihi, request.MinimumGun, request.Asama, request.Filtre, cancellationToken));
 
     public Task<Result<FinansSayfaliSonuc<FinansDegisiklikModel>>> Handle(FinansDegisiklikGecmisiQuery request, CancellationToken cancellationToken)
         => FinansHandlerHelper.ExecuteAsync(() => service.DegisiklikGecmisiAsync(

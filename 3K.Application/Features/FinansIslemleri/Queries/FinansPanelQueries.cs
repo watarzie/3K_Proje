@@ -30,6 +30,7 @@ public sealed class FinansYaslandirmaQuery : FinansQuery<FinansSayfaliSonuc<Fina
     public FinansListeFiltre Filtre { get; init; } = new();
     public DateTime ReferansTarihi { get; init; }
     public int MinimumGun { get; init; }
+    public string? Asama { get; init; }
 }
 
 public sealed class FinansDegisiklikGecmisiQuery : FinansQuery<FinansSayfaliSonuc<FinansDegisiklikModel>>

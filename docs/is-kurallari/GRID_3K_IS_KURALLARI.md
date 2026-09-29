@@ -271,7 +271,7 @@ Kaynak: [SandikSevkKilidiHelper.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.A
 
 **S-10.** Normalde henüz sevk yoksa sandıkların hazır/kapalı olması tamamlanma durumunu etkiler. Saha/yedekte tüm sandıklar sevk edilmişse veya korunmuş mevcut tam-sevk durumu varsa sevk durumu gösterilebilir; mevcut kısmi durum da kendi kuralıyla korunur.
 
-**S-11 — Liste görünürlüğü.** Sevk edilenler sorgusu kayıtlı Sevk Edildi/Kısmi Sevk durumlarını veya fiziksel sevkli sandığı olan projeleri getirir. Aktif proje sorgusu yalnız kayıtlı tam Sevk Edildi durumunu dışlar; Kısmi Sevk aktif listede de bulunabilir. Bunun Grid/3K iş listesindeki ürün filtresiyle aynı olduğu varsayılmamalıdır.
+**S-11 — Liste görünürlüğü.** Sevk edilenler sorgusu kayıtlı Sevk Edildi/Kısmi Sevk durumlarını veya fiziksel sevkli sandığı olan projeleri getirir. Aktif proje sorgusu yalnız kayıtlı tam Sevk Edildi durumunu dışlar; Kısmi Sevk aktif listede de bulunabilir. Saha ve Yedek modül listeleri de aktif sorguyu kullanır: tamamen sevk edilen saha/yedek projesi normal proje gibi yalnız Sevk Edilen Projeler listesinde görünür. Sevkiyat kilidi “kayıt korunarak” açılan (düzeltmesi açık sevkli sandığı olan) saha/yedek projesi, durumu Sevk Edildi kalsa da kendi modül listesine döner; “sevkiyat geri alınarak” açılan proje durumu yeniden hesaplandığı için zaten döner. Bunun Grid/3K iş listesindeki ürün filtresiyle aynı olduğu varsayılmamalıdır.
 
 **S-12 — Eski veri farkı.** Veritabanındaki kayıtlı proje durumu önce filtrelenir, bazı görüntü durumları sonra yeniden hesaplanır. Eski ve uyumsuz kayıtlı durum, yüzdeden bağımsız görünürlük farkına yol açabilir. Bir projenin aktarımını silip yeniden kurmak genel iş kuralı değildir; veri tamiri ayrıca doğrulanan kayıtlarla yapılmalıdır.
 
@@ -611,6 +611,8 @@ Matristeki davranışların kaynakları G-013–G-016, G-049–G-061 ve G-063–
 **G-108 `[KOD]` — Talep PDF'si tamamen istemcide üretilip indirilir.** A4 PDF proje, kaynak, tarih/saat ve düzenlenmiş kalemleri içerir; bu aşamada ayrı bir backend “talep kaydı oluştur” komutu çağrılmaz. Kaynak: [grid-urunler.component.ts:1536](C:/Users/Watarzie/Desktop/3k_onyuz/src/app/features/grid/grid-urunler/grid-urunler.component.ts:1536).
 
 **G-109 `[FARK]` — PDF indirme ile süreç güncellemesi atomik değildir.** Dosya önce indirilir, sonra benzersiz çeki satırı kimlikleriyle süreç durumu asenkron güncellenir; backend güncellemesi başarısız olsa bile indirilmiş PDF geri alınmaz. Kaynak: [grid-urunler.component.ts:1677](C:/Users/Watarzie/Desktop/3k_onyuz/src/app/features/grid/grid-urunler/grid-urunler.component.ts:1677).
+
+**G-110 `[KOD]` — Toplu talep formu Excel'i sunucuda üretilir (G4).** Proje listesinde seçilen en fazla 25 projenin (seçim kapsamındaki proje tipi) `GridEksikMiktar > 0` olan çeki satırları tek sayfada listelenir; `EksikMiktar` kullanılmaz. Sütunlar: sıra, Proje No, Barkod, Ürün Adı (çeki açıklaması), Ürün Açıklaması (Remarks), İstenen Miktar (Grid eksik miktarı) ve ölçü birimi. Projeler seçim sırasıyla, her projede sandık numarası ve sıra numarasıyla dizilir. Her proje gerçek tipinin Grid okuma izniyle açılır; kapsam dışı proje 403, bulunamayan proje 404 döner. Çıktı salt okunurdur, Talep Formu PDF'inden farklı olarak süreç durumunu değiştirmez. Kaynak: [TalepFormuRaporService.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Infrastructure/Services/Raporlar/TalepFormuRaporService.cs), [GetTopluTalepFormuQueryHandler.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/PdfIslemleri/Queries/GetTopluTalepFormuQueryHandler.cs).
 
 ### 7.17. Son not
 

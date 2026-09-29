@@ -158,8 +158,9 @@ public static class YetkiKodlari
         public const string KaliciSil = "finans-kalici-sil";
         public const string BelgeYukle = "finans-belge-yukle";
         public const string BelgeIndir = "finans-belge-indir";
-        public const string SablonYonet = "finans-sablon-yonet";
         public const string DenetimGor = "finans-denetim-gor";
         public const string FiyatlandirmaDegistir = "finans-fiyatlandirma-degistir";
+        /// <summary>Faturayı ödendi/ödenmedi olarak işaretleme (D3).</summary>
+        public const string OdemeKaydet = "finans-odeme-kaydet";
     }
 }

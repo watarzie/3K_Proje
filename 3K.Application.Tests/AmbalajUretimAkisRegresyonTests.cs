@@ -73,7 +73,8 @@ public sealed class AmbalajUretimAkisRegresyonTests
     }
 
     [Fact]
-    public async Task UretimFormu_M3DegerlerindeKaydedilmisSnapshotiKullanir()
+    /// <summary>D10: form sürümü tutulmaz; indirme, formu oluşturulmuş sandıkların güncel verisinden hesaplanır.</summary>
+    public async Task UretimFormu_IndirmeKaydedilmisSurumYerineGuncelVeriyiKullanir()
     {
         var proje = new Proje { Id = 1, ProjeNo = "PA-SNAP", Musteri = "Snapshot" };
         var kayit = ProjeKaydi(GecerliFormKaydi(), proje.Id);
@@ -82,17 +83,15 @@ public sealed class AmbalajUretimAkisRegresyonTests
         var dosyaService = new FakeAmbalajDosyaService();
         var handler = new GetAmbalajUretimFormuDosyasiQueryHandler(unitOfWork, dosyaService,
             FakeRolService.TumYetkiler(), new FakeCurrentUserService());
-        var eskiNet = kayit.HesaplananToplamM3;
         kayit.HesaplananToplamM3 = 999;
-        kayit.Boy = 9999;
 
         var sonuc = await handler.Handle(
             new GetAmbalajUretimFormuDosyasiQuery { ProjeId = proje.Id }, CancellationToken.None);
 
         Assert.True(sonuc.IsSuccess);
         var kalem = Assert.Single(dosyaService.SonUretimFormu!.Kalemler);
-        Assert.Equal(eskiNet, kalem.HesaplananNetM3);
-        Assert.Equal(eskiNet, kalem.NetM3);
+        Assert.Equal(999, kalem.HesaplananNetM3);
+        Assert.Equal(999, kalem.NetM3);
         Assert.Equal(kayit.SarfM3, kalem.SarfM3);
         Assert.Equal(kayit.ToplamM3, kalem.ToplamM3);
         Assert.Equal(0, unitOfWork.SaveChangesSayisi);

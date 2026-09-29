@@ -26,6 +26,11 @@ public sealed class GetAmbalajPlanlamaProjeleriQuery
     public int PageNumber { get; set; } = 1;
     public int PageSize { get; set; } = 15;
     public bool IncludeSummary { get; set; } = true;
+    /// <summary>
+    /// true: yalnız üretimi tamamlanan projeler ("Üretimi Tamamlanan" sekmesi); false: tamamlananlar hariç
+    /// (çam ihtiyacı özeti de böylece net kalan ihtiyacı gösterir); null: hepsi.
+    /// </summary>
+    public bool? Tamamlanan { get; set; }
 }
 
 public sealed class GetAmbalajPlanlamaPlanQuery : AmbalajPlanlamaQuery<AmbalajPlanlamaPlanDto>

@@ -95,6 +95,8 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 SevkiyatDuzeltmeAcikMi = sandik.SevkiyatDuzeltmeAcikMi,
                 DepoLokasyonId = sandik.DepoLokasyonId,
                 DepoLokasyonMetni = _lookupCache.GetDeger<LookupDepoLokasyon>(sandik.DepoLokasyonId),
+                TipId = sandik.TipId,
+                TipMetni = _lookupCache.GetDeger<LookupSandikTipi>(sandik.TipId),
                 SahayaAktarildiMi = sandikSahaAktariminda,
                 SahaUzerindenSevkEdildiMi = sahaUzerindenSevkEdildi,
                 SahayaAktarilanMiktar = sahayaAktarilanMiktar,

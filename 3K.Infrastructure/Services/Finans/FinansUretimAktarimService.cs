@@ -179,10 +179,12 @@ internal sealed class FinansUretimAktarimService(
             entity.ToplamM3 = decimal.Round(entity.Adet * entity.BirimM3, 6);
         }
         entity.UretimTarihi = model.UretimTarihi;
-        if (!entity.FinansTarihiManuel)
+        // Finans tarihi elle değiştirilmediyse üretimden gelir (A6: formda girilen tarih önceliklidir).
+        // PO'ya bağlanmış kayıt ayından sessizce taşınmaz; bunun için izinli Finans Tarihi değişikliği gerekir.
+        if (!entity.FinansTarihiManuel && !entity.SiparisKalemleri.Any(x => !x.FinansSiparis.IptalEdildi))
         {
-            entity.FinansTarihi = model.UretimTarihi.Date;
-            entity.FinansDonemi = FinansTarihKurallari.AyBasi(model.FinansDonemi);
+            entity.FinansTarihi = (model.FinansTarihi ?? model.UretimTarihi).Date;
+            entity.FinansDonemi = FinansTarihKurallari.AyBasi(entity.FinansTarihi);
         }
         entity.KaynakAktif = model.KaynakAktif;
         if (!finansIptali)

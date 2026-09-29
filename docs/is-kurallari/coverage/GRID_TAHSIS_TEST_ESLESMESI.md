@@ -119,6 +119,7 @@ birakilmistir.
 | G-107 | UI | — | Talep kaynagi sabit secenekleri frontend/PDF sozlesmesidir; .NET unit testi yoktur. |
 | G-108 | UI | — | Istemcide PDF uretme/indirme tarayici testi gerektirir. |
 | G-109 | Açık | — | PDF indirme ile surec guncellemesinin atomik olmamasi mevcut UI farkidir; istenen davranis olarak sabitlenmez. |
+| G-110 | Birim | `TalepFormuRaporTests.Excel_grid_eksigi_olan_satirlari_secim_sirasiyla_tek_sayfada_listeler`; `TalepFormuRaporTests.Bulunamayan_ve_kapsam_disi_proje_reddedilir_gecerli_secim_tek_excel_doner`; `TalepFormuRaporTests.Gecersiz_secim_rapor_uretmeden_400_doner`; `ServerAuthorizationRegressionTests.TopluTalepFormu_HerProjeGercekTipininGridIzniniIster` | Grid eksik filtresi (iptal/Grid Kapandı/fazla gelen hariç), seçim sırası, sütunlar, 404/403/400 ve proje başına Grid izni. Excel testi gerçek PostgreSQL ister (THREEK_TEST_POSTGRES); proje listesindeki toplu seçim düğmesi UI kapsamıdır. |
 
 ## Tahsis, tasima ve revizyon kurallari (9.E-9.H)
 

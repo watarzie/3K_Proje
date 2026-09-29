@@ -8,7 +8,7 @@ using _3K_API.Extensions;
 
 namespace _3K_API.Controllers;
 
-/// <summary>Düzenli işler, gider kategorisi ve kalemleri, ürün/tarifeler ve iş şablonları.</summary>
+/// <summary>Düzenli işler, gider kategorisi ve kalemleri, ürün/tarifeler, para birimleri ve finans parametreleri.</summary>
 public sealed class FinansTanimController(IMediator mediator) : FinansControllerBase(mediator)
 {
     [HttpGet("duzenli-isler")]
@@ -33,6 +33,10 @@ public sealed class FinansTanimController(IMediator mediator) : FinansController
     [HttpPut("duzenli-isler/{id:int}")]
     public async Task<ActionResult> DuzenliIsGuncelle(int id, [FromBody] FinansDuzenliIsKaydetDto model, CancellationToken cancellationToken)
         => (await Mediator.Send(new FinansDuzenliIsGuncelleCommand { Id = id, Model = model.DuzenliIsModeli() }, cancellationToken)).ToActionResult();
+
+    [HttpPost("duzenli-isler/{id:int}/donemler")]
+    public async Task<ActionResult> DuzenliIsDonemUret(int id, [FromBody] FinansDuzenliIsDonemUretRequest request, CancellationToken cancellationToken)
+        => (await Mediator.Send(new FinansDuzenliIsDonemUretCommand { Id = id, BitisTarihi = request.BitisTarihi }, cancellationToken)).ToActionResult();
 
     [HttpGet("gider-kategorileri")]
     public async Task<ActionResult> GiderKategorileri([FromQuery] bool sadeceAktif, CancellationToken cancellationToken)
@@ -95,15 +99,27 @@ public sealed class FinansTanimController(IMediator mediator) : FinansController
     public async Task<ActionResult> UrunPasiflestir(int id, CancellationToken cancellationToken)
         => (await Mediator.Send(new FinansUrunPasiflestirCommand { Id = id }, cancellationToken)).ToActionResult();
 
-    [HttpGet("sablonlar")]
-    public async Task<ActionResult> Sablonlar(CancellationToken ct)
-        => (await Mediator.Send(new FinansSablonlarQuery(), ct)).ToActionResult();
+    [HttpPost("urunler/{id:int}/yeniden-fiyatla")]
+    public async Task<ActionResult> UrunYenidenFiyatla(int id, [FromBody] FinansIptalDto model, CancellationToken ct)
+        => (await Mediator.Send(new FinansUrunYenidenFiyatlaCommand { Id = id, Aciklama = model.Aciklama }, ct)).ToActionResult();
 
-    [HttpPost("sablonlar")]
-    public async Task<ActionResult> SablonOlustur([FromBody] FinansSablonKaydetModel model, CancellationToken ct)
-        => (await Mediator.Send(new FinansSablonKaydetCommand { Model = model }, ct)).ToActionResult();
+    [HttpGet("para-birimleri")]
+    public async Task<ActionResult> ParaBirimleri([FromQuery] bool sadeceAktif, CancellationToken ct)
+        => (await Mediator.Send(new FinansParaBirimleriQuery { SadeceAktif = sadeceAktif }, ct)).ToActionResult();
 
-    [HttpPut("sablonlar/{id:int}")]
-    public async Task<ActionResult> SablonGuncelle(int id, [FromBody] FinansSablonKaydetModel model, CancellationToken ct)
-        => (await Mediator.Send(new FinansSablonKaydetCommand { Id = id, Model = model }, ct)).ToActionResult();
+    [HttpPost("para-birimleri")]
+    public async Task<ActionResult> ParaBirimiOlustur([FromBody] FinansParaBirimiKaydetModel model, CancellationToken ct)
+        => (await Mediator.Send(new FinansParaBirimiOlusturCommand { Model = model }, ct)).ToActionResult();
+
+    [HttpPut("para-birimleri/{id:int}")]
+    public async Task<ActionResult> ParaBirimiGuncelle(int id, [FromBody] FinansParaBirimiKaydetModel model, CancellationToken ct)
+        => (await Mediator.Send(new FinansParaBirimiGuncelleCommand { Id = id, Model = model }, ct)).ToActionResult();
+
+    [HttpGet("parametreler")]
+    public async Task<ActionResult> Parametreler(CancellationToken ct)
+        => (await Mediator.Send(new FinansParametrelerQuery(), ct)).ToActionResult();
+
+    [HttpPut("parametreler")]
+    public async Task<ActionResult> ParametreleriKaydet([FromBody] FinansParametrelerModel model, CancellationToken ct)
+        => (await Mediator.Send(new FinansParametreleriKaydetCommand { Model = model }, ct)).ToActionResult();
 }

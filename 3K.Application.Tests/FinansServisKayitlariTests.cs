@@ -22,7 +22,7 @@ public sealed class FinansServisKayitlariTests
         Assert.IsType<FinansGiderService>(finans.Gider);
         Assert.IsType<FinansGiderTanimService>(finans.GiderTanim);
         Assert.IsType<FinansUrunService>(finans.Urun);
-        Assert.IsType<FinansSablonService>(finans.Sablon);
+        Assert.IsType<FinansParametreService>(finans.Parametre);
         Assert.IsType<FinansDuzenliIsService>(finans.DuzenliIs);
         Assert.IsType<FinansBelgeService>(finans.Belge);
         Assert.IsType<FinansKaliciSilmeService>(finans.KaliciSilme);

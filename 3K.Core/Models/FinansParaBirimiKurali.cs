@@ -2,14 +2,12 @@ using _3K.Core.Exceptions;
 
 namespace _3K.Core.Models;
 
-/// <summary>Finans para birimi kuralı: ISO-4217 üç harfli kod, büyük harfe normalize edilir.</summary>
+/// <summary>
+/// Finans para birimi kuralı: ISO-4217 üç harfli kod, büyük harfe normalize edilir. Kabul edilen para birimleri
+/// kullanıcının yönettiği FinansParaBirimleri tablosundadır (F1); kodda sabit liste yoktur.
+/// </summary>
 public static class FinansParaBirimiKurali
 {
-    /// <summary>Gider ve fiyatlandırmada kabul edilen, özetlerde her zaman gösterilen para birimleri.</summary>
-    public static readonly IReadOnlyList<string> Desteklenenler = ["TRY", "EUR", "USD"];
-
-    public static bool DesteklenenMi(string paraBirimi) => Desteklenenler.Contains(paraBirimi);
-
     public static string Normalize(string paraBirimi)
     {
         var normalized = paraBirimi.Trim().ToUpperInvariant();

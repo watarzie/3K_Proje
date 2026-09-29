@@ -50,7 +50,7 @@ public sealed class FinansAlanHttpSecurityTests
         var item = json["items"]![0]!;
         Assert.Equal("TEST-PROJE", item["projeNo"]!.GetValue<string>());
         Assert.Equal(3m, item["adet"]!.GetValue<decimal>());
-        foreach (var field in new[] { "birimFiyat", "netTutar", "toplamTutar", "boy", "en", "yukseklik", "birimM3", "toplamM3", "alanDegerleri", "bilesenler" })
+        foreach (var field in new[] { "birimFiyat", "netTutar", "toplamTutar", "boy", "en", "yukseklik", "birimM3", "toplamM3", "bilesenler" })
             Assert.Null(item[field]);
         Assert.Equal(1, host.Data.Calls);
 
@@ -90,7 +90,6 @@ public sealed class FinansAlanHttpSecurityTests
         Assert.Null(denied[field]);
         Assert.Equal("TEST-PROJE", denied["projeNo"]!.GetValue<string>());
         Assert.Equal(3m, denied["adet"]!.GetValue<decimal>());
-        Assert.Null(denied["alanDegerleri"]);
         Assert.Null(denied["bilesenler"]);
     }
 
@@ -300,7 +299,7 @@ public sealed class FinansAlanHttpSecurityTests
     /// <summary>Tek sentetik vekil bütün finans alan arayüzlerini karşılar; çağrı sayısı ortaktır.</summary>
     public interface ITumFinansServisleri :
         IFinansPanelService, IFinansIsKaydiService, IFinansAylikOzetService, IFinansSiparisFaturaService,
-        IFinansGiderService, IFinansGiderTanimService, IFinansUrunService, IFinansSablonService,
+        IFinansGiderService, IFinansGiderTanimService, IFinansUrunService, IFinansParametreService,
         IFinansDuzenliIsService, IFinansBelgeService, IFinansKaliciSilmeService, IFinansRaporVerisiService
     {
     }
@@ -313,7 +312,7 @@ public sealed class FinansAlanHttpSecurityTests
             Id = 1, ProjeNo = "TEST-PROJE", IsAdi = "Sentetik kayıt", Adet = 3, Birim = "Adet",
             Boy = 1234, En = 567, Yukseklik = 890, BirimM3 = 1.5m, ToplamM3 = 4.5m,
             BirimFiyat = 777.25m, NetTutar = 2331.75m, KdvTutari = 466.35m, ToplamTutar = 2798.10m,
-            ParaBirimi = "EUR", AlanDegerleri = new Dictionary<string, string?> { ["gizli-olcu"] = "1234x567x890" },
+            ParaBirimi = "EUR",
             Bilesenler = [new("Kereste", FinansFiyatlandirmaBirimi.Metrekup, 4.5m, 777.25m)]
         };
         protected override object? Invoke(MethodInfo? method, object?[]? args)

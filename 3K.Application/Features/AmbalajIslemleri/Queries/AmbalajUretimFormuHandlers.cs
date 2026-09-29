@@ -30,11 +30,14 @@ namespace _3K.Application.Features.AmbalajIslemleri.Queries
             GetAmbalajUretimFormuDosyasiQuery request,
             CancellationToken cancellationToken)
         {
-            var form = AmbalajYasamDongusuYardimcisi.KayitliForm(
-                _unitOfWork, request.ProjeId, request.Tur, request.BagimsizKayitMi);
-            if (form == null)
+            var guncel = await AmbalajYasamDongusuYardimcisi.GuncelFormAsync(
+                _unitOfWork, request.ProjeId, request.Tur, request.BagimsizKayitMi, cancellationToken);
+            if (guncel == null)
                 return Result<DosyaIcerigi>.Failure(
-                    "Kaydedilmiş üretim formu bulunamadı. Önce Üretim Formu Oluştur işlemini kullanınız.", 404);
+                    "Üretim formu oluşturulmuş sandık bulunamadı. Önce Üretim Formu Oluştur işlemini kullanınız.", 404);
+            if (!guncel.IsSuccess)
+                return Result<DosyaIcerigi>.Failure(guncel.Error!.Message, guncel.StatusCode);
+            var form = guncel.Value!;
             AmbalajYasamDongusuYardimcisi.Maskele(
                 form, await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(_roles, _user, cancellationToken));
 

@@ -76,12 +76,21 @@ public sealed class FinansUrunModel
     public decimal? GuncelBirimFiyat { get; init; }
     public string? GuncelParaBirimi { get; init; }
     public decimal? GuncelKdvOrani { get; init; }
+    /// <summary>Bugün geçerli tarife sürümünün başlangıç ve bitiş tarihi.</summary>
+    public DateTime? GuncelGecerlilikBaslangici { get; init; }
+    public DateTime? GuncelGecerlilikBitisi { get; init; }
+    /// <summary>Ürünün aktif tarife sürümleri (eski → yeni); fiyat geçmişi bu sürümlerde korunur.</summary>
+    public IReadOnlyList<FinansTarifeSurumuModel> Tarifeler { get; init; } = Array.Empty<FinansTarifeSurumuModel>();
     public decimal BirimFiyat => GuncelBirimFiyat ?? 0m;
     public string ParaBirimi => GuncelParaBirimi ?? "EUR";
     public decimal KdvOrani => GuncelKdvOrani ?? 0m;
     public IReadOnlyList<FinansUrunEslesmesiModel> Eslesmeler { get; init; } = Array.Empty<FinansUrunEslesmesiModel>();
 }
 
+/// <summary>
+/// Ürün/tarife kaydı. Fiyat verilirse <see cref="GecerlilikBaslangici"/> tarihinden (boşsa bugünden)
+/// itibaren geçerli yeni tarife sürümü açılır; önceki sürüm kapatılır, geçmiş sürümler değişmez.
+/// </summary>
 public sealed record FinansUrunKaydetModel(
     string Kod,
     string Ad,
@@ -91,10 +100,24 @@ public sealed record FinansUrunKaydetModel(
     IReadOnlyList<FinansUrunEslesmesiModel> Eslesmeler,
     decimal? BirimFiyat = null,
     string? ParaBirimi = null,
-    decimal? KdvOrani = null);
+    decimal? KdvOrani = null,
+    DateTime? GecerlilikBaslangici = null);
 
-public sealed record FinansSablonAlanModel(string Kod, string Ad, string VeriTuru, bool Zorunlu);
+public sealed record FinansTarifeSurumuModel(
+    int Id,
+    DateTime GecerlilikBaslangici,
+    DateTime GecerlilikBitisi,
+    decimal BirimFiyat,
+    string ParaBirimi,
+    decimal KdvOrani);
 
-public sealed record FinansSablonKaydetModel(string Kod, string Ad, bool Aktif, IReadOnlyList<FinansSablonAlanModel> Alanlar);
+/// <summary>Para birimi tanımı (F1); yeni para birimi eklendiğinde kartlar, grafikler, filtreler ve raporlar kendiliğinden gösterir.</summary>
+public sealed record FinansParaBirimiModel(int Id, string Kod, string Ad, string? Sembol, bool Aktif, int Sira);
 
-public sealed record FinansSablonModel(int Id, string Kod, string Ad, bool Aktif, int SurumId, int Surum, IReadOnlyList<FinansSablonAlanModel> Alanlar);
+public sealed record FinansParaBirimiKaydetModel(string Kod, string Ad, string? Sembol, bool Aktif, int Sira);
+
+/// <summary>Finans parametreleri (D3): faturanın varsayılan vade günü ve vade uyarısının kaç gün önceden verileceği.</summary>
+public sealed record FinansParametrelerModel(int VarsayilanVadeGunu, int VadeUyariGunu);
+
+/// <summary>D4 yeniden fiyatlama sonucu: kapsamdaki açık kalem sayısı ve fiyatı değişen kalem sayısı.</summary>
+public sealed record FinansYenidenFiyatlamaSonucModel(int UrunId, int IncelenenKalem, int FiyatlananKalem);

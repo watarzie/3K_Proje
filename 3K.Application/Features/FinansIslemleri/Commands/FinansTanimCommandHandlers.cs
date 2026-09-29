@@ -5,14 +5,15 @@ using _3K.Core.Models;
 
 namespace _3K.Application.Features.FinansIslemleri.Commands;
 
-/// <summary>Düzenli iş, gider kütüphanesi, ürün/tarife ve şablon tanım komutları.</summary>
+/// <summary>Düzenli iş, gider kütüphanesi, ürün/tarife, para birimi ve finans parametresi tanım komutları.</summary>
 public sealed class FinansTanimCommandHandlers(
     IFinansDuzenliIsService duzenliIsler,
     IFinansGiderTanimService giderTanimlari,
     IFinansUrunService urunler,
-    IFinansSablonService sablonlar) :
+    IFinansParametreService parametreler) :
     IRequestHandler<FinansDuzenliIsOlusturCommand, Result<FinansDuzenliIsModel>>,
     IRequestHandler<FinansDuzenliIsGuncelleCommand, Result<FinansDuzenliIsModel>>,
+    IRequestHandler<FinansDuzenliIsDonemUretCommand, Result<FinansDonemOlusturSonucModel>>,
     IRequestHandler<FinansGiderKategoriOlusturCommand, Result<FinansGiderKategoriModel>>,
     IRequestHandler<FinansGiderKategoriGuncelleCommand, Result<FinansGiderKategoriModel>>,
     IRequestHandler<FinansGiderKalemiOlusturCommand, Result<FinansGiderKalemiModel>>,
@@ -20,7 +21,10 @@ public sealed class FinansTanimCommandHandlers(
     IRequestHandler<FinansUrunOlusturCommand, Result<FinansUrunModel>>,
     IRequestHandler<FinansUrunGuncelleCommand, Result<FinansUrunModel>>,
     IRequestHandler<FinansUrunPasiflestirCommand, Result>,
-    IRequestHandler<FinansSablonKaydetCommand, Result<FinansSablonModel>>
+    IRequestHandler<FinansUrunYenidenFiyatlaCommand, Result<FinansYenidenFiyatlamaSonucModel>>,
+    IRequestHandler<FinansParaBirimiOlusturCommand, Result<FinansParaBirimiModel>>,
+    IRequestHandler<FinansParaBirimiGuncelleCommand, Result<FinansParaBirimiModel>>,
+    IRequestHandler<FinansParametreleriKaydetCommand, Result<FinansParametrelerModel>>
 {
     public Task<Result<FinansDuzenliIsModel>> Handle(FinansDuzenliIsOlusturCommand request, CancellationToken cancellationToken)
         => FinansHandlerHelper.ExecuteAsync(() => duzenliIsler.DuzenliIsOlusturAsync(request.Model, cancellationToken));
@@ -28,6 +32,10 @@ public sealed class FinansTanimCommandHandlers(
     public Task<Result<FinansDuzenliIsModel>> Handle(FinansDuzenliIsGuncelleCommand request, CancellationToken cancellationToken)
         => FinansHandlerHelper.ExecuteOptionalAsync(
             () => duzenliIsler.DuzenliIsGuncelleAsync(request.Id, request.Model, cancellationToken), "Düzenli iş bulunamadı.");
+
+    public Task<Result<FinansDonemOlusturSonucModel>> Handle(FinansDuzenliIsDonemUretCommand request, CancellationToken cancellationToken)
+        => FinansHandlerHelper.ExecuteOptionalAsync(
+            () => duzenliIsler.DuzenliIsDonemleriniUretAsync(request.Id, request.BitisTarihi, cancellationToken), "Düzenli iş bulunamadı.");
 
     public Task<Result<FinansGiderKategoriModel>> Handle(FinansGiderKategoriOlusturCommand request, CancellationToken cancellationToken)
         => FinansHandlerHelper.ExecuteAsync(() => giderTanimlari.GiderKategoriOlusturAsync(request.Model, cancellationToken));
@@ -54,6 +62,17 @@ public sealed class FinansTanimCommandHandlers(
         => FinansHandlerHelper.ExecuteAsync(
             () => urunler.UrunPasiflestirAsync(request.Id, cancellationToken), "Finans ürünü bulunamadı.");
 
-    public Task<Result<FinansSablonModel>> Handle(FinansSablonKaydetCommand request, CancellationToken cancellationToken)
-        => FinansHandlerHelper.ExecuteAsync(() => sablonlar.SablonKaydetAsync(request.Id, request.Model, cancellationToken));
+    public Task<Result<FinansYenidenFiyatlamaSonucModel>> Handle(FinansUrunYenidenFiyatlaCommand request, CancellationToken cancellationToken)
+        => FinansHandlerHelper.ExecuteOptionalAsync(
+            () => urunler.YenidenFiyatlaAsync(request.Id, request.Aciklama, cancellationToken), "Finans ürünü bulunamadı.");
+
+    public Task<Result<FinansParaBirimiModel>> Handle(FinansParaBirimiOlusturCommand request, CancellationToken cancellationToken)
+        => FinansHandlerHelper.ExecuteAsync(() => parametreler.ParaBirimiOlusturAsync(request.Model, cancellationToken));
+
+    public Task<Result<FinansParaBirimiModel>> Handle(FinansParaBirimiGuncelleCommand request, CancellationToken cancellationToken)
+        => FinansHandlerHelper.ExecuteOptionalAsync(
+            () => parametreler.ParaBirimiGuncelleAsync(request.Id, request.Model, cancellationToken), "Para birimi bulunamadı.");
+
+    public Task<Result<FinansParametrelerModel>> Handle(FinansParametreleriKaydetCommand request, CancellationToken cancellationToken)
+        => FinansHandlerHelper.ExecuteAsync(() => parametreler.ParametreleriKaydetAsync(request.Model, cancellationToken));
 }

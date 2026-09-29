@@ -40,6 +40,26 @@ public static class AmbalajUretimPolitikasi
         Regex.IsMatch(normalAd,
             @"^(?:(?:TRANSFORMATOR(?: YAGSIZ)?|TRANSFORMER)(?: (?:SANDIGI|SANDIK|CASE|CRATE))?|TRANSFORMER MAIN BODY)$");
 
+    /// <summary>
+    /// Kaynak sandığın üretim grubu (RR Q2). Grup tek doğruluk kaynağı olan <c>Tur</c> alanındadır ve kayıt
+    /// ilk senkronda bir kez belirlenir: normal projede plan başladıktan (projenin ilk senkron kaydından)
+    /// sonra oluşturulan sandık İlave'dir. Kayıtlı Normal/İlave sınıflandırması sonraki senkronlarda
+    /// korunur; saha/yedek projelerde grup proje türüdür. Henüz kaydı olmayan sandık aynı kuralla okunur.
+    /// </summary>
+    public static AmbalajSandikTuru KaynakGrubu(
+        AmbalajSandikTuru projeGrubu,
+        AmbalajSandikTuru? kayitliGrup,
+        DateTime? planBaslangici,
+        DateTime sandikOlusturmaTarihi)
+    {
+        if (projeGrubu != AmbalajSandikTuru.Normal) return projeGrubu;
+        if (kayitliGrup.HasValue)
+            return kayitliGrup == AmbalajSandikTuru.Ilave ? AmbalajSandikTuru.Ilave : AmbalajSandikTuru.Normal;
+        return planBaslangici.HasValue && sandikOlusturmaTarihi > planBaslangici.Value
+            ? AmbalajSandikTuru.Ilave
+            : AmbalajSandikTuru.Normal;
+    }
+
     public static AmbalajUretimDurumu ProjeDurumu(IEnumerable<AmbalajUretimKaydi> kayitlar)
     {
         var gerekli = kayitlar.Where(k => !k.IptalMi && k.AmbalajaDahil).ToList();

@@ -134,6 +134,56 @@ public sealed class AmbalajUretimV2PostgresTests
         });
     }
 
+    [PostgresRaporFact]
+    [Trait("Category", "Postgres")]
+    public async Task Form_PlanKaydedilmedenKaynakSandiklarla_KayitlariSenkronizeEderVeOlusturur()
+    {
+        // Sıfırlamadan sonra plan kaydedilmemiş proje: kayıtlar form isteğindeki senkronizasyonla oluşur ve aynı
+        // DbContext tarafından izlenir; form bu kayıtları ikinci bir örnekle yeniden izlemeye çalışmamalıdır.
+        await WithDatabase(async options =>
+        {
+            await using (var seed = new AppDbContext(options))
+            {
+                seed.Projeler.Add(new Proje { Id = 20, ProjeNo = "PA-20" });
+                seed.Sandiklar.AddRange(
+                    new Sandik { Id = 201, ProjeId = 20, SandikNo = "1", Ad = "Radyatör", Boy = 1800, En = 900, Yukseklik = 800 },
+                    new Sandik { Id = 202, ProjeId = 20, SandikNo = "2", Ad = "Fan", Boy = 1200, En = 800, Yukseklik = 700 });
+                await seed.SaveChangesAsync();
+                // Ortak kurulum kaydı elle kimlik aldığı için kimlik dizisi ilerletilir; senkronizasyon yeni kayıt ekler.
+                await seed.Database.ExecuteSqlRawAsync(
+                    "SELECT setval(pg_get_serial_sequence('\"AmbalajUretimKayitlari\"', 'Id'), (SELECT MAX(\"Id\") FROM \"AmbalajUretimKayitlari\"))");
+            }
+            int formId;
+            await using (var ctx = new AppDbContext(options))
+            {
+                using var uow = new UnitOfWork(ctx, NullLogger<UnitOfWork>.Instance);
+                var sync = new AmbalajKaynakSenkronizasyonService(uow, new Finans(false));
+                var handler = new AmbalajFormOlusturCommandHandler(uow, new User(), new Roles(), new Finans(false), sync,
+                    new AmbalajFormIslemKilidi(ctx));
+                var result = await handler.Handle(new()
+                {
+                    ProjeId = 20, KaynakSandikIdleri = [202, 201], FinansTarihi = new DateTime(2026, 9, 30),
+                    IdempotencyAnahtari = Guid.NewGuid()
+                }, default);
+                Assert.True(result.IsSuccess, result.Error?.Message);
+                formId = result.Value!.Id;
+            }
+            await using var verify = new AppDbContext(options);
+            var kayitlar = await verify.Set<AmbalajUretimKaydi>().Where(k => k.ProjeId == 20)
+                .OrderBy(k => k.KaynakKayitId).ToListAsync();
+            Assert.Equal([201, 202], kayitlar.Select(k => k.KaynakKayitId!.Value));
+            Assert.All(kayitlar, k =>
+            {
+                Assert.Equal(AmbalajUretimDurumu.Uretimde, k.UretimDurumu);
+                Assert.True(k.KaynakSenkronizasyonuKilitliMi);
+                Assert.Equal(new DateTime(2026, 9, 30), k.FinansTarihi);
+            });
+            var formKayitlari = await verify.Set<AmbalajUretimFormuKaydi>().Where(x => x.FormSurumuId == formId)
+                .Select(x => x.AmbalajUretimKaydiId).OrderBy(x => x).ToListAsync();
+            Assert.Equal(kayitlar.Select(k => k.Id).Order(), formKayitlari);
+        });
+    }
+
     private static AmbalajFormOlusturCommandHandler Handler(AppDbContext ctx, IUnitOfWork uow, bool fail = false) =>
         new(uow, new User(), new Roles(), new Finans(fail), islemKilidi: new AmbalajFormIslemKilidi(ctx));
 

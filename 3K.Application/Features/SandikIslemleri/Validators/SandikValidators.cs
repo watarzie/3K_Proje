@@ -1,5 +1,6 @@
 using FluentValidation;
 using _3K.Application.Features.SandikIslemleri.Commands;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.SandikIslemleri.Validators
 {
@@ -48,6 +49,16 @@ namespace _3K.Application.Features.SandikIslemleri.Validators
         {
             RuleFor(x => x.ProjeId).GreaterThan(0).WithMessage("Geçerli bir proje ID belirtilmeli.");
             RuleFor(x => x.SandikNo).NotEmpty().WithMessage("Sandık numarası boş olamaz.");
+            RuleFor(x => x.TipId).Must(SandikTipiKurali.Gecerli).WithMessage(SandikTipiKurali.Mesaj);
+        }
+    }
+
+    public class SandikOzellikGuncelleCommandValidator : AbstractValidator<SandikOzellikGuncelleCommand>
+    {
+        public SandikOzellikGuncelleCommandValidator()
+        {
+            RuleFor(x => x.SandikId).GreaterThan(0).WithMessage("Geçerli bir sandık ID belirtilmeli.");
+            RuleFor(x => x.TipId).Must(SandikTipiKurali.Gecerli).WithMessage(SandikTipiKurali.Mesaj);
         }
     }
 

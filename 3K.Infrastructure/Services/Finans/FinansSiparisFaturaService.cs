@@ -65,9 +65,10 @@ internal sealed class FinansSiparisFaturaService(
         var count = await query.CountAsync(cancellationToken);
         var entities = await query.OrderByDescending(x => x.SiparisTarihi).ThenByDescending(x => x.Id)
             .Skip((page - 1) * size).Take(size).ToListAsync(cancellationToken);
+        var siparisToplamlari = await IsSiparisToplamlariAsync(entities, cancellationToken);
         return new FinansSayfaliSonuc<FinansSiparisModel>
         {
-            Items = entities.Select(x => FinansSiparisFaturaEslemeleri.MapSiparis(x, filtre)).ToArray(),
+            Items = entities.Select(x => FinansSiparisFaturaEslemeleri.MapSiparis(x, siparisToplamlari, filtre)).ToArray(),
             Toplamlar = await query.Where(x => !x.IptalEdildi).SelectMany(x => x.Kalemler)
                 .Where(x => scopedLines.Select(s => s.Id).Contains(x.Id)).GroupBy(x => x.ParaBirimiSnapshot)
                 .Select(g => new FinansParaToplamiModel(g.Key, g.Sum(x => x.NetTutarSnapshot), g.Sum(x => x.KdvTutariSnapshot), g.Sum(x => x.ToplamTutarSnapshot))).ToArrayAsync(cancellationToken),
@@ -75,6 +76,107 @@ internal sealed class FinansSiparisFaturaService(
             PageSize = size,
             TotalCount = count
         };
+    }
+
+    /// <summary>
+    /// PO açma ekranının seçicisi: siparişe bağlanabilecek işler proje × kategori × para birimi (üretim),
+    /// düzenli iş × para birimi veya tek özel iş olarak gruplanır. Sandıklar satır olarak dönmez; grubun
+    /// kalem kimlikleri dağıtım sırasıyla (finans tarihi, kimlik) verilir.
+    /// </summary>
+    public async Task<FinansSayfaliSonuc<FinansSiparisGrubuModel>> SiparisGruplariAsync(
+        FinansSiparisGrupFiltre filtre,
+        CancellationToken cancellationToken)
+    {
+        var query = context.IsKaydiDetayQuery().Where(x => !x.IptalEdildi && x.KaynakAktif);
+        if (filtre.Baslangic.HasValue) query = query.Where(x => x.FinansTarihi >= filtre.Baslangic.Value.Date);
+        if (filtre.Bitis.HasValue)
+        {
+            var end = filtre.Bitis.Value.Date.AddDays(1);
+            query = query.Where(x => x.FinansTarihi < end);
+        }
+        if (!string.IsNullOrWhiteSpace(filtre.ParaBirimi))
+        {
+            var currency = filtre.ParaBirimi.Trim().ToUpperInvariant();
+            query = query.Where(x => x.ParaBirimiSnapshot == currency);
+        }
+        if (filtre.ProjeId.HasValue) query = query.Where(x => x.ProjeId == filtre.ProjeId);
+        if (filtre.DuzenliIsId.HasValue) query = query.Where(x => x.DuzenliIsId == filtre.DuzenliIsId);
+        if (filtre.IsKaydiIds is { Count: > 0 })
+        {
+            var ids = filtre.IsKaydiIds.Distinct().Take(2000).ToArray();
+            query = query.Where(x => ids.Contains(x.Id));
+        }
+        query = FinansSorgulari.KategoriFiltresi(query, filtre.Kategoriler);
+        if (!string.IsNullOrWhiteSpace(filtre.Arama)) query = FinansSorgulari.AramaFiltresi(query, filtre.Arama);
+        if (filtre.SadeceSiparisBekleyen) query = query.Where(FinansSorgulari.SiparisBekleyenIfadesi());
+        if (await query.CountAsync(cancellationToken) > FinansSorgulari.RaporKayitSiniri)
+            throw IsKuraliException.Cakisma("Seçim 20.000 işi aşıyor; dönem, kategori veya proje filtresini daraltın.");
+
+        var groups = SiparisGruplariniOlustur(await query.ToListAsync(cancellationToken));
+        var (page, size, skip) = FinansSorgulari.NormalizePagination(filtre.PageNumber, filtre.PageSize, groups.Count, 100);
+        return new FinansSayfaliSonuc<FinansSiparisGrubuModel>
+        {
+            Items = groups.Skip(skip).Take(size).ToArray(),
+            Toplamlar = groups.GroupBy(x => x.ParaBirimi).OrderBy(x => x.Key)
+                .Select(x => new FinansParaToplamiModel(x.Key, x.Sum(y => y.KalanSiparisNetTutar), 0, x.Sum(y => y.KalanSiparisNetTutar)))
+                .ToArray(),
+            PageNumber = page,
+            PageSize = size,
+            TotalCount = groups.Count
+        };
+    }
+
+    /// <summary>İşleri PO seçicisi gruplarına ayırır; grup durumu <see cref="FinansTutarKurallari.BirlesikDurum"/> ile türetilir.</summary>
+    internal static IReadOnlyList<FinansSiparisGrubuModel> SiparisGruplariniOlustur(IEnumerable<FinansIsKaydi> works)
+        => works
+            .GroupBy(SiparisGrupAnahtari)
+            .Select(group =>
+            {
+                var items = group.OrderBy(x => x.FinansTarihi).ThenBy(x => x.Id).ToList();
+                var first = items[0];
+                var kategori = FinansKategoriKurali.Kategori(first.IsTuru, first.DuzenliIsId);
+                var amounts = items.Select(FinansTutarKurallari.KalemTutarlari).ToList();
+                var durum = FinansTutarKurallari.BirlesikDurum(amounts);
+                var volumes = items.Select(FinansModelEslemeleri.Hacim).ToList();
+                return new FinansSiparisGrubuModel
+                {
+                    Anahtar = group.Key,
+                    ProjeId = first.ProjeId,
+                    ProjeNo = first.ProjeNo,
+                    Musteri = first.Musteri,
+                    Kategori = kategori,
+                    IsTuru = first.IsTuru,
+                    DuzenliIsId = first.DuzenliIsId,
+                    Ad = FinansKategoriKurali.UretimKategorisi(kategori) ? FinansKategoriKurali.Ad(kategori) : first.IsAdi,
+                    ParaBirimi = first.ParaBirimiSnapshot,
+                    IlkTarih = items.Min(x => x.FinansTarihi),
+                    SonTarih = items.Max(x => x.FinansTarihi),
+                    KalemSayisi = items.Count,
+                    IsKaydiIds = items.Select(x => x.Id).ToArray(),
+                    NetTutar = amounts.Sum(x => x.Net),
+                    SiparisNetTutar = amounts.Sum(x => x.Siparis),
+                    KalanSiparisNetTutar = amounts.Sum(x => Math.Max(0, x.Net - x.Siparis)),
+                    FaturalananNetTutar = amounts.Sum(x => x.Fatura),
+                    AhsapM3 = volumes.Sum(x => x.Ahsap),
+                    KontraM3 = volumes.Sum(x => x.Kontra),
+                    SiparisKarsilanma = durum.Siparis,
+                    FaturaKarsilanma = durum.Fatura,
+                    FiyatBekleyenKalem = durum.FiyatBekleyenKalem
+                };
+            })
+            .OrderBy(x => x.ProjeNo, StringComparer.Ordinal)
+            .ThenBy(x => x.Kategori)
+            .ThenBy(x => x.IlkTarih)
+            .ThenBy(x => x.Anahtar, StringComparer.Ordinal)
+            .ToArray();
+
+    /// <summary>Üretim işi proje × iş türü × para birimi, düzenli iş dönemi iş × para birimi, özel iş tek başına gruplanır.</summary>
+    internal static string SiparisGrupAnahtari(FinansIsKaydi work)
+    {
+        if (work.DuzenliIsId.HasValue) return $"D:{work.DuzenliIsId}:{work.ParaBirimiSnapshot}";
+        if (work.IsTuru == FinansIsTuru.OzelIs) return $"O:{work.Id}";
+        var project = work.ProjeId.HasValue ? $"P:{work.ProjeId}" : $"M:{work.ProjeNo}\u001f{work.Musteri}";
+        return $"{project}:{(int)work.IsTuru}:{work.ParaBirimiSnapshot}";
     }
 
     internal static IQueryable<FinansSiparis> ApplyFaturalamaBekleyenFilter(
@@ -90,7 +192,9 @@ internal sealed class FinansSiparisFaturaService(
     public async Task<FinansSiparisModel?> SiparisGetirAsync(int id, CancellationToken cancellationToken)
     {
         var entity = await SiparisDetayQuery().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
-        return entity is null ? null : FinansSiparisFaturaEslemeleri.MapSiparis(entity);
+        return entity is null
+            ? null
+            : FinansSiparisFaturaEslemeleri.MapSiparis(entity, await IsSiparisToplamlariAsync([entity], cancellationToken));
     }
 
     public Task<FinansSiparisModel?> SiparisGuncelleAsync(
@@ -109,9 +213,8 @@ internal sealed class FinansSiparisFaturaService(
         if (entity.IptalEdildi)
             throw IsKuraliException.Cakisma("İptal edilmiş sipariş güncellenemez.");
 
-        var po = model.PoNumarasi.Trim().ToUpperInvariant();
-        if (await context.Set<FinansSiparis>().AnyAsync(x => x.Id != id && x.PoNumarasi == po, cancellationToken))
-            throw IsKuraliException.Cakisma("Bu PO numarası daha önce kullanılmış; finansal belge numaraları tekrar kullanılamaz.");
+        var po = PoNumarasiNormalize(model.PoNumarasi);
+        await PoNumarasiKullanilabilirMiAsync(po, id, cancellationToken);
 
         var auditBefore = FinansDenetimKaydi.AnlikGoruntu(entity);
         entity.PoNumarasi = po;
@@ -158,16 +261,9 @@ internal sealed class FinansSiparisFaturaService(
         FinansSiparisOlusturModel model,
         CancellationToken cancellationToken)
     {
-        var po = model.PoNumarasi.Trim().ToUpperInvariant();
-        if (await context.Set<FinansSiparis>().AnyAsync(x => x.PoNumarasi == po, cancellationToken))
-            throw IsKuraliException.Cakisma("Bu PO numarası daha önce kullanılmış; finansal belge numaraları tekrar kullanılamaz.");
-        var requestedIds = model.Kalemler.Select(x => x.IsKaydiId).Distinct().ToArray();
-        if (requestedIds.Length == 0) throw IsKuraliException.Cakisma("Sipariş en az bir iş kalemi içermelidir.");
-        if (requestedIds.Length != model.Kalemler.Count)
-            throw IsKuraliException.Cakisma("Aynı iş kaydı bir siparişte birden fazla kez dağıtılamaz.");
-        var works = await context.IsKaydiDetayQuery(true).Where(x => requestedIds.Contains(x.Id)).ToListAsync(cancellationToken);
-        if (works.Count != requestedIds.Length)
-            throw IsKuraliException.Cakisma("Sipariş kalemlerinden en az biri bulunamadı.");
+        var po = PoNumarasiNormalize(model.PoNumarasi);
+        await PoNumarasiKullanilabilirMiAsync(po, null, cancellationToken);
+        var dagitimlar = await SiparisDagitimlariniHazirlaAsync(model.Kalemler, model.Gruplar, cancellationToken);
 
         var order = new FinansSiparis
         {
@@ -177,74 +273,177 @@ internal sealed class FinansSiparisFaturaService(
             Aciklama = model.Aciklama?.Trim(),
             ParaBirimi = string.IsNullOrWhiteSpace(model.ParaBirimi) ? null : FinansParaBirimiKurali.Normalize(model.ParaBirimi)
         };
-        foreach (var requested in model.Kalemler)
-        {
-            var work = works.Single(x => x.Id == requested.IsKaydiId);
-            if (work.IptalEdildi || !work.KaynakAktif)
-                throw IsKuraliException.Cakisma($"{work.IsAdi} aktif olmadığı için siparişe eklenemez.");
-            var productId = requested.FinansUrunId ?? work.FinansUrunId;
-            var pricingUnit = work.FiyatlandirmaBirimiSnapshot;
-            var unitPrice = requested.BirimFiyat ?? work.BirimFiyatSnapshot;
-            var currency = string.IsNullOrWhiteSpace(requested.ParaBirimi)
-                ? work.ParaBirimiSnapshot
-                : FinansParaBirimiKurali.Normalize(requested.ParaBirimi);
-            var vat = requested.KdvOrani ?? work.KdvOraniSnapshot;
-            if (productId != work.FinansUrunId || unitPrice != work.BirimFiyatSnapshot || currency != work.ParaBirimiSnapshot || vat != work.KdvOraniSnapshot)
-            {
-                throw IsKuraliException.Cakisma("PO işin fiyat snapshot'ını kullanır. Önce ayrı fiyatlandırma işlemiyle iş bedelini düzeltin.");
-            }
-            if (FinansTutarKurallari.IsNet(work) <= 0)
-                throw IsKuraliException.Cakisma($"{work.IsAdi} kalemi için geçerli fiyat bulunamadı.");
-            order.ParaBirimi ??= currency;
-            if (order.ParaBirimi != currency)
-                throw IsKuraliException.Cakisma("Tek PO yalnız aynı para birimindeki işleri içerebilir.");
+        foreach (var (work, requested) in dagitimlar)
+            SiparisKalemiBagla(order, work, requested);
 
-            var activeLines = work.SiparisKalemleri.Where(x => !x.FinansSiparis.IptalEdildi).ToList();
-            if (activeLines.Any(x => x.FiyatlandirmaBirimiSnapshot != pricingUnit))
-                throw IsKuraliException.Cakisma("Kısmi siparişte fiyatlandırma birimi değiştirilemez.");
-            var distribution = requested.NetTutar.HasValue
-                ? new FinansDagitimMiktari(0, 0)
-                : FinansMiktarKurallari.DagitimiNormalizeEt(
-                pricingUnit,
-                requested.Adet,
-                requested.M3,
-                work.Adet,
-                work.ToplamM3,
-                activeLines.Sum(x => x.Adet),
-                activeLines.Sum(x => x.M3),
-                activeLines.Count > 0,
-                "Sipariş");
-            var pricingQuantity = FinansTutarKurallari.FiyatlandirmaMiktari(pricingUnit, distribution.Adet, distribution.M3);
-            var requestedNet = requested.NetTutar ?? FinansTutarKurallari.Hesapla(pricingQuantity, unitPrice, vat).Net;
-            FinansTutarKurallari.Kapasite(requestedNet, activeLines.Sum(x => x.NetTutarSnapshot), FinansTutarKurallari.IsNet(work), "Sipariş");
-            var money = FinansTutarKurallari.Hesapla(1, requestedNet, vat);
-            order.Kalemler.Add(new FinansSiparisKalemi
-            {
-                FinansIsKaydiId = work.Id,
-                FinansIsKaydi = work,
-                FinansSiparis = order,
-                Adet = distribution.Adet,
-                M3 = distribution.M3,
-                TutarBazli = requested.NetTutar.HasValue,
-                FinansUrunId = productId,
-                FiyatlandirmaBirimiSnapshot = pricingUnit,
-                BirimFiyatSnapshot = unitPrice,
-                ParaBirimiSnapshot = currency,
-                KdvOraniSnapshot = vat,
-                NetTutarSnapshot = money.Net,
-                KdvTutariSnapshot = money.Kdv,
-                ToplamTutarSnapshot = money.Toplam
-            });
-        }
-
-        if (model.BelgeNetTutar.HasValue && model.BelgeNetTutar != order.Kalemler.Sum(x => x.NetTutarSnapshot))
-            throw IsKuraliException.Cakisma("PO belge net tutarı satırların net tutar toplamına eşit olmalıdır.");
+        if (model.BelgeNetTutar.HasValue &&
+            FinansTutarKurallari.Para(model.BelgeNetTutar.Value) != order.Kalemler.Sum(x => x.NetTutarSnapshot))
+            throw IsKuraliException.Cakisma("PO tutarı dağıtılan kalemlerin net toplamına eşit olmalıdır.");
         context.Set<FinansSiparis>().Add(order);
         await context.SaveChangesAsync(cancellationToken);
         denetim.Ekle(nameof(FinansSiparis), order.Id, "Oluşturma", "*", null, $"PO: {order.PoNumarasi}");
-        await RefreshWorkStatusesAsync(requestedIds, cancellationToken);
+        await RefreshWorkStatusesAsync(dagitimlar.Select(x => x.Work.Id), cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         return (await SiparisGetirAsync(order.Id, cancellationToken))!;
+    }
+
+    public Task<FinansSiparisModel?> SiparisKalemEkleAsync(
+        int id,
+        FinansSiparisKalemEkleModel model,
+        CancellationToken cancellationToken)
+        => islem.AtomikAsync(() => SiparisKalemEkleCoreAsync(id, model, cancellationToken), cancellationToken);
+
+    /// <summary>
+    /// Aktif PO'ya yeni işleri bağlar veya PO'daki işin tutarını artırır. Proje ilerledikçe üretilen
+    /// kalemler aynı müşteri PO numarasına bu yolla eklenir; PO tutarı dağıtımların toplamıdır.
+    /// </summary>
+    private async Task<FinansSiparisModel?> SiparisKalemEkleCoreAsync(
+        int id,
+        FinansSiparisKalemEkleModel model,
+        CancellationToken cancellationToken)
+    {
+        var order = await SiparisDetayQuery(true).FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (order is null) return null;
+        if (order.IptalEdildi)
+            throw IsKuraliException.Cakisma("İptal edilmiş PO'ya kalem eklenemez.");
+        var dagitimlar = await SiparisDagitimlariniHazirlaAsync(model.Kalemler ?? [], model.Gruplar, cancellationToken);
+        var oncekiNet = order.Kalemler.Sum(x => x.NetTutarSnapshot);
+        foreach (var (work, requested) in dagitimlar)
+            SiparisKalemiBagla(order, work, requested);
+        await context.SaveChangesAsync(cancellationToken);
+        denetim.Ekle(nameof(FinansSiparis), order.Id, "Kalem Ekleme", "NetTutar", oncekiNet,
+            order.Kalemler.Sum(x => x.NetTutarSnapshot), $"{dagitimlar.Count} iş kalemi");
+        RefreshOrderStatus(order);
+        await RefreshWorkStatusesAsync(dagitimlar.Select(x => x.Work.Id), cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
+        return await SiparisGetirAsync(id, cancellationToken);
+    }
+
+    /// <summary>
+    /// Tek tek ve grup düzeyinde istenen dağıtımları kalem bazında birleştirir. Grup tutarı grubun
+    /// kalemlerine finans tarihi sırasıyla <see cref="FinansDagitimKurallari"/> ile dağıtılır; aynı iş
+    /// bir istekte yalnız bir kez yer alabilir.
+    /// </summary>
+    private async Task<IReadOnlyList<(FinansIsKaydi Work, FinansSiparisDagitimModel Requested)>> SiparisDagitimlariniHazirlaAsync(
+        IReadOnlyList<FinansSiparisDagitimModel> kalemler,
+        IReadOnlyList<FinansSiparisGrupDagitimModel>? gruplar,
+        CancellationToken cancellationToken)
+    {
+        gruplar ??= [];
+        var tumIds = kalemler.Select(x => x.IsKaydiId).Concat(gruplar.SelectMany(x => x.IsKaydiIds)).ToArray();
+        if (tumIds.Length == 0) throw IsKuraliException.Cakisma("Sipariş en az bir iş kalemi içermelidir.");
+        if (tumIds.Distinct().Count() != tumIds.Length)
+            throw IsKuraliException.Cakisma("Aynı iş kaydı bir siparişte birden fazla kez dağıtılamaz.");
+        var works = await context.IsKaydiDetayQuery(true).Where(x => tumIds.Contains(x.Id)).ToListAsync(cancellationToken);
+        if (works.Count != tumIds.Length)
+            throw IsKuraliException.Cakisma("Sipariş kalemlerinden en az biri bulunamadı.");
+        var byId = works.ToDictionary(x => x.Id);
+
+        var sonuc = kalemler.Select(x => (byId[x.IsKaydiId], x)).ToList();
+        foreach (var grup in gruplar)
+        {
+            var grupIsleri = grup.IsKaydiIds.Select(x => byId[x])
+                .OrderBy(x => x.FinansTarihi).ThenBy(x => x.Id).ToList();
+            foreach (var work in grupIsleri)
+                SiparisIcinAktifMi(work);
+            var paylar = FinansDagitimKurallari.Dagit(grup.NetTutar,
+                grupIsleri.Select(x => new FinansDagitimKapasitesi(x.Id,
+                    FinansTutarKurallari.IsNet(x) - FinansTutarKurallari.SiparisNet(x))).ToArray(),
+                "Sipariş");
+            sonuc.AddRange(paylar.Select(x => (byId[x.Id], new FinansSiparisDagitimModel(x.Id, 0, 0, NetTutar: x.Tutar))));
+        }
+        return sonuc;
+    }
+
+    private static void SiparisIcinAktifMi(FinansIsKaydi work)
+    {
+        if (work.IptalEdildi || !work.KaynakAktif)
+            throw IsKuraliException.Cakisma($"{work.IsAdi} aktif olmadığı için siparişe eklenemez.");
+        if (FinansTutarKurallari.IsNet(work) <= 0)
+            throw IsKuraliException.Cakisma($"{work.IsAdi} kalemi için geçerli fiyat bulunamadı.");
+    }
+
+    /// <summary>
+    /// İşi PO'ya bağlar: iş PO'da zaten varsa satır tutarı artırılır, yoksa yeni satır açılır. PO tek para
+    /// birimlidir, dağıtım işin kalan net kapasitesini aşamaz ve fiyat işin snapshot'ından alınır.
+    /// </summary>
+    private static void SiparisKalemiBagla(FinansSiparis order, FinansIsKaydi work, FinansSiparisDagitimModel requested)
+    {
+        SiparisIcinAktifMi(work);
+        var productId = requested.FinansUrunId ?? work.FinansUrunId;
+        var pricingUnit = work.FiyatlandirmaBirimiSnapshot;
+        var unitPrice = requested.BirimFiyat ?? work.BirimFiyatSnapshot;
+        var currency = string.IsNullOrWhiteSpace(requested.ParaBirimi)
+            ? work.ParaBirimiSnapshot
+            : FinansParaBirimiKurali.Normalize(requested.ParaBirimi);
+        var vat = requested.KdvOrani ?? work.KdvOraniSnapshot;
+        if (productId != work.FinansUrunId || unitPrice != work.BirimFiyatSnapshot || currency != work.ParaBirimiSnapshot || vat != work.KdvOraniSnapshot)
+        {
+            throw IsKuraliException.Cakisma("PO işin fiyat snapshot'ını kullanır. Önce ayrı fiyatlandırma işlemiyle iş bedelini düzeltin.");
+        }
+        order.ParaBirimi ??= currency;
+        if (order.ParaBirimi != currency)
+            throw IsKuraliException.Cakisma("Tek PO yalnız aynı para birimindeki işleri içerebilir.");
+
+        var activeLines = work.SiparisKalemleri.Where(x => !x.FinansSiparis.IptalEdildi).ToList();
+        if (activeLines.Any(x => x.FiyatlandirmaBirimiSnapshot != pricingUnit))
+            throw IsKuraliException.Cakisma("Kısmi siparişte fiyatlandırma birimi değiştirilemez.");
+        var existing = order.Kalemler.SingleOrDefault(x => x.FinansIsKaydiId == work.Id);
+        if (existing is not null && !requested.NetTutar.HasValue)
+            throw IsKuraliException.Cakisma("PO'da bulunan işe yalnız net tutar olarak ek dağıtım yapılabilir.");
+        var distribution = requested.NetTutar.HasValue
+            ? new FinansDagitimMiktari(0, 0)
+            : FinansMiktarKurallari.DagitimiNormalizeEt(
+            pricingUnit,
+            requested.Adet,
+            requested.M3,
+            work.Adet,
+            work.ToplamM3,
+            activeLines.Sum(x => x.Adet),
+            activeLines.Sum(x => x.M3),
+            activeLines.Count > 0,
+            "Sipariş");
+        var pricingQuantity = FinansTutarKurallari.FiyatlandirmaMiktari(pricingUnit, distribution.Adet, distribution.M3);
+        var requestedNet = requested.NetTutar ?? FinansTutarKurallari.Hesapla(pricingQuantity, unitPrice, vat).Net;
+        FinansTutarKurallari.Kapasite(requestedNet, activeLines.Sum(x => x.NetTutarSnapshot), FinansTutarKurallari.IsNet(work), "Sipariş");
+        if (existing is not null)
+        {
+            var total = FinansTutarKurallari.Hesapla(1, existing.NetTutarSnapshot + requestedNet, existing.KdvOraniSnapshot);
+            existing.NetTutarSnapshot = total.Net;
+            existing.KdvTutariSnapshot = total.Kdv;
+            existing.ToplamTutarSnapshot = total.Toplam;
+            existing.TutarBazli = true;
+            return;
+        }
+        var money = FinansTutarKurallari.Hesapla(1, requestedNet, vat);
+        order.Kalemler.Add(new FinansSiparisKalemi
+        {
+            FinansIsKaydiId = work.Id,
+            FinansIsKaydi = work,
+            FinansSiparis = order,
+            Adet = distribution.Adet,
+            M3 = distribution.M3,
+            TutarBazli = requested.NetTutar.HasValue,
+            FinansUrunId = productId,
+            FiyatlandirmaBirimiSnapshot = pricingUnit,
+            BirimFiyatSnapshot = unitPrice,
+            ParaBirimiSnapshot = currency,
+            KdvOraniSnapshot = vat,
+            NetTutarSnapshot = money.Net,
+            KdvTutariSnapshot = money.Kdv,
+            ToplamTutarSnapshot = money.Toplam
+        });
+    }
+
+    internal static string PoNumarasiNormalize(string poNumarasi) => poNumarasi.Trim().ToUpperInvariant();
+
+    /// <summary>PO-1: PO numarası iptal edilmemiş siparişler arasında benzersizdir (büyük/küçük harf duyarsız).</summary>
+    private async Task PoNumarasiKullanilabilirMiAsync(string po, int? haricId, CancellationToken cancellationToken)
+    {
+        if (po.Length == 0) throw IsKuraliException.Cakisma("PO numarası zorunludur.");
+        if (await context.Set<FinansSiparis>().AnyAsync(x => x.PoNumarasi == po && !x.IptalEdildi &&
+                (!haricId.HasValue || x.Id != haricId.Value), cancellationToken))
+            throw IsKuraliException.Cakisma("Bu PO numarası aktif bir siparişte kullanılıyor. Yeni işleri mevcut PO'ya kalem olarak ekleyin.");
     }
 
     public Task<bool> SiparisIptalAsync(int id, string aciklama, CancellationToken cancellationToken)
@@ -311,14 +510,20 @@ internal sealed class FinansSiparisFaturaService(
                                      x.KayitNo.ToLower().Contains(search) ||
                                      x.FinansSiparis.PoNumarasi.ToLower().Contains(search));
         }
+        var bugun = TurkeyTime.Now.Date;
+        var uyariGunu = await FinansSorgulari.VadeUyariGunuAsync(context, cancellationToken);
+        query = FinansSorgulari.OdemeFiltresi(query, filtre.OdemeDurumu, bugun, uyariGunu);
         var page = Math.Max(1, filtre.PageNumber);
         var size = Math.Clamp(filtre.PageSize, 1, 250);
         var count = await query.CountAsync(cancellationToken);
-        var entities = await query.OrderByDescending(x => x.FaturaTarihi).ThenByDescending(x => x.Id)
-            .Skip((page - 1) * size).Take(size).ToListAsync(cancellationToken);
+        // Vade takibinde en acil fatura üstte; normal listede en yeni fatura.
+        var ordered = filtre.OdemeDurumu is FinansOdemeFiltresi.Odenmedi or FinansOdemeFiltresi.VadesiGecen or FinansOdemeFiltresi.VadesiYaklasan
+            ? query.OrderBy(x => x.VadeTarihi).ThenBy(x => x.Id)
+            : query.OrderByDescending(x => x.FaturaTarihi).ThenByDescending(x => x.Id);
+        var entities = await ordered.Skip((page - 1) * size).Take(size).ToListAsync(cancellationToken);
         return new FinansSayfaliSonuc<FinansFaturaModel>
         {
-            Items = entities.Select(x => FinansSiparisFaturaEslemeleri.MapFatura(x, filtre)).ToArray(),
+            Items = entities.Select(x => FinansSiparisFaturaEslemeleri.MapFatura(x, bugun, uyariGunu, filtre)).ToArray(),
             Toplamlar = await FinansSorgulari.BuildInvoiceTotalsQuery(query.Where(x => !x.IptalEdildi).SelectMany(x => x.Kalemler)
                 .Where(x => scopedLines.Select(l => l.Id).Contains(x.FinansSiparisKalemiId)))
                 .ToArrayAsync(cancellationToken),
@@ -342,7 +547,59 @@ internal sealed class FinansSiparisFaturaService(
     public async Task<FinansFaturaModel?> FaturaGetirAsync(int id, CancellationToken cancellationToken)
     {
         var entity = await FaturaDetayQuery().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
-        return entity is null ? null : FinansSiparisFaturaEslemeleri.MapFatura(entity);
+        return entity is null ? null : await MapFaturaAsync(entity, cancellationToken);
+    }
+
+    private async Task<FinansFaturaModel> MapFaturaAsync(FinansFatura entity, CancellationToken cancellationToken)
+        => FinansSiparisFaturaEslemeleri.MapFatura(entity, TurkeyTime.Now.Date,
+            await FinansSorgulari.VadeUyariGunuAsync(context, cancellationToken));
+
+    public Task<FinansFaturaModel?> OdemeKaydetAsync(int id, FinansOdemeKaydetModel model, CancellationToken cancellationToken)
+        => islem.AtomikAsync(() => OdemeKaydetCoreAsync(id, model, cancellationToken), cancellationToken);
+
+    /// <summary>
+    /// Tahsilat dışarıdan gelir; kullanıcı faturayı ödendi olarak işaretler (tutar faturanın tamamıdır). İşaretin
+    /// kaldırılması gerekçe ister; ikisi de denetim kaydına yazılır. Aynı durum tekrar gönderilirse değişiklik yapılmaz.
+    /// </summary>
+    private async Task<FinansFaturaModel?> OdemeKaydetCoreAsync(int id, FinansOdemeKaydetModel model, CancellationToken cancellationToken)
+    {
+        var invoice = await context.Set<FinansFatura>().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (invoice is null) return null;
+        if (invoice.IptalEdildi) throw IsKuraliException.Cakisma("İptal edilmiş faturanın ödemesi işaretlenemez.");
+        var odemeTarihi = FinansVadeKurallari.OdemeTarihiDogrula(model.Odendi, model.OdemeTarihi, TurkeyTime.Now.Date);
+        var aciklama = string.IsNullOrWhiteSpace(model.Aciklama) ? null : model.Aciklama.Trim();
+        if (aciklama?.Length > FinansGerekceKurali.EnUzun) throw IsKuraliException.Cakisma("Ödeme açıklaması en fazla 1000 karakter olabilir.");
+        if (invoice.OdendiMi && !model.Odendi) FinansGerekceKurali.Dogrula(aciklama);
+        if (invoice.OdendiMi == model.Odendi && invoice.OdemeTarihi == odemeTarihi && invoice.OdemeAciklamasi == aciklama)
+            return await FaturaGetirAsync(id, cancellationToken);
+
+        var before = FinansDenetimKaydi.AnlikGoruntu(invoice);
+        var islemAdi = model.Odendi == invoice.OdendiMi ? "Ödeme Güncelleme" : model.Odendi ? "Ödeme Kaydı" : "Ödeme Geri Alma";
+        invoice.OdendiMi = model.Odendi;
+        invoice.OdemeTarihi = odemeTarihi;
+        invoice.OdemeAciklamasi = aciklama;
+        denetim.Ekle(nameof(FinansFatura), id, islemAdi, nameof(invoice.OdendiMi), before[nameof(invoice.OdendiMi)], invoice.OdendiMi, aciklama);
+        denetim.DegisiklikleriEkle(nameof(FinansFatura), invoice, before);
+        await context.SaveChangesAsync(cancellationToken);
+        return await FaturaGetirAsync(id, cancellationToken);
+    }
+
+    public async Task<FinansVadeUyarilariModel> VadeUyarilariAsync(int enFazlaKalem, CancellationToken cancellationToken)
+    {
+        var bugun = TurkeyTime.Now.Date;
+        var uyariGunu = await FinansSorgulari.VadeUyariGunuAsync(context, cancellationToken);
+        var sinir = bugun.AddDays(uyariGunu + 1);
+        var query = context.Set<FinansFatura>().AsNoTracking().Where(x => !x.IptalEdildi && !x.OdendiMi && x.VadeTarihi < sinir);
+        var gecen = await query.CountAsync(x => x.VadeTarihi < bugun, cancellationToken);
+        var yaklasan = await query.CountAsync(x => x.VadeTarihi >= bugun, cancellationToken);
+        var satirlar = await FinansSorgulari.AlacakSatirlariAsync(
+            query.OrderBy(x => x.VadeTarihi).ThenBy(x => x.Id).Take(Math.Clamp(enFazlaKalem, 1, 100)), cancellationToken);
+        return new FinansVadeUyarilariModel(uyariGunu, gecen, yaklasan, satirlar
+            .OrderBy(x => x.VadeTarihi).ThenBy(x => x.Id)
+            .Select(x => new FinansVadeUyarisiModel(x.Id, x.FaturaNumarasi, x.PoNumarasi, x.ProjeNo, x.FaturaTarihi, x.VadeTarihi,
+                FinansVadeKurallari.VadeFarkiGun(false, x.VadeTarihi, null, bugun),
+                FinansVadeKurallari.Durum(false, x.VadeTarihi, null, bugun, uyariGunu), x.ParaBirimi, x.Toplam))
+            .ToArray());
     }
 
     public Task<FinansFaturaModel?> FaturaGuncelleAsync(
@@ -369,8 +626,11 @@ internal sealed class FinansSiparisFaturaService(
         entity.FaturaNumarasi = invoiceNo;
         entity.FaturaTarihi = model.FaturaTarihi;
         entity.Aciklama = model.Aciklama?.Trim();
+        entity.VadeTarihi = FinansVadeKurallari.VadeDogrula(model.FaturaTarihi, model.VadeTarihi ?? entity.VadeTarihi);
         if (model.Kalemler is not null)
         {
+            if (entity.OdendiMi)
+                throw IsKuraliException.Cakisma("Ödendi olarak işaretli faturanın tutarı değiştirilemez; önce ödeme işaretini kaldırın.");
             FinansGerekceKurali.Dogrula(model.Gerekce);
             if (model.BelgeMutabakatiniKoru) throw IsKuraliException.Cakisma("Kalem revizyonunda eski belge tutarları korunamaz; gerçek belge toplamlarını yeniden girin.");
             if (model.Kalemler.Count == 0 || model.Kalemler.Select(x => x.SiparisKalemiId).Distinct().Count() != model.Kalemler.Count)
@@ -422,20 +682,21 @@ internal sealed class FinansSiparisFaturaService(
         if (order.IptalEdildi) throw IsKuraliException.Cakisma("İptal edilmiş sipariş faturalanamaz.");
         if (order.Kalemler.Select(x => x.ParaBirimiSnapshot).Distinct().Count() != 1)
             throw IsKuraliException.Cakisma("Fatura oluşturmak için PO satırlarının para birimleri aynı olmalıdır.");
-        var requestedIds = model.Kalemler.Select(x => x.SiparisKalemiId).Distinct().ToArray();
-        if (requestedIds.Length != model.Kalemler.Count)
-            throw IsKuraliException.Cakisma("Aynı sipariş kalemi faturada birden fazla kez kullanılamaz.");
-        if (model.Kalemler.Count == 0) throw IsKuraliException.Cakisma("En az bir fatura kalemi seçilmelidir.");
+        var istenenKalemler = FaturaKalemleriniHazirla(order, model.Kalemler, model.Gruplar);
 
+        var vadeTarihi = model.VadeTarihi.HasValue
+            ? FinansVadeKurallari.VadeDogrula(model.FaturaTarihi, model.VadeTarihi.Value)
+            : FinansVadeKurallari.VadeTarihi(model.FaturaTarihi, await FinansSorgulari.VarsayilanVadeGunuAsync(context, cancellationToken));
         var invoice = new FinansFatura
         {
             FinansSiparisId = order.Id,
             KayitNo = NewDocumentNo("FAT"),
             FaturaNumarasi = invoiceNo,
             FaturaTarihi = model.FaturaTarihi,
+            VadeTarihi = vadeTarihi,
             Aciklama = model.Aciklama?.Trim()
         };
-        foreach (var requested in model.Kalemler)
+        foreach (var requested in istenenKalemler)
         {
             var line = order.Kalemler.FirstOrDefault(x => x.Id == requested.SiparisKalemiId)
                 ?? throw IsKuraliException.Cakisma("Fatura kalemi siparişe ait değil.");
@@ -487,9 +748,39 @@ internal sealed class FinansSiparisFaturaService(
         RefreshOrderStatus(order);
         await RefreshWorkStatusesAsync(order.Kalemler.Select(x => x.FinansIsKaydiId), cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
-        return (await FaturaDetayQuery().Where(x => x.Id == invoice.Id).Select(x => x).FirstAsync(cancellationToken)) is { } loaded
-            ? FinansSiparisFaturaEslemeleri.MapFatura(loaded)
-            : throw IsKuraliException.Cakisma("Fatura oluşturuldu ancak okunamadı.");
+        return await MapFaturaAsync(await FaturaDetayQuery().FirstAsync(x => x.Id == invoice.Id, cancellationToken), cancellationToken);
+    }
+
+    /// <summary>
+    /// Fatura kalemlerini tek tek ve grup düzeyinde istenen tutarlardan kurar. Grup tutarı grubun PO
+    /// kalemlerine satır sırasıyla, her satırın faturalanmamış net bakiyesini aşmadan dağıtılır. Bütün
+    /// kalemler seçilen PO'ya ait olmalıdır; PO'suz iş faturalanamaz.
+    /// </summary>
+    internal static IReadOnlyList<FinansFaturaKalemiOlusturModel> FaturaKalemleriniHazirla(
+        FinansSiparis order,
+        IReadOnlyList<FinansFaturaKalemiOlusturModel> kalemler,
+        IReadOnlyList<FinansFaturaGrupKalemiModel>? gruplar)
+    {
+        gruplar ??= [];
+        var tumIds = kalemler.Select(x => x.SiparisKalemiId).Concat(gruplar.SelectMany(x => x.SiparisKalemiIds)).ToArray();
+        if (tumIds.Length == 0) throw IsKuraliException.Cakisma("En az bir fatura kalemi seçilmelidir.");
+        if (tumIds.Distinct().Count() != tumIds.Length)
+            throw IsKuraliException.Cakisma("Aynı sipariş kalemi faturada birden fazla kez kullanılamaz.");
+        var byId = order.Kalemler.ToDictionary(x => x.Id);
+        if (tumIds.Any(id => !byId.ContainsKey(id)))
+            throw IsKuraliException.Cakisma("Fatura kalemi siparişe ait değil.");
+
+        var sonuc = kalemler.ToList();
+        foreach (var grup in gruplar)
+        {
+            var satirlar = grup.SiparisKalemiIds.Select(x => byId[x]).OrderBy(x => x.Id).ToArray();
+            var paylar = FinansDagitimKurallari.Dagit(grup.NetTutar,
+                satirlar.Select(x => new FinansDagitimKapasitesi(x.Id,
+                    x.NetTutarSnapshot - FinansTutarKurallari.FaturaNet(x))).ToArray(),
+                "Fatura");
+            sonuc.AddRange(paylar.Select(x => new FinansFaturaKalemiOlusturModel(x.Id, 0, 0, x.Tutar)));
+        }
+        return sonuc;
     }
 
     public Task<bool> FaturaIptalAsync(int id, string aciklama, CancellationToken cancellationToken)
@@ -501,6 +792,8 @@ internal sealed class FinansSiparisFaturaService(
         var invoice = await FaturaDetayQuery(true).FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (invoice is null) return false;
         if (invoice.IptalEdildi) return true;
+        if (invoice.OdendiMi)
+            throw IsKuraliException.Cakisma("Ödendi olarak işaretli fatura iptal edilemez; önce ödeme işaretini kaldırın.");
         invoice.IptalEdildi = true;
         invoice.IptalTarihi = TurkeyTime.Now;
         invoice.IptalAciklamasi = aciklama.Trim();
@@ -516,28 +809,7 @@ internal sealed class FinansSiparisFaturaService(
     private void RefreshOrderStatus(FinansSiparis order)
     {
         var oldStatus = order.Durum;
-        if (order.IptalEdildi)
-        {
-            order.Durum = FinansSiparisDurumu.IptalEdildi;
-        }
-        else
-        {
-            var invoiceLines = order.Kalemler.SelectMany(x => x.FaturaKalemleri)
-                .Where(x => !x.FinansFatura.IptalEdildi).ToList();
-            var anyInvoice = order.Kalemler.Any(line =>
-            {
-                var lines = invoiceLines.Where(x => x.FinansSiparisKalemiId == line.Id).ToList();
-                return lines.Sum(x => x.NetTutarSnapshot) > 0;
-            });
-            var fullyInvoiced = order.Kalemler.Count > 0 && order.Kalemler.All(line =>
-            {
-                var lines = invoiceLines.Where(x => x.FinansSiparisKalemiId == line.Id).ToList();
-                return line.NetTutarSnapshot > 0 && lines.Sum(x => x.NetTutarSnapshot) >= line.NetTutarSnapshot;
-            });
-            order.Durum = fullyInvoiced
-                ? FinansSiparisDurumu.Faturalandi
-                : anyInvoice ? FinansSiparisDurumu.KismiFaturalandi : FinansSiparisDurumu.Acik;
-        }
+        order.Durum = FinansTutarKurallari.SiparisDurumu(order);
         denetim.DegisiklikEkle(nameof(FinansSiparis), order.Id, nameof(order.Durum), oldStatus, order.Durum);
     }
 
@@ -565,9 +837,27 @@ internal sealed class FinansSiparisFaturaService(
             .Include(x => x.Kalemler)
                 .ThenInclude(x => x.FaturaKalemleri)
                     .ThenInclude(x => x.FinansFatura)
+            .Include(x => x.Giderler.Where(g => !g.IptalEdildi && !g.AvansMi))
             .AsSplitQuery();
 
         return tracking ? query : query.AsNoTracking();
+    }
+
+    /// <summary>
+    /// İşlerin bütün aktif PO'larda siparişe bağlanan net toplamı (<see cref="FinansTutarKurallari.SiparisNet(FinansIsKaydi)"/>);
+    /// PO satırında işin kalan sipariş bakiyesi bundan hesaplanır.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<int, decimal>> IsSiparisToplamlariAsync(
+        IEnumerable<FinansSiparis> orders,
+        CancellationToken cancellationToken)
+    {
+        var ids = orders.SelectMany(x => x.Kalemler).Select(x => x.FinansIsKaydiId).Distinct().ToArray();
+        if (ids.Length == 0) return new Dictionary<int, decimal>();
+        return await context.Set<FinansSiparisKalemi>().AsNoTracking()
+            .Where(x => ids.Contains(x.FinansIsKaydiId) && !x.FinansSiparis.IptalEdildi)
+            .GroupBy(x => x.FinansIsKaydiId)
+            .Select(x => new { x.Key, Toplam = x.Sum(y => y.NetTutarSnapshot) })
+            .ToDictionaryAsync(x => x.Key, x => x.Toplam, cancellationToken);
     }
 
     private IQueryable<FinansFatura> FaturaDetayQuery(bool tracking = false)
@@ -632,7 +922,7 @@ internal sealed class FinansSiparisFaturaService(
 
         if (documentNet.Value < 0 || documentVat.Value < 0 || documentTotal.Value < 0)
             throw IsKuraliException.Cakisma("Belge tutarları negatif olamaz.");
-        if (documentNet.Value + documentVat.Value != documentTotal.Value)
+        if (!FinansTutarKurallari.BelgeToplamiDengeli(documentNet.Value, documentVat.Value, documentTotal.Value))
             throw IsKuraliException.Cakisma("Belge net + KDV toplamı brüt toplamla eşleşmelidir.");
 
         var lineCurrencies = invoice.Kalemler
@@ -647,9 +937,9 @@ internal sealed class FinansSiparisFaturaService(
             throw IsKuraliException.Cakisma("Belge para birimi fatura kalemlerinin para birimiyle eşleşmelidir.");
 
         var calculatedTotal = invoice.Kalemler.Sum(x => x.ToplamTutarSnapshot);
-        if (documentNet.Value != invoice.Kalemler.Sum(x => x.NetTutarSnapshot) ||
-            documentVat.Value != invoice.Kalemler.Sum(x => x.KdvTutariSnapshot) ||
-            documentTotal.Value != calculatedTotal)
+        if (FinansTutarKurallari.Para(documentNet.Value) != invoice.Kalemler.Sum(x => x.NetTutarSnapshot) ||
+            FinansTutarKurallari.Para(documentVat.Value) != invoice.Kalemler.Sum(x => x.KdvTutariSnapshot) ||
+            FinansTutarKurallari.Para(documentTotal.Value) != calculatedTotal)
             throw IsKuraliException.Cakisma("Belge net/KDV/brüt tutarları satır toplamlarıyla eşleşmelidir. Farkı PO kapasitesini aşmadan satırlara dağıtın.");
         var difference = decimal.Round(documentTotal.Value - calculatedTotal, 2, MidpointRounding.AwayFromZero);
         var normalizedNote = reconciliationNote?.Trim();

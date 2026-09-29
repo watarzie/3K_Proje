@@ -20,6 +20,7 @@ public sealed class FinansGiderKaydetModelValidator : AbstractValidator<FinansGi
         RuleFor(x => x.ParaBirimi).Must(FinansValidationRules.Currency);
         RuleFor(x => x.KdvOrani).InclusiveBetween(0, 100);
         RuleFor(x => x.ManuelProjeNo).MaximumLength(100);
+        RuleFor(x => x.FinansSiparisId).GreaterThan(0).When(x => x.FinansSiparisId.HasValue);
         RuleFor(x => x).Must(x => !(x.ProjeId.HasValue && !string.IsNullOrWhiteSpace(x.ManuelProjeNo)))
             .WithMessage("Sistem projesi ile manuel proje aynı anda seçilemez.");
     }

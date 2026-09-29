@@ -22,8 +22,8 @@ public sealed class FinansPanelController(IMediator mediator) : FinansController
         => (await Mediator.Send(new FinansGenelAramaQuery { Filtre = request.ToModel() }, ct)).ToActionResult();
 
     [HttpGet("yaslandirma")]
-    public async Task<ActionResult> Yaslandirma([FromQuery] FinansFilterRequest request, [FromQuery] DateTime? referansTarihi, [FromQuery] int minimumGun, CancellationToken ct)
-        => (await Mediator.Send(new FinansYaslandirmaQuery { Filtre = request.ToModel(), ReferansTarihi = referansTarihi ?? TurkeyTime.Now.Date, MinimumGun = minimumGun }, ct)).ToActionResult();
+    public async Task<ActionResult> Yaslandirma([FromQuery] FinansFilterRequest request, [FromQuery] DateTime? referansTarihi, [FromQuery] int minimumGun, [FromQuery] string? asama, CancellationToken ct)
+        => (await Mediator.Send(new FinansYaslandirmaQuery { Filtre = request.ToModel(), ReferansTarihi = referansTarihi ?? TurkeyTime.Now.Date, MinimumGun = minimumGun, Asama = asama }, ct)).ToActionResult();
 
     [HttpGet("denetim")]
     public async Task<ActionResult> Denetim(

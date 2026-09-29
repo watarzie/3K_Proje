@@ -102,12 +102,19 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
 
                 var tamamlanmisProje = AmbalajUretimPolitikasi.ProjeDurumu(
                     kayitRepo.Queryable().Where(k => k.ProjeId == proje.Id).ToList()) == AmbalajUretimDurumu.Tamamlandi;
+                // Plan başlangıcı projenin ilk senkron kaydıdır; bu senkronda eklenen kayıtlar henüz
+                // kaydedilmediği için hesaba katılmaz.
+                var planBaslangici = kayitRepo.Queryable()
+                    .Where(k => k.ProjeId == proje.Id && !k.IptalMi && !k.BagimsizKayitMi && k.KaynakKayitId.HasValue)
+                    .Select(k => (DateTime?)k.CreatedDate)
+                    .Min();
                 foreach (var sandik in sandiklar)
                 {
                     transactionToken.ThrowIfCancellationRequested();
                     if (!globalMevcutlar.TryGetValue(sandik.Id, out var kayit))
                     {
-                        kayit = YeniKayitOlustur(proje, sandik, kaynakModul, tur);
+                        kayit = YeniKayitOlustur(proje, sandik, kaynakModul,
+                            AmbalajUretimPolitikasi.KaynakGrubu(tur, null, planBaslangici, sandik.CreatedDate));
                         if (tamamlanmisProje) kayit.AmbalajKarariniUygula(false);
                         await kayitRepo.AddAsync(kayit);
                         await AmbalajUretimYardimcilari.AlanHareketleriniEkleAsync(
@@ -137,7 +144,8 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
                     var eski = AmbalajUretimYardimcilari.Snapshot(kayit);
                     if (sistemIptalindenDonuyor) kayit.SistemIptaliniGeriAl();
 
-                    KaynakAlanlariniUygula(kayit, proje, sandik, kaynakModul, tur);
+                    KaynakAlanlariniUygula(kayit, proje, sandik, kaynakModul,
+                        AmbalajUretimPolitikasi.KaynakGrubu(tur, kayit.Tur, planBaslangici, sandik.CreatedDate));
                     var yeni = AmbalajUretimYardimcilari.Snapshot(kayit);
                     var sadeceSenkronizasyonTarihiDegisti = yeni
                         .Where(x => x.Key != nameof(AmbalajUretimKaydi.KaynakSonSenkronizasyonTarihi))

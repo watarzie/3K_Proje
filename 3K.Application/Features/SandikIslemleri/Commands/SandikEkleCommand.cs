@@ -14,7 +14,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         public int ProjeId { get; set; }
         public string SandikNo { get; set; } = string.Empty;
         public string? SandikIsmi { get; set; }
-        public int TipId { get; set; } = (int)SandikTipi.AhsapKapali;
+        /// <summary>Sandık tipi (<see cref="SandikTipi"/>) zorunludur; Ambalaj senkronunda sandık cinsini belirler (G2).</summary>
+        public int? TipId { get; set; }
         public int DepoLokasyonId { get; set; } = (int)DepoLokasyon.Belirsiz;
 
         // Fiziksel Özellikler (Saha/Yedek projeleri için)

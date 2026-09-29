@@ -79,4 +79,87 @@ public static class FinansTutarKurallari
         if (invoiced > 0) return FinansIsDurumu.KismiFaturalandi;
         return ordered >= amount ? FinansIsDurumu.SiparisAcildi : FinansIsDurumu.KismiSiparis;
     }
+
+    /// <summary>
+    /// PO durumu satırlarından ve aktif fatura kalemlerinden türetilir, elle atanmaz: hiç fatura yoksa
+    /// açık, her satır tam faturalandıysa faturalandı, arada kısmi faturalandı.
+    /// </summary>
+    public static FinansSiparisDurumu SiparisDurumu(FinansSiparis order)
+    {
+        if (order.IptalEdildi) return FinansSiparisDurumu.IptalEdildi;
+        var anyInvoice = order.Kalemler.Any(line => FaturaNet(line) > 0);
+        var fullyInvoiced = order.Kalemler.Count > 0 && order.Kalemler.All(line =>
+            line.NetTutarSnapshot > 0 && FaturaNet(line) >= line.NetTutarSnapshot);
+        return fullyInvoiced
+            ? FinansSiparisDurumu.Faturalandi
+            : anyInvoice ? FinansSiparisDurumu.KismiFaturalandi : FinansSiparisDurumu.Acik;
+    }
+
+    /// <summary>
+    /// Bir proje veya grubun aktif kalemlerinden birleşik sipariş/fatura durumu. Gerekli kalem, net bedeli
+    /// sıfırdan büyük kalemdir; fiyatı olmayan kalem ayrıca sayılır. Proje, gerekli kalemlerden biri tam
+    /// siparişe bağlanmadıkça "Kısmi Sipariş"tir; aynı mantık faturada da uygulanır ve proje yalnız bütün
+    /// gerekli kalemleri tamamlandığında tamamlanır. İptal edilmiş/pasif kalemler çağıran tarafça dışarıda
+    /// bırakılır.
+    /// </summary>
+    public static FinansDurumOzeti BirlesikDurum(IEnumerable<FinansKalemTutarlari> kalemler)
+    {
+        ArgumentNullException.ThrowIfNull(kalemler);
+        var liste = kalemler.ToList();
+        var gerekli = liste.Where(x => x.Net > 0).ToList();
+        var fiyatBekleyen = liste.Count - gerekli.Count;
+        if (gerekli.Count == 0)
+            return new FinansDurumOzeti(FinansKarsilanma.Yok, FinansKarsilanma.Yok, FinansIsDurumu.SiparisBekliyor, 0, fiyatBekleyen);
+
+        var siparis = Karsilanma(gerekli.Select(x => (x.Net, x.Siparis)));
+        var fatura = Karsilanma(gerekli.Select(x => (x.Net, x.Fatura)));
+        var durum = siparis switch
+        {
+            FinansKarsilanma.Yok => FinansIsDurumu.SiparisBekliyor,
+            FinansKarsilanma.Kismi => FinansIsDurumu.KismiSiparis,
+            _ => fatura switch
+            {
+                FinansKarsilanma.Tam => FinansIsDurumu.Faturalandi,
+                FinansKarsilanma.Kismi => FinansIsDurumu.KismiFaturalandi,
+                _ => FinansIsDurumu.SiparisAcildi
+            }
+        };
+        return new FinansDurumOzeti(siparis, fatura, durum, gerekli.Count, fiyatBekleyen);
+    }
+
+    private static FinansKarsilanma Karsilanma(IEnumerable<(decimal Gereken, decimal Karsilanan)> kalemler)
+    {
+        var durumlar = kalemler.Select(x => KalemKarsilanma(x.Gereken, x.Karsilanan)).ToList();
+        if (durumlar.All(x => x == FinansKarsilanma.Yok)) return FinansKarsilanma.Yok;
+        return durumlar.All(x => x == FinansKarsilanma.Tam) ? FinansKarsilanma.Tam : FinansKarsilanma.Kismi;
+    }
+
+    /// <summary>
+    /// Tek kalemin sipariş veya fatura karşılanması: hiç tutar yoksa yok, net bedelin tamamı karşılandıysa
+    /// tam, arada kısmi. SQL karşılığı <c>FinansSorgulari.KarsilanmaIfadesi</c>'dir.
+    /// </summary>
+    public static FinansKarsilanma KalemKarsilanma(decimal net, decimal karsilanan)
+        => karsilanan <= 0 ? FinansKarsilanma.Yok
+            : net > 0 && karsilanan >= net ? FinansKarsilanma.Tam
+            : FinansKarsilanma.Kismi;
+
+    /// <summary>İşin birleşik durum hesabına giren net, sipariş ve fatura tutarları.</summary>
+    public static FinansKalemTutarlari KalemTutarlari(FinansIsKaydi work) => new(IsNet(work), SiparisNet(work), FaturaNet(work));
+
+    /// <summary>
+    /// Belge (fatura/PO) net + KDV = brüt denkliği. Tutarlar kuruşa yuvarlandıktan sonra kesin eşitlik
+    /// aranır; doğrulayıcı ve servis aynı kuralı kullanır.
+    /// </summary>
+    public static bool BelgeToplamiDengeli(decimal net, decimal kdv, decimal toplam) => Para(net) + Para(kdv) == Para(toplam);
 }
+
+/// <summary>Birleşik durum hesabında tek kalemin net bedeli, siparişe bağlanan ve faturalanan net tutarı.</summary>
+public readonly record struct FinansKalemTutarlari(decimal Net, decimal Siparis, decimal Fatura);
+
+/// <summary>Proje/grup düzeyinde sipariş ve fatura karşılanması, akış durumu ve kalem sayıları.</summary>
+public sealed record FinansDurumOzeti(
+    FinansKarsilanma Siparis,
+    FinansKarsilanma Fatura,
+    FinansIsDurumu Durum,
+    int GerekliKalem,
+    int FiyatBekleyenKalem);

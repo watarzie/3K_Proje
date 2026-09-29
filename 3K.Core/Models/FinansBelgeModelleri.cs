@@ -9,5 +9,11 @@ public sealed record FinansKaliciSilModel(string VarlikTuru, int Id, string Suru
 
 public sealed record FinansBagimlilikModel(string VarlikTuru, int Id, string Referans);
 
+/// <summary>
+/// Kalıcı silme önizlemesi. <see cref="Bagimliliklar"/> silmeyi engelleyen bağlı kayıtlardır ve her biri
+/// <see cref="Engeller"/> içinde adıyla belirtilir; <see cref="BirlikteSilinecekler"/> kaydın kendi satırları
+/// ve ekleridir, kayıtla aynı işlemde silinir.
+/// </summary>
 public sealed record FinansKaliciSilOnizlemeModel(string VarlikTuru, int Id, string Referans, string Surum, bool Silinebilir,
-    IReadOnlyList<FinansBagimlilikModel> Bagimliliklar, IReadOnlyList<string> Engeller);
+    IReadOnlyList<FinansBagimlilikModel> Bagimliliklar, IReadOnlyList<string> Engeller,
+    IReadOnlyList<FinansBagimlilikModel>? BirlikteSilinecekler = null);

@@ -15,6 +15,22 @@ namespace _3K.Infrastructure.Repositories
             _context = context;
         }
 
+        /// <summary>
+        /// S-11 liste görünürlüğü. Sevk edilenler kayıtlı Sevk Edildi/Kısmi Sevk durumundaki veya fiziksel sevkli
+        /// sandığı olan projelerdir. Aktif liste yalnız kayıtlı tam Sevk Edildi durumunu dışlar; Kısmi Sevk iki
+        /// listede de bulunur. G1: sevkiyat kilidi kayıt korunarak açılmış (düzeltmesi açık sevkli sandığı olan)
+        /// saha/yedek projesi, durumu Sevk Edildi kalsa da kendi modül listesine döner.
+        /// </summary>
+        internal static IQueryable<Proje> SevkFiltresi(IQueryable<Proje> query, bool isSevkEdilen) => isSevkEdilen
+            ? query.Where(p =>
+                p.DurumId == (int)ProjeDurum.SevkEdildi ||
+                p.DurumId == (int)ProjeDurum.EksikSevkEdildi ||
+                p.Sandiklar.Any(s => s.DurumId == (int)SandikDurum.Sevkedildi))
+            : query.Where(p =>
+                p.DurumId != (int)ProjeDurum.SevkEdildi ||
+                ((p.ProjeTipiId == (int)ProjeTipi.Saha || p.ProjeTipiId == (int)ProjeTipi.Yedek) &&
+                 p.Sandiklar.Any(s => s.DurumId == (int)SandikDurum.Sevkedildi && s.SevkiyatDuzeltmeAcikMi)));
+
         public async Task<IEnumerable<Proje>> GetAllWithDetailsAsync(CancellationToken cancellationToken = default)
         {
             return await _context.Projeler
@@ -63,15 +79,7 @@ namespace _3K.Infrastructure.Repositories
                 query = query.Where(p => p.ProjeTipiId == projeTipiId.Value);
 
             if (isSevkEdilen.HasValue)
-            {
-                if (isSevkEdilen.Value)
-                    query = query.Where(p =>
-                        p.DurumId == (int)ProjeDurum.SevkEdildi ||
-                        p.DurumId == (int)ProjeDurum.EksikSevkEdildi ||
-                        p.Sandiklar.Any(s => s.DurumId == (int)SandikDurum.Sevkedildi));
-                else
-                    query = query.Where(p => p.DurumId != (int)ProjeDurum.SevkEdildi); // EksikSevkEdildi aktif iş olarak kalır
-            }
+                query = SevkFiltresi(query, isSevkEdilen.Value);
 
             if (!string.IsNullOrWhiteSpace(searchTerm))
             {
@@ -128,15 +136,7 @@ namespace _3K.Infrastructure.Repositories
                 query = query.Where(p => p.ProjeTipiId == projeTipiId.Value);
 
             if (isSevkEdilen.HasValue)
-            {
-                if (isSevkEdilen.Value)
-                    query = query.Where(p =>
-                        p.DurumId == (int)ProjeDurum.SevkEdildi ||
-                        p.DurumId == (int)ProjeDurum.EksikSevkEdildi ||
-                        p.Sandiklar.Any(s => s.DurumId == (int)SandikDurum.Sevkedildi));
-                else
-                    query = query.Where(p => p.DurumId != (int)ProjeDurum.SevkEdildi);
-            }
+                query = SevkFiltresi(query, isSevkEdilen.Value);
 
             if (!string.IsNullOrWhiteSpace(searchTerm))
             {

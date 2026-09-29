@@ -73,6 +73,16 @@ internal sealed class FinansAylikOzetService(AppDbContext context) : IFinansAyli
             .ToArray();
 
         IReadOnlyList<FinansAylikIsModel> items = Array.Empty<FinansAylikIsModel>();
+        IReadOnlyList<FinansAylikProjeOzetiModel> projects = Array.Empty<FinansAylikProjeOzetiModel>();
+        if (selectedProjectIds.Length > 0 || selectedManualKeys.Length > 0)
+        {
+            var projectRecords = await AylikKayitlariFiltrele(context.IsKaydiDetayQuery(), baslangic, bitis)
+                .Where(x => x.IsTuru != FinansIsTuru.OzelIs && x.KaynakAktif && !x.IptalEdildi &&
+                            ((x.ProjeId.HasValue && selectedProjectIds.Contains(x.ProjeId.Value)) ||
+                             (!x.ProjeId.HasValue && selectedManualKeys.Contains(x.ProjeNo + "\u001f" + x.Musteri))))
+                .ToListAsync(cancellationToken);
+            projects = ProjeOzetleriniOlustur(projectRecords);
+        }
         if (selectedUnits.Count > 0)
         {
             // Arama proje birimini seçer; seçilen projenin aynı filtrelere uyan
@@ -112,6 +122,7 @@ internal sealed class FinansAylikOzetService(AppDbContext context) : IFinansAyli
         return new FinansAylikSayfaliSonuc
         {
             Items = items,
+            Projeler = projects,
             FinansOzeti = financeSummary,
             GrupToplamlari = groupTotals,
             PageNumber = page,
@@ -246,6 +257,7 @@ internal sealed class FinansAylikOzetService(AppDbContext context) : IFinansAyli
 
             var net = satirlar.Sum(FinansTutarKurallari.IsNet);
             var kdv = satirlar.Sum(x => FinansTutarKurallari.Para(FinansTutarKurallari.IsNet(x) * x.KdvOraniSnapshot / 100m));
+            var ozet = SatirOzeti(satirlar);
             var isAdi = IsAdi(
                 grup.Key.IsTuru,
                 grup.Key.SandikTipi,
@@ -271,7 +283,9 @@ internal sealed class FinansAylikOzetService(AppDbContext context) : IFinansAyli
                 faturalar.Select(x => x.FinansFatura.FaturaNumarasi).Distinct().Order().ToArray(),
                 Durum(net, siparisler.Sum(x => x.NetTutarSnapshot), faturalar.Sum(x => x.NetTutarSnapshot)),
                 false, false, satirlar.All(x => x.IptalEdildi),
-                satirlar.Select(x => x.IptalAciklamasi).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x))));
+                satirlar.Select(x => x.IptalAciklamasi).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)),
+                FinansKategoriKurali.Kategori(grup.Key.IsTuru, null), ozet.Durum.Siparis, ozet.Durum.Fatura,
+                ozet.AhsapM3, ozet.KontraM3, ozet.KalanSiparis, ozet.KalanFatura));
         }
 
         foreach (var kayit in kayitlar.Where(x => x.IsTuru == FinansIsTuru.OzelIs))
@@ -289,9 +303,7 @@ internal sealed class FinansAylikOzetService(AppDbContext context) : IFinansAyli
             var faturalananMiktar = Math.Min(siparisMiktari, faturalar.Sum(FaturaMiktari));
             var net = FinansTutarKurallari.IsNet(kayit);
             var kdv = FinansTutarKurallari.Para(net * kayit.KdvOraniSnapshot / 100m);
-            var miktarBekliyor = kayit.HesaplamaYontemi == FinansHesaplamaYontemi.DegiskenTutar
-                ? kayit.BirimFiyatSnapshot <= 0
-                : miktar <= 0;
+            var ozelOzet = SatirOzeti([kayit]);
             sonuc.Add(new FinansAylikIsModel(
                 "OzelIs", kayit.Id, kayit.ProjeId,
                 ProjectUnitKey(kayit.ProjeId, kayit.ProjeNo, kayit.Musteri), kayit.Musteri,
@@ -309,11 +321,49 @@ internal sealed class FinansAylikOzetService(AppDbContext context) : IFinansAyli
                 kayit.IptalEdildi ? "İptal" : net <= 0 ? "Fiyatlandırma Bekliyor" : Durum(net, siparisler.Sum(x => x.NetTutarSnapshot), faturalar.Sum(x => x.NetTutarSnapshot)),
                 !kayit.IptalEdildi && siparisler.Count == 0 && kayit.HesaplamaYontemi == FinansHesaplamaYontemi.DegiskenAdet,
                 !kayit.IptalEdildi && siparisler.Count == 0 && kayit.HesaplamaYontemi == FinansHesaplamaYontemi.DegiskenTutar,
-                kayit.IptalEdildi, kayit.IptalAciklamasi));
+                kayit.IptalEdildi, kayit.IptalAciklamasi,
+                FinansKategoriKurali.Kategori(kayit.IsTuru, kayit.DuzenliIsId), ozelOzet.Durum.Siparis, ozelOzet.Durum.Fatura,
+                ozelOzet.AhsapM3, ozelOzet.KontraM3, ozelOzet.KalanSiparis, ozelOzet.KalanFatura));
         }
 
         return sonuc.OrderBy(x => x.IsGrubu).ThenBy(x => x.ProjeNo).ThenBy(x => x.IsAdi).ToArray();
     }
+
+    /// <summary>Satırın aktif kalemlerinden birleşik durum, ahşap/kontra m³ ve kalan sipariş/fatura tutarı.</summary>
+    private static (FinansDurumOzeti Durum, decimal AhsapM3, decimal KontraM3, decimal KalanSiparis, decimal KalanFatura) SatirOzeti(
+        IReadOnlyCollection<FinansIsKaydi> kayitlar)
+    {
+        var aktif = kayitlar.Where(x => !x.IptalEdildi && x.KaynakAktif).ToList();
+        var tutarlar = aktif.Select(FinansTutarKurallari.KalemTutarlari).ToList();
+        var hacimler = aktif.Select(FinansModelEslemeleri.Hacim).ToList();
+        return (FinansTutarKurallari.BirlesikDurum(tutarlar), hacimler.Sum(x => x.Ahsap), hacimler.Sum(x => x.Kontra),
+            tutarlar.Sum(x => Math.Max(0, x.Net - x.Siparis)), tutarlar.Sum(x => Math.Max(0, x.Siparis - x.Fatura)));
+    }
+
+    /// <summary>
+    /// Sayfadaki projelerin ayın bütün aktif kalemlerinden özeti. Kategori/arama filtresi yalnız satırları
+    /// daraltır; proje durumu projenin tamamından türetilir (F7).
+    /// </summary>
+    internal static IReadOnlyList<FinansAylikProjeOzetiModel> ProjeOzetleriniOlustur(IEnumerable<FinansIsKaydi> kayitlar)
+        => kayitlar
+            .Where(x => x.IsTuru != FinansIsTuru.OzelIs && !x.IptalEdildi && x.KaynakAktif)
+            .GroupBy(x => ProjectUnitKey(x.ProjeId, x.ProjeNo, x.Musteri))
+            .Select(grup =>
+            {
+                var items = grup.ToList();
+                var first = items[0];
+                var tutarlar = items.Select(x => (x.ParaBirimiSnapshot, Tutar: FinansTutarKurallari.KalemTutarlari(x))).ToList();
+                var durum = FinansTutarKurallari.BirlesikDurum(tutarlar.Select(x => x.Tutar));
+                var hacimler = items.Select(FinansModelEslemeleri.Hacim).ToList();
+                return new FinansAylikProjeOzetiModel(grup.Key, first.ProjeId, first.ProjeNo, first.Musteri,
+                    durum.Siparis, durum.Fatura, durum.Durum, durum.GerekliKalem, durum.FiyatBekleyenKalem,
+                    hacimler.Sum(x => x.Ahsap), hacimler.Sum(x => x.Kontra),
+                    tutarlar.GroupBy(x => x.ParaBirimiSnapshot).OrderBy(x => x.Key)
+                        .Select(x => new FinansProjeTutarModel(x.Key, x.Sum(y => y.Tutar.Net), x.Sum(y => y.Tutar.Siparis), x.Sum(y => y.Tutar.Fatura)))
+                        .ToArray());
+            })
+            .OrderBy(x => x.ProjeNo, StringComparer.Ordinal)
+            .ToArray();
 
     private async Task<IReadOnlyList<FinansAylikGrupToplamiModel>> AylikIsToplamlariAsync(IQueryable<FinansIsKaydi> query, CancellationToken cancellationToken)
     {
@@ -378,15 +428,9 @@ internal sealed class FinansAylikOzetService(AppDbContext context) : IFinansAyli
         var orderByCurrency = orderTotals.ToDictionary(x => x.ParaBirimi, x => FinansTutarKurallari.Para(x.Toplam), StringComparer.OrdinalIgnoreCase);
         var invoiceByCurrency = invoiceTotals.ToDictionary(x => x.ParaBirimi, x => FinansTutarKurallari.Para(x.Toplam), StringComparer.OrdinalIgnoreCase);
         var expenseByCurrency = expenseTotals.ToDictionary(x => x.ParaBirimi, x => FinansTutarKurallari.Para(x.Toplam), StringComparer.OrdinalIgnoreCase);
-        var currencies = FinansParaBirimiKurali.Desteklenenler
-            .Concat(workByCurrency.Keys)
-            .Concat(orderByCurrency.Keys)
-            .Concat(invoiceByCurrency.Keys)
-            .Concat(expenseByCurrency.Keys)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(x => x == "TRY" ? 0 : x == "EUR" ? 1 : x == "USD" ? 2 : 3)
-            .ThenBy(x => x)
-            .ToArray();
+        var currencies = await FinansSorgulari.OzetParaBirimleriAsync(context,
+            workByCurrency.Keys.Concat(orderByCurrency.Keys).Concat(invoiceByCurrency.Keys).Concat(expenseByCurrency.Keys),
+            cancellationToken);
 
         return currencies.Select(currency =>
         {

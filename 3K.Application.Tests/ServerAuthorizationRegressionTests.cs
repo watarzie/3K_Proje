@@ -231,6 +231,25 @@ public class ServerAuthorizationRegressionTests
         Assert.Equal(1, fixture.Executed);
     }
 
+    /// <summary>G4: toplu talep formu her projenin gerçek tipindeki Grid okuma iznini ister; eksik raporu izni yetmez.</summary>
+    [Fact]
+    public async Task TopluTalepFormu_HerProjeGercekTipininGridIzniniIster()
+    {
+        var fixture = new Fixture("grid-modulu", YetkiTipi.R);
+        fixture.Seed(ProjeTipi.Normal);
+        fixture.Uow.Repo<Proje>().Rows.Add(new() { Id = 11, ProjeTipiId = (int)ProjeTipi.Normal });
+        Assert.True((await fixture.Run(new GetTopluTalepFormuQuery { ProjeIds = [10, 11] })).IsSuccess);
+
+        fixture.Uow.Repo<Proje>().Rows.Add(new() { Id = 12, ProjeTipiId = (int)ProjeTipi.Saha });
+        Assert.Equal(403, (await fixture.Run(new GetTopluTalepFormuQuery { ProjeIds = [10, 12] })).StatusCode);
+        Assert.Equal(1, fixture.Executed);
+
+        var eksikRaporuIzni = new Fixture("eksik-raporu", YetkiTipi.R);
+        eksikRaporuIzni.Seed(ProjeTipi.Normal);
+        Assert.Equal(403, (await eksikRaporuIzni.Run(new GetTopluTalepFormuQuery { ProjeIds = [10] })).StatusCode);
+        Assert.True((await fixture.Run(new GetTopluTalepFormuQuery { ProjeIds = [] })).IsSuccess);
+    }
+
     [Fact]
     public async Task TopluEksikRaporu_GecersizSecimKapsamIzniyleValidatoraUlasir()
     {

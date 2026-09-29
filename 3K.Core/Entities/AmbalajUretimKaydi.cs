@@ -76,6 +76,11 @@ namespace _3K.Core.Entities
         public AmbalajUretimDurumu UretimDurumu { get; set; } = AmbalajUretimDurumu.Planlandi;
         public DateTime? UretimTarihi { get; set; }
         public DateTime? TamamlanmaTarihi { get; set; }
+        /// <summary>
+        /// Üretim formu oluşturulurken isteğe bağlı girilen tarih (A6); finans kaleminin varsayılan Finans
+        /// Tarihi'dir. Boşsa finans tarihi üretim tarihinden gelir.
+        /// </summary>
+        public DateTime? FinansTarihi { get; set; }
 
         public bool IptalMi { get; set; }
         public AmbalajUretimDurumu? IptalOncesiUretimDurumu { get; set; }

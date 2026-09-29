@@ -17,6 +17,8 @@ public sealed record class FinansIsKaydiModel
     public string? TalepEdenKisi { get; init; }
     public string? TalepEdenBolum { get; init; }
     public FinansIsTuru IsTuru { get; init; }
+    public FinansIsKategorisi Kategori { get; init; }
+    public int? DuzenliIsId { get; init; }
     public string? SandikNo { get; init; }
     public string? SandikAdi { get; init; }
     public string? SandikTipi { get; init; }
@@ -28,6 +30,9 @@ public sealed record class FinansIsKaydiModel
     public string Birim { get; init; } = string.Empty;
     public decimal BirimM3 { get; init; }
     public decimal ToplamM3 { get; init; }
+    /// <summary>Kaydın ahşap ve kontra/katlanır m³ payı (F11; <see cref="FinansHacimKurallari.Hacim"/>).</summary>
+    public decimal AhsapM3 { get; init; }
+    public decimal KontraM3 { get; init; }
     public int? FinansUrunId { get; init; }
     public FinansFiyatlandirmaBirimi FiyatlandirmaBirimi { get; init; }
     public decimal BirimFiyat { get; init; }
@@ -48,10 +53,7 @@ public sealed record class FinansIsKaydiModel
     public decimal FaturalananNetTutar { get; init; }
     public decimal KalanSiparisNetTutar { get; init; }
     public decimal KalanFaturaNetTutar { get; init; }
-    public int? SablonSurumId { get; init; }
-    public FinansSablonModel? Sablon { get; init; }
     public decimal? ManuelNetTutar { get; init; }
-    public IReadOnlyDictionary<string, string?>? AlanDegerleri { get; init; }
     public IReadOnlyList<FinansFiyatBileseniModel>? Bilesenler { get; init; }
     public DateTime KayitTarihi { get; init; }
     public FinansIsDurumu Durum { get; init; }
@@ -118,11 +120,19 @@ public sealed record FinansTarihiDegistirModel(DateTime FinansTarihi, string Aci
 public sealed record FinansFiyatlandirmaModel(
     FinansFiyatlandirmaBirimi FiyatlandirmaBirimi, decimal Adet, decimal BirimM3,
     decimal BirimFiyat, string ParaBirimi, decimal KdvOrani, string Aciklama,
-    decimal? ManuelNetTutar = null, int? SablonSurumId = null,
-    IReadOnlyDictionary<string, string?>? AlanDegerleri = null,
+    decimal? ManuelNetTutar = null,
     IReadOnlyList<FinansFiyatBileseniModel>? Bilesenler = null);
 
-public sealed record FinansFiyatBileseniModel(string Ad, FinansFiyatlandirmaBirimi Yontem, decimal Miktar, decimal BirimFiyat);
+/// <summary>
+/// Fiyat satırı (F11): kontra/katlanır sandıkta birden çok m³ satırı olabilir; her satır m³, birim fiyat ve
+/// malzemesini taşır. Malzeme boşsa sandığın kendi malzemesi sayılır.
+/// </summary>
+public sealed record FinansFiyatBileseniModel(
+    string Ad,
+    FinansFiyatlandirmaBirimi Yontem,
+    decimal Miktar,
+    decimal BirimFiyat,
+    FinansSandikMalzemesi? Malzeme = null);
 
 /// <summary>
 /// Üretim modülünün finans bağımlılığı olmadan yayınlayacağı idempotent aktarım sözleşmesi.
@@ -154,7 +164,8 @@ public sealed record FinansUretimAktarimModel(
     string KaynakBileseni = "NET",
     AmbalajSandikCinsi? SandikCinsi = null,
     decimal? SarfM3 = null,
-    bool UretimM3Hesaplanabilir = true);
+    bool UretimM3Hesaplanabilir = true,
+    DateTime? FinansTarihi = null);
 
 public sealed record FinansSenkronizasyonSonucModel(int Olusturulan, int Guncellenen, int Pasiflestirilen);
 
@@ -198,7 +209,39 @@ public sealed record FinansAylikIsModel(
     bool MiktarDuzenlenebilir,
     bool TutarDuzenlenebilir,
     bool IptalEdildi,
-    string? IptalAciklamasi);
+    string? IptalAciklamasi,
+    FinansIsKategorisi Kategori = FinansIsKategorisi.AnaAmbalaj,
+    FinansKarsilanma SiparisKarsilanma = FinansKarsilanma.Yok,
+    FinansKarsilanma FaturaKarsilanma = FinansKarsilanma.Yok,
+    decimal AhsapM3 = 0,
+    decimal KontraM3 = 0,
+    decimal KalanSiparisNetTutar = 0,
+    decimal KalanFaturaNetTutar = 0);
+
+/// <summary>
+/// Aylık PO/fatura alanında proje satırının özeti: projenin ayın bütün aktif kalemlerinden türetilen
+/// sipariş ve fatura karşılanması, akış durumu, ahşap/kontra m³ ve para birimi bazında tutarlar.
+/// </summary>
+public sealed record FinansAylikProjeOzetiModel(
+    string ProjeBirimAnahtari,
+    int? ProjeId,
+    string ProjeNo,
+    string Musteri,
+    FinansKarsilanma SiparisKarsilanma,
+    FinansKarsilanma FaturaKarsilanma,
+    FinansIsDurumu Durum,
+    int GerekliKalem,
+    int FiyatBekleyenKalem,
+    decimal AhsapM3,
+    decimal KontraM3,
+    IReadOnlyList<FinansProjeTutarModel> Tutarlar);
+
+/// <summary>Projenin tek para birimindeki net bedel, siparişe bağlanan ve faturalanan net tutarı.</summary>
+public sealed record FinansProjeTutarModel(
+    string ParaBirimi,
+    decimal NetTutar,
+    decimal SiparisNetTutar,
+    decimal FaturalananNetTutar);
 
 /// <summary>
 /// Aylık iş takibinde sayfalama birimi proje veya tek bir özel iştir. Böylece
@@ -207,6 +250,8 @@ public sealed record FinansAylikIsModel(
 public sealed class FinansAylikSayfaliSonuc
 {
     public IReadOnlyList<FinansAylikIsModel> Items { get; init; } = Array.Empty<FinansAylikIsModel>();
+    /// <summary>Sayfadaki proje birimlerinin (özel işler hariç) birleşik sipariş/fatura durumu.</summary>
+    public IReadOnlyList<FinansAylikProjeOzetiModel> Projeler { get; init; } = Array.Empty<FinansAylikProjeOzetiModel>();
     public IReadOnlyList<FinansAylikFinansOzetiModel> FinansOzeti { get; init; } = Array.Empty<FinansAylikFinansOzetiModel>();
     public IReadOnlyList<FinansAylikGrupToplamiModel> GrupToplamlari { get; init; } = Array.Empty<FinansAylikGrupToplamiModel>();
     public int PageNumber { get; init; }

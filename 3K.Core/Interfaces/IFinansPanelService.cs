@@ -8,6 +8,7 @@ public interface IFinansPanelService
     Task<FinansPanelModel> PanelAsync(DateTime baslangic, DateTime bitis, CancellationToken cancellationToken);
     Task<FinansSayfaliSonuc<FinansHareketModel>> HareketlerAsync(FinansListeFiltre filtre, string? tur, CancellationToken cancellationToken);
     Task<FinansSayfaliSonuc<FinansIsKaydiModel>> GenelAramaAsync(FinansListeFiltre filtre, CancellationToken cancellationToken);
-    Task<FinansSayfaliSonuc<FinansBekleyenModel>> YaslandirmaAsync(DateTime referansTarihi, int minimumGun, FinansListeFiltre filtre, CancellationToken cancellationToken);
+    /// <param name="asama">Yalnız bu aşamadaki kalemler (<see cref="FinansBekleyenAsamalari"/>); null ise ikisi de.</param>
+    Task<FinansSayfaliSonuc<FinansBekleyenModel>> YaslandirmaAsync(DateTime referansTarihi, int minimumGun, string? asama, FinansListeFiltre filtre, CancellationToken cancellationToken);
     Task<FinansSayfaliSonuc<FinansDegisiklikModel>> DegisiklikGecmisiAsync(string? varlikTuru, int? varlikId, int pageNumber, int pageSize, CancellationToken cancellationToken);
 }

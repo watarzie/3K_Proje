@@ -50,6 +50,13 @@ namespace _3K_API.Controllers
             return (await _mediator.Send(command, ct)).ToActionResult();
         }
 
+        [HttpPut("projeler/{projeId:int}/uretim-durumu")]
+        public async Task<ActionResult> ProjeUretimDurumu(int projeId, [FromBody] AmbalajProjeUretimDurumuCommand command, CancellationToken ct)
+        {
+            command.ProjeId = projeId;
+            return (await _mediator.Send(command, ct)).ToActionResult();
+        }
+
         [HttpGet("projeler")]
         public async Task<ActionResult> Projeler([FromQuery] GetAmbalajPlanlamaProjeleriQuery query, CancellationToken ct) =>
             (await _mediator.Send(query, ct)).ToActionResult();

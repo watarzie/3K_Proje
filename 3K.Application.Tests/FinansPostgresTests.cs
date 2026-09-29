@@ -159,38 +159,33 @@ public sealed class FinansPostgresTests
     }
 
     [PostgresRaporFact, Trait("Category", "Postgres")]
-    public async Task SablonSurumu_Bilesenler_ve_BelgeSurumuKalici()
+    public async Task Bilesenler_Malzemeli_ve_BelgeSurumuKalici()
     {
         await InDatabase(async options =>
         {
             await using var db = new AppDbContext(options); var finans = Finans(db);
-            var work = Work("Şablon", 10000); db.Add(work); await db.SaveChangesAsync();
-            var template = await finans.Sablon.SablonKaydetAsync(null, new("QA", "Test", true, [new("uzunluk", "Uzunluk", "sayi", true)]), Ct);
-            var price = new FinansFiyatlandirmaModel(FinansFiyatlandirmaBirimi.ManuelToplam, 1, 0, 0, "EUR", 20, "Bileşenli hesaplama", SablonSurumId: template.SurumId, AlanDegerleri: new Dictionary<string, string?> { ["uzunluk"] = "2.5" },
-                Bilesenler: [new("Ahşap hacmi", FinansFiyatlandirmaBirimi.Metrekup, 1.2m, 500), new("Sarf hacmi", FinansFiyatlandirmaBirimi.Metrekup, .5m, 800), new("Sabit", FinansFiyatlandirmaBirimi.SabitTutar, 1, 200)]);
+            var work = Work("Bileşen", 10000); db.Add(work); await db.SaveChangesAsync();
+            // F11: kontra sandıkta birden çok m³ satırı; her satır m³, birim fiyat ve malzemesini taşır.
+            var price = new FinansFiyatlandirmaModel(FinansFiyatlandirmaBirimi.ManuelToplam, 1, 0, 0, "EUR", 20, "Bileşenli hesaplama",
+                Bilesenler: [new("Ahşap hacmi", FinansFiyatlandirmaBirimi.Metrekup, 1.2m, 500, FinansSandikMalzemesi.Ahsap),
+                    new("Kontra hacmi", FinansFiyatlandirmaBirimi.Metrekup, .5m, 800, FinansSandikMalzemesi.Kontra),
+                    new("Sabit", FinansFiyatlandirmaBirimi.SabitTutar, 1, 200)]);
             var beforeAudit = await db.Set<FinansDegisiklikGecmisi>().CountAsync();
-            var missingField = await Assert.ThrowsAsync<IsKuraliException>(() => finans.IsKaydi.FiyatlandirAsync(work.Id,
-                price with { AlanDegerleri = new Dictionary<string, string?>() }, Ct));
-            Assert.Contains("zorunludur", missingField.Message);
+            var invalid = await Assert.ThrowsAsync<IsKuraliException>(() => finans.IsKaydi.FiyatlandirAsync(work.Id,
+                price with { Bilesenler = [new("Sabit", FinansFiyatlandirmaBirimi.SabitTutar, 1, 200, FinansSandikMalzemesi.Kontra)] }, Ct));
+            Assert.Contains("m³", invalid.Message);
+            var undefinedCurrency = await Assert.ThrowsAsync<IsKuraliException>(() => finans.IsKaydi.FiyatlandirAsync(work.Id,
+                price with { ParaBirimi = "GBP" }, Ct));
+            Assert.Contains("GBP", undefinedCurrency.Message);
             db.ChangeTracker.Clear();
             Assert.Equal(10000m, (await finans.IsKaydi.IsKaydiGetirAsync(work.Id, Ct))!.NetTutar);
-            Assert.Null((await finans.IsKaydi.IsKaydiGetirAsync(work.Id, Ct))!.SablonSurumId);
             Assert.Equal(beforeAudit, await db.Set<FinansDegisiklikGecmisi>().CountAsync());
             Assert.Equal(1200m, (await finans.IsKaydi.FiyatlandirAsync(work.Id, price, Ct))!.NetTutar);
-            var updated = await finans.Sablon.SablonKaydetAsync(template.Id, new("QA", "Test v2", true, [new("yeni", "Yeni alan", "metin", false)]), Ct);
-            Assert.Equal(2, updated.Surum);
             var detail = (await finans.IsKaydi.IsKaydiGetirAsync(work.Id, Ct))!;
-            Assert.Equal(template.SurumId, detail.SablonSurumId);
             Assert.Equal(1200m, detail.ManuelNetTutar);
-            Assert.Equal("2.5", detail.AlanDegerleri!["uzunluk"]);
             Assert.Equal(price.Bilesenler, detail.Bilesenler);
-            Assert.NotNull(detail.Sablon);
-            Assert.Equal(template.SurumId, detail.Sablon.SurumId);
-            Assert.Equal(1, detail.Sablon.Surum);
-            Assert.Equal("uzunluk", Assert.Single(detail.Sablon.Alanlar).Kod);
-            // Detaydan yeniden açılan aynı form eski sürüm/bileşenleri kaybetmeden kaydedilir.
-            await finans.IsKaydi.FiyatlandirAsync(work.Id, price with { SablonSurumId = detail.SablonSurumId,
-                AlanDegerleri = detail.AlanDegerleri, Bilesenler = detail.Bilesenler, ManuelNetTutar = detail.ManuelNetTutar }, Ct);
+            // Detaydan yeniden açılan aynı form bileşenleri ve malzemeleri kaybetmeden kaydedilir.
+            await finans.IsKaydi.FiyatlandirAsync(work.Id, price with { Bilesenler = detail.Bilesenler, ManuelNetTutar = detail.ManuelNetTutar }, Ct);
             Assert.Equal(1200m, (await finans.IsKaydi.IsKaydiGetirAsync(work.Id, Ct))!.NetTutar);
             var po = await finans.SiparisFatura.SiparisOlusturAsync(Po("DOC", work.Id, 1200), Ct);
             var pdf = await finans.Raporlar.OzetRaporAsync("genel", false, new(), Ct);
@@ -241,7 +236,8 @@ public sealed class FinansPostgresTests
             Assert.NotEmpty(deletePreview.Bagimliliklar);
             var blockedDelete = await Assert.ThrowsAsync<IsKuraliException>(() => finans.KaliciSilme.KaliciSilAsync(
                 new("IsKaydi", a.Id, deletePreview.Surum, true, "Bağlı iş için zorlanmış silme denemesi"), Ct));
-            Assert.Contains("Bağlı kayıtlar bulundu", blockedDelete.Message);
+            // RR Q7/§3.18: engel, işi kullanan PO'yu adıyla belirtir.
+            Assert.Contains("Bu kayıt PO MULTI içerisinde kullanılmaktadır.", blockedDelete.Message);
             db.ChangeTracker.Clear();
             var afterLines = await db.Set<FinansSiparisKalemi>().AsNoTracking()
                 .Where(x => x.FinansSiparisId == po.Id).OrderBy(x => x.Id)
@@ -405,12 +401,12 @@ public sealed class FinansPostgresTests
             Assert.Equal(FinansIsDurumu.KismiFaturalandi, partial.Durum);
 
             var filter = new FinansListeFiltre(ProjeNo: main.ProjeNo);
-            var beforeAge = await finans.Panel.YaslandirmaAsync(new(2026, 10, 19), 0, filter, Ct);
+            var beforeAge = await finans.Panel.YaslandirmaAsync(new(2026, 10, 19), 0, null, filter, Ct);
             Assert.Equal(30, Assert.Single(beforeAge.Items, x => x.IsKaydiId == main.Id).Gun);
             Assert.Equal(79, Assert.Single(beforeAge.Items, x => x.IsKaydiId == sarf.Id).Gun);
             await finans.IsKaydi.FinansTarihiDegistirAsync(main.Id, new(new(2026, 11, 10), "Finans dönemi revizyonu"), Ct);
             await finans.IsKaydi.FinansTarihiDegistirAsync(sarf.Id, new(new(2026, 11, 11), "Sarf dönemi revizyonu"), Ct);
-            var afterAge = await finans.Panel.YaslandirmaAsync(new(2026, 10, 19), 0, filter, Ct);
+            var afterAge = await finans.Panel.YaslandirmaAsync(new(2026, 10, 19), 0, null, filter, Ct);
             Assert.Equal(beforeAge.Items, afterAge.Items);
             var moved = (await finans.IsKaydi.IsKaydiGetirAsync(main.Id, Ct))!;
             Assert.Equal(Date, moved.UretimTarihi);

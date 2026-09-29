@@ -95,7 +95,7 @@ internal sealed class FinansDuzenliIsService(
     {
         var entity = await context.Set<FinansDuzenliIs>().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (entity is null) return null;
-        await ValidateRecurringReferencesAsync(model, cancellationToken);
+        await ValidateRecurringReferencesAsync(model, cancellationToken, entity.ParaBirimi);
         var auditBefore = FinansDenetimKaydi.AnlikGoruntu(entity);
         ApplyRecurring(entity, model);
         denetim.DegisiklikleriEkle(nameof(FinansDuzenliIs), entity, auditBefore);
@@ -130,6 +130,33 @@ internal sealed class FinansDuzenliIsService(
             }
         }
         return new FinansDonemOlusturSonucModel(templates.Count, created, referansTarihi) { Hatalar = hatalar };
+    }
+
+    /// <summary>Tek iş için üretilebilecek en uzak dönem; yanlışlıkla on yıllarca kayıt açılmasını önler.</summary>
+    internal const int EnFazlaIleriAy = 24;
+
+    public async Task<FinansDonemOlusturSonucModel?> DuzenliIsDonemleriniUretAsync(
+        int id,
+        DateTime bitisTarihi,
+        CancellationToken cancellationToken)
+    {
+        if (!FinansTarihKurallari.GecerliTarih(bitisTarihi)) throw IsKuraliException.Cakisma("Geçerli bir bitiş tarihi girin.");
+        var template = await context.Set<FinansDuzenliIs>().AsNoTracking().Include(x => x.Proje).Include(x => x.FinansUrun)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (template is null) return null;
+        if (!template.Aktif)
+            throw IsKuraliException.Cakisma("Pasif düzenli iş için dönem üretilemez.");
+        var sinir = FinansTarihKurallari.AyBasi(TurkeyTime.Now).AddMonths(EnFazlaIleriAy + 1).AddDays(-1);
+        if (bitisTarihi.Date > sinir)
+            throw IsKuraliException.Cakisma($"Düzenli iş dönemleri en fazla {EnFazlaIleriAy} ay ilerisi için üretilebilir.");
+        if (bitisTarihi.Date < template.BaslangicTarihi.Date)
+            throw IsKuraliException.Cakisma("Bitiş tarihi düzenli işin başlangıç tarihinden önce olamaz.");
+        var bitis = template.BitisTarihi.HasValue && template.BitisTarihi.Value.Date < bitisTarihi.Date
+            ? template.BitisTarihi.Value.Date
+            : bitisTarihi.Date;
+        var created = await islem.AtomikAsync(
+            () => DuzenliIsDonemleriniOlusturAsync(template, bitis, cancellationToken), cancellationToken);
+        return new FinansDonemOlusturSonucModel(1, created, bitis);
     }
 
     private async Task<int> DuzenliIsDonemleriniOlusturAsync(
@@ -189,9 +216,10 @@ internal sealed class FinansDuzenliIsService(
         return result;
     }
 
-    private async Task ValidateRecurringReferencesAsync(FinansDuzenliIsKaydetModel model, CancellationToken cancellationToken)
+    private async Task ValidateRecurringReferencesAsync(FinansDuzenliIsKaydetModel model, CancellationToken cancellationToken, string? mevcutParaBirimi = null)
     {
         await context.ResolveProjectAsync(model.ProjeId, model.ManuelProjeNo, model.ManuelProjeAdi, model.Musteri, cancellationToken);
+        await FinansSorgulari.ParaBirimiSecimiAsync(context, model.ParaBirimi, [mevcutParaBirimi], cancellationToken);
         if (!model.FinansUrunId.HasValue) return;
         if (!await context.Set<FinansUrun>().AnyAsync(x => x.Id == model.FinansUrunId && x.Aktif, cancellationToken))
             throw IsKuraliException.Cakisma("Seçilen finans ürünü bulunamadı veya pasif.");

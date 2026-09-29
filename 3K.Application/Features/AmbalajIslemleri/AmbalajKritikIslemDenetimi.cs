@@ -58,20 +58,27 @@ public sealed class AmbalajKritikIslemDenetimi(IUnitOfWork unitOfWork, IRolServi
         return gereksinim;
     }
 
-    /// <summary>Eksik izin 403, ilk form şartı 409, gerekçesiz kritik işlem 400 döner.</summary>
+    /// <summary>
+    /// Eksik izin 403, iş kuralı engeli ve ilk form şartı 409, gerekçesiz kritik işlem 400 döner.
+    /// Üretim planı ve üretim formu işlemlerinde gerekçe istenmez (A2, D11); işlem yine kritik
+    /// sayılıyorsa geçmişe yazılır.
+    /// </summary>
     public async Task<Result> KapilariDenetleAsync(
         AmbalajIslemGereksinimi gereksinim,
         string? gerekce,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool gerekceZorunlu = true)
     {
         foreach (var kod in gereksinim.Yetkiler)
         {
             if (!await AmbalajYetkilendirmeYardimcisi.YetkiliMiAsync(roller, kullanici, kod, cancellationToken))
                 return Result.Failure($"Bu işlem için gerekli yetkiniz bulunmuyor ({kod}).", 403);
         }
+        if (gereksinim.Engel is { } engel)
+            return Result.Failure(engel, 409);
         if (gereksinim.IlkFormGerekli)
             return Result.Failure("Bu kayıt için önce Üretim Formu Oluştur işlemini kullanınız.", 409);
-        if (gereksinim.Kritik && string.IsNullOrWhiteSpace(gerekce))
+        if (gerekceZorunlu && gereksinim.Kritik && string.IsNullOrWhiteSpace(gerekce))
             return Result.Failure("Kritik üretim değişikliği için gerekçe gereklidir.", 400);
         return Result.Success();
     }

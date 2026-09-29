@@ -3,6 +3,9 @@ using _3K.Core.Models;
 
 namespace _3K.Application.Features.AmbalajIslemleri.DTOs;
 
+/// <summary>Proje bazlı toplu tamamlama/geri alma sonucu: değişen sandık sayısı ve projenin yeni durumu.</summary>
+public sealed record AmbalajProjeUretimDurumuSonucDto(int ProjeId, int DegisenKayit, AmbalajUretimDurumu ProjeDurumu);
+
 public sealed record AmbalajFormSurumuDto(int Id, Guid FormKimligi, int Surum,
     DateTime OlusturmaTarihi, int OlusturanKullaniciId, string? Aciklama,
     AmbalajUretimFormuModel Form);

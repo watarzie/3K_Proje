@@ -212,6 +212,7 @@ namespace _3K.Application.Features.AmbalajIslemleri
                 [nameof(k.UretimDurumu)] = Format((int)k.UretimDurumu),
                 [nameof(k.UretimTarihi)] = Format(k.UretimTarihi),
                 [nameof(k.TamamlanmaTarihi)] = Format(k.TamamlanmaTarihi),
+                [nameof(k.FinansTarihi)] = Format(k.FinansTarihi),
                 [nameof(k.IptalMi)] = Format(k.IptalMi),
                 [nameof(k.IptalTarihi)] = Format(k.IptalTarihi),
                 [nameof(k.IptalEdenKullaniciId)] = Format(k.IptalEdenKullaniciId),

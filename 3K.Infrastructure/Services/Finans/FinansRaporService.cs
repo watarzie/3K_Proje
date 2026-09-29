@@ -16,19 +16,19 @@ namespace _3K.Infrastructure.Services.Finans
     {
         private readonly IFinansRaporVerisiService _raporVerisi;
         private readonly IFinansAylikOzetService _aylikOzet;
-        private readonly IFinansSiparisFaturaService _siparisFatura;
         private readonly IFinansPanelService _panel;
+        private readonly IFinansSiparisFaturaService _faturalar;
 
         public FinansRaporService(
             IFinansRaporVerisiService raporVerisi,
             IFinansAylikOzetService aylikOzet,
-            IFinansSiparisFaturaService siparisFatura,
-            IFinansPanelService panel)
+            IFinansPanelService panel,
+            IFinansSiparisFaturaService faturalar)
         {
             _raporVerisi = raporVerisi;
             _aylikOzet = aylikOzet;
-            _siparisFatura = siparisFatura;
             _panel = panel;
+            _faturalar = faturalar;
         }
 
         public async Task<byte[]> IslerExcelAsync(FinansListeFiltre filtre, CancellationToken cancellationToken)
@@ -86,38 +86,33 @@ namespace _3K.Infrastructure.Services.Finans
             return Save(workbook);
         }
 
+        /// <summary>
+        /// Sipariş durum raporu (RR Q5): satırlar seçilen sipariş/fatura karşılanmasındaki iş kalemleridir; kategori,
+        /// dönem, proje ve diğer liste filtreleri sunucuda uygulanır.
+        /// </summary>
         public async Task<byte[]> SiparisDurumExcelAsync(FinansListeFiltre filtre, CancellationToken cancellationToken)
         {
-            var orders = await GetAllOrdersAsync(filtre, cancellationToken);
+            var report = await _raporVerisi.RaporVerisiAsync(filtre, cancellationToken);
             using var workbook = new XLWorkbook();
             var sheet = workbook.Worksheets.Add("Sipariş Durumu");
             var headers = new[]
             {
-                "Kayıt No", "PO No", "Proje No", "Müşteri", "İş Türleri", "Sipariş Tarihi",
-                "Sipariş Adet", "Sipariş m³", "Faturalanan Adet", "Faturalanan m³",
-                "Kalan Adet", "Kalan m³", "Durum", "Tutarlar", "Açıklama"
+                "Kayıt No", "Proje No", "Müşteri", "Kategori", "İş", "Sandık No", "Finans Tarihi", "Para Birimi",
+                "İş Net", "Sipariş Net", "Kalan Sipariş", "Faturalanan Net", "Kalan Fatura",
+                "Sipariş Durumu", "Fatura Durumu", "PO", "Fatura"
             };
             WriteHeaders(sheet, headers);
             var row = 2;
-            foreach (var item in orders)
+            foreach (var item in report.Isler)
             {
                 WriteRow(sheet, row++, new object?[]
                 {
-                    item.KayitNo,
-                    item.PoNumarasi,
-                    item.ProjeNo,
-                    item.Musteri,
-                    string.Join(", ", item.IsTurleri),
-                    item.SiparisTarihi,
-                    item.SandikAdedi,
-                    item.ToplamM3,
-                    item.FaturalananAdet,
-                    item.FaturalananM3,
-                    item.KalanAdet,
-                    item.KalanM3,
-                    item.Durum.ToString(),
-                    FormatMoneyTotals(item.Tutarlar),
-                    item.Aciklama
+                    item.Id, item.ProjeNo, item.Musteri, FinansKategoriKurali.Ad(item.Kategori), item.IsAdi, item.SandikNo,
+                    item.FinansTarihi, item.ParaBirimi, item.NetTutar, item.SiparisNetTutar, item.KalanSiparisNetTutar,
+                    item.FaturalananNetTutar, item.KalanFaturaNetTutar,
+                    SiparisKarsilanmaMetni(FinansTutarKurallari.KalemKarsilanma(item.NetTutar, item.SiparisNetTutar)),
+                    FaturaKarsilanmaMetni(FinansTutarKurallari.KalemKarsilanma(item.NetTutar, item.FaturalananNetTutar)),
+                    string.Join(", ", item.PoNumaralari), string.Join(", ", item.FaturaNumaralari)
                 });
             }
             FormatSheet(sheet, headers.Length, row - 1);
@@ -233,7 +228,7 @@ namespace _3K.Infrastructure.Services.Finans
 
         public async Task<byte[]> SiparisDurumPdfAsync(FinansListeFiltre filtre, CancellationToken cancellationToken)
         {
-            var orders = await GetAllOrdersAsync(filtre, cancellationToken);
+            var report = await _raporVerisi.RaporVerisiAsync(filtre, cancellationToken);
             QuestPDF.Settings.License = LicenseType.Community;
             var document = Document.Create(container =>
             {
@@ -243,7 +238,7 @@ namespace _3K.Infrastructure.Services.Finans
                     page.Header().Column(column =>
                     {
                         column.Item().Text("Finans Sipariş Durum Raporu").FontSize(16).Bold().FontColor(Colors.Blue.Darken2);
-                        column.Item().Text($"Oluşturma: {TurkeyTime.Now:dd.MM.yyyy HH:mm} · Kayıt: {orders.Count}")
+                        column.Item().Text($"Oluşturma: {TurkeyTime.Now:dd.MM.yyyy HH:mm} · Kalem: {report.Isler.Count}")
                             .FontSize(8).FontColor(Colors.Grey.Darken1);
                     });
                     page.Content().Table(table =>
@@ -251,31 +246,29 @@ namespace _3K.Infrastructure.Services.Finans
                         table.ColumnsDefinition(columns =>
                         {
                             columns.RelativeColumn(1.2f);
-                            columns.RelativeColumn(1.2f);
-                            columns.RelativeColumn(1.2f);
+                            columns.RelativeColumn(1.4f);
                             columns.RelativeColumn(1.6f);
-                            columns.RelativeColumn(1.3f);
                             columns.RelativeColumn();
-                            columns.RelativeColumn();
-                            columns.RelativeColumn();
-                            columns.RelativeColumn();
+                            columns.RelativeColumn(1.1f);
+                            columns.RelativeColumn(1.1f);
+                            columns.RelativeColumn(1.1f);
                             columns.RelativeColumn(1.2f);
-                            columns.RelativeColumn(1.8f);
+                            columns.RelativeColumn(1.2f);
+                            columns.RelativeColumn(1.4f);
                         });
-                        PdfHeader(table, "Kayıt", "PO", "Proje", "Müşteri", "İş Türü", "Tarih", "Adet", "m³", "Kalan", "Durum", "Tutarlar");
-                        foreach (var item in orders)
+                        PdfHeader(table, "Proje", "Kategori", "İş", "Tarih", "İş Net", "Sipariş Net", "Faturalanan", "Sipariş", "Fatura", "PO / Fatura");
+                        foreach (var item in report.Isler)
                         {
-                            PdfCell(table, item.KayitNo);
-                            PdfCell(table, item.PoNumarasi);
                             PdfCell(table, item.ProjeNo);
-                            PdfCell(table, item.Musteri);
-                            PdfCell(table, string.Join(", ", item.IsTurleri));
-                            PdfCell(table, item.SiparisTarihi.ToString("dd.MM.yyyy"));
-                            PdfCell(table, Format(item.SandikAdedi));
-                            PdfCell(table, Format(item.ToplamM3));
-                            PdfCell(table, $"{Format(item.KalanAdet)} / {Format(item.KalanM3)} m³");
-                            PdfCell(table, item.Durum.ToString());
-                            PdfCell(table, FormatMoneyTotals(item.Tutarlar));
+                            PdfCell(table, FinansKategoriKurali.Ad(item.Kategori));
+                            PdfCell(table, item.IsAdi);
+                            PdfCell(table, item.FinansTarihi.ToString("dd.MM.yyyy"));
+                            PdfCell(table, $"{Format(item.NetTutar)} {item.ParaBirimi}");
+                            PdfCell(table, $"{Format(item.SiparisNetTutar)} {item.ParaBirimi}");
+                            PdfCell(table, $"{Format(item.FaturalananNetTutar)} {item.ParaBirimi}");
+                            PdfCell(table, SiparisKarsilanmaMetni(FinansTutarKurallari.KalemKarsilanma(item.NetTutar, item.SiparisNetTutar)));
+                            PdfCell(table, FaturaKarsilanmaMetni(FinansTutarKurallari.KalemKarsilanma(item.NetTutar, item.FaturalananNetTutar)));
+                            PdfCell(table, $"{string.Join(", ", item.PoNumaralari)} / {string.Join(", ", item.FaturaNumaralari)}");
                         }
                     });
                     AddFooter(page);
@@ -285,6 +278,21 @@ namespace _3K.Infrastructure.Services.Finans
             document.GeneratePdf(stream);
             return stream.ToArray();
         }
+
+        /// <summary>Sipariş karşılanmasının rapor metni; ön yüz durum filtresindeki adlarla aynıdır.</summary>
+        internal static string SiparisKarsilanmaMetni(FinansKarsilanma durum) => durum switch
+        {
+            FinansKarsilanma.Tam => "Tam Açıldı",
+            FinansKarsilanma.Kismi => "Kısmi Açıldı",
+            _ => "Açılmadı"
+        };
+
+        internal static string FaturaKarsilanmaMetni(FinansKarsilanma durum) => durum switch
+        {
+            FinansKarsilanma.Tam => "Faturalandı",
+            FinansKarsilanma.Kismi => "Kısmi Faturalandı",
+            _ => "Fatura Yok"
+        };
 
         public async Task<byte[]> AylikPdfAsync(
             int yil,
@@ -482,30 +490,6 @@ namespace _3K.Infrastructure.Services.Finans
             document.GeneratePdf(stream);
             return stream.ToArray();
         }
-
-        private async Task<IReadOnlyList<FinansSiparisModel>> GetAllOrdersAsync(
-            FinansListeFiltre filtre,
-            CancellationToken cancellationToken)
-        {
-            const int pageSize = 250;
-            var items = new List<FinansSiparisModel>();
-            var pageNumber = 1;
-            while (true)
-            {
-                var page = await _siparisFatura.SiparislerAsync(
-                    filtre with { PageNumber = pageNumber, PageSize = pageSize },
-                    cancellationToken);
-                if (page.TotalCount > FinansSorgulari.RaporKayitSiniri) throw IsKuraliException.Cakisma("Rapor 20.000 siparişi aşamaz; filtreyi daraltın.");
-                items.AddRange(page.Items);
-                if (!page.HasNextPage)
-                    return items;
-                pageNumber++;
-            }
-        }
-
-        private static string FormatMoneyTotals(IEnumerable<FinansParaToplamiModel> totals)
-            => string.Join(" | ", totals.Select(x =>
-                $"{x.ParaBirimi}: Net {Format(x.NetTutar)}, KDV {Format(x.KdvTutari)}, Toplam {Format(x.ToplamTutar)}"));
 
         private static void WriteHeaders(IXLWorksheet sheet, IReadOnlyList<string> headers)
         {

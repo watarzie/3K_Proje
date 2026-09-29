@@ -11,24 +11,57 @@ public sealed class FinansSiparisOlusturModelValidator : AbstractValidator<Finan
         RuleFor(x => x.PoNumarasi).NotEmpty().MaximumLength(100);
         RuleFor(x => x.SiparisTarihi).Must(FinansTarihKurallari.GecerliTarih);
         RuleFor(x => x.Aciklama).MaximumLength(2000);
-        RuleFor(x => x.Kalemler).NotEmpty();
-        RuleForEach(x => x.Kalemler).ChildRules(line =>
-        {
-            line.RuleFor(x => x.IsKaydiId).GreaterThan(0);
-            line.RuleFor(x => x.Adet).GreaterThanOrEqualTo(0);
-            line.RuleFor(x => x.M3).GreaterThanOrEqualTo(0);
-            line.RuleFor(x => x).Must(x => x.NetTutar > 0 || x.Adet > 0 || x.M3 > 0).WithMessage("Sipariş kalemi net tutarı veya miktarı sıfırdan büyük olmalıdır.");
-            line.RuleFor(x => x.NetTutar).GreaterThan(0).When(x => x.NetTutar.HasValue);
-            line.RuleFor(x => x.BirimFiyat).GreaterThan(0).When(x => x.BirimFiyat.HasValue);
-            line.RuleFor(x => x.KdvOrani).InclusiveBetween(0, 100).When(x => x.KdvOrani.HasValue);
-            line.RuleFor(x => x.ParaBirimi).Must(x => x is null || FinansValidationRules.Currency(x));
-        });
+        RuleFor(x => x.ParaBirimi).Must(x => x is null || FinansValidationRules.Currency(x));
+        RuleFor(x => x.BelgeNetTutar).GreaterThan(0).When(x => x.BelgeNetTutar.HasValue);
+        RuleFor(x => x).Must(x => x.Kalemler.Count > 0 || x.Gruplar?.Count > 0)
+            .WithMessage("Sipariş en az bir iş kalemi içermelidir.");
+        RuleForEach(x => x.Kalemler).SetValidator(new FinansSiparisDagitimModelValidator());
+        RuleForEach(x => x.Gruplar).SetValidator(new FinansSiparisGrupDagitimModelValidator());
+    }
+}
+
+public sealed class FinansSiparisDagitimModelValidator : AbstractValidator<FinansSiparisDagitimModel>
+{
+    public FinansSiparisDagitimModelValidator()
+    {
+        RuleFor(x => x.IsKaydiId).GreaterThan(0);
+        RuleFor(x => x.Adet).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.M3).GreaterThanOrEqualTo(0);
+        RuleFor(x => x).Must(x => x.NetTutar > 0 || x.Adet > 0 || x.M3 > 0).WithMessage("Sipariş kalemi net tutarı veya miktarı sıfırdan büyük olmalıdır.");
+        RuleFor(x => x.NetTutar).GreaterThan(0).When(x => x.NetTutar.HasValue);
+        RuleFor(x => x.BirimFiyat).GreaterThan(0).When(x => x.BirimFiyat.HasValue);
+        RuleFor(x => x.KdvOrani).InclusiveBetween(0, 100).When(x => x.KdvOrani.HasValue);
+        RuleFor(x => x.ParaBirimi).Must(x => x is null || FinansValidationRules.Currency(x));
+    }
+}
+
+public sealed class FinansSiparisGrupDagitimModelValidator : AbstractValidator<FinansSiparisGrupDagitimModel>
+{
+    public FinansSiparisGrupDagitimModelValidator()
+    {
+        RuleFor(x => x.IsKaydiIds).NotEmpty().Must(x => x.Count <= 2000)
+            .WithMessage("Bir grup en fazla 2000 iş kalemi içerebilir.");
+        RuleForEach(x => x.IsKaydiIds).GreaterThan(0);
+        RuleFor(x => x.NetTutar).GreaterThan(0);
     }
 }
 
 public sealed class FinansSiparisOlusturCommandValidator : AbstractValidator<FinansSiparisOlusturCommand>
 {
     public FinansSiparisOlusturCommandValidator() => RuleFor(x => x.Model).NotNull().SetValidator(new FinansSiparisOlusturModelValidator());
+}
+
+public sealed class FinansSiparisKalemEkleCommandValidator : AbstractValidator<FinansSiparisKalemEkleCommand>
+{
+    public FinansSiparisKalemEkleCommandValidator()
+    {
+        RuleFor(x => x.Id).GreaterThan(0);
+        RuleFor(x => x.Model).NotNull();
+        RuleFor(x => x.Model).Must(x => x is null || x.Kalemler?.Count > 0 || x.Gruplar?.Count > 0)
+            .WithMessage("PO'ya eklenecek en az bir iş kalemi seçilmelidir.");
+        RuleForEach(x => x.Model.Kalemler).SetValidator(new FinansSiparisDagitimModelValidator()).When(x => x.Model?.Kalemler is not null);
+        RuleForEach(x => x.Model.Gruplar).SetValidator(new FinansSiparisGrupDagitimModelValidator()).When(x => x.Model?.Gruplar is not null);
+    }
 }
 
 public sealed class FinansSiparisGuncelleModelValidator : AbstractValidator<FinansSiparisGuncelleModel>
@@ -63,9 +96,13 @@ public sealed class FinansFaturaOlusturModelValidator : AbstractValidator<Finans
         RuleFor(x => x.SiparisId).GreaterThan(0);
         RuleFor(x => x.FaturaNumarasi).NotEmpty().MaximumLength(100);
         RuleFor(x => x.FaturaTarihi).Must(FinansTarihKurallari.GecerliTarih);
+        RuleFor(x => x.VadeTarihi).Must(x => FinansTarihKurallari.GecerliTarih(x!.Value))
+            .GreaterThanOrEqualTo(x => x.FaturaTarihi.Date).WithMessage("Vade tarihi fatura tarihinden önce olamaz.")
+            .When(x => x.VadeTarihi.HasValue);
         RuleFor(x => x.Aciklama).MaximumLength(2000);
         AddDocumentTotalRules();
-        RuleFor(x => x.Kalemler).NotEmpty();
+        RuleFor(x => x).Must(x => x.Kalemler.Count > 0 || x.Gruplar?.Count > 0)
+            .WithMessage("En az bir fatura kalemi seçilmelidir.");
         RuleForEach(x => x.Kalemler).ChildRules(line =>
         {
             line.RuleFor(x => x.SiparisKalemiId).GreaterThan(0);
@@ -73,6 +110,12 @@ public sealed class FinansFaturaOlusturModelValidator : AbstractValidator<Finans
             line.RuleFor(x => x.M3).GreaterThanOrEqualTo(0);
             line.RuleFor(x => x).Must(x => x.NetTutar > 0 || x.Adet > 0 || x.M3 > 0).WithMessage("Fatura kalemi net tutarı veya miktarı sıfırdan büyük olmalıdır.");
             line.RuleFor(x => x.NetTutar).GreaterThan(0).When(x => x.NetTutar.HasValue);
+        });
+        RuleForEach(x => x.Gruplar).ChildRules(group =>
+        {
+            group.RuleFor(x => x.SiparisKalemiIds).NotEmpty();
+            group.RuleForEach(x => x.SiparisKalemiIds).GreaterThan(0);
+            group.RuleFor(x => x.NetTutar).GreaterThan(0);
         });
     }
 
@@ -103,6 +146,9 @@ public sealed class FinansFaturaGuncelleModelValidator : AbstractValidator<Finan
     {
         RuleFor(x => x.FaturaNumarasi).NotEmpty().MaximumLength(100);
         RuleFor(x => x.FaturaTarihi).Must(FinansTarihKurallari.GecerliTarih);
+        RuleFor(x => x.VadeTarihi).Must(x => FinansTarihKurallari.GecerliTarih(x!.Value))
+            .GreaterThanOrEqualTo(x => x.FaturaTarihi.Date).WithMessage("Vade tarihi fatura tarihinden önce olamaz.")
+            .When(x => x.VadeTarihi.HasValue);
         RuleFor(x => x.Aciklama).MaximumLength(2000);
         RuleFor(x => x.Gerekce).Must(FinansGerekceKurali.Gecerli).WithMessage(FinansGerekceKurali.Mesaj).When(x => x.Kalemler is not null);
         When(x => !x.BelgeMutabakatiniKoru, () =>
@@ -128,6 +174,19 @@ public sealed class FinansFaturaGuncelleCommandValidator : AbstractValidator<Fin
     {
         RuleFor(x => x.Id).GreaterThan(0);
         RuleFor(x => x.Model).NotNull().SetValidator(new FinansFaturaGuncelleModelValidator());
+    }
+}
+
+public sealed class FinansFaturaOdemeCommandValidator : AbstractValidator<FinansFaturaOdemeCommand>
+{
+    public FinansFaturaOdemeCommandValidator()
+    {
+        RuleFor(x => x.Id).GreaterThan(0);
+        RuleFor(x => x.Model).NotNull();
+        RuleFor(x => x.Model.OdemeTarihi).NotNull().WithMessage("Ödeme tarihi zorunludur.")
+            .Must(x => x.HasValue && FinansTarihKurallari.GecerliTarih(x.Value)).WithMessage("Geçerli bir ödeme tarihi girin.")
+            .When(x => x.Model is { Odendi: true });
+        RuleFor(x => x.Model.Aciklama).MaximumLength(1000).When(x => x.Model is not null);
     }
 }
 

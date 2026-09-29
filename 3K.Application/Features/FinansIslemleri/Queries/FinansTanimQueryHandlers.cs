@@ -5,19 +5,20 @@ using _3K.Core.Models;
 
 namespace _3K.Application.Features.FinansIslemleri.Queries;
 
-/// <summary>Düzenli iş, gider kütüphanesi, ürün/tarife ve şablon tanım sorguları.</summary>
+/// <summary>Düzenli iş, gider kütüphanesi, ürün/tarife, para birimi ve finans parametresi tanım sorguları.</summary>
 public sealed class FinansTanimQueryHandlers(
     IFinansDuzenliIsService duzenliIsler,
     IFinansGiderTanimService giderTanimlari,
     IFinansUrunService urunler,
-    IFinansSablonService sablonlar) :
+    IFinansParametreService parametreler) :
     IRequestHandler<FinansDuzenliIslerQuery, Result<FinansSayfaliSonuc<FinansDuzenliIsModel>>>,
     IRequestHandler<FinansGiderKategorileriQuery, Result<IReadOnlyList<FinansGiderKategoriModel>>>,
     IRequestHandler<FinansGiderKalemleriQuery, Result<IReadOnlyList<FinansGiderKalemiModel>>>,
     IRequestHandler<FinansGiderKutuphaneKategorileriQuery, Result<IReadOnlyList<FinansGiderKategoriModel>>>,
     IRequestHandler<FinansGiderKutuphaneKalemleriQuery, Result<IReadOnlyList<FinansGiderKalemiModel>>>,
     IRequestHandler<FinansUrunlerQuery, Result<FinansSayfaliSonuc<FinansUrunModel>>>,
-    IRequestHandler<FinansSablonlarQuery, Result<IReadOnlyList<FinansSablonModel>>>
+    IRequestHandler<FinansParaBirimleriQuery, Result<IReadOnlyList<FinansParaBirimiModel>>>,
+    IRequestHandler<FinansParametrelerQuery, Result<FinansParametrelerModel>>
 {
     public Task<Result<FinansSayfaliSonuc<FinansDuzenliIsModel>>> Handle(FinansDuzenliIslerQuery request, CancellationToken cancellationToken)
         => FinansHandlerHelper.ExecuteAsync(() => duzenliIsler.DuzenliIslerSayfaliAsync(
@@ -41,6 +42,9 @@ public sealed class FinansTanimQueryHandlers(
         => FinansHandlerHelper.ExecuteAsync(() => urunler.UrunlerSayfaliAsync(
             request.SadeceAktif, request.TarifeTarihi, request.Arama, request.PageNumber, request.PageSize, cancellationToken));
 
-    public Task<Result<IReadOnlyList<FinansSablonModel>>> Handle(FinansSablonlarQuery request, CancellationToken cancellationToken)
-        => FinansHandlerHelper.ExecuteAsync(() => sablonlar.SablonlarAsync(cancellationToken));
+    public Task<Result<IReadOnlyList<FinansParaBirimiModel>>> Handle(FinansParaBirimleriQuery request, CancellationToken cancellationToken)
+        => FinansHandlerHelper.ExecuteAsync(() => parametreler.ParaBirimleriAsync(request.SadeceAktif, cancellationToken));
+
+    public Task<Result<FinansParametrelerModel>> Handle(FinansParametrelerQuery request, CancellationToken cancellationToken)
+        => FinansHandlerHelper.ExecuteAsync(() => parametreler.ParametrelerAsync(cancellationToken));
 }

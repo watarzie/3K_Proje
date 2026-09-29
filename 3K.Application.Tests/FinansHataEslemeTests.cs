@@ -142,6 +142,8 @@ public sealed class FinansHataEslemeTests
         public Task<byte[]> GiderlerPdfAsync(FinansListeFiltre filtre, CancellationToken ct) => Sinir();
         public Task<byte[]> SiparisDurumExcelAsync(FinansListeFiltre filtre, CancellationToken ct) => Sinir();
         public Task<byte[]> SiparisDurumPdfAsync(FinansListeFiltre filtre, CancellationToken ct) => Sinir();
+        public Task<byte[]> AlacakExcelAsync(FinansListeFiltre filtre, CancellationToken ct) => Sinir();
+        public Task<byte[]> AlacakPdfAsync(FinansListeFiltre filtre, CancellationToken ct) => Sinir();
         public Task<byte[]> AylikExcelAsync(int yil, int ay, IReadOnlyCollection<string>? gruplar, CancellationToken ct) => Sinir();
         public Task<byte[]> AylikPdfAsync(int yil, int ay, IReadOnlyCollection<string>? gruplar, CancellationToken ct) => Sinir();
         public Task<byte[]> AylikZipAsync(int yil, int ay, IReadOnlyCollection<string>? gruplar, CancellationToken ct) => Sinir();

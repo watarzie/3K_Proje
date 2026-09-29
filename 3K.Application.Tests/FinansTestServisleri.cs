@@ -33,7 +33,7 @@ internal sealed class FinansTestServisleri
     public IFinansGiderService Gider => Al<IFinansGiderService>();
     public IFinansGiderTanimService GiderTanim => Al<IFinansGiderTanimService>();
     public IFinansUrunService Urun => Al<IFinansUrunService>();
-    public IFinansSablonService Sablon => Al<IFinansSablonService>();
+    public IFinansParametreService Parametre => Al<IFinansParametreService>();
     public IFinansDuzenliIsService DuzenliIs => Al<IFinansDuzenliIsService>();
     public IFinansBelgeService Belge => Al<IFinansBelgeService>();
     public IFinansKaliciSilmeService KaliciSilme => Al<IFinansKaliciSilmeService>();

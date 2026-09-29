@@ -20,6 +20,10 @@ internal static class FinansModelEslemeleri
         var invoicedAdet = activeInvoiceLines.Sum(x => x.Adet);
         var invoicedM3 = activeInvoiceLines.Sum(x => x.M3);
         var money = FinansTutarKurallari.Hesapla(1, FinansTutarKurallari.IsNet(entity), entity.KdvOraniSnapshot);
+        var bilesenler = entity.FiyatBilesenleriJson is null
+            ? null
+            : System.Text.Json.JsonSerializer.Deserialize<FinansFiyatBileseniModel[]>(entity.FiyatBilesenleriJson);
+        var hacim = FinansHacimKurallari.Hacim(entity.SandikCinsi, entity.SandikTipi, entity.ToplamM3, bilesenler);
 
         return new FinansIsKaydiModel
         {
@@ -36,6 +40,8 @@ internal static class FinansModelEslemeleri
             TalepEdenKisi = entity.TalepEdenKisi,
             TalepEdenBolum = entity.TalepEdenBolum,
             IsTuru = entity.IsTuru,
+            Kategori = FinansKategoriKurali.Kategori(entity.IsTuru, entity.DuzenliIsId),
+            DuzenliIsId = entity.DuzenliIsId,
             SandikNo = entity.SandikNo,
             SandikAdi = entity.SandikAdi,
             SandikTipi = entity.SandikTipi,
@@ -47,6 +53,8 @@ internal static class FinansModelEslemeleri
             Birim = entity.Birim,
             BirimM3 = entity.BirimM3,
             ToplamM3 = entity.ToplamM3,
+            AhsapM3 = hacim.Ahsap,
+            KontraM3 = hacim.Kontra,
             FinansUrunId = entity.FinansUrunId,
             FiyatlandirmaBirimi = entity.FiyatlandirmaBirimiSnapshot,
             BirimFiyat = entity.BirimFiyatSnapshot,
@@ -67,10 +75,8 @@ internal static class FinansModelEslemeleri
             FaturalananNetTutar = activeInvoiceLines.Sum(x => x.NetTutarSnapshot),
             KalanSiparisNetTutar = Math.Max(0, money.Net - activeOrderLines.Sum(x => x.NetTutarSnapshot)),
             KalanFaturaNetTutar = Math.Max(0, activeOrderLines.Sum(x => x.NetTutarSnapshot) - activeInvoiceLines.Sum(x => x.NetTutarSnapshot)),
-            SablonSurumId = entity.SablonSurumId,
             ManuelNetTutar = entity.ManuelNetTutar,
-            AlanDegerleri = entity.AlanDegerleriJson is null ? null : System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string?>>(entity.AlanDegerleriJson),
-            Bilesenler = entity.FiyatBilesenleriJson is null ? null : System.Text.Json.JsonSerializer.Deserialize<FinansFiyatBileseniModel[]>(entity.FiyatBilesenleriJson),
+            Bilesenler = bilesenler,
             KayitTarihi = entity.KayitTarihi,
             Durum = FinansTutarKurallari.Durum(entity),
             SiparisAdedi = orderedAdet,
@@ -90,6 +96,16 @@ internal static class FinansModelEslemeleri
             CreatedBy = entity.CreatedBy
         };
     }
+
+    /// <summary>Kaydın m³ fiyat satırları (kontra/katlanır sandıkta malzeme bazlı satırlar).</summary>
+    internal static IReadOnlyList<FinansFiyatBileseniModel>? Bilesenler(FinansIsKaydi entity)
+        => entity.FiyatBilesenleriJson is null
+            ? null
+            : System.Text.Json.JsonSerializer.Deserialize<FinansFiyatBileseniModel[]>(entity.FiyatBilesenleriJson);
+
+    /// <summary>Kaydın ahşap ve kontra m³ payı (<see cref="FinansHacimKurallari"/>).</summary>
+    internal static (decimal Ahsap, decimal Kontra) Hacim(FinansIsKaydi entity)
+        => FinansHacimKurallari.Hacim(entity.SandikCinsi, entity.SandikTipi, entity.ToplamM3, Bilesenler(entity));
 
     internal static FinansGiderModel MapExpense(FinansGider entity) => new()
     {
@@ -120,6 +136,8 @@ internal static class FinansModelEslemeleri
         ProjeId = entity.ProjeId,
         ProjeNo = entity.Proje?.ProjeNo ?? entity.ManuelProjeNo ?? string.Empty,
         IsTuru = entity.IsTuru,
+        FinansSiparisId = entity.FinansSiparisId,
+        PoNumarasi = entity.FinansSiparis?.PoNumarasi,
         IptalEdildi = entity.IptalEdildi,
         IptalAciklamasi = entity.IptalAciklamasi
     };

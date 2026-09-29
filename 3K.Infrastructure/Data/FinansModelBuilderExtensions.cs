@@ -16,7 +16,7 @@ internal static class FinansModelBuilderExtensions
         ConfigureFinansDenetim(modelBuilder);
         ConfigureFinansKaynakBastirma(modelBuilder);
         ConfigureFinansBelge(modelBuilder);
-        ConfigureFinansIsSablonu(modelBuilder);
+        ConfigureFinansParametreleri(modelBuilder);
     }
 
     private static void ConfigureFinansUrun(ModelBuilder modelBuilder)
@@ -120,13 +120,11 @@ internal static class FinansModelBuilderExtensions
             entity.Property(x => x.KaynakBileseni).HasMaxLength(20).HasDefaultValue("NET");
             entity.Property(x => x.ManuelNetTutar).HasPrecision(18, 2);
             entity.Property(x => x.SandikCinsi).HasConversion<int?>();
-            entity.Property(x => x.AlanDegerleriJson).HasColumnType("jsonb");
             entity.Property(x => x.FiyatBilesenleriJson).HasColumnType("jsonb");
 
             entity.HasOne(x => x.Proje).WithMany().HasForeignKey(x => x.ProjeId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(x => x.FinansUrun).WithMany().HasForeignKey(x => x.FinansUrunId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(x => x.DuzenliIs).WithMany(x => x.OlusanKayitlar).HasForeignKey(x => x.DuzenliIsId).OnDelete(DeleteBehavior.SetNull);
-            entity.HasOne<FinansIsSablonSurumu>().WithMany().HasForeignKey(x => x.SablonSurumId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 
@@ -136,7 +134,9 @@ internal static class FinansModelBuilderExtensions
         {
             entity.ToTable("FinansSiparisleri");
             entity.HasIndex(x => x.KayitNo).IsUnique();
-            entity.HasIndex(x => x.PoNumarasi).IsUnique();
+            // PO numarası yalnız iptal edilmemiş siparişler arasında benzersizdir; iptal edilen PO'nun
+            // numarası doğru kayıtla yeniden girilebilir.
+            entity.HasIndex(x => x.PoNumarasi).IsUnique().HasFilter("\"IptalEdildi\" = false");
             entity.HasIndex(x => new { x.Durum, x.SiparisTarihi });
             entity.Property(x => x.KayitNo).HasMaxLength(50).IsRequired();
             entity.Property(x => x.PoNumarasi).HasMaxLength(100).IsRequired();
@@ -192,6 +192,12 @@ internal static class FinansModelBuilderExtensions
             entity.Property(x => x.BelgeToplamTutarSnapshot).HasPrecision(18, 4);
             entity.Property(x => x.MutabakatFarkiSnapshot).HasPrecision(18, 4).HasDefaultValue(0m);
             entity.Property(x => x.MutabakatAciklamasi).HasMaxLength(1000);
+            entity.Property(x => x.VadeTarihi).HasColumnType("timestamp without time zone");
+            entity.Property(x => x.OdendiMi).HasDefaultValue(false);
+            entity.Property(x => x.OdemeTarihi).HasColumnType("timestamp without time zone");
+            entity.Property(x => x.OdemeAciklamasi).HasMaxLength(1000);
+            // Vade uyarıları ödenmemiş faturaları vade sırasıyla okur.
+            entity.HasIndex(x => new { x.OdendiMi, x.VadeTarihi });
             entity.Property(x => x.Durum).HasConversion<int>();
             entity.Property(x => x.IptalEdildi).HasDefaultValue(false);
             entity.HasOne(x => x.FinansSiparis).WithMany(x => x.Faturalar).HasForeignKey(x => x.FinansSiparisId).OnDelete(DeleteBehavior.Restrict);
@@ -311,6 +317,7 @@ internal static class FinansModelBuilderExtensions
             entity.Property(x => x.FinansTarihi).HasColumnType("timestamp without time zone");
             entity.Property(x => x.BelgeNo).HasMaxLength(100);
             entity.HasOne<FinansGider>().WithMany().HasForeignKey(x => x.MahsupEdilenAvansId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.FinansSiparis).WithMany(x => x.Giderler).HasForeignKey(x => x.FinansSiparisId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 
@@ -359,22 +366,35 @@ internal static class FinansModelBuilderExtensions
         });
     }
 
-    private static void ConfigureFinansIsSablonu(ModelBuilder modelBuilder)
+    /// <summary>
+    /// Para birimi tablosu (F1) ve finans parametreleri (D3). Başlangıç verisi modelde tanımlıdır; kurulum betiği
+    /// ve test veritabanları aynı kayıtlarla açılır. Şu an TRY ve EUR kullanılır; yeni para birimi ekrandan eklenir.
+    /// </summary>
+    private static void ConfigureFinansParametreleri(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<FinansIsSablonu>(entity =>
+        var tohumTarihi = new DateTime(2026, 9, 29);
+        modelBuilder.Entity<FinansParaBirimi>(entity =>
         {
-            entity.ToTable("FinansIsSablonlari");
+            entity.ToTable("FinansParaBirimleri");
             entity.HasIndex(x => x.Kod).IsUnique();
-            entity.Property(x => x.Kod).HasMaxLength(80);
-            entity.Property(x => x.Ad).HasMaxLength(200);
+            entity.Property(x => x.Kod).HasMaxLength(3).IsRequired();
+            entity.Property(x => x.Ad).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Sembol).HasMaxLength(10);
+            entity.Property(x => x.Aktif).HasDefaultValue(true);
+            entity.HasData(
+                new FinansParaBirimi { Id = 1, Kod = "TRY", Ad = "Türk Lirası", Sembol = "₺", Aktif = true, Sira = 1, CreatedDate = tohumTarihi, CreatedBy = "SYSTEM" },
+                new FinansParaBirimi { Id = 2, Kod = "EUR", Ad = "Euro", Sembol = "€", Aktif = true, Sira = 2, CreatedDate = tohumTarihi, CreatedBy = "SYSTEM" });
         });
 
-        modelBuilder.Entity<FinansIsSablonSurumu>(entity =>
+        modelBuilder.Entity<FinansParametre>(entity =>
         {
-            entity.ToTable("FinansIsSablonSurumleri");
-            entity.HasIndex(x => new { x.FinansIsSablonuId, x.Surum }).IsUnique();
-            entity.Property(x => x.AlanlarJson).HasColumnType("jsonb");
-            entity.HasOne(x => x.Sablon).WithMany(x => x.Surumler).HasForeignKey(x => x.FinansIsSablonuId).OnDelete(DeleteBehavior.Restrict);
+            entity.ToTable("FinansParametreleri");
+            entity.HasIndex(x => x.Kod).IsUnique();
+            entity.Property(x => x.Kod).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Deger).HasMaxLength(200).IsRequired();
+            entity.HasData(
+                new FinansParametre { Id = 1, Kod = "VarsayilanVadeGunu", Deger = "30", CreatedDate = tohumTarihi, CreatedBy = "SYSTEM" },
+                new FinansParametre { Id = 2, Kod = "VadeUyariGunu", Deger = "7", CreatedDate = tohumTarihi, CreatedBy = "SYSTEM" });
         });
     }
 }

@@ -44,6 +44,15 @@ public sealed class FinansDuzenliIsGuncelleCommandValidator : AbstractValidator<
     }
 }
 
+public sealed class FinansDuzenliIsDonemUretCommandValidator : AbstractValidator<FinansDuzenliIsDonemUretCommand>
+{
+    public FinansDuzenliIsDonemUretCommandValidator()
+    {
+        RuleFor(x => x.Id).GreaterThan(0);
+        RuleFor(x => x.BitisTarihi).Must(FinansTarihKurallari.GecerliTarih).WithMessage("Geçerli bir bitiş tarihi girin.");
+    }
+}
+
 public sealed class FinansGiderKategoriKaydetModelValidator : AbstractValidator<FinansGiderKategoriKaydetModel>
 {
     public FinansGiderKategoriKaydetModelValidator() => RuleFor(x => x.Ad).NotEmpty().MaximumLength(150);
@@ -108,6 +117,9 @@ public sealed class FinansUrunKaydetModelValidator : AbstractValidator<FinansUru
             .Must(x => x is null || FinansValidationRules.Currency(x))
             .WithMessage("Para birimi üç karakter olmalıdır.");
         RuleFor(x => x.KdvOrani).InclusiveBetween(0, 100).When(x => x.KdvOrani.HasValue);
+        RuleFor(x => x.GecerlilikBaslangici!.Value).Must(FinansTarihKurallari.GecerliTarih)
+            .WithMessage("Tarife geçerlilik başlangıcı geçerli bir tarih olmalıdır.")
+            .When(x => x.GecerlilikBaslangici.HasValue);
         RuleForEach(x => x.Eslesmeler).ChildRules(match =>
         {
             match.RuleFor(x => x.IsTuru).IsInEnum();
@@ -117,6 +129,51 @@ public sealed class FinansUrunKaydetModelValidator : AbstractValidator<FinansUru
             match.RuleFor(x => x.En).GreaterThan(0).When(x => x.En.HasValue);
             match.RuleFor(x => x.Yukseklik).GreaterThan(0).When(x => x.Yukseklik.HasValue);
         });
+    }
+}
+
+public sealed class FinansUrunYenidenFiyatlaCommandValidator : AbstractValidator<FinansUrunYenidenFiyatlaCommand>
+{
+    public FinansUrunYenidenFiyatlaCommandValidator()
+    {
+        RuleFor(x => x.Id).GreaterThan(0);
+        RuleFor(x => x.Aciklama).Must(FinansGerekceKurali.Gecerli).WithMessage(FinansGerekceKurali.Mesaj);
+    }
+}
+
+public sealed class FinansParaBirimiKaydetModelValidator : AbstractValidator<FinansParaBirimiKaydetModel>
+{
+    public FinansParaBirimiKaydetModelValidator()
+    {
+        RuleFor(x => x.Kod).NotEmpty().Must(x => x is not null && x.Trim().Length == 3 && x.Trim().All(char.IsAsciiLetter))
+            .WithMessage("Para birimi kodu üç harften oluşmalıdır (ISO-4217, ör. USD).");
+        RuleFor(x => x.Ad).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.Sembol).MaximumLength(10);
+        RuleFor(x => x.Sira).InclusiveBetween(0, 9999);
+    }
+}
+
+public sealed class FinansParaBirimiOlusturCommandValidator : AbstractValidator<FinansParaBirimiOlusturCommand>
+{
+    public FinansParaBirimiOlusturCommandValidator() => RuleFor(x => x.Model).NotNull().SetValidator(new FinansParaBirimiKaydetModelValidator());
+}
+
+public sealed class FinansParaBirimiGuncelleCommandValidator : AbstractValidator<FinansParaBirimiGuncelleCommand>
+{
+    public FinansParaBirimiGuncelleCommandValidator()
+    {
+        RuleFor(x => x.Id).GreaterThan(0);
+        RuleFor(x => x.Model).NotNull().SetValidator(new FinansParaBirimiKaydetModelValidator());
+    }
+}
+
+public sealed class FinansParametreleriKaydetCommandValidator : AbstractValidator<FinansParametreleriKaydetCommand>
+{
+    public FinansParametreleriKaydetCommandValidator()
+    {
+        RuleFor(x => x.Model).NotNull();
+        RuleFor(x => x.Model.VarsayilanVadeGunu).InclusiveBetween(0, FinansVadeKurallari.EnFazlaVadeGunu).When(x => x.Model is not null);
+        RuleFor(x => x.Model.VadeUyariGunu).InclusiveBetween(0, FinansVadeKurallari.EnFazlaUyariGunu).When(x => x.Model is not null);
     }
 }
 

@@ -104,21 +104,25 @@ public sealed record AmbalajIcSandikSablonDto(
 
 public sealed record AmbalajKullaniciSecenegiDto(int Id, string AdSoyad);
 
+/// <summary>İlave sandığa dönüştürülebilecek proje sandığı; <see cref="SandikTipi"/> kaynak sandığın tipidir.</summary>
 public sealed record AmbalajIlaveSandikAdayDto(
     int Id,
     string SandikNo,
     string? Ad,
     decimal? Boy,
     decimal? En,
-    decimal? Yukseklik);
+    decimal? Yukseklik,
+    string? SandikTipi = null);
 
+/// <summary>Özel sandık formunda seçilebilen proje sandığı ve tipi.</summary>
 public sealed record AmbalajSandikSecenegiDto(
     int Id,
     string SandikNo,
     string? Ad,
     decimal? Boy,
     decimal? En,
-    decimal? Yukseklik);
+    decimal? Yukseklik,
+    string? SandikTipi = null);
 
 public sealed record AmbalajBagimsizSandikDto(
     int Id,

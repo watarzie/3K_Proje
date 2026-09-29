@@ -1102,7 +1102,7 @@ public sealed class FinansModuluTests
         using var context = new AppDbContext(options);
 
         var pageSql = FinansUrunService.WithProductPageDetails(
-                context.Set<FinansUrun>(), new DateTime(2026, 9, 2))
+                context.Set<FinansUrun>())
             .Take(25)
             .ToQueryString();
 
@@ -1111,7 +1111,7 @@ public sealed class FinansModuluTests
         Assert.Contains("GecerlilikBitisi", pageSql, StringComparison.Ordinal);
 
         var byIdSql = FinansUrunService.BuildProductByIdQuery(
-                context.Set<FinansUrun>(), 42, new DateTime(2026, 9, 2))
+                context.Set<FinansUrun>(), 42)
             .ToQueryString();
         Assert.Contains("Id", byIdSql, StringComparison.Ordinal);
         Assert.Contains("42", byIdSql, StringComparison.Ordinal);

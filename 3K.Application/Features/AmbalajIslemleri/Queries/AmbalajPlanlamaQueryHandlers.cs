@@ -47,6 +47,8 @@ public sealed class GetAmbalajPlanlamaProjeleriQueryHandler
         filtrelenmisProjeler = AmbalajProjeAramaFiltresi.Uygula(filtrelenmisProjeler, request.Arama);
         filtrelenmisProjeler = AmbalajDurumErisimi.ProjeleriFiltrele(filtrelenmisProjeler,
             _unitOfWork.GetRepository<AmbalajUretimKaydi>().Queryable(), izinliDurumlar);
+        filtrelenmisProjeler = AmbalajProjeTamamlanmaFiltresi.Uygula(filtrelenmisProjeler,
+            _unitOfWork.GetRepository<AmbalajUretimKaydi>().Queryable(), request.Tamamlanan);
 
         var totalCount = await _readQueries.CountAsync(filtrelenmisProjeler, cancellationToken);
         var sayfa = AmbalajSayfalamaYardimcisi.Olustur(request.PageNumber, pageSize, totalCount);
@@ -173,9 +175,9 @@ public sealed class GetAmbalajPlanlamaProjeleriQueryHandler
             if (kayit == null && tamamlananProjeIds.Contains(kaynak.ProjeId))
                 continue;
 
-            var kaynakGrubu = kayit?.Tur == AmbalajSandikTuru.Ilave ||
-                               (kayit == null && planBaslangiclari.TryGetValue(kaynak.ProjeId, out var baslangic) &&
-                                kaynak.CreatedDate > baslangic)
+            var kaynakGrubu = AmbalajUretimPolitikasi.KaynakGrubu(AmbalajSandikTuru.Normal, kayit?.Tur,
+                    planBaslangiclari.TryGetValue(kaynak.ProjeId, out var baslangic) ? baslangic : null, kaynak.CreatedDate)
+                == AmbalajSandikTuru.Ilave
                 ? 2
                 : 1;
             if (kaynakGrubu != grup)
@@ -587,7 +589,10 @@ public sealed class GetAmbalajIlaveSandikAdaylariQueryHandler
         var sonuc = _unitOfWork.GetRepository<Sandik>().Queryable()
             .Where(s => s.ProjeId == request.ProjeId && haricTutulan.Contains(s.Id) && !kullanilan.Contains(s.Id))
             .OrderBy(s => s.SandikNo)
-            .Select(s => new AmbalajIlaveSandikAdayDto(s.Id, s.SandikNo, s.Ad, s.Boy, s.En, s.Yukseklik))
+            .Select(s => new { s.Id, s.SandikNo, s.Ad, s.Boy, s.En, s.Yukseklik, s.TipId })
+            .ToList()
+            .Select(s => new AmbalajIlaveSandikAdayDto(s.Id, s.SandikNo, s.Ad, s.Boy, s.En, s.Yukseklik,
+                AmbalajUretimYardimcilari.CinsMetni(AmbalajUretimPolitikasi.KaynakCinsi(s.TipId), null)))
             .ToList();
         var izin = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(_roller, _kullanici, cancellationToken);
         return Result<IReadOnlyList<AmbalajIlaveSandikAdayDto>>.Success(
@@ -623,20 +628,26 @@ public sealed class GetAmbalajProjeSandikSecenekleriQueryHandler
         var query = _readQueries.AsNoTracking(
                 _unitOfWork.GetRepository<Sandik>().Queryable())
             .Where(sandik => sandik.ProjeId == request.ProjeId)
-            .Select(sandik => new AmbalajSandikSecenegiDto(
+            .Select(sandik => new SandikSecenekSatiri(
                 sandik.Id,
                 sandik.SandikNo,
                 sandik.Ad,
                 sandik.Boy,
                 sandik.En,
-                sandik.Yukseklik));
+                sandik.Yukseklik,
+                sandik.TipId));
 
         var izin = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(_roller, _kullanici, cancellationToken);
         var sonuc = (await _readQueries.ToListAsync(query, cancellationToken))
             .OrderBy(sandik => AmbalajPlanlamaYardimcisi.SandikSiraAnahtari(sandik.SandikNo))
             .ThenBy(sandik => sandik.SandikNo, StringComparer.OrdinalIgnoreCase)
-            .Select(sandik => AmbalajAlanMaskesi.Maskele(sandik, izin))
+            .Select(sandik => AmbalajAlanMaskesi.Maskele(new AmbalajSandikSecenegiDto(
+                sandik.Id, sandik.SandikNo, sandik.Ad, sandik.Boy, sandik.En, sandik.Yukseklik,
+                AmbalajUretimYardimcilari.CinsMetni(AmbalajUretimPolitikasi.KaynakCinsi(sandik.TipId), null)), izin))
             .ToList();
         return Result<IReadOnlyList<AmbalajSandikSecenegiDto>>.Success(sonuc);
     }
+
+    private sealed record SandikSecenekSatiri(
+        int Id, string SandikNo, string? Ad, decimal? Boy, decimal? En, decimal? Yukseklik, int TipId);
 }

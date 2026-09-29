@@ -16,6 +16,14 @@ public sealed class FinansDuzenliIsGuncelleCommand : FinansCommand<FinansDuzenli
     public FinansDuzenliIsKaydetModel Model { get; init; } = null!;
 }
 
+/// <summary>Düzenli işin verilen tarihe kadarki dönem kayıtlarını üretir (gelecek aylar için PO açılabilsin diye).</summary>
+public sealed class FinansDuzenliIsDonemUretCommand : FinansCommand<FinansDonemOlusturSonucModel>
+{
+    public override string RequiredMenuKod => YetkiKodlari.Finans.DuzenliIsYonet;
+    public int Id { get; init; }
+    public DateTime BitisTarihi { get; init; }
+}
+
 public sealed class FinansGiderKategoriOlusturCommand : FinansCommand<FinansGiderKategoriModel>
 {
     public override string RequiredMenuKod => YetkiKodlari.Finans.GiderKutuphanesiYonet;
@@ -61,9 +69,34 @@ public sealed class FinansUrunPasiflestirCommand : FinansCommand
     public int Id { get; init; }
 }
 
-public sealed class FinansSablonKaydetCommand : FinansCommand<FinansSablonModel>
+/// <summary>
+/// D4: tarife değişikliği açık kalemleri kendiliğinden değiştirmez; birim fiyat değiştirme yetkisiyle ürüne bağlı,
+/// PO'ya bağlanmamış kalemler bu işlemle geçerli tarife sürümüne göre yeniden fiyatlanır.
+/// </summary>
+public sealed class FinansUrunYenidenFiyatlaCommand : FinansCommand<FinansYenidenFiyatlamaSonucModel>
 {
-    public override string RequiredMenuKod => YetkiKodlari.Finans.SablonYonet;
-    public int? Id { get; init; }
-    public FinansSablonKaydetModel Model { get; init; } = null!;
+    public override string RequiredMenuKod => YetkiKodlari.Finans.BirimFiyatDegistir;
+    public int Id { get; init; }
+    public string Aciklama { get; init; } = string.Empty;
+}
+
+/// <summary>Para birimi tanımı (F1); finans tanımlarıyla aynı yetkiyle yönetilir.</summary>
+public sealed class FinansParaBirimiOlusturCommand : FinansCommand<FinansParaBirimiModel>
+{
+    public override string RequiredMenuKod => YetkiKodlari.Finans.IsKutuphanesiYonet;
+    public FinansParaBirimiKaydetModel Model { get; init; } = null!;
+}
+
+public sealed class FinansParaBirimiGuncelleCommand : FinansCommand<FinansParaBirimiModel>
+{
+    public override string RequiredMenuKod => YetkiKodlari.Finans.IsKutuphanesiYonet;
+    public int Id { get; init; }
+    public FinansParaBirimiKaydetModel Model { get; init; } = null!;
+}
+
+/// <summary>Vade parametreleri (D3): varsayılan vade günü ve vade uyarısı penceresi.</summary>
+public sealed class FinansParametreleriKaydetCommand : FinansCommand<FinansParametrelerModel>
+{
+    public override string RequiredMenuKod => YetkiKodlari.Finans.IsKutuphanesiYonet;
+    public FinansParametrelerModel Model { get; init; } = null!;
 }

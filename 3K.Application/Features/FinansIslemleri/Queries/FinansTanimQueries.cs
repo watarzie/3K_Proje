@@ -54,7 +54,14 @@ public sealed class FinansUrunlerQuery : FinansQuery<FinansSayfaliSonuc<FinansUr
     public int PageSize { get; init; } = 25;
 }
 
-public sealed class FinansSablonlarQuery : FinansQuery<IReadOnlyList<FinansSablonModel>>
+/// <summary>Para birimi tanımları (F1); seçim listeleri, kartlar ve filtreler için finans modülüne erişen herkes okur.</summary>
+public sealed class FinansParaBirimleriQuery : FinansQuery<IReadOnlyList<FinansParaBirimiModel>>
 {
-    public override string RequiredMenuKod => YetkiKodlari.Finans.KayitGoruntule;
+    public override string RequiredMenuKod => YetkiKodlari.Finans.Modul;
+    public bool SadeceAktif { get; init; }
+}
+
+public sealed class FinansParametrelerQuery : FinansQuery<FinansParametrelerModel>
+{
+    public override string RequiredMenuKod => YetkiKodlari.Finans.Modul;
 }

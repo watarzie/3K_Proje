@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using _3K.Core.Entities;
@@ -89,17 +88,7 @@ internal sealed class FinansIsKaydiService(
     {
         var entity = await context.IsKaydiDetayQuery().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (entity is null) return null;
-        var model = FinansModelEslemeleri.MapIsKaydi(entity);
-        if (entity.SablonSurumId is not { } versionId) return model;
-        // Düzenleme, şablonun bugünkü son sürümünü değil kaydın değişmez sürümünü açar.
-        var version = await context.Set<FinansIsSablonSurumu>().AsNoTracking().Include(x => x.Sablon)
-            .FirstOrDefaultAsync(x => x.Id == versionId, cancellationToken);
-        return version is null ? model : model with
-        {
-            Sablon = new FinansSablonModel(version.FinansIsSablonuId, version.Sablon.Kod, version.Sablon.Ad,
-                version.Sablon.Aktif, version.Id, version.Surum,
-                System.Text.Json.JsonSerializer.Deserialize<FinansSablonAlanModel[]>(version.AlanlarJson)!)
-        };
+        return FinansModelEslemeleri.MapIsKaydi(entity);
     }
 
     public Task<FinansIsKaydiModel> IsKaydiOlusturAsync(
@@ -185,7 +174,7 @@ internal sealed class FinansIsKaydiService(
             entity.BirimFiyatSnapshot = manuelBirimFiyat ?? tarife.BirimFiyat;
             entity.ParaBirimiSnapshot = string.IsNullOrWhiteSpace(paraBirimi)
                 ? tarife.ParaBirimi
-                : FinansParaBirimiKurali.Normalize(paraBirimi);
+                : await FinansSorgulari.ParaBirimiSecimiAsync(context, paraBirimi, [tarife.ParaBirimi], cancellationToken);
             entity.KdvOraniSnapshot = kdvOrani ?? tarife.KdvOrani;
             entity.TarifeYiliSnapshot = tarife.Yil;
             entity.TarifeIdSnapshot = tarife.Id;
@@ -198,7 +187,7 @@ internal sealed class FinansIsKaydiService(
                 ? FinansFiyatlandirmaBirimi.Metrekup
                 : FinansFiyatlandirmaBirimi.Adet;
             entity.BirimFiyatSnapshot = 0;
-            entity.ParaBirimiSnapshot = FinansParaBirimiKurali.Normalize(paraBirimi ?? "EUR");
+            entity.ParaBirimiSnapshot = await SecilenParaBirimiAsync(entity, paraBirimi, cancellationToken);
             entity.KdvOraniSnapshot = kdvOrani ?? 0;
             entity.TarifeYiliSnapshot = null;
             return;
@@ -209,7 +198,7 @@ internal sealed class FinansIsKaydiService(
             : entity.IsTuru == FinansIsTuru.OzelIs && entity.HesaplamaYontemi == FinansHesaplamaYontemi.SabitAylik
                 ? FinansFiyatlandirmaBirimi.SabitTutar : FinansFiyatlandirmaBirimi.Adet;
         entity.BirimFiyatSnapshot = manuelBirimFiyat.Value;
-        entity.ParaBirimiSnapshot = FinansParaBirimiKurali.Normalize(paraBirimi ?? "EUR");
+        entity.ParaBirimiSnapshot = await SecilenParaBirimiAsync(entity, paraBirimi, cancellationToken);
         entity.KdvOraniSnapshot = kdvOrani ?? 0;
         entity.TarifeYiliSnapshot = null;
     }
@@ -322,8 +311,7 @@ internal sealed class FinansIsKaydiService(
             if (work.IptalEdildi || !work.KaynakAktif) throw IsKuraliException.Cakisma("Pasif iş fiyatlandırılamaz.");
             if (work.SiparisKalemleri.Count > 0)
                 throw IsKuraliException.Cakisma("PO geçmişi bulunan işin fiyat snapshot'ı değiştirilemez; ek/düzeltme işi oluşturun.");
-            var currency = FinansParaBirimiKurali.Normalize(model.ParaBirimi);
-            if (!FinansParaBirimiKurali.DesteklenenMi(currency)) throw IsKuraliException.Cakisma("Desteklenen para birimleri TRY, EUR ve USD'dir.");
+            var currency = await FinansSorgulari.ParaBirimiSecimiAsync(context, model.ParaBirimi, [work.ParaBirimiSnapshot], cancellationToken);
             var componentTotal = ValidatePriceComponents(model.Bilesenler);
             if (model.FiyatlandirmaBirimi == FinansFiyatlandirmaBirimi.ManuelToplam && model.ManuelNetTutar is not > 0 && componentTotal is null)
                 throw IsKuraliException.Cakisma("Manuel toplam yönteminde pozitif net tutar zorunludur.");
@@ -331,7 +319,6 @@ internal sealed class FinansIsKaydiService(
                 throw IsKuraliException.Cakisma("Manuel toplam veya bileşenler için ManuelToplam yöntemini seçin.");
             if (componentTotal.HasValue && model.ManuelNetTutar.HasValue && model.ManuelNetTutar.Value != componentTotal)
                 throw IsKuraliException.Cakisma("Manuel net tutar bileşen toplamına eşit olmalıdır.");
-            await ValidateTemplateValuesAsync(model, cancellationToken);
             var before = FinansDenetimKaydi.AnlikGoruntu(work);
             work.FiyatlandirmaBirimiSnapshot = model.FiyatlandirmaBirimi;
             work.Adet = model.Adet;
@@ -344,8 +331,6 @@ internal sealed class FinansIsKaydiService(
             work.ParaBirimiSnapshot = currency;
             work.KdvOraniSnapshot = model.KdvOrani;
             work.FinansMiktariManuel = true;
-            work.SablonSurumId = model.SablonSurumId;
-            work.AlanDegerleriJson = model.AlanDegerleri is null ? null : JsonSerializer.Serialize(model.AlanDegerleri);
             work.FiyatBilesenleriJson = model.Bilesenler is null ? null : JsonSerializer.Serialize(model.Bilesenler);
             if (FinansTutarKurallari.IsNet(work) <= 0) throw IsKuraliException.Cakisma("İş net bedeli sıfırdan büyük olmalıdır.");
             work.Durum = FinansTutarKurallari.Durum(work);
@@ -361,40 +346,22 @@ internal sealed class FinansIsKaydiService(
         if (components.Count > 100) throw IsKuraliException.Cakisma("En fazla 100 fiyat bileşeni tanımlanabilir.");
         if (components.Any(x => x is null || string.IsNullOrWhiteSpace(x.Ad) || x.Ad.Length > 150 || !Enum.IsDefined(x.Yontem) || x.Miktar <= 0 || x.BirimFiyat < 0))
             throw IsKuraliException.Cakisma("Bileşenin adı, yöntemi, pozitif miktarı ve geçerli fiyatı zorunludur.");
+        // F11: m³ satırının malzemesi ahşap veya kontra olabilir; boşsa sandığın kendi malzemesi sayılır.
+        if (components.Any(x => x.Malzeme is { } malzeme && (malzeme == FinansSandikMalzemesi.Bilinmiyor || !Enum.IsDefined(malzeme))))
+            throw IsKuraliException.Cakisma("Bileşen malzemesi ahşap veya kontra olmalıdır.");
+        if (components.Any(x => x.Malzeme.HasValue && x.Yontem != FinansFiyatlandirmaBirimi.Metrekup))
+            throw IsKuraliException.Cakisma("Malzeme yalnız m³ fiyat satırında seçilebilir.");
         return components.Sum(x => FinansTutarKurallari.Para((x.Yontem is FinansFiyatlandirmaBirimi.SabitTutar or FinansFiyatlandirmaBirimi.ManuelToplam ? 1 : x.Miktar) * x.BirimFiyat));
     }
 
-    private async Task ValidateTemplateValuesAsync(FinansFiyatlandirmaModel model, CancellationToken cancellationToken)
+    /// <summary>
+    /// Manuel fiyattaki para birimi: gönderilmediyse varsayılan EUR; gönderildiyse tanımlı ve aktif olmalıdır (F1).
+    /// Mevcut kayıt güncellenirken kendi para birimi, pasifleştirilmiş olsa da korunabilir.
+    /// </summary>
+    private async Task<string> SecilenParaBirimiAsync(FinansIsKaydi entity, string? paraBirimi, CancellationToken cancellationToken)
     {
-        if (!model.SablonSurumId.HasValue)
-        {
-            if (model.AlanDegerleri?.Count > 0) throw IsKuraliException.Cakisma("Dinamik alanlar için şablon sürümü seçilmelidir.");
-            return;
-        }
-        var version = await context.Set<FinansIsSablonSurumu>().AsNoTracking().Include(x => x.Sablon)
-            .FirstOrDefaultAsync(x => x.Id == model.SablonSurumId, cancellationToken)
-            ?? throw IsKuraliException.Cakisma("Şablon sürümü bulunamadı.");
-        if (!version.Sablon.Aktif) throw IsKuraliException.Cakisma("Pasif şablonla yeni fiyatlandırma yapılamaz.");
-        var fields = JsonSerializer.Deserialize<FinansSablonAlanModel[]>(version.AlanlarJson)!;
-        var values = model.AlanDegerleri ?? new Dictionary<string, string?>();
-        if (values.Keys.Any(key => fields.All(x => x.Kod != key))) throw IsKuraliException.Cakisma("Şablonda tanımlanmamış alan gönderildi.");
-        foreach (var field in fields)
-        {
-            values.TryGetValue(field.Kod, out var value);
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                if (field.Zorunlu) throw IsKuraliException.Cakisma($"{field.Ad} alanı zorunludur.");
-                continue;
-            }
-            var valid = value.Length <= 2000 && (field.VeriTuru switch
-            {
-                "metin" => true,
-                "sayi" => decimal.TryParse(value, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out _),
-                "tarih" => DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _),
-                "mantiksal" => bool.TryParse(value, out _),
-                _ => false
-            });
-            if (!valid) throw IsKuraliException.Cakisma($"{field.Ad} alanının veri türü geçersiz.");
-        }
+        if (string.IsNullOrWhiteSpace(paraBirimi)) return "EUR";
+        string?[] mevcut = entity.Id > 0 ? [entity.ParaBirimiSnapshot] : [];
+        return await FinansSorgulari.ParaBirimiSecimiAsync(context, paraBirimi, mevcut, cancellationToken);
     }
 }

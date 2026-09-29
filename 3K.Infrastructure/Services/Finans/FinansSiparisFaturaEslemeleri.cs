@@ -9,7 +9,11 @@ namespace _3K.Infrastructure.Services.Finans;
 /// </summary>
 internal static class FinansSiparisFaturaEslemeleri
 {
-    internal static FinansSiparisModel MapSiparis(FinansSiparis entity, FinansListeFiltre? filtre = null)
+    /// <param name="isSiparisToplamlari">İş kaydı kimliğine göre işin bütün aktif PO'lardaki sipariş net toplamı.</param>
+    internal static FinansSiparisModel MapSiparis(
+        FinansSiparis entity,
+        IReadOnlyDictionary<int, decimal> isSiparisToplamlari,
+        FinansListeFiltre? filtre = null)
     {
         var selectedOrderLines = filtre is null
             ? entity.Kalemler.ToList()
@@ -21,10 +25,21 @@ internal static class FinansSiparisFaturaEslemeleri
             var invoiceLines = activeInvoiceLines.Where(x => x.FinansSiparisKalemiId == line.Id).ToList();
             var invoicedAdet = invoiceLines.Sum(x => x.Adet);
             var invoicedM3 = invoiceLines.Sum(x => x.M3);
+            var work = line.FinansIsKaydi;
+            var workNet = FinansTutarKurallari.IsNet(work);
             return new FinansSiparisKalemiModel
             {
                 Id = line.Id,
                 IsKaydiId = line.FinansIsKaydiId,
+                ProjeId = work.ProjeId,
+                ProjeNo = work.ProjeNo,
+                Musteri = work.Musteri,
+                IsAdi = work.IsAdi,
+                Kategori = FinansKategoriKurali.Kategori(work.IsTuru, work.DuzenliIsId),
+                DuzenliIsId = work.DuzenliIsId,
+                FinansTarihi = work.FinansTarihi,
+                IsBedeli = workNet,
+                KalanSiparisNetTutar = Math.Max(0, workNet - isSiparisToplamlari.GetValueOrDefault(work.Id)),
                 SandikNo = line.FinansIsKaydi.SandikNo ?? string.Empty,
                 SandikAdi = line.FinansIsKaydi.SandikAdi ?? line.FinansIsKaydi.IsAdi,
                 IsTuru = line.FinansIsKaydi.IsTuru,
@@ -56,6 +71,13 @@ internal static class FinansSiparisFaturaEslemeleri
         var totals = selectedOrderLines.GroupBy(x => x.ParaBirimiSnapshot)
             .Select(x => new FinansParaToplamiModel(x.Key, x.Sum(y => y.NetTutarSnapshot), x.Sum(y => y.KdvTutariSnapshot), x.Sum(y => y.ToplamTutarSnapshot)))
             .OrderBy(x => x.ParaBirimi).ToArray();
+        var invoicedTotals = activeInvoiceLines.GroupBy(x => x.FinansSiparisKalemi.ParaBirimiSnapshot)
+            .Select(x => new FinansParaToplamiModel(x.Key, x.Sum(y => y.NetTutarSnapshot), x.Sum(y => y.KdvTutariSnapshot), x.Sum(y => y.ToplamTutarSnapshot)))
+            .OrderBy(x => x.ParaBirimi).ToArray();
+        // İlişkili giderler PO'nun bütününe aittir; kalem filtresinden bağımsız gösterilir.
+        var expenses = entity.Giderler.Where(x => !x.IptalEdildi && !x.AvansMi).GroupBy(x => x.ParaBirimi)
+            .Select(x => new FinansParaToplamiModel(x.Key, x.Sum(y => y.Matrah), x.Sum(y => y.KdvTutari), x.Sum(y => y.ToplamTutar)))
+            .OrderBy(x => x.ParaBirimi).ToArray();
         return new FinansSiparisModel
         {
             Id = entity.Id,
@@ -73,15 +95,47 @@ internal static class FinansSiparisFaturaEslemeleri
             KalanM3 = Math.Max(0, selectedOrderLines.Sum(x => x.M3) - activeInvoiceLines.Sum(x => x.M3)),
             Durum = entity.Durum,
             Aciklama = entity.Aciklama,
+            ParaBirimi = entity.ParaBirimi,
             Tutarlar = totals,
+            FaturalananTutarlar = invoicedTotals,
+            Giderler = expenses,
+            Netler = PoNetleri(totals, invoicedTotals, expenses),
+            FaturaNumaralari = activeInvoiceLines.Select(x => x.FinansFatura.FaturaNumarasi).Distinct().Order().ToArray(),
             Kalemler = lineModels,
             IptalEdildi = entity.IptalEdildi,
+            IptalAciklamasi = entity.IptalAciklamasi,
             CreatedDate = entity.CreatedDate,
             CreatedBy = entity.CreatedBy
         };
     }
 
-    internal static FinansFaturaModel MapFatura(FinansFatura entity, FinansListeFiltre? filtre = null)
+    /// <summary>
+    /// PO net sonucu para birimi bazında hesaplanır; farklı para birimleri birbirine çevrilmez. Net,
+    /// faturalanan net gelir ile ilişkili net gider farkıdır; tahmini kâr sipariş net tutarını esas alır.
+    /// </summary>
+    internal static IReadOnlyList<FinansPoNetModel> PoNetleri(
+        IReadOnlyList<FinansParaToplamiModel> siparis,
+        IReadOnlyList<FinansParaToplamiModel> faturalanan,
+        IReadOnlyList<FinansParaToplamiModel> gider)
+        => siparis.Select(x => x.ParaBirimi)
+            .Concat(faturalanan.Select(x => x.ParaBirimi))
+            .Concat(gider.Select(x => x.ParaBirimi))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Order(StringComparer.Ordinal)
+            .Select(currency =>
+            {
+                decimal Net(IReadOnlyList<FinansParaToplamiModel> rows) => rows
+                    .Where(x => string.Equals(x.ParaBirimi, currency, StringComparison.OrdinalIgnoreCase)).Sum(x => x.NetTutar);
+                var ordered = Net(siparis);
+                var invoiced = Net(faturalanan);
+                var cost = Net(gider);
+                return new FinansPoNetModel(currency, ordered, invoiced, cost,
+                    FinansTutarKurallari.Para(invoiced - cost), FinansTutarKurallari.Para(ordered - cost));
+            }).ToArray();
+
+    /// <param name="bugun">Ödeme durumunun hesaplandığı gün (Türkiye saati).</param>
+    /// <param name="uyariGunu">Vadesi yaklaşan sayılacak gün penceresi (FinansParametreleri).</param>
+    internal static FinansFaturaModel MapFatura(FinansFatura entity, DateTime bugun, int uyariGunu, FinansListeFiltre? filtre = null)
     {
         var selectedInvoiceLines = filtre is null
             ? entity.Kalemler.ToList()
@@ -108,7 +162,9 @@ internal static class FinansSiparisFaturaEslemeleri
         {
             Kalemler = selectedInvoiceLines.Select(x => new FinansFaturaKalemiModel(x.Id, x.FinansSiparisKalemiId,
                 x.FinansSiparisKalemi.FinansIsKaydiId, x.NetTutarSnapshot, x.KdvTutariSnapshot, x.ToplamTutarSnapshot,
-                x.FinansSiparisKalemi.ParaBirimiSnapshot, x.TutarBazli)).ToArray(),
+                x.FinansSiparisKalemi.ParaBirimiSnapshot, x.TutarBazli,
+                x.FinansSiparisKalemi.FinansIsKaydi.ProjeNo, x.FinansSiparisKalemi.FinansIsKaydi.IsAdi,
+                FinansKategoriKurali.Kategori(x.FinansSiparisKalemi.FinansIsKaydi.IsTuru, x.FinansSiparisKalemi.FinansIsKaydi.DuzenliIsId))).ToArray(),
             Id = entity.Id,
             KayitNo = entity.KayitNo,
             FaturaNumarasi = entity.FaturaNumarasi,
@@ -128,6 +184,12 @@ internal static class FinansSiparisFaturaEslemeleri
             BelgeToplamTutar = entity.BelgeToplamTutarSnapshot,
             MutabakatFarki = entity.MutabakatFarkiSnapshot,
             MutabakatAciklamasi = entity.MutabakatAciklamasi,
+            VadeTarihi = entity.VadeTarihi,
+            OdendiMi = entity.OdendiMi,
+            OdemeTarihi = entity.OdemeTarihi,
+            OdemeAciklamasi = entity.OdemeAciklamasi,
+            OdemeDurumu = FinansVadeKurallari.Durum(entity.OdendiMi, entity.VadeTarihi, entity.OdemeTarihi, bugun, uyariGunu),
+            VadeFarkiGun = FinansVadeKurallari.VadeFarkiGun(entity.OdendiMi, entity.VadeTarihi, entity.OdemeTarihi, bugun),
             IptalEdildi = entity.IptalEdildi,
             CreatedDate = entity.CreatedDate,
             CreatedBy = entity.CreatedBy

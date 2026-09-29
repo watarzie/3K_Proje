@@ -13,6 +13,11 @@ public sealed class AmbalajFormOlusturCommand : IRequest<Result<AmbalajFormSurum
     public Guid IdempotencyAnahtari { get; set; }
     public bool YenidenOlustur { get; set; }
     public string? Aciklama { get; set; }
+    /// <summary>
+    /// İsteğe bağlı tarih (A6): verilirse formdaki sandıklardan oluşan finans kalemlerinin varsayılan
+    /// Finans Tarihi olur; boşsa finans tarihi üretim tarihinden gelir.
+    /// </summary>
+    public DateTime? FinansTarihi { get; set; }
     public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
         [MenuPermissionRequirement.Write(YenidenOlustur ? YetkiKodlari.Ambalaj.FormYenidenOlustur : YetkiKodlari.Ambalaj.FormOlustur)];
 }

@@ -46,6 +46,12 @@ internal static class AmbalajModelBuilderExtensions
                 .HasFilter("\"KaynakKayitId\" IS NOT NULL");
             entity.HasIndex(x => new { x.IptalMi, x.UretimeAlindi, x.UretimDurumu });
             entity.HasIndex(x => new { x.BagimsizKayitMi, x.Tur, x.ProjeId });
+            // A1: aynı proje + grup + sandık no ile iptal edilmemiş ikinci özel sandık açılamaz; eşzamanlı
+            // çift kaydı veritabanı da engeller (harf duyarsız karşılaştırma handler'dadır).
+            entity.HasIndex(x => new { x.ProjeId, x.Tur, x.SandikNo })
+                .IsUnique()
+                .HasFilter("\"BagimsizKayitMi\" AND NOT \"IptalMi\"")
+                .HasDatabaseName("IX_AmbalajUretimKayitlari_OzelSandikTekil");
             entity.HasIndex(x => x.UretimTarihi);
 
             entity.Property(x => x.ManuelProjeNo).HasMaxLength(100);

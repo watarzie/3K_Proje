@@ -89,6 +89,8 @@ public sealed class RequestMenuPermissionResolver(IUnitOfWork unitOfWork, IReadQ
             // Geçersiz seçimde istek kapsamının izniyle validator'a ulaşılır; 400 mesajı korunur.
             GetTopluEksikUrunlerRaporuQuery x when !GecerliProjeSecimi(x.ProjeIds) =>
                 ProjectPolicy((int)x.ProjeTipi, ProjectMenuOperation.MissingItemsReport, YetkiTipi.R),
+            GetTopluTalepFormuQuery x when !GecerliProjeSecimi(x.ProjeIds) =>
+                ProjectPolicy((int)x.ProjeTipi, ProjectMenuOperation.Grid, YetkiTipi.R),
             ProjeOlusturCommand x => ProjectPolicy(x.ProjeTipiId, ProjectMenuOperation.ProjectCreate, YetkiTipi.W),
             ProjeListeleQuery x => ProjectListPolicy(x.ProjeTipiId, x.IsSevkEdilen),
             // Sadece seçim için asgari proje bilgisi dönen ortak lookup; operasyon izni vermez.
@@ -116,6 +118,8 @@ public sealed class RequestMenuPermissionResolver(IUnitOfWork unitOfWork, IReadQ
         GetUcKSandikDurumPdfQuery x => new(ProjectMenuOperation.UcKCrateReport, YetkiTipi.R, x.ProjeId),
         GetTopluEksikUrunlerRaporuQuery x => new(ProjectMenuOperation.MissingItemsReport, YetkiTipi.R,
             ProjectIds: x.ProjeIds),
+        // G4: talep formu Grid verisidir; her proje kendi gerçek tipinin Grid okuma izniyle açılır.
+        GetTopluTalepFormuQuery x => new(ProjectMenuOperation.Grid, YetkiTipi.R, ProjectIds: x.ProjeIds),
         ProjeSevkEtCommand x => new(ProjectMenuOperation.Shipment, YetkiTipi.W, x.ProjeId),
         ProjeKilidiAcCommand x => new(ProjectMenuOperation.ProjectUnlock, YetkiTipi.W, x.ProjeId),
         ProjeSevkTarihiGuncelleCommand x => new(ProjectMenuOperation.PlannedShipmentDate, YetkiTipi.W, x.ProjeId),

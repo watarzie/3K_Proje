@@ -235,6 +235,22 @@ internal static partial class AmbalajPlanlamaYardimcisi
         _ => AmbalajSandikTuru.Normal
     };
 
+    /// <summary>
+    /// A1 tekillik anahtarı: proje + grup (Tur) + sandık no, iptal edilmemiş özel sandıklar arasında;
+    /// sandık no harf duyarsız karşılaştırılır. Güncellenen kaydın kendisi hariç tutulur.
+    /// </summary>
+    public static bool OzelSandikTekrariVarMi(
+        IQueryable<AmbalajUretimKaydi> kayitlar,
+        int haricId,
+        int projeId,
+        AmbalajSandikTuru tur,
+        string sandikNo)
+    {
+        var no = sandikNo.Trim().ToUpperInvariant();
+        return kayitlar.Any(k => k.Id != haricId && k.ProjeId == projeId && k.BagimsizKayitMi && !k.IptalMi &&
+                                 k.Tur == tur && k.SandikNo.ToUpper() == no);
+    }
+
     public static AmbalajSandikTuru OzelTurCoz(int tur) => tur switch
     {
         2 => AmbalajSandikTuru.Ilave,
@@ -249,8 +265,8 @@ internal static partial class AmbalajPlanlamaYardimcisi
         AmbalajUretimKaydi? kayit,
         DateTime? planBaslangici)
     {
-        var tur = kayit?.Tur == AmbalajSandikTuru.Ilave ||
-                  (kayit == null && planBaslangici.HasValue && sandik.CreatedDate > planBaslangici.Value)
+        var tur = AmbalajUretimPolitikasi.KaynakGrubu(AmbalajSandikTuru.Normal, kayit?.Tur, planBaslangici, sandik.CreatedDate)
+                  == AmbalajSandikTuru.Ilave
             ? 2
             : 1;
         var dahil = kayit?.AmbalajaDahil ?? !AmbalajUretimPolitikasi.VarsayilanYapilmazMi(sandik.Ad, sandik.AdIngilizce);

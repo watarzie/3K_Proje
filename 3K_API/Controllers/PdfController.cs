@@ -41,6 +41,16 @@ namespace _3K_API.Controllers
             [FromBody] TopluEksikUrunlerRaporuRequest? request, CancellationToken cancellationToken) =>
             TopluEksikUrunlerRaporuIndir(request, EksikUrunlerRaporDosyaTuru.Excel, cancellationToken);
 
+        /// <summary>G4: seçili projelerin Grid eksiği olan ürünleri tek sayfalık talep formu Excel'inde.</summary>
+        [HttpPost("talep-formu/toplu/excel")]
+        public async Task<IActionResult> TopluTalepFormuExcelIndir(
+            [FromBody] TopluEksikUrunlerRaporuRequest? request, CancellationToken cancellationToken) =>
+            (await _mediator.Send(new GetTopluTalepFormuQuery
+            {
+                ProjeIds = (IReadOnlyList<int>?)request?.ProjeIds ?? Array.Empty<int>(),
+                ProjeTipi = request?.ProjeTipi ?? ProjeTipi.Normal
+            }, cancellationToken)).ToFileResult();
+
         [HttpGet("gerceklesen-ceki-listesi/{projeId}")]
         public async Task<IActionResult> GerceklesenCekiListesiPdfIndir(int projeId, CancellationToken cancellationToken) =>
             (await _mediator.Send(new GetGerceklesenCekiListesiPdfQuery { ProjeId = projeId }, cancellationToken)).ToFileResult();

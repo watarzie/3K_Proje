@@ -22,9 +22,10 @@ internal sealed partial class FinansRaporService
             var pageNumber = 1;
             while (true)
             {
-                var page = await _panel.YaslandirmaAsync(filtre.Bitis ?? TurkeyTime.Now.Date, 0, filtre with { PageNumber = pageNumber, PageSize = 250 }, cancellationToken);
+                var asama = tur == "siparis-bekleyen" ? FinansBekleyenAsamalari.Siparis : FinansBekleyenAsamalari.Fatura;
+                var page = await _panel.YaslandirmaAsync(filtre.Bitis ?? TurkeyTime.Now.Date, 0, asama, filtre with { PageNumber = pageNumber, PageSize = 250 }, cancellationToken);
                 if (page.TotalCount > FinansSorgulari.RaporKayitSiniri) throw IsKuraliException.Cakisma("Yaşlandırma raporu 20.000 satırı aşamaz; filtreyi daraltın.");
-                foreach (var x in page.Items.Where(x => x.Asama == (tur == "siparis-bekleyen" ? "Sipariş" : "Fatura")))
+                foreach (var x in page.Items)
                     rows.Add([x.ProjeNo, x.IsAdi, x.PoNumarasi, x.Baslangic, x.Gun, x.Grup, x.ParaBirimi, x.KalanNetTutar]);
                 if (!page.HasNextPage) break;
                 pageNumber++;

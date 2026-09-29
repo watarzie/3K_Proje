@@ -9,4 +9,9 @@ public interface IFinansUrunService
     Task<FinansUrunModel> UrunOlusturAsync(FinansUrunKaydetModel model, CancellationToken cancellationToken);
     Task<FinansUrunModel?> UrunGuncelleAsync(int id, FinansUrunKaydetModel model, CancellationToken cancellationToken);
     Task<bool> UrunPasiflestirAsync(int id, CancellationToken cancellationToken);
+    /// <summary>
+    /// D4: ürüne bağlı, PO'ya hiç bağlanmamış açık kalemleri finans tarihlerinde geçerli tarife sürümüyle yeniden
+    /// fiyatlar. Ürün yoksa null döner.
+    /// </summary>
+    Task<FinansYenidenFiyatlamaSonucModel?> YenidenFiyatlaAsync(int id, string aciklama, CancellationToken cancellationToken);
 }

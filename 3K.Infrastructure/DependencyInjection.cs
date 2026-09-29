@@ -101,7 +101,7 @@ public static class DependencyInjection
         services.AddScoped<IFinansGiderService, FinansGiderService>();
         services.AddScoped<IFinansGiderTanimService, FinansGiderTanimService>();
         services.AddScoped<IFinansUrunService, FinansUrunService>();
-        services.AddScoped<IFinansSablonService, FinansSablonService>();
+        services.AddScoped<IFinansParametreService, FinansParametreService>();
         services.AddScoped<IFinansDuzenliIsService, FinansDuzenliIsService>();
         services.AddScoped<IFinansBelgeService, FinansBelgeService>();
         services.AddScoped<IFinansKaliciSilmeService, FinansKaliciSilmeService>();
@@ -134,6 +134,7 @@ public static class DependencyInjection
         services.AddScoped<IGerceklesenCekiListesiRaporService, GerceklesenCekiListesiRaporService>();
         services.AddScoped<ISahaSandikRaporService, SahaSandikRaporService>();
         services.AddScoped<IStokRaporService, StokRaporService>();
+        services.AddScoped<ITalepFormuRaporService, TalepFormuRaporService>();
         services.AddScoped<IUcKSandikDurumRaporService, UcKSandikDurumRaporService>();
     }
 

@@ -7,8 +7,8 @@ using _3K.Core.Models;
 namespace _3K.Application.Features.AmbalajIslemleri;
 
 /// <summary>
-/// Seçilen kayıtlardan üretim formu snapshotı hesaplar. Form oluşturma komutu bu snapshotı saklar;
-/// indirme uçları yalnız saklanan snapshotı okur ve formu yeniden hesaplamaz.
+/// Seçilen kayıtlardan üretim formunu güncel veriyle hesaplar. Form oluşturma komutu ve proje formu
+/// indirmesi (D10) aynı hesabı kullanır; oluşturma anındaki hesap kayıt izi olarak saklanır.
 /// </summary>
 internal static class AmbalajUretimFormuOlusturucu
 {

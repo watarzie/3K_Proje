@@ -1,4 +1,4 @@
-
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.FinansIslemleri.Validators;
 
@@ -10,6 +10,8 @@ internal static class FinansValidationRules
         var any = !string.IsNullOrWhiteSpace(currency) || net.HasValue || vat.HasValue || total.HasValue;
         return !any || (!string.IsNullOrWhiteSpace(currency) && net.HasValue && vat.HasValue && total.HasValue);
     }
+    /// <summary>Servisle aynı kural: kuruşa yuvarlanmış net + KDV brüte kesin eşittir (tolerans yok).</summary>
     public static bool BalancedDocumentTotals(decimal? net, decimal? vat, decimal? total)
-        => !net.HasValue || !vat.HasValue || !total.HasValue || Math.Abs(net.Value + vat.Value - total.Value) <= 0.02m;
+        => !net.HasValue || !vat.HasValue || !total.HasValue ||
+           FinansTutarKurallari.BelgeToplamiDengeli(net.Value, vat.Value, total.Value);
 }

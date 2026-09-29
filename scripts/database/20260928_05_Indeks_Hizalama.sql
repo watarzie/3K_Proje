@@ -10,7 +10,8 @@
 -- Bilinçli olarak dokunulmayanlar: benzersizliği kısıtla sağlayan 6 tablo (AK_… / …_key; modelde
 -- benzersiz indeks olarak tanımlı, işlevsel olarak aynı) ve kullanılmayan tablolar
 -- (AmbalajTalepEdenler, FinansV2GecisYedegi, GranularYetkiGecisleri; kaldırılmaları ayrı karar).
--- Tekrar çalıştırılabilir: yapılacak iş kalmadıysa hiçbir şey değişmez.
+-- Tekrar çalıştırılabilir: yapılacak iş kalmadıysa hiçbir şey değişmez. 20260929_01 sıfırlamasından sonra
+-- da çalışır: iş şablonu tablo/kolonları (F13 ile kaldırıldı) yoksa ilgili adımlar atlanır.
 -- =====================================================================================
 BEGIN;
 
@@ -25,8 +26,15 @@ CREATE INDEX IF NOT EXISTS "IX_CekiRevizyonTalepleri_AnaCekiId"
     ON "CekiRevizyonTalepleri" ("AnaCekiId");
 CREATE INDEX IF NOT EXISTS "IX_FinansGiderleri_MahsupEdilenAvansId"
     ON "FinansGiderleri" ("MahsupEdilenAvansId");
-CREATE INDEX IF NOT EXISTS "IX_FinansIsKayitlari_SablonSurumId"
-    ON "FinansIsKayitlari" ("SablonSurumId");
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'FinansIsKayitlari' AND column_name = 'SablonSurumId') THEN
+        CREATE INDEX IF NOT EXISTS "IX_FinansIsKayitlari_SablonSurumId"
+            ON "FinansIsKayitlari" ("SablonSurumId");
+    END IF;
+END $$;
 CREATE INDEX IF NOT EXISTS "IX_SahaAktarimlari_KullaniciId"
     ON "SahaAktarimlari" ("KullaniciId");
 CREATE INDEX IF NOT EXISTS "IX_SandikUrunTransferleri_BirimId"
@@ -70,7 +78,7 @@ BEGIN
     LOOP
         IF EXISTS (
             SELECT 1 FROM pg_constraint
-            WHERE conrelid = format('public.%I', tablo)::regclass
+            WHERE conrelid = to_regclass(format('public.%I', tablo))
               AND contype = 'p'
               AND conname = tablo || '_pkey')
         THEN

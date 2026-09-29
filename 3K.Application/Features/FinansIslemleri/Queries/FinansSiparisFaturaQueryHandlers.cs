@@ -8,12 +8,20 @@ namespace _3K.Application.Features.FinansIslemleri.Queries;
 /// <summary>Sipariş (PO) ve fatura sorguları.</summary>
 public sealed class FinansSiparisFaturaQueryHandlers(IFinansSiparisFaturaService service) :
     IRequestHandler<FinansSiparislerQuery, Result<FinansSayfaliSonuc<FinansSiparisModel>>>,
+    IRequestHandler<FinansSiparisGruplariQuery, Result<FinansSayfaliSonuc<FinansSiparisGrubuModel>>>,
     IRequestHandler<FinansSiparisGetirQuery, Result<FinansSiparisModel>>,
     IRequestHandler<FinansFaturalarQuery, Result<FinansSayfaliSonuc<FinansFaturaModel>>>,
-    IRequestHandler<FinansFaturaGetirQuery, Result<FinansFaturaModel>>
+    IRequestHandler<FinansFaturaGetirQuery, Result<FinansFaturaModel>>,
+    IRequestHandler<FinansVadeUyarilariQuery, Result<FinansVadeUyarilariModel>>
 {
+    public Task<Result<FinansVadeUyarilariModel>> Handle(FinansVadeUyarilariQuery request, CancellationToken cancellationToken)
+        => FinansHandlerHelper.ExecuteAsync(() => service.VadeUyarilariAsync(request.EnFazlaKalem, cancellationToken));
+
     public Task<Result<FinansSayfaliSonuc<FinansSiparisModel>>> Handle(FinansSiparislerQuery request, CancellationToken cancellationToken)
         => FinansHandlerHelper.ExecuteAsync(() => service.SiparislerAsync(request.Filtre, cancellationToken));
+
+    public Task<Result<FinansSayfaliSonuc<FinansSiparisGrubuModel>>> Handle(FinansSiparisGruplariQuery request, CancellationToken cancellationToken)
+        => FinansHandlerHelper.ExecuteAsync(() => service.SiparisGruplariAsync(request.Filtre, cancellationToken));
 
     public Task<Result<FinansSiparisModel>> Handle(FinansSiparisGetirQuery request, CancellationToken cancellationToken)
         => FinansHandlerHelper.ExecuteOptionalAsync(

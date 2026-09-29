@@ -33,6 +33,8 @@ public sealed class AmbalajIslemGereksinimi
     public bool Kritik { get; private set; }
     /// <summary>Kayıt ilk üretim formu oluşturulmadan ilerletilemez.</summary>
     public bool IlkFormGerekli { get; private set; }
+    /// <summary>İzin veya gerekçeyle aşılamayan iş kuralı engeli (409).</summary>
+    public string? Engel { get; private set; }
 
     internal void YetkiEkle(string kod, bool kritik = false)
     {
@@ -42,6 +44,8 @@ public sealed class AmbalajIslemGereksinimi
     }
 
     internal void IlkFormIste() => IlkFormGerekli = true;
+
+    internal void Engelle(string mesaj) => Engel ??= mesaj;
 }
 
 /// <summary>
@@ -63,7 +67,13 @@ public static class AmbalajIslemKurallari
             if (hedef < kayit.UretimDurumu)
                 gereksinim.YetkiEkle(YetkiKodlari.Ambalaj.DurumuGeriAl, kritik: true);
             if (kayit.UretimDurumu == AmbalajUretimDurumu.Tamamlandi)
+            {
                 gereksinim.YetkiEkle(YetkiKodlari.Ambalaj.UretimiYenidenAc, kritik: true);
+                // A3/§3.3: finans kalemi PO'ya (ve dolayısıyla faturaya) bağlanmış üretim geri alınamaz.
+                if (degisiklik.FinansaBagli)
+                    gereksinim.Engelle(
+                        $"{kayit.SandikNo} numaralı sandığın finans kalemi PO veya faturaya bağlı olduğu için tamamlanan üretim geri alınamaz.");
+            }
         }
 
         var uretimSecimiDegisiyor = degisiklik.HedefUretimSecimi is { } secim &&

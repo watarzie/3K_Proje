@@ -61,13 +61,14 @@ public sealed record FinansGiderKaydetDto(
     string? BelgeNo = null,
     bool AvansMi = false,
     int? MahsupEdilenAvansId = null,
-    DateTime? FinansTarihi = null)
+    DateTime? FinansTarihi = null,
+    int? FinansSiparisId = null)
 {
     public FinansGiderKaydetModel GiderModeli() => new(
         Tarih, FinansDonemi ?? FinansTarihKurallari.AyBasi(Tarih),
         KategoriId, GiderKalemiId, AltKategori, FirmaVeyaKisi,
         Aciklama, Miktar ?? 1m, Birim ?? "Tutar", BirimFiyat ?? Tutar, ParaBirimi,
-        KdvDahil, KdvOrani, ProjeId, null, IsTuru, BelgeNo, AvansMi, MahsupEdilenAvansId, FinansTarihi);
+        KdvDahil, KdvOrani, ProjeId, null, IsTuru, BelgeNo, AvansMi, MahsupEdilenAvansId, FinansTarihi, FinansSiparisId);
 }
 
 /// <summary>

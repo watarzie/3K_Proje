@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using _3K.Core.Entities;
@@ -17,6 +18,87 @@ internal static class FinansSorgulari
     /// <summary>Panel, rapor ve yaşlandırma sorgularının tek seferde tarayacağı en fazla kayıt.</summary>
     internal const int RaporKayitSiniri = 20000;
 
+    /// <summary>Aktif para birimi kodları (F1), tanım sırasıyla; kartlar ve özetler bu listeyi her zaman gösterir.</summary>
+    internal static Task<string[]> AktifParaBirimleriAsync(AppDbContext context, CancellationToken cancellationToken)
+        => context.Set<FinansParaBirimi>().AsNoTracking().Where(x => x.Aktif)
+            .OrderBy(x => x.Sira).ThenBy(x => x.Kod).Select(x => x.Kod).ToArrayAsync(cancellationToken);
+
+    /// <summary>
+    /// Özet ve kartlarda gösterilecek para birimleri: aktif tanımlar (tanım sırasıyla, verisi olmasa da) ve veride
+    /// geçen diğer kodlar (pasifleştirilmiş para birimindeki geçmiş kayıtlar kaybolmasın diye, alfabetik).
+    /// </summary>
+    internal static async Task<string[]> OzetParaBirimleriAsync(
+        AppDbContext context,
+        IEnumerable<string?> veridekiler,
+        CancellationToken cancellationToken)
+    {
+        var aktif = await AktifParaBirimleriAsync(context, cancellationToken);
+        var diger = veridekiler.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!.Trim().ToUpperInvariant())
+            .Where(x => !aktif.Contains(x, StringComparer.Ordinal)).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal);
+        return aktif.Concat(diger).ToArray();
+    }
+
+    /// <summary>Kullanıcının seçtiği para birimini normalize eder; tanımlı ve aktif değilse iş kuralı hatası verir.</summary>
+    internal static async Task<string> AktifParaBirimiAsync(AppDbContext context, string? paraBirimi, CancellationToken cancellationToken)
+    {
+        var kod = FinansParaBirimiKurali.Normalize(paraBirimi ?? string.Empty);
+        if (!await context.Set<FinansParaBirimi>().AnyAsync(x => x.Kod == kod && x.Aktif, cancellationToken))
+            throw IsKuraliException.Cakisma($"{kod} tanımlı ve aktif bir para birimi değil; Para Birimleri tanımından ekleyin.");
+        return kod;
+    }
+
+    /// <summary>
+    /// Kayıttaki para birimi seçimi (F1): yeni seçim tanımlı ve aktif olmalıdır. Kayıt zaten bu para birimindeyse
+    /// (para birimi sonradan pasifleştirilmiş olsa da) seçim korunur; geçmiş kayıt düzenlenebilir kalır.
+    /// </summary>
+    internal static async Task<string> ParaBirimiSecimiAsync(
+        AppDbContext context,
+        string? paraBirimi,
+        IEnumerable<string?> mevcutlar,
+        CancellationToken cancellationToken)
+    {
+        var kod = FinansParaBirimiKurali.Normalize(paraBirimi ?? string.Empty);
+        return mevcutlar.Any(x => string.Equals(x, kod, StringComparison.Ordinal))
+            ? kod
+            : await AktifParaBirimiAsync(context, kod, cancellationToken);
+    }
+
+    /// <summary>Tam sayı finans parametresi (D3); kayıt yoksa veya sayı değilse varsayılan döner.</summary>
+    internal static async Task<int> ParametreAsync(AppDbContext context, string kod, int varsayilan, CancellationToken cancellationToken)
+    {
+        var deger = await context.Set<FinansParametre>().AsNoTracking().Where(x => x.Kod == kod)
+            .Select(x => x.Deger).FirstOrDefaultAsync(cancellationToken);
+        return int.TryParse(deger, NumberStyles.Integer, CultureInfo.InvariantCulture, out var sayi) ? sayi : varsayilan;
+    }
+
+    internal static Task<int> VarsayilanVadeGunuAsync(AppDbContext context, CancellationToken cancellationToken)
+        => ParametreAsync(context, FinansParametreKodlari.VarsayilanVadeGunu, FinansVadeKurallari.VarsayilanVadeGunuDegeri, cancellationToken);
+
+    internal static Task<int> VadeUyariGunuAsync(AppDbContext context, CancellationToken cancellationToken)
+        => ParametreAsync(context, FinansParametreKodlari.VadeUyariGunu, FinansVadeKurallari.VarsayilanUyariGunu, cancellationToken);
+
+    /// <summary>
+    /// Fatura ödeme filtresi (D3); <see cref="FinansVadeKurallari.Durum"/> kuralının SQL karşılığıdır. "Yaklaşan",
+    /// uyarı penceresinde vadesi gelen ödenmemiş faturadır; vadesi bugün olan fatura henüz geçmiş sayılmaz.
+    /// </summary>
+    internal static IQueryable<FinansFatura> OdemeFiltresi(
+        IQueryable<FinansFatura> query,
+        FinansOdemeFiltresi? filtre,
+        DateTime bugun,
+        int uyariGunu)
+    {
+        var gun = bugun.Date;
+        var sinir = gun.AddDays(uyariGunu + 1);
+        return filtre switch
+        {
+            FinansOdemeFiltresi.Odenmedi => query.Where(x => !x.OdendiMi),
+            FinansOdemeFiltresi.VadesiGecen => query.Where(x => !x.OdendiMi && x.VadeTarihi < gun),
+            FinansOdemeFiltresi.VadesiYaklasan => query.Where(x => !x.OdendiMi && x.VadeTarihi >= gun && x.VadeTarihi < sinir),
+            FinansOdemeFiltresi.Odendi => query.Where(x => x.OdendiMi),
+            _ => query
+        };
+    }
+
     /// <summary>
     /// <see cref="FinansTutarKurallari.IsNet"/> kuralının SQL'e çevrilen karşılığı. PostgreSQL <c>round</c>
     /// yarımları sıfırdan uzağa yuvarlar; kuralın para yuvarlamasıyla aynıdır.
@@ -25,6 +107,65 @@ internal static class FinansSorgulari
         x.ManuelNetTutar ?? decimal.Round(x.BirimFiyatSnapshot *
             (x.FiyatlandirmaBirimiSnapshot == FinansFiyatlandirmaBirimi.Adet ? x.Adet
                 : x.FiyatlandirmaBirimiSnapshot == FinansFiyatlandirmaBirimi.Metrekup ? x.ToplamM3 : 1m), 2);
+
+    /// <summary><see cref="FinansTutarKurallari.SiparisNet(FinansIsKaydi)"/> kuralının SQL karşılığı.</summary>
+    internal static readonly Expression<Func<FinansIsKaydi, decimal>> SiparisNetIfadesi = x =>
+        x.SiparisKalemleri.Where(y => !y.FinansSiparis.IptalEdildi).Sum(y => y.NetTutarSnapshot);
+
+    /// <summary><see cref="FinansTutarKurallari.FaturaNet(FinansIsKaydi)"/> kuralının SQL karşılığı.</summary>
+    internal static readonly Expression<Func<FinansIsKaydi, decimal>> FaturaNetIfadesi = x =>
+        x.SiparisKalemleri.Where(y => !y.FinansSiparis.IptalEdildi)
+            .SelectMany(y => y.FaturaKalemleri.Where(z => !z.FinansFatura.IptalEdildi))
+            .Sum(z => z.NetTutarSnapshot);
+
+    /// <summary>
+    /// <see cref="FinansTutarKurallari.KalemKarsilanma"/> kuralının SQL karşılığı: karşılanan tutar (sipariş
+    /// veya fatura) iş net bedeline göre yok/kısmi/tam.
+    /// </summary>
+    internal static Expression<Func<FinansIsKaydi, bool>> KarsilanmaIfadesi(
+        Expression<Func<FinansIsKaydi, decimal>> karsilanan,
+        FinansKarsilanma durum)
+    {
+        var isKaydi = Expression.Parameter(typeof(FinansIsKaydi), "x");
+        var net = new ParametreDegistirici(IsNetIfadesi.Parameters[0], isKaydi).Visit(IsNetIfadesi.Body);
+        var deger = new ParametreDegistirici(karsilanan.Parameters[0], isKaydi).Visit(karsilanan.Body);
+        var sifir = Expression.Constant(0m);
+        Expression govde = durum switch
+        {
+            FinansKarsilanma.Yok => Expression.LessThanOrEqual(deger, sifir),
+            FinansKarsilanma.Tam => Expression.AndAlso(Expression.GreaterThan(net, sifir), Expression.GreaterThanOrEqual(deger, net)),
+            _ => Expression.AndAlso(Expression.GreaterThan(deger, sifir),
+                Expression.OrElse(Expression.LessThanOrEqual(net, sifir), Expression.LessThan(deger, net)))
+        };
+        return Expression.Lambda<Func<FinansIsKaydi, bool>>(govde, isKaydi);
+    }
+
+    /// <summary>Henüz PO'ya bağlanmamış net bakiyesi olan işler (fiyatlı ve kısmen/hiç siparişe bağlanmamış).</summary>
+    internal static Expression<Func<FinansIsKaydi, bool>> SiparisBekleyenIfadesi()
+    {
+        var isKaydi = Expression.Parameter(typeof(FinansIsKaydi), "x");
+        var net = new ParametreDegistirici(IsNetIfadesi.Parameters[0], isKaydi).Visit(IsNetIfadesi.Body);
+        var siparis = new ParametreDegistirici(SiparisNetIfadesi.Parameters[0], isKaydi).Visit(SiparisNetIfadesi.Body);
+        return Expression.Lambda<Func<FinansIsKaydi, bool>>(Expression.GreaterThan(net, siparis), isKaydi);
+    }
+
+    /// <summary>
+    /// Çoklu kategori filtresi (<see cref="FinansKategoriKurali"/>): üretim kategorileri iş türüyle, özel ve
+    /// düzenli işler kaynak düzenli işle ayrılır.
+    /// </summary>
+    internal static IQueryable<FinansIsKaydi> KategoriFiltresi(
+        IQueryable<FinansIsKaydi> query,
+        IReadOnlyCollection<FinansIsKategorisi>? kategoriler)
+    {
+        if (kategoriler is not { Count: > 0 }) return query;
+        var uretimTurleri = kategoriler.Where(FinansKategoriKurali.UretimKategorisi)
+            .SelectMany(FinansKategoriKurali.IsTurleri).Distinct().ToArray();
+        var ozel = kategoriler.Contains(FinansIsKategorisi.OzelIs);
+        var duzenli = kategoriler.Contains(FinansIsKategorisi.DuzenliIs);
+        return query.Where(x => uretimTurleri.Contains(x.IsTuru) ||
+                                (ozel && x.IsTuru == FinansIsTuru.OzelIs && x.DuzenliIsId == null) ||
+                                (duzenli && x.IsTuru == FinansIsTuru.OzelIs && x.DuzenliIsId != null));
+    }
 
     /// <summary>Projeksiyona iş net tutarını ekler: seçici işi ve <see cref="IsNetIfadesi"/> değerini alır.</summary>
     internal static Expression<Func<FinansIsKaydi, T>> IsNetIle<T>(Expression<Func<FinansIsKaydi, decimal, T>> secici)
@@ -73,6 +214,11 @@ internal static class FinansSorgulari
             query = query.Where(x => x.ProjeNo == filtre.ProjeNo.Trim());
         if (filtre.IsTuru.HasValue)
             query = query.Where(x => x.IsTuru == filtre.IsTuru);
+        query = KategoriFiltresi(query, filtre.Kategoriler);
+        if (filtre.SiparisKarsilanma.HasValue)
+            query = query.Where(KarsilanmaIfadesi(SiparisNetIfadesi, filtre.SiparisKarsilanma.Value));
+        if (filtre.FaturaKarsilanma.HasValue)
+            query = query.Where(KarsilanmaIfadesi(FaturaNetIfadesi, filtre.FaturaKarsilanma.Value));
         if (filtre.Durum.HasValue)
             query = query.Where(x => x.Durum == filtre.Durum);
         if (filtre.FaturaBekleyen)
@@ -114,18 +260,7 @@ internal static class FinansSorgulari
         if (!string.IsNullOrWhiteSpace(filtre.ParaBirimi))
             query = query.Where(x => x.ParaBirimiSnapshot == filtre.ParaBirimi.Trim().ToUpperInvariant());
         if (!string.IsNullOrWhiteSpace(filtre.Arama))
-        {
-            var arama = LiteralSearchPattern(filtre.Arama);
-            query = query.Where(x =>
-                EF.Functions.ILike(x.ProjeNo, arama, "\\") ||
-                EF.Functions.ILike(x.Musteri, arama, "\\") ||
-                EF.Functions.ILike(x.IsAdi, arama, "\\") ||
-                (x.SandikNo != null && EF.Functions.ILike(x.SandikNo, arama, "\\")) ||
-                (x.Aciklama != null && EF.Functions.ILike(x.Aciklama, arama, "\\")) ||
-                (x.TalepEdenKisi != null && EF.Functions.ILike(x.TalepEdenKisi, arama, "\\")) ||
-                x.SiparisKalemleri.Any(y => EF.Functions.ILike(y.FinansSiparis.PoNumarasi, arama, "\\") ||
-                    y.FaturaKalemleri.Any(z => EF.Functions.ILike(z.FinansFatura.FaturaNumarasi, arama, "\\"))));
-        }
+            query = AramaFiltresi(query, filtre.Arama);
         if (!string.IsNullOrWhiteSpace(filtre.PoNumarasi))
         {
             var po = LiteralSearchPattern(filtre.PoNumarasi);
@@ -140,6 +275,25 @@ internal static class FinansSorgulari
         }
 
         return query;
+    }
+
+    /// <summary>
+    /// Genel arama: proje no, müşteri, iş adı, sandık no, açıklama, talep eden, özel iş türü, PO ve fatura
+    /// numarası; büyük/küçük harf duyarsız ve joker karaktersiz.
+    /// </summary>
+    internal static IQueryable<FinansIsKaydi> AramaFiltresi(IQueryable<FinansIsKaydi> query, string aramaMetni)
+    {
+        var arama = LiteralSearchPattern(aramaMetni);
+        return query.Where(x =>
+            EF.Functions.ILike(x.ProjeNo, arama, "\\") ||
+            EF.Functions.ILike(x.Musteri, arama, "\\") ||
+            EF.Functions.ILike(x.IsAdi, arama, "\\") ||
+            (x.SandikNo != null && EF.Functions.ILike(x.SandikNo, arama, "\\")) ||
+            (x.Aciklama != null && EF.Functions.ILike(x.Aciklama, arama, "\\")) ||
+            (x.TalepEdenKisi != null && EF.Functions.ILike(x.TalepEdenKisi, arama, "\\")) ||
+            (x.OzelIsTuru != null && EF.Functions.ILike(x.OzelIsTuru, arama, "\\")) ||
+            x.SiparisKalemleri.Any(y => EF.Functions.ILike(y.FinansSiparis.PoNumarasi, arama, "\\") ||
+                y.FaturaKalemleri.Any(z => EF.Functions.ILike(z.FinansFatura.FaturaNumarasi, arama, "\\"))));
     }
 
     // Harf eşlemesini tek yerde (PostgreSQL) yap; tr-TR uygulama kültürü ile DB
@@ -177,11 +331,17 @@ internal static class FinansSorgulari
             query = query.Where(x => x.ParaBirimi == paraBirimi);
         }
         if (filtre.IsTuru.HasValue) query = query.Where(x => x.IsTuru == filtre.IsTuru);
+        if (!string.IsNullOrWhiteSpace(filtre.PoNumarasi))
+        {
+            var po = LiteralSearchPattern(filtre.PoNumarasi);
+            query = query.Where(x => x.FinansSiparis != null && EF.Functions.ILike(x.FinansSiparis.PoNumarasi, po, "\\"));
+        }
         if (!string.IsNullOrWhiteSpace(filtre.Arama))
         {
             var search = LiteralSearchPattern(filtre.Arama);
             query = query.Where(x => EF.Functions.ILike(x.Aciklama, search, "\\") || (x.FirmaVeyaKisi != null && EF.Functions.ILike(x.FirmaVeyaKisi, search, "\\")) ||
-                (x.BelgeNo != null && EF.Functions.ILike(x.BelgeNo, search, "\\")) || EF.Functions.ILike(x.Kategori.Ad, search, "\\"));
+                (x.BelgeNo != null && EF.Functions.ILike(x.BelgeNo, search, "\\")) || EF.Functions.ILike(x.Kategori.Ad, search, "\\") ||
+                (x.FinansSiparis != null && EF.Functions.ILike(x.FinansSiparis.PoNumarasi, search, "\\")));
         }
         return query;
     }
@@ -237,8 +397,46 @@ internal static class FinansSorgulari
         _ => throw IsKuraliException.Cakisma("Varlık türü IsKaydi, Siparis, Fatura veya Gider olmalıdır.")
     };
 
+    /// <summary>
+    /// Alacak satırları (D3): faturanın tahsil edilecek brüt tutarı ve para birimi. Belge toplamı girildiyse o,
+    /// yoksa kalemlerin brüt toplamı kullanılır; bir PO tek para birimindedir (PO-2).
+    /// </summary>
+    internal static Task<List<FinansAlacakSatiri>> AlacakSatirlariAsync(IQueryable<FinansFatura> query, CancellationToken cancellationToken)
+        => query.Select(x => new FinansAlacakSatiri
+        {
+            Id = x.Id,
+            FaturaNumarasi = x.FaturaNumarasi,
+            PoNumarasi = x.FinansSiparis.PoNumarasi,
+            FaturaTarihi = x.FaturaTarihi,
+            VadeTarihi = x.VadeTarihi,
+            OdendiMi = x.OdendiMi,
+            OdemeTarihi = x.OdemeTarihi,
+            OdemeAciklamasi = x.OdemeAciklamasi,
+            ParaBirimi = x.BelgeParaBirimiSnapshot ?? x.FinansSiparis.ParaBirimi
+                ?? x.Kalemler.Select(k => k.FinansSiparisKalemi.ParaBirimiSnapshot).FirstOrDefault() ?? string.Empty,
+            Toplam = x.BelgeToplamTutarSnapshot ?? x.Kalemler.Sum(k => k.ToplamTutarSnapshot),
+            ProjeNolar = x.Kalemler.Select(k => k.FinansSiparisKalemi.FinansIsKaydi.ProjeNo).Distinct().ToList()
+        }).ToListAsync(cancellationToken);
+
     private sealed class ParametreDegistirici(ParameterExpression eski, Expression yeni) : ExpressionVisitor
     {
         protected override Expression VisitParameter(ParameterExpression node) => node == eski ? yeni : base.VisitParameter(node);
     }
+}
+
+/// <summary>Alacak (vade/tahsilat) satırı; bkz. <see cref="FinansSorgulari.AlacakSatirlariAsync"/>.</summary>
+internal sealed class FinansAlacakSatiri
+{
+    public int Id { get; init; }
+    public string FaturaNumarasi { get; init; } = string.Empty;
+    public string PoNumarasi { get; init; } = string.Empty;
+    public DateTime FaturaTarihi { get; init; }
+    public DateTime VadeTarihi { get; init; }
+    public bool OdendiMi { get; init; }
+    public DateTime? OdemeTarihi { get; init; }
+    public string? OdemeAciklamasi { get; init; }
+    public string ParaBirimi { get; init; } = string.Empty;
+    public decimal Toplam { get; init; }
+    public List<string> ProjeNolar { get; init; } = [];
+    public string ProjeNo => string.Join(", ", ProjeNolar.Order(StringComparer.Ordinal));
 }

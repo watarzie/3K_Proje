@@ -22,7 +22,8 @@ public sealed record FinansGiderKaydetModel(
     string? BelgeNo = null,
     bool AvansMi = false,
     int? MahsupEdilenAvansId = null,
-    DateTime? FinansTarihi = null);
+    DateTime? FinansTarihi = null,
+    int? FinansSiparisId = null);
 
 public sealed class FinansGiderModel
 {
@@ -53,6 +54,8 @@ public sealed class FinansGiderModel
     public int? ProjeId { get; init; }
     public string ProjeNo { get; init; } = string.Empty;
     public FinansIsTuru? IsTuru { get; init; }
+    public int? FinansSiparisId { get; init; }
+    public string? PoNumarasi { get; init; }
     public bool IptalEdildi { get; init; }
     public string? IptalAciklamasi { get; init; }
 }

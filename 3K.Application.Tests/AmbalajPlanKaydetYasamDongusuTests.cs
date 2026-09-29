@@ -64,9 +64,10 @@ public sealed class AmbalajPlanKaydetYasamDongusuTests
 
     [Theory]
     [InlineData(false, "Parti düzeltme", 403)]
-    [InlineData(true, null, 400)]
+    [InlineData(true, null, 200)]
     [InlineData(true, "Parti düzeltme", 200)]
-    public async Task PlanKaydet_FormSonrasiParti_GercekDegisimKritikIzinVeGerekceIster(
+    // A2/D11: üretim planı işlemleri gerekçe istemez; kritik izin ve kayıt geçmişi korunur.
+    public async Task PlanKaydet_FormSonrasiParti_GercekDegisimKritikIzinIsterGerekceIstemez(
         bool kritikIzin, string? gerekce, int expected)
     {
         var f = new Fixture(kritikIzin ? [YetkiKodlari.Ambalaj.KritikVeriDuzenle] : []);
@@ -100,9 +101,9 @@ public sealed class AmbalajPlanKaydetYasamDongusuTests
 
     [Theory]
     [InlineData(false, "Seçim düzeltme", 403)]
-    [InlineData(true, null, 400)]
+    [InlineData(true, null, 200)]
     [InlineData(true, "Seçim düzeltme", 200)]
-    public async Task PlanKaydet_FormSonrasiSecim_EskiKritikKapiVeTarihleriKorur(bool allowed, string? reason, int expected)
+    public async Task PlanKaydet_FormSonrasiSecim_KritikIzinVeTarihleriKorurGerekceIstemez(bool allowed, string? reason, int expected)
     {
         var f = new Fixture(allowed ? [YetkiKodlari.Ambalaj.KritikVeriDuzenle, YetkiKodlari.Ambalaj.FormSonrasiSecimDegistir] : []);
         var row = f.Add(1, AmbalajUretimDurumu.Tamamlandi); f.FormEkle(row);

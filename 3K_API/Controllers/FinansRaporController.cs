@@ -21,6 +21,10 @@ public sealed class FinansRaporController(IMediator mediator) : FinansController
     public async Task<ActionResult> GiderRaporu(string format, [FromQuery] FinansFilterRequest request, CancellationToken cancellationToken)
         => await FileResultAsync(new FinansGiderRaporuDosyaQuery { Format = format, Filtre = request.ToModel() }, cancellationToken);
 
+    [HttpGet("raporlar/alacaklar/{format}")]
+    public async Task<ActionResult> AlacakRaporu(string format, [FromQuery] FinansFilterRequest request, CancellationToken cancellationToken)
+        => await FileResultAsync(new FinansAlacakRaporuDosyaQuery { Format = format, Filtre = request.ToModel() }, cancellationToken);
+
     [HttpGet("raporlar/siparis-durumu/{format}")]
     public async Task<ActionResult> SiparisDurumRaporu(string format, [FromQuery] FinansFilterRequest request, CancellationToken cancellationToken)
         => await FileResultAsync(new FinansSiparisDurumRaporuDosyaQuery { Format = format, Filtre = request.ToModel() }, cancellationToken);

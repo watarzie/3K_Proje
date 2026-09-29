@@ -59,7 +59,7 @@ public sealed class AmbalajPlanKaydetCommandHandler
                         : degisiklik.Kayit.KaynakKayitId.HasValue && degisiklik.Kayit.AmbalajaDahil) &&
                     !string.Equals(AmbalajUretimYardimcilari.Temizle(degisiklik.Kayit.FirinPartiNo), firinPartiNo, StringComparison.Ordinal)
             }));
-            var kapi = await _denetim.KapilariDenetleAsync(gereksinim, request.Gerekce, token);
+            var kapi = await _denetim.KapilariDenetleAsync(gereksinim, request.Gerekce, token, gerekceZorunlu: false);
             if (!kapi.IsSuccess)
                 return Result<AmbalajPlanlamaPlanDto>.Failure(kapi.Error!.Message, kapi.StatusCode);
 
@@ -98,18 +98,16 @@ public sealed class AmbalajPlanKaydetCommandHandler
         var planKayitlari = kayitlar.Where(k => !k.BagimsizKayitMi).ToList();
         var kaynakMap = planKayitlari.Where(k => k.KaynakKayitId.HasValue)
             .ToDictionary(k => k.KaynakKayitId!.Value);
-        var planBaslangici = planKayitlari.Where(k => k.KaynakKayitId.HasValue)
-            .Select(k => k.CreatedDate).DefaultIfEmpty(TurkeyTime.Now).Min();
         var hedefTur = AmbalajPlanlamaYardimcisi.GrupTuru(request.Grup);
 
+        // RR Q2: senkron sonrası her kaynak sandığın kaydı vardır; grup yalnız kaydın Tur alanından okunur.
         var gecerliKayitlar = request.Grup == 3
             ? planKayitlari.Where(k => !k.KaynakKayitId.HasValue && k.Tur == AmbalajSandikTuru.Ic).ToList()
             : sandiklar
                 .Where(s => kaynakMap.TryGetValue(s.Id, out var k) && k.AmbalajaDahil)
                 .Where(s =>
                 {
-                    var k = kaynakMap[s.Id];
-                    var ilave = k.Tur == AmbalajSandikTuru.Ilave || s.CreatedDate > planBaslangici;
+                    var ilave = kaynakMap[s.Id].Tur == AmbalajSandikTuru.Ilave;
                     return request.Grup == 2 ? ilave : !ilave;
                 })
                 .Select(s => kaynakMap[s.Id])
@@ -216,7 +214,7 @@ public sealed class AmbalajKarariKaydetCommandHandler
                 : null;
             if (yeniKayitProjesi is { } yeniProjeId && _denetim.ProjeTamamlandiMi(yeniProjeId))
                 AmbalajIslemKurallari.TamamlanmisProjeyeEkleme(gereksinim);
-            var kapi = await _denetim.KapilariDenetleAsync(gereksinim, request.Gerekce, token);
+            var kapi = await _denetim.KapilariDenetleAsync(gereksinim, request.Gerekce, token, gerekceZorunlu: false);
             if (!kapi.IsSuccess)
                 return Result<AmbalajPlanlamaPlanDto>.Failure(kapi.Error!.Message, kapi.StatusCode);
 
@@ -304,7 +302,7 @@ public sealed class AmbalajPlanKalemKaydetCommandHandler
             if (!request.KalemId.HasValue && request.ProjeId is { } projeId && _denetim.ProjeTamamlandiMi(projeId))
                 AmbalajIslemKurallari.TamamlanmisProjeyeEkleme(gereksinim);
             var gerekce = AmbalajKritikIslemDenetimi.GerekceSec(request.Gerekce, request.Aciklama);
-            var kapi = await _denetim.KapilariDenetleAsync(gereksinim, gerekce, token);
+            var kapi = await _denetim.KapilariDenetleAsync(gereksinim, gerekce, token, gerekceZorunlu: false);
             if (!kapi.IsSuccess)
                 return Result<AmbalajPlanlamaKalemDto>.Failure(kapi.Error!.Message, kapi.StatusCode);
 
@@ -321,7 +319,11 @@ public sealed class AmbalajPlanKalemKaydetCommandHandler
         AmbalajPlanKalemKaydetCommand request,
         CancellationToken cancellationToken)
     {
-        var hata = Dogrula(request);
+        // RR Q1 (A): ölçü görme izni olmayan kullanıcıya ölçüler maskeli gelir; mevcut kaydı düzenlerken
+        // kayıtlı ölçüler korunur, istekteki ölçü alanları yok sayılır.
+        var izin = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(_roller, _currentUser, cancellationToken);
+        var olcuKorunur = request.KalemId.HasValue && !izin.OlcuGorunur;
+        var hata = Dogrula(request, olcuKorunur);
         if (hata != null) return Result<AmbalajPlanlamaKalemDto>.Failure(hata);
         if (!_currentUser.IslemKullaniciId.HasValue)
             return Result<AmbalajPlanlamaKalemDto>.Failure("Kullanıcı bilgisi alınamadı.", 401);
@@ -371,7 +373,7 @@ public sealed class AmbalajPlanKalemKaydetCommandHandler
                                            !k.IptalMi && k.SandikNo.ToUpper() == sandikNo.ToUpper()))
             return Result<AmbalajPlanlamaKalemDto>.Failure("Bu projede aynı sandık numarasıyla aktif bir üretim kaydı zaten var.", 409);
 
-        AlanlariUygula(kayit, request, sandikNo);
+        AlanlariUygula(kayit, request, sandikNo, olcuKorunur);
         kayit.UpdatedDate = request.KalemId.HasValue ? TurkeyTime.Now : null;
         kayit.UpdatedBy = request.KalemId.HasValue ? _currentUser.IslemKullaniciId.Value.ToString() : null;
         kayitRepo.Update(kayit);
@@ -381,12 +383,11 @@ public sealed class AmbalajPlanKalemKaydetCommandHandler
             _currentUser.IslemKullaniciId.Value, request.Aciklama);
         await AmbalajFinansSenkronizasyonu.KaydetVeAktarAsync(
             _unitOfWork, _finans, kayit, proje, cancellationToken);
-        var izin = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(_roller, _currentUser, cancellationToken);
         return Result<AmbalajPlanlamaKalemDto>.Success(
             AmbalajAlanMaskesi.Maskele(AmbalajPlanlamaYardimcisi.KalemDtoOlustur(kayit), izin));
     }
 
-    private static string? Dogrula(AmbalajPlanKalemKaydetCommand request)
+    private static string? Dogrula(AmbalajPlanKalemKaydetCommand request, bool olcuKorunur)
     {
         if (request.Tur is not (1 or 2 or 3)) return "Sandık grubu geçersizdir.";
         if (request.Tur != 3 && request.IcSandikSablonId.HasValue)
@@ -394,7 +395,7 @@ public sealed class AmbalajPlanKalemKaydetCommandHandler
         if (string.IsNullOrWhiteSpace(request.Ad)) return "Sandık adı zorunludur.";
         if (!AmbalajPlanlamaYardimcisi.GecerliSandikTipi(request.SandikTipi)) return "Sandık tipi geçersizdir.";
         if (request.Adet <= 0) return "Adet sıfırdan büyük olmalıdır.";
-        if (request.Boy <= 0 || request.En <= 0 || request.Yukseklik <= 0)
+        if (!olcuKorunur && (request.Boy <= 0 || request.En <= 0 || request.Yukseklik <= 0))
             return "Boy, en ve yükseklik zorunludur.";
         if (string.IsNullOrWhiteSpace(request.TalimatVeren)) return "Talimat veren kişi zorunludur.";
         if (request.TalimatVeren.Trim().Length > 200)
@@ -405,7 +406,8 @@ public sealed class AmbalajPlanKalemKaydetCommandHandler
     private static void AlanlariUygula(
         AmbalajUretimKaydi kayit,
         AmbalajPlanKalemKaydetCommand request,
-        string sandikNo)
+        string sandikNo,
+        bool olcuKorunur)
     {
         kayit.Tur = AmbalajPlanlamaYardimcisi.GrupTuru(request.Tur);
         kayit.UstKayitId = request.UstKalemId;
@@ -416,9 +418,12 @@ public sealed class AmbalajPlanKalemKaydetCommandHandler
         kayit.SandikCinsi = AmbalajPlanlamaYardimcisi.SandikCinsiCoz(request.SandikTipi);
         kayit.DigerSandikCinsi = null;
         kayit.Adet = request.Adet;
-        kayit.Boy = request.Boy;
-        kayit.En = request.En;
-        kayit.Yukseklik = request.Yukseklik;
+        if (!olcuKorunur)
+        {
+            kayit.Boy = request.Boy;
+            kayit.En = request.En;
+            kayit.Yukseklik = request.Yukseklik;
+        }
         kayit.KullanimAmaci = AmbalajUretimYardimcilari.Temizle(request.KullanimAmaci);
         kayit.TalimatVeren = AmbalajUretimYardimcilari.Temizle(request.TalimatVeren);
         kayit.Aciklama = AmbalajUretimYardimcilari.Temizle(request.Aciklama);
@@ -622,7 +627,10 @@ public sealed class AmbalajBagimsizSandikKaydetCommandHandler
         AmbalajBagimsizSandikKaydetCommand request,
         CancellationToken cancellationToken)
     {
-        var hata = await DogrulaAsync(request);
+        // RR Q1 (A): ölçü görme izni yoksa mevcut kaydın (veya dönüştürülen kaynak kaydın) ölçüleri korunur.
+        var izin = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(_roller, _currentUser, cancellationToken);
+        var olcuKorunur = !izin.OlcuGorunur && (request.SandikId.HasValue || request.KaynakSandikId.HasValue);
+        var hata = await DogrulaAsync(request, olcuKorunur);
         if (hata != null) return Result<AmbalajBagimsizSandikDto>.Failure(hata);
         if (!_currentUser.IslemKullaniciId.HasValue)
             return Result<AmbalajBagimsizSandikDto>.Failure("Kullanıcı bilgisi alınamadı.", 401);
@@ -662,6 +670,13 @@ public sealed class AmbalajBagimsizSandikKaydetCommandHandler
             ustKayit = repo.Queryable().FirstOrDefault(k =>
                 k.KaynakKayitId == request.UstKaynakSandikId.Value && !k.IptalMi);
 
+        var tur = AmbalajPlanlamaYardimcisi.OzelTurCoz(request.Tur);
+        var sandikNo = SandikNoBelirle(kayit ?? new AmbalajUretimKaydi(), request, ustKayit, repo);
+        // A1: aynı proje + grup + sandık no, iptal edilmemiş özel sandıklarda tekrar eklenemez.
+        if (AmbalajPlanlamaYardimcisi.OzelSandikTekrariVarMi(repo.Queryable(), kayit?.Id ?? 0, proje.Id, tur, sandikNo))
+            return Result<AmbalajBagimsizSandikDto>.Failure(
+                $"{proje.ProjeNo} projesinde {sandikNo} numaralı sandık bu grupta zaten özel sandık olarak kayıtlı.", 409);
+
         var yeniKayitMi = kayit == null;
         if (kayit == null)
         {
@@ -689,19 +704,26 @@ public sealed class AmbalajBagimsizSandikKaydetCommandHandler
 
         kayit.BagimsizKayitMi = true;
         kayit.ProjeId = proje.Id;
-        kayit.Tur = AmbalajPlanlamaYardimcisi.OzelTurCoz(request.Tur);
+        kayit.Tur = tur;
         kayit.UstKayitId = request.Tur == 3 ? ustKayit?.Id : null;
         kayit.IcSandikSablonId = request.Tur == 3 ? request.IcSandikSablonId : null;
         kayit.UretimeAlindi = true;
         kayit.AmbalajaDahil = true;
-        kayit.SandikNo = SandikNoBelirle(kayit, request, ustKayit, repo);
+        kayit.SandikNo = sandikNo;
         kayit.Ad = request.Ad!.Trim();
-        kayit.SandikCinsi = AmbalajPlanlamaYardimcisi.SandikCinsiCoz(request.SandikTipi);
+        // A7: projedeki sandıktan dönüştürülen kaydın cinsi kaynak sandığın tipidir; iki enum arasında
+        // sayısal dönüşüm yapılmaz, formdan gelen metin kaynak tipi ezemez.
+        kayit.SandikCinsi = kaynakSandik is not null
+            ? AmbalajUretimPolitikasi.KaynakCinsi(kaynakSandik.TipId)
+            : AmbalajPlanlamaYardimcisi.SandikCinsiCoz(request.SandikTipi);
         kayit.DigerSandikCinsi = null;
         kayit.Adet = request.Adet;
-        kayit.Boy = request.Boy;
-        kayit.En = request.En;
-        kayit.Yukseklik = request.Yukseklik;
+        if (!olcuKorunur)
+        {
+            kayit.Boy = request.Boy;
+            kayit.En = request.En;
+            kayit.Yukseklik = request.Yukseklik;
+        }
         kayit.TalimatVeren = AmbalajUretimYardimcilari.Temizle(request.TalimatVeren);
         kayit.Aciklama = AmbalajUretimYardimcilari.Temizle(request.Aciklama);
         kayit.UretimTarihi ??= TurkeyTime.Now;
@@ -717,12 +739,11 @@ public sealed class AmbalajBagimsizSandikKaydetCommandHandler
         await AmbalajFinansSenkronizasyonu.KaydetVeAktarAsync(
             _unitOfWork, _finans, kayit, proje, cancellationToken);
 
-        var izin = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(_roller, _currentUser, cancellationToken);
         return Result<AmbalajBagimsizSandikDto>.Success(AmbalajAlanMaskesi.Maskele(
             AmbalajPlanlamaYardimcisi.BagimsizDtoOlustur(kayit, proje, ustKayit, kaynakSandik), izin));
     }
 
-    private async Task<string?> DogrulaAsync(AmbalajBagimsizSandikKaydetCommand request)
+    private async Task<string?> DogrulaAsync(AmbalajBagimsizSandikKaydetCommand request, bool olcuKorunur)
     {
         if (request.Tur is not (2 or 3 or 4 or 5)) return "Özel sandık türü geçersizdir.";
         if (request.Tur != 3 && request.IcSandikSablonId.HasValue)
@@ -763,7 +784,7 @@ public sealed class AmbalajBagimsizSandikKaydetCommandHandler
         if (string.IsNullOrWhiteSpace(request.Ad)) return "Sandık adı zorunludur.";
         if (!AmbalajPlanlamaYardimcisi.GecerliSandikTipi(request.SandikTipi)) return "Sandık tipi geçersizdir.";
         if (request.Adet <= 0) return "Adet sıfırdan büyük olmalıdır.";
-        if (request.Boy <= 0 || request.En <= 0 || request.Yukseklik <= 0)
+        if (!olcuKorunur && (request.Boy <= 0 || request.En <= 0 || request.Yukseklik <= 0))
             return "Boy, en ve yükseklik zorunludur.";
         if (string.IsNullOrWhiteSpace(request.TalimatVeren)) return "Talimat veren kişi zorunludur.";
         if (request.TalimatVeren.Trim().Length > 200)

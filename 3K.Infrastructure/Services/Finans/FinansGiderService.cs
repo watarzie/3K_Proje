@@ -23,6 +23,7 @@ internal sealed class FinansGiderService(
             .Include(x => x.Kategori)
             .Include(x => x.GiderKalemi)
             .Include(x => x.Proje)
+            .Include(x => x.FinansSiparis)
             .AsQueryable();
         query = FinansSorgulari.ExpenseFilter(query, filtre);
         var count = await query.CountAsync(cancellationToken);
@@ -69,7 +70,7 @@ internal sealed class FinansGiderService(
         var entity = await context.Set<FinansGider>().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (entity is null) return null;
         if (entity.IptalEdildi) throw IsKuraliException.Cakisma("İptal edilmiş gider güncellenemez.");
-        await ValidateExpenseReferencesAsync(model, cancellationToken);
+        await ValidateExpenseReferencesAsync(model, cancellationToken, entity.FinansSiparisId, entity.ParaBirimi);
         var auditBefore = FinansDenetimKaydi.AnlikGoruntu(entity);
         ApplyExpense(entity, model);
         denetim.DegisiklikleriEkle(nameof(FinansGider), entity, auditBefore);
@@ -86,6 +87,10 @@ internal sealed class FinansGiderService(
         var entity = await context.Set<FinansGider>().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (entity is null) return false;
         if (entity.IptalEdildi) return true;
+        // Mahsubu yapılmış avans iptal edilirse mahsup giderleri dayanaksız kalır (D8).
+        if (entity.AvansMi && await context.Set<FinansGider>()
+                .AnyAsync(x => x.MahsupEdilenAvansId == id && !x.IptalEdildi, cancellationToken))
+            throw IsKuraliException.Cakisma("Bu avansa bağlı aktif mahsup giderleri var; önce mahsup kayıtlarını iptal edin.");
         entity.IptalEdildi = true;
         entity.IptalTarihi = TurkeyTime.Now;
         entity.IptalAciklamasi = aciklama.Trim();
@@ -94,12 +99,16 @@ internal sealed class FinansGiderService(
         return true;
     }
 
-    private async Task ValidateExpenseReferencesAsync(FinansGiderKaydetModel model, CancellationToken cancellationToken)
+    private async Task ValidateExpenseReferencesAsync(
+        FinansGiderKaydetModel model,
+        CancellationToken cancellationToken,
+        int? mevcutSiparisId = null,
+        string? mevcutParaBirimi = null)
     {
         if (model.Miktar <= 0 || model.BirimFiyat < 0 || model.KdvOrani is < 0 or > 100 || !FinansTarihKurallari.GecerliTarih(model.Tarih) ||
             !FinansTarihKurallari.GecerliTarih(model.FinansDonemi) || (model.FinansTarihi.HasValue && !FinansTarihKurallari.GecerliTarih(model.FinansTarihi.Value)))
             throw IsKuraliException.Cakisma("Gider miktarı, fiyatı, KDV oranı ve tarihlerini kontrol edin.");
-        if (!FinansParaBirimiKurali.DesteklenenMi(FinansParaBirimiKurali.Normalize(model.ParaBirimi))) throw IsKuraliException.Cakisma("Gider para birimi EUR, USD veya TRY olmalıdır.");
+        await FinansSorgulari.ParaBirimiSecimiAsync(context, model.ParaBirimi, [mevcutParaBirimi], cancellationToken);
         if (model.MahsupEdilenAvansId.HasValue)
         {
             var advance = await context.Set<FinansGider>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == model.MahsupEdilenAvansId, cancellationToken);
@@ -115,6 +124,10 @@ internal sealed class FinansGiderService(
             throw IsKuraliException.Cakisma("Gider kalemi kategoriyle eşleşmiyor veya pasif.");
         if (model.ProjeId.HasValue && !await context.Set<Proje>().AnyAsync(x => x.Id == model.ProjeId, cancellationToken))
             throw IsKuraliException.Cakisma("Proje bulunamadı.");
+        // Yeni PO bağı yalnız aktif PO'ya kurulabilir; mevcut bağ PO sonradan iptal edilse de korunur.
+        if (model.FinansSiparisId.HasValue && model.FinansSiparisId != mevcutSiparisId &&
+            !await context.Set<FinansSiparis>().AnyAsync(x => x.Id == model.FinansSiparisId && !x.IptalEdildi, cancellationToken))
+            throw IsKuraliException.Cakisma("İlişkilendirilecek PO bulunamadı veya iptal edilmiş.");
     }
 
     private static void ApplyExpense(FinansGider entity, FinansGiderKaydetModel model)
@@ -147,12 +160,13 @@ internal sealed class FinansGiderService(
         entity.BelgeNo = model.BelgeNo?.Trim();
         entity.AvansMi = model.AvansMi;
         entity.MahsupEdilenAvansId = model.MahsupEdilenAvansId;
+        entity.FinansSiparisId = model.FinansSiparisId;
     }
 
     private async Task<FinansGiderModel> GetExpenseAsync(int id, CancellationToken cancellationToken)
     {
         var entity = await context.Set<FinansGider>().AsNoTracking()
-            .Include(x => x.Kategori).Include(x => x.GiderKalemi).Include(x => x.Proje)
+            .Include(x => x.Kategori).Include(x => x.GiderKalemi).Include(x => x.Proje).Include(x => x.FinansSiparis)
             .FirstAsync(x => x.Id == id, cancellationToken);
         return FinansModelEslemeleri.MapExpense(entity);
     }

@@ -73,6 +73,23 @@ public sealed class FinansOzetRaporuDosyaQuery : FinansQuery<DosyaIcerigi>
     public FinansListeFiltre Filtre { get; init; } = new();
 }
 
+/// <summary>
+/// Alacak (vade/tahsilat) raporu (D3): faturalar sipariş operasyonu verisidir (RR Q6) ve tutarları gelirdir.
+/// </summary>
+public sealed class FinansAlacakRaporuDosyaQuery : FinansQuery<DosyaIcerigi>
+{
+    public override string RequiredMenuKod => YetkiKodlari.Finans.RaporGoruntule;
+    public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
+    [
+        MenuPermissionRequirement.Read(YetkiKodlari.Finans.RaporGoruntule),
+        MenuPermissionRequirement.Read(YetkiKodlari.Finans.SiparisOperasyonGoruntule),
+        MenuPermissionRequirement.Read(YetkiKodlari.Finans.GelirGoruntule),
+        MenuPermissionRequirement.Read(FinansRaporPermissionRules.ExportPermission(Format))
+    ];
+    public string Format { get; init; } = "pdf";
+    public FinansListeFiltre Filtre { get; init; } = new();
+}
+
 internal static class FinansRaporPermissionRules
 {
     public static string ExportPermission(string? format)

@@ -28,7 +28,7 @@ internal sealed class FinansUrunService(
             context.Set<FinansUrun>().AsNoTracking(), sadeceAktif, arama);
         var count = await query.CountAsync(cancellationToken);
         var (page, size, skip) = FinansSorgulari.NormalizePagination(pageNumber, pageSize, count, 100);
-        var entities = await WithProductPageDetails(query, tariffDate)
+        var entities = await WithProductPageDetails(query)
             .AsSplitQuery()
             .OrderBy(x => x.Sira)
             .ThenBy(x => x.Ad)
@@ -46,15 +46,11 @@ internal sealed class FinansUrunService(
         };
     }
 
-    internal static IQueryable<FinansUrun> WithProductPageDetails(
-        IQueryable<FinansUrun> query,
-        DateTime tariffDate)
+    /// <summary>Ürünü eşleşmeleri ve bütün aktif tarife sürümleriyle yükler; güncel fiyat eşlemede seçilir.</summary>
+    internal static IQueryable<FinansUrun> WithProductPageDetails(IQueryable<FinansUrun> query)
         => query
             .Include(x => x.Eslesmeler)
-            .Include(x => x.FiyatTarifeleri.Where(tariff =>
-                tariff.Aktif &&
-                tariff.GecerlilikBaslangici < tariffDate.AddDays(1) &&
-                tariff.GecerlilikBitisi >= tariffDate));
+            .Include(x => x.FiyatTarifeleri.Where(tariff => tariff.Aktif));
 
     internal static IQueryable<FinansUrun> ApplyProductFilter(
         IQueryable<FinansUrun> query,
@@ -93,7 +89,7 @@ internal sealed class FinansUrunService(
         };
         foreach (var match in model.Eslesmeler)
             entity.Eslesmeler.Add(NewMatch(match));
-        var newTariff = ApplyDirectPrice(entity, model);
+        var newTariff = await ApplyDirectPriceAsync(entity, model, cancellationToken);
         context.Set<FinansUrun>().Add(entity);
         await context.SaveChangesAsync(cancellationToken);
         denetim.Ekle(nameof(FinansUrun), entity.Id, "Oluşturma", "*", null, entity.Kod);
@@ -111,7 +107,7 @@ internal sealed class FinansUrunService(
     {
         var tariffDate = TurkeyTime.Now.Date;
         var entity = await WithProductPageDetails(
-                context.Set<FinansUrun>().Where(x => x.Id == id), tariffDate)
+                context.Set<FinansUrun>().Where(x => x.Id == id))
             .AsSplitQuery()
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (entity is null) return null;
@@ -128,7 +124,7 @@ internal sealed class FinansUrunService(
         entity.FiyatlandirmaBirimi = model.FiyatlandirmaBirimi;
         entity.Aktif = model.Aktif;
         entity.Sira = model.Sira;
-        var newTariff = ApplyDirectPrice(entity, model);
+        var newTariff = await ApplyDirectPriceAsync(entity, model, cancellationToken);
         denetim.DegisiklikleriEkle(nameof(FinansUrun), entity, auditBefore);
 
         var inputIds = model.Eslesmeler.Where(x => x.Id.HasValue).Select(x => x.Id!.Value).ToHashSet();
@@ -167,7 +163,7 @@ internal sealed class FinansUrunService(
         CancellationToken cancellationToken)
     {
         var entity = await BuildProductByIdQuery(
-                context.Set<FinansUrun>().AsNoTracking(), id, tariffDate)
+                context.Set<FinansUrun>().AsNoTracking(), id)
             .AsSplitQuery()
             .SingleOrDefaultAsync(cancellationToken);
         return entity is null ? null : MapProduct(entity, tariffDate);
@@ -175,9 +171,8 @@ internal sealed class FinansUrunService(
 
     internal static IQueryable<FinansUrun> BuildProductByIdQuery(
         IQueryable<FinansUrun> query,
-        int id,
-        DateTime tariffDate)
-        => WithProductPageDetails(query.Where(x => x.Id == id), tariffDate);
+        int id)
+        => WithProductPageDetails(query.Where(x => x.Id == id));
 
     public Task<bool> UrunPasiflestirAsync(int id, CancellationToken cancellationToken)
         => islem.AtomikAsync(() => UrunPasiflestirCoreAsync(id, cancellationToken), cancellationToken);
@@ -195,6 +190,50 @@ internal sealed class FinansUrunService(
         return true;
     }
 
+    public Task<FinansYenidenFiyatlamaSonucModel?> YenidenFiyatlaAsync(int id, string aciklama, CancellationToken cancellationToken)
+        => islem.AtomikAsync(() => YenidenFiyatlaCoreAsync(id, aciklama, cancellationToken), cancellationToken);
+
+    /// <summary>
+    /// D4: tarife değişikliği açık kalemleri kendiliğinden değiştirmez. Bu işlem ürüne bağlı, hiç PO'ya bağlanmamış,
+    /// fiyatı elle girilmemiş aktif üretim kalemlerini finans tarihlerinde geçerli tarife sürümüyle yeniden fiyatlar.
+    /// Manuel ve düzenli işlerin fiyatı korunur; tarihinde tarifesi olmayan kalem değişmez. Her değişiklik denetime yazılır.
+    /// </summary>
+    private async Task<FinansYenidenFiyatlamaSonucModel?> YenidenFiyatlaCoreAsync(int id, string aciklama, CancellationToken cancellationToken)
+    {
+        FinansGerekceKurali.Dogrula(aciklama);
+        var urun = await context.Set<FinansUrun>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (urun is null) return null;
+        var works = await context.IsKaydiDetayQuery(true)
+            .Where(x => x.FinansUrunId == id && x.KaynakAktif && !x.IptalEdildi && !x.FinansMiktariManuel && !x.ManuelNetTutar.HasValue &&
+                        x.KaynakTuru != FinansKaynakTurleri.Manuel && x.KaynakTuru != FinansKaynakTurleri.DuzenliIs &&
+                        !x.SiparisKalemleri.Any())
+            .OrderBy(x => x.Id)
+            .ToListAsync(cancellationToken);
+        var fiyatlanan = 0;
+        foreach (var work in works)
+        {
+            var tariff = await fiyatlar.GecerliTarifeAsync(id, work.FinansTarihi, cancellationToken);
+            if (tariff is null || (work.TarifeIdSnapshot == tariff.Id && work.BirimFiyatSnapshot == tariff.BirimFiyat &&
+                                   work.ParaBirimiSnapshot == tariff.ParaBirimi && work.KdvOraniSnapshot == tariff.KdvOrani &&
+                                   work.FiyatlandirmaBirimiSnapshot == urun.FiyatlandirmaBirimi))
+                continue;
+            var before = FinansDenetimKaydi.AnlikGoruntu(work);
+            work.FiyatlandirmaBirimiSnapshot = urun.FiyatlandirmaBirimi;
+            work.BirimFiyatSnapshot = tariff.BirimFiyat;
+            work.ParaBirimiSnapshot = tariff.ParaBirimi;
+            work.KdvOraniSnapshot = tariff.KdvOrani;
+            work.TarifeYiliSnapshot = tariff.Yil;
+            work.TarifeIdSnapshot = tariff.Id;
+            work.Durum = FinansTutarKurallari.Durum(work);
+            denetim.Ekle(nameof(FinansIsKaydi), work.Id, "Yeniden Fiyatlandırma", nameof(work.TarifeIdSnapshot),
+                before[nameof(work.TarifeIdSnapshot)], tariff.Id, aciklama.Trim());
+            denetim.DegisiklikleriEkle(nameof(FinansIsKaydi), work, before);
+            fiyatlanan++;
+        }
+        await context.SaveChangesAsync(cancellationToken);
+        return new FinansYenidenFiyatlamaSonucModel(id, works.Count, fiyatlanan);
+    }
+
     private static FinansUrunEslesmesi NewMatch(FinansUrunEslesmesiModel model)
     {
         var entity = new FinansUrunEslesmesi();
@@ -203,11 +242,29 @@ internal sealed class FinansUrunService(
     }
 
     /// <summary>
-    /// Ürün formundaki fiyat bugün geçerli tarifeyi günceller; yoksa bugünden başlayan açık uçlu
-    /// tarife açar. Mevcut tarifedeki değişiklikler denetime yazılır; yeni tarife kimlik aldıktan
-    /// sonra oluşturma kaydı yazılabilsin diye döndürülür.
+    /// Ürün formundaki fiyatı tarife sürümü olarak uygular (<see cref="FinansTarifeKurallari"/>). Aynı gün
+    /// başlayan sürüm, onunla fiyatlanmış iş kaydı varsa düzeltilmez; geçmiş fiyat snapshot'ı korunur.
+    /// Yeni sürüm, kimlik aldıktan sonra oluşturma denetimi yazılabilsin diye döndürülür.
     /// </summary>
-    internal FinansFiyatTarifesi? ApplyDirectPrice(FinansUrun entity, FinansUrunKaydetModel model)
+    private async Task<FinansFiyatTarifesi?> ApplyDirectPriceAsync(
+        FinansUrun entity,
+        FinansUrunKaydetModel model,
+        CancellationToken cancellationToken)
+    {
+        var plan = FiyatPlani(entity, model);
+        if (plan is null) return null;
+        await FinansSorgulari.ParaBirimiSecimiAsync(context, model.ParaBirimi ?? "EUR",
+            entity.FiyatTarifeleri.Where(x => x.Aktif).Select(x => x.ParaBirimi), cancellationToken);
+        if (plan.Islem == FinansTarifeIslemi.AyniGunSurumunuDuzelt && plan.Mevcut!.Id > 0 &&
+            await context.Set<FinansIsKaydi>().AnyAsync(x => x.TarifeIdSnapshot == plan.Mevcut.Id, cancellationToken))
+            throw IsKuraliException.Cakisma(
+                "Bu tarih için geçerli tarife sürümüyle fiyatlanmış kayıtlar var; geçmiş fiyat değiştirilemez. " +
+                "Yeni fiyatı sonraki bir geçerlilik tarihiyle girin.");
+        return PlaniUygula(entity, plan, model);
+    }
+
+    /// <summary>Fiyat alanlarını doğrular ve sürüm planını çıkarır; fiyat gönderilmediyse null döner.</summary>
+    internal static FinansTarifePlani? FiyatPlani(FinansUrun entity, FinansUrunKaydetModel model)
     {
         if (!model.BirimFiyat.HasValue)
             return null;
@@ -215,39 +272,51 @@ internal sealed class FinansUrunService(
             throw IsKuraliException.Cakisma("Birim fiyat sıfırdan küçük olamaz.");
         if (model.KdvOrani is < 0 or > 100)
             throw IsKuraliException.Cakisma("KDV oranı 0-100 aralığında olmalıdır.");
+        var effective = (model.GecerlilikBaslangici ?? TurkeyTime.Now).Date;
+        if (!FinansTarihKurallari.GecerliTarih(effective))
+            throw IsKuraliException.Cakisma("Tarife geçerlilik başlangıcı geçerli bir tarih olmalıdır.");
+        return FinansTarifeKurallari.Planla(entity.FiyatTarifeleri, effective, model.BirimFiyat.Value,
+            FinansParaBirimiKurali.Normalize(model.ParaBirimi ?? "EUR"), model.KdvOrani ?? 0m);
+    }
 
-        var today = TurkeyTime.Now.Date;
-        var price = model.BirimFiyat.Value;
+    /// <summary>Sürüm planını ürün tarifelerine uygular ve değişiklikleri denetime yazar.</summary>
+    internal FinansFiyatTarifesi? PlaniUygula(FinansUrun entity, FinansTarifePlani plan, FinansUrunKaydetModel model)
+    {
+        var price = model.BirimFiyat!.Value;
         var currency = FinansParaBirimiKurali.Normalize(model.ParaBirimi ?? "EUR");
         var vat = model.KdvOrani ?? 0m;
-        var tariff = entity.FiyatTarifeleri
-            .Where(x => x.Aktif && x.GecerlilikBaslangici.Date <= today && x.GecerlilikBitisi.Date >= today)
-            .OrderByDescending(x => x.GecerlilikBaslangici)
-            .ThenByDescending(x => x.Id)
-            .FirstOrDefault();
-        if (tariff is null)
+        switch (plan.Islem)
         {
-            tariff = new FinansFiyatTarifesi
-            {
-                Yil = today.Year,
-                GecerlilikBaslangici = today,
-                GecerlilikBitisi = new DateTime(FinansTarihKurallari.EnBuyukYil, 12, 31),
-                Aktif = true,
-                BirimFiyat = price,
-                ParaBirimi = currency,
-                KdvOrani = vat
-            };
-            entity.FiyatTarifeleri.Add(tariff);
-            return tariff;
+            case FinansTarifeIslemi.DegisiklikYok:
+                return null;
+            case FinansTarifeIslemi.AyniGunSurumunuDuzelt:
+                var tariff = plan.Mevcut!;
+                denetim.DegisiklikEkle(nameof(FinansFiyatTarifesi), tariff.Id, nameof(tariff.BirimFiyat), tariff.BirimFiyat, price);
+                denetim.DegisiklikEkle(nameof(FinansFiyatTarifesi), tariff.Id, nameof(tariff.ParaBirimi), tariff.ParaBirimi, currency);
+                denetim.DegisiklikEkle(nameof(FinansFiyatTarifesi), tariff.Id, nameof(tariff.KdvOrani), tariff.KdvOrani, vat);
+                tariff.BirimFiyat = price;
+                tariff.ParaBirimi = currency;
+                tariff.KdvOrani = vat;
+                return null;
+            case FinansTarifeIslemi.SurumuKapatVeYeniAc:
+                var closing = plan.Mevcut!;
+                var newEnd = plan.YeniBaslangic.AddDays(-1);
+                denetim.DegisiklikEkle(nameof(FinansFiyatTarifesi), closing.Id, nameof(closing.GecerlilikBitisi), closing.GecerlilikBitisi, newEnd);
+                closing.GecerlilikBitisi = newEnd;
+                break;
         }
-
-        denetim.DegisiklikEkle(nameof(FinansFiyatTarifesi), tariff.Id, nameof(tariff.BirimFiyat), tariff.BirimFiyat, price);
-        denetim.DegisiklikEkle(nameof(FinansFiyatTarifesi), tariff.Id, nameof(tariff.ParaBirimi), tariff.ParaBirimi, currency);
-        denetim.DegisiklikEkle(nameof(FinansFiyatTarifesi), tariff.Id, nameof(tariff.KdvOrani), tariff.KdvOrani, vat);
-        tariff.BirimFiyat = price;
-        tariff.ParaBirimi = currency;
-        tariff.KdvOrani = vat;
-        return null;
+        var created = new FinansFiyatTarifesi
+        {
+            Yil = plan.YeniBaslangic.Year,
+            GecerlilikBaslangici = plan.YeniBaslangic,
+            GecerlilikBitisi = plan.YeniBitis,
+            Aktif = true,
+            BirimFiyat = price,
+            ParaBirimi = currency,
+            KdvOrani = vat
+        };
+        entity.FiyatTarifeleri.Add(created);
+        return created;
     }
 
     private void AddTariffCreationAudit(FinansFiyatTarifesi tariff)
@@ -281,16 +350,27 @@ internal sealed class FinansUrunService(
             GuncelBirimFiyat = tariff?.BirimFiyat,
             GuncelParaBirimi = tariff?.ParaBirimi,
             GuncelKdvOrani = tariff?.KdvOrani,
+            GuncelGecerlilikBaslangici = tariff?.GecerlilikBaslangici,
+            GuncelGecerlilikBitisi = tariff?.GecerlilikBitisi,
+            Tarifeler = entity.FiyatTarifeleri.Where(x => x.Aktif)
+                .OrderBy(x => x.GecerlilikBaslangici).ThenBy(x => x.Id)
+                .Select(x => new FinansTarifeSurumuModel(x.Id, x.GecerlilikBaslangici, x.GecerlilikBitisi, x.BirimFiyat, x.ParaBirimi, x.KdvOrani))
+                .ToArray(),
             Eslesmeler = entity.Eslesmeler.OrderBy(x => x.Id).Select(x => new FinansUrunEslesmesiModel(
                 x.Id, x.IsTuru, x.SandikAdi, x.SandikTipi, x.Boy, x.En, x.Yukseklik, x.IcSandikSablonId, x.Aktif)).ToArray()
         };
     }
 
-    /// <summary>Ürün kayıt işlemlerinin transaction'ı içinde, fiyatsız ve siparişsiz işleri yeniden fiyatlar.</summary>
+    /// <summary>
+    /// Ürün kayıt işlemlerinin transaction'ı içinde, üretimden gelen fiyatsız ve siparişsiz işleri
+    /// finans tarihlerinde geçerli tarife sürümüyle fiyatlar (F12). Fiyatı olan işler yeniden
+    /// fiyatlanmaz; manuel ve düzenli işlerin elle girilen fiyat/para birimi bilgisi korunur.
+    /// </summary>
     private async Task BackfillUnpricedWorksAsync(CancellationToken cancellationToken)
     {
         var works = await context.IsKaydiDetayQuery(true)
-            .Where(x => x.KaynakAktif && !x.IptalEdildi &&
+            .Where(x => x.KaynakAktif && !x.IptalEdildi && !x.FinansMiktariManuel &&
+                        x.KaynakTuru != FinansKaynakTurleri.Manuel && x.KaynakTuru != FinansKaynakTurleri.DuzenliIs &&
                         x.BirimFiyatSnapshot <= 0 && !x.TarifeYiliSnapshot.HasValue &&
                         !x.SiparisKalemleri.Any())
             .OrderBy(x => x.Id)

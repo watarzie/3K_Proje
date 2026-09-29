@@ -87,8 +87,6 @@ namespace _3K.Core.Entities
         public decimal? ManuelNetTutar { get; set; }
         public int? TarifeIdSnapshot { get; set; }
         public AmbalajSandikCinsi? SandikCinsi { get; set; }
-        public int? SablonSurumId { get; set; }
-        public string? AlanDegerleriJson { get; set; }
         public string? FiyatBilesenleriJson { get; set; }
         public DateTime KayitTarihi { get; set; }
         public FinansIsDurumu Durum { get; set; } = FinansIsDurumu.SiparisBekliyor;
@@ -119,6 +117,8 @@ namespace _3K.Core.Entities
         public string? IptalAciklamasi { get; set; }
         public virtual ICollection<FinansSiparisKalemi> Kalemler { get; set; } = new List<FinansSiparisKalemi>();
         public virtual ICollection<FinansFatura> Faturalar { get; set; } = new List<FinansFatura>();
+        /// <summary>PO'nun net sonucuna katılan, kullanıcının PO ile ilişkilendirdiği giderler.</summary>
+        public virtual ICollection<FinansGider> Giderler { get; set; } = new List<FinansGider>();
     }
 
     public class FinansSiparisKalemi : BaseEntity
@@ -155,6 +155,12 @@ namespace _3K.Core.Entities
         public decimal? BelgeToplamTutarSnapshot { get; set; }
         public decimal MutabakatFarkiSnapshot { get; set; }
         public string? MutabakatAciklamasi { get; set; }
+        /// <summary>Vade tarihi (D3); varsayılanı fatura tarihi + parametredeki vade günüdür, faturada değiştirilebilir.</summary>
+        public DateTime VadeTarihi { get; set; }
+        /// <summary>Tahsilat dışarıdan gelir; kullanıcı ödendi olarak işaretler (tutar faturanın tamamıdır).</summary>
+        public bool OdendiMi { get; set; }
+        public DateTime? OdemeTarihi { get; set; }
+        public string? OdemeAciklamasi { get; set; }
         public FinansFaturaDurumu Durum { get; set; } = FinansFaturaDurumu.Aktif;
         public bool IptalEdildi { get; set; }
         public DateTime? IptalTarihi { get; set; }
@@ -255,12 +261,15 @@ namespace _3K.Core.Entities
         public int? ProjeId { get; set; }
         public string? ManuelProjeNo { get; set; }
         public FinansIsTuru? IsTuru { get; set; }
+        /// <summary>İsteğe bağlı PO ilişkisi; PO'nun gelir-gider net sonucunda kullanılır.</summary>
+        public int? FinansSiparisId { get; set; }
         public bool IptalEdildi { get; set; }
         public DateTime? IptalTarihi { get; set; }
         public string? IptalAciklamasi { get; set; }
         public virtual FinansGiderKategori Kategori { get; set; } = null!;
         public virtual FinansGiderKalemi? GiderKalemi { get; set; }
         public virtual Proje? Proje { get; set; }
+        public virtual FinansSiparis? FinansSiparis { get; set; }
     }
 
     /// <summary>
@@ -306,21 +315,23 @@ namespace _3K.Core.Entities
         public byte[] Icerik { get; set; } = Array.Empty<byte>();
     }
 
-    /// <summary>Fiyatlandırmada doldurulan dinamik alanların şablonu; alanlar değişmez sürümlerde tutulur.</summary>
-    public sealed class FinansIsSablonu : BaseEntity
+    /// <summary>
+    /// Kullanıcının yönettiği para birimi tablosu (F1). Finans kayıtları kodu snapshot olarak saklar; yeni
+    /// seçimler yalnız aktif para birimlerinden yapılır, pasifleştirme geçmiş kayıtları değiştirmez.
+    /// </summary>
+    public class FinansParaBirimi : BaseEntity
     {
         public string Kod { get; set; } = string.Empty;
         public string Ad { get; set; } = string.Empty;
+        public string? Sembol { get; set; }
         public bool Aktif { get; set; } = true;
-        public ICollection<FinansIsSablonSurumu> Surumler { get; set; } = new List<FinansIsSablonSurumu>();
+        public int Sira { get; set; }
     }
 
-    /// <summary>Şablonun değişmez alan sürümü; fiyatlandırılan iş kaydı kullandığı sürüme bağlıdır.</summary>
-    public sealed class FinansIsSablonSurumu : BaseEntity
+    /// <summary>Finans parametresi (kod/değer). Bilinen kodlar ve varsayılanları <c>FinansParametreKodlari</c>'ndadır.</summary>
+    public class FinansParametre : BaseEntity
     {
-        public int FinansIsSablonuId { get; set; }
-        public int Surum { get; set; }
-        public string AlanlarJson { get; set; } = "[]";
-        public FinansIsSablonu Sablon { get; set; } = null!;
+        public string Kod { get; set; } = string.Empty;
+        public string Deger { get; set; } = string.Empty;
     }
 }

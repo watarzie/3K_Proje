@@ -83,6 +83,8 @@ internal sealed class FinansGiderTanimService(
             Ad = model.Ad.Trim(),
             Aktif = model.Aktif
         };
+        if (!string.IsNullOrWhiteSpace(model.VarsayilanParaBirimi))
+            await FinansSorgulari.ParaBirimiSecimiAsync(context, model.VarsayilanParaBirimi, [], cancellationToken);
         ApplyExpenseItemDefaults(entity, model);
         context.Set<FinansGiderKalemi>().Add(entity);
         await context.SaveChangesAsync(cancellationToken);
@@ -112,6 +114,8 @@ internal sealed class FinansGiderTanimService(
         entity.Ad = model.Ad.Trim();
         entity.Aktif = model.Aktif;
         var defaultsBefore = FinansDenetimKaydi.AnlikGoruntu(entity);
+        if (!string.IsNullOrWhiteSpace(model.VarsayilanParaBirimi))
+            await FinansSorgulari.ParaBirimiSecimiAsync(context, model.VarsayilanParaBirimi, [entity.VarsayilanParaBirimi], cancellationToken);
         ApplyExpenseItemDefaults(entity, model);
         denetim.DegisiklikleriEkle(nameof(FinansGiderKalemi), entity, defaultsBefore);
         await context.SaveChangesAsync(cancellationToken);
