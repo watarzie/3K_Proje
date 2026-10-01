@@ -51,6 +51,19 @@ public static class FinansTutarKurallari
         _ => 0m
     };
 
+    /// <summary>
+    /// Aylık özel/düzenli iş satırında miktar yalnız adet birimli fiyatlandırmada anlamlıdır: m³ ve sabit/toplam tutarlı
+    /// satırda gösterilen miktar adetten gelmez; bileşenli hesap kendi ekranında düzenlenir.
+    /// </summary>
+    public static bool AylikMiktarDuzenlenebilir(FinansIsKaydi work) =>
+        work.FiyatlandirmaBirimiSnapshot == FinansFiyatlandirmaBirimi.Adet &&
+        work.HesaplamaYontemi != FinansHesaplamaYontemi.Bilesenli;
+
+    /// <summary>Aylık özel/düzenli iş satırında birim fiyat (tarife) manuel toplam ve bileşenli hesap dışında düzenlenir.</summary>
+    public static bool AylikBirimFiyatDuzenlenebilir(FinansIsKaydi work) =>
+        work.FiyatlandirmaBirimiSnapshot != FinansFiyatlandirmaBirimi.ManuelToplam &&
+        work.HesaplamaYontemi != FinansHesaplamaYontemi.Bilesenli;
+
     public static decimal IsNet(FinansIsKaydi work) => work.ManuelNetTutar ?? Para(work.BirimFiyatSnapshot *
         FiyatlandirmaMiktari(work.FiyatlandirmaBirimiSnapshot, work.Adet, work.ToplamM3));
 

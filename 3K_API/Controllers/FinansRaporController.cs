@@ -9,6 +9,10 @@ namespace _3K_API.Controllers;
 /// <summary>Rapor dosyaları.</summary>
 public sealed class FinansRaporController(IMediator mediator) : FinansControllerBase(mediator)
 {
+    [HttpGet("raporlar/onizleme/{tur}")]
+    public async Task<ActionResult> Onizleme(string tur, [FromQuery] FinansFilterRequest request, CancellationToken cancellationToken)
+        => (await Mediator.Send(new FinansRaporOnizlemeQuery { Tur = tur, Filtre = request.ToModel() }, cancellationToken)).ToActionResult();
+
     [HttpGet("raporlar/ozet/{tur}/{format}")]
     public async Task<ActionResult> OzetRapor(string tur, string format, [FromQuery] FinansFilterRequest request, CancellationToken cancellationToken)
         => await FileResultAsync(new FinansOzetRaporuDosyaQuery { Tur = tur, Format = format, Filtre = request.ToModel() }, cancellationToken);

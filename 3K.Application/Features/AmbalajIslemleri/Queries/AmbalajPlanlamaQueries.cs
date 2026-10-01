@@ -31,6 +31,8 @@ public sealed class GetAmbalajPlanlamaProjeleriQuery
     /// (çam ihtiyacı özeti de böylece net kalan ihtiyacı gösterir); null: hepsi.
     /// </summary>
     public bool? Tamamlanan { get; set; }
+    /// <summary>Proje geneli üretim durumu: 1 üretim bekliyor, 2 üretimde; boş: hepsi.</summary>
+    public int? UretimDurumu { get; set; }
 }
 
 public sealed class GetAmbalajPlanlamaPlanQuery : AmbalajPlanlamaQuery<AmbalajPlanlamaPlanDto>

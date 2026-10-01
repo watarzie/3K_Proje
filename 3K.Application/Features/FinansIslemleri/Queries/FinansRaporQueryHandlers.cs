@@ -12,8 +12,12 @@ public sealed class FinansRaporQueryHandlers(IFinansRaporService service) :
     IRequestHandler<FinansSiparisDurumRaporuDosyaQuery, Result<DosyaIcerigi>>,
     IRequestHandler<FinansAylikRaporDosyaQuery, Result<DosyaIcerigi>>,
     IRequestHandler<FinansOzetRaporuDosyaQuery, Result<DosyaIcerigi>>,
-    IRequestHandler<FinansAlacakRaporuDosyaQuery, Result<DosyaIcerigi>>
+    IRequestHandler<FinansAlacakRaporuDosyaQuery, Result<DosyaIcerigi>>,
+    IRequestHandler<FinansRaporOnizlemeQuery, Result<FinansRaporOnizlemeModel>>
 {
+    public Task<Result<FinansRaporOnizlemeModel>> Handle(FinansRaporOnizlemeQuery request, CancellationToken cancellationToken)
+        => FinansHandlerHelper.ExecuteAsync(() => service.OnizlemeAsync(request.Tur.Trim().ToLowerInvariant(), request.Filtre, cancellationToken));
+
     public Task<Result<DosyaIcerigi>> Handle(FinansAlacakRaporuDosyaQuery request, CancellationToken cancellationToken)
     {
         if (!TryResolveFormat(request.Format, out var excel))

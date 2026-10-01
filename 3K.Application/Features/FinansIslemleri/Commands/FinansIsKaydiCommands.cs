@@ -30,6 +30,10 @@ public sealed class FinansIsKaydiGeriAlCommand : FinansCommand
 public sealed class FinansOzelIsAylikDegerGuncelleCommand : FinansCommand
 {
     public override string RequiredMenuKod => YetkiKodlari.Finans.FiyatlandirmaDegistir;
+    /// <summary>Tarife (birim fiyat) değişikliği ayrıca birim fiyat değiştirme yazma iznini ister.</summary>
+    public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions => Model?.NetBirimFiyat.HasValue == true
+        ? [MenuPermissionRequirement.Write(RequiredMenuKod), MenuPermissionRequirement.Write(YetkiKodlari.Finans.BirimFiyatDegistir)]
+        : [MenuPermissionRequirement.Write(RequiredMenuKod)];
     public int Id { get; init; }
     public FinansAylikDegerModel Model { get; init; } = null!;
 }

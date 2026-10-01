@@ -49,6 +49,8 @@ public sealed class GetAmbalajPlanlamaProjeleriQueryHandler
             _unitOfWork.GetRepository<AmbalajUretimKaydi>().Queryable(), izinliDurumlar);
         filtrelenmisProjeler = AmbalajProjeTamamlanmaFiltresi.Uygula(filtrelenmisProjeler,
             _unitOfWork.GetRepository<AmbalajUretimKaydi>().Queryable(), request.Tamamlanan);
+        filtrelenmisProjeler = AmbalajProjeTamamlanmaFiltresi.DurumaGore(filtrelenmisProjeler,
+            _unitOfWork.GetRepository<AmbalajUretimKaydi>().Queryable(), (AmbalajUretimDurumu?)request.UretimDurumu);
 
         var totalCount = await _readQueries.CountAsync(filtrelenmisProjeler, cancellationToken);
         var sayfa = AmbalajSayfalamaYardimcisi.Olustur(request.PageNumber, pageSize, totalCount);

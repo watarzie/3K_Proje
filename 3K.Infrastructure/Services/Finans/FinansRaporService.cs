@@ -36,26 +36,11 @@ namespace _3K.Infrastructure.Services.Finans
             var report = await _raporVerisi.RaporVerisiAsync(filtre, cancellationToken);
             using var workbook = new XLWorkbook();
             var sheet = workbook.Worksheets.Add("Finans İşleri");
-            var headers = new[]
-            {
-                "Kayıt No", "Proje No", "Müşteri", "İş Türü", "İş Adı", "Sandık No", "Adet",
-                "Talep Eden", "Talep Eden Bölüm", "Birim m³", "Toplam m³", "Üretim Tarihi", "Finans Dönemi", "Durum",
-                "Fiyatlandırma", "Birim Fiyat", "Para Birimi", "KDV %", "Net", "KDV", "Toplam", "PO", "Fatura"
-            };
+            var headers = IsBasliklari;
             WriteHeaders(sheet, headers);
             var row = 2;
             foreach (var item in report.Isler)
-            {
-                var values = new object?[]
-                {
-                    item.Id, item.ProjeNo, item.Musteri, item.IsTuru.ToString(), item.IsAdi, item.SandikNo,
-                    item.Adet, item.TalepEdenKisi, item.TalepEdenBolum, item.BirimM3, item.ToplamM3, item.UretimTarihi, item.FinansDonemi, item.Durum.ToString(),
-                    item.FiyatlandirmaBirimi.ToString(), item.BirimFiyat, item.ParaBirimi, item.KdvOrani,
-                    item.NetTutar, item.KdvTutari, item.ToplamTutar,
-                    string.Join(", ", item.PoNumaralari), string.Join(", ", item.FaturaNumaralari)
-                };
-                WriteRow(sheet, row++, values);
-            }
+                WriteRow(sheet, row++, IsSatiri(item));
             FormatSheet(sheet, headers.Length, row - 1);
             return Save(workbook);
         }
@@ -65,23 +50,11 @@ namespace _3K.Infrastructure.Services.Finans
             var report = await _raporVerisi.RaporVerisiAsync(filtre, cancellationToken);
             using var workbook = new XLWorkbook();
             var sheet = workbook.Worksheets.Add("Giderler");
-            var headers = new[]
-            {
-                "Kayıt No", "Tarih", "Finans Dönemi", "Kategori", "Gider Kalemi", "Firma/Kişi", "Açıklama",
-                "Miktar", "Birim", "Birim Fiyat", "Para Birimi", "KDV Dahil", "KDV %", "Matrah", "KDV", "Toplam", "Proje"
-            };
+            var headers = GiderBasliklari;
             WriteHeaders(sheet, headers);
             var row = 2;
             foreach (var item in report.Giderler)
-            {
-                WriteRow(sheet, row++, new object?[]
-                {
-                    item.Id, item.Tarih, item.FinansDonemi, item.Kategori, item.GiderKalemi,
-                    item.FirmaVeyaKisi, item.Aciklama, item.Miktar, item.Birim, item.BirimFiyat,
-                    item.ParaBirimi, item.KdvDahil ? "Evet" : "Hayır", item.KdvOrani,
-                    item.Matrah, item.KdvTutari, item.ToplamTutar, item.ProjeNo
-                });
-            }
+                WriteRow(sheet, row++, GiderSatiri(item));
             FormatSheet(sheet, headers.Length, row - 1);
             return Save(workbook);
         }

@@ -62,6 +62,36 @@ public sealed class AmbalajUretimV2PostgresTests
 
     [PostgresRaporFact]
     [Trait("Category", "Postgres")]
+    public async Task ProjeListesi_UretimDurumuFiltresi_BekleyenVeUretimdeProjeleriAyirir()
+    {
+        await WithDatabase(async options =>
+        {
+            await using var ctx = new AppDbContext(options);
+            ctx.Projeler.AddRange(new Proje { Id = 31, ProjeNo = "BEKLEYEN" }, new Proje { Id = 32, ProjeNo = "URETIMDE" },
+                new Proje { Id = 33, ProjeNo = "TAMAM" });
+            AmbalajUretimKaydi Kayit(int id, int projeId, AmbalajUretimDurumu durum) => new()
+            {
+                Id = id, ProjeId = projeId, KaynakKayitId = id, SandikNo = id.ToString(), Boy = 1000, En = 800, Yukseklik = 600,
+                AmbalajaDahil = true, UretimDurumu = durum
+            };
+            ctx.Set<AmbalajUretimKaydi>().AddRange(
+                Kayit(311, 31, AmbalajUretimDurumu.Planlandi), Kayit(312, 31, AmbalajUretimDurumu.Planlandi),
+                Kayit(321, 32, AmbalajUretimDurumu.Tamamlandi), Kayit(322, 32, AmbalajUretimDurumu.Planlandi),
+                Kayit(331, 33, AmbalajUretimDurumu.Tamamlandi));
+            await ctx.SaveChangesAsync();
+            ctx.ChangeTracker.Clear();
+            using var uow = new UnitOfWork(ctx, NullLogger<UnitOfWork>.Instance);
+            var handler = new GetAmbalajPlanlamaProjeleriQueryHandler(uow, OrtakRoller.TumIzinler(), new OrtakUser(), new EntityFrameworkReadQueryExecutor());
+            async Task<int[]> Projeler(int? durum) => (await handler.Handle(new() { Tamamlanan = false, UretimDurumu = durum }, default))
+                .Value!.Items.Select(x => x.ProjeId).Order().ToArray();
+            Assert.Equal(new[] { 31, 32 }, await Projeler(null));
+            Assert.Equal(new[] { 31 }, await Projeler(1));
+            Assert.Equal(new[] { 32 }, await Projeler(2));
+        });
+    }
+
+    [PostgresRaporFact]
+    [Trait("Category", "Postgres")]
     public async Task Form_AyniAnahtarParalelRetry_TekSurumVeTekDurumGecisi()
     {
         await WithDatabase(async options =>

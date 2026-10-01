@@ -319,8 +319,8 @@ internal sealed class FinansAylikOzetService(AppDbContext context) : IFinansAyli
                 siparisler.Select(x => x.FinansSiparis.PoNumarasi).Distinct().Order().ToArray(),
                 faturalar.Select(x => x.FinansFatura.FaturaNumarasi).Distinct().Order().ToArray(),
                 kayit.IptalEdildi ? "İptal" : net <= 0 ? "Fiyatlandırma Bekliyor" : Durum(net, siparisler.Sum(x => x.NetTutarSnapshot), faturalar.Sum(x => x.NetTutarSnapshot)),
-                !kayit.IptalEdildi && siparisler.Count == 0 && kayit.HesaplamaYontemi == FinansHesaplamaYontemi.DegiskenAdet,
-                !kayit.IptalEdildi && siparisler.Count == 0 && kayit.HesaplamaYontemi == FinansHesaplamaYontemi.DegiskenTutar,
+                !kayit.IptalEdildi && siparisler.Count == 0 && FinansTutarKurallari.AylikMiktarDuzenlenebilir(kayit),
+                !kayit.IptalEdildi && siparisler.Count == 0 && FinansTutarKurallari.AylikBirimFiyatDuzenlenebilir(kayit),
                 kayit.IptalEdildi, kayit.IptalAciklamasi,
                 FinansKategoriKurali.Kategori(kayit.IsTuru, kayit.DuzenliIsId), ozelOzet.Durum.Siparis, ozelOzet.Durum.Fatura,
                 ozelOzet.AhsapM3, ozelOzet.KontraM3, ozelOzet.KalanSiparis, ozelOzet.KalanFatura));

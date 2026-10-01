@@ -77,7 +77,7 @@ public sealed class TalepFormuRaporTests
                 sayfa.Cell(7, 5).GetString(), sayfa.Cell(7, 6).GetValue<decimal>(), sayfa.Cell(7, 7).GetString()));
             Assert.Equal(2, sayfa.Cell(7, 1).GetValue<int>());
             Assert.True(sayfa.Cell(8, 1).IsEmpty());
-            Assert.Equal("Bu form sistem tarafından otomatik oluşturulmuştur.", sayfa.Cell(9, 1).GetString());
+            Assert.True(sayfa.Cell(9, 1).IsEmpty());
         });
     }
 

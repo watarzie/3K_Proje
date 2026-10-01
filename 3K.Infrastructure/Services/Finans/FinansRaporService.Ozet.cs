@@ -10,7 +10,8 @@ namespace _3K.Infrastructure.Services.Finans;
 
 internal sealed partial class FinansRaporService
 {
-    public async Task<byte[]> OzetRaporAsync(string tur, bool excel, FinansListeFiltre filtre, CancellationToken cancellationToken)
+    private async Task<(string Baslik, string[] Basliklar, List<object?[]> Satirlar)> OzetTablosuAsync(
+        string tur, FinansListeFiltre filtre, CancellationToken cancellationToken)
     {
         var rows = new List<object?[]>();
         string[] headers;
@@ -68,6 +69,12 @@ internal sealed partial class FinansRaporService
             }
             else throw IsKuraliException.Cakisma("Rapor türü genel, gider-kategori, proje-maliyet, siparis-bekleyen veya fatura-bekleyen olmalıdır.");
         }
+        return (title, headers, rows);
+    }
+
+    public async Task<byte[]> OzetRaporAsync(string tur, bool excel, FinansListeFiltre filtre, CancellationToken cancellationToken)
+    {
+        var (title, headers, rows) = await OzetTablosuAsync(tur, filtre, cancellationToken);
         if (excel)
         {
             using var workbook = new XLWorkbook(); var sheet = workbook.Worksheets.Add("Finans Özeti");

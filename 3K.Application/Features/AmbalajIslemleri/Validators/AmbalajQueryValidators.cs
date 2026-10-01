@@ -14,6 +14,8 @@ namespace _3K.Application.Features.AmbalajIslemleri.Validators
             RuleFor(x => x.ProjeTipiId).InclusiveBetween(1, 3).When(x => x.ProjeTipiId.HasValue);
             RuleFor(x => x.Grup).InclusiveBetween(1, 3);
             RuleFor(x => x.Arama).MaximumLength(200);
+            RuleFor(x => x.UretimDurumu).InclusiveBetween(1, 2).When(x => x.UretimDurumu.HasValue)
+                .WithMessage("Üretim durumu filtresi geçersiz.");
         }
     }
 

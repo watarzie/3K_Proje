@@ -159,6 +159,61 @@ public sealed class FinansPostgresTests
     }
 
     [PostgresRaporFact, Trait("Category", "Postgres")]
+    public async Task RaporOnizleme_DosyaylaAyniSutunlarVeFiltrelenmisSatirlariGosterir()
+    {
+        await InDatabase(async options =>
+        {
+            await using var db = new AppDbContext(options); var finans = Finans(db);
+            var a = Work("Montaj A", 1000); a.ProjeNo = "PA-1";
+            var b = Work("Montaj B", 2500); b.ProjeNo = "PA-2";
+            db.AddRange(a, b); await db.SaveChangesAsync();
+
+            var tumu = await finans.Raporlar.OnizlemeAsync("is", new(), Ct);
+            Assert.Equal("Finans İşleri Raporu", tumu.Baslik);
+            Assert.Equal(23, tumu.Sutunlar.Count);
+            Assert.Equal(2, tumu.ToplamSatir);
+            Assert.All(tumu.Satirlar, satir => Assert.Equal(tumu.Sutunlar.Count, satir.Count));
+
+            var filtreli = await finans.Raporlar.OnizlemeAsync("is", new() { ProjeNo = "PA-2" }, Ct);
+            var satir = Assert.Single(filtreli.Satirlar);
+            Assert.Equal("PA-2", satir[1]);
+            Assert.Equal("2.500,00", satir[tumu.Sutunlar.ToList().IndexOf("Net")]);
+
+            var genel = await finans.Raporlar.OnizlemeAsync("genel", new(), Ct);
+            Assert.Equal("Genel Finans Özeti", genel.Baslik);
+            Assert.Equal("EUR", Assert.Single(genel.Satirlar)[0]);
+            await Assert.ThrowsAsync<IsKuraliException>(() => finans.Raporlar.OnizlemeAsync("yok", new(), Ct));
+        });
+    }
+
+    [PostgresRaporFact, Trait("Category", "Postgres")]
+    public async Task AylikDeger_DuzenliIsMiktarVeTarifesiBirlikteGuncellenir_BilesenliVePoluDegismez()
+    {
+        await InDatabase(async options =>
+        {
+            await using var db = new AppDbContext(options); var finans = Finans(db);
+            var kira = Work("Seymen Kira", 360000); kira.FiyatlandirmaBirimiSnapshot = FinansFiyatlandirmaBirimi.Adet;
+            kira.HesaplamaYontemi = FinansHesaplamaYontemi.SabitAylik; kira.Birim = "Hizmet"; kira.ManuelNetTutar = 360000;
+            var bilesenli = Work("Bileşenli", 100); bilesenli.HesaplamaYontemi = FinansHesaplamaYontemi.Bilesenli;
+            var sabit = Work("Sabit tutar", 500);
+            db.AddRange(kira, bilesenli, sabit); await db.SaveChangesAsync();
+
+            Assert.True(await finans.IsKaydi.OzelIsAylikDegerGuncelleAsync(kira.Id, new(Miktar: 2, NetBirimFiyat: 380000), Ct));
+            db.ChangeTracker.Clear();
+            var guncel = (await finans.IsKaydi.IsKaydiGetirAsync(kira.Id, Ct))!;
+            Assert.Equal(2m, guncel.Adet); Assert.Equal(760000m, guncel.NetTutar); Assert.Null(guncel.ManuelNetTutar);
+
+            // Sabit tutarlı satırda gösterilen miktar adetten gelmez; yalnız tarife düzenlenir.
+            await Assert.ThrowsAsync<IsKuraliException>(() => finans.IsKaydi.OzelIsAylikDegerGuncelleAsync(sabit.Id, new(Miktar: 3), Ct));
+            Assert.True(await finans.IsKaydi.OzelIsAylikDegerGuncelleAsync(sabit.Id, new(NetBirimFiyat: 650), Ct));
+            await Assert.ThrowsAsync<IsKuraliException>(() => finans.IsKaydi.OzelIsAylikDegerGuncelleAsync(bilesenli.Id, new(NetBirimFiyat: 1), Ct));
+
+            await finans.SiparisFatura.SiparisOlusturAsync(Po("AYLIK-PO", kira.Id, 760000), Ct);
+            await Assert.ThrowsAsync<IsKuraliException>(() => finans.IsKaydi.OzelIsAylikDegerGuncelleAsync(kira.Id, new(NetBirimFiyat: 1), Ct));
+        });
+    }
+
+    [PostgresRaporFact, Trait("Category", "Postgres")]
     public async Task Bilesenler_Malzemeli_ve_BelgeSurumuKalici()
     {
         await InDatabase(async options =>

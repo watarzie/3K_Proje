@@ -90,6 +90,37 @@ public sealed class FinansAlacakRaporuDosyaQuery : FinansQuery<DosyaIcerigi>
     public FinansListeFiltre Filtre { get; init; } = new();
 }
 
+/// <summary>
+/// Rapor önizlemesi: aynı rapor dosyasının okuma izinleri (dışa aktarma izni hariç); satırlar dosyayla aynıdır.
+/// </summary>
+public sealed class FinansRaporOnizlemeQuery : FinansQuery<FinansRaporOnizlemeModel>
+{
+    public override string RequiredMenuKod => YetkiKodlari.Finans.RaporGoruntule;
+    public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions => Tur switch
+    {
+        "is" =>
+        [
+            MenuPermissionRequirement.Read(YetkiKodlari.Finans.RaporGoruntule),
+            MenuPermissionRequirement.Read(YetkiKodlari.Finans.GelirGoruntule),
+            MenuPermissionRequirement.Read(YetkiKodlari.Finans.BirimFiyatGoruntule)
+        ],
+        "gider" =>
+        [
+            MenuPermissionRequirement.Read(YetkiKodlari.Finans.RaporGoruntule),
+            MenuPermissionRequirement.Read(YetkiKodlari.Finans.GiderGoruntule)
+        ],
+        "alacak" =>
+        [
+            MenuPermissionRequirement.Read(YetkiKodlari.Finans.RaporGoruntule),
+            MenuPermissionRequirement.Read(YetkiKodlari.Finans.SiparisOperasyonGoruntule),
+            MenuPermissionRequirement.Read(YetkiKodlari.Finans.GelirGoruntule)
+        ],
+        _ => [MenuPermissionRequirement.Read(YetkiKodlari.Finans.RaporGoruntule)]
+    };
+    public string Tur { get; init; } = "is";
+    public FinansListeFiltre Filtre { get; init; } = new();
+}
+
 internal static class FinansRaporPermissionRules
 {
     public static string ExportPermission(string? format)

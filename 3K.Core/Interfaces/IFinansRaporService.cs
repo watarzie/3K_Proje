@@ -6,6 +6,8 @@ namespace _3K.Core.Interfaces;
 public interface IFinansRaporService
 {
     Task<byte[]> OzetRaporAsync(string tur, bool excel, FinansListeFiltre filtre, CancellationToken cancellationToken);
+    /// <summary>Rapor türünün (is, gider, alacak veya özet türleri) başlık, sütun ve ilk satırları.</summary>
+    Task<FinansRaporOnizlemeModel> OnizlemeAsync(string tur, FinansListeFiltre filtre, CancellationToken cancellationToken);
     Task<byte[]> IslerExcelAsync(FinansListeFiltre filtre, CancellationToken cancellationToken);
     Task<byte[]> IslerPdfAsync(FinansListeFiltre filtre, CancellationToken cancellationToken);
     Task<byte[]> GiderlerExcelAsync(FinansListeFiltre filtre, CancellationToken cancellationToken);

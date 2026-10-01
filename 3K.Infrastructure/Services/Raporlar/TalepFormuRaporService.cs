@@ -77,10 +77,6 @@ internal sealed class TalepFormuRaporService(AppDbContext context) : ITalepFormu
         }
         sayfa.Range(baslikSatiri + 1, 4, Math.Max(baslikSatiri + 1, satirNo), 5).Style.Alignment.WrapText = true;
         RaporExcelStilleri.FinalizeExcelWorksheet(sayfa, baslikSatiri, satirNo, sonKolon);
-        var notSatiri = satirNo + 2;
-        sayfa.Cell(notSatiri, 1).Value = "Bu form sistem tarafından otomatik oluşturulmuştur.";
-        sayfa.Cell(notSatiri, 1).Style.Font.Italic = true;
-        sayfa.Cell(notSatiri, 1).Style.Font.FontColor = XLColor.FromHtml("#6B7280");
 
         using var stream = new MemoryStream();
         workbook.SaveAs(stream);

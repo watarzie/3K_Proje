@@ -136,6 +136,8 @@ public sealed class FinansHataEslemeTests
         private static Task<byte[]> Sinir() =>
             throw IsKuraliException.Cakisma("Rapor en fazla 20.000 iş içerebilir; filtreyi daraltın.");
         public Task<byte[]> OzetRaporAsync(string tur, bool excel, FinansListeFiltre filtre, CancellationToken ct) => Sinir();
+        public Task<FinansRaporOnizlemeModel> OnizlemeAsync(string tur, FinansListeFiltre filtre, CancellationToken ct) =>
+            throw IsKuraliException.Cakisma("Rapor en fazla 20.000 iş içerebilir; filtreyi daraltın.");
         public Task<byte[]> IslerExcelAsync(FinansListeFiltre filtre, CancellationToken ct) => Sinir();
         public Task<byte[]> IslerPdfAsync(FinansListeFiltre filtre, CancellationToken ct) => Sinir();
         public Task<byte[]> GiderlerExcelAsync(FinansListeFiltre filtre, CancellationToken ct) => Sinir();

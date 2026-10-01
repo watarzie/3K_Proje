@@ -265,10 +265,10 @@ internal sealed class FinansIsKaydiService(
             throw IsKuraliException.Cakisma("Miktar veya net birim fiyat gönderilmelidir.");
         if (model.Miktar is <= 0 || model.NetBirimFiyat is < 0)
             throw IsKuraliException.Cakisma("Miktar pozitif, net birim fiyat sıfır veya daha büyük olmalıdır.");
-        if (model.Miktar.HasValue && entity.HesaplamaYontemi != FinansHesaplamaYontemi.DegiskenAdet)
+        if (model.Miktar.HasValue && !FinansTutarKurallari.AylikMiktarDuzenlenebilir(entity))
             throw IsKuraliException.Cakisma("Bu işin miktarı düzenlenemez.");
-        if (model.NetBirimFiyat.HasValue && entity.HesaplamaYontemi != FinansHesaplamaYontemi.DegiskenTutar)
-            throw IsKuraliException.Cakisma("Bu işin tutarı düzenlenemez.");
+        if (model.NetBirimFiyat.HasValue && !FinansTutarKurallari.AylikBirimFiyatDuzenlenebilir(entity))
+            throw IsKuraliException.Cakisma("Bu işin tarifesi düzenlenemez.");
 
         var auditBefore = FinansDenetimKaydi.AnlikGoruntu(entity);
         if (model.Miktar.HasValue)
@@ -277,7 +277,11 @@ internal sealed class FinansIsKaydiService(
             entity.ToplamM3 = decimal.Round(entity.Adet * entity.BirimM3, 6, MidpointRounding.AwayFromZero);
         }
         if (model.NetBirimFiyat.HasValue)
+        {
             entity.BirimFiyatSnapshot = model.NetBirimFiyat.Value;
+            // Manuel net tutar varsa yeni tarife etkisiz kalırdı; net tutar tarife × miktardan hesaplanır.
+            entity.ManuelNetTutar = null;
+        }
         entity.FinansMiktariManuel = true;
         denetim.DegisiklikleriEkle(nameof(FinansIsKaydi), entity, auditBefore);
         await context.SaveChangesAsync(cancellationToken);
