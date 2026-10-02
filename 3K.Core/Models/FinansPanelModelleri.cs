@@ -9,7 +9,30 @@ public sealed record FinansPanelModel(DateTime Baslangic, DateTime Bitis, string
     IReadOnlyList<FinansAlacakOzetiModel>? Alacaklar = null,
     IReadOnlyList<FinansGrafikModel>? BeklenenTahsilat = null,
     IReadOnlyList<FinansYaslandirmaKovasiModel>? Yaslandirma = null,
-    int VadeUyariGunu = FinansVadeKurallari.VarsayilanUyariGunu);
+    int VadeUyariGunu = FinansVadeKurallari.VarsayilanUyariGunu,
+    FinansPanelSayilariModel? Sayilar = null,
+    IReadOnlyList<FinansPanelAylikSayiModel>? AylikSayilar = null);
+
+/// <summary>
+/// Panelin genel durum sayıları (seçili dönem): iş kalemi ve proje sayısı, PO sayısı (sipariş tarihine göre,
+/// durum kırılımıyla), fatura sayısı (fatura tarihine göre, ödeme kırılımıyla) ve gider kaydı sayısı. İptaller
+/// sayılmaz. Alan adları maske listesindeki parasal adlarla çakışmaz; sayılar yetki projeksiyonundan geçer.
+/// </summary>
+public sealed record FinansPanelSayilariModel(
+    int IsKaydi,
+    int Proje,
+    int Po,
+    int AcikPo,
+    int KismiFaturaliPo,
+    int KapaliPo,
+    int Fatura,
+    int OdenenFatura,
+    int OdenmemisFatura,
+    int VadesiGecenFatura,
+    int GiderKaydi);
+
+/// <summary>Ay bazında (yyyy-MM) iş kalemi, PO ve fatura sayısı; dönem grafiği için ilk veri ayından bitişe kesintisizdir.</summary>
+public sealed record FinansPanelAylikSayiModel(string Ay, int IsKaydi, int Po, int Fatura);
 
 /// <summary>
 /// Para birimi bazında alacak özeti (D3, F3): ödenmemiş brüt tutar, vadesi geçen ve uyarı penceresinde

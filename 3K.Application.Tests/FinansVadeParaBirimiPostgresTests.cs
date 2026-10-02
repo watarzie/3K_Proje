@@ -169,6 +169,17 @@ public sealed class FinansVadeParaBirimiPostgresTests
             Assert.Equal((1, 1, 480m), (eur.ZamanindaOdenenAdet, eur.GecOdenenAdet, eur.OdenenTutar));
             Assert.Equal(720m, panel.BeklenenTahsilat!.Where(x => x.ParaBirimi == "EUR").Sum(x => x.Gelir));
             Assert.Equal(10, panel.VadeUyariGunu);
+            // Genel durum sayıları belge tarihine göre aralıkta sayılır; iptal fatura sayılmaz.
+            Assert.Equal((0, 0, 2, 0, 2, 0), (panel.Sayilar!.IsKaydi, panel.Sayilar.Po, panel.Sayilar.Fatura,
+                panel.Sayilar.OdenenFatura, panel.Sayilar.OdenmemisFatura, panel.Sayilar.VadesiGecenFatura));
+            var genel = await finans.Panel.PanelAsync(Bugun.AddDays(-120), Bugun, Ct);
+            var sayilar = genel.Sayilar!;
+            Assert.Equal((1, 1, 1, 0, 1, 0), (sayilar.IsKaydi, sayilar.Proje, sayilar.Po, sayilar.AcikPo, sayilar.KismiFaturaliPo, sayilar.KapaliPo));
+            Assert.Equal((4, 2, 2, 0), (sayilar.Fatura, sayilar.OdenenFatura, sayilar.OdenmemisFatura, sayilar.VadesiGecenFatura));
+            // Aylık grafik ilk veri ayından aralık sonuna kesintisizdir ve toplamları genel sayılarla aynıdır.
+            Assert.Equal(FinansTarihKurallari.AyBasi(Bugun.AddDays(-90)).ToString("yyyy-MM"), genel.AylikSayilar![0].Ay);
+            Assert.Equal(FinansTarihKurallari.AyBasi(Bugun).ToString("yyyy-MM"), genel.AylikSayilar[^1].Ay);
+            Assert.Equal((1, 1, 4), (genel.AylikSayilar.Sum(x => x.IsKaydi), genel.AylikSayilar.Sum(x => x.Po), genel.AylikSayilar.Sum(x => x.Fatura)));
 
             var excel = await finans.Raporlar.AlacakExcelAsync(new(), Ct);
             using (var workbook = new XLWorkbook(new MemoryStream(excel)))

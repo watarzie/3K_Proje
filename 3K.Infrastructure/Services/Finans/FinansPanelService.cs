@@ -51,6 +51,7 @@ internal sealed class FinansPanelService(AppDbContext context) : IFinansPanelSer
         var uyariGunu = await FinansSorgulari.VadeUyariGunuAsync(context, cancellationToken);
         var (alacaklar, beklenenTahsilat) = await AlacakOzetiAsync(baslangic.Date, end, bugun, uyariGunu, currencies, cancellationToken);
         var yaslandirma = await YaslandirmaKovalariAsync(bugun, cancellationToken);
+        var (sayilar, aylikSayilar) = await SayilarAsync(baslangic.Date, bitis.Date, bugun, uyariGunu, works, expenses.Length, cancellationToken);
         return new(baslangic.Date, bitis.Date, "İş ve gider finans tarihi; gelir=faturalanan net, tahmini kâr=uygun iş net bedeli−kayıtlı net gider; avans maliyet değildir.",
             totals, monthly, types, costs, works.Count(x => x.SiparisNetTutar == 0), works.Count(x => x.SiparisNetTutar > 0 && x.KalanSiparisNetTutar > 0),
             works.Count(x => x.NetTutar > 0 && x.KalanSiparisNetTutar == 0), works.Count(x => x.FaturalananNetTutar > 0 && x.Durum != FinansIsDurumu.Faturalandi), works.Count(x => x.Durum == FinansIsDurumu.Faturalandi),
@@ -58,7 +59,57 @@ internal sealed class FinansPanelService(AppDbContext context) : IFinansPanelSer
                 expenses.Where(g => (g.Proje?.ProjeNo ?? g.ManuelProjeNo ?? "") == x.Key.ProjeNo && g.ParaBirimi == x.Key.ParaBirimi).Sum(g => g.Matrah))).ToArray(),
             works.Where(x => x.IsTuru == FinansIsTuru.OzelIs).GroupBy(x => new { x.OzelIsTuru, x.ParaBirimi }).Select(x => new FinansGrafikModel(x.Key.OzelIsTuru ?? "Özel İş", x.Key.ParaBirimi, x.Sum(y => y.FaturalananNetTutar), 0)).ToArray(),
             ProjeDurumSayilari(allWorks.Where(x => x.FinansTarihi >= baslangic.Date)),
-            alacaklar, beklenenTahsilat, yaslandirma, uyariGunu);
+            alacaklar, beklenenTahsilat, yaslandirma, uyariGunu, sayilar, aylikSayilar);
+    }
+
+    /// <summary>
+    /// Genel durum sayıları ve aylık adet grafiği: PO sipariş tarihine, fatura fatura tarihine, iş kalemi finans
+    /// tarihine göre seçili aralıkta sayılır; iptaller hariçtir. Ödeme kırılımı aralıktaki faturaların bugünkü durumudur.
+    /// </summary>
+    private async Task<(FinansPanelSayilariModel Sayilar, IReadOnlyList<FinansPanelAylikSayiModel> Aylik)> SayilarAsync(
+        DateTime baslangic,
+        DateTime bitis,
+        DateTime bugun,
+        int uyariGunu,
+        IReadOnlyCollection<FinansIsKaydiModel> works,
+        int giderKaydi,
+        CancellationToken cancellationToken)
+    {
+        var bitisHaric = bitis.AddDays(1);
+        var siparisler = await context.Set<FinansSiparis>().AsNoTracking()
+            .Where(x => !x.IptalEdildi && x.SiparisTarihi >= baslangic && x.SiparisTarihi < bitisHaric)
+            .Select(x => new { x.SiparisTarihi, x.Durum }).ToListAsync(cancellationToken);
+        var faturalar = await context.Set<FinansFatura>().AsNoTracking()
+            .Where(x => !x.IptalEdildi && x.FaturaTarihi >= baslangic && x.FaturaTarihi < bitisHaric)
+            .Select(x => new { x.FaturaTarihi, x.VadeTarihi, x.OdendiMi, x.OdemeTarihi }).ToListAsync(cancellationToken);
+        var odenmemis = faturalar.Where(x => !x.OdendiMi).ToList();
+        var sayilar = new FinansPanelSayilariModel(
+            works.Count,
+            works.Select(x => x.ProjeNo).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).Count(),
+            siparisler.Count,
+            siparisler.Count(x => x.Durum == FinansSiparisDurumu.Acik),
+            siparisler.Count(x => x.Durum == FinansSiparisDurumu.KismiFaturalandi),
+            siparisler.Count(x => x.Durum == FinansSiparisDurumu.Faturalandi),
+            faturalar.Count,
+            faturalar.Count - odenmemis.Count,
+            odenmemis.Count,
+            odenmemis.Count(x => FinansVadeKurallari.Durum(false, x.VadeTarihi, null, bugun, uyariGunu) == FinansOdemeDurumu.VadesiGecti),
+            giderKaydi);
+
+        var isAylari = works.GroupBy(x => FinansTarihKurallari.AyBasi(x.FinansTarihi)).ToDictionary(x => x.Key, x => x.Count());
+        var poAylari = siparisler.GroupBy(x => FinansTarihKurallari.AyBasi(x.SiparisTarihi)).ToDictionary(x => x.Key, x => x.Count());
+        var faturaAylari = faturalar.GroupBy(x => FinansTarihKurallari.AyBasi(x.FaturaTarihi)).ToDictionary(x => x.Key, x => x.Count());
+        var veriAylari = isAylari.Keys.Concat(poAylari.Keys).Concat(faturaAylari.Keys).ToList();
+        var aylik = new List<FinansPanelAylikSayiModel>();
+        if (veriAylari.Count > 0)
+        {
+            // Grafik ilk veri ayından aralık sonuna kesintisizdir; boş aylar sıfır görünür.
+            var sonAy = FinansTarihKurallari.AyBasi(bitis);
+            for (var ay = veriAylari.Min(); ay <= sonAy; ay = ay.AddMonths(1))
+                aylik.Add(new FinansPanelAylikSayiModel(ay.ToString("yyyy-MM"),
+                    isAylari.GetValueOrDefault(ay), poAylari.GetValueOrDefault(ay), faturaAylari.GetValueOrDefault(ay)));
+        }
+        return (sayilar, aylik);
     }
 
     /// <summary>
