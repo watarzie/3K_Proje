@@ -73,7 +73,7 @@ public static class DependencyInjection
         services.AddScoped<IRolService, RolService>();
         services.AddScoped<IAlanErisimService, AlanErisimService>();
         services.AddScoped<IAmbalajFormIslemKilidi, AmbalajFormIslemKilidi>();
-        services.AddScoped<IKullaniciYetkiService, KullaniciYetkiService>();
+        services.AddScoped<IRolAtamaService, RolAtamaService>();
         services.AddScoped<IOnayYetkiService, OnayYetkiService>();
         services.AddScoped<IProjectLockService, ProjectLockService>();
         services.AddScoped<IDashboardStatsProvider, DashboardStatsProvider>();

@@ -15,8 +15,8 @@ namespace _3K.Application.Tests;
 
 /// <summary>
 /// Menü/işlem/alan yetkilerinin tek modeli: bütün kodlar (Finans ve Ambalaj dahil) aynı N/R/W
-/// kuralıyla değerlendirilir. Kişisel ret → kişisel izin → rol → ret; üst düğüm tavandır ve
-/// üst W alt izni kendiliğinden vermez.
+/// kuralıyla değerlendirilir. Yetki yalnız rolden gelir (kullanıcıya özel izin/ret yoktur); üst düğüm
+/// tavandır ve üst W alt izni kendiliğinden vermez.
 /// </summary>
 public class YetkiModeliTests
 {
@@ -24,14 +24,12 @@ public class YetkiModeliTests
     private const int AmbalajKok = 46, AmbalajKayitDuzenle = 5100, AmbalajFormGoruntule = 5127;
 
     [Theory]
-    [InlineData(1, false, false)]
-    [InlineData(3, false, false)]
-    [InlineData(1, true, true)]
-    [InlineData(3, null, true)]
-    [InlineData(1, null, false)]
-    public async Task KisiselRetIzinVeRolOnceligiUygulanir(int rolSeviyesi, bool? karar, bool beklenen)
+    [InlineData(1, false)]
+    [InlineData(2, false)]
+    [InlineData(3, true)]
+    public async Task YazmaIzniYalnizRolSeviyesindenGelir(int rolSeviyesi, bool beklenen)
     {
-        using var context = CreateContext(rolSeviyesi, karar);
+        using var context = CreateContext(rolSeviyesi);
         Assert.Equal(beklenen, await new RolService(context).HasUserPermissionAsync(7, YetkiKodlari.Finans.PoGir, YetkiTipi.W));
         Assert.False(await new RolService(context).HasUserPermissionAsync(7, YetkiKodlari.Finans.KaliciSil, YetkiTipi.W));
     }
@@ -42,7 +40,7 @@ public class YetkiModeliTests
     [InlineData(YetkiTipi.W, true, true, true)]
     public async Task UstDugumAltDugumunTavanidir(YetkiTipi kokSeviyesi, bool kokOkuma, bool altOkuma, bool altYazma)
     {
-        using var context = CreateContext((int)YetkiTipi.W, null);
+        using var context = CreateContext((int)YetkiTipi.W);
         context.RolYetkileri = new OrtakMemorySet<RolYetki>([
             new() { RolId = 1, MenuTanimiId = FinansKok, YetkiTipiId = (int)kokSeviyesi },
             new() { RolId = 1, MenuTanimiId = PoGir, YetkiTipiId = (int)YetkiTipi.W }
@@ -57,59 +55,21 @@ public class YetkiModeliTests
     [Fact]
     public async Task UstW_AltIzniKendiligindenVermez()
     {
-        using var context = CreateContext((int)YetkiTipi.N, null);
+        using var context = CreateContext((int)YetkiTipi.N);
         var service = new RolService(context);
         Assert.True(await service.HasUserPermissionAsync(7, YetkiKodlari.Finans.Modul, YetkiTipi.W));
         Assert.False(await service.HasUserPermissionAsync(7, YetkiKodlari.Finans.PoGir, YetkiTipi.R));
     }
 
     [Fact]
-    public async Task YalnizKokKisiselIzni_RolunSinirladigiAltYazmayiAcmaz()
-    {
-        using var context = CreateContext((int)YetkiTipi.W, null);
-        context.RolYetkileri = new OrtakMemorySet<RolYetki>([
-            new() { RolId = 1, MenuTanimiId = FinansKok, YetkiTipiId = (int)YetkiTipi.R },
-            new() { RolId = 1, MenuTanimiId = PoGir, YetkiTipiId = (int)YetkiTipi.W }
-        ]);
-        context.KullaniciYetkileri = new OrtakMemorySet<KullaniciYetki>([
-            new() { KullaniciId = 7, MenuTanimiId = FinansKok, IzinVerildi = true }
-        ]);
-        Assert.False(await new RolService(context).HasUserPermissionAsync(7, YetkiKodlari.Finans.PoGir, YetkiTipi.W));
-
-        context.KullaniciYetkileri = new OrtakMemorySet<KullaniciYetki>([
-            new() { KullaniciId = 7, MenuTanimiId = FinansKok, IzinVerildi = true },
-            new() { KullaniciId = 7, MenuTanimiId = PoGir, IzinVerildi = true }
-        ]);
-        Assert.True(await new RolService(context).HasUserPermissionAsync(7, YetkiKodlari.Finans.PoGir, YetkiTipi.W));
-    }
-
-    [Fact]
-    public async Task KisiselYetkiListesi_RolunSinirladigiAltSeviyeyiGosterir()
-    {
-        using var context = CreateContext((int)YetkiTipi.W, null);
-        context.RolYetkileri = new OrtakMemorySet<RolYetki>([
-            new() { RolId = 1, MenuTanimiId = FinansKok, YetkiTipiId = (int)YetkiTipi.R },
-            new() { RolId = 1, MenuTanimiId = PoGir, YetkiTipiId = (int)YetkiTipi.W }
-        ]);
-        context.KullaniciYetkileri = new OrtakMemorySet<KullaniciYetki>([
-            new() { KullaniciId = 7, MenuTanimiId = FinansKok, IzinVerildi = true }
-        ]);
-        var permissions = await new KullaniciYetkiService(context, new MemoryRoles(), new OrtakUser(), new OrtakMemoryUow())
-            .GetAsync(7);
-        Assert.NotNull(permissions);
-        Assert.Equal((int)YetkiTipi.W, permissions.Single(x => x.MenuTanimiId == FinansKok).EtkinYetkiTipiId);
-        var child = permissions.Single(x => x.Kod == YetkiKodlari.Finans.PoGir);
-        Assert.Equal((int)YetkiTipi.W, child.RolYetkiTipiId);
-        Assert.Equal((int)YetkiTipi.R, child.EtkinYetkiTipiId);
-    }
-
-    [Fact]
     public async Task IptalEdilenIzin_SonrakiIstekteUygulanir()
     {
-        using var context = CreateContext((int)YetkiTipi.W, null);
+        using var context = CreateContext((int)YetkiTipi.W);
         Assert.True(await new RolService(context).HasUserPermissionAsync(7, YetkiKodlari.Finans.PoGir, YetkiTipi.W));
-        context.KullaniciYetkileri = new OrtakMemorySet<KullaniciYetki>([new()
-        { KullaniciId = 7, MenuTanimiId = PoGir, IzinVerildi = false }]);
+        context.RolYetkileri = new OrtakMemorySet<RolYetki>([
+            new() { RolId = 1, MenuTanimiId = FinansKok, YetkiTipiId = (int)YetkiTipi.W },
+            new() { RolId = 1, MenuTanimiId = PoGir, YetkiTipiId = (int)YetkiTipi.N }
+        ]);
         // Her istek yeni scoped servis alır; oturum/JWT yetkiyi önbelleklemez.
         Assert.False(await new RolService(context).HasUserPermissionAsync(7, YetkiKodlari.Finans.PoGir, YetkiTipi.W));
     }
@@ -117,24 +77,11 @@ public class YetkiModeliTests
     [Fact]
     public async Task AyniIstekteYetkiSorgulariTekKezOkunur()
     {
-        using var context = CreateContext((int)YetkiTipi.W, null);
+        using var context = CreateContext((int)YetkiTipi.W);
         var service = new RolService(context);
         Assert.True(await service.HasUserPermissionAsync(7, YetkiKodlari.Finans.PoGir, YetkiTipi.W));
-        context.KullaniciYetkileri = new OrtakMemorySet<KullaniciYetki>([new()
-        { KullaniciId = 7, MenuTanimiId = PoGir, IzinVerildi = false }]);
+        context.RolYetkileri = new OrtakMemorySet<RolYetki>([]);
         Assert.True(await service.HasUserPermissionAsync(7, YetkiKodlari.Finans.PoGir, YetkiTipi.W));
-    }
-
-    [Fact]
-    public async Task KisiselIzin_YalnizKendiKodunuAcar()
-    {
-        using var context = CreateContext((int)YetkiTipi.N, null);
-        context.KullaniciYetkileri = new OrtakMemorySet<KullaniciYetki>([new()
-        { KullaniciId = 7, MenuTanimiId = BirimFiyatGoruntule, IzinVerildi = true }]);
-        var service = new RolService(context);
-        Assert.True(await service.HasUserPermissionAsync(7, YetkiKodlari.Finans.BirimFiyatGoruntule, YetkiTipi.R));
-        Assert.False(await service.HasUserPermissionAsync(7, YetkiKodlari.Finans.BirimFiyatDegistir, YetkiTipi.W));
-        Assert.False(await service.HasUserPermissionAsync(7, YetkiKodlari.Finans.PoGir, YetkiTipi.R));
     }
 
     [Fact]
@@ -149,7 +96,6 @@ public class YetkiModeliTests
         context.RolYetkileri = new OrtakMemorySet<RolYetki>([
             new() { RolId = 1, MenuTanimiId = AmbalajFormGoruntule, YetkiTipiId = (int)YetkiTipi.R }
         ]);
-        context.KullaniciYetkileri = new OrtakMemorySet<KullaniciYetki>([]);
         var result = await new AuthorizationBehavior<
             _3K.Application.Features.AmbalajIslemleri.Queries.GetAmbalajFormSurumleriQuery,
             Result<IReadOnlyList<_3K.Application.Features.AmbalajIslemleri.DTOs.AmbalajFormSurumuDto>>>(
@@ -190,21 +136,6 @@ public class YetkiModeliTests
     }
 
     [Fact]
-    public async Task KendiMenusu_KisiselRetEdilenDugumuGondermez()
-    {
-        var uow = new OrtakMemoryUow();
-        uow.Repo<Kullanici>().Rows.Add(new() { Id = 7, RolId = 1 });
-        uow.Repo<Rol>().Rows.Add(new() { Id = 1, Ad = "Admin" });
-        uow.Repo<KullaniciYetki>().Rows.Add(new() { KullaniciId = 7, MenuTanimiId = 5200, IzinVerildi = false });
-        var roles = new MemoryRoles();
-        roles.Menus.Add(new() { Id = 5200, Kod = YetkiKodlari.Finans.GelirGoruntule });
-        roles.Permissions.Add(new() { MenuTanimiId = 5200, RolId = 1, YetkiTipiId = 2 });
-        var result = await new GetKullaniciMenuQueryHandler(new OrtakUser(), uow, roles).Handle(new(), default);
-        Assert.True(result.IsSuccess);
-        Assert.Empty(result.Value!);
-    }
-
-    [Fact]
     public async Task RolDetayiVeKullaniciMenusu_AltDugumuKokunSeviyesiyleSinirlar()
     {
         var uow = new OrtakMemoryUow();
@@ -220,13 +151,8 @@ public class YetkiModeliTests
         var detail = await new GetRolDetayQueryHandler(uow, roles).Handle(new() { RolId = 7 }, default);
         Assert.Equal((int)YetkiTipi.R, Assert.Single(Assert.Single(detail.Value!.MenuAgaci).Children).YetkiTipiId);
 
-        uow.Repo<KullaniciYetki>().Rows.Add(new() { KullaniciId = 7, MenuTanimiId = FinansKok, IzinVerildi = true });
         var own = await new GetKullaniciMenuQueryHandler(new OrtakUser(), uow, roles).Handle(new(), default);
         Assert.Equal((int)YetkiTipi.R, Assert.Single(Assert.Single(own.Value!).Children).YetkiTipiId);
-
-        uow.Repo<KullaniciYetki>().Rows.Add(new() { KullaniciId = 7, MenuTanimiId = PoGir, IzinVerildi = true });
-        own = await new GetKullaniciMenuQueryHandler(new OrtakUser(), uow, roles).Handle(new(), default);
-        Assert.Equal((int)YetkiTipi.W, Assert.Single(Assert.Single(own.Value!).Children).YetkiTipiId);
     }
 
     [Fact]
@@ -468,22 +394,19 @@ public class YetkiModeliTests
     }
 
     [Fact]
-    public async Task KisiselIzinServisi_KendiIzniniGuncellemeyiYazmadanReddeder()
+    public async Task RolAtama_KendiRolunuDegistirmeyiReddeder()
     {
-        using var context = CreateContext(1, null);
+        using var context = CreateContext(1);
         var roles = new MemoryRoles();
         roles.Grants[YetkiKodlari.Kullanicilar] = 3;
-        var uow = new OrtakMemoryUow();
-        var service = new KullaniciYetkiService(context, roles, new OrtakUser(), uow);
-        Assert.Equal(403, (await service.UpdateAsync(7, [new(5200, true)])).DurumKodu);
+        var service = new RolAtamaService(context, roles, new OrtakUser());
         Assert.Equal(403, (await service.RolAtamayiDogrulaAsync(7, 1)).DurumKodu);
-        Assert.Equal(0, uow.SaveCount);
     }
 
     [Fact]
     public async Task RolAtama_AktordenHedefinEtkinSeviyesiniIster()
     {
-        using var context = CreateContext((int)YetkiTipi.N, null);
+        using var context = CreateContext((int)YetkiTipi.N);
         context.Roller = new OrtakMemorySet<Rol>([new() { Id = 77, Ad = "Eski rol" }]);
         context.RolYetkileri = new OrtakMemorySet<RolYetki>([
             new() { RolId = 77, MenuTanimiId = FinansKok, YetkiTipiId = (int)YetkiTipi.R },
@@ -493,17 +416,10 @@ public class YetkiModeliTests
         roles.Grants[YetkiKodlari.Kullanicilar] = (int)YetkiTipi.W;
         roles.Grants[YetkiKodlari.Finans.Modul] = (int)YetkiTipi.W;
         roles.Grants[YetkiKodlari.Finans.PoGir] = (int)YetkiTipi.R;
-        var service = new KullaniciYetkiService(context, roles, new OrtakUser(), new OrtakMemoryUow());
+        var service = new RolAtamaService(context, roles, new OrtakUser());
 
         // Rol kökü R olduğu için alt işlem R'ye sınırlanır; aktörün R'si yeterlidir.
         Assert.True((await service.RolAtamayiDogrulaAsync(8, 77)).Basarili);
-
-        context.KullaniciYetkileri = new OrtakMemorySet<KullaniciYetki>([
-            new() { KullaniciId = 8, MenuTanimiId = FinansKok, IzinVerildi = true },
-            new() { KullaniciId = 8, MenuTanimiId = PoGir, IzinVerildi = true }
-        ]);
-        Assert.Equal(403, (await service.RolAtamayiDogrulaAsync(8, 77)).DurumKodu);
-        context.KullaniciYetkileri = new OrtakMemorySet<KullaniciYetki>([]);
 
         context.RolYetkileri = new OrtakMemorySet<RolYetki>([
             new() { RolId = 77, MenuTanimiId = FinansKok, YetkiTipiId = (int)YetkiTipi.W },
@@ -547,7 +463,7 @@ public class YetkiModeliTests
             .Where(f => f.IsLiteral && f.FieldType == typeof(string))
             .Select(f => (string)f.GetRawConstantValue()!);
 
-    private static AppDbContext CreateContext(int rolSeviyesi, bool? karar)
+    private static AppDbContext CreateContext(int rolSeviyesi)
     {
         var context = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().Options);
         context.Kullanicilar = new OrtakMemorySet<Kullanici>([new() { Id = 7, RolId = 1 }]);
@@ -562,9 +478,6 @@ public class YetkiModeliTests
             new() { RolId = 1, MenuTanimiId = FinansKok, YetkiTipiId = (int)YetkiTipi.W },
             new() { RolId = 1, MenuTanimiId = PoGir, YetkiTipiId = rolSeviyesi }
         ]);
-        context.KullaniciYetkileri = new OrtakMemorySet<KullaniciYetki>(karar.HasValue
-            ? [new() { KullaniciId = 7, MenuTanimiId = PoGir, IzinVerildi = karar.Value }]
-            : []);
         return context;
     }
 

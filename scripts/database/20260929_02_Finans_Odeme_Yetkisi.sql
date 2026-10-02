@@ -45,15 +45,21 @@ WHERE NOT EXISTS (
 GROUP BY ry."RolId", odeme."Id";
 
 -- Kişisel kararlar: fatura izinlerinden biri açıkça verilmişse izin, yalnız ret varsa ret.
-INSERT INTO "KullaniciYetkileri" ("KullaniciId", "MenuTanimiId", "IzinVerildi", "CreatedDate", "CreatedBy")
-SELECT ky."KullaniciId", odeme."Id", bool_or(ky."IzinVerildi"), now() AT TIME ZONE 'Europe/Istanbul', '20260929_02_Finans_Odeme_Yetkisi.sql'
-FROM "KullaniciYetkileri" ky
-JOIN "MenuTanimlari" fatura ON fatura."Id" = ky."MenuTanimiId" AND fatura."Kod" IN ('finans-fatura-gir', 'finans-fatura-degistir')
-CROSS JOIN (SELECT "Id" FROM "MenuTanimlari" WHERE "Kod" = 'finans-odeme-kaydet') odeme
-WHERE NOT EXISTS (
-    SELECT 1 FROM "KullaniciYetkileri" mevcut
-    WHERE mevcut."KullaniciId" = ky."KullaniciId" AND mevcut."MenuTanimiId" = odeme."Id")
-GROUP BY ky."KullaniciId", odeme."Id";
+-- Kişisel izin tablosu 20261003_01 ile kaldırıldı; bu adım yalnız tablo hâlâ varsa çalışır.
+DO $$
+BEGIN
+    IF to_regclass('public."KullaniciYetkileri"') IS NOT NULL THEN
+        INSERT INTO "KullaniciYetkileri" ("KullaniciId", "MenuTanimiId", "IzinVerildi", "CreatedDate", "CreatedBy")
+        SELECT ky."KullaniciId", odeme."Id", bool_or(ky."IzinVerildi"), now() AT TIME ZONE 'Europe/Istanbul', '20260929_02_Finans_Odeme_Yetkisi.sql'
+        FROM "KullaniciYetkileri" ky
+        JOIN "MenuTanimlari" fatura ON fatura."Id" = ky."MenuTanimiId" AND fatura."Kod" IN ('finans-fatura-gir', 'finans-fatura-degistir')
+        CROSS JOIN (SELECT "Id" FROM "MenuTanimlari" WHERE "Kod" = 'finans-odeme-kaydet') odeme
+        WHERE NOT EXISTS (
+            SELECT 1 FROM "KullaniciYetkileri" mevcut
+            WHERE mevcut."KullaniciId" = ky."KullaniciId" AND mevcut."MenuTanimiId" = odeme."Id")
+        GROUP BY ky."KullaniciId", odeme."Id";
+    END IF;
+END $$;
 
 -- Şablon izni (yaprak düğüm olduğu doğrulanır).
 DO $$
@@ -66,9 +72,14 @@ BEGIN
     END IF;
 END $$;
 
-DELETE FROM "KullaniciYetkileri" ky
-USING "MenuTanimlari" m
-WHERE ky."MenuTanimiId" = m."Id" AND m."Kod" = 'finans-sablon-yonet';
+DO $$
+BEGIN
+    IF to_regclass('public."KullaniciYetkileri"') IS NOT NULL THEN
+        DELETE FROM "KullaniciYetkileri" ky
+        USING "MenuTanimlari" m
+        WHERE ky."MenuTanimiId" = m."Id" AND m."Kod" = 'finans-sablon-yonet';
+    END IF;
+END $$;
 
 DELETE FROM "RolYetkileri" ry
 USING "MenuTanimlari" m

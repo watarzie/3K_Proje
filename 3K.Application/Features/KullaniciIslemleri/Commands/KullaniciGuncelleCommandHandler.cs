@@ -13,7 +13,7 @@ namespace _3K.Application.Features.KullaniciIslemleri.Commands
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IIkiFaktorService _ikiFaktorService;
-        private readonly IKullaniciYetkiService? _yetkiService;
+        private readonly IRolAtamaService? _rolAtama;
         private readonly ICurrentUserService? _currentUser;
         private readonly ISseNotifier? _sseNotifier;
         private readonly ILogger<KullaniciGuncelleCommandHandler> _logger;
@@ -21,14 +21,14 @@ namespace _3K.Application.Features.KullaniciIslemleri.Commands
         public KullaniciGuncelleCommandHandler(
             IUnitOfWork unitOfWork,
             IIkiFaktorService ikiFaktorService,
-            IKullaniciYetkiService? yetkiService = null,
+            IRolAtamaService? rolAtama = null,
             ICurrentUserService? currentUser = null,
             ISseNotifier? sseNotifier = null,
             ILogger<KullaniciGuncelleCommandHandler>? logger = null)
         {
             _unitOfWork = unitOfWork;
             _ikiFaktorService = ikiFaktorService;
-            _yetkiService = yetkiService;
+            _rolAtama = rolAtama;
             _currentUser = currentUser;
             _sseNotifier = sseNotifier;
             _logger = logger ?? NullLogger<KullaniciGuncelleCommandHandler>.Instance;
@@ -45,8 +45,8 @@ namespace _3K.Application.Features.KullaniciIslemleri.Commands
             var rolDegisti = kullanici.RolId != request.RolId;
             if (rolDegisti)
             {
-                var check = _yetkiService == null ? null :
-                    await _yetkiService.RolAtamayiDogrulaAsync(kullanici.Id, request.RolId, cancellationToken);
+                var check = _rolAtama == null ? null :
+                    await _rolAtama.RolAtamayiDogrulaAsync(kullanici.Id, request.RolId, cancellationToken);
                 if (check?.Basarili != true)
                     return Result<KullaniciDto>.Failure(check?.Hata ?? "Rol atama yetkisi doğrulanamadı.", check?.DurumKodu ?? 403);
                 await _unitOfWork.GetRepository<YetkiDegisikligi>().AddAsync(new()

@@ -20,15 +20,14 @@ namespace _3K.Application.Features.RolIslemleri.Queries
         }
 
         public async Task<Result<RolDetayDto>> Handle(GetRolDetayQuery request, CancellationToken cancellationToken)
-            => await OkuAsync(_unitOfWork, _rolService, request.RolId, null, cancellationToken);
+            => await OkuAsync(_unitOfWork, _rolService, request.RolId, cancellationToken);
 
         /// <summary>
-        /// Rolün menü ağacını etkin seviyeleriyle döner. Kişisel kararlar verilirse
-        /// (oturum sahibinin menüsü) aynı <see cref="YetkiAgaci"/> kuralıyla uygulanır.
+        /// Rolün menü ağacını <see cref="YetkiAgaci"/> kuralıyla hesaplanan etkin seviyeleriyle döner;
+        /// oturum sahibinin menüsü de rolünün bu ağacıdır.
         /// </summary>
         internal static async Task<Result<RolDetayDto>> OkuAsync(
-            IUnitOfWork unitOfWork, IRolService rolService, int rolId,
-            IReadOnlyDictionary<int, bool>? kisiselKararlar, CancellationToken cancellationToken)
+            IUnitOfWork unitOfWork, IRolService rolService, int rolId, CancellationToken cancellationToken)
         {
             var rol = await unitOfWork.GetRepository<Rol>().GetByIdAsync(rolId);
             if (rol == null)
@@ -39,7 +38,7 @@ namespace _3K.Application.Features.RolIslemleri.Queries
                 .ToDictionary(y => y.MenuTanimiId, y => y.YetkiTipiId);
 
             var agac = new YetkiAgaci(Duzlestir(menuAgaci).Select(m => new YetkiDugumu(m.Id, m.Kod, m.ParentId)));
-            var seviyeler = agac.KullaniciSeviyeleri(atamalar, kisiselKararlar);
+            var seviyeler = agac.RolSeviyeleri(atamalar);
 
             return Result<RolDetayDto>.Success(new RolDetayDto
             {

@@ -83,8 +83,9 @@ Akış: **Controller → Command/Query → (Authorization → Validation → App
 ## Yetki modeli
 
 - Bütün kodlar tek kaynaktan gelir: `3K.Core/Constants/YetkiKodlari.cs` (`YetkiKodlari.Finans.*`, `YetkiKodlari.Ambalaj.*`, `YetkiKodlari.Proje.*`…). Kod literali yazma. Proje tipine bağlı kodlar `ProjeTipiYetkiKodlari.Getir(projeTipiId)`.
-- Ekran, işlem ve alan kodlarının hepsi `MenuTanimlari` ağacında N/R/W olarak `YetkiAgaci` ile değerlendirilir: R görüntüleme, W işlem. Üst düğüm alt düğümün tavanıdır; üst W alt izni kendiliğinden vermez. Kişisel izin/yasak rol seviyesini ezer ama üst tavanı aşamaz.
+- Ekran, işlem ve alan kodlarının hepsi `MenuTanimlari` ağacında N/R/W olarak `YetkiAgaci` ile değerlendirilir: R görüntüleme, W işlem. Üst düğüm alt düğümün tavanıdır; üst W alt izni kendiliğinden vermez. Yetki yalnız rolden gelir: kullanıcıya özel izin/ret yoktur (`KullaniciYetkileri` tablosu `20261003_01_Kisisel_Yetkileri_Kaldir.sql` ile kaldırıldı). İstisna gerekiyorsa ayrı, dar bir rol tanımlanır.
 - Admin rolü yetki bypass'ı değildir (`SistemRolleri.AdminId` = 1, kendi `RolYetkileri` ile değerlendirilir). `X-Menu-Kod` başlığı, route veya gövde yetki kaynağı değildir.
+- Kullanıcıya rol atama denetimi `IRolAtamaService` (`RolAtamaService`): `kullanicilar:W` ister; kullanıcı kendi rolünü değiştiremez, sahip olmadığı izinleri içeren rolü başkasına atayamaz, Admin rolünü yalnız mevcut Admin atar.
 - Yeni kod eklerken birlikte güncelle: `YetkiKodlari` + `scripts/database/` altında `MenuTanimlari` satırı (`LabelKey` = `MENU.<KOD>`) + ön yüz `src/app/core/constants/yetki-kodlari.ts` + TR/EN `MENU.*` çevirileri.
 
 ### Finans alan maskeleme (dikkat!)

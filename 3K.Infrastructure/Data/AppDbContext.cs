@@ -64,7 +64,6 @@ namespace _3K.Infrastructure.Data
         public DbSet<Rol> Roller { get; set; } = null!;
         public DbSet<MenuTanimi> MenuTanimlari { get; set; } = null!;
         public DbSet<RolYetki> RolYetkileri { get; set; } = null!;
-        public DbSet<KullaniciYetki> KullaniciYetkileri { get; set; } = null!;
         public DbSet<YetkiDegisikligi> YetkiDegisiklikleri { get; set; } = null!;
 
         // ======= İki Faktörlü Doğrulama DbSet'leri =======

@@ -43,9 +43,15 @@ BEGIN
     END IF;
 END $$;
 
-DELETE FROM "KullaniciYetkileri" ky
-USING "MenuTanimlari" m, silinecek_yetki_kodlari s
-WHERE ky."MenuTanimiId" = m."Id" AND m."Kod" = s.kod;
+-- Kişisel izin tablosu 20261003_01 ile kaldırıldı; tablo varsa (eski kurulum) kayıtları temizlenir.
+DO $$
+BEGIN
+    IF to_regclass('public."KullaniciYetkileri"') IS NOT NULL THEN
+        DELETE FROM "KullaniciYetkileri" ky
+        USING "MenuTanimlari" m, silinecek_yetki_kodlari s
+        WHERE ky."MenuTanimiId" = m."Id" AND m."Kod" = s.kod;
+    END IF;
+END $$;
 
 DELETE FROM "RolYetkileri" ry
 USING "MenuTanimlari" m, silinecek_yetki_kodlari s

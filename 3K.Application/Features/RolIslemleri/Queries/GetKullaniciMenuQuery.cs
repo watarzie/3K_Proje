@@ -9,7 +9,7 @@ namespace _3K.Application.Features.RolIslemleri.Queries;
 
 /// <summary>
 /// Oturum sahibinin erişebildiği (R/W) menü ağacı; yetkisiz düğümler hiç gönderilmez.
-/// Yalnız güncel DB rolü ve kişisel kararlar kullanılır; istemciden rol/kullanıcı kimliği alınmaz.
+/// Yalnız güncel DB rolü kullanılır; istemciden rol/kullanıcı kimliği alınmaz.
 /// </summary>
 public sealed class GetKullaniciMenuQuery : IRequest<Result<List<MenuTreeDto>>>;
 
@@ -25,9 +25,7 @@ public sealed class GetKullaniciMenuQueryHandler(
         if (user == null)
             return Result<List<MenuTreeDto>>.Failure("Kullanıcı bulunamadı.", 401);
 
-        var kararlar = (await unitOfWork.GetRepository<KullaniciYetki>().FindAsync(x => x.KullaniciId == userId))
-            .ToDictionary(x => x.MenuTanimiId, x => x.IzinVerildi);
-        var detay = await GetRolDetayQueryHandler.OkuAsync(unitOfWork, rolService, user.RolId, kararlar, cancellationToken);
+        var detay = await GetRolDetayQueryHandler.OkuAsync(unitOfWork, rolService, user.RolId, cancellationToken);
         return detay.IsSuccess
             ? Result<List<MenuTreeDto>>.Success(ErisilebilenDugumler(detay.Value!.MenuAgaci))
             : Result<List<MenuTreeDto>>.Failure(detay.Error!.Message, detay.StatusCode);

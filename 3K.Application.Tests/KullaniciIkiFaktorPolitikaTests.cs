@@ -153,7 +153,7 @@ public sealed class KullaniciIkiFaktorPolitikaTests
             events.Add((ids.ToArray(), olay));
         });
         var handler = new KullaniciGuncelleCommandHandler(unitOfWork,
-            new FakeIkiFaktorService(), new FakeYetkiService(), new OrtakUser(99), notifier);
+            new FakeIkiFaktorService(), new FakeRolAtamaService(), new OrtakUser(99), notifier);
 
         var changed = await unitOfWork.ExecuteInTransactionAsync(ct => handler.Handle(new()
         { Id = kullanici.Id, AdSoyad = kullanici.AdSoyad, RolId = 2 }, ct));
@@ -176,7 +176,7 @@ public sealed class KullaniciIkiFaktorPolitikaTests
         await unitOfWork.AddRole(new Rol { Id = 2, Ad = "Operatör" });
         var notifier = new RecordingNotifier((_, _) => throw new IOException("Bağlantı koptu."));
         var handler = new KullaniciGuncelleCommandHandler(unitOfWork,
-            new FakeIkiFaktorService(), new FakeYetkiService(), new OrtakUser(99), notifier);
+            new FakeIkiFaktorService(), new FakeRolAtamaService(), new OrtakUser(99), notifier);
 
         var result = await handler.Handle(new()
         { Id = kullanici.Id, AdSoyad = kullanici.AdSoyad, RolId = 2 }, default);
@@ -194,7 +194,7 @@ public sealed class KullaniciIkiFaktorPolitikaTests
         var events = new List<string>();
         var notifier = new RecordingNotifier((_, olay) => events.Add(olay));
         var handler = new KullaniciGuncelleCommandHandler(unitOfWork,
-            new FakeIkiFaktorService(), new FakeYetkiService(allowed: false), new OrtakUser(99), notifier);
+            new FakeIkiFaktorService(), new FakeRolAtamaService(allowed: false), new OrtakUser(99), notifier);
 
         var result = await handler.Handle(new()
         { Id = kullanici.Id, AdSoyad = kullanici.AdSoyad, RolId = 2 }, default);
@@ -285,16 +285,11 @@ public sealed class KullaniciIkiFaktorPolitikaTests
         }
     }
 
-    private sealed class FakeYetkiService(bool allowed = true) : IKullaniciYetkiService
+    private sealed class FakeRolAtamaService(bool allowed = true) : IRolAtamaService
     {
-        public Task<IReadOnlyList<KullaniciYetkiModel>?> GetAsync(int kullaniciId, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
-        public Task<KullaniciYetkiSonucu> UpdateAsync(int kullaniciId,
-            IReadOnlyCollection<KullaniciYetkiKarari> kararlar, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
-        public Task<KullaniciYetkiSonucu> RolAtamayiDogrulaAsync(int? hedefKullaniciId, int rolId,
+        public Task<RolAtamaSonucu> RolAtamayiDogrulaAsync(int? hedefKullaniciId, int rolId,
             CancellationToken cancellationToken = default) => Task.FromResult(
-                allowed ? new KullaniciYetkiSonucu(true) : new KullaniciYetkiSonucu(false, "Reddedildi.", 403));
+                allowed ? new RolAtamaSonucu(true) : new RolAtamaSonucu(false, "Reddedildi.", 403));
     }
 
     private sealed class RecordingNotifier(Action<IEnumerable<int>, string> onNotify) : ISseNotifier

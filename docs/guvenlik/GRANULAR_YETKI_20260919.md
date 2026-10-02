@@ -8,17 +8,17 @@ Menü ağacında üst izin alt iznin tavanıdır: üst N ise bütün alt erişim
 
 Kök şartı isteğin kendi modülüne aittir. Finans yanıtındaki ölçü/m³/sarf alanı için finans kökü ve ilgili ortak alan kodu gerekir; ayrıca üretim ekranına giriş izni aranmaz. Üretim kökünün reddi finans köküne veya bağımsız alan kararına taşınmaz. Böylece finans rolü üretim ekranına girmeden açıkça verilmiş alanı görebilir; alanın kendi kişisel reddi her iki modülde de uygulanır.
 
-## Kullanıcı kararı ve yönetim
+## Rol ve yönetim
 
-Değerlendirme sırası: kişisel açık ret → kişisel açık izin → rol izni → ret. `KullaniciYetkileri` tablosunda satır olmaması devralmadır; `IzinVerildi=false` açık rettir. Aynı kullanıcı/kod benzersizdir. Kişisel izin yalnız o kodun katalog seviyesini verir; bir alanın R izni W işlemine dönüşmez.
+Yetki yalnız rolden gelir: rol izni üst düğümün etkin seviyesiyle sınırlanır, kaydı olmayan kod N'dir. Kullanıcıya özel açık izin/ret özelliği (`KullaniciYetkileri` tablosu, `/api/kullanici/{id}/yetkiler` uçları ve ön yüzdeki "Kullanıcıya özel izinler" penceresi) 3 Ekim 2026'da kaldırıldı; tablo `scripts/database/20261003_01_Kisisel_Yetkileri_Kaldir.sql` ile silinir. Tek bir kişiye istisna gerekiyorsa ayrı, dar bir rol tanımlanır.
 
-Admin normal menü/alan kontrollerini atlamaz. Rol 1'e açık seed izinleri yazılır ve kullanıcıya verilen açık ret Admin için de etkilidir. Önceden var olan onay yönetimindeki Admin rolü istisnası ayrı kalır. Yeni rolün adını Admin yapma yolu reddedilir.
+Admin normal menü/alan kontrollerini atlamaz. Rol 1'e açık seed izinleri yazılır. Önceden var olan onay yönetimindeki Admin rolü istisnası ayrı kalır. Yeni rolün adını Admin yapma yolu reddedilir.
 
-Rol oluşturma/değiştirme/silme `rol-yonetimi:W` ister. Bu izne sahip kişi, kendi rolü dâhil rollere kendi alt izinleriyle sınırlanmadan yetki atayabilir; bu yüzden `rol-yonetimi:W` yalnız güvenilir yöneticilere verilmelidir. Kullanıcıya rol veya kişisel izin atamak ve kişisel izin listesini görüntülemek `kullanicilar:W` ister. Ayrı `yetki-atama` izni kullanılmaz. Kullanıcı kendisine rol atayamaz veya kendi kişisel izinlerini değiştiremez. Başkasına sahip olmadığı yeni kişisel izinleri veremez ve sahip olmadığı izinleri içeren rolü kullanıcıya atayamaz. Rolden devralma yoluyla açık reddin kaldırılması da kişisel yetki artışıysa aynı kontrolden geçer. Rol güncellemesinde boş izin listesi bütün rol izinlerini kaldırır.
+Rol oluşturma/değiştirme/silme `rol-yonetimi:W` ister. Bu izne sahip kişi, kendi rolü dâhil rollere kendi alt izinleriyle sınırlanmadan yetki atayabilir; bu yüzden `rol-yonetimi:W` yalnız güvenilir yöneticilere verilmelidir. Kullanıcıya rol atamak `kullanicilar:W` ister (`RolAtamaService`). Ayrı `yetki-atama` izni kullanılmaz. Kullanıcı kendisine rol atayamaz ve sahip olmadığı izinleri içeren rolü kullanıcıya atayamaz. Rol güncellemesinde boş izin listesi bütün rol izinlerini kaldırır.
 
 `GET /api/rol/sablonlar` üretimde Yönetici/Üretim Sorumlusu/Üretim Personeli/Görüntüleme ve finansta Finans Yöneticisi/Fatura Kullanıcısı/Sipariş Kullanıcısı/Rapor Görüntüleyici/Yönetici/Sadece Okuma şablonlarını döndürür. Rol oluşturma isteğindeki isteğe bağlı `sablonKodu` şablonu açıkça uygular; şablonsuz boş rol oluşturulabilir. W alt izin içeren şablonun kökü W, yalnız R içeren şablonun kökü R atanır; kök W yine yalnız seçilmiş alt izinleri açar. Salt okuma şablonları W içermez; personel şablonu kritik işlem içermez.
 
-`GET /api/kullanici/{id}/yetkiler` rol/kişisel/etkin kararı birlikte döndürür. `PUT` aynı adrese `[{menuTanimiId,izinVerildi:true|false|null}]` gönderir; liste bütünü değiştirilir, null veya bulunmayan satır devralır. Karar değişiklikleri aktör, hedef, eski/yeni karar ve sunucu zamanı ile `YetkiDegisiklikleri` tablosuna yazılır. Hedef silinmesi audit'i cascade silmez.
+Rol izni değişiklikleri aktör, hedef, eski/yeni değer ve sunucu zamanı ile `YetkiDegisiklikleri` tablosuna yazılır; kaldırılan kişisel izin özelliğinin eski kayıtları (`HedefTuru = 'Kullanici'`) denetim geçmişi olarak korunur. Hedef silinmesi audit'i cascade silmez.
 
 ## Alan güvenliği ve oturumlar
 

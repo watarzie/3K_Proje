@@ -63,25 +63,6 @@ public class ServerAuthorizationRegressionTests
         });
     }
 
-    [Theory]
-    [InlineData("kullanicilar", YetkiTipi.R, false)]
-    [InlineData("kullanicilar", YetkiTipi.W, true)]
-    [InlineData("rol-yonetimi", YetkiTipi.W, false)]
-    public async Task KisiselIzinDuzenleyicisi_KullaniciYazmaYetkisiIster(
-        string grantedMenu, YetkiTipi permission, bool allowed)
-    {
-        var fixture = new Fixture(grantedMenu, permission);
-        Assert.Equal(allowed, (await fixture.Run(new _3K.Application.Features.KullaniciIslemleri.Queries.KullaniciYetkiQuery
-        { KullaniciId = 8 })).IsSuccess);
-        Assert.Equal(allowed, (await fixture.Run(new _3K.Application.Features.KullaniciIslemleri.Commands.KullaniciYetkiGuncelleCommand
-        { KullaniciId = 8 })).IsSuccess);
-        Assert.All(fixture.Roles.Calls, x =>
-        {
-            Assert.Equal("kullanicilar", x.Menu);
-            Assert.Equal(YetkiTipi.W, x.Yetki);
-        });
-    }
-
     [Fact]
     public async Task TanimlanmamisKorumaliIstek_HeaderYetkisiOlsaBileKapaliKalir()
     {

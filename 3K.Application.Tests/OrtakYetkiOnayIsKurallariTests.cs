@@ -218,7 +218,6 @@ public class OrtakYetkiOnayIsKurallariTests
             new() { RolId = roleId, MenuTanimiId = 14, YetkiTipiId = (int)granted }
         ]);
         context.OnayIslemYetkileri = new OrtakMemorySet<OnayIslemYetki>([]);
-        context.KullaniciYetkileri = new OrtakMemorySet<KullaniciYetki>([]);
         return context;
     }
 

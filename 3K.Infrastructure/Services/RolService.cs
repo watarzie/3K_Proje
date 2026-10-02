@@ -97,12 +97,8 @@ namespace _3K.Infrastructure.Services
             var rolAtamalari = await _context.RolYetkileri.AsNoTracking()
                 .Where(x => x.RolId == rolId)
                 .ToDictionaryAsync(x => x.MenuTanimiId, x => x.YetkiTipiId, ct);
-            var kararlar = await _context.KullaniciYetkileri.AsNoTracking()
-                .Where(x => x.KullaniciId == userId)
-                .ToDictionaryAsync(x => x.MenuTanimiId, x => x.IzinVerildi, ct);
-
             var agac = new YetkiAgaci(menuler);
-            var seviyeler = agac.KullaniciSeviyeleri(rolAtamalari, kararlar);
+            var seviyeler = agac.RolSeviyeleri(rolAtamalari);
             return new KullaniciYetkiSeti(menuler.ToDictionary(x => x.Kod, x => seviyeler[x.Id]));
         }
     }

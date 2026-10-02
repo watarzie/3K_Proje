@@ -1,20 +1,17 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using _3K.Core.Constants;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
-using _3K.Core.Interfaces;
-using _3K.Core.Models;
 using _3K.Infrastructure.Data;
-using _3K.Infrastructure.Repositories;
 using _3K.Infrastructure.Services;
 
 namespace _3K.Application.Tests;
 
 /// <summary>
-/// Yalnız izole sentetik PostgreSQL'de (localhost:55439) çalışır; gerçek sorgularla kişisel ret,
-/// rol değişikliği ve commit sonrası yetki olayını doğrular. Uygulama veritabanını kullanmaz.
+/// Yalnız izole sentetik PostgreSQL'de (localhost:55439) çalışır; gerçek sorgularla rol yetkisinin,
+/// rol değişikliğinin sonraki istekte etkisinin ve rol atama denetiminin doğruluğunu sınar. Uygulama
+/// veritabanını kullanmaz.
 /// </summary>
 public sealed class YetkiPostgresTests
 {
@@ -22,7 +19,7 @@ public sealed class YetkiPostgresTests
 
     [PostgresRaporFact]
     [Trait("Category", "Postgres")]
-    public async Task IzolePostgres_KisiselRetVeRolDegisikligiSonrakiIstekteEtkin()
+    public async Task IzolePostgres_RolDegisikligiSonrakiIstekteEtkin_RolAtamaDenetlenir()
     {
         var connection = new NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable("THREEK_TEST_POSTGRES"));
         Assert.True(connection.Host is "127.0.0.1" or "localhost");
@@ -50,36 +47,21 @@ public sealed class YetkiPostgresTests
             Assert.False(await Yetkili(8, YetkiKodlari.Finans.PoDegistir));
             Assert.True(await Yetkili(7, YetkiKodlari.Finans.KaliciSil));
 
-            using var uow = new UnitOfWork(context, NullLogger<UnitOfWork>.Instance);
-            var events = new List<(int[] Idler, string Olay, bool TransactionAktif)>();
-            var notifier = new RecordingNotifier((ids, olay) => events.Add((ids.ToArray(), olay, uow.HasActiveTransaction)));
-            var service = new KullaniciYetkiService(context, new RolService(context), new OrtakUser(7), uow, notifier);
-            var denied = await service.UpdateAsync(8, [new KullaniciYetkiKarari(PoGir, false)]);
-            Assert.True(denied.Basarili, denied.Hata);
-            var sent = Assert.Single(events);
-            Assert.Equal([8], sent.Idler);
-            Assert.Equal(SseOlaylari.YetkiGuncellendi, sent.Olay);
-            Assert.False(sent.TransactionAktif);
-            Assert.False(await Yetkili(8, YetkiKodlari.Finans.PoGir));
-            Assert.True(await context.RolYetkileri.AnyAsync(x => x.RolId == 77 && x.MenuTanimiId == PoGir));
-            Assert.Single(await context.YetkiDegisiklikleri.Where(x => x.HedefTuru == "Kullanici" && x.HedefId == 8).ToListAsync());
+            // Rol atama: yönetici, sahip olduğu izinlerden oluşan rolü atayabilir; kullanıcı yazma izni
+            // olmayan operatör rol atayamaz.
+            Assert.True((await new RolAtamaService(context, new RolService(context), new OrtakUser(7))
+                .RolAtamayiDogrulaAsync(8, 77)).Basarili);
+            Assert.Equal(403, (await new RolAtamaService(context, new RolService(context), new OrtakUser(8))
+                .RolAtamayiDogrulaAsync(7, 77)).DurumKodu);
 
+            // Rolden kaldırılan izin bir sonraki istekte geçersizdir.
+            var poIzni = await context.RolYetkileri.SingleAsync(x => x.RolId == 77 && x.MenuTanimiId == PoGir);
+            context.RolYetkileri.Remove(poIzni);
             var kaliciSilIzni = await context.RolYetkileri.SingleAsync(x => x.RolId == 1 && x.MenuTanimiId == KaliciSil);
             context.RolYetkileri.Remove(kaliciSilIzni);
             await context.SaveChangesAsync();
+            Assert.False(await Yetkili(8, YetkiKodlari.Finans.PoGir));
             Assert.False(await Yetkili(7, YetkiKodlari.Finans.KaliciSil));
-
-            var invalid = await service.UpdateAsync(8, [new KullaniciYetkiKarari(-1, true)]);
-            Assert.False(invalid.Basarili);
-            Assert.Single(events);
-            Assert.Single(await context.KullaniciYetkileri.Where(x => x.KullaniciId == 8).ToListAsync());
-
-            notifier.ThrowAfterNotify = true;
-            var tekrar = await new KullaniciYetkiService(context, new RolService(context), new OrtakUser(7), uow, notifier)
-                .UpdateAsync(8, [new KullaniciYetkiKarari(PoGir, false)]);
-            Assert.True(tekrar.Basarili, tekrar.Hata);
-            Assert.Equal(2, events.Count);
-            Assert.Single(await context.KullaniciYetkileri.Where(x => x.KullaniciId == 8).ToListAsync());
         }
         finally
         {
@@ -120,18 +102,5 @@ public sealed class YetkiPostgresTests
             new RolYetki { RolId = 77, MenuTanimiId = PoGir, YetkiTipiId = (int)YetkiTipi.W });
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
-    }
-
-    private sealed class RecordingNotifier(Action<IEnumerable<int>, string> onNotify) : ISseNotifier
-    {
-        public bool ThrowAfterNotify { get; set; }
-        public Task SubscribeAsync(object context, int kullaniciId) => Task.CompletedTask;
-        public Task NotifyUsersAsync(IEnumerable<int> kullaniciIdleri, string eventName, string data = "refresh")
-        {
-            onNotify(kullaniciIdleri, eventName);
-            if (ThrowAfterNotify) throw new IOException("Geçici SSE bağlantı hatası.");
-            return Task.CompletedTask;
-        }
-        public Task BroadcastApprovalUpdateAsync() => Task.CompletedTask;
     }
 }

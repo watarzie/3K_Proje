@@ -2,20 +2,16 @@ using _3K.Core.Enums;
 
 namespace _3K.Core.Models;
 
-public sealed record KullaniciYetkiKarari(int MenuTanimiId, bool? IzinVerildi);
-public sealed record KullaniciYetkiModel(int MenuTanimiId, string Kod, string LabelKey,
-    int RolYetkiTipiId, int EtkinYetkiTipiId, bool? IzinVerildi);
-public sealed record KullaniciYetkiSonucu(bool Basarili, string? Hata = null, int DurumKodu = 200);
+/// <summary>Rol atama denetiminin sonucu; başarısızsa kullanıcıya gösterilecek mesaj ve HTTP durum kodu.</summary>
+public sealed record RolAtamaSonucu(bool Basarili, string? Hata = null, int DurumKodu = 200);
 
 /// <summary>Yetki hesabı için menü ağacındaki bir düğüm.</summary>
 public sealed record YetkiDugumu(int Id, string Kod, int? UstId);
 
 /// <summary>
 /// Menü ağacı üzerinde etkin yetki hesabının tek uygulaması. Bütün ekran, işlem ve alan
-/// kodları aynı kuralla değerlendirilir:
-/// 1) Rol seviyesi üst düğümün rol seviyesiyle sınırlanır (üst düğüm tavandır).
-/// 2) Kişisel karar varsa uygulanır: açık ret N, açık izin W; yoksa rolden gelen seviye kalır.
-/// 3) Sonuç tekrar üst düğümün etkin seviyesiyle sınırlanır.
+/// kodları aynı kuralla değerlendirilir: rolün atadığı seviye üst düğümün etkin seviyesiyle sınırlanır
+/// (üst düğüm tavandır). Yetki yalnız rolden gelir; kullanıcıya özel izin veya ret yoktur.
 /// Üst W alt izni kendiliğinden vermez; kaydı olmayan düğüm N'dir. Döngü veya kayıp üst düğüm N'dir.
 /// </summary>
 public sealed class YetkiAgaci
@@ -29,25 +25,11 @@ public sealed class YetkiAgaci
 
     public IEnumerable<YetkiDugumu> Dugumler => _dugumler.Values;
 
-    /// <summary>Rolün atanmış seviyelerini ağaçta sınırlar (kişisel karar uygulanmadan).</summary>
+    /// <summary>Rolün atanmış seviyelerini ağaçta sınırlar; kullanıcının etkin seviyeleri budur.</summary>
     public IReadOnlyDictionary<int, YetkiTipi> RolSeviyeleri(IReadOnlyDictionary<int, int> atanmisSeviyeler) =>
         Sinirla(id => atanmisSeviyeler.TryGetValue(id, out var seviye) && Enum.IsDefined((YetkiTipi)seviye)
             ? (YetkiTipi)seviye
             : YetkiTipi.N);
-
-    /// <summary>Kullanıcının etkin seviyeleri: rol seviyeleri + kişisel ret/izin kararları.</summary>
-    public IReadOnlyDictionary<int, YetkiTipi> KullaniciSeviyeleri(
-        IReadOnlyDictionary<int, int> rolAtamalari,
-        IReadOnlyDictionary<int, bool>? kisiselKararlar = null)
-    {
-        var rolSeviyeleri = RolSeviyeleri(rolAtamalari);
-        if (kisiselKararlar == null || kisiselKararlar.Count == 0)
-            return rolSeviyeleri;
-
-        return Sinirla(id => kisiselKararlar.TryGetValue(id, out var izinVerildi)
-            ? izinVerildi ? YetkiTipi.W : YetkiTipi.N
-            : rolSeviyeleri.GetValueOrDefault(id, YetkiTipi.N));
-    }
 
     private IReadOnlyDictionary<int, YetkiTipi> Sinirla(Func<int, YetkiTipi> yerelSeviye)
     {

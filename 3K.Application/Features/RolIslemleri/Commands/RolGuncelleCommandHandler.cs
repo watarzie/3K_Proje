@@ -41,7 +41,7 @@ public sealed class RolGuncelleCommandHandler(IUnitOfWork unitOfWork, IRolServic
             await rolService.YetkileriGuncelleAsync(rol.Id, normalizedPermissions.Select(x => new RolYetki
             { RolId = rol.Id, MenuTanimiId = x.MenuTanimiId, YetkiTipiId = x.YetkiTipiId }).ToList(), ct);
             await unitOfWork.SaveChangesAsync(ct);
-            var sonuc = await GetRolDetayQueryHandler.OkuAsync(unitOfWork, rolService, rol.Id, null, ct);
+            var sonuc = await GetRolDetayQueryHandler.OkuAsync(unitOfWork, rolService, rol.Id, ct);
             if (sonuc.IsSuccess && sseNotifier != null)
             {
                 // Bağlı istemciler notifier içinde kullanıcı kimliğiyle eşleştirilir.
