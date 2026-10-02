@@ -412,12 +412,12 @@ namespace _3K.Infrastructure.Services.Finans
                         {
                             PdfCell(table, item.ProjeNo);
                             PdfCell(table, item.IsAdi);
-                            PdfCell(table, item.IsTuru.ToString());
+                            PdfCell(table, FinansEtiketleri.IsTuru(item.IsTuru));
                             PdfCell(table, Format(item.Adet));
                             PdfCell(table, Format(item.ToplamM3));
                             PdfCell(table, item.ParaBirimi);
                             PdfCell(table, Format(item.ToplamTutar));
-                            PdfCell(table, item.Durum.ToString());
+                            PdfCell(table, FinansEtiketleri.IsDurumu(item.Durum));
                         }
                     });
                     AddFooter(page);

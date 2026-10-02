@@ -296,6 +296,14 @@ public sealed class FinansPoAkisPostgresTests
             var panel = await finans.Panel.PanelAsync(new(2026, 9, 1), new(2026, 9, 30), Ct);
             Assert.Equal((1, 0, 1, 0), (panel.ProjeDurumlari!.ToplamProje, panel.ProjeDurumlari.SiparisYok,
                 panel.ProjeDurumlari.SiparisKismi, panel.ProjeDurumlari.SiparisTam));
+
+            // Panel detay dökümü: proje satırı bütün kalemleri toplar, durum aylık özetteki birleşik durumla aynıdır.
+            var ozet = Assert.Single(panel.ProjeOzetleri!);
+            Assert.Equal((3, 450m, 0m, FinansKarsilanma.Kismi, FinansKarsilanma.Yok),
+                (ozet.IsKaydi, ozet.SiparisNetTutar, ozet.FaturalananNetTutar, ozet.Siparis, ozet.Fatura));
+            Assert.Equal(ozet.IsBedeli - 450m, ozet.KalanSiparisNetTutar);
+            Assert.Equal([(FinansIsKategorisi.AnaAmbalaj, 2, 1), (FinansIsKategorisi.SarfKereste, 1, 1)],
+                panel.KategoriOzetleri!.Select(x => (x.Kategori, x.IsKaydi, x.Proje)));
         });
     }
 

@@ -24,9 +24,9 @@ internal sealed partial class FinansRaporService
 
     private static object?[] IsSatiri(FinansIsKaydiModel item) =>
     [
-        item.Id, item.ProjeNo, item.Musteri, item.IsTuru.ToString(), item.IsAdi, item.SandikNo,
-        item.Adet, item.TalepEdenKisi, item.TalepEdenBolum, item.BirimM3, item.ToplamM3, item.UretimTarihi, item.FinansDonemi, item.Durum.ToString(),
-        item.FiyatlandirmaBirimi.ToString(), item.BirimFiyat, item.ParaBirimi, item.KdvOrani,
+        item.Id, item.ProjeNo, item.Musteri, FinansEtiketleri.IsTuru(item.IsTuru), item.IsAdi, item.SandikNo,
+        item.Adet, item.TalepEdenKisi, item.TalepEdenBolum, item.BirimM3, item.ToplamM3, item.UretimTarihi, item.FinansDonemi, FinansEtiketleri.IsDurumu(item.Durum),
+        FinansEtiketleri.FiyatlandirmaBirimi(item.FiyatlandirmaBirimi), item.BirimFiyat, item.ParaBirimi, item.KdvOrani,
         item.NetTutar, item.KdvTutari, item.ToplamTutar,
         string.Join(", ", item.PoNumaralari), string.Join(", ", item.FaturaNumaralari)
     ];

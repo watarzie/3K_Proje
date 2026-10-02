@@ -1,3 +1,5 @@
+using _3K.Core.Enums;
+
 namespace _3K.Core.Models;
 
 public sealed record FinansPanelModel(DateTime Baslangic, DateTime Bitis, string TarihEkseni,
@@ -11,7 +13,38 @@ public sealed record FinansPanelModel(DateTime Baslangic, DateTime Bitis, string
     IReadOnlyList<FinansYaslandirmaKovasiModel>? Yaslandirma = null,
     int VadeUyariGunu = FinansVadeKurallari.VarsayilanUyariGunu,
     FinansPanelSayilariModel? Sayilar = null,
-    IReadOnlyList<FinansPanelAylikSayiModel>? AylikSayilar = null);
+    IReadOnlyList<FinansPanelAylikSayiModel>? AylikSayilar = null,
+    IReadOnlyList<FinansPanelProjeOzetiModel>? ProjeOzetleri = null,
+    IReadOnlyList<FinansPanelKategoriOzetiModel>? KategoriOzetleri = null);
+
+/// <summary>
+/// Panel detay dökümü, proje × para birimi: dönemdeki iş kalemi sayısı, iş bedeli, PO'ya bağlanan ve faturalanan
+/// net, kalanlar, projeye yazılan gider ve birleşik PO/fatura karşılanması. Tutar alan adları maske listesindedir
+/// (isBedeli, *NetTutar, gider); yetkisi olmayana null döner. Sayı alanları maskelenmez.
+/// </summary>
+public sealed record FinansPanelProjeOzetiModel(
+    string ProjeNo,
+    string Musteri,
+    string ParaBirimi,
+    int IsKaydi,
+    decimal? IsBedeli,
+    decimal? SiparisNetTutar,
+    decimal? FaturalananNetTutar,
+    decimal? KalanSiparisNetTutar,
+    decimal? KalanFaturaNetTutar,
+    decimal? Gider,
+    FinansKarsilanma Siparis,
+    FinansKarsilanma Fatura);
+
+/// <summary>Panel detay dökümü, iş kategorisi × para birimi (PO/fatura ekranındaki kategori kırılımıyla aynı).</summary>
+public sealed record FinansPanelKategoriOzetiModel(
+    FinansIsKategorisi Kategori,
+    string ParaBirimi,
+    int IsKaydi,
+    int Proje,
+    decimal? IsBedeli,
+    decimal? SiparisNetTutar,
+    decimal? FaturalananNetTutar);
 
 /// <summary>
 /// Panelin genel durum sayıları (seçili dönem): iş kalemi ve proje sayısı, PO sayısı (sipariş tarihine göre,

@@ -59,8 +59,33 @@ internal sealed class FinansPanelService(AppDbContext context) : IFinansPanelSer
                 expenses.Where(g => (g.Proje?.ProjeNo ?? g.ManuelProjeNo ?? "") == x.Key.ProjeNo && g.ParaBirimi == x.Key.ParaBirimi).Sum(g => g.Matrah))).ToArray(),
             works.Where(x => x.IsTuru == FinansIsTuru.OzelIs).GroupBy(x => new { x.OzelIsTuru, x.ParaBirimi }).Select(x => new FinansGrafikModel(x.Key.OzelIsTuru ?? "Özel İş", x.Key.ParaBirimi, x.Sum(y => y.FaturalananNetTutar), 0)).ToArray(),
             ProjeDurumSayilari(allWorks.Where(x => x.FinansTarihi >= baslangic.Date)),
-            alacaklar, beklenenTahsilat, yaslandirma, uyariGunu, sayilar, aylikSayilar);
+            alacaklar, beklenenTahsilat, yaslandirma, uyariGunu, sayilar, aylikSayilar,
+            ProjeOzetleri(works, expenses), KategoriOzetleri(works));
     }
+
+    /// <summary>
+    /// Proje × para birimi detay dökümü; gider, aynı proje numarası ve para birimiyle yazılmış dönem giderleridir.
+    /// Durum, projenin dönemdeki bütün kalemlerinden <see cref="FinansTutarKurallari.BirlesikDurum"/> ile türetilir.
+    /// </summary>
+    internal static IReadOnlyList<FinansPanelProjeOzetiModel> ProjeOzetleri(IReadOnlyCollection<FinansIsKaydiModel> works, IReadOnlyCollection<FinansGider> expenses)
+    {
+        var giderler = expenses.GroupBy(x => (Proje: x.Proje?.ProjeNo ?? x.ManuelProjeNo ?? "", x.ParaBirimi))
+            .ToDictionary(x => x.Key, x => x.Sum(y => y.Matrah));
+        return works.GroupBy(x => (x.ProjeNo, x.ParaBirimi)).Select(g =>
+        {
+            var durum = FinansTutarKurallari.BirlesikDurum(g.Select(x => new FinansKalemTutarlari(x.NetTutar, x.SiparisNetTutar, x.FaturalananNetTutar)));
+            return new FinansPanelProjeOzetiModel(g.Key.ProjeNo, g.Select(x => x.Musteri).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "",
+                g.Key.ParaBirimi, g.Count(), g.Sum(x => x.NetTutar), g.Sum(x => x.SiparisNetTutar), g.Sum(x => x.FaturalananNetTutar),
+                g.Sum(x => x.KalanSiparisNetTutar), g.Sum(x => x.KalanFaturaNetTutar), giderler.GetValueOrDefault((g.Key.ProjeNo, g.Key.ParaBirimi)),
+                durum.Siparis, durum.Fatura);
+        }).OrderByDescending(x => x.IsBedeli).ThenBy(x => x.ProjeNo, StringComparer.Ordinal).ToArray();
+    }
+
+    /// <summary>Kategori × para birimi detay dökümü (kategori kuralı <see cref="FinansKategoriKurali"/>).</summary>
+    internal static IReadOnlyList<FinansPanelKategoriOzetiModel> KategoriOzetleri(IReadOnlyCollection<FinansIsKaydiModel> works)
+        => works.GroupBy(x => (x.Kategori, x.ParaBirimi)).Select(g => new FinansPanelKategoriOzetiModel(g.Key.Kategori, g.Key.ParaBirimi, g.Count(),
+                g.Select(x => x.ProjeNo).Distinct(StringComparer.OrdinalIgnoreCase).Count(), g.Sum(x => x.NetTutar), g.Sum(x => x.SiparisNetTutar), g.Sum(x => x.FaturalananNetTutar)))
+            .OrderBy(x => x.Kategori).ThenBy(x => x.ParaBirimi, StringComparer.Ordinal).ToArray();
 
     /// <summary>
     /// Genel durum sayıları ve aylık adet grafiği: PO sipariş tarihine, fatura fatura tarihine, iş kalemi finans

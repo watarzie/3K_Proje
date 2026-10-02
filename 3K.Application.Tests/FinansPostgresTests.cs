@@ -178,6 +178,9 @@ public sealed class FinansPostgresTests
             var satir = Assert.Single(filtreli.Satirlar);
             Assert.Equal("PA-2", satir[1]);
             Assert.Equal("2.500,00", satir[tumu.Sutunlar.ToList().IndexOf("Net")]);
+            // Enum değerleri raporda Türkçe adlarıyla yazılır ("OzelIs" değil "Özel İş").
+            Assert.Equal(("Özel İş", "Sipariş Bekliyor", "Sabit Tutar"), (satir[tumu.Sutunlar.ToList().IndexOf("İş Türü")],
+                satir[tumu.Sutunlar.ToList().IndexOf("Durum")], satir[tumu.Sutunlar.ToList().IndexOf("Fiyatlandırma")]));
 
             var genel = await finans.Raporlar.OnizlemeAsync("genel", new(), Ct);
             Assert.Equal("Genel Finans Özeti", genel.Baslik);
