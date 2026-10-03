@@ -124,13 +124,7 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                 var sandikKonulanMiktarlari = tahsisler
                     .Select(t => t.Icerik?.KonulanAdet ?? Math.Max(cs.KumulatifToplam, 0))
                     .ToList();
-                var sandikGridGelenMiktarlari = tahsisMiktarlari
-                    .Select(miktar => SandikTahsisHelper.ToplamdanSatirPayi(
-                        cs.GridGelenAdet,
-                        miktar,
-                        toplamTahsisMiktari,
-                        tahsisler.Count))
-                    .ToList();
+                // Trafo payı yalnız sandık kalanının hesabına girer; ekranda Trafo satır toplamıyla gösterilir.
                 var sandikTrafoSevkMiktarlari = tahsisMiktarlari
                     .Select(miktar => SandikTahsisHelper.ToplamdanSatirPayi(
                         cs.TrafoSevkAdet,
@@ -138,6 +132,14 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                         toplamTahsisMiktari,
                         tahsisler.Count))
                     .ToList();
+                // Grid tarafı sayaçları (Grid gelen, Trafo, aktif sevk partisi, yeniden sevk borcu,
+                // geri gönderilen, başka projeye verilen) çeki satırında tutulur ve sandığa ait bir
+                // kaynağı yoktur. Sandık satırlarına oranla bölmek adet biriminde kesir (1 → 0,5 + 0,5)
+                // üretir ve işlemin yapılmadığı sandığı da etkilenmiş gösterir; her sandık satırı bu
+                // değerleri satır toplamı olarak taşır. Grid komutları da satır bazlıdır.
+                var gridEksik = GridDurumuKalaniSifirlar(cs.GridDurumuId)
+                    ? 0
+                    : Math.Max(cs.IstenenAdet - cs.GridGelenAdet - cs.TrafoSevkAdet, 0);
                 var sandikTamamlananMiktarlari = sandikKonulanMiktarlari
                     .Select((konulan, index) =>
                         Math.Max(konulan, 0) + Math.Max(sandikTrafoSevkMiktarlari[index], 0))
@@ -157,8 +159,6 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                     var sandikMiktari = tahsisMiktarlari[tahsisIndex];
                     var tekTahsis = tahsisler.Count == 1;
                     var sandikKonulan = sandikKonulanMiktarlari[tahsisIndex];
-                    var sandikGridGelen = sandikGridGelenMiktarlari[tahsisIndex];
-                    var sandikTrafoSevk = sandikTrafoSevkMiktarlari[tahsisIndex];
                     var sandikStok = tekTahsis
                         ? cs.StokKarsilanan
                         : Math.Min(icerik?.StokKarsilanan ?? 0, sandikMiktari);
@@ -171,15 +171,7 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                     var sandikGelen = tekTahsis
                         ? gorunenUcKGelen
                         : Math.Max(sandikKonulan - sandikStok - sandikProje - sandikTedarikci, 0);
-                    var sandikProjeGonderilen = SandikTahsisHelper.ToplamdanSatirPayi(
-                        cs.ProjeGonderilen,
-                        sandikMiktari,
-                        toplamTahsisMiktari,
-                        tahsisler.Count);
                     var sandikKalan = sandikKalanMiktarlari[tahsisIndex];
-                    var sandikGridEksik = GridDurumuKalaniSifirlar(cs.GridDurumuId)
-                        ? 0
-                        : Math.Max((tekTahsis ? cs.IstenenAdet : sandikMiktari) - sandikGridGelen - sandikTrafoSevk, 0);
                     var satirSandikTransferleri = sandikTransferleriBySatirId.GetValueOrDefault(cs.Id)
                         ?? new List<SandikUrunTransferi>();
                     var sandikTransferOzeti = sandik == null
@@ -215,25 +207,23 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                         SandikSevkEdildiMi = sandik != null && SandikSevkKilidiHelper.SandikKilitliMi(sandik),
                         GridDurumuId = cs.GridDurumuId,
                         GridDurumuMetni = _lookupCache.GetDeger<LookupGridDurum>(cs.GridDurumuId),
-                        GridGelenAdet = sandikGridGelen,
+                        GridGelenAdet = cs.GridGelenAdet,
                         ToplamGridGelenAdet = cs.GridGelenAdet,
-                        TrafoSevkAdet = sandikTrafoSevk,
+                        TrafoSevkAdet = cs.TrafoSevkAdet,
                         GridSevkDurumuId = cs.GridSevkDurumuId,
                         GridSevkDurumuMetni = _lookupCache.GetDeger<LookupGridSevkDurum>(cs.GridSevkDurumuId),
-                        GridSevkMiktari = cs.GridSevkMiktari.HasValue
-                    ? SandikTahsisHelper.ToplamdanSatirPayi(cs.GridSevkMiktari.Value, sandikMiktari, toplamTahsisMiktari, tahsisler.Count)
-                    : null,
-                        YenidenSevkGerekliAdet = SandikTahsisHelper.ToplamdanSatirPayi(cs.YenidenSevkGerekliAdet, sandikMiktari, toplamTahsisMiktari, tahsisler.Count),
+                        GridSevkMiktari = cs.GridSevkMiktari,
+                        YenidenSevkGerekliAdet = cs.YenidenSevkGerekliAdet,
                         GridYenidenSevkEdilebilirMi = devamSevkKarari.YeniPartiMi,
                         GridYenidenSevkUstSiniri = devamSevkKarari.UstSinir,
                         GridSevkTarihi = cs.GridSevkTarihi,
                         GridAciklama = cs.GridAciklama,
-                        GridEksikMiktar = sandikGridEksik,
+                        GridEksikMiktar = gridEksik,
                         UcKDurumuId = cs.UcKDurumuId,
                         UcKDurumuMetni = _lookupCache.GetDeger<LookupUcKDurum>(cs.UcKDurumuId),
                         GelenMiktar = sandikGelen,
                         ToplamUcKGelenMiktar = gorunenUcKGelen,
-                        GeriGonderilenMiktar = SandikTahsisHelper.ToplamdanSatirPayi(cs.GeriGonderilenMiktar, sandikMiktari, toplamTahsisMiktari, tahsisler.Count),
+                        GeriGonderilenMiktar = cs.GeriGonderilenMiktar,
                         GeriGonderilmeSebebiId = cs.GeriGonderilmeSebebiId,
                         GeriGonderilmeSebebiMetni = cs.GeriGonderilmeSebebiId.HasValue
                     ? _lookupCache.GetDeger<LookupGeriGonderilmeSebebi>(cs.GeriGonderilmeSebebiId.Value)
@@ -245,7 +235,7 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                         // Madde 2: Parçalı karşılama
                         StokKarsilanan = sandikStok,
                         ProjeKarsilanan = sandikProje,
-                        ProjeGonderilen = sandikProjeGonderilen,
+                        ProjeGonderilen = cs.ProjeGonderilen,
                         NetKullanilabilir = sandikKonulan,
                         TedarikciKarsilanan = sandikTedarikci,
                         EksikMiktar = sandikKalan,
