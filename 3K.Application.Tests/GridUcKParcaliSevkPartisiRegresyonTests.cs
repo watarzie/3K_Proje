@@ -4,7 +4,6 @@ using _3K.Application.Features.CekiIslemleri.Commands;
 using _3K.Application.Features.GridIslemleri.Commands;
 using _3K.Application.Features.GridIslemleri.Validators;
 using _3K.Application.Features.SandikIslemleri.Commands;
-using _3K.Application.Features.SandikIslemleri.Validators;
 using _3K.Application.Features.UcKIslemleri.Commands;
 using _3K.Application.Features.UcKIslemleri.Validators;
 using _3K.Core.Entities;
@@ -316,43 +315,6 @@ public sealed class GridUcKParcaliSevkPartisiRegresyonTests
         Assert.True(kurgu.Satir.AktifGridSevkPartisiErkenSonuclandirildiMi);
         Assert.False(GridUcKSevkPartisiKurali.AktifPartiTeslimeAcikMi(kurgu.Satir));
         Assert.True(GridUcKSevkPartisiKurali.GeriGonderimeAcikMi(kurgu.Satir, kurgu.Icerik));
-    }
-
-    [Fact]
-    public async Task LegacyAcikPartideIlkKismiTeslim_YasamDongusunuMaterializeEderVeKalanTeslimiEngellemez()
-    {
-        using var kurgu = new Kurgu(
-            istenen: 5,
-            tahsis: 5,
-            gridGelen: 5,
-            aktifSevk: 5,
-            gelen: 0,
-            konulan: 0,
-            aktifPartideKarsilanan: null);
-
-        var ilkTeslim = await kurgu.EskiTekliUcKTeslimAlAsync(2);
-
-        Assert.True(ilkTeslim.IsSuccess, ilkTeslim.Error?.Message);
-        Assert.Equal(2, kurgu.Satir.AktifGridSevkKarsilananMiktari);
-        Assert.False(kurgu.Satir.AktifGridSevkPartisiErkenSonuclandirildiMi);
-        Assert.Equal(2, kurgu.Icerik.AktifGridSevkKarsilananMiktari);
-        Assert.False(GridUcKSevkPartisiKurali.LegacyAktifPartiBelirsizMi(kurgu.Satir));
-        Assert.True(GridUcKSevkPartisiKurali.AktifPartiTeslimEdilebilirMi(kurgu.Satir));
-
-        var kalanTeslim = await kurgu.EskiTekliUcKTeslimAlAsync(3);
-
-        Assert.True(kalanTeslim.IsSuccess, kalanTeslim.Error?.Message);
-        Assert.Equal(5, kurgu.Satir.GelenMiktar);
-        Assert.Equal(5, kurgu.Satir.AktifGridSevkKarsilananMiktari);
-        Assert.False(kurgu.Satir.AktifGridSevkPartisiErkenSonuclandirildiMi);
-        Assert.True(GridUcKSevkPartisiKurali.GeriGonderimeAcikMi(kurgu.Satir, kurgu.Icerik));
-
-        var iade = await kurgu.TekliUcKDurumGuncelleAsync(
-            UcKDurum.GeriGonderildi,
-            gelenAdet: 1);
-
-        Assert.True(iade.IsSuccess, iade.Error?.Message);
-        Assert.Equal(4, kurgu.Satir.GelenMiktar);
     }
 
     [Fact]
@@ -1140,7 +1102,7 @@ public sealed class GridUcKParcaliSevkPartisiRegresyonTests
         var overwrite = toplu
             ? await kurgu.TopluGridSevkEtAsync()
             : await kurgu.TekliGridSevkEtAsync(3);
-        var teslim = await kurgu.EskiTekliUcKTeslimAlAsync(3);
+        var teslim = await kurgu.TekliUcKTamGeldiAsync(sandikIcerikId: null);
 
         Assert.True(overwrite.IsSuccess, overwrite.Error?.Message);
         Assert.True(teslim.IsSuccess, teslim.Error?.Message);
@@ -1338,33 +1300,6 @@ public sealed class GridUcKParcaliSevkPartisiRegresyonTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task EskiTeslimEndpointleri_GridKapandiSatiriDegistiremez(bool toplu)
-    {
-        using var kurgu = new Kurgu(
-            istenen: 3,
-            tahsis: 3,
-            gridGelen: 3,
-            aktifSevk: 2,
-            gelen: 0,
-            konulan: 0,
-            aktifPartideKarsilanan: 0);
-        kurgu.Satir.GridDurumuId = (int)GridDurum.GridKapandi;
-
-        var sonuc = toplu
-            ? await kurgu.EskiTopluUcKTeslimAlAsync(1, kurgu.Icerik.Id)
-            : await kurgu.EskiTekliUcKTeslimAlAsync(1);
-
-        Assert.False(sonuc.IsSuccess);
-        Assert.Equal(0, kurgu.Satir.GelenMiktar);
-        Assert.Equal(0, kurgu.Icerik.KonulanAdet);
-        Assert.Equal(0, kurgu.Satir.AktifGridSevkKarsilananMiktari);
-        Assert.Equal(0, kurgu.Icerik.AktifGridSevkKarsilananMiktari);
-        Assert.Equal(0, kurgu.Uow.SaveCount);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
     public async Task TopluUcKTamGeldiYollari_KaliteTadilattaSatiriTeslimAlamaz(bool alternatifHandler)
     {
         using var kurgu = new Kurgu(
@@ -1450,56 +1385,6 @@ public sealed class GridUcKParcaliSevkPartisiRegresyonTests
         Assert.True(GridUcKSevkPartisiKurali.LegacyAktifPartiBelirsizMi(satir));
         Assert.False(GridUcKSevkPartisiKurali.DevamSevkiniDegerlendir(satir).YeniPartiMi);
         Assert.False(GridUcKSevkPartisiKurali.AktifPartiTeslimEdilebilirMi(satir));
-    }
-
-    [Fact]
-    public async Task EskiTekliTeslimEndpointi_AktifPartiUstSiniriniAsamazVeTekrarCiftSaymaz()
-    {
-        using var kurgu = new Kurgu();
-        var sevk = await kurgu.TekliGridSevkEtAsync(1);
-
-        var fazla = await kurgu.EskiTekliUcKTeslimAlAsync(2);
-
-        Assert.True(sevk.IsSuccess, sevk.Error?.Message);
-        Assert.False(fazla.IsSuccess);
-        Assert.Equal(2, kurgu.Satir.GelenMiktar);
-        Assert.Equal(2, kurgu.Icerik.KonulanAdet);
-        Assert.Equal(0, kurgu.Satir.AktifGridSevkKarsilananMiktari);
-        Assert.Equal(0, kurgu.Icerik.AktifGridSevkKarsilananMiktari);
-
-        var teslim = await kurgu.EskiTekliUcKTeslimAlAsync(1);
-        var tekrar = await kurgu.EskiTekliUcKTeslimAlAsync(1);
-
-        Assert.True(teslim.IsSuccess, teslim.Error?.Message);
-        Assert.False(tekrar.IsSuccess);
-        kurgu.TamamenKarsilandiMi();
-    }
-
-    [Fact]
-    public async Task EskiTopluTeslimEndpointi_FazlaIstegiAktifPartiyeSinirlarVeSeciliChildSayaciniKorur()
-    {
-        using var kurgu = new Kurgu(
-            istenen: 3,
-            tahsis: 1,
-            gridGelen: 3,
-            aktifSevk: 2,
-            gelen: 2,
-            konulan: 1);
-        var ikinci = kurgu.IkinciTahsisEkle(tahsis: 2, konulan: 1);
-        var sevk = await kurgu.TekliGridSevkEtAsync(1);
-
-        var teslim = await kurgu.EskiTopluUcKTeslimAlAsync(2, ikinci.Id);
-        var tekrar = await kurgu.EskiTopluUcKTeslimAlAsync(2, ikinci.Id);
-
-        Assert.True(sevk.IsSuccess, sevk.Error?.Message);
-        Assert.True(teslim.IsSuccess, teslim.Error?.Message);
-        Assert.True(tekrar.IsSuccess, tekrar.Error?.Message);
-        Assert.Equal(3, kurgu.Satir.GelenMiktar);
-        Assert.Equal(1, kurgu.Satir.AktifGridSevkKarsilananMiktari);
-        Assert.Equal(0, kurgu.Icerik.AktifGridSevkKarsilananMiktari);
-        Assert.Equal(1, ikinci.AktifGridSevkKarsilananMiktari);
-        Assert.Equal(1, kurgu.Icerik.KonulanAdet);
-        Assert.Equal(2, ikinci.KonulanAdet);
     }
 
     [Fact]
@@ -1638,41 +1523,6 @@ public sealed class GridUcKParcaliSevkPartisiRegresyonTests
     }
 
     [Fact]
-    public async Task FiiliSandikDegisikligi_AktifPartiVeKaynakKirilimlariniKorur()
-    {
-        using var kurgu = new Kurgu(
-            istenen: 3,
-            tahsis: 3,
-            gridGelen: 3,
-            aktifSevk: 1,
-            gelen: 1,
-            konulan: 2,
-            aktifPartideKarsilanan: 1);
-        kurgu.Icerik.StokKarsilanan = .5m;
-        kurgu.Icerik.ProjeKarsilanan = .25m;
-        kurgu.Icerik.TedarikciKarsilanan = .25m;
-        kurgu.Icerik.Miktar = 3;
-        kurgu.Icerik.KaynakProjeNo = "PA100-01";
-        var hedef = kurgu.BosHedefSandikEkle();
-
-        var sonuc = await kurgu.FiiliSandikDegistirAsync(hedef.SandikNo);
-
-        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
-        var tasinan = Assert.Single(kurgu.Uow.Repo<SandikIcerik>().Rows);
-        Assert.Equal(hedef.Id, tasinan.SandikId);
-        Assert.Equal(3, tasinan.TahsisMiktari);
-        Assert.Equal(2, tasinan.KonulanAdet);
-        Assert.Equal(1, tasinan.EksikAdet);
-        Assert.Equal(1, tasinan.AktifGridSevkKarsilananMiktari);
-        Assert.Equal(.5m, tasinan.StokKarsilanan);
-        Assert.Equal(.25m, tasinan.ProjeKarsilanan);
-        Assert.Equal(.25m, tasinan.TedarikciKarsilanan);
-        Assert.Equal(3, tasinan.Miktar);
-        Assert.Equal("PA100-01", tasinan.KaynakProjeNo);
-        Assert.Equal(hedef.SandikNo, kurgu.Satir.FiiliSandikNo);
-    }
-
-    [Fact]
     public async Task CokluTahsis_SecimsizTeslimAktifPartiyiChildPaylariniAsmayanSekildeDagitir()
     {
         using var kurgu = new Kurgu(
@@ -1686,7 +1536,7 @@ public sealed class GridUcKParcaliSevkPartisiRegresyonTests
         var ikinci = kurgu.IkinciTahsisEkle(tahsis: 2, konulan: 0);
         ikinci.AktifGridSevkKarsilananMiktari = 0;
 
-        var teslim = await kurgu.EskiTekliUcKTeslimAlAsync(2);
+        var teslim = await kurgu.TekliUcKTamGeldiAsync(sandikIcerikId: null);
 
         Assert.True(teslim.IsSuccess, teslim.Error?.Message);
         Assert.Equal(2, kurgu.Satir.GelenMiktar);
@@ -1715,39 +1565,15 @@ public sealed class GridUcKParcaliSevkPartisiRegresyonTests
             KarsilamaTipiId = (int)UcKDurum.EksikGeldi,
             GelenAdet = 0.00001m
         };
-        var eskiTekliGecersiz = new UcKTeslimAlCommand
-        {
-            CekiSatiriId = 1,
-            ProjeId = 1,
-            GelenMiktar = 0.00001m
-        };
-        var eskiTopluGecersiz = new UcKTopluTeslimAlCommand
-        {
-            ProjeId = 1,
-            Urunler =
-            [
-                new TopluTeslimItem
-                {
-                    CekiSatiriId = 1,
-                    GelenMiktar = 0.00001m
-                }
-            ]
-        };
 
         Assert.False(new GridDurumGuncelleCommandValidator().Validate(gridGecersiz).IsValid);
         Assert.False(new UcKDurumGuncelleCommandValidator().Validate(uckGecersiz).IsValid);
-        Assert.False(new UcKTeslimAlCommandValidator().Validate(eskiTekliGecersiz).IsValid);
-        Assert.False(new UcKTopluTeslimAlCommandValidator().Validate(eskiTopluGecersiz).IsValid);
 
         gridGecersiz.SevkMiktari = 0.0001m;
         uckGecersiz.GelenAdet = 0.0001m;
-        eskiTekliGecersiz.GelenMiktar = 0.0001m;
-        eskiTopluGecersiz.Urunler[0].GelenMiktar = 0.0001m;
 
         Assert.True(new GridDurumGuncelleCommandValidator().Validate(gridGecersiz).IsValid);
         Assert.True(new UcKDurumGuncelleCommandValidator().Validate(uckGecersiz).IsValid);
-        Assert.True(new UcKTeslimAlCommandValidator().Validate(eskiTekliGecersiz).IsValid);
-        Assert.True(new UcKTopluTeslimAlCommandValidator().Validate(eskiTopluGecersiz).IsValid);
     }
 
     private sealed class Kurgu : IDisposable
@@ -1761,7 +1587,6 @@ public sealed class GridUcKParcaliSevkPartisiRegresyonTests
         private readonly HareketStub _hareket = new();
         private readonly LookupStub _lookup = new();
         private readonly SahaStub _saha = new();
-        private readonly StokStub _stok = new();
 
         public TestUnitOfWork Uow { get; } = new();
         public CekiSatiri Satir { get; }
@@ -2033,43 +1858,6 @@ public sealed class GridUcKParcaliSevkPartisiRegresyonTests
                     IslemAnahtari = Guid.NewGuid()
                 }, default);
 
-        public Task<Result> FiiliSandikDegistirAsync(string hedefSandikNo) =>
-            new FiiliSandikDegistirCommandHandler(Uow, _hareket, _saha)
-                .Handle(new FiiliSandikDegistirCommand
-                {
-                    CekiSatiriId = Satir.Id,
-                    YeniFiiliSandikNo = hedefSandikNo,
-                    ProjeId = ProjeId,
-                    KullaniciId = _user.UserId ?? 0
-                }, default);
-
-        public Task<Result> EskiTekliUcKTeslimAlAsync(int gelenMiktar) =>
-            new UcKTeslimAlCommandHandler(Uow, _user, _durum, _hareket, _saha, _lookup)
-                .Handle(new UcKTeslimAlCommand
-                {
-                    ProjeId = ProjeId,
-                    CekiSatiriId = Satir.Id,
-                    GelenMiktar = gelenMiktar,
-                    Aciklama = "Eski tekli endpoint regresyonu"
-                }, default);
-
-        public Task<Result> EskiTopluUcKTeslimAlAsync(int gelenMiktar, int? sandikIcerikId) =>
-            new UcKTopluTeslimAlCommandHandler(Uow, _user, _durum, _hareket, _saha, _lookup)
-                .Handle(new UcKTopluTeslimAlCommand
-                {
-                    ProjeId = ProjeId,
-                    Urunler =
-                    [
-                        new TopluTeslimItem
-                        {
-                            CekiSatiriId = Satir.Id,
-                            SandikIcerikId = sandikIcerikId,
-                            GelenMiktar = gelenMiktar
-                        }
-                    ],
-                    Aciklama = "Eski toplu endpoint regresyonu"
-                }, default);
-
         public Task<Result> TopluUcKTamGeldiAsync() =>
             new UcKTopluTamGeldiCommandHandler(Uow, _user, _durum, _hareket, _saha, _lookup)
                 .Handle(new UcKTopluTamGeldiCommand
@@ -2244,7 +2032,6 @@ public sealed class GridUcKParcaliSevkPartisiRegresyonTests
     {
         public int? UserId => 7;
         public bool IsAuthenticated => true;
-        public string? MenuKod => null;
     }
 
     private sealed class HareketStub : IHareketService
@@ -2280,17 +2067,5 @@ public sealed class GridUcKParcaliSevkPartisiRegresyonTests
         public Task<KaynakSandikSahaAktarimDurumu> GetKaynakSandikSahaAktarimDurumuAsync(IEnumerable<int> ids, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task SenkronizeKaynakProjelerAsync(IEnumerable<int> ids, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task SenkronizeKaynakProjelerBySahaSandikIdsAsync(IEnumerable<int> ids, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-    }
-
-    private sealed class StokStub : IStokService
-    {
-        public Task<IEnumerable<StokKaydi>> GetUygunStoklarAsync(string? searchTerm = null) => throw new NotSupportedException();
-        public Task<StokKaydi?> GetStokByIdAsync(int stokKaydiId) => throw new NotSupportedException();
-        public Task<bool> StokYeterliMi(int stokKaydiId, decimal miktar) => throw new NotSupportedException();
-        public Task<bool> StokDusAsync(int stokKaydiId, decimal miktar) => throw new NotSupportedException();
-        public Task<StokKaydi> StokKaydiOlusturAsync(StokKaydi stokKaydi) => throw new NotSupportedException();
-        public Task<IEnumerable<StokKaydi>> GetTumStoklarAsync() => throw new NotSupportedException();
-        public Task<(IEnumerable<StokKaydi> Items, int TotalCount)> GetPaginatedStoklarAsync(
-            string? searchTerm, int pageNumber, int pageSize) => throw new NotSupportedException();
     }
 }

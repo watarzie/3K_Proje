@@ -1,12 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using _3K.Application.Common;
-using _3K.Application.Features.AmbalajIslemleri;
 using _3K.Application.Features.AmbalajIslemleri.Commands;
-using _3K.Application.Features.AmbalajIslemleri.DTOs;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
+using _3K.Core.Constants;
 
 namespace _3K_API.Services;
 
@@ -89,7 +88,7 @@ public sealed class AmbalajKaynakSenkronizasyonKuyrukIsleyici
         var rolService = scope.ServiceProvider.GetRequiredService<IRolService>();
         var duzenlemeyeYetkiliMi = await rolService.HasUserPermissionAsync(
             ayarlar.SystemUserId.Value,
-            AmbalajMenuKodlari.KayitDuzenle,
+            YetkiKodlari.Ambalaj.KayitDuzenle,
             YetkiTipi.W,
             cancellationToken);
         if (duzenlemeyeYetkiliMi)
@@ -137,7 +136,7 @@ public sealed class AmbalajKaynakSenkronizasyonKuyrukIsleyici
         AmbalajKaynakSenkronizasyonCalismaAyarlari ayarlar,
         CancellationToken cancellationToken)
     {
-        Result<AmbalajSenkronizasyonSonucuDto> result;
+        Result<AmbalajSenkronizasyonSonucu> result;
         try
         {
             using var scope = _scopeFactory.CreateScope();
@@ -146,8 +145,7 @@ public sealed class AmbalajKaynakSenkronizasyonKuyrukIsleyici
             result = await synchronizationService.SenkronizeEtAsync(
                 isKaydi.ProjeId,
                 new FixedCurrentUserService(ayarlar.SystemUserId!.Value),
-                cancellationToken,
-                sonucKayitlariniOlustur: false);
+                cancellationToken);
         }
         catch (OperationCanceledException)
         {

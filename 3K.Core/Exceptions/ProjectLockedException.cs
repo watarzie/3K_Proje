@@ -1,5 +1,3 @@
-using System;
-
 namespace _3K.Core.Exceptions
 {
     public class ProjectLockedException : Exception

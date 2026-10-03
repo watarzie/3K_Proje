@@ -16,6 +16,7 @@ using _3K.Core.Enums;
 using _3K.Core.Exceptions;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
+using _3K.Infrastructure;
 using _3K.Infrastructure.Data;
 using _3K.Infrastructure.Repositories;
 using _3K.Infrastructure.Services;
@@ -152,7 +153,7 @@ public sealed class CekiRevizyonYasamDongusuEntegrasyonTests
 
             // Kaydedilmiş talebi yeniden yürütmek ek revizyon/hareket/dosya üretmez.
             var eventCount = await context.HareketGecmisleri.CountAsync();
-            var replay = await provider.GetRequiredService<ICekiService>().OnayliCekiRevizyonunuUygulaAsync(secondRequest.Id, approver.Id);
+            var replay = await provider.GetRequiredService<ICekiRevizyonService>().OnayliCekiRevizyonunuUygulaAsync(secondRequest.Id, approver.Id);
             Assert.Equal(secondRequest.UygulananRevizyonCekiId, replay.RevizyonCekiId);
             Assert.Equal(2, await context.Cekiler.CountAsync(c => c.CekiTipiId == (int)CekiTipi.Revizyon));
             Assert.Equal(eventCount, await context.HareketGecmisleri.CountAsync());
@@ -232,7 +233,7 @@ public sealed class CekiRevizyonYasamDongusuEntegrasyonTests
             var currentUser = new TestUser { UserId = uploader.Id };
             await using var provider = CreateProvider(context, currentUser);
             var mediator = provider.GetRequiredService<IMediator>();
-            var service = provider.GetRequiredService<ICekiService>();
+            var service = provider.GetRequiredService<ICekiRevizyonService>();
             var bytes = Workbook(project.FBNo, "20", (183, "U", 10m));
             int? firstTargetId = null;
 
@@ -380,7 +381,7 @@ public sealed class CekiRevizyonYasamDongusuEntegrasyonTests
         services.AddSingleton<IHareketService, HareketService>();
         services.AddSingleton<IDurumHesaplaService, DurumHesaplaService>();
         services.AddSingleton<ISahaAktarimSilmeKorumaService, SahaAktarimSilmeKorumaService>();
-        services.AddSingleton<ICekiService, CekiService>();
+        services.AddCekiServices();
         services.AddSingleton<IOnayIslemRepository, OnayIslemRepository>();
         services.AddSingleton<IOnayYetkiService, OnayYetkiService>();
         services.AddMediatR(config => config.RegisterServicesFromAssemblyContaining<CekiRevizyonYukleCommandHandler>());
@@ -433,7 +434,6 @@ public sealed class CekiRevizyonYasamDongusuEntegrasyonTests
     {
         public int? UserId { get; set; }
         public bool IsAuthenticated => true;
-        public string? MenuKod => "ceki-revizyon-yukle";
     }
 
     private sealed class NoopNotifier : ISseNotifier

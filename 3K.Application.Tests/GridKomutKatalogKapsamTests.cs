@@ -1087,7 +1087,6 @@ public sealed class GridKomutKatalogKapsamTests
     {
         public int? UserId => 77;
         public bool IsAuthenticated => true;
-        public string? MenuKod => null;
     }
 
     private sealed class DurumStub : IDurumHesaplaService

@@ -2,7 +2,6 @@ using MediatR;
 using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Application.Features.StokIslemleri.DTOs;
-using _3K.Core.Entities;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.StokIslemleri.Queries

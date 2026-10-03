@@ -9,25 +9,28 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
 {
     public class CekiYukleCommandHandler : IRequestHandler<CekiYukleCommand, Result<CekiYuklemeResultDto>>
     {
-        private readonly ICekiService _cekiService;
+        private readonly ICekiYuklemeService _cekiYukleme;
+        private readonly ICekiSorguService _cekiSorgu;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IPublisher _publisher;
 
         public CekiYukleCommandHandler(
-            ICekiService cekiService,
+            ICekiYuklemeService cekiYukleme,
+            ICekiSorguService cekiSorgu,
             IUnitOfWork unitOfWork,
             IPublisher publisher)
         {
-            _cekiService = cekiService;
+            _cekiYukleme = cekiYukleme;
+            _cekiSorgu = cekiSorgu;
             _unitOfWork = unitOfWork;
             _publisher = publisher;
         }
 
         public async Task<Result<CekiYuklemeResultDto>> Handle(CekiYukleCommand request, CancellationToken cancellationToken)
         {
-            var ceki = await _cekiService.CekiYukleAsync(request.ExcelDosya, request.DosyaAdi);
+            var ceki = await _cekiYukleme.CekiYukleAsync(request.ExcelDosya, request.DosyaAdi);
 
-            var satirlar = await _cekiService.GetCekiSatirlariAsync(ceki.Id);
+            var satirlar = await _cekiSorgu.GetCekiSatirlariAsync(ceki.Id);
             var satirList = satirlar.ToList();
             var benzersizSandikSayisi = satirList.Select(s => s.CekideGecenSandikNo).Distinct().Count();
             var proje = await _unitOfWork.GetRepository<Proje>().GetByIdAsync(ceki.ProjeId);

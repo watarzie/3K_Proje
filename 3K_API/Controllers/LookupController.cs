@@ -33,7 +33,7 @@ namespace _3K_API.Controllers
         {
             if (entity == null || entity.Count == 0)
             {
-                return BadRequest(new { success = false, message = "En az bir 'entity' parametresi gereklidir." });
+                return BadRequest(new { message = "En az bir 'entity' parametresi gereklidir." });
             }
 
             var result = await _mediator.Send(new GetLookupsQuery { Entities = entity });

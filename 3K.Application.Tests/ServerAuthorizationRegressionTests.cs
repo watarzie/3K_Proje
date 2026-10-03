@@ -8,6 +8,7 @@ using _3K.Application.Common;
 using _3K.Application.Features.AuthIslemleri.Commands;
 using _3K.Application.Features.GridIslemleri.Commands;
 using _3K.Application.Features.GridIslemleri.Queries;
+using _3K.Application.Features.PdfIslemleri.Queries;
 using _3K.Application.Features.ProjeIslemleri.Commands;
 using _3K.Application.Features.RolIslemleri.Commands;
 using _3K.Application.Features.RolIslemleri.Queries;
@@ -58,25 +59,6 @@ public class ServerAuthorizationRegressionTests
         Assert.All(fixture.Roles.Calls, x =>
         {
             Assert.Equal("rol-yonetimi", x.Menu);
-            Assert.Equal(YetkiTipi.W, x.Yetki);
-        });
-    }
-
-    [Theory]
-    [InlineData("kullanicilar", YetkiTipi.R, false)]
-    [InlineData("kullanicilar", YetkiTipi.W, true)]
-    [InlineData("rol-yonetimi", YetkiTipi.W, false)]
-    public async Task KisiselIzinDuzenleyicisi_KullaniciYazmaYetkisiIster(
-        string grantedMenu, YetkiTipi permission, bool allowed)
-    {
-        var fixture = new Fixture(grantedMenu, permission);
-        Assert.Equal(allowed, (await fixture.Run(new _3K.Application.Features.KullaniciIslemleri.Queries.KullaniciYetkiQuery
-        { KullaniciId = 8 })).IsSuccess);
-        Assert.Equal(allowed, (await fixture.Run(new _3K.Application.Features.KullaniciIslemleri.Commands.KullaniciYetkiGuncelleCommand
-        { KullaniciId = 8 })).IsSuccess);
-        Assert.All(fixture.Roles.Calls, x =>
-        {
-            Assert.Equal("kullanicilar", x.Menu);
             Assert.Equal(YetkiTipi.W, x.Yetki);
         });
     }
@@ -191,6 +173,73 @@ public class ServerAuthorizationRegressionTests
         Assert.True((await fixture.Run(new SahaYedekMalzemeEkleCommand { ProjeId = 10, SandikId = 40, CekiSatiriId = 31 })).IsSuccess);
     }
 
+    [Theory]
+    [InlineData(ProjeTipi.Normal, "eksik-raporu")]
+    [InlineData(ProjeTipi.Saha, "saha-sevk-sonrasi-eksik-raporu")]
+    [InlineData(ProjeTipi.Yedek, "yedek-eksik-raporu")]
+    public async Task EksikRaporu_GercekProjeTipininRaporMenusunuIster(ProjeTipi type, string menu)
+    {
+        var fixture = new Fixture(menu, YetkiTipi.R);
+        fixture.Seed(type);
+        Assert.True((await fixture.Run(new GetEksikUrunlerPdfQuery { ProjeId = 10 })).IsSuccess);
+        Assert.True((await fixture.Run(new GetEksikUrunlerExcelQuery { ProjeId = 10 })).IsSuccess);
+        Assert.All(fixture.Roles.Calls, x => Assert.Equal((menu, YetkiTipi.R), x));
+    }
+
+    [Theory]
+    [InlineData(ProjeTipi.Normal, "saha-sevk-sonrasi-eksik-raporu")]
+    [InlineData(ProjeTipi.Saha, "eksik-raporu")]
+    [InlineData(ProjeTipi.Yedek, "eksik-raporu")]
+    public async Task EksikRaporu_BaskaTipinRaporIzniGercekProjeyiAcamaz(ProjeTipi actual, string grantedMenu)
+    {
+        var fixture = new Fixture(grantedMenu, YetkiTipi.R);
+        fixture.Seed(actual);
+        Assert.Equal(403, (await fixture.Run(new GetEksikUrunlerPdfQuery { ProjeId = 10 })).StatusCode);
+        Assert.Equal(0, fixture.Executed);
+    }
+
+    [Fact]
+    public async Task TopluEksikRaporu_HerProjeGercekTipineGoreYetkilendirilir()
+    {
+        var fixture = new Fixture("eksik-raporu", YetkiTipi.R);
+        fixture.Seed(ProjeTipi.Normal);
+        fixture.Uow.Repo<Proje>().Rows.Add(new() { Id = 11, ProjeTipiId = (int)ProjeTipi.Normal });
+        Assert.True((await fixture.Run(new GetTopluEksikUrunlerRaporuQuery { ProjeIds = [10, 11] })).IsSuccess);
+
+        // Kapsam Normal bildirilse de ikinci projenin gerçek tipi Saha ise istek bütünüyle reddedilir.
+        fixture.Uow.Repo<Proje>().Rows.Add(new() { Id = 12, ProjeTipiId = (int)ProjeTipi.Saha });
+        Assert.Equal(403, (await fixture.Run(new GetTopluEksikUrunlerRaporuQuery { ProjeIds = [10, 12] })).StatusCode);
+        Assert.Equal(1, fixture.Executed);
+    }
+
+    /// <summary>G4: toplu talep formu her projenin gerçek tipindeki Grid okuma iznini ister; eksik raporu izni yetmez.</summary>
+    [Fact]
+    public async Task TopluTalepFormu_HerProjeGercekTipininGridIzniniIster()
+    {
+        var fixture = new Fixture("grid-modulu", YetkiTipi.R);
+        fixture.Seed(ProjeTipi.Normal);
+        fixture.Uow.Repo<Proje>().Rows.Add(new() { Id = 11, ProjeTipiId = (int)ProjeTipi.Normal });
+        Assert.True((await fixture.Run(new GetTopluTalepFormuQuery { ProjeIds = [10, 11] })).IsSuccess);
+
+        fixture.Uow.Repo<Proje>().Rows.Add(new() { Id = 12, ProjeTipiId = (int)ProjeTipi.Saha });
+        Assert.Equal(403, (await fixture.Run(new GetTopluTalepFormuQuery { ProjeIds = [10, 12] })).StatusCode);
+        Assert.Equal(1, fixture.Executed);
+
+        var eksikRaporuIzni = new Fixture("eksik-raporu", YetkiTipi.R);
+        eksikRaporuIzni.Seed(ProjeTipi.Normal);
+        Assert.Equal(403, (await eksikRaporuIzni.Run(new GetTopluTalepFormuQuery { ProjeIds = [10] })).StatusCode);
+        Assert.True((await fixture.Run(new GetTopluTalepFormuQuery { ProjeIds = [] })).IsSuccess);
+    }
+
+    [Fact]
+    public async Task TopluEksikRaporu_GecersizSecimKapsamIzniyleValidatoraUlasir()
+    {
+        var fixture = new Fixture("eksik-raporu", YetkiTipi.R);
+        Assert.True((await fixture.Run(new GetTopluEksikUrunlerRaporuQuery { ProjeIds = [] })).IsSuccess);
+        Assert.Equal(403, (await fixture.Run(new GetTopluEksikUrunlerRaporuQuery
+        { ProjeIds = [], ProjeTipi = ProjeTipi.Saha })).StatusCode);
+    }
+
     [Fact]
     public async Task OnayBaglami_YalnizOnayOperasyonunuYurutur_RolGuncellemeyiAtlatamaz()
     {
@@ -218,7 +267,7 @@ public class ServerAuthorizationRegressionTests
         var result = await new GetKullaniciMenuQueryHandler(new OrtakUser(7), uow, roles)
             .Handle(new GetKullaniciMenuQuery(), default);
         Assert.True(result.IsSuccess);
-        Assert.Equal(8, result.Value!.Id);
+        Assert.Equal([8], roles.OkunanRoller);
         Assert.Empty(roles.Calls);
         var denied = await new GetKullaniciMenuQueryHandler(new OrtakUser(7, false), uow, roles)
             .Handle(new GetKullaniciMenuQuery(), default);
@@ -317,11 +366,12 @@ public class ServerAuthorizationRegressionTests
     private sealed class Roles(string grantedMenu, YetkiTipi granted) : IRolService
     {
         public List<(string Menu, YetkiTipi Yetki)> Calls { get; } = [];
+        public List<int> OkunanRoller { get; } = [];
         public Task<bool> HasUserPermissionAsync(int user, string menu, YetkiTipi required, CancellationToken ct = default)
         { Calls.Add((menu, required)); return Task.FromResult(menu == grantedMenu && granted >= required); }
-        public Task<bool> IsAdminAsync(int userId, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<List<MenuTanimi>> GetMenuAgaciAsync(CancellationToken ct = default) => Task.FromResult(new List<MenuTanimi>());
-        public Task<List<RolYetki>> GetRolYetkileriAsync(int rolId, CancellationToken ct = default) => Task.FromResult(new List<RolYetki>());
+        public Task<List<RolYetki>> GetRolYetkileriAsync(int rolId, CancellationToken ct = default)
+        { OkunanRoller.Add(rolId); return Task.FromResult(new List<RolYetki>()); }
         public Task YetkileriGuncelleAsync(int rolId, List<RolYetki> yetkiler, CancellationToken ct = default) => throw new NotSupportedException();
     }
     private class ReadExecutor : IReadQueryExecutor

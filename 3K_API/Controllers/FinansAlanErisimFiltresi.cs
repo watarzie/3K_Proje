@@ -15,7 +15,7 @@ public sealed class FinansAlanErisimFiltresi(IAlanErisimService erisim) : IAsync
     {
         var permissions = await erisim.GetAsync(context.HttpContext.RequestAborted);
         var path = context.HttpContext.Request.Path.Value ?? "";
-        var file = path.Contains("/raporlar/", StringComparison.OrdinalIgnoreCase) && !path.EndsWith("/veri", StringComparison.OrdinalIgnoreCase) ||
+        var file = path.Contains("/raporlar/", StringComparison.OrdinalIgnoreCase) ||
                    path.Contains("/belgeler/", StringComparison.OrdinalIgnoreCase) && path.EndsWith("/indir", StringComparison.OrdinalIgnoreCase);
         if (file && !(permissions.ParasalVeri && permissions.BirimFiyat && permissions.Tutar && permissions.Gelir && permissions.Gider && permissions.Karlilik && permissions.Olcu && permissions.UretimM3 && permissions.Sarf))
         {

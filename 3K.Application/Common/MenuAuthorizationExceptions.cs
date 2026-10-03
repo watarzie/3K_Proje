@@ -2,7 +2,6 @@ using _3K.Application.Features.AuthIslemleri.Commands;
 using _3K.Application.Features.BildirimIslemleri.Commands;
 using _3K.Application.Features.BildirimIslemleri.Queries;
 using _3K.Application.Features.CekiIslemleri.Commands;
-using _3K.Application.Features.FinansIslemleri.Commands;
 using _3K.Application.Features.LookupIslemleri.Queries;
 using _3K.Application.Features.OnayIslemleri.Queries;
 using _3K.Application.Features.RolIslemleri.Queries;
@@ -26,8 +25,8 @@ public static class MenuAuthorizationExceptions
         GetOkunmamisBildirimlerQuery or BildirimiOkunduIsaretleCommand or TumBildirimleriOkunduIsaretleCommand or
         GetOnayGecmisiQuery or GetOnayGecmisiDetayiQuery;
 
-    // Bu komutların HTTP endpoint'i yoktur. İlk iki komut ApprovalBehavior'dan
-    // geçerek doğrudan veya onay sonrası uygulanır; finans aktarımı iç üretim akışıdır.
+    // Bu komutların HTTP endpoint'i yoktur; ApprovalBehavior'dan geçerek doğrudan
+    // veya onay sonrası uygulanır.
     public static bool IsServerInternal(object request) => request is
-        CekiRevizyonOnayliUygulaCommand or SandikLokasyonOnayliUygulaCommand or FinansUretimAktarCommand;
+        CekiRevizyonOnayliUygulaCommand or SandikLokasyonOnayliUygulaCommand;
 }

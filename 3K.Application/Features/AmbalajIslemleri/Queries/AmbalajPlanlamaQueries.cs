@@ -1,19 +1,19 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Application.Features.AmbalajIslemleri.DTOs;
+using _3K.Core.Constants;
 
 namespace _3K.Application.Features.AmbalajIslemleri.Queries;
 
 public abstract class AmbalajPlanlamaQuery<T> : IRequest<Result<T>>, ISecuredRequest,
-    IRequiresMenuPermissions, IAmbalajDurumKapsamli
+    IRequiresMenuPermissions
 {
-    [System.Text.Json.Serialization.JsonIgnore] public int[]? IzinliDurumlar { get; set; }
     public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
         this switch
         {
-            GetAmbalajPlanlamaPlanQuery => [AmbalajMenuKodlari.Read(AmbalajMenuKodlari.PlanGoruntule), AmbalajMenuKodlari.Read(AmbalajMenuKodlari.ProjeDetayGoruntule)],
-            GetAmbalajProjeSandikSecenekleriQuery or GetAmbalajIlaveSandikAdaylariQuery => [AmbalajMenuKodlari.Read(AmbalajMenuKodlari.SandikListesiGoruntule)],
-            _ => [AmbalajMenuKodlari.Read(AmbalajMenuKodlari.Listele)]
+            GetAmbalajPlanlamaPlanQuery => [MenuPermissionRequirement.Read(YetkiKodlari.Ambalaj.PlanGoruntule), MenuPermissionRequirement.Read(YetkiKodlari.Ambalaj.ProjeDetayGoruntule)],
+            GetAmbalajProjeSandikSecenekleriQuery or GetAmbalajIlaveSandikAdaylariQuery => [MenuPermissionRequirement.Read(YetkiKodlari.Ambalaj.SandikListesiGoruntule)],
+            _ => [MenuPermissionRequirement.Read(YetkiKodlari.Ambalaj.Listele)]
         };
 }
 
@@ -26,6 +26,13 @@ public sealed class GetAmbalajPlanlamaProjeleriQuery
     public int PageNumber { get; set; } = 1;
     public int PageSize { get; set; } = 15;
     public bool IncludeSummary { get; set; } = true;
+    /// <summary>
+    /// true: yalnız üretimi tamamlanan projeler ("Üretimi Tamamlanan" sekmesi); false: tamamlananlar hariç
+    /// (çam ihtiyacı özeti de böylece net kalan ihtiyacı gösterir); null: hepsi.
+    /// </summary>
+    public bool? Tamamlanan { get; set; }
+    /// <summary>Proje geneli üretim durumu: 1 üretim bekliyor, 2 üretimde; boş: hepsi.</summary>
+    public int? UretimDurumu { get; set; }
 }
 
 public sealed class GetAmbalajPlanlamaPlanQuery : AmbalajPlanlamaQuery<AmbalajPlanlamaPlanDto>
@@ -37,9 +44,6 @@ public sealed class GetAmbalajPlanlamaPlanQuery : AmbalajPlanlamaQuery<AmbalajPl
 
 public sealed class GetAmbalajIcSandikSablonlariQuery
     : AmbalajPlanlamaQuery<IReadOnlyList<AmbalajIcSandikSablonDto>>;
-
-public sealed class GetAmbalajTalepEdenlerQuery
-    : AmbalajPlanlamaQuery<IReadOnlyList<AmbalajTalepEdenDto>>;
 
 public sealed class GetAmbalajTalepEdenKullanicilarQuery
     : AmbalajPlanlamaQuery<IReadOnlyList<AmbalajKullaniciSecenegiDto>>;

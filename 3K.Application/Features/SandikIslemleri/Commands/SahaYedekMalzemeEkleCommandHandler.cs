@@ -26,26 +26,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             _sahaTamamlamaService = sahaTamamlamaService;
         }
 
-        public async Task<Result> Handle(SahaYedekMalzemeEkleCommand request, CancellationToken cancellationToken)
-        {
-            try
-            {
-                return await _unitOfWork.ExecuteInTransactionAsync(
-                    async transactionCancellationToken =>
-                    {
-                        var result = await HandleInTransactionAsync(request, transactionCancellationToken);
-                        if (!result.IsSuccess)
-                            throw new SahaYedekMalzemeEkleRollbackException(result);
-
-                        return result;
-                    },
-                    cancellationToken);
-            }
-            catch (SahaYedekMalzemeEkleRollbackException exception)
-            {
-                return exception.Result;
-            }
-        }
+        public Task<Result> Handle(SahaYedekMalzemeEkleCommand request, CancellationToken cancellationToken) =>
+            _unitOfWork.ExecuteAtomicAsync(token => HandleInTransactionAsync(request, token), cancellationToken);
 
         private async Task<Result> HandleInTransactionAsync(
             SahaYedekMalzemeEkleCommand request,
@@ -131,17 +113,6 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             });
 
             return Result.Success();
-        }
-
-        private sealed class SahaYedekMalzemeEkleRollbackException : Exception
-        {
-            public SahaYedekMalzemeEkleRollbackException(Result result)
-                : base(result.Error?.Message ?? "Saha/Yedek malzeme ekleme işlemi geri alındı.")
-            {
-                Result = result;
-            }
-
-            public Result Result { get; }
         }
 
         private async Task<Result?> EksikTamamlamaSatiriEkleAsync(

@@ -27,7 +27,7 @@ public sealed class GetCekiRevizyonGecmisiDetayQuery : IRequest<Result<CekiReviz
     public YetkiTipi RequiredYetkiTipi => YetkiTipi.R;
 }
 
-public sealed class GetCekiRevizyonDosyaQuery : IRequest<Result<CekiRevizyonDosyasi>>, ISecuredRequest, IRequiresProjectMenuPermission
+public sealed class GetCekiRevizyonDosyaQuery : IRequest<Result<DosyaIcerigi>>, ISecuredRequest, IRequiresProjectMenuPermission
 {
     public int ProjeId { get; set; }
     public string Kaynak { get; set; } = "talep";
@@ -89,12 +89,12 @@ public sealed class GetCekiRevizyonGecmisiDetayQueryHandler(ICekiRevizyonGecmisi
 }
 
 public sealed class GetCekiRevizyonDosyaQueryHandler(ICekiRevizyonGecmisiService service)
-    : IRequestHandler<GetCekiRevizyonDosyaQuery, Result<CekiRevizyonDosyasi>>
+    : IRequestHandler<GetCekiRevizyonDosyaQuery, Result<DosyaIcerigi>>
 {
-    public async Task<Result<CekiRevizyonDosyasi>> Handle(GetCekiRevizyonDosyaQuery request, CancellationToken cancellationToken)
+    public async Task<Result<DosyaIcerigi>> Handle(GetCekiRevizyonDosyaQuery request, CancellationToken cancellationToken)
     {
         var result = await service.DosyaAsync(request.ProjeId, request.Kaynak, request.KayitId, cancellationToken);
-        return result == null ? Result<CekiRevizyonDosyasi>.Failure("Revizyon dosyası bulunamadı veya dosya bütünlüğü doğrulanamadı.", 404)
-            : Result<CekiRevizyonDosyasi>.Success(result);
+        return result == null ? Result<DosyaIcerigi>.Failure("Revizyon dosyası bulunamadı veya dosya bütünlüğü doğrulanamadı.", 404)
+            : Result<DosyaIcerigi>.Success(result);
     }
 }

@@ -7,16 +7,16 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
 {
     public class CekiRevizyonOnizleCommandHandler : IRequestHandler<CekiRevizyonOnizleCommand, Result<CekiRevizyonOnizlemeSonuc>>
     {
-        private readonly ICekiService _cekiService;
+        private readonly ICekiRevizyonService _cekiRevizyon;
 
-        public CekiRevizyonOnizleCommandHandler(ICekiService cekiService)
+        public CekiRevizyonOnizleCommandHandler(ICekiRevizyonService cekiRevizyon)
         {
-            _cekiService = cekiService;
+            _cekiRevizyon = cekiRevizyon;
         }
 
         public async Task<Result<CekiRevizyonOnizlemeSonuc>> Handle(CekiRevizyonOnizleCommand request, CancellationToken cancellationToken)
         {
-            var sonuc = await _cekiService.CekiRevizyonOnizleAsync(request.ExcelDosya, request.DosyaAdi);
+            var sonuc = await _cekiRevizyon.CekiRevizyonOnizleAsync(request.ExcelDosya, request.DosyaAdi);
             return Result<CekiRevizyonOnizlemeSonuc>.Success(sonuc);
         }
     }

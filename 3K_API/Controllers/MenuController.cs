@@ -2,15 +2,13 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using _3K.Application.Features.RolIslemleri.Queries;
-using _3K.Application.Features.RolIslemleri.DTOs;
+using _3K_API.Extensions;
 
 namespace _3K_API.Controllers
 {
     /// <summary>
-    /// Kullanıcıya ait menü ağacını döner.
-    /// Oturum sahibinin veritabanındaki güncel rolü kullanılarak backend'de filtrelenir.
-    /// Frontend bu bilgiyi sidebar ve route guard için kullanır.
-    /// GÜVENLİK: Yetkisiz (N) menüler asla frontend'e gönderilmez.
+    /// Oturum sahibinin erişebildiği menü ağacı (sidebar ve route guard için).
+    /// Yetkisiz (N) düğümler kullanım senaryosunda çıkarılır; istemciye hiç gönderilmez.
     /// </summary>
     [ApiController]
     [Authorize]
@@ -24,56 +22,8 @@ namespace _3K_API.Controllers
             _mediator = mediator;
         }
 
-        /// <summary>
-        /// Giriş yapmış kullanıcının rolüne göre yetkili menü ağacını döner.
-        /// Yetkisiz (N) menüler filtrelenir — frontend'e hiç gönderilmez.
-        /// </summary>
         [HttpGet("kullanici-menu")]
-        public async Task<ActionResult> GetKullaniciMenu()
-        {
-            var result = await _mediator.Send(new GetKullaniciMenuQuery());
-            if (!result.IsSuccess)
-                return StatusCode(result.StatusCode, new { message = result.Error?.Message });
-
-            // Backend'de filtreleme: sadece yetkili (W veya R) menüleri gönder
-            var filteredMenu = FilterTree(result.Value!.MenuAgaci);
-
-            return Ok(filteredMenu);
-        }
-
-        /// <summary>
-        /// Recursive olarak yetkisiz (N) menüleri çıkarır.
-        /// </summary>
-        private List<MenuTreeDto> FilterTree(List<MenuTreeDto> nodes)
-        {
-            var result = new List<MenuTreeDto>();
-
-            foreach (var node in nodes)
-            {
-                var hasOwnAccess = node.YetkiTipiId >= 2; // 2=R, 3=W — exclude 1=N
-                if (!hasOwnAccess)
-                    continue;
-
-                var children = node.Children != null ? FilterTree(node.Children) : new();
-
-                result.Add(new MenuTreeDto
-                {
-                    Id = node.Id,
-                    Kod = node.Kod,
-                    LabelKey = node.LabelKey,
-                    Ad = node.Ad,
-                    GerekenYetkiTipiId = node.GerekenYetkiTipiId,
-                    KritikMi = node.KritikMi,
-                    Icon = node.Icon,
-                    Route = node.Route,
-                    Sira = node.Sira,
-                    YetkiTipiId = node.YetkiTipiId,
-                    YetkiTipiMetni = node.YetkiTipiMetni,
-                    Children = children
-                });
-            }
-
-            return result;
-        }
+        public async Task<ActionResult> GetKullaniciMenu(CancellationToken cancellationToken) =>
+            (await _mediator.Send(new GetKullaniciMenuQuery(), cancellationToken)).ToActionResult();
     }
 }

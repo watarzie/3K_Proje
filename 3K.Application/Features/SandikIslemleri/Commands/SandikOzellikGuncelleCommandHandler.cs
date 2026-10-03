@@ -2,6 +2,7 @@ using MediatR;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.SandikIslemleri.Commands
 {
@@ -25,6 +26,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (SandikSevkKilidiHelper.SandikKilitliMi(sandik))
                 return Result.Failure(SandikSevkKilidiHelper.SandikKilitliMesaji);
 
+            if (!SandikTipiKurali.Gecerli(request.TipId))
+                return Result.Failure(SandikTipiKurali.Mesaj, 400);
+
             // Manuel lokasyon değişikliği yalnızca kendine ait yetki ve onay
             // akışı üzerinden yapılabilir. İstemci geriye uyumluluk nedeniyle
             // mevcut değeri gönderebilir; yalnızca gerçek değişiklik reddedilir.
@@ -37,6 +41,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             }
 
             sandik.Ad = request.SandikIsmi;
+            sandik.TipId = request.TipId!.Value;
             sandik.En = request.En;
             sandik.Boy = request.Boy;
             sandik.Yukseklik = request.Yukseklik;

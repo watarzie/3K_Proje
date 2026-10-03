@@ -10,6 +10,9 @@ namespace _3K.Application.Features.SandikIslemleri.DTOs
         public bool SevkiyatDuzeltmeAcikMi { get; set; }
         public int DepoLokasyonId { get; set; }
         public string DepoLokasyonMetni { get; set; } = string.Empty;
+        /// <summary>Sandık tipi; özellik güncellemesinde zorunlu olduğu için ön yüz mevcut değeri buradan alır (G2).</summary>
+        public int TipId { get; set; }
+        public string TipMetni { get; set; } = string.Empty;
         public bool SahayaAktarildiMi { get; set; }
         public bool SahaUzerindenSevkEdildiMi { get; set; }
         public decimal SahayaAktarilanMiktar { get; set; }

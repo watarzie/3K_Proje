@@ -1,34 +1,24 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.PdfIslemleri.Queries
 {
-    public class GetUcKSandikDurumPdfQuery : IRequest<Result<byte[]>>, ISecuredRequest
+    public class GetUcKSandikDurumPdfQuery : IRequest<Result<DosyaIcerigi>>, ISecuredRequest
     {
         public int ProjeId { get; set; }
     }
 
-    public class GetUcKSandikDurumPdfQueryHandler : IRequestHandler<GetUcKSandikDurumPdfQuery, Result<byte[]>>
+    public sealed class GetUcKSandikDurumPdfQueryHandler(IUnitOfWork unitOfWork, IUcKSandikDurumRaporService uckSandikDurumRaporu)
+        : IRequestHandler<GetUcKSandikDurumPdfQuery, Result<DosyaIcerigi>>
     {
-        private readonly IPdfService _pdfService;
-
-        public GetUcKSandikDurumPdfQueryHandler(IPdfService pdfService)
+        public async Task<Result<DosyaIcerigi>> Handle(GetUcKSandikDurumPdfQuery request, CancellationToken cancellationToken)
         {
-            _pdfService = pdfService;
-        }
-
-        public async Task<Result<byte[]>> Handle(GetUcKSandikDurumPdfQuery request, CancellationToken cancellationToken)
-        {
-            try
-            {
-                var pdfBytes = await _pdfService.UcKSandikDurumRaporuPdfOlusturAsync(request.ProjeId);
-                return Result<byte[]>.Success(pdfBytes);
-            }
-            catch (Exception ex)
-            {
-                return Result<byte[]>.Failure($"3K sandık durum raporu oluşturulurken hata meydana geldi: {ex.Message}");
-            }
+            var proje = await RaporDosyaAdi.ProjeBulAsync(unitOfWork, request.ProjeId, cancellationToken);
+            if (proje == null) return RaporDosyaAdi.ProjeBulunamadi;
+            var pdf = await uckSandikDurumRaporu.UcKSandikDurumRaporuPdfOlusturAsync(request.ProjeId);
+            return Result<DosyaIcerigi>.Success(DosyaIcerigi.Pdf(pdf, $"{proje.ProjeNo}_SandikDurumRaporu.pdf"));
         }
     }
 }

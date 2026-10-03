@@ -208,7 +208,7 @@ public sealed class GridUcKSatirMiktarSenkronizasyonTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task CokluTahsis_SandikFiltresiTekSatirBiraksaDaDagilimDegismez(bool filtreli)
+    public async Task CokluTahsis_SandikFiltresiTekSatirBiraksaDaDagilimDegismez_SatirSayaclariBolunmez(bool filtreli)
     {
         using var kurgu = new Kurgu(10, 4);
         kurgu.IkinciTahsisEkle(6);
@@ -233,25 +233,32 @@ public sealed class GridUcKSatirMiktarSenkronizasyonTests
         Assert.Equal(4, ucK.IstenenAdet);
         Assert.Equal(10, grid.AnaIstenenAdet);
         Assert.Equal(10, ucK.AnaIstenenAdet);
-        Assert.Equal(2, grid.GridGelenAdet);
-        Assert.Equal(2, ucK.GridGelenAdet);
-        Assert.Equal(0.8m, grid.TrafoSevkAdet);
-        Assert.Equal(0.8m, ucK.TrafoSevkAdet);
-        Assert.Equal(1.6m, grid.GridSevkMiktari);
-        Assert.Equal(1.6m, ucK.GridSevkMiktari);
-        Assert.Equal(0.8m, grid.GeriGonderilenMiktar);
-        Assert.Equal(0.8m, ucK.GeriGonderilenMiktar);
-        Assert.Equal(0.8m, ucK.HataliMiktar);
-        Assert.Equal(0.8m, grid.ProjeGonderilen);
-        Assert.Equal(0.8m, ucK.ProjeGonderilen);
-        Assert.Equal(0.8m, grid.YenidenSevkGerekliAdet);
-        Assert.Equal(1.2m, grid.GridEksikMiktar);
+        // Grid/3K satır sayaçlarının sandığa ait kaynağı yoktur; her sandık satırı satırın
+        // gerçek değerini taşır (oranlı pay adet biriminde kesir üretiyordu: 0,8 / 1,6).
+        Assert.All(gridSatirlari, s =>
+        {
+            Assert.Equal(5, s.GridGelenAdet);
+            Assert.Equal(2, s.TrafoSevkAdet);
+            Assert.Equal(4, s.GridSevkMiktari);
+            Assert.Equal(2, s.GeriGonderilenMiktar);
+            Assert.Equal(2, s.ProjeGonderilen);
+            Assert.Equal(2, s.YenidenSevkGerekliAdet);
+            Assert.Equal(3, s.GridEksikMiktar);
+        });
+        Assert.All(ucKSatirlari, s =>
+        {
+            Assert.Equal(5, s.GridGelenAdet);
+            Assert.Equal(2, s.TrafoSevkAdet);
+            Assert.Equal(4, s.GridSevkMiktari);
+            Assert.Equal(2, s.GeriGonderilenMiktar);
+            Assert.Equal(2, s.HataliMiktar);
+            Assert.Equal(2, s.ProjeGonderilen);
+        });
+        // Sandık bazlı kalan payı değişmez: filtre olsa da olmasa da aynı dağılım.
         Assert.Equal(2.4m, grid.KalanMiktar);
         Assert.Equal(2.4m, ucK.Kalan);
         if (!filtreli)
         {
-            Assert.Equal(5, gridSatirlari.Sum(s => s.GridGelenAdet));
-            Assert.Equal(5, ucKSatirlari.Sum(s => s.GridGelenAdet));
             Assert.Equal(6, gridSatirlari.Sum(s => s.KalanMiktar));
             Assert.Equal(6, ucKSatirlari.Sum(s => s.Kalan));
         }
@@ -332,8 +339,13 @@ public sealed class GridUcKSatirMiktarSenkronizasyonTests
     public async Task UcKSeciliSandikFizikselIslemSinirlari_GridAnaMiktarDuzeltmesiyleGenislemez()
     {
         using var kurgu = new Kurgu(3, 1);
+        kurgu.Satir.GridDurumuId = (int)GridDurum.TamGeldi;
         kurgu.Satir.GridGelenAdet = 2;
+        kurgu.Satir.GridSevkDurumuId = (int)GridSevkDurum.SevkEdildi;
         kurgu.Satir.GridSevkMiktari = 2;
+        kurgu.Satir.AktifGridSevkKarsilananMiktari = 0;
+        kurgu.Satir.AktifGridSevkPartisiErkenSonuclandirildiMi = false;
+        kurgu.IlkIcerik.AktifGridSevkKarsilananMiktari = 0;
 
         var (gridSatirlari, ucKSatirlari) = await kurgu.OkuAsync();
 
@@ -342,8 +354,12 @@ public sealed class GridUcKSatirMiktarSenkronizasyonTests
         Assert.Equal(3, grid.IstenenAdet);
         Assert.Equal(2, grid.GridSevkMiktari);
         Assert.Equal(1, ucK.IstenenAdet);
-        Assert.Equal(1, ucK.GridSevkMiktari);
-        Assert.Equal(1, ucK.GridGelenAdet);
+        // Grid sayaçları satır toplamıdır; 3K'nın seçili sandıktaki fiziksel teslim sınırı
+        // ise sandık tahsisiyle kalır ve ana miktar düzeltmesiyle genişlemez.
+        Assert.Equal(2, ucK.GridSevkMiktari);
+        Assert.Equal(2, ucK.GridGelenAdet);
+        Assert.True(ucK.AktifGridSevkPartisiTeslimeAcikMi);
+        Assert.Equal(1, ucK.AktifGridSevkPartisiKalanMiktari);
         Assert.Equal(kurgu.IlkIcerik.Id, ucK.SandikIcerikId);
         Assert.Equal(1, kurgu.IlkIcerik.TahsisMiktari);
         Assert.Equal(0, kurgu.IlkIcerik.KonulanAdet);

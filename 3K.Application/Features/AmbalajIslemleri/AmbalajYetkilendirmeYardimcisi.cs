@@ -2,41 +2,23 @@ using _3K.Application.Features.AmbalajIslemleri.DTOs;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
-using _3K.Application.Features.AmbalajIslemleri.Commands;
+using _3K.Core.Constants;
 
 namespace _3K.Application.Features.AmbalajIslemleri;
 
-internal readonly record struct AmbalajGorunumYetkileri(
+public readonly record struct AmbalajGorunumYetkileri(
     bool M3Gorunur,
     bool SarfGorunur,
     bool KaynakGorunur,
     bool OlcuGorunur = true);
 
 /// <summary>
-/// Handler içindeki kayda/diff'e bağlı yetkileri ve hassas alan maskelemesini
-/// tek yerde tutar. Pipeline sabit ve istek gövdesinden belirlenebilen yetkileri
-/// kontrol eder; bu sınıf ise yalnız DB kaydı okunduktan sonra bilinen kuralları
-/// uygular.
+/// Ambalaj görünüm izinlerini (m³, sarf, kaynak, ölçü, üretim durumu) okur ve kayıt DTO'sunu
+/// bunlara göre maskeler. Sabit işlem izinleri pipeline'da, kayda bağlı kapılar
+/// <see cref="AmbalajKritikIslemDenetimi"/> içinde denetlenir.
 /// </summary>
 internal static class AmbalajYetkilendirmeYardimcisi
 {
-    private static readonly HashSet<string> M3Alanlari = new(StringComparer.OrdinalIgnoreCase)
-    {
-        nameof(AmbalajUretimKaydi.HesaplananBirimM3),
-        nameof(AmbalajUretimKaydi.HesaplananToplamM3),
-        nameof(AmbalajUretimKaydi.M3Override),
-        nameof(AmbalajUretimKaydi.M3OverrideNedeni),
-        nameof(AmbalajUretimKaydi.M3HesaplamaVersiyonu),
-        nameof(AmbalajUretimKaydi.ToplamM3)
-    };
-
-    private static readonly HashSet<string> SarfAlanlari = new(StringComparer.OrdinalIgnoreCase)
-    {
-        nameof(AmbalajUretimKaydi.SarfOrani),
-        nameof(AmbalajUretimKaydi.SarfM3),
-        nameof(AmbalajUretimKaydi.ToplamM3)
-    };
-
     public static bool KaynakliKayitMi(AmbalajUretimKaydi kayit) => kayit.KaynakKayitId.HasValue;
 
     public static async Task<AmbalajGorunumYetkileri> GorunumYetkileriniGetirAsync(
@@ -48,27 +30,39 @@ internal static class AmbalajYetkilendirmeYardimcisi
         if (!userId.HasValue)
             return new AmbalajGorunumYetkileri(false, false, false, false);
 
-        // Konsolide rol modelinde üç görünüm alias'ı aynı ana liste yetkisine bağlıdır.
-        // Aynı kod için üç ayrı DB sorgusu üretmeyelim.
-        if (string.Equals(AmbalajMenuKodlari.M3Goruntule, AmbalajMenuKodlari.SarfGoruntule, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(AmbalajMenuKodlari.M3Goruntule, AmbalajMenuKodlari.KaynakGoruntule, StringComparison.OrdinalIgnoreCase))
-        {
-            var gorunur = await rolService.HasUserPermissionAsync(
-                userId.Value, AmbalajMenuKodlari.M3Goruntule, YetkiTipi.R, cancellationToken);
-            return new AmbalajGorunumYetkileri(gorunur, gorunur, gorunur);
-        }
-
-        // Farklı yetki kodlarına dönülürse aynı scoped DbContext nedeniyle sıralı çalışır.
+        // Aynı scoped DbContext kullanıldığı için izinler sıralı okunur.
         var m3 = await rolService.HasUserPermissionAsync(
-            userId.Value, AmbalajMenuKodlari.M3Goruntule, YetkiTipi.R, cancellationToken);
+            userId.Value, YetkiKodlari.Ambalaj.M3Goruntule, YetkiTipi.R, cancellationToken);
         var sarf = await rolService.HasUserPermissionAsync(
-            userId.Value, AmbalajMenuKodlari.SarfGoruntule, YetkiTipi.R, cancellationToken);
+            userId.Value, YetkiKodlari.Ambalaj.SarfGoruntule, YetkiTipi.R, cancellationToken);
         var kaynak = await rolService.HasUserPermissionAsync(
-            userId.Value, AmbalajMenuKodlari.KaynakGoruntule, YetkiTipi.R, cancellationToken);
+            userId.Value, YetkiKodlari.Ambalaj.KaynakGoruntule, YetkiTipi.R, cancellationToken);
         var olcu = await rolService.HasUserPermissionAsync(
-            userId.Value, AmbalajMenuKodlari.OlcuGoruntule, YetkiTipi.R, cancellationToken);
+            userId.Value, YetkiKodlari.Ambalaj.OlcuGoruntule, YetkiTipi.R, cancellationToken);
         return new AmbalajGorunumYetkileri(m3, m3 && sarf, kaynak, olcu);
     }
+
+    /// <summary>Kullanıcının görebildiği üretim durumları; her durum ayrı bir görüntüleme iznine bağlıdır.</summary>
+    public static async Task<int[]> IzinliDurumlariGetirAsync(
+        IRolService rolService,
+        ICurrentUserService currentUserService,
+        CancellationToken cancellationToken)
+    {
+        var izinli = new List<int>(DurumGorunumIzinleri.Length);
+        foreach (var (durum, kod) in DurumGorunumIzinleri)
+        {
+            if (await YetkiliMiAsync(rolService, currentUserService, kod, cancellationToken, YetkiTipi.R))
+                izinli.Add((int)durum);
+        }
+        return izinli.ToArray();
+    }
+
+    private static readonly (AmbalajUretimDurumu Durum, string Kod)[] DurumGorunumIzinleri =
+    [
+        (AmbalajUretimDurumu.Planlandi, YetkiKodlari.Ambalaj.BekleyenGoruntule),
+        (AmbalajUretimDurumu.Uretimde, YetkiKodlari.Ambalaj.UretimdeGoruntule),
+        (AmbalajUretimDurumu.Tamamlandi, YetkiKodlari.Ambalaj.TamamlananGoruntule)
+    ];
 
     public static async Task<bool> YetkiliMiAsync(
         IRolService rolService,
@@ -82,21 +76,6 @@ internal static class AmbalajYetkilendirmeYardimcisi
             userId.Value, menuKodu, yetkiTipi, cancellationToken);
     }
 
-    public static async Task<string?> EksikYetkiKodunuGetirAsync(
-        IEnumerable<string> menuKodlari,
-        IRolService rolService,
-        ICurrentUserService currentUserService,
-        CancellationToken cancellationToken)
-    {
-        foreach (var menuKodu in menuKodlari.Distinct(StringComparer.OrdinalIgnoreCase))
-        {
-            if (!await YetkiliMiAsync(rolService, currentUserService, menuKodu, cancellationToken))
-                return menuKodu;
-        }
-
-        return null;
-    }
-
     public static async Task<bool> KaynakMudahalesineYetkiliMiAsync(
         AmbalajUretimKaydi kayit,
         IRolService rolService,
@@ -105,70 +84,8 @@ internal static class AmbalajYetkilendirmeYardimcisi
         !KaynakliKayitMi(kayit) || await YetkiliMiAsync(
             rolService,
             currentUserService,
-            AmbalajMenuKodlari.KaynakMudahalesi,
+            YetkiKodlari.Ambalaj.KaynakMudahalesi,
             cancellationToken);
-
-    public static IReadOnlyList<string> GuncellemeEkYetkiKodlariniBelirle(
-        AmbalajUretimKaydi mevcut,
-        AmbalajUretimKaydiGuncelleCommand yeni)
-    {
-        var kodlar = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (mevcut.Tur != yeni.Tur)
-        {
-            kodlar.Add(AmbalajMenuKodlari.TurDuzenle);
-            var turOlusturmaKodu = AmbalajMenuKodlari.TurOlusturmaKodu(yeni.Tur);
-            if (turOlusturmaKodu != null)
-                kodlar.Add(turOlusturmaKodu);
-        }
-
-        if (mevcut.ProjeId != yeni.ProjeId ||
-            Farkli(mevcut.ManuelProjeNo, yeni.ManuelProjeNo) ||
-            Farkli(mevcut.ManuelProjeAdi, yeni.ManuelProjeAdi) ||
-            mevcut.UstKayitId != yeni.UstKayitId)
-        {
-            kodlar.Add(AmbalajMenuKodlari.ProjeDuzenle);
-            if (!yeni.ProjeId.HasValue)
-                kodlar.Add(AmbalajMenuKodlari.ManuelProje);
-        }
-
-        if (mevcut.SandikCinsi != yeni.SandikCinsi ||
-            Farkli(mevcut.DigerSandikCinsi, yeni.DigerSandikCinsi))
-            kodlar.Add(AmbalajMenuKodlari.CinsDuzenle);
-
-        if (mevcut.Adet != yeni.Adet || mevcut.Boy != yeni.Boy ||
-            mevcut.En != yeni.En || mevcut.Yukseklik != yeni.Yukseklik)
-            kodlar.Add(AmbalajMenuKodlari.OlcuDuzenle);
-
-        if (Farkli(mevcut.KullanimAmaci, yeni.KullanimAmaci) ||
-            Farkli(mevcut.TalepEdenKisi, yeni.TalepEdenKisi) ||
-            Farkli(mevcut.TalepEdenBolum, yeni.TalepEdenBolum) ||
-            Farkli(mevcut.TalimatVeren, yeni.TalimatVeren))
-            kodlar.Add(AmbalajMenuKodlari.TalepBilgileriDuzenle);
-
-        if (mevcut.UretimTarihi != yeni.UretimTarihi ||
-            Farkli(mevcut.FirinPartiNo, yeni.FirinPartiNo))
-            kodlar.Add(AmbalajMenuKodlari.DurumDuzenle);
-
-        return kodlar.ToArray();
-    }
-
-    public static IReadOnlyList<string> SecimGecisYetkiKodlariniBelirle(
-        AmbalajUretimKaydi mevcut,
-        bool ambalajaDahil,
-        bool uretimeAlindi)
-    {
-        var kodlar = new List<string>(2);
-        if (mevcut.AmbalajaDahil != ambalajaDahil)
-            kodlar.Add(ambalajaDahil ? AmbalajMenuKodlari.DahilEt : AmbalajMenuKodlari.HaricTut);
-        if (mevcut.UretimeAlindi != uretimeAlindi)
-            kodlar.Add(uretimeAlindi ? AmbalajMenuKodlari.UretimeAl : AmbalajMenuKodlari.UretimdenCikar);
-        return kodlar;
-    }
-
-    private static bool Farkli(string? sol, string? sag) => !string.Equals(
-        AmbalajUretimYardimcilari.Temizle(sol),
-        AmbalajUretimYardimcilari.Temizle(sag),
-        StringComparison.OrdinalIgnoreCase);
 
     public static void DtoyuMaskele(AmbalajUretimKaydiDto dto, AmbalajGorunumYetkileri yetkiler)
     {
@@ -209,7 +126,7 @@ internal static class AmbalajYetkilendirmeYardimcisi
             dto.KaynakSonSenkronizasyonTarihi = null;
             if (string.Equals(
                     dto.IptalNedeni,
-                    Commands.AmbalajKaynakSenkronizasyonPolitikasi.SistemKaynakEksigiNedeni,
+                    AmbalajUretimKaydi.SistemKaynakEksigiNedeni,
                     StringComparison.Ordinal))
                 dto.IptalNedeni = null;
         }
@@ -227,29 +144,5 @@ internal static class AmbalajYetkilendirmeYardimcisi
         return dto;
     }
 
-    public static AmbalajUretimHareketiDto HareketiMaskele(
-        AmbalajUretimHareketiDto hareket,
-        AmbalajGorunumYetkileri yetkiler)
-    {
-        var m3Gizli = !yetkiler.M3Gorunur && (M3Alanlari.Contains(hareket.AlanAdi) || hareket.AlanAdi == "GerceklesmeSnapshot");
-        var sarfGizli = !yetkiler.SarfGorunur && (SarfAlanlari.Contains(hareket.AlanAdi) || hareket.AlanAdi == "GerceklesmeSnapshot");
-        var kaynakGizli = !yetkiler.KaynakGorunur &&
-                          (hareket.AlanAdi.StartsWith("Kaynak", StringComparison.OrdinalIgnoreCase) ||
-                           hareket.Islem.Contains("Kaynak", StringComparison.OrdinalIgnoreCase));
-        var olcuGizli = !yetkiler.OlcuGorunur && hareket.AlanAdi is "Boy" or "En" or "Yukseklik" or "GerceklesmeSnapshot";
-        if (!m3Gizli && !sarfGizli && !kaynakGizli && !olcuGizli)
-            return hareket;
 
-        hareket.EskiDeger = null;
-        hareket.YeniDeger = null;
-        hareket.Aciklama = null;
-        hareket.DegerlerGizliMi = true;
-        if (kaynakGizli)
-        {
-            hareket.AlanAdi = "KisitliKaynakAlani";
-            hareket.Islem = "Kayıt güncellendi";
-        }
-
-        return hareket;
-    }
 }

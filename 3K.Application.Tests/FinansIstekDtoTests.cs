@@ -1,0 +1,46 @@
+using _3K.Application.Features.FinansIslemleri.DTOs;
+using _3K.Core.Enums;
+
+namespace _3K.Application.Tests;
+
+/// <summary>Ekran istekleri servis modellerine iş varsayılanlarıyla dönüştürülür.</summary>
+public sealed class FinansIstekDtoTests
+{
+    [Fact]
+    public void Gider_istegindeki_bos_alanlar_gider_varsayilanlariyla_tamamlanir()
+    {
+        var model = new FinansGiderKaydetDto(new DateTime(2026, 9, 17), 3, null, "Nakliyeci", "Nakliye", 250m,
+            "EUR", false, 20m, ProjeId: null, IsTuru: null).GiderModeli();
+
+        Assert.Equal(new DateTime(2026, 9, 1), model.FinansDonemi);
+        Assert.Equal(1m, model.Miktar);
+        Assert.Equal("Tutar", model.Birim);
+        Assert.Equal(250m, model.BirimFiyat);
+        Assert.Null(model.ManuelProjeNo);
+    }
+
+    [Fact]
+    public void Gider_istegindeki_acik_degerler_korunur()
+    {
+        var model = new FinansGiderKaydetDto(new DateTime(2026, 9, 17), 3, "Alt", "Firma", "Kereste", 999m,
+            "TRY", true, 20m, 12, FinansIsTuru.AnaAmbalaj, Miktar: 4m, Birim: "m³", BirimFiyat: 125m,
+            FinansDonemi: new DateTime(2026, 10, 1), FinansTarihi: new DateTime(2026, 10, 5)).GiderModeli();
+
+        Assert.Equal((new DateTime(2026, 10, 1), 4m, "m³", 125m), (model.FinansDonemi, model.Miktar, model.Birim, model.BirimFiyat));
+        Assert.Equal(new DateTime(2026, 10, 5), model.FinansTarihi);
+        Assert.Equal((12, FinansIsTuru.AnaAmbalaj), (model.ProjeId, model.IsTuru));
+    }
+
+    [Fact]
+    public void Duzenli_is_istegi_ozel_is_turunde_ve_urunsuz_kaydedilir()
+    {
+        var model = new FinansDuzenliIsKaydetDto(5, "Depo kirası", "Kira", "Müşteri", null, "Haftalik",
+            new DateTime(2026, 1, 1), null, 5, 1m, "Ay", 1000m, "TRY", 20m, true).DuzenliIsModeli();
+
+        Assert.Equal(FinansIsTuru.OzelIs, model.IsTuru);
+        Assert.Equal("Kira", model.OzelIsTuru);
+        Assert.Null(model.FinansUrunId);
+        Assert.Null(model.ManuelProjeNo);
+        Assert.Equal(FinansHesaplamaYontemi.DegiskenAdet, model.HesaplamaYontemi);
+    }
+}

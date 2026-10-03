@@ -8,6 +8,10 @@ using _3K.Core.Models;
 
 namespace _3K.Application.Features.RolIslemleri;
 
+/// <summary>
+/// Rol izin listesinin doğrulanması ve ağaca göre normalleştirilmesi. Her kod aynı N/R/W
+/// modelini kullanır; kaydedilen seviye üst düğümün seviyesiyle sınırlanmış etkin seviyedir.
+/// </summary>
 internal static class YetkiAtamaKurallari
 {
     public static async Task<Result<List<RolYetkiItemDto>>> DogrulaVeSinirlaAsync(IUnitOfWork unitOfWork, IRolService rolService,
@@ -15,48 +19,36 @@ internal static class YetkiAtamaKurallari
         CancellationToken ct)
     {
         if (!currentUser.IsAuthenticated || currentUser.UserId is not int actor ||
-            !await rolService.HasUserPermissionAsync(actor, "rol-yonetimi", YetkiTipi.W, ct))
+            !await rolService.HasUserPermissionAsync(actor, YetkiKodlari.RolYonetimi, YetkiTipi.W, ct))
             return Result<List<RolYetkiItemDto>>.Failure("Rol izinlerini değiştirme yetkiniz bulunmuyor.", 403);
         if (permissions.Select(x => x.MenuTanimiId).Distinct().Count() != permissions.Count ||
-            permissions.Any(x => x.YetkiTipiId is < 1 or > 3))
+            permissions.Any(x => !Enum.IsDefined((YetkiTipi)x.YetkiTipiId)))
             return Result<List<RolYetkiItemDto>>.Failure("Yinelenen veya geçersiz izin.", 400);
+
         var menus = (await unitOfWork.GetRepository<MenuTanimi>().GetAllAsync()).ToDictionary(x => x.Id);
         if (permissions.Any(x => !menus.ContainsKey(x.MenuTanimiId)))
             return Result<List<RolYetkiItemDto>>.Failure("Bilinmeyen izin.", 400);
-
-        var requested = permissions.ToDictionary(x => x.MenuTanimiId, x => x.YetkiTipiId);
-        var effective = new Dictionary<int, int>();
-        var visiting = new HashSet<int>();
-        var invalidHierarchy = false;
-        int Calculate(int id)
-        {
-            if (effective.TryGetValue(id, out var value)) return value;
-            if (!menus.TryGetValue(id, out var menu) || !visiting.Add(id))
-            {
-                invalidHierarchy = true;
-                return (int)YetkiTipi.N;
-            }
-            var parent = menu.ParentId is int parentId ? Calculate(parentId) : (int)YetkiTipi.W;
-            visiting.Remove(id);
-            return effective[id] = YetkiDegerlendirici.UstSinirliYetki(menu.Kod,
-                requested.GetValueOrDefault(id, (int)YetkiTipi.N), parent);
-        }
-        var normalized = new List<RolYetkiItemDto>(permissions.Count);
-        foreach (var permission in permissions)
-        {
-            var menu = menus[permission.MenuTanimiId];
-            var definition = YetkiKatalogu.Bul(menu.Kod);
-            if (definition != null && permission.YetkiTipiId != 1 &&
-                permission.YetkiTipiId != (int)definition.GerekenYetki)
-                return Result<List<RolYetkiItemDto>>.Failure("İşlem ve alan izinlerinde yalnız tanımlı izin seviyesi kullanılabilir.", 400);
-            normalized.Add(new RolYetkiItemDto
-            {
-                MenuTanimiId = permission.MenuTanimiId,
-                YetkiTipiId = Calculate(permission.MenuTanimiId)
-            });
-        }
-        if (invalidHierarchy)
+        if (permissions.Any(x => HiyerarsiBozukMu(menus, x.MenuTanimiId)))
             return Result<List<RolYetkiItemDto>>.Failure("Geçersiz menü hiyerarşisi.", 400);
-        return Result<List<RolYetkiItemDto>>.Success(normalized);
+
+        var agac = new YetkiAgaci(menus.Values.Select(x => new YetkiDugumu(x.Id, x.Kod, x.ParentId)));
+        var etkin = agac.RolSeviyeleri(permissions.ToDictionary(x => x.MenuTanimiId, x => x.YetkiTipiId));
+        return Result<List<RolYetkiItemDto>>.Success(permissions.Select(permission => new RolYetkiItemDto
+        {
+            MenuTanimiId = permission.MenuTanimiId,
+            YetkiTipiId = (int)etkin[permission.MenuTanimiId]
+        }).ToList());
+    }
+
+    /// <summary>İzin verilen düğümün atalarında kayıp üst düğüm veya döngü varsa seviye anlamsızdır.</summary>
+    private static bool HiyerarsiBozukMu(IReadOnlyDictionary<int, MenuTanimi> menus, int menuId)
+    {
+        var ziyaret = new HashSet<int>();
+        for (var current = menus[menuId]; current.ParentId is int ustId; current = menus[ustId])
+        {
+            if (!menus.ContainsKey(ustId) || !ziyaret.Add(current.Id))
+                return true;
+        }
+        return false;
     }
 }

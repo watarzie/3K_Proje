@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace _3K.Application.Common
 {
     public class PaginatedList<T>

@@ -24,7 +24,7 @@ namespace _3K.Application.Features.PdfIslemleri.Validators
                 .WithMessage("Geçersiz rapor dosya türü.");
 
             RuleFor(query => query.ProjeTipi)
-                .Must(EksikUrunlerRaporYetkisi.GecerliMi)
+                .IsInEnum()
                 .WithMessage("Geçersiz proje tipi için eksik raporu alınamaz.");
         }
     }

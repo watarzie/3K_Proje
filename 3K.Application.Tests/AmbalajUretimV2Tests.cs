@@ -1,12 +1,11 @@
 using System.Linq.Expressions;
-using _3K.Application.Behaviors;
 using _3K.Application.Common;
 using _3K.Application.Features.AmbalajIslemleri;
 using _3K.Application.Features.AmbalajIslemleri.Commands;
-using _3K.Application.Features.AmbalajIslemleri.DTOs;
 using _3K.Application.Features.AmbalajIslemleri.Queries;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
+using _3K.Core.Constants;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
 using _3K.Infrastructure.Services;
@@ -73,9 +72,9 @@ public sealed class AmbalajUretimV2Tests
             Ad = "Trafo Merdiveni + Boru Donanım", TipId = (int)SandikTipi.AhsapKapali,
             Boy = 5300, En = 1200, Yukseklik = 1200 };
         var uow = new Uow().Add(proje).Add(source);
-        var sync = new AmbalajKaynaklariSenkronizeEtCommandHandler(uow, new ApprovalUser(), new Finans(), new Roles());
+        var sync = new AmbalajKaynakSenkronizasyonService(uow, new Finans());
 
-        var result = await sync.Handle(new() { ProjeId = 20 }, default);
+        var result = await sync.SenkronizeEtAsync(20, new ApprovalUser(), default);
 
         Assert.True(result.IsSuccess, result.Error?.Message);
         var row = Assert.Single(uow.Items<AmbalajUretimKaydi>());
@@ -98,8 +97,8 @@ public sealed class AmbalajUretimV2Tests
             TipId = (int)SandikTipi.AhsapKapali, Boy = 2500, En = 1500, Yukseklik = 1800 };
         var uow = new Uow().Add(proje).Add(source);
         var actor = new ApprovalUser();
-        var sync = new AmbalajKaynaklariSenkronizeEtCommandHandler(uow, actor, new Finans(), new Roles());
-        var initial = await sync.Handle(new() { ProjeId = 20 }, default);
+        var sync = new AmbalajKaynakSenkronizasyonService(uow, new Finans());
+        var initial = await sync.SenkronizeEtAsync(20, actor, default);
         Assert.True(initial.IsSuccess, initial.Error?.Message);
         var row = Assert.Single(uow.Items<AmbalajUretimKaydi>());
         Assert.False(row.AmbalajaDahil); Assert.False(row.UretimeAlindi);
@@ -109,13 +108,15 @@ public sealed class AmbalajUretimV2Tests
         Assert.Equal(0, AmbalajPlanlamaYardimcisi.ProjeOzetDtoOlustur(proje, "Normal", [source], [row]).ToplamSandikAdedi);
         var form = await FormHandler(uow).Handle(new() { KayitIdleri = [row.Id], IdempotencyAnahtari = Guid.NewGuid() }, default);
         Assert.False(form.IsSuccess); Assert.Empty(uow.Items<AmbalajUretimFormuSurumu>());
-        var decision = new AmbalajUretimSecimGuncelleCommand { Id = row.Id, AmbalajaDahil = true, UretimeAlindi = false };
-        var denied = await new AmbalajUretimSecimGuncelleCommandHandler(uow, actor, new Finans(), new Roles(false)).Handle(decision, default);
-        Assert.Equal(403, denied.StatusCode); Assert.False(row.AmbalajaDahil);
-        var allowed = await new AmbalajUretimSecimGuncelleCommandHandler(uow, actor, new Finans(), new Roles()).Handle(decision, default);
+        // Dahil etme kararı pipeline'da ambalaj-dahil-et yazma iznini ister.
+        var decision = new AmbalajKarariKaydetCommand { SandikId = source.Id, AmbalajaDahilMi = true };
+        Assert.Equal(new[] { MenuPermissionRequirement.Write(YetkiKodlari.Ambalaj.DahilEt) }, decision.RequiredMenuPermissions);
+        var allowed = await new AmbalajKarariKaydetCommandHandler(uow, actor, new Roles(), sync, new Finans(),
+            new AmbalajKritikIslemDenetimi(uow, new Roles(), actor)).Handle(decision, default);
         Assert.True(allowed.IsSuccess, allowed.Error?.Message);
+        Assert.True(row.AmbalajaDahil); Assert.False(row.UretimeAlindi);
         source.Boy = 2600;
-        Assert.True((await sync.Handle(new() { ProjeId = 20 }, default)).IsSuccess);
+        Assert.True((await sync.SenkronizeEtAsync(20, actor, default)).IsSuccess);
         Assert.True(row.AmbalajaDahil); Assert.Equal(2600, row.Boy);
         Assert.Equal(1, AmbalajPlanlamaYardimcisi.ProjeOzetDtoOlustur(proje, "Normal", [source], [row]).ToplamSandikAdedi);
         form = await FormHandler(uow).Handle(new() { KayitIdleri = [row.Id], IdempotencyAnahtari = Guid.NewGuid() }, default);
@@ -159,7 +160,10 @@ public sealed class AmbalajUretimV2Tests
     public async Task U4_TamamlaAcTamamla_TekGerceklesme_GuncelKayitDegisimiGecmisiDegistirmez()
     {
         var k = Kayit(1); k.UretimeAlindi = true; k.UretimDurumu = AmbalajUretimDurumu.Uretimde;
-        var uow = new Uow().Add(k); var h = new AmbalajUretimDurumuGuncelleCommandHandler(uow,new User(),new Finans(),new Roles());
+        // İlk form sonrası durum geçişleri; form bağı olmadan ilerletme 409 döner.
+        var uow = new Uow().Add(k).Add(new AmbalajUretimFormuKaydi { Id = 1, FormSurumuId = 1, AmbalajUretimKaydiId = 1 });
+        var h = new AmbalajUretimDurumuGuncelleCommandHandler(uow, new User(), new Finans(), new Roles(),
+            new AmbalajKritikIslemDenetimi(uow, new Roles(), new User()));
         await h.Handle(new() { Id = 1, Durum = AmbalajUretimDurumu.Tamamlandi }, default);
         await h.Handle(new() { Id = 1, Durum = AmbalajUretimDurumu.Uretimde, Aciklama = "Kontrol" }, default);
         k.Adet = 9;
@@ -237,11 +241,12 @@ public sealed class AmbalajUretimV2Tests
     public async Task U6_YenidenAcma_AyriIzinOlmadanHandlerCalismaz()
     {
         var k=Kayit(1); k.UretimDurumu=AmbalajUretimDurumu.Tamamlandi;
-        var behavior=new AmbalajYasamDongusuBehavior<AmbalajUretimDurumuGuncelleCommand,Result<AmbalajUretimKaydiDto>>(new Uow().Add(k),new Roles(false),new User());
-        var called=false;
-        var result=await behavior.Handle(new(){Id=1,Durum=AmbalajUretimDurumu.Uretimde,Aciklama="Kontrol"},
-            ()=>{called=true; return Task.FromResult(Result<AmbalajUretimKaydiDto>.Success(new()));},default);
-        Assert.Equal(403,result.StatusCode); Assert.False(called); Assert.Equal(AmbalajUretimDurumu.Tamamlandi,k.UretimDurumu);
+        var uow=new Uow().Add(k);
+        var handler=new AmbalajUretimDurumuGuncelleCommandHandler(uow,new User(),new Finans(),new Roles(false),
+            new AmbalajKritikIslemDenetimi(uow,new Roles(false),new User()));
+        var result=await handler.Handle(new(){Id=1,Durum=AmbalajUretimDurumu.Uretimde,Aciklama="Kontrol"},default);
+        Assert.Equal(403,result.StatusCode); Assert.Equal(AmbalajUretimDurumu.Tamamlandi,k.UretimDurumu);
+        Assert.Empty(uow.Items<AmbalajUretimHareketi>());
     }
 
     private static AmbalajUretimKaydi Kayit(int id, AmbalajSandikCinsi cins=AmbalajSandikCinsi.AhsapKapali)
@@ -296,12 +301,11 @@ public sealed class AmbalajUretimV2Tests
         }
     }
     private static AmbalajFormOlusturCommandHandler FormHandler(Uow uow)=>new(uow,new User(),new Roles(),new Finans());
-    private sealed class User:ICurrentUserService {public int? UserId=>7;public bool IsAuthenticated=>true;public string? MenuKod=>null;}
-    private sealed class ApprovalUser:ICurrentUserService {public int? UserId=>99;public int? IslemKullaniciId=>7;public bool IsAuthenticated=>true;public string? MenuKod=>null;}
+    private sealed class User:ICurrentUserService {public int? UserId=>7;public bool IsAuthenticated=>true;}
+    private sealed class ApprovalUser:ICurrentUserService {public int? UserId=>99;public int? IslemKullaniciId=>7;public bool IsAuthenticated=>true;}
     private sealed class Roles(bool allow=true):IRolService
     {
         public Task<bool> HasUserPermissionAsync(int id,string kod,YetkiTipi tip,CancellationToken ct=default)=>Task.FromResult(allow);
-        public Task<bool> IsAdminAsync(int id,CancellationToken ct=default)=>Task.FromResult(false);
         public Task<List<MenuTanimi>> GetMenuAgaciAsync(CancellationToken ct=default)=>Task.FromResult(new List<MenuTanimi>());
         public Task<List<RolYetki>> GetRolYetkileriAsync(int id,CancellationToken ct=default)=>Task.FromResult(new List<RolYetki>());
         public Task YetkileriGuncelleAsync(int id,List<RolYetki> list,CancellationToken ct=default)=>Task.CompletedTask;

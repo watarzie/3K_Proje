@@ -89,6 +89,8 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                     SevkiyatDuzeltmeAcikMi = s.SevkiyatDuzeltmeAcikMi,
                     DepoLokasyonId = s.DepoLokasyonId,
                     DepoLokasyonMetni = _lookupCache.GetDeger<LookupDepoLokasyon>(s.DepoLokasyonId),
+                    TipId = s.TipId,
+                    TipMetni = _lookupCache.GetDeger<LookupSandikTipi>(s.TipId),
                     UrunSayisi = icerikler.Count,
                     IsManuelSandik = isManuelSandik,
                     SilinebilirMi = s.DurumId != (int)SandikDurum.Sevkedildi &&

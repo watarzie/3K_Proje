@@ -1,25 +1,25 @@
-using _3K.Application.Behaviors;
-using _3K.Application.Common;
+using System.Text.Json;
 using _3K.Application.Features.AmbalajIslemleri;
 using _3K.Application.Features.AmbalajIslemleri.DTOs;
 using _3K.Application.Features.AmbalajIslemleri.Queries;
-using _3K.Core.Entities;
-using _3K.Core.Enums;
-using _3K.Core.Interfaces;
 using _3K.Core.Models;
 
 namespace _3K.Application.Tests;
 
 public sealed class AmbalajAlanMaskelemeTests
 {
+    private static readonly AmbalajGorunumYetkileri HicbirIzin = new(false, false, false, false);
+
     [Fact]
-    public async Task K33_PlanlamaLegacyOlcuM3_NestedKalemVeToplamdaNullOlur()
+    public void K33_PlanlamaLegacyOlcuM3_NestedKalemVeToplamdaNullOlur()
     {
         var row = new AmbalajPlanlamaKalemDto(1, 10, null, null, 1, "Proje", true,
             "1", "Sandık", "Ahşap", 3, 1200, 1000, 900, null, null, null, 5m);
         var plan = new AmbalajPlanlamaPlanDto(1, "P-1", null, "Müşteri", 1, "Normal", null, null,
             null, 1, 1, 1, [row], 3, 5m);
-        var result = await Run(new GetAmbalajPlanlamaPlanQuery(), plan);
+
+        var result = AmbalajAlanMaskesi.Maskele(plan, HicbirIzin);
+
         Assert.Null(result.Kalemler[0].Boy);
         Assert.Null(result.Kalemler[0].En);
         Assert.Null(result.Kalemler[0].Yukseklik);
@@ -30,7 +30,7 @@ public sealed class AmbalajAlanMaskelemeTests
     }
 
     [Fact]
-    public async Task K33_GlobalVeFiltrelenmisOzetler_YalnizHacmiGizler_SayaclariKorur()
+    public void K33_GlobalVeFiltrelenmisOzetler_YalnizHacmiGizler_SayaclariKorur()
     {
         var value = new AmbalajBagimsizSandiklarSayfasiDto
         {
@@ -41,7 +41,9 @@ public sealed class AmbalajAlanMaskelemeTests
                 TurOzetleri = [new() { Tur = 2, KayitSayisi = 3, ToplamSandikAdedi = 12, ToplamHacimM3 = 7.25m }]
             }
         };
-        var result = await Run(new GetAmbalajBagimsizSandiklarQuery(), value);
+
+        var result = AmbalajAlanMaskesi.Maskele(value, HicbirIzin);
+
         Assert.Null(result.FilteredSummary!.ToplamHacimM3);
         Assert.Null(result.FilteredSummary.TurOzetleri[0].ToplamHacimM3);
         Assert.Equal(12, result.FilteredSummary.ToplamSandikAdedi);
@@ -49,59 +51,36 @@ public sealed class AmbalajAlanMaskelemeTests
     }
 
     [Fact]
-    public async Task K33_IcSandikSablonSecenekleri_OlcuIzniOlmadanBoyutTasiyamaz()
+    public void K33_IcSandikSablonSecenekleri_OlcuIzniOlmadanBoyutTasiyamaz()
     {
-        IReadOnlyList<AmbalajIcSandikSablonDto> value = [new(1, "Seçenek", "Kontrplak", 1200, 1000, 900)];
-        var result = await Run(new GetAmbalajIcSandikSablonlariQuery(), value);
-        Assert.Null(result[0].Boy);
-        Assert.Null(result[0].En);
-        Assert.Null(result[0].Yukseklik);
-        Assert.Equal("Seçenek", result[0].Ad);
+        var result = AmbalajAlanMaskesi.Maskele(new AmbalajIcSandikSablonDto(1, "Seçenek", "Kontrplak", 1200, 1000, 900), HicbirIzin);
+
+        Assert.Null(result.Boy);
+        Assert.Null(result.En);
+        Assert.Null(result.Yukseklik);
+        Assert.Equal("Seçenek", result.Ad);
     }
 
     [Fact]
-    public async Task K33_M3VarSarfYok_NetKorunur_SarfVeBirlesikToplamGizlenir()
+    public void K33_M3VarSarfYok_NetKorunur_SarfVeBirlesikToplamGizlenir()
     {
-        var value = new AmbalajUretimSayfasiDto
+        var dto = new AmbalajUretimKaydiDto
         {
-            Items = [new() { Adet = 4, NetM3 = 10, SarfM3 = 2, SarfOrani = 20, ToplamM3 = 12 }],
-            FilteredSummary = new() { KayitSayisi = 1, ToplamSandikAdedi = 4, NetM3 = 10, SarfM3 = 2, ToplamM3 = 12 }
+            Adet = 4, AmbalajaDahil = true, UretimeAlindi = true,
+            NetM3 = 10, SarfM3 = 2, SarfOrani = 20, ToplamM3 = 12
         };
-        var result = await Run(new GetAmbalajUretimSayfasiQuery(), value, AmbalajMenuKodlari.M3Goruntule);
-        Assert.Equal(10, result.Items[0].NetM3);
-        Assert.Equal(10, result.FilteredSummary.NetM3);
-        Assert.Null(result.Items[0].SarfM3);
-        Assert.Null(result.Items[0].SarfOrani);
-        Assert.Null(result.Items[0].ToplamM3);
-        Assert.Null(result.FilteredSummary.SarfM3);
-        Assert.Null(result.FilteredSummary.ToplamM3);
-        Assert.Equal(4, result.FilteredSummary.ToplamSandikAdedi);
-    }
 
-    [Fact]
-    public async Task K33_GecmisIzniYoksa_DetayHareketleriCikmaz()
-    {
-        var value = new AmbalajUretimKaydiDetayDto
-        {
-            Id = 1, Hareketler = [new() { AlanAdi = "Boy", EskiDeger = "1200", YeniDeger = "1500" }]
-        };
-        var result = await Run(new GetAmbalajUretimKaydiDetayQuery { Id = 1 }, value);
-        Assert.Empty(result.Hareketler);
-    }
+        AmbalajYetkilendirmeYardimcisi.DtoyuMaskele(dto, new(M3Gorunur: true, SarfGorunur: false, KaynakGorunur: true));
+        var ozet = AmbalajRaporVerisi.OzetOlustur([dto]);
 
-    [Fact]
-    public void K33_OlcuRet_GerceklesmeAuditSnapshotStringiniDaGizler()
-    {
-        var hareket = new AmbalajUretimHareketiDto
-        {
-            AlanAdi = "GerceklesmeSnapshot", Islem = "Düzeltme", EskiDeger = "{\"Boy\":1200}",
-            YeniDeger = "{\"Boy\":1500}", Aciklama = "1200 yerine 1500"
-        };
-        var result = AmbalajYetkilendirmeYardimcisi.HareketiMaskele(hareket, new(true, true, true, false));
-        Assert.Null(result.EskiDeger);
-        Assert.Null(result.YeniDeger);
-        Assert.Null(result.Aciklama);
-        Assert.True(result.DegerlerGizliMi);
+        Assert.Equal(10, dto.NetM3);
+        Assert.Null(dto.SarfM3);
+        Assert.Null(dto.SarfOrani);
+        Assert.Null(dto.ToplamM3);
+        Assert.Equal(10, ozet.NetM3);
+        Assert.Null(ozet.SarfM3);
+        Assert.Null(ozet.ToplamM3);
+        Assert.Equal(4, ozet.ToplamSandikAdedi);
     }
 
     [Fact]
@@ -127,7 +106,7 @@ public sealed class AmbalajAlanMaskelemeTests
     }
 
     [Fact]
-    public void K33_LegacyRapor_MaskeliNullToplamlarSahteSifiraDonusmez()
+    public void K33_OzelSandikRaporu_MaskeliNullToplamlarSahteSifiraDonusmez()
     {
         var result = AmbalajRaporVerisi.OzetOlustur([new()
         {
@@ -139,22 +118,93 @@ public sealed class AmbalajAlanMaskelemeTests
         Assert.Equal(4, result.ToplamSandikAdedi);
     }
 
-    private static async Task<T> Run<T>(object request, T value, params string[] permissions)
+    public static TheoryData<string> PlanlamaDtoTurleri() =>
+        new(OrneklerVeMaskeler.Keys);
+
+    /// <summary>
+    /// Açık maske, kaldırılan pipeline reflection maskesiyle her izin kombinasyonunda aynı alanları gizler.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(PlanlamaDtoTurleri))]
+    public void K33_AcikMaske_EskiReflectionMaskesiyleAyniSonucuUretir(string tur)
     {
-        var result = await new AmbalajYasamDongusuBehavior<object, Result<T>>(
-            new OrtakMemoryUow(), new Roles(permissions), new OrtakUser()).Handle(request,
-            () => Task.FromResult(Result<T>.Success(value)), default);
-        Assert.True(result.IsSuccess, result.Error?.Message);
-        return result.Value!;
+        var (ornek, acikMaske) = OrneklerVeMaskeler[tur];
+        foreach (var izin in TumIzinKombinasyonlari())
+        {
+            var beklenen = ornek();
+            EskiReflectionMaskesi(beklenen, izin);
+            var gercek = acikMaske(ornek(), izin);
+            Assert.Equal(JsonSerializer.Serialize(beklenen, beklenen.GetType()), JsonSerializer.Serialize(gercek, gercek.GetType()));
+        }
     }
 
-    private sealed class Roles(params string[] allowed) : IRolService
+    private static readonly Dictionary<string, (Func<object> Ornek, Func<object, AmbalajGorunumYetkileri, object> Maske)> OrneklerVeMaskeler = new()
     {
-        public Task<bool> HasUserPermissionAsync(int userId, string menuKod, YetkiTipi requiredYetkiTipi, CancellationToken ct = default) =>
-            Task.FromResult(allowed.Contains(menuKod) && requiredYetkiTipi == YetkiTipi.R);
-        public Task<bool> IsAdminAsync(int userId, CancellationToken ct = default) => Task.FromResult(false);
-        public Task<List<MenuTanimi>> GetMenuAgaciAsync(CancellationToken ct = default) => throw new NotSupportedException();
-        public Task<List<RolYetki>> GetRolYetkileriAsync(int rolId, CancellationToken ct = default) => throw new NotSupportedException();
-        public Task YetkileriGuncelleAsync(int rolId, List<RolYetki> yetkiler, CancellationToken ct = default) => throw new NotSupportedException();
+        [nameof(AmbalajPlanlamaProjeleriSayfasiDto)] = (() => new AmbalajPlanlamaProjeleriSayfasiDto
+        {
+            Items = [ProjeOzeti()], PageNumber = 1, PageSize = 15, TotalCount = 1, TotalPages = 1,
+            FilteredSummary = new() { ProjeSayisi = 1, ToplamSandikAdedi = 4, ToplamHacimM3 = 7.5m, EksikOlculuProjeSayisi = 1 }
+        }, (x, izin) => AmbalajAlanMaskesi.Maskele((AmbalajPlanlamaProjeleriSayfasiDto)x, izin)),
+        [nameof(AmbalajPlanlamaPlanDto)] = (() => new AmbalajPlanlamaPlanDto(1, "P-1", "FB", "Müşteri", 1, "Normal",
+                "FP", "FP-2", "FP-3", 1, 2, 3, [PlanKalemi(), PlanKalemi() with { Id = 2 }], 2, 5.5m, 2, 3, 1),
+            (x, izin) => AmbalajAlanMaskesi.Maskele((AmbalajPlanlamaPlanDto)x, izin)),
+        [nameof(AmbalajPlanlamaKalemDto)] = (() => PlanKalemi(),
+            (x, izin) => AmbalajAlanMaskesi.Maskele((AmbalajPlanlamaKalemDto)x, izin)),
+        [nameof(AmbalajBagimsizSandiklarSayfasiDto)] = (() => new AmbalajBagimsizSandiklarSayfasiDto
+        {
+            Items = [BagimsizSandik()], PageNumber = 1, PageSize = 25, TotalCount = 1, TotalPages = 1,
+            FilteredSummary = new()
+            {
+                KayitSayisi = 1, ToplamSandikAdedi = 2, UretimeAlinanSandikAdedi = 2, ToplamHacimM3 = 3.5m,
+                TurOzetleri = [new() { Tur = 4, KayitSayisi = 1, ToplamSandikAdedi = 2, ToplamHacimM3 = 3.5m }]
+            }
+        }, (x, izin) => AmbalajAlanMaskesi.Maskele((AmbalajBagimsizSandiklarSayfasiDto)x, izin)),
+        [nameof(AmbalajBagimsizSandikDto)] = (() => BagimsizSandik(),
+            (x, izin) => AmbalajAlanMaskesi.Maskele((AmbalajBagimsizSandikDto)x, izin)),
+        [nameof(AmbalajIcSandikSablonDto)] = (() => new AmbalajIcSandikSablonDto(1, "Şablon", "Kontrplak", 1200, 1000, 900),
+            (x, izin) => AmbalajAlanMaskesi.Maskele((AmbalajIcSandikSablonDto)x, izin)),
+        [nameof(AmbalajIlaveSandikAdayDto)] = (() => new AmbalajIlaveSandikAdayDto(1, "7", "Aday", 1200, 1000, 900),
+            (x, izin) => AmbalajAlanMaskesi.Maskele((AmbalajIlaveSandikAdayDto)x, izin)),
+        [nameof(AmbalajSandikSecenegiDto)] = (() => new AmbalajSandikSecenegiDto(1, "8", "Seçenek", 1200, 1000, 900),
+            (x, izin) => AmbalajAlanMaskesi.Maskele((AmbalajSandikSecenegiDto)x, izin)),
+    };
+
+    private static AmbalajPlanlamaProjeOzetDto ProjeOzeti() => new(1, "P-1", "FB", "Müşteri", 1, "Normal", 4, 3, 1,
+        ["9"], 7.5m, "FP", 2, 1, 1, 2.5m, 1, 2, 3, "FP-2", "FP-3", 2, 4.5m, 1.5m, 1.0m, 2, 4, 1);
+
+    private static AmbalajPlanlamaKalemDto PlanKalemi() => new(1, 10, 5, 3, 1, "Proje", true, "1", "Sandık", "Ahşap",
+        3, 1200, 1000, 900, "Amaç", "Talimat", "Açıklama", 5m, true, false, true, 2);
+
+    private static AmbalajBagimsizSandikDto BagimsizSandik() => new(1, 4, "Saha", 5, "P-5", "Müşteri", 11, "11", "Kaynak",
+        12, 3, "12", "Üst", true, "SAH-001", "Saha sandığı", "Ahşap", 2, 1200, 1000, 900, "Amaç", "Talimat", "Açıklama", 3.5m);
+
+    private static IEnumerable<AmbalajGorunumYetkileri> TumIzinKombinasyonlari() =>
+        from m3 in new[] { false, true }
+        from sarf in new[] { false, true }
+        from kaynak in new[] { false, true }
+        from olcu in new[] { false, true }
+        select new AmbalajGorunumYetkileri(m3, sarf, kaynak, olcu);
+
+    /// <summary>Kaldırılan AmbalajYasamDongusuBehavior.MaskeleAsync algoritmasının birebir kopyası (kâhin).</summary>
+    private static void EskiReflectionMaskesi(object? kok, AmbalajGorunumYetkileri izin)
+    {
+        var gorulen = new HashSet<object>(ReferenceEqualityComparer.Instance);
+        void Gez(object? value)
+        {
+            if (value == null || value is string || value.GetType().IsValueType || value is byte[] || !gorulen.Add(value)) return;
+            if (value is System.Collections.IEnumerable list) { foreach (var item in list) Gez(item); return; }
+            foreach (var property in value.GetType().GetProperties())
+            {
+                if (property.GetIndexParameters().Length != 0 || !property.CanRead) continue;
+                var name = property.Name;
+                var hidden = (!izin.OlcuGorunur && name is "Boy" or "En" or "Yukseklik" or "IcOlculer" or "DisOlculer" or "OnDuvarYuksekligi") ||
+                    (!izin.M3Gorunur && name.Contains("M3", StringComparison.Ordinal) && property.PropertyType == typeof(decimal?)) ||
+                    (!izin.SarfGorunur && name is "SarfOrani" or "SarfM3" or "ToplamM3" or "SarfDahilM3");
+                if (hidden && property.CanWrite && (!property.PropertyType.IsValueType || Nullable.GetUnderlyingType(property.PropertyType) != null))
+                    property.SetValue(value, null);
+                else Gez(property.GetValue(value));
+            }
+        }
+        Gez(kok);
     }
 }

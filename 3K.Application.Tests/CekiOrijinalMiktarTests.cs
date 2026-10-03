@@ -1,7 +1,6 @@
 using System.Data;
 using System.Data.Common;
 using System.Linq.Expressions;
-using System.Reflection;
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -10,7 +9,7 @@ using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Infrastructure.Data;
-using _3K.Infrastructure.Services;
+using _3K.Infrastructure.Services.Cekiler;
 
 namespace _3K.Application.Tests;
 
@@ -78,7 +77,7 @@ public sealed class CekiOrijinalMiktarTests
         };
         context.CekiSatirlari.Attach(satir);
 
-        await InvokeAsync(Service(context), "RevizyonSatiriniGuncelleAsync", 10, satir,
+        await Uygulayici(context).RevizyonSatiriniGuncelleAsync(10, satir,
             ImportSatiri(yeni), new Dictionary<string, Sandik> { ["1"] = sandik }, SandikBilgileri(), 7);
 
         Assert.Equal(beklenen.HasValue ? (decimal)beklenen.Value : null, satir.OrijinalIstenenAdet);
@@ -94,7 +93,7 @@ public sealed class CekiOrijinalMiktarTests
         var sandik = new Sandik { Id = 30, ProjeId = 10, SandikNo = "1" };
         context.Sandiklar.Attach(sandik);
 
-        await InvokeAsync(Service(context), "RevizyonSatiriEkleAsync", 10, 15,
+        await Uygulayici(context).RevizyonSatiriEkleAsync(10, 15,
             ImportSatiri(2.125m), new Dictionary<string, Sandik> { ["1"] = sandik }, SandikBilgileri(), 7);
 
         var satir = Assert.Single(context.ChangeTracker.Entries<CekiSatiri>()).Entity;
@@ -130,7 +129,7 @@ public sealed class CekiOrijinalMiktarTests
         };
         context.CekiSatirlari.Attach(satir);
 
-        await InvokeAsync(Service(context), "RevizyonSatiriniGuncelleAsync", 10, satir,
+        await Uygulayici(context).RevizyonSatiriniGuncelleAsync(10, satir,
             ImportSatiri(4), new Dictionary<string, Sandik> { ["1"] = sandik }, SandikBilgileri(), 7);
 
         var icerik = Assert.Single(context.ChangeTracker.Entries<SandikIcerik>()).Entity;
@@ -162,7 +161,7 @@ public sealed class CekiOrijinalMiktarTests
         };
         context.CekiSatirlari.Attach(satir);
 
-        await InvokeAsync(Service(context), "RevizyonSatiriniGuncelleAsync", 10, satir,
+        await Uygulayici(context).RevizyonSatiriniGuncelleAsync(10, satir,
             ImportSatiri(6), new Dictionary<string, Sandik> { ["1"] = sandik }, SandikBilgileri(), 7);
 
         var icerikler = context.ChangeTracker.Entries<SandikIcerik>()
@@ -219,10 +218,7 @@ public sealed class CekiOrijinalMiktarTests
             GelenMiktar = 2
         };
 
-        await InvokeAsync(
-            Service(context),
-            "RevizyonSatiriIslemleriniGeriAlAsync",
-            10,
+        await Uygulayici(context).RevizyonSatiriIslemleriniGeriAlAsync(10,
             satir,
             7,
             "Revizyon regresyon testi");
@@ -261,7 +257,7 @@ public sealed class CekiOrijinalMiktarTests
             workbook.SaveAs(stream);
             stream.Position = 0;
 
-            await Service(context, uow).CekiYukleAsync(stream, dosyaAdi);
+            await new CekiYuklemeService(uow, context).CekiYukleAsync(stream, dosyaAdi);
 
             var satir = Assert.Single(uow.Repo<CekiSatiri>().Rows);
             Assert.Equal(4, satir.IstenenAdet);
@@ -305,7 +301,7 @@ public sealed class CekiOrijinalMiktarTests
         };
         context.CekiSatirlari.Attach(satir);
 
-        await InvokeAsync(Service(context), "RevizyonSatiriniGuncelleAsync", 10, satir,
+        await Uygulayici(context).RevizyonSatiriniGuncelleAsync(10, satir,
             ImportSatiri(yeniMiktar, "20"), sandikCache, SandikBilgileri(), 7);
         context.ChangeTracker.DetectChanges();
 
@@ -368,7 +364,7 @@ public sealed class CekiOrijinalMiktarTests
         };
         context.CekiSatirlari.Attach(satir);
 
-        await InvokeAsync(Service(context), "RevizyonSatiriniGuncelleAsync", 10, satir,
+        await Uygulayici(context).RevizyonSatiriniGuncelleAsync(10, satir,
             ImportSatiri(10, "20"), cache, SandikBilgileri(), 7);
         context.ChangeTracker.DetectChanges();
 
@@ -412,7 +408,7 @@ public sealed class CekiOrijinalMiktarTests
         context.CekiSatirlari.Attach(satir);
 
         await Assert.ThrowsAsync<_3K.Core.Exceptions.CekiRevizyonConflictException>(() =>
-            InvokeAsync(Service(context), "RevizyonSatiriniGuncelleAsync", 10, satir,
+            Uygulayici(context).RevizyonSatiriniGuncelleAsync(10, satir,
                 ImportSatiri(10, "20"), new Dictionary<string, Sandik> { ["19"] = kaynak, ["20"] = hedef }, SandikBilgileri(), 7));
 
         var icerik = Assert.Single(context.ChangeTracker.Entries<SandikIcerik>()).Entity;
@@ -427,26 +423,16 @@ public sealed class CekiOrijinalMiktarTests
         .UseNpgsql("Host=database-must-not-be-contacted.invalid;Database=test;Username=test;Password=test")
         .AddInterceptors(new BaglantiyiEngelle(), selectSonucu ?? new BosSelectSonucu()).Options);
 
-    private static CekiService Service(AppDbContext context, IUnitOfWork? uow = null) =>
-        new(uow!, context, null!, new DurumStub(), null!, NullLogger<CekiService>.Instance);
+    private static CekiRevizyonUygulayici Uygulayici(AppDbContext context) =>
+        new(context, new DurumStub(), null!, new CekiRevizyonSorgulari(context), NullLogger<CekiRevizyonUygulayici>.Instance);
 
-    private static object ImportSatiri(decimal miktar, string koliNo = "1")
+    private static CiktiSatirImportBilgisi ImportSatiri(decimal miktar, string koliNo = "1") => new()
     {
-        var type = typeof(CekiService).GetNestedType("CiktiSatirImportBilgisi", BindingFlags.NonPublic)!;
-        var satir = Activator.CreateInstance(type)!;
-        foreach (var (property, value) in new Dictionary<string, object>
-        {
-            ["ExcelSatirNo"] = 6, ["SiraNo"] = 1, ["BarkodNo"] = "TEST", ["Aciklama"] = "TEST",
-            ["KoliNo"] = koliNo, ["IstenenAdet"] = miktar, ["BirimId"] = (int)Birim.Adet
-        }) type.GetProperty(property)!.SetValue(satir, value);
-        return satir;
-    }
+        ExcelSatirNo = 6, SiraNo = 1, BarkodNo = "TEST", Aciklama = "TEST",
+        KoliNo = koliNo, IstenenAdet = miktar, BirimId = (int)Birim.Adet
+    };
 
-    private static object SandikBilgileri() => Activator.CreateInstance(typeof(Dictionary<,>).MakeGenericType(
-        typeof(string), typeof(CekiService).GetNestedType("SandikImportBilgisi", BindingFlags.NonPublic)!))!;
-
-    private static Task InvokeAsync(CekiService servis, string name, params object[] args) =>
-        Assert.IsAssignableFrom<Task>(typeof(CekiService).GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(servis, args));
+    private static Dictionary<string, SandikImportBilgisi> SandikBilgileri() => new();
 
     private sealed class BaglantiyiEngelle : DbConnectionInterceptor
     {
@@ -479,7 +465,7 @@ public sealed class CekiOrijinalMiktarTests
 
     /// <summary>
     /// Revizyon testlerinin gerçek PostgreSQL'e bağlanmadan EF materialization yolunu
-    /// kullanmasını sağlar. Sütun sırası CekiService'in SandikIcerik + Sandik sorgusuyla aynıdır.
+    /// kullanmasını sağlar. Sütun sırası revizyon uygulayıcısının SandikIcerik + Sandik sorgusuyla aynıdır.
     /// </summary>
     private sealed class TahsisSelectSonucu(params TahsisSatiri[] satirlar) : DbCommandInterceptor
     {

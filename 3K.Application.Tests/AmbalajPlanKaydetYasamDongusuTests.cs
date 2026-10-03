@@ -1,5 +1,4 @@
 using System.Text.Json;
-using _3K.Application.Behaviors;
 using _3K.Application.Common;
 using _3K.Application.Features.AmbalajIslemleri;
 using _3K.Application.Features.AmbalajIslemleri.Commands;
@@ -8,16 +7,14 @@ using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
+using _3K.Core.Constants;
 
 namespace _3K.Application.Tests;
 
 public sealed class AmbalajPlanKaydetYasamDongusuTests
 {
-    [Theory]
-    [InlineData(1)]
-    [InlineData(2)]
-    [InlineData(3)]
-    public async Task PlanKaydet_KarmaDurumVeTarihleriKorur_LegacyDurumIdIslemUretmez(int legacyDurum)
+    [Fact]
+    public async Task PlanKaydet_KarmaDurumVeTarihleriKorur_DurumIslemiUretmez()
     {
         var f = new Fixture();
         var bekleyen = f.Add(1);
@@ -28,21 +25,21 @@ public sealed class AmbalajPlanKaydetYasamDongusuTests
             .Select(x => (x.UretimDurumu, x.UretimTarihi, x.TamamlanmaTarihi)).ToArray();
         f.Uow.Repo<AmbalajUretimGerceklesmesi>().Rows.Add(new() { Id = 1, AmbalajUretimKaydiId = 3, Adet = 1 });
 
-        var result = await f.Save(new() { ProjeId = 10, SeciliKaynakSandikIds = [101, 102, 103], DurumId = legacyDurum });
+        var result = await f.Save(new() { ProjeId = 10, SeciliKaynakSandikIds = [101, 102, 103] });
 
         Assert.True(result.IsSuccess, result.Error?.Message);
         Assert.Equal(zamanlar, new[] { bekleyen, uretimde, tamamlanan }
             .Select(x => (x.UretimDurumu, x.UretimTarihi, x.TamamlanmaTarihi)).ToArray());
         Assert.Single(f.Uow.Repo<AmbalajUretimGerceklesmesi>().Rows);
-        Assert.DoesNotContain(f.Roles.Checked, x => x == AmbalajMenuKodlari.DurumDuzenle ||
-            x == AmbalajMenuKodlari.DurumuGeriAl || x == AmbalajMenuKodlari.UretimiTamamla);
+        Assert.DoesNotContain(f.Roles.Checked, x => x == YetkiKodlari.Ambalaj.DurumDuzenle ||
+            x == YetkiKodlari.Ambalaj.DurumuGeriAl || x == YetkiKodlari.Ambalaj.UretimiTamamla);
     }
 
     [Fact]
     public async Task PlanKaydet_IlkFormOncesi_SecimPartiKaydeder_UretimVeAktifFinansBaslatmaz()
     {
         var f = new Fixture(); var row = f.Add(1); row.UretimeAlindi = false;
-        var result = await f.Save(new() { ProjeId = 10, SeciliKaynakSandikIds = [101], FirinPartiNo = " FP-2 ", DurumId = 3 });
+        var result = await f.Save(new() { ProjeId = 10, SeciliKaynakSandikIds = [101], FirinPartiNo = " FP-2 " });
         Assert.True(result.IsSuccess, result.Error?.Message);
         Assert.True(row.UretimeAlindi); Assert.Equal("FP-2", row.FirinPartiNo);
         Assert.Equal(AmbalajUretimDurumu.Planlandi, row.UretimDurumu);
@@ -67,15 +64,16 @@ public sealed class AmbalajPlanKaydetYasamDongusuTests
 
     [Theory]
     [InlineData(false, "Parti düzeltme", 403)]
-    [InlineData(true, null, 400)]
+    [InlineData(true, null, 200)]
     [InlineData(true, "Parti düzeltme", 200)]
-    public async Task PlanKaydet_FormSonrasiParti_GercekDegisimKritikIzinVeGerekceIster(
+    // A2/D11: üretim planı işlemleri gerekçe istemez; kritik izin ve kayıt geçmişi korunur.
+    public async Task PlanKaydet_FormSonrasiParti_GercekDegisimKritikIzinIsterGerekceIstemez(
         bool kritikIzin, string? gerekce, int expected)
     {
-        var f = new Fixture(kritikIzin ? [AmbalajMenuKodlari.KritikVeriDuzenle] : []);
+        var f = new Fixture(kritikIzin ? [YetkiKodlari.Ambalaj.KritikVeriDuzenle] : []);
         var row = f.Add(1, AmbalajUretimDurumu.Uretimde); row.FirinPartiNo = "FP-1";
         var form = f.FormEkle(row); var eskiJson = form.SnapshotJson;
-        var result = await f.Save(new() { ProjeId = 10, SeciliKaynakSandikIds = [101], FirinPartiNo = "FP-2", Gerekce = gerekce, DurumId = 2 });
+        var result = await f.Save(new() { ProjeId = 10, SeciliKaynakSandikIds = [101], FirinPartiNo = "FP-2", Gerekce = gerekce });
         Assert.Equal(expected, result.StatusCode);
         Assert.Equal(expected == 200 ? "FP-2" : "FP-1", row.FirinPartiNo);
         Assert.Equal(eskiJson, form.SnapshotJson);
@@ -96,18 +94,18 @@ public sealed class AmbalajPlanKaydetYasamDongusuTests
         row.FirinPartiNo = "FP-1"; f.FormEkle(row);
         var result = await f.Save(new() { ProjeId = 10, SeciliKaynakSandikIds = [101], FirinPartiNo = " FP-1 " });
         Assert.True(result.IsSuccess, result.Error?.Message);
-        Assert.DoesNotContain(AmbalajMenuKodlari.KritikVeriDuzenle, f.Roles.Checked);
+        Assert.DoesNotContain(YetkiKodlari.Ambalaj.KritikVeriDuzenle, f.Roles.Checked);
         Assert.Empty(f.Uow.Repo<AmbalajUretimHareketi>().Rows); Assert.Empty(f.Finans.Models);
         Assert.Equal(0, f.Uow.Repo<AmbalajUretimKaydi>().UpdateCount);
     }
 
     [Theory]
     [InlineData(false, "Seçim düzeltme", 403)]
-    [InlineData(true, null, 400)]
+    [InlineData(true, null, 200)]
     [InlineData(true, "Seçim düzeltme", 200)]
-    public async Task PlanKaydet_FormSonrasiSecim_EskiKritikKapiVeTarihleriKorur(bool allowed, string? reason, int expected)
+    public async Task PlanKaydet_FormSonrasiSecim_KritikIzinVeTarihleriKorurGerekceIstemez(bool allowed, string? reason, int expected)
     {
-        var f = new Fixture(allowed ? [AmbalajMenuKodlari.KritikVeriDuzenle, AmbalajMenuKodlari.FormSonrasiSecimDegistir] : []);
+        var f = new Fixture(allowed ? [YetkiKodlari.Ambalaj.KritikVeriDuzenle, YetkiKodlari.Ambalaj.FormSonrasiSecimDegistir] : []);
         var row = f.Add(1, AmbalajUretimDurumu.Tamamlandi); f.FormEkle(row);
         var tarih = row.UretimTarihi; var bitis = row.TamamlanmaTarihi;
         var result = await f.Save(new() { ProjeId = 10, SeciliKaynakSandikIds = [], Gerekce = reason });
@@ -134,12 +132,11 @@ public sealed class AmbalajPlanKaydetYasamDongusuTests
     [Fact]
     public async Task DurumKomutu_IlkFormYokken_Hala409VeHicbirDegisiklikYok()
     {
-        var f = new Fixture(AmbalajMenuKodlari.DurumDuzenle); var row = f.Add(1);
-        var called = false;
-        var result = await new AmbalajYasamDongusuBehavior<AmbalajUretimDurumuGuncelleCommand, Result<AmbalajUretimKaydiDto>>(
-            f.Uow, f.Roles, f.User).Handle(new() { Id = row.Id, Durum = AmbalajUretimDurumu.Uretimde },
-            () => { called = true; return Task.FromResult(Result<AmbalajUretimKaydiDto>.Success(new())); }, default);
-        Assert.Equal(409, result.StatusCode); Assert.False(called);
+        var f = new Fixture(YetkiKodlari.Ambalaj.DurumDuzenle); var row = f.Add(1);
+        var handler = new AmbalajUretimDurumuGuncelleCommandHandler(f.Uow, f.User, f.Finans, f.Roles,
+            new AmbalajKritikIslemDenetimi(f.Uow, f.Roles, f.User));
+        var result = await handler.Handle(new() { Id = row.Id, Durum = AmbalajUretimDurumu.Uretimde }, default);
+        Assert.Equal(409, result.StatusCode); Assert.Equal(0, f.Uow.SaveCount);
         Assert.Equal(AmbalajUretimDurumu.Planlandi, row.UretimDurumu); Assert.Null(row.UretimTarihi);
     }
 
@@ -176,9 +173,9 @@ public sealed class AmbalajPlanKaydetYasamDongusuTests
         }
         public Task<Result<AmbalajPlanlamaPlanDto>> Save(AmbalajPlanKaydetCommand command)
         {
-            var handler = new AmbalajPlanKaydetCommandHandler(Uow, User, Sync, Finans);
-            return new AmbalajYasamDongusuBehavior<AmbalajPlanKaydetCommand, Result<AmbalajPlanlamaPlanDto>>(
-                Uow, Roles, User).Handle(command, () => handler.Handle(command, default), default);
+            var handler = new AmbalajPlanKaydetCommandHandler(Uow, User, Roles, Sync, Finans,
+                new AmbalajKritikIslemDenetimi(Uow, Roles, User));
+            return handler.Handle(command, default);
         }
     }
     private sealed class Roles(params string[] allowed) : IRolService
@@ -186,7 +183,6 @@ public sealed class AmbalajPlanKaydetYasamDongusuTests
         public List<string> Checked { get; } = [];
         public Task<bool> HasUserPermissionAsync(int userId, string code, YetkiTipi type, CancellationToken ct = default)
         { Checked.Add(code); return Task.FromResult(type == YetkiTipi.R || allowed.Contains(code)); }
-        public Task<bool> IsAdminAsync(int userId, CancellationToken ct = default) => Task.FromResult(false);
         public Task<List<MenuTanimi>> GetMenuAgaciAsync(CancellationToken ct = default) => throw new NotSupportedException();
         public Task<List<RolYetki>> GetRolYetkileriAsync(int rolId, CancellationToken ct = default) => throw new NotSupportedException();
         public Task YetkileriGuncelleAsync(int rolId, List<RolYetki> yetkiler, CancellationToken ct = default) => throw new NotSupportedException();
@@ -194,9 +190,9 @@ public sealed class AmbalajPlanKaydetYasamDongusuTests
     private sealed class Sync : IAmbalajKaynakSenkronizasyonService
     {
         public int Calls { get; private set; }
-        public Task<Result<AmbalajSenkronizasyonSonucuDto>> SenkronizeEtAsync(int projeId, ICurrentUserService user,
-            CancellationToken ct, bool sonucKayitlariniOlustur = true)
-        { Calls++; return Task.FromResult(Result<AmbalajSenkronizasyonSonucuDto>.Success(new(0, 0, 0, 0, []))); }
+        public Task<Result<AmbalajSenkronizasyonSonucu>> SenkronizeEtAsync(int projeId, ICurrentUserService user,
+            CancellationToken ct)
+        { Calls++; return Task.FromResult(Result<AmbalajSenkronizasyonSonucu>.Success(new(0, 0, 0))); }
     }
     private sealed class Finans : IFinansUretimAktarimService
     {

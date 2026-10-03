@@ -4,6 +4,7 @@ using _3K.Application.Common;
 using _3K.Application.Features.SandikIslemleri.DTOs;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.SandikIslemleri.Commands
 {
@@ -36,6 +37,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             if (string.IsNullOrWhiteSpace(request.SandikNo))
                 return Result<SandikDto>.Failure("Sandık numarası boş olamaz.", 400);
+            if (!SandikTipiKurali.Gecerli(request.TipId))
+                return Result<SandikDto>.Failure(SandikTipiKurali.Mesaj, 400);
 
             var mevcutSandik = await _sandikService.GetSandikByNoAsync(request.ProjeId, request.SandikNo);
             if (mevcutSandik != null)
@@ -47,7 +50,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 ProjeId = request.ProjeId,
                 SandikNo = request.SandikNo,
                 Ad = request.SandikIsmi,
-                TipId = request.TipId,
+                TipId = request.TipId!.Value,
                 DurumId = (int)SandikDurum.Bos,
                 DepoLokasyonId = request.DepoLokasyonId,
                 En = request.En,
@@ -74,6 +77,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 DurumMetni = _lookupCache.GetDeger<LookupSandikDurum>(sandik.DurumId),
                 DepoLokasyonId = sandik.DepoLokasyonId,
                 DepoLokasyonMetni = _lookupCache.GetDeger<LookupDepoLokasyon>(sandik.DepoLokasyonId),
+                TipId = sandik.TipId,
+                TipMetni = _lookupCache.GetDeger<LookupSandikTipi>(sandik.TipId),
                 UrunSayisi = 0
             };
 

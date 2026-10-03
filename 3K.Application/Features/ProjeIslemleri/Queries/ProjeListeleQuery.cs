@@ -1,4 +1,3 @@
-using MediatR;
 using _3K.Application.Common;
 using _3K.Application.Features.ProjeIslemleri.DTOs;
 

@@ -182,7 +182,6 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                     var sandikMiktari = tahsisMiktarlari[tahsisIndex];
                     var tekTahsis = tahsisler.Count == 1;
                     var sandikKonulan = sandikKonulanMiktarlari[tahsisIndex];
-                    var sandikTrafoSevk = sandikTrafoSevkMiktarlari[tahsisIndex];
                     var sandikStok = tekTahsis
                         ? cs.StokKarsilanan
                         : Math.Min(icerik?.StokKarsilanan ?? 0, sandikMiktari);
@@ -199,10 +198,6 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                         GridUcKSevkPartisiKurali.GeriGonderilebilirMiktariHesapla(cs, icerik);
                     var gridGeriGonderimeAcik =
                         GridUcKSevkPartisiKurali.GeriGonderimeAcikMi(cs, icerik);
-                    var sandikProjeGonderilen = SandikTahsisHelper.ToplamdanTahsisPayi(
-                        projeGonderilen,
-                        sandikMiktari,
-                        toplamTahsisMiktari);
                     // Merkezi kalan; Grid Kapandı/İptal, Trafo Sevk, saha tamamlama,
                     // hatalı ürün ve transfer kurallarını içerir. Burada yalnızca bu
                     // toplamın sandık payı gösterilir; iş kuralı yeniden hesaplanmaz.
@@ -259,14 +254,16 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                         Birim = ((Birim)cs.BirimId).ToString(),
                         GridDurumuId = cs.GridDurumuId,
                         GridDurumuMetni = _lookupCache.GetDeger<LookupGridDurum>(cs.GridDurumuId),
-                        GridGelenAdet = SandikTahsisHelper.ToplamdanTahsisPayi(cs.GridGelenAdet, sandikMiktari, toplamTahsisMiktari),
+                        // Grid tarafı ve 3K satır sayaçları (Grid gelen, Trafo, aktif sevk, hatalı,
+                        // geri gönderilen, başka projeye verilen) sandığa bölünmez: sandık bazlı kaynakları
+                        // yoktur ve oranlı pay adet biriminde kesir üretir. Sandık bazlı teslim kararları
+                        // AktifGridSevkPartisi* ve GridGeriGonderilebilirMiktar alanlarından gelir.
+                        GridGelenAdet = cs.GridGelenAdet,
                         ToplamGridGelenAdet = cs.GridGelenAdet,
-                        TrafoSevkAdet = sandikTrafoSevk,
+                        TrafoSevkAdet = cs.TrafoSevkAdet,
                         GridSevkDurumuId = cs.GridSevkDurumuId,
                         GridSevkDurumuMetni = _lookupCache.GetDeger<LookupGridSevkDurum>(cs.GridSevkDurumuId),
-                        GridSevkMiktari = cs.GridSevkMiktari.HasValue
-                        ? SandikTahsisHelper.ToplamdanTahsisPayi(cs.GridSevkMiktari.Value, sandikMiktari, toplamTahsisMiktari)
-                        : null,
+                        GridSevkMiktari = cs.GridSevkMiktari,
                         AktifGridSevkPartisiTeslimeAcikMi = aktifGridSevkPartisiSatirdaTeslimeAcik,
                         AktifGridSevkPartisiKalanMiktari = aktifGridSevkPartisiKalanMiktari,
                         AktifGridSevkPartisiFazlaTeslimeAcikMi = aktifGridSevkPartisiFazlaTeslimeAcik,
@@ -277,13 +274,13 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                         GelenMiktar = sandikGelen,
                         ToplamUcKGelenMiktar = gorunenUcKGelen,
                         KarsilananMiktar = sandikStok + sandikProje + sandikTedarikci,
-                        HataliMiktar = SandikTahsisHelper.ToplamdanTahsisPayi(cs.HataliMiktar, sandikMiktari, toplamTahsisMiktari),
+                        HataliMiktar = cs.HataliMiktar,
                         KaynakHedefProjeNo = cs.KaynakHedefProjeNo,
                         GeriGonderilmeSebebiId = cs.GeriGonderilmeSebebiId,
                         GeriGonderilmeSebebiMetni = cs.GeriGonderilmeSebebiId.HasValue
                         ? _lookupCache.GetDeger<LookupGeriGonderilmeSebebi>(cs.GeriGonderilmeSebebiId.Value)
                         : null,
-                        GeriGonderilenMiktar = SandikTahsisHelper.ToplamdanTahsisPayi(cs.GeriGonderilenMiktar, sandikMiktari, toplamTahsisMiktari),
+                        GeriGonderilenMiktar = cs.GeriGonderilenMiktar,
                         UcKAciklama = cs.UcKAciklama,
                         GridAciklama = cs.GridAciklama,
                         Kalan = sandikKalan,
@@ -297,7 +294,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                         // Madde 2: Parçalı karşılama
                         StokKarsilanan = sandikStok,
                         ProjeKarsilanan = sandikProje,
-                        ProjeGonderilen = sandikProjeGonderilen,
+                        ProjeGonderilen = projeGonderilen,
                         NetKullanilabilir = sandikKonulan,
                         TransferZinciriVar = transferZinciri.Any(),
                         TransferZinciri = transferZinciri,

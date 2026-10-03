@@ -26,96 +26,48 @@ namespace _3K.Application.Behaviors
             {
                 return await next();
             }
+            catch (ResultRollbackException ex) when (ex.Result.Error is { } error)
+            {
+                // İç içe atomik bir adım başarısız oldu; bütün transaction geri alındı.
+                return Failure(error.Message, error.Code, error.Issues);
+            }
             catch (CekiRevizyonValidationException ex)
             {
-                return CreateFailureResult(ex.Message, 400, ex.Sorunlar);
+                return Failure(ex.Message, 400, ex.Sorunlar);
             }
             catch (CekiRevizyonConflictException ex)
             {
-                return CreateFailureResult(ex.Message, 409, ex.Sorunlar);
+                return Failure(ex.Message, 409, ex.Sorunlar);
             }
-            catch (ConcurrencyConflictException ex)
+            catch (Exception ex) when (ex is ConcurrencyConflictException
+                                           or UniqueConstraintViolationException
+                                           or ReferentialIntegrityConflictException)
             {
-                return CreateFailureResult(ex.Message, 409);
-            }
-            catch (UniqueConstraintViolationException ex)
-            {
-                return CreateFailureResult(ex.Message, 409);
-            }
-            catch (ReferentialIntegrityConflictException ex)
-            {
-                return CreateFailureResult(ex.Message, 409);
+                return Failure(ex.Message, 409);
             }
             catch (ProjectLockedException ex)
             {
-                // İş kuralı hatası olarak yakala ve 400 ile dön
-                return CreateFailureResult(ex.Message, 400);
+                return Failure(ex.Message, 400);
+            }
+            catch (IsKuraliException ex)
+            {
+                return Failure(ex.Message, ex.StatusCode);
             }
             catch (Exception ex)
             {
-                var requestName = typeof(TRequest).Name;
-                var correlationId = Guid.NewGuid().ToString("N")[..8]; // 8 karakterlik kısa takip ID
+                var correlationId = Guid.NewGuid().ToString("N")[..8];
 
                 _logger.LogError(ex,
                     "[{CorrelationId}] Beklenmeyen hata oluştu. İstek: {RequestName}, Tip: {ExceptionType}, Detay: {Message}",
-                    correlationId, requestName, ex.GetType().Name, ex.Message);
+                    correlationId, typeof(TRequest).Name, ex.GetType().Name, ex.Message);
 
-                return CreateFailureResult($"Beklenmeyen bir hata oluştu. Takip kodu: {correlationId}", 500);
+                return Failure($"Beklenmeyen bir hata oluştu. Takip kodu: {correlationId}", 500);
             }
         }
 
-        /// <summary>
-        /// TResponse tipinden uygun Failure Result'ı üretir.
-        /// </summary>
-        private static TResponse CreateFailureResult(string message, int code, object? issues = null)
-        {
-            var responseType = typeof(TResponse);
-
-            // TResponse doğrudan Result ise
-            if (responseType == typeof(Result))
-            {
-                return (TResponse)(object)(issues == null
-                    ? Result.Failure(message, code)
-                    : Result.Failure(message, code, issues));
-            }
-
-            // TResponse generic Result<T> ise
-            if (responseType.IsGenericType && responseType.GetGenericTypeDefinition() == typeof(Result<>))
-            {
-                var parameterTypes = issues == null
-                    ? new[] { typeof(string), typeof(int) }
-                    : new[] { typeof(string), typeof(int), typeof(object) };
-                var failureMethod = responseType.GetMethod(
-                    "Failure",
-                    System.Reflection.BindingFlags.Public |
-                    System.Reflection.BindingFlags.Static |
-                    System.Reflection.BindingFlags.DeclaredOnly,
-                    binder: null,
-                    types: parameterTypes,
-                    modifiers: null);
-                if (failureMethod != null)
-                {
-                    var arguments = issues == null
-                        ? new object[] { message, code }
-                        : new[] { (object)message, code, issues };
-                    return (TResponse)failureMethod.Invoke(null, arguments)!;
-                }
-            }
-
-            // TResponse için IsSuccess ve Message property'leri olan sınıfları destekle (SandikKapatResult gibi)
-            var isSuccessProp = responseType.GetProperty("IsSuccess");
-            var messageProp = responseType.GetProperty("Message");
-
-            if (isSuccessProp != null && messageProp != null && responseType.GetConstructor(Type.EmptyTypes) != null)
-            {
-                var instance = Activator.CreateInstance(responseType);
-                isSuccessProp.SetValue(instance, false);
-                messageProp.SetValue(instance, message);
-                return (TResponse)instance!;
-            }
-
-            // Result pattern kullanmayan eski tipte komutlar — burada yeniden fırlatmak zorundayız
-            throw new InvalidOperationException($"Beklenmeyen bir hata oluştu: {message}");
-        }
+        private static TResponse Failure(string message, int code, object? issues = null) =>
+            PipelineResultFactory.TryCreateFailure<TResponse>(message, code, issues, out var failure)
+                ? failure
+                : throw new InvalidOperationException($"Beklenmeyen bir hata oluştu: {message}");
     }
 }

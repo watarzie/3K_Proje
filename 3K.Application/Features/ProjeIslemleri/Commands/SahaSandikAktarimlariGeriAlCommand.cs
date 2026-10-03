@@ -14,6 +14,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
         IRequiresMenuPermission
     {
         public string RequiredMenuKod => "saha-aktarim-geri-al";
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
         public int SahaSandikId { get; set; }
         public string? Aciklama { get; set; }
     }

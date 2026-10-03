@@ -335,7 +335,6 @@ public sealed class GridSevkTahsisKapasitesiTests
     {
         public int? UserId => 7;
         public bool IsAuthenticated => true;
-        public string? MenuKod => null;
     }
 
     private sealed class DurumStub : IDurumHesaplaService

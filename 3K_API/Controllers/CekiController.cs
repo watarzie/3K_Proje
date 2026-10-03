@@ -95,13 +95,6 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
 
-        [HttpGet("{cekiId}/satirlar")]
-        public async Task<ActionResult> GetSatirlari(int cekiId)
-        {
-            var result = await _mediator.Send(new CekiSatirlariQuery { CekiId = cekiId });
-            return result.ToActionResult();
-        }
-
         [Authorize]
         [HttpGet("revizyon-gecmisi/{projeId:int}")]
         public async Task<ActionResult> RevizyonGecmisi(int projeId, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
@@ -123,8 +116,7 @@ namespace _3K_API.Controllers
         public async Task<ActionResult> RevizyonDosya(int projeId, string kaynak, int kayitId)
         {
             var result = await _mediator.Send(new GetCekiRevizyonDosyaQuery { ProjeId = projeId, Kaynak = kaynak, KayitId = kayitId }, HttpContext.RequestAborted);
-            if (!result.IsSuccess) return result.ToActionResult();
-            return File(result.Value!.Icerik, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", result.Value.DosyaAdi);
+            return result.ToFileResult();
         }
 
         private int GetKullaniciId()

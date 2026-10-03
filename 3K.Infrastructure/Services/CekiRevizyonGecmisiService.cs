@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using _3K.Core.Constants;
-using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
@@ -97,7 +96,7 @@ public sealed class CekiRevizyonGecmisiService : ICekiRevizyonGecmisiService
         return result;
     }
 
-    public async Task<CekiRevizyonDosyasi?> DosyaAsync(int projeId, string kaynak, int kayitId, CancellationToken cancellationToken)
+    public async Task<DosyaIcerigi?> DosyaAsync(int projeId, string kaynak, int kayitId, CancellationToken cancellationToken)
     {
         var row = await Sorgu(projeId).FirstOrDefaultAsync(r => r.Kaynak == kaynak && r.KayitId == kayitId, cancellationToken);
         if (row == null) return null;
@@ -123,7 +122,7 @@ public sealed class CekiRevizyonGecmisiService : ICekiRevizyonGecmisiService
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
         }
         if (expectedHash != null && !string.Equals(Convert.ToHexString(SHA256.HashData(bytes)), expectedHash, StringComparison.OrdinalIgnoreCase)) return null;
-        return new CekiRevizyonDosyasi(bytes, DosyaAdi(row));
+        return DosyaIcerigi.Excel(bytes, DosyaAdi(row));
     }
 
     public static CekiRevizyonOnizlemeSonuc? SnapshotOku(string json, string hash, int surum, int projeId, int anaCekiId)

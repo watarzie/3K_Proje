@@ -1,6 +1,7 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Core.Enums;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.PdfIslemleri.Queries
 {
@@ -10,11 +11,12 @@ namespace _3K.Application.Features.PdfIslemleri.Queries
         Excel = 2
     }
 
-    public sealed class GetTopluEksikUrunlerRaporuQuery
-        : IRequest<Result<byte[]>>, ISecuredRequest, IRequiresMenuPermission
+    /// <summary>
+    /// Seçili projelerin eksik raporlarını tek ZIP'te döner. ProjeTipi raporun kapsamıdır;
+    /// yetki her projenin veritabanındaki gerçek tipinden ayrıca doğrulanır.
+    /// </summary>
+    public sealed class GetTopluEksikUrunlerRaporuQuery : IRequest<Result<DosyaIcerigi>>, ISecuredRequest
     {
-        public string RequiredMenuKod => EksikUrunlerRaporYetkisi.GetMenuKod(ProjeTipi);
-
         public ProjeTipi ProjeTipi { get; init; } = ProjeTipi.Normal;
 
         public IReadOnlyCollection<int> ProjeIds { get; init; } = Array.Empty<int>();

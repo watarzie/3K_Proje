@@ -10,6 +10,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
     public class GetSahaAktarimlariQuery : IRequest<Result<List<SahaAktarimDto>>>, ISecuredRequest, IRequiresMenuPermission
     {
         public string RequiredMenuKod => "saha-aktarim-geri-al";
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.R;
         public int ProjeId { get; set; }
     }
 

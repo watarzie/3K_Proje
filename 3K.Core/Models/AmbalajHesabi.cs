@@ -85,6 +85,16 @@ namespace _3K.Core.Models
         public const string FormulVersiyonu = "KER-2026-03";
         public const decimal VarsayilanSarfOrani = 0.11m;
 
+        /// <summary>Kaynak sandık ölçüleri dış ölçüdür; formül iç ölçüyle çalıştığı için bu farklar düşülür.</summary>
+        public const decimal KaynakDisOlcuBoyEnFarki = 92m;
+        public const decimal KaynakDisOlcuYukseklikFarki = 255m;
+
+        public static bool KaynakDisOlculeriGecerli(decimal? boy, decimal? en, decimal? yukseklik) =>
+            boy > KaynakDisOlcuBoyEnFarki && en > KaynakDisOlcuBoyEnFarki && yukseklik > KaynakDisOlcuYukseklikFarki;
+
+        public static AmbalajOlculeri KaynakIcOlculeri(decimal boy, decimal en, decimal yukseklik) =>
+            new(boy - KaynakDisOlcuBoyEnFarki, en - KaynakDisOlcuBoyEnFarki, yukseklik - KaynakDisOlcuYukseklikFarki);
+
         private const decimal TahtaEn = 93m;
         private const decimal TahtaYukseklik = 23m;
         private const decimal TakozKesit = 93m;

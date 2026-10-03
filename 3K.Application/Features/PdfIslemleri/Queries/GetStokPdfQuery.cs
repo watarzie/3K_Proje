@@ -1,31 +1,19 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.PdfIslemleri.Queries
 {
-    public class GetStokPdfQuery : IRequest<Result<byte[]>>, ISecuredRequest { }
+    public class GetStokPdfQuery : IRequest<Result<DosyaIcerigi>>, ISecuredRequest { }
 
-    public class GetStokPdfQueryHandler : IRequestHandler<GetStokPdfQuery, Result<byte[]>>
+    public sealed class GetStokPdfQueryHandler(IStokRaporService stokRaporu)
+        : IRequestHandler<GetStokPdfQuery, Result<DosyaIcerigi>>
     {
-        private readonly IPdfService _pdfService;
-
-        public GetStokPdfQueryHandler(IPdfService pdfService)
+        public async Task<Result<DosyaIcerigi>> Handle(GetStokPdfQuery request, CancellationToken cancellationToken)
         {
-            _pdfService = pdfService;
-        }
-
-        public async Task<Result<byte[]>> Handle(GetStokPdfQuery request, CancellationToken cancellationToken)
-        {
-            try
-            {
-                var pdf = await _pdfService.StokRaporuPdfOlusturAsync();
-                return Result<byte[]>.Success(pdf);
-            }
-            catch (Exception ex)
-            {
-                return Result<byte[]>.Failure(ex.Message);
-            }
+            var pdf = await stokRaporu.StokRaporuPdfOlusturAsync();
+            return Result<DosyaIcerigi>.Success(DosyaIcerigi.Pdf(pdf, $"StokRaporu_{RaporDosyaAdi.Tarih()}.pdf"));
         }
     }
 }

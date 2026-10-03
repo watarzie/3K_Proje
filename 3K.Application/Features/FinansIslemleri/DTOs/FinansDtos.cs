@@ -1,84 +1,104 @@
+using _3K.Core.Enums;
 using _3K.Core.Models;
 
-namespace _3K.Application.Features.FinansIslemleri.DTOs
+namespace _3K.Application.Features.FinansIslemleri.DTOs;
+
+public sealed record FinansIptalDto(string Aciklama);
+
+/// <summary>
+/// Özel iş ekranının gönderdiği istek. Özel iş, iş türü <see cref="FinansIsTuru.OzelIs"/> olan manuel
+/// iş kaydıdır: ekrandaki serbest iş türü <c>OzelIsTuru</c>'na, iş tarihi hem üretim tarihine hem
+/// finans dönemine yazılır.
+/// </summary>
+public sealed record FinansOzelIsKaydetDto(
+    string IsTuru,
+    string Musteri,
+    int? ProjeId,
+    string IsAdi,
+    string? Aciklama,
+    decimal Miktar,
+    string Birim,
+    DateTime IsTarihi,
+    FinansHesaplamaYontemi HesaplamaYontemi,
+    string RaporGrubu,
+    decimal BirimFiyat,
+    string ParaBirimi,
+    decimal KdvOrani,
+    string? TalepEdenKisi = null,
+    string? TalepEdenBolum = null)
 {
-    /// <summary>
-    /// Menüye erişebilen herkesin görebileceği, parasal veri içermeyen operasyon özeti.
-    /// Gelir, gider ve net tutarlar ayrı izinli sorgulardan döner.
-    /// </summary>
-    public sealed record FinansDashboardDto(
-        int ToplamIs,
-        decimal ToplamSandik,
-        decimal ToplamM3,
-        int SiparisBekleyen,
-        int SiparisAcik,
-        int KismiSiparis,
-        int FaturaBekleyen,
-        int Faturalanan,
-        int BuAyOzelIs,
-        decimal? BuAyGider);
+    public FinansIsKaydiKaydetModel IsKaydiModeli() => new(
+        ProjeId, null, null, Musteri, FinansIsTuru.OzelIs,
+        IsAdi, Aciklama, TalepEdenKisi, TalepEdenBolum, Miktar, Birim, 0m,
+        null, BirimFiyat, ParaBirimi, KdvOrani,
+        IsTarihi.Date, IsTarihi.Date,
+        OzelIsTuru: IsTuru,
+        HesaplamaYontemi: HesaplamaYontemi,
+        RaporGrubu: RaporGrubu);
+}
 
-    public sealed record FinansHassasOzetDto(IReadOnlyList<FinansParaToplamiModel> Tutarlar);
-    public sealed record FinansDurumTutarOzetiDto(
-        IReadOnlyList<FinansParaToplamiModel> SiparisBekleyen,
-        IReadOnlyList<FinansParaToplamiModel> SiparisAcik,
-        IReadOnlyList<FinansParaToplamiModel> Faturalanan);
-    public sealed record FinansIptalDto(string Aciklama);
-    public sealed record FinansDosyaDto(byte[] Icerik, string IcerikTuru, string DosyaAdi);
+/// <summary>
+/// Gider ekranının gönderdiği istek. Boş bırakılan alanlar gider varsayılanlarıyla tamamlanır: finans
+/// dönemi gider tarihinin ayı, miktar 1, birim "Tutar", birim fiyat girilen tutar.
+/// </summary>
+public sealed record FinansGiderKaydetDto(
+    DateTime Tarih,
+    int KategoriId,
+    string? AltKategori,
+    string? FirmaVeyaKisi,
+    string Aciklama,
+    decimal Tutar,
+    string ParaBirimi,
+    bool KdvDahil,
+    decimal KdvOrani,
+    int? ProjeId,
+    FinansIsTuru? IsTuru,
+    decimal? Miktar = null,
+    string? Birim = null,
+    decimal? BirimFiyat = null,
+    int? GiderKalemiId = null,
+    DateTime? FinansDonemi = null,
+    string? BelgeNo = null,
+    bool AvansMi = false,
+    int? MahsupEdilenAvansId = null,
+    DateTime? FinansTarihi = null,
+    int? FinansSiparisId = null)
+{
+    public FinansGiderKaydetModel GiderModeli() => new(
+        Tarih, FinansDonemi ?? FinansTarihKurallari.AyBasi(Tarih),
+        KategoriId, GiderKalemiId, AltKategori, FirmaVeyaKisi,
+        Aciklama, Miktar ?? 1m, Birim ?? "Tutar", BirimFiyat ?? Tutar, ParaBirimi,
+        KdvDahil, KdvOrani, ProjeId, null, IsTuru, BelgeNo, AvansMi, MahsupEdilenAvansId, FinansTarihi, FinansSiparisId);
+}
 
-    public static class FinansHassasAlanMaskeleme
-    {
-        public static FinansIsKaydiModel IsKaydi(FinansIsKaydiModel value)
-            => value with
-            {
-                BirimFiyat = 0,
-                ParaBirimi = string.Empty,
-                KdvOrani = 0,
-                NetTutar = 0,
-                KdvTutari = 0,
-                ToplamTutar = 0
-            };
-
-        public static FinansSiparisModel Siparis(FinansSiparisModel value)
-            => value with
-            {
-                Tutarlar = Array.Empty<FinansParaToplamiModel>(),
-                Kalemler = value.Kalemler.Select(line => line with
-                {
-                    BirimFiyat = 0,
-                    ParaBirimi = string.Empty,
-                    KdvOrani = 0,
-                    NetTutar = 0,
-                    KdvTutari = 0,
-                    ToplamTutar = 0
-                }).ToArray()
-            };
-
-        public static FinansFaturaModel Fatura(FinansFaturaModel value)
-            => value with
-            {
-                Tutarlar = Array.Empty<FinansParaToplamiModel>(),
-                BelgeParaBirimi = null,
-                BelgeNetTutar = null,
-                BelgeKdvTutari = null,
-                BelgeToplamTutar = null,
-                MutabakatFarki = 0,
-                MutabakatAciklamasi = null
-            };
-
-        public static FinansUrunModel Urun(FinansUrunModel value)
-            => new()
-            {
-                Id = value.Id,
-                Kod = value.Kod,
-                Ad = value.Ad,
-                FiyatlandirmaBirimi = value.FiyatlandirmaBirimi,
-                Aktif = value.Aktif,
-                Sira = value.Sira,
-                GuncelBirimFiyat = null,
-                GuncelParaBirimi = null,
-                GuncelKdvOrani = null,
-                Eslesmeler = value.Eslesmeler
-            };
-    }
+/// <summary>
+/// Düzenli iş ekranının gönderdiği istek. Düzenli işler özel iş türünde ve ürünsüz tanımlanır; ekrandaki
+/// serbest iş türü <c>OzelIsTuru</c>'na yazılır. Tekrar sıklığı her zaman aylıktır; gönderilen değer
+/// kullanılmaz.
+/// </summary>
+public sealed record FinansDuzenliIsKaydetDto(
+    int? ProjeId,
+    string IsAdi,
+    string IsTuru,
+    string Musteri,
+    string? Aciklama,
+    string TekrarSikligi,
+    DateTime BaslangicTarihi,
+    DateTime? BitisTarihi,
+    int OlusturmaGunu,
+    decimal Miktar,
+    string Birim,
+    decimal BirimFiyat,
+    string ParaBirimi,
+    decimal KdvOrani,
+    bool Aktif,
+    FinansHesaplamaYontemi HesaplamaYontemi = FinansHesaplamaYontemi.DegiskenAdet,
+    string RaporGrubu = "Özel İş")
+{
+    public FinansDuzenliIsKaydetModel DuzenliIsModeli() => new(
+        ProjeId, null, null, IsAdi, FinansIsTuru.OzelIs,
+        Musteri, Aciklama, BaslangicTarihi, BitisTarihi,
+        OlusturmaGunu, Miktar, Birim, null, BirimFiyat,
+        ParaBirimi, KdvOrani, Aktif, IsTuru,
+        HesaplamaYontemi, RaporGrubu);
 }

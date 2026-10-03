@@ -1,4 +1,5 @@
 using System.Text.Json;
+using _3K.Application.Common;
 using _3K.Application.Features.AmbalajIslemleri.DTOs;
 using _3K.Core.Entities;
 using _3K.Core.Helpers;
@@ -9,32 +10,23 @@ namespace _3K.Application.Features.AmbalajIslemleri;
 
 internal static class AmbalajYasamDongusuYardimcisi
 {
-    public static AmbalajUretimFormuModel? KayitliForm(IUnitOfWork uow, int? kayitId, int? projeId,
-        string? manuelProjeNo, IReadOnlyCollection<int>? kayitIds = null,
-        _3K.Core.Enums.AmbalajSandikTuru? tur = null, bool? bagimsizKayitMi = null)
+    /// <summary>
+    /// Projenin üretim formu oluşturulmuş aktif ve ambalaja dahil sandıklarından, istenen tür ve bağımsızlık
+    /// durumundakilerin formunu güncel veriden yeniden hesaplar (D10: form sürümü tutulmaz; "tüm üretim
+    /// formlarını indir" her seferinde güncel veriyi gösterir). Formu olan sandık yoksa null döner.
+    /// </summary>
+    public static async Task<Result<AmbalajUretimFormuModel>?> GuncelFormAsync(IUnitOfWork uow, int projeId,
+        _3K.Core.Enums.AmbalajSandikTuru? tur, bool bagimsizKayitMi, CancellationToken cancellationToken)
     {
-        var forms = uow.GetRepository<AmbalajUretimFormuSurumu>().Queryable();
-        if (projeId.HasValue) forms = forms.Where(x => x.ProjeId == projeId);
-        if (!string.IsNullOrWhiteSpace(manuelProjeNo)) forms = forms.Where(x => x.KapsamAnahtari == "M:" + manuelProjeNo.Trim());
-        var ids = kayitIds?.Distinct().ToArray() ?? (kayitId.HasValue ? [kayitId.Value] : []);
-        if (ids.Length > 0)
-        {
-            var links = uow.GetRepository<AmbalajUretimFormuKaydi>().Queryable();
-            forms = forms.Where(x => links.Count(l => l.FormSurumuId == x.Id && ids.Contains(l.AmbalajUretimKaydiId)) == ids.Length);
-        }
-        var entity = forms.OrderByDescending(x => x.CreatedDate).ThenByDescending(x => x.Surum).FirstOrDefault();
-        if (entity == null) return null;
-        var form = JsonSerializer.Deserialize<AmbalajUretimFormuModel>(entity.SnapshotJson)!;
-        if (ids.Length > 0 || tur.HasValue || bagimsizKayitMi.HasValue)
-        {
-            form.Kalemler = form.Kalemler.Where(x => (ids.Length == 0 || ids.Contains(x.KayitId)) &&
-                (!tur.HasValue || x.Tur == tur) && (!bagimsizKayitMi.HasValue || x.BagimsizKayitMi == bagimsizKayitMi)).ToList();
-            if (form.Kalemler.Count == 0) return null;
-            form.NetM3 = form.Kalemler.Any(x => x.NetM3.HasValue) ? form.Kalemler.Sum(x => x.NetM3) : null;
-            form.SarfM3 = form.Kalemler.Any(x => x.SarfM3.HasValue) ? form.Kalemler.Sum(x => x.SarfM3) : null;
-            form.ToplamM3 = form.Kalemler.Any(x => x.ToplamM3.HasValue) ? form.Kalemler.Sum(x => x.ToplamM3) : null;
-        }
-        return form;
+        var formluKayitlar = uow.GetRepository<AmbalajUretimFormuKaydi>().Queryable()
+            .Select(x => x.AmbalajUretimKaydiId);
+        var ids = uow.GetRepository<AmbalajUretimKaydi>().Queryable()
+            .Where(k => k.ProjeId == projeId && !k.IptalMi && k.AmbalajaDahil && k.BagimsizKayitMi == bagimsizKayitMi &&
+                        (!tur.HasValue || k.Tur == tur) && formluKayitlar.Contains(k.Id))
+            .Select(k => k.Id)
+            .ToList();
+        if (ids.Count == 0) return null;
+        return await AmbalajUretimFormuOlusturucu.OlusturAsync(uow, ids, cancellationToken);
     }
     public static async Task<AmbalajFormSurumuDto> FormDtoAsync(AmbalajUretimFormuSurumu entity,
         IRolService roles, ICurrentUserService user, CancellationToken ct)

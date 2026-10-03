@@ -39,13 +39,6 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
 
-        [HttpPut("degistir")]
-        public async Task<ActionResult> SandikDegistir([FromBody] FiiliSandikDegistirCommand command)
-        {
-            var result = await _mediator.Send(command);
-            return result.ToActionResult();
-        }
-
         [HttpPut("ozellik-guncelle")]
         public async Task<ActionResult> OzellikGuncelle([FromBody] SandikOzellikGuncelleCommand command)
         {
@@ -74,27 +67,6 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
 
-        [HttpPost("iptal")]
-        public async Task<ActionResult> UrunIptal([FromBody] UrunIptalCommand command)
-        {
-            var result = await _mediator.Send(command);
-            return result.ToActionResult();
-        }
-
-        [HttpPost("stoktan-karsila")]
-        public async Task<ActionResult> StoktanKarsila([FromBody] StoktanKarsilaCommand command)
-        {
-            var result = await _mediator.Send(command);
-            return result.ToActionResult();
-        }
-
-        [HttpPost("fbden-karsila")]
-        public async Task<ActionResult> FBDenKarsila([FromBody] FBDenKarsilaCommand command)
-        {
-            var result = await _mediator.Send(command);
-            return result.ToActionResult();
-        }
-
         /// <summary>
         /// Projeye yeni boş sandık ekler — çeki dışı ek sandık ihtiyacı için.
         /// </summary>
@@ -105,35 +77,6 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
 
-        /// <summary>
-        /// 3K personeli ürün teslim alır — kümülatif (parça parça gelebilir).
-        /// </summary>
-        [HttpPut("teslim-al")]
-        public async Task<ActionResult> TeslimAl([FromBody] UcKTeslimAlCommand command)
-        {
-            var result = await _mediator.Send(command);
-            return result.ToActionResult();
-        }
-
-        /// <summary>
-        /// Birden fazla ürünü tek seferde teslim alır.
-        /// </summary>
-        [HttpPost("toplu-teslim-al")]
-        public async Task<ActionResult> TopluTeslimAl([FromBody] UcKTopluTeslimAlCommand command)
-        {
-            var result = await _mediator.Send(command);
-            return result.ToActionResult();
-        }
-
-        /// <summary>
-        /// Grid sevk etti ama 3K tarafında eksik/gelmemiş ürünler raporu.
-        /// </summary>
-        [HttpGet("{projeId}/eksik-urunler")]
-        public async Task<ActionResult> EksikUrunler(int projeId)
-        {
-            var result = await _mediator.Send(new GetEksikUrunlerQuery { ProjeId = projeId });
-            return result.ToActionResult();
-        }
         /// <summary>
         /// Sandık Bölme/Taşıma: Bir sandıktaki ürünlerin bir kısmını başka sandığa taşır.
         /// Örn: 2 nolu sandıktaki 4 ürünün 2'si, 67 nolu sandığa aktarılır.
@@ -190,16 +133,6 @@ namespace _3K_API.Controllers
         public async Task<ActionResult> GetEksikUrunlerByProje(int projeId)
         {
             var result = await _mediator.Send(new _3K.Application.Features.SandikIslemleri.Queries.GetEksikUrunlerByProjeQuery { ProjeId = projeId });
-            return result.ToActionResult();
-        }
-
-        /// <summary>
-        /// Tekil sandık sevk eder.
-        /// </summary>
-        [HttpPost("sevk-et")]
-        public async Task<ActionResult> SandikSevkEt([FromBody] SandikSevkEtCommand command)
-        {
-            var result = await _mediator.Send(command);
             return result.ToActionResult();
         }
 

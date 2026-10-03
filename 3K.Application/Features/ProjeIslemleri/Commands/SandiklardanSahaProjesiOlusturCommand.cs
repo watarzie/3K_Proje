@@ -11,6 +11,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
     public class SandiklardanSahaProjesiOlusturCommand : IRequest<Result<ProjeDto>>, ISecuredRequest, IRequiresMenuPermission
     {
         public string RequiredMenuKod => "sahaya-aktar";
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
 
         public int KaynakProjeId { get; set; }
         public int? HedefSahaProjeId { get; set; }
@@ -38,26 +39,8 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             _sandikService = sandikService;
         }
 
-        public async Task<Result<ProjeDto>> Handle(SandiklardanSahaProjesiOlusturCommand request, CancellationToken cancellationToken)
-        {
-            try
-            {
-                return await _unitOfWork.ExecuteInTransactionAsync(
-                    async transactionCancellationToken =>
-                    {
-                        var result = await HandleInTransactionAsync(request, transactionCancellationToken);
-                        if (!result.IsSuccess)
-                            throw new SandikBazliSahaAktarimRollbackException(result);
-
-                        return result;
-                    },
-                    cancellationToken);
-            }
-            catch (SandikBazliSahaAktarimRollbackException exception)
-            {
-                return exception.Result;
-            }
-        }
+        public Task<Result<ProjeDto>> Handle(SandiklardanSahaProjesiOlusturCommand request, CancellationToken cancellationToken) =>
+            _unitOfWork.ExecuteAtomicAsync(token => HandleInTransactionAsync(request, token), cancellationToken);
 
         private async Task<Result<ProjeDto>> HandleInTransactionAsync(
             SandiklardanSahaProjesiOlusturCommand request,
@@ -220,15 +203,5 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             return int.TryParse(digits, out var number) ? number : int.MaxValue;
         }
 
-        private sealed class SandikBazliSahaAktarimRollbackException : Exception
-        {
-            public SandikBazliSahaAktarimRollbackException(Result<ProjeDto> result)
-                : base(result.Error?.Message ?? "Sandik bazli saha aktarimi geri alindi.")
-            {
-                Result = result;
-            }
-
-            public Result<ProjeDto> Result { get; }
-        }
     }
 }

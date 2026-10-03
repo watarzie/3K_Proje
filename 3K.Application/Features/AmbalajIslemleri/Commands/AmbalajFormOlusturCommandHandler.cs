@@ -4,11 +4,11 @@ using System.Text.Json;
 using MediatR;
 using _3K.Application.Common;
 using _3K.Application.Features.AmbalajIslemleri.DTOs;
-using _3K.Application.Features.AmbalajIslemleri.Queries;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.AmbalajIslemleri.Commands;
 
@@ -22,10 +22,15 @@ public sealed class AmbalajFormOlusturCommandHandler(IUnitOfWork uow, ICurrentUs
         if (!user.IslemKullaniciId.HasValue) return Result<AmbalajFormSurumuDto>.Failure("Oturum gereklidir.", 401);
         var ids = request.KayitIdleri.Distinct().Order().ToArray();
         var sources = request.KaynakSandikIdleri.Distinct().Order().ToArray();
-        if (ids.Length + sources.Length is 0 or > 500 || ids.Concat(sources).Any(id => id <= 0) || request.IdempotencyAnahtari == Guid.Empty)
-            return Result<AmbalajFormSurumuDto>.Failure("1–500 geçerli kayıt ve işlem kimliği gereklidir.");
+        if (ids.Length + sources.Length is 0 or > AmbalajUretimFormuOlusturucu.EnFazlaKayit ||
+            ids.Concat(sources).Any(id => id <= 0) || request.IdempotencyAnahtari == Guid.Empty)
+            return Result<AmbalajFormSurumuDto>.Failure(
+                $"1–{AmbalajUretimFormuOlusturucu.EnFazlaKayit} geçerli kayıt ve işlem kimliği gereklidir.");
+        if (request.FinansTarihi.HasValue && !FinansTarihKurallari.GecerliTarih(request.FinansTarihi.Value))
+            return Result<AmbalajFormSurumuDto>.Failure("Finans tarihi geçerli bir tarih olmalıdır.");
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
-            JsonSerializer.Serialize(new { ids, sources, request.ProjeId, request.YenidenOlustur, Aciklama = request.Aciklama?.Trim() }))));
+            JsonSerializer.Serialize(new { ids, sources, request.ProjeId, request.YenidenOlustur, Aciklama = request.Aciklama?.Trim(),
+                FinansTarihi = request.FinansTarihi?.Date }))));
         var forms = uow.GetRepository<AmbalajUretimFormuSurumu>();
         var tekrar = forms.Queryable().FirstOrDefault(x => x.IdempotencyAnahtari == request.IdempotencyAnahtari);
         if (tekrar != null)
@@ -33,7 +38,8 @@ public sealed class AmbalajFormOlusturCommandHandler(IUnitOfWork uow, ICurrentUs
                 ? Result<AmbalajFormSurumuDto>.Failure("İşlem kimliği farklı içerikle kullanıldı.", 409)
                 : Result<AmbalajFormSurumuDto>.Success(await AmbalajYasamDongusuYardimcisi.FormDtoAsync(tekrar, roles, user, ct));
 
-        return await uow.ExecuteInTransactionAsync(async token =>
+        // Senkronizasyon veya snapshot başarısız olursa önceki bütün değişiklikler geri alınır.
+        return await uow.ExecuteAtomicAsync(async token =>
         {
             if (islemKilidi != null) await islemKilidi.KilitleAsync(token);
             var kilitSonrasiTekrar = forms.Queryable().FirstOrDefault(x => x.IdempotencyAnahtari == request.IdempotencyAnahtari);
@@ -51,10 +57,11 @@ public sealed class AmbalajFormOlusturCommandHandler(IUnitOfWork uow, ICurrentUs
                 ids = ids.Concat(repo.Queryable().Where(k => k.KaynakKayitId.HasValue && sources.Contains(k.KaynakKayitId.Value))
                     .Select(k => k.Id).ToList()).Distinct().Order().ToArray();
             }
-            var kayitlar = (await repo.FindAsync(x => ids.Contains(x.Id))).ToList();
+            // İzlenen sorgu: senkronizasyon bu kayıtları aynı DbContext'te izliyor olabilir; izlenmeyen ikinci
+            // örnek Update ile eklenince EF aynı anahtarı iki kez izleyemez (plan kaydedilmeden form oluşturma).
+            var kayitlar = repo.Queryable().Where(x => ids.Contains(x.Id)).ToList();
             // Bütün seçim ve snapshot doğrulanmadan hiçbir kayıt değiştirilmez.
-            var sonuc = await AmbalajUretimFormuOlusturucu.OlusturAsync(uow, null, null,
-                cancellationToken: token, kayitIdleri: ids, ilkForm: true);
+            var sonuc = await AmbalajUretimFormuOlusturucu.OlusturAsync(uow, ids, token);
             if (!sonuc.IsSuccess) return Result<AmbalajFormSurumuDto>.Failure(sonuc.Error!.Message, sonuc.StatusCode);
             var kapsam = kayitlar[0].ProjeId.HasValue ? $"P:{kayitlar[0].ProjeId}" : $"M:{kayitlar[0].ManuelProjeNo?.Trim()}";
             var onceki = forms.Queryable().Where(x => x.KapsamAnahtari == kapsam).OrderByDescending(x => x.Surum).FirstOrDefault();
@@ -62,8 +69,9 @@ public sealed class AmbalajFormOlusturCommandHandler(IUnitOfWork uow, ICurrentUs
                 .Where(x => ids.Contains(x.AmbalajUretimKaydiId)).Select(x => x.AmbalajUretimKaydiId).ToHashSet();
             if (!request.YenidenOlustur && formKayitIds.Count > 0)
                 return Result<AmbalajFormSurumuDto>.Failure("Seçimde formu bulunan kayıt var. Yeniden oluşturma işlemini kullanın.", 409);
-            if (request.YenidenOlustur && (onceki == null || string.IsNullOrWhiteSpace(request.Aciklama)))
-                return Result<AmbalajFormSurumuDto>.Failure("Yeniden oluşturma için mevcut form ve gerekçe gereklidir.");
+            // A2/D11: üretim formu işlemleri gerekçe istemez; yeniden oluşturma güncel veriyle yapılır.
+            if (request.YenidenOlustur && onceki == null)
+                return Result<AmbalajFormSurumuDto>.Failure("Yeniden oluşturma için projede mevcut üretim formu gereklidir.");
             var proje = kayitlar[0].ProjeId.HasValue ? await uow.GetRepository<Proje>().GetByIdAsync(kayitlar[0].ProjeId!.Value) : null;
             foreach (var kayit in kayitlar)
             {
@@ -74,6 +82,9 @@ public sealed class AmbalajFormOlusturCommandHandler(IUnitOfWork uow, ICurrentUs
                     kayit.UretimDurumu = AmbalajUretimDurumu.Uretimde;
                     kayit.UretimTarihi ??= TurkeyTime.Now;
                 }
+                // A6: formda girilen tarih finans kaleminin varsayılan Finans Tarihi olur.
+                if (request.FinansTarihi.HasValue)
+                    kayit.FinansTarihi = request.FinansTarihi.Value.Date;
                 // Tamamlanmış satırda da xmin karşılaştırılır; paralel form sürümleri çatışır.
                 kayit.UpdatedDate = TurkeyTime.Now;
                 kayit.KaynakSenkronizasyonuKilitliMi = true;

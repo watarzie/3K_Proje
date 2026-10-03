@@ -5,13 +5,14 @@ using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
+using _3K.Core.Constants;
 
 namespace _3K.Application.Features.AmbalajIslemleri.Queries;
 
 public sealed class AmbalajFormSurumleriQueryHandler(IUnitOfWork uow, IRolService roles,
     ICurrentUserService user, IAmbalajRaporDosyaService files)
     : IRequestHandler<GetAmbalajFormSurumleriQuery, Result<IReadOnlyList<AmbalajFormSurumuDto>>>,
-      IRequestHandler<GetAmbalajFormSurumuDosyasiQuery, Result<AmbalajDosyaDto>>
+      IRequestHandler<GetAmbalajFormSurumuDosyasiQuery, Result<DosyaIcerigi>>
 {
     public async Task<Result<IReadOnlyList<AmbalajFormSurumuDto>>> Handle(GetAmbalajFormSurumleriQuery r, CancellationToken ct)
     {
@@ -35,13 +36,13 @@ public sealed class AmbalajFormSurumleriQueryHandler(IUnitOfWork uow, IRolServic
         return Result<IReadOnlyList<AmbalajFormSurumuDto>>.Success(sonuc);
     }
 
-    public async Task<Result<AmbalajDosyaDto>> Handle(GetAmbalajFormSurumuDosyasiQuery r, CancellationToken ct)
+    public async Task<Result<DosyaIcerigi>> Handle(GetAmbalajFormSurumuDosyasiQuery r, CancellationToken ct)
     {
-        if (r.Format is not ("pdf" or "xlsx")) return Result<AmbalajDosyaDto>.Failure("PDF veya XLSX seçiniz.");
+        if (r.Format is not ("pdf" or "xlsx")) return Result<DosyaIcerigi>.Failure("PDF veya XLSX seçiniz.");
         var entity = await uow.GetRepository<AmbalajUretimFormuSurumu>().GetByIdAsync(r.Id);
-        if (entity == null) return Result<AmbalajDosyaDto>.Failure("Form sürümü bulunamadı.", 404);
+        if (entity == null) return Result<DosyaIcerigi>.Failure("Form sürümü bulunamadı.", 404);
         var dto = await AmbalajYasamDongusuYardimcisi.FormDtoAsync(entity, roles, user, ct);
-        return Result<AmbalajDosyaDto>.Success(new(
+        return Result<DosyaIcerigi>.Success(new(
             r.Format == "pdf" ? files.UretimFormuPdfOlustur(dto.Form) : files.UretimFormuExcelOlustur(dto.Form),
             r.Format == "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             $"uretim-formu-{entity.Id}-v{entity.Surum}.{r.Format}"));
@@ -51,7 +52,7 @@ public sealed class AmbalajFormSurumleriQueryHandler(IUnitOfWork uow, IRolServic
 public sealed class AmbalajGerceklesenRaporQueryHandler(IUnitOfWork uow, IRolService roles,
     ICurrentUserService user, IAmbalajRaporDosyaService files)
     : IRequestHandler<GetAmbalajGerceklesenRaporQuery, Result<AmbalajGerceklesenRaporDto>>,
-      IRequestHandler<GetAmbalajGerceklesenRaporDosyasiQuery, Result<AmbalajDosyaDto>>
+      IRequestHandler<GetAmbalajGerceklesenRaporDosyasiQuery, Result<DosyaIcerigi>>
 {
     public async Task<Result<AmbalajGerceklesenRaporDto>> Handle(GetAmbalajGerceklesenRaporQuery r, CancellationToken ct)
     {
@@ -68,7 +69,7 @@ public sealed class AmbalajGerceklesenRaporQueryHandler(IUnitOfWork uow, IRolSer
         if (veriler.Count > 50000) return Result<AmbalajGerceklesenRaporDto>.Failure("50.000 kayıt sınırı aşıldı. Tarih aralığını daraltınız.");
         ct.ThrowIfCancellationRequested();
         var izin = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(roles, user, ct);
-        var raporM3 = await AmbalajYetkilendirmeYardimcisi.YetkiliMiAsync(roles, user, AmbalajMenuKodlari.M3RaporGoruntule, ct, YetkiTipi.R);
+        var raporM3 = await AmbalajYetkilendirmeYardimcisi.YetkiliMiAsync(roles, user, YetkiKodlari.Ambalaj.M3RaporGoruntule, ct, YetkiTipi.R);
         var m3 = izin.M3Gorunur && raporM3;
         var sarf = izin.SarfGorunur && m3;
         var dtos = veriler.Select(x => Dto(x, m3, sarf)).ToList();
@@ -106,11 +107,11 @@ public sealed class AmbalajGerceklesenRaporQueryHandler(IUnitOfWork uow, IRolSer
         SarfDahilM3 = m3 && sarf ? x.NetM3 + x.SarfM3 : null
     };
 
-    public async Task<Result<AmbalajDosyaDto>> Handle(GetAmbalajGerceklesenRaporDosyasiQuery r, CancellationToken ct)
+    public async Task<Result<DosyaIcerigi>> Handle(GetAmbalajGerceklesenRaporDosyasiQuery r, CancellationToken ct)
     {
-        if (r.Format is not ("pdf" or "xlsx")) return Result<AmbalajDosyaDto>.Failure("PDF veya XLSX seçiniz.");
+        if (r.Format is not ("pdf" or "xlsx")) return Result<DosyaIcerigi>.Failure("PDF veya XLSX seçiniz.");
         var result = await Handle(new GetAmbalajGerceklesenRaporQuery { Baslangic = r.Baslangic, Bitis = r.Bitis, ProjeId = r.ProjeId }, ct);
-        if (!result.IsSuccess) return Result<AmbalajDosyaDto>.Failure(result.Error!.Message, result.StatusCode);
+        if (!result.IsSuccess) return Result<DosyaIcerigi>.Failure(result.Error!.Message, result.StatusCode);
         var rapor = result.Value!;
         var satirlar = rapor.Kayitlar.Select(k => new AmbalajRaporSatiri
         {
@@ -121,7 +122,7 @@ public sealed class AmbalajGerceklesenRaporQueryHandler(IUnitOfWork uow, IRolSer
             AmbalajaDahil = true, UretimeAlindi = true, Aciklama = $"Gerçekleşme {k.GerceklesmeKimligi} / sürüm {k.Surum}"
         }).ToList();
         var ozet = new AmbalajRaporOzeti(satirlar.Count, rapor.Toplam.Adet, rapor.Toplam.NetM3, rapor.Toplam.SarfM3, rapor.Toplam.SarfDahilM3);
-        return Result<AmbalajDosyaDto>.Success(new(r.Format == "pdf" ? files.PdfOlustur(satirlar, ozet) : files.ExcelOlustur(satirlar, ozet),
+        return Result<DosyaIcerigi>.Success(new(r.Format == "pdf" ? files.PdfOlustur(satirlar, ozet) : files.ExcelOlustur(satirlar, ozet),
             r.Format == "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             $"gerceklesen-uretim-{r.Baslangic:yyyyMMdd}-{r.Bitis:yyyyMMdd}.{r.Format}"));
     }

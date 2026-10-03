@@ -1,15 +1,19 @@
 namespace _3K.Core.Interfaces
 {
     /// <summary>
-    /// Mevcut HTTP isteğindeki kullanıcı bilgilerini soyutlar.
-    /// JWT Token'dan UserId ve Roller çekilir.
+    /// Mevcut isteğin doğrulanmış kullanıcısı. Kimlik yalnız JWT'den okunur; istemci
+    /// başlıkları (ör. X-Menu-Kod) yetki veya kimlik kaynağı değildir.
     /// </summary>
     public interface ICurrentUserService
     {
         int? UserId { get; }
+
+        /// <summary>İşlemi kaydeden kullanıcı; sistem işlerinde servis kullanıcısıdır.</summary>
         int? IslemKullaniciId => UserId;
+
         bool IsAuthenticated { get; }
-        /// <summary>İstemci ekran ipucu; güvenilir yetki kaynağı değildir.</summary>
-        string? MenuKod { get; }
+
+        /// <summary>JWT'deki görünen ad; yalnız log ve iz kayıtları içindir, yetki kararında kullanılmaz.</summary>
+        string? KullaniciAdi => null;
     }
 }

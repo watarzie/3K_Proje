@@ -9,9 +9,6 @@ namespace _3K.Application.Features.AmbalajIslemleri
 {
     internal static class AmbalajUretimYardimcilari
     {
-        private const decimal DisOlcuBoyEnFarki = 92m;
-        private const decimal DisOlcuYukseklikFarki = 255m;
-
         public static bool KaynakSandikOlculeriMi(AmbalajUretimKaydi kayit) =>
             !kayit.BagimsizKayitMi &&
             kayit.KaynakKayitId.HasValue &&
@@ -19,9 +16,7 @@ namespace _3K.Application.Features.AmbalajIslemleri
 
         public static bool OlculerGecerli(AmbalajUretimKaydi kayit) =>
             kayit.Adet > 0 && (KaynakSandikOlculeriMi(kayit) && AmbalajUretimPolitikasi.M3HesaplanabilirMi(kayit.SandikCinsi)
-                ? kayit.Boy > DisOlcuBoyEnFarki &&
-                  kayit.En > DisOlcuBoyEnFarki &&
-                  kayit.Yukseklik > DisOlcuYukseklikFarki
+                ? AmbalajHesaplayici.KaynakDisOlculeriGecerli(kayit.Boy, kayit.En, kayit.Yukseklik)
                 : kayit.Boy > 0 && kayit.En > 0 && kayit.Yukseklik > 0);
 
         public static bool UretimMiktariGecerli(AmbalajUretimKaydi kayit) =>
@@ -29,10 +24,7 @@ namespace _3K.Application.Features.AmbalajIslemleri
 
         public static AmbalajOlculeri HesaplamaIcOlculeriniGetir(AmbalajUretimKaydi kayit) =>
             KaynakSandikOlculeriMi(kayit)
-                ? new AmbalajOlculeri(
-                    kayit.Boy - DisOlcuBoyEnFarki,
-                    kayit.En - DisOlcuBoyEnFarki,
-                    kayit.Yukseklik - DisOlcuYukseklikFarki)
+                ? AmbalajHesaplayici.KaynakIcOlculeri(kayit.Boy, kayit.En, kayit.Yukseklik)
                 : new AmbalajOlculeri(kayit.Boy, kayit.En, kayit.Yukseklik);
 
         public static void M3DegerleriniHesapla(AmbalajUretimKaydi kayit)
@@ -220,6 +212,7 @@ namespace _3K.Application.Features.AmbalajIslemleri
                 [nameof(k.UretimDurumu)] = Format((int)k.UretimDurumu),
                 [nameof(k.UretimTarihi)] = Format(k.UretimTarihi),
                 [nameof(k.TamamlanmaTarihi)] = Format(k.TamamlanmaTarihi),
+                [nameof(k.FinansTarihi)] = Format(k.FinansTarihi),
                 [nameof(k.IptalMi)] = Format(k.IptalMi),
                 [nameof(k.IptalTarihi)] = Format(k.IptalTarihi),
                 [nameof(k.IptalEdenKullaniciId)] = Format(k.IptalEdenKullaniciId),

@@ -57,18 +57,10 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             try
             {
-                return await _unitOfWork.ExecuteInTransactionAsync(async transactionCancellationToken =>
-                {
-                    var sonuc = await new SandikUrunTasimaIslemi(_unitOfWork, _sahaTamamlamaService)
-                        .TasiAsync(request, kullaniciId, transactionCancellationToken);
-                    if (!sonuc.IsSuccess)
-                        throw new SandikTasimaReddedildiException(sonuc);
-                    return sonuc;
-                }, cancellationToken);
-            }
-            catch (SandikTasimaReddedildiException ex)
-            {
-                return ex.Sonuc;
+                return await _unitOfWork.ExecuteAtomicAsync(
+                    token => new SandikUrunTasimaIslemi(_unitOfWork, _sahaTamamlamaService)
+                        .TasiAsync(request, kullaniciId, token),
+                    cancellationToken);
             }
             catch (ConcurrencyConflictException)
             {

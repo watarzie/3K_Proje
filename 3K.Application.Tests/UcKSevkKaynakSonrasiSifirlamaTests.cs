@@ -1,7 +1,6 @@
 using System.Linq.Expressions;
 using _3K.Application.Common;
 using _3K.Application.Features.UcKIslemleri.Commands;
-using _3K.Application.Features.UcKIslemleri.DTOs;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
@@ -213,7 +212,6 @@ public sealed class UcKSevkKaynakSonrasiSifirlamaTests
     {
         public int? UserId => 7;
         public bool IsAuthenticated => true;
-        public string? MenuKod => null;
     }
 
     private sealed class HareketStub : IHareketService

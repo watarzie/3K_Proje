@@ -227,6 +227,30 @@ internal static partial class AmbalajPlanlamaYardimcisi
         _ => 0
     };
 
+    /// <summary>Planlama grubunun (1 proje, 2 ilave, 3 iç sandık) kayıt türü.</summary>
+    public static AmbalajSandikTuru GrupTuru(int grup) => grup switch
+    {
+        2 => AmbalajSandikTuru.Ilave,
+        3 => AmbalajSandikTuru.Ic,
+        _ => AmbalajSandikTuru.Normal
+    };
+
+    /// <summary>
+    /// A1 tekillik anahtarı: proje + grup (Tur) + sandık no, iptal edilmemiş özel sandıklar arasında;
+    /// sandık no harf duyarsız karşılaştırılır. Güncellenen kaydın kendisi hariç tutulur.
+    /// </summary>
+    public static bool OzelSandikTekrariVarMi(
+        IQueryable<AmbalajUretimKaydi> kayitlar,
+        int haricId,
+        int projeId,
+        AmbalajSandikTuru tur,
+        string sandikNo)
+    {
+        var no = sandikNo.Trim().ToUpperInvariant();
+        return kayitlar.Any(k => k.Id != haricId && k.ProjeId == projeId && k.BagimsizKayitMi && !k.IptalMi &&
+                                 k.Tur == tur && k.SandikNo.ToUpper() == no);
+    }
+
     public static AmbalajSandikTuru OzelTurCoz(int tur) => tur switch
     {
         2 => AmbalajSandikTuru.Ilave,
@@ -241,8 +265,8 @@ internal static partial class AmbalajPlanlamaYardimcisi
         AmbalajUretimKaydi? kayit,
         DateTime? planBaslangici)
     {
-        var tur = kayit?.Tur == AmbalajSandikTuru.Ilave ||
-                  (kayit == null && planBaslangici.HasValue && sandik.CreatedDate > planBaslangici.Value)
+        var tur = AmbalajUretimPolitikasi.KaynakGrubu(AmbalajSandikTuru.Normal, kayit?.Tur, planBaslangici, sandik.CreatedDate)
+                  == AmbalajSandikTuru.Ilave
             ? 2
             : 1;
         var dahil = kayit?.AmbalajaDahil ?? !AmbalajUretimPolitikasi.VarsayilanYapilmazMi(sandik.Ad, sandik.AdIngilizce);
@@ -288,13 +312,14 @@ internal static partial class AmbalajPlanlamaYardimcisi
         decimal? en,
         decimal? yukseklik)
     {
-        if (boy is not > 92m || en is not > 92m || yukseklik is not > 255m)
+        if (!AmbalajHesaplayici.KaynakDisOlculeriGecerli(boy, en, yukseklik))
             return 0;
         var profil = AmbalajAyakProfiliBelirleyici.Belirle(ad, adIngilizce);
+        var ic = AmbalajHesaplayici.KaynakIcOlculeri(boy!.Value, en!.Value, yukseklik!.Value);
         var birimHacim = AmbalajHesaplayici.M3OzetiHesapla(
-            boy.Value - 92m,
-            en.Value - 92m,
-            yukseklik.Value - 255m,
+            ic.Boy,
+            ic.En,
+            ic.Yukseklik,
             1,
             ayakProfili: profil,
             ayakHesapBoyu: boy.Value).HesaplananToplamM3;

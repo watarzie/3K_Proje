@@ -238,92 +238,22 @@ public sealed class AmbalajUretimTests
     }
 
     [Fact]
-    public void OlusturmaValidatoru_ManuelProjeKimliginiVeIcSandikUstunuZorunluTutar()
-    {
-        var validator = new AmbalajUretimKaydiOlusturCommandValidator();
-        var command = GecerliKomut();
-        command.ProjeId = null;
-        command.ManuelProjeNo = "MAN-001";
-        command.ManuelProjeAdi = null;
-        command.Tur = AmbalajSandikTuru.Ic;
-        command.UstKayitId = null;
-
-        var result = validator.Validate(command);
-
-        Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, error => error.ErrorMessage.Contains("manuel proje", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(result.Errors, error => error.ErrorMessage.Contains("üst sandık", StringComparison.OrdinalIgnoreCase));
-    }
-
-    [Fact]
-    public void OlusturmaValidatoru_AmbalajDisiKaydiUretimeAldirmaz()
-    {
-        var validator = new AmbalajUretimKaydiOlusturCommandValidator();
-        var command = GecerliKomut();
-        command.AmbalajaDahil = false;
-        command.UretimeAlindi = true;
-
-        var result = validator.Validate(command);
-
-        Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, error => error.ErrorMessage.Contains("üretime alınamaz", StringComparison.OrdinalIgnoreCase));
-    }
-
-    [Theory]
-    [InlineData(-0.01)]
-    [InlineData(1.01)]
-    public void SarfOraniValidatoru_SinirDisiOraniReddeder(decimal oran)
-    {
-        var validator = new AmbalajSarfOraniGuncelleCommandValidator();
-        var result = validator.Validate(new AmbalajSarfOraniGuncelleCommand
-        {
-            Id = 1,
-            SarfOrani = oran,
-            Neden = "Yetkili düzeltmesi"
-        });
-
-        Assert.False(result.IsValid);
-    }
-
-    [Fact]
     public void AmbalajValidatorUzunluklari_VeritabaniKolonlariylaUyumludur()
     {
-        var olusturmaValidatoru = new AmbalajUretimKaydiOlusturCommandValidator();
-        var sinirdaOlusturma = GecerliKomut();
-        sinirdaOlusturma.KullanimAmaci = new string('a', 250);
-        var uzunOlusturma = GecerliKomut();
-        uzunOlusturma.KullanimAmaci = new string('a', 251);
-
-        Assert.True(olusturmaValidatoru.Validate(sinirdaOlusturma).IsValid);
-        Assert.Contains(
-            olusturmaValidatoru.Validate(uzunOlusturma).Errors,
-            hata => hata.PropertyName == nameof(uzunOlusturma.KullanimAmaci));
-
-        var m3Validatoru = new AmbalajM3OverrideGuncelleCommandValidator();
-        Assert.True(m3Validatoru.Validate(new AmbalajM3OverrideGuncelleCommand
+        // Durum gerekçesi hareket kaydının 1000 karakterlik Aciklama kolonuna yazılır.
+        var durumValidatoru = new AmbalajUretimDurumuGuncelleCommandValidator();
+        Assert.True(durumValidatoru.Validate(new AmbalajUretimDurumuGuncelleCommand
         {
             Id = 1,
-            M3Override = 1,
-            Neden = new string('a', 500)
+            Durum = AmbalajUretimDurumu.Uretimde,
+            Aciklama = new string('a', 1000)
         }).IsValid);
-        Assert.Contains(m3Validatoru.Validate(new AmbalajM3OverrideGuncelleCommand
+        Assert.Contains(durumValidatoru.Validate(new AmbalajUretimDurumuGuncelleCommand
         {
             Id = 1,
-            M3Override = 1,
-            Neden = new string('a', 501)
-        }).Errors, hata => hata.PropertyName == "Neden");
-
-        var iptalValidatoru = new AmbalajUretimKaydiIptalEtCommandValidator();
-        Assert.True(iptalValidatoru.Validate(new AmbalajUretimKaydiIptalEtCommand
-        {
-            Id = 1,
-            Neden = new string('a', 500)
-        }).IsValid);
-        Assert.Contains(iptalValidatoru.Validate(new AmbalajUretimKaydiIptalEtCommand
-        {
-            Id = 1,
-            Neden = new string('a', 501)
-        }).Errors, hata => hata.PropertyName == "Neden");
+            Durum = AmbalajUretimDurumu.Uretimde,
+            Aciklama = new string('a', 1001)
+        }).Errors, hata => hata.PropertyName == nameof(AmbalajUretimDurumuGuncelleCommand.Aciklama));
     }
 
     [Fact]
@@ -542,19 +472,4 @@ public sealed class AmbalajUretimTests
             @"/Type\s*/Page(?!s)",
             System.Text.RegularExpressions.RegexOptions.CultureInvariant).Count;
     }
-
-    private static AmbalajUretimKaydiOlusturCommand GecerliKomut() => new()
-    {
-        ProjeId = 1,
-        Tur = AmbalajSandikTuru.Normal,
-        KaynakModul = AmbalajKaynakModulu.Manuel,
-        SandikNo = "1",
-        Ad = "Ana sandık",
-        SandikCinsi = AmbalajSandikCinsi.AhsapKapali,
-        Adet = 1,
-        Boy = 2500,
-        En = 1500,
-        Yukseklik = 1800,
-        AmbalajaDahil = true
-    };
 }

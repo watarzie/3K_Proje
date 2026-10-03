@@ -2,7 +2,6 @@ using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
-using _3K.Application.Features.AmbalajIslemleri;
 
 namespace _3K.Application.Features.AmbalajIslemleri.Commands
 {
@@ -26,6 +25,8 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
         internal static FinansUretimAktarimModel ModelOlustur(AmbalajUretimKaydi kayit, Proje? proje)
         {
             var uretimTarihi = kayit.UretimTarihi ?? kayit.CreatedDate;
+            // A6/D5: formda girilen tarih varsa varsayılan finans tarihi odur; yoksa üretim tarihidir.
+            var finansTarihi = (kayit.FinansTarihi ?? uretimTarihi).Date;
             var hesaplanabilir = AmbalajUretimPolitikasi.M3HesaplanabilirMi(kayit.SandikCinsi);
             // Ana iş net hacmi kullanır; onaylı sarf ayrı kaynak bileşeniyle aktarılır.
             var netM3 = hesaplanabilir ? kayit.M3Override ?? kayit.HesaplananToplamM3 : 0m;
@@ -42,19 +43,22 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
                 Adet: kayit.Adet,
                 BirimM3: birimM3,
                 UretimTarihi: uretimTarihi,
-                FinansDonemi: new DateTime(uretimTarihi.Year, uretimTarihi.Month, 1),
+                FinansDonemi: FinansTarihKurallari.AyBasi(finansTarihi),
                 SandikNo: kayit.SandikNo,
                 SandikAdi: kayit.Ad,
                 SandikTipi: AmbalajUretimYardimcilari.CinsMetni(kayit.SandikCinsi, kayit.DigerSandikCinsi),
                 Boy: kayit.Boy,
                 En: kayit.En,
                 Yukseklik: kayit.Yukseklik,
+                // İç sandık fiyatı kayıtlı iç sandık şablonuna göre eşleşir.
+                IcSandikSablonId: kayit.IcSandikSablonId,
                 Aciklama: kayit.Aciklama,
                 TalepEdenKisi: kayit.TalepEdenKisi,
                 TalepEdenBolum: kayit.TalepEdenBolum,
                 SandikCinsi: kayit.SandikCinsi,
                 SarfM3: hesaplanabilir ? kayit.SarfM3 : 0m,
-                UretimM3Hesaplanabilir: hesaplanabilir);
+                UretimM3Hesaplanabilir: hesaplanabilir,
+                FinansTarihi: finansTarihi);
         }
 
         private static FinansIsTuru IsTuruBelirle(AmbalajSandikTuru tur) => tur switch

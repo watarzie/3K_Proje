@@ -3,17 +3,11 @@ using _3K.Core.Entities;
 namespace _3K.Core.Interfaces
 {
     /// <summary>
-    /// İş akışı 6: Kalan stoktan eksik tamamlama
-    /// UML Sequence Diagram: StokService
+    /// Stok kaydı oluşturma ve sayfalı listeleme.
     /// </summary>
     public interface IStokService
     {
-        Task<IEnumerable<StokKaydi>> GetUygunStoklarAsync(string? searchTerm = null);
-        Task<StokKaydi?> GetStokByIdAsync(int stokKaydiId);
-        Task<bool> StokYeterliMi(int stokKaydiId, decimal miktar);
-        Task<bool> StokDusAsync(int stokKaydiId, decimal miktar);
         Task<StokKaydi> StokKaydiOlusturAsync(StokKaydi stokKaydi);
-        Task<IEnumerable<StokKaydi>> GetTumStoklarAsync();
         
         Task<(IEnumerable<StokKaydi> Items, int TotalCount)> GetPaginatedStoklarAsync(string? searchTerm, int pageNumber, int pageSize);
     }

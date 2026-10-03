@@ -3,6 +3,7 @@ using _3K.Application.Common;
 using _3K.Core.Constants;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
+using _3K.Core.Enums;
 
 namespace _3K.Application.Features.OnayIslemleri.Queries
 {
@@ -19,6 +20,7 @@ namespace _3K.Application.Features.OnayIslemleri.Queries
     public class GetOnayKurallariQuery : IRequest<Result<List<OnayKuraliDto>>>, ISecuredRequest, IRequiresMenuPermission
     {
         public string RequiredMenuKod => "onay-kurallari-yonet";
+        public YetkiTipi RequiredYetkiTipi => YetkiTipi.R;
     }
 
     public class GetOnayKurallariQueryHandler : IRequestHandler<GetOnayKurallariQuery, Result<List<OnayKuraliDto>>>

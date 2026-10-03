@@ -48,20 +48,14 @@ namespace _3K.Infrastructure.Services
             var kullanici = await _context.Kullanicilar
                 .AsNoTracking()
                 .Where(k => k.Id == kullaniciId)
-                .Select(k => new
-                {
-                    k.RolId,
-                    RolAdi = k.Rol != null ? k.Rol.Ad : null
-                })
+                .Select(k => new { k.RolId })
                 .FirstOrDefaultAsync(ct);
 
             if (kullanici == null)
                 return new OnayErisimKapsami();
 
-            var adminMi = kullanici.RolId == 1 ||
-                          string.Equals(kullanici.RolAdi, "Admin", StringComparison.OrdinalIgnoreCase);
-
-            if (adminMi)
+            // Rol kimliğe göre tanınır; başka bir rolün adını "Admin" yapmak onay yetkisi vermez.
+            if (SistemRolleri.AdminMi(kullanici.RolId))
             {
                 return new OnayErisimKapsami
                 {

@@ -9,12 +9,13 @@ namespace _3K.Application.Common
     public interface ISecuredRequest { }
 
     /// <summary>
-    /// Secures a request with a fixed menu code instead of the active UI context.
-    /// Use this for action endpoints that must not be authorized by another menu header.
+    /// İsteği tek bir menü koduna ve açık yetki seviyesine bağlar: görüntüleme R, işlem W.
+    /// Seviye sınıf adından çıkarılmaz; her istek kendisi bildirir.
     /// </summary>
     public interface IRequiresMenuPermission
     {
         string RequiredMenuKod { get; }
+        YetkiTipi RequiredYetkiTipi { get; }
     }
 
     /// <summary>
@@ -28,7 +29,14 @@ namespace _3K.Application.Common
         MenuPermissionMatch PermissionMatch => MenuPermissionMatch.All;
     }
 
-    public sealed record MenuPermissionRequirement(string MenuKod, YetkiTipi YetkiTipi);
+    public sealed record MenuPermissionRequirement(string MenuKod, YetkiTipi YetkiTipi)
+    {
+        /// <summary>Görüntüleme/okuma gereksinimi.</summary>
+        public static MenuPermissionRequirement Read(string kod) => new(kod, YetkiTipi.R);
+
+        /// <summary>İşlem/yazma gereksinimi.</summary>
+        public static MenuPermissionRequirement Write(string kod) => new(kod, YetkiTipi.W);
+    }
 
     public enum MenuPermissionMatch { All, Any }
 
@@ -51,7 +59,8 @@ namespace _3K.Application.Common
     public enum ProjectMenuOperation
     {
         ProjectRead, CrateRead, CrateWrite, Grid, UcK, Shipment, RevisionHistory,
-        ProjectDelete, PlannedShipmentDate, CrateReport, ActualPackingReport, UcKCrateReport, ProjectUnlock, ProjectCreate
+        ProjectDelete, PlannedShipmentDate, CrateReport, ActualPackingReport, UcKCrateReport, ProjectUnlock, ProjectCreate,
+        MissingItemsReport
     }
 
     public sealed record MenuPermissionGroup(

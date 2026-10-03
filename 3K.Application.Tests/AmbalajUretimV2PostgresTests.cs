@@ -5,6 +5,7 @@ using _3K.Application.Features.AmbalajIslemleri.Commands;
 using _3K.Application.Features.AmbalajIslemleri.Queries;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
+using _3K.Core.Constants;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
 using _3K.Infrastructure.Data;
@@ -39,7 +40,7 @@ public sealed class AmbalajUretimV2PostgresTests
             await ctx.SaveChangesAsync();
             ctx.ChangeTracker.Clear();
             using var uow = new UnitOfWork(ctx, NullLogger<UnitOfWork>.Instance);
-            var handler = new GetAmbalajPlanlamaProjeleriQueryHandler(uow, new EntityFrameworkReadQueryExecutor());
+            var handler = new GetAmbalajPlanlamaProjeleriQueryHandler(uow, OrtakRoller.TumIzinler(), new OrtakUser(), new EntityFrameworkReadQueryExecutor());
             var firstPage = await handler.Handle(new() { PageSize = 1, PageNumber = 1 }, default);
             var secondPage = await handler.Handle(new() { PageSize = 1, PageNumber = 2 }, default);
             Assert.True(firstPage.IsSuccess);
@@ -48,12 +49,44 @@ public sealed class AmbalajUretimV2PostgresTests
             Assert.Equal(2m, Assert.Single(secondPage.Value.Items).ProjeSandiklariHacimM3);
             Assert.Equal(0m, Assert.Single(secondPage.Value.Items).UretimHacimM3);
 
-            var waitingOnly = await handler.Handle(new() { IzinliDurumlar = [1] }, default);
+            var waitingOnly = await new GetAmbalajPlanlamaProjeleriQueryHandler(uow,
+                OrtakRoller.Haric(YetkiKodlari.Ambalaj.UretimdeGoruntule, YetkiKodlari.Ambalaj.TamamlananGoruntule),
+                new OrtakUser(), new EntityFrameworkReadQueryExecutor()).Handle(new(), default);
             Assert.Equal(2m, waitingOnly.Value!.FilteredSummary!.ToplamHacimM3);
             Assert.Equal(11, Assert.Single(waitingOnly.Value.Items).ProjeId);
             Assert.Empty(ctx.ChangeTracker.Entries());
             Assert.Empty(await ctx.Set<AmbalajUretimFormuSurumu>().ToListAsync());
             Assert.Empty(await ctx.Set<AmbalajUretimHareketi>().ToListAsync());
+        });
+    }
+
+    [PostgresRaporFact]
+    [Trait("Category", "Postgres")]
+    public async Task ProjeListesi_UretimDurumuFiltresi_BekleyenVeUretimdeProjeleriAyirir()
+    {
+        await WithDatabase(async options =>
+        {
+            await using var ctx = new AppDbContext(options);
+            ctx.Projeler.AddRange(new Proje { Id = 31, ProjeNo = "BEKLEYEN" }, new Proje { Id = 32, ProjeNo = "URETIMDE" },
+                new Proje { Id = 33, ProjeNo = "TAMAM" });
+            AmbalajUretimKaydi Kayit(int id, int projeId, AmbalajUretimDurumu durum) => new()
+            {
+                Id = id, ProjeId = projeId, KaynakKayitId = id, SandikNo = id.ToString(), Boy = 1000, En = 800, Yukseklik = 600,
+                AmbalajaDahil = true, UretimDurumu = durum
+            };
+            ctx.Set<AmbalajUretimKaydi>().AddRange(
+                Kayit(311, 31, AmbalajUretimDurumu.Planlandi), Kayit(312, 31, AmbalajUretimDurumu.Planlandi),
+                Kayit(321, 32, AmbalajUretimDurumu.Tamamlandi), Kayit(322, 32, AmbalajUretimDurumu.Planlandi),
+                Kayit(331, 33, AmbalajUretimDurumu.Tamamlandi));
+            await ctx.SaveChangesAsync();
+            ctx.ChangeTracker.Clear();
+            using var uow = new UnitOfWork(ctx, NullLogger<UnitOfWork>.Instance);
+            var handler = new GetAmbalajPlanlamaProjeleriQueryHandler(uow, OrtakRoller.TumIzinler(), new OrtakUser(), new EntityFrameworkReadQueryExecutor());
+            async Task<int[]> Projeler(int? durum) => (await handler.Handle(new() { Tamamlanan = false, UretimDurumu = durum }, default))
+                .Value!.Items.Select(x => x.ProjeId).Order().ToArray();
+            Assert.Equal(new[] { 31, 32 }, await Projeler(null));
+            Assert.Equal(new[] { 31 }, await Projeler(1));
+            Assert.Equal(new[] { 32 }, await Projeler(2));
         });
     }
 
@@ -131,6 +164,56 @@ public sealed class AmbalajUretimV2PostgresTests
         });
     }
 
+    [PostgresRaporFact]
+    [Trait("Category", "Postgres")]
+    public async Task Form_PlanKaydedilmedenKaynakSandiklarla_KayitlariSenkronizeEderVeOlusturur()
+    {
+        // Sıfırlamadan sonra plan kaydedilmemiş proje: kayıtlar form isteğindeki senkronizasyonla oluşur ve aynı
+        // DbContext tarafından izlenir; form bu kayıtları ikinci bir örnekle yeniden izlemeye çalışmamalıdır.
+        await WithDatabase(async options =>
+        {
+            await using (var seed = new AppDbContext(options))
+            {
+                seed.Projeler.Add(new Proje { Id = 20, ProjeNo = "PA-20" });
+                seed.Sandiklar.AddRange(
+                    new Sandik { Id = 201, ProjeId = 20, SandikNo = "1", Ad = "Radyatör", Boy = 1800, En = 900, Yukseklik = 800 },
+                    new Sandik { Id = 202, ProjeId = 20, SandikNo = "2", Ad = "Fan", Boy = 1200, En = 800, Yukseklik = 700 });
+                await seed.SaveChangesAsync();
+                // Ortak kurulum kaydı elle kimlik aldığı için kimlik dizisi ilerletilir; senkronizasyon yeni kayıt ekler.
+                await seed.Database.ExecuteSqlRawAsync(
+                    "SELECT setval(pg_get_serial_sequence('\"AmbalajUretimKayitlari\"', 'Id'), (SELECT MAX(\"Id\") FROM \"AmbalajUretimKayitlari\"))");
+            }
+            int formId;
+            await using (var ctx = new AppDbContext(options))
+            {
+                using var uow = new UnitOfWork(ctx, NullLogger<UnitOfWork>.Instance);
+                var sync = new AmbalajKaynakSenkronizasyonService(uow, new Finans(false));
+                var handler = new AmbalajFormOlusturCommandHandler(uow, new User(), new Roles(), new Finans(false), sync,
+                    new AmbalajFormIslemKilidi(ctx));
+                var result = await handler.Handle(new()
+                {
+                    ProjeId = 20, KaynakSandikIdleri = [202, 201], FinansTarihi = new DateTime(2026, 9, 30),
+                    IdempotencyAnahtari = Guid.NewGuid()
+                }, default);
+                Assert.True(result.IsSuccess, result.Error?.Message);
+                formId = result.Value!.Id;
+            }
+            await using var verify = new AppDbContext(options);
+            var kayitlar = await verify.Set<AmbalajUretimKaydi>().Where(k => k.ProjeId == 20)
+                .OrderBy(k => k.KaynakKayitId).ToListAsync();
+            Assert.Equal([201, 202], kayitlar.Select(k => k.KaynakKayitId!.Value));
+            Assert.All(kayitlar, k =>
+            {
+                Assert.Equal(AmbalajUretimDurumu.Uretimde, k.UretimDurumu);
+                Assert.True(k.KaynakSenkronizasyonuKilitliMi);
+                Assert.Equal(new DateTime(2026, 9, 30), k.FinansTarihi);
+            });
+            var formKayitlari = await verify.Set<AmbalajUretimFormuKaydi>().Where(x => x.FormSurumuId == formId)
+                .Select(x => x.AmbalajUretimKaydiId).OrderBy(x => x).ToListAsync();
+            Assert.Equal(kayitlar.Select(k => k.Id).Order(), formKayitlari);
+        });
+    }
+
     private static AmbalajFormOlusturCommandHandler Handler(AppDbContext ctx, IUnitOfWork uow, bool fail = false) =>
         new(uow, new User(), new Roles(), new Finans(fail), islemKilidi: new AmbalajFormIslemKilidi(ctx));
 
@@ -169,11 +252,10 @@ public sealed class AmbalajUretimV2PostgresTests
             await drop.ExecuteNonQueryAsync();
         }
     }
-    private sealed class User : ICurrentUserService { public int? UserId => 7; public bool IsAuthenticated => true; public string? MenuKod => null; }
+    private sealed class User : ICurrentUserService { public int? UserId => 7; public bool IsAuthenticated => true; }
     private sealed class Roles : IRolService
     {
         public Task<bool> HasUserPermissionAsync(int id, string kod, YetkiTipi tip, CancellationToken ct = default) => Task.FromResult(true);
-        public Task<bool> IsAdminAsync(int id, CancellationToken ct = default) => Task.FromResult(false);
         public Task<List<MenuTanimi>> GetMenuAgaciAsync(CancellationToken ct = default) => Task.FromResult(new List<MenuTanimi>());
         public Task<List<RolYetki>> GetRolYetkileriAsync(int id, CancellationToken ct = default) => Task.FromResult(new List<RolYetki>());
         public Task YetkileriGuncelleAsync(int id, List<RolYetki> list, CancellationToken ct = default) => Task.CompletedTask;

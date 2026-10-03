@@ -10,20 +10,20 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
     public sealed class CekiRevizyonYukleCommandHandler
         : IRequestHandler<CekiRevizyonYukleCommand, Result<CekiRevizyonOnayTalebiSonuc>>
     {
-        private readonly ICekiService _cekiService;
+        private readonly ICekiRevizyonService _cekiRevizyon;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMediator _mediator;
         private readonly ISseNotifier _sseNotifier;
         private readonly ILogger<CekiRevizyonYukleCommandHandler> _logger;
 
         public CekiRevizyonYukleCommandHandler(
-            ICekiService cekiService,
+            ICekiRevizyonService cekiRevizyon,
             IUnitOfWork unitOfWork,
             IMediator mediator,
             ISseNotifier sseNotifier,
             ILogger<CekiRevizyonYukleCommandHandler> logger)
         {
-            _cekiService = cekiService;
+            _cekiRevizyon = cekiRevizyon;
             _unitOfWork = unitOfWork;
             _mediator = mediator;
             _sseNotifier = sseNotifier;
@@ -36,7 +36,7 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
         {
             var sonuc = await _unitOfWork.ExecuteInTransactionAsync(async transactionCancellationToken =>
             {
-                var talep = await _cekiService.CekiRevizyonOnayaSunAsync(
+                var talep = await _cekiRevizyon.CekiRevizyonOnayaSunAsync(
                     request.ExcelDosya,
                     request.DosyaAdi,
                     request.KullaniciId,

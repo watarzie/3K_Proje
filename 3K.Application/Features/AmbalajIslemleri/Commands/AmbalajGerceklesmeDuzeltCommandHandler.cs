@@ -17,7 +17,7 @@ public sealed class AmbalajGerceklesmeDuzeltCommandHandler(IUnitOfWork uow, ICur
         if (!user.IslemKullaniciId.HasValue) return Result<AmbalajGerceklesmeDto>.Failure("Oturum gereklidir.", 401);
         if (r.Adet <= 0 || r.Tarih == default || r.Tarih.Date > TurkeyTime.Now.Date || string.IsNullOrWhiteSpace(r.Gerekce) || r.Gerekce.Length > 1000 || r.NetM3 < 0 || r.SarfM3 < 0)
             return Result<AmbalajGerceklesmeDto>.Failure("Geçerli tarih, adet, miktar ve düzeltme gerekçesi gereklidir.");
-        return await uow.ExecuteInTransactionAsync(async token =>
+        return await uow.ExecuteAtomicAsync(async token =>
         {
             var repo = uow.GetRepository<AmbalajUretimGerceklesmesi>();
             var eski = await repo.GetByIdAsync(r.Id);

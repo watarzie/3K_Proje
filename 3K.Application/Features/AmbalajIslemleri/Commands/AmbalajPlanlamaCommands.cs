@@ -1,6 +1,7 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Application.Features.AmbalajIslemleri.DTOs;
+using _3K.Core.Constants;
 
 namespace _3K.Application.Features.AmbalajIslemleri.Commands;
 
@@ -9,13 +10,13 @@ public abstract class AmbalajPlanlamaCommand<T> : IRequest<Result<T>>, ISecuredR
 {
     public string? Gerekce { get; set; }
     public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
-        [AmbalajMenuKodlari.Write(this switch
+        [MenuPermissionRequirement.Write(this switch
         {
-            AmbalajPlanKaydetCommand => AmbalajMenuKodlari.PlanOlustur,
-            AmbalajKarariKaydetCommand c => c.AmbalajaDahilMi ? AmbalajMenuKodlari.DahilEt : AmbalajMenuKodlari.HaricTut,
-            AmbalajPlanKalemKaydetCommand c => c.KalemId.HasValue ? AmbalajMenuKodlari.KayitDuzenle : AmbalajMenuKodlari.KayitEkle,
-            AmbalajBagimsizSandikKaydetCommand c => c.SandikId.HasValue ? AmbalajMenuKodlari.KayitDuzenle : AmbalajMenuKodlari.KayitEkle,
-            _ => AmbalajMenuKodlari.KayitDuzenle
+            AmbalajPlanKaydetCommand => YetkiKodlari.Ambalaj.PlanOlustur,
+            AmbalajKarariKaydetCommand c => c.AmbalajaDahilMi ? YetkiKodlari.Ambalaj.DahilEt : YetkiKodlari.Ambalaj.HaricTut,
+            AmbalajPlanKalemKaydetCommand c => c.KalemId.HasValue ? YetkiKodlari.Ambalaj.KayitDuzenle : YetkiKodlari.Ambalaj.KayitEkle,
+            AmbalajBagimsizSandikKaydetCommand c => c.SandikId.HasValue ? YetkiKodlari.Ambalaj.KayitDuzenle : YetkiKodlari.Ambalaj.KayitEkle,
+            _ => YetkiKodlari.Ambalaj.KayitDuzenle
         })];
 }
 
@@ -24,7 +25,7 @@ public abstract class AmbalajPlanlamaCommand : IRequest<Result>, ISecuredRequest
 {
     public string? Gerekce { get; set; }
     public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
-        [AmbalajMenuKodlari.Write(AmbalajMenuKodlari.KayitSil)];
+        [MenuPermissionRequirement.Write(YetkiKodlari.Ambalaj.KayitSil)];
 }
 
 public sealed class AmbalajPlanKaydetCommand : AmbalajPlanlamaCommand<AmbalajPlanlamaPlanDto>
@@ -34,9 +35,6 @@ public sealed class AmbalajPlanKaydetCommand : AmbalajPlanlamaCommand<AmbalajPla
     public string? FirinPartiNo { get; init; }
     public IReadOnlyList<int> SeciliKaynakSandikIds { get; init; } = [];
     public int Grup { get; init; } = 1;
-    // Eski istemcilerin payload'ları için korunur; plan kaydı artık durum değiştirmez.
-    // İlk başlangıç FormOlustur, sonraki geçişler UretimDurumuGuncelle ile yapılır.
-    public int DurumId { get; init; } = 1;
 }
 
 public sealed class AmbalajKarariKaydetCommand : AmbalajPlanlamaCommand<AmbalajPlanlamaPlanDto>
@@ -84,11 +82,6 @@ public sealed class AmbalajIcSandikSablonuEkleCommand
 public sealed class AmbalajIcSandikSablonuSilCommand : AmbalajPlanlamaCommand
 {
     public int SablonId { get; init; }
-}
-
-public sealed class AmbalajTalepEdenEkleCommand : AmbalajPlanlamaCommand<AmbalajTalepEdenDto>
-{
-    public string? Ad { get; init; }
 }
 
 public sealed class AmbalajBagimsizSandikKaydetCommand

@@ -8,16 +8,16 @@ public static class FinansAlanProjeksiyonu
     private static readonly HashSet<string> Fiyat = new(StringComparer.OrdinalIgnoreCase)
     { "birimFiyat", "birimFiyatSnapshot", "guncelBirimFiyat", "varsayilanBirimFiyat", "netBirimFiyat" };
     private static readonly HashSet<string> Tutar = new(StringComparer.OrdinalIgnoreCase)
-    { "netTutar", "kdvTutari", "toplamTutar", "tutar", "matrah", "kdvOrani", "guncelKdvOrani", "varsayilanKdvOrani", "belgeNetTutar", "belgeKdvTutari", "belgeToplamTutar", "mutabakatFarki", "siparisNetTutar", "faturalananNetTutar", "kalanSiparisNetTutar", "kalanFaturaNetTutar", "kalanNetTutar", "isBedeli", "siparisToplamTutar", "faturalananToplamTutar", "siparisBekleyen", "faturaBekleyen", "siparisAcik", "faturalanan", "toplam", "manuelNetTutar", "finansOzeti", "grupToplamlari", "toplamlar", "tutarlar", "bilesenler", "alanDegerleri" };
+    { "netTutar", "kdvTutari", "toplamTutar", "tutar", "matrah", "kdvOrani", "guncelKdvOrani", "varsayilanKdvOrani", "belgeNetTutar", "belgeKdvTutari", "belgeToplamTutar", "mutabakatFarki", "siparisNetTutar", "faturalananNetTutar", "kalanSiparisNetTutar", "kalanFaturaNetTutar", "kalanNetTutar", "isBedeli", "siparisToplamTutar", "faturalananToplamTutar", "siparisBekleyen", "faturaBekleyen", "siparisAcik", "faturalanan", "toplam", "manuelNetTutar", "finansOzeti", "grupToplamlari", "toplamlar", "tutarlar", "bilesenler", "bekleyenTutar", "vadesiGecenTutar", "yaklasanTutar", "odenenTutar" };
     private static readonly HashSet<string> Gelir = new(StringComparer.OrdinalIgnoreCase)
-    { "gelir", "gelirler", "gelirToplamlari", "yilGelir", "faturalananTutarlar", "siparisBekleyenTutarlar", "siparisAcikTutarlar" };
+    { "gelir", "gelirler", "gelirToplamlari", "yilGelir", "faturalananTutarlar", "siparisBekleyenTutarlar", "siparisAcikTutarlar", "beklenenTahsilat" };
     private static readonly HashSet<string> Gider = new(StringComparer.OrdinalIgnoreCase)
     { "gider", "giderler", "giderToplamlari", "yilGider", "buAyGider", "buAyGiderler", "giderTurleri" };
     private static readonly HashSet<string> Kar = new(StringComparer.OrdinalIgnoreCase)
     { "kar", "tahminiKar", "karOrani", "fark", "net", "netler", "netToplamlari" };
     private static readonly HashSet<string> Olcu = new(StringComparer.OrdinalIgnoreCase) { "boy", "en", "yukseklik" };
     private static readonly HashSet<string> M3 = new(StringComparer.OrdinalIgnoreCase)
-    { "birimM3", "toplamM3", "m3", "siparisM3", "siparisBekleyenM3", "faturalananM3", "kalanM3", "siparisAcikM3", "faturaBekleyenM3" };
+    { "birimM3", "toplamM3", "m3", "siparisM3", "siparisBekleyenM3", "faturalananM3", "kalanM3", "siparisAcikM3", "faturaBekleyenM3", "ahsapM3", "kontraM3" };
 
     public static void Uygula(JsonNode? node, AlanErisimYetkileri permissions, bool audit = false)
     {
@@ -43,7 +43,7 @@ public static class FinansAlanProjeksiyonu
                          (expense && (Fiyat.Contains(key) || Tutar.Contains(key)) && !permissions.Gider) ||
                          (audit && (key is "eskiDeger" or "yeniDeger" or "aciklama" or "referans") && (!fullMoney || !permissions.Olcu || !permissions.UretimM3 || !permissions.Sarf)) ||
                          (!permissions.ParasalVeri && (Fiyat.Contains(key) || monetaryField || Gelir.Contains(key) || Gider.Contains(key) || Kar.Contains(key))) ||
-                         (key is "bilesenler" or "alanDegerleri" && (!fullMoney || !permissions.Olcu || !permissions.UretimM3 || !permissions.Sarf));
+                         (key is "bilesenler" && (!fullMoney || !permissions.Olcu || !permissions.UretimM3 || !permissions.Sarf));
             if (hidden) obj[key] = null;
             else Uygula(obj[key], permissions, audit);
         }

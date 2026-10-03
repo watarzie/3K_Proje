@@ -55,7 +55,7 @@ public sealed class FinansAlanProjeksiyonuTests
     [InlineData("Olcu")]
     [InlineData("UretimM3")]
     [InlineData("Sarf")]
-    public void K33_DinamikSablonStringleriVeBilesenler_YalnizMaliIzinleAcilmaz(string denied)
+    public void K33_FiyatBilesenleri_YalnizMaliIzinleAcilmaz(string denied)
     {
         var permissions = denied switch
         {
@@ -64,11 +64,10 @@ public sealed class FinansAlanProjeksiyonuTests
             _ => All with { Sarf = false }
         };
         var json = JsonNode.Parse("""
-            { "id":1, "alanDegerleri":{"serbest-olcu":"1234x567x890"},
-              "bilesenler":[{"ad":"Kereste 1234 mm","yontem":2,"miktar":72.123,"birimFiyat":777.25}] }
+            { "id":1,
+              "bilesenler":[{"ad":"Kereste 1234 mm","yontem":2,"miktar":72.123,"birimFiyat":777.25,"malzeme":2}] }
             """)!;
         FinansAlanProjeksiyonu.Uygula(json, permissions);
-        Assert.Null(json["alanDegerleri"]);
         Assert.Null(json["bilesenler"]);
         Assert.Equal(1, json["id"]!.GetValue<int>());
     }
