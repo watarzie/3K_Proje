@@ -185,7 +185,9 @@ public static class ApiServiceCollectionExtensions
             policy.WithOrigins(origins)
                 .AllowAnyMethod()
                 .AllowAnyHeader()
-                .AllowCredentials()));
+                .AllowCredentials()
+                // Hata bildiriminde gösterilen takip kodu; farklı kökenden çalışan ön yüz başlığı okuyabilsin.
+                .WithExposedHeaders("X-Correlation-ID")));
 
         return services;
     }

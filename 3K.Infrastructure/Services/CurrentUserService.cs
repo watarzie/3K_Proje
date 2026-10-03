@@ -27,5 +27,8 @@ namespace _3K.Infrastructure.Services
 
         public bool IsAuthenticated =>
             _httpContextAccessor.HttpContext?.User?.Identity?.IsAuthenticated ?? false;
+
+        public string? KullaniciAdi =>
+            _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.Name)?.Value;
     }
 }

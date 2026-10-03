@@ -12,5 +12,8 @@ namespace _3K.Core.Interfaces
         int? IslemKullaniciId => UserId;
 
         bool IsAuthenticated { get; }
+
+        /// <summary>JWT'deki görünen ad; yalnız log ve iz kayıtları içindir, yetki kararında kullanılmaz.</summary>
+        string? KullaniciAdi => null;
     }
 }

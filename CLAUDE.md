@@ -30,7 +30,8 @@ Kullanıcıyla Türkçe konuşulur. Kod içindeki Türkçe alan adları (`Proje`
 
 - Bağımlılık yönü içe doğrudur: API → Application/Infrastructure → Core. Core'a EF/HTTP eklenmez; Application `AppDbContext`'e veya Infrastructure'a referans vermez.
 - DI kayıtları: `3K.Application/DependencyInjection.cs` (`AddApplication`), `3K.Infrastructure/DependencyInjection.cs` (`AddInfrastructure`, finans için `AddFinansServices`), `3K_API/Extensions/ApiServiceCollectionExtensions.cs` (`AddApi`).
-- MediatR pipeline sırası (dıştan içe): `UnhandledExceptionBehavior` → `AuthorizationBehavior` → `ValidationBehavior` → `ApprovalBehavior` → handler.
+- MediatR pipeline sırası (dıştan içe): `IsHatasiLoglamaBehavior` → `UnhandledExceptionBehavior` → `AuthorizationBehavior` → `ValidationBehavior` → `ApprovalBehavior` → handler.
+- Başarısız her istek (400/401/403/404/409/429; 500 hariç, o zaten Error) `IsHatasiLoglamaBehavior` ile tek satır Warning loglanır: istek adı, kullanıcı, sayısal kimlik alanları (`…Id`, `…Idler`) ve mesaj. İstek içeriği loglanmaz. Satırdaki `CorrelationId`, yanıtın `X-Correlation-ID` başlığıdır; ön yüz hata bildiriminde "Takip: …" olarak gösterir. Service log 30 gün, trace log 7 gün saklanır.
 - Yerel API: `http://localhost:50447` (`3K_API/Properties/launchSettings.json`); ön yüz bu adrese bağlanır.
 
 ## Bir özellik nasıl yazılır
