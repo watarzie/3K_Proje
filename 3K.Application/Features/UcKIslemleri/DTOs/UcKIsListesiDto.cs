@@ -4,9 +4,7 @@ namespace _3K.Application.Features.UcKIslemleri.DTOs
     {
         public int Toplam { get; set; }
         public int TeslimBekleyen { get; set; }
-        public int EksikGelen { get; set; }
         public int TrafoSevk { get; set; }
-        public int YenidenSevkGerekli { get; set; }
         public int GridKapandi { get; set; }
         public int BugunGridIslemi { get; set; }
         public UcKPagedResultDto<UcKIsListesiItemDto> Liste { get; set; } = new();

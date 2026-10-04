@@ -4,11 +4,12 @@ using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Infrastructure.Data;
+using _3K.Infrastructure.Services;
 using _3K.Infrastructure.Services.Raporlar;
 
 namespace _3K.Application.Tests;
 
-/// <summary>G4: toplu talep formu Excel'i — seçim doğrulaması, kapsam ve GridEksikMiktar satırları.</summary>
+/// <summary>G4 / G-110: toplu talep formu Excel'i — seçim doğrulaması, kapsam ve Grid eksiği olup 3K kalanı süren satırlar.</summary>
 public sealed class TalepFormuRaporTests
 {
     [Theory]
@@ -47,51 +48,116 @@ public sealed class TalepFormuRaporTests
         Assert.EndsWith(".xlsx", sonuc.Value.DosyaAdi);
     }
 
-    /// <summary>Yalnız GridEksikMiktar &gt; 0 satırlar, seçim sırasıyla tek sayfada; İstenen Miktar Grid eksiğidir.</summary>
+    /// <summary>
+    /// Grid eksiği olan ve 3K kalanı süren satırlar seçim sırasıyla tek sayfada; İstenen Miktar 3K kalanıdır. 3K'nın
+    /// stoktan tamamen karşıladığı satır Grid'de eksik görünse de forma girmez; kısmen karşılanan satır kalan kadar,
+    /// hatalı ürünü olan karşılanmış satır kalan kuralı gereği en az 1 olarak yazılır. Ürün Açıklaması sütunu yoktur.
+    /// </summary>
     [PostgresRaporFact, Trait("Category", "Postgres")]
-    public async Task Excel_grid_eksigi_olan_satirlari_secim_sirasiyla_tek_sayfada_listeler()
+    public async Task Excel_grid_eksigi_olup_3k_kalani_suren_satirlari_kalan_miktariyla_listeler()
     {
         await FinansPostgresTests.InDatabase(async options =>
         {
             await using var db = new AppDbContext(options);
             var pa1 = Proje("PA-1"); var pa2 = Proje("PA-2");
-            Satir(pa1, "2", 1, "B-EKSIK", "Kablo", "Kırmızı", istenen: 10, gridGelen: 4, trafo: 1, Birim.Metre);
-            Satir(pa1, "1", 2, "B-TAM", "Tam gelen", null, istenen: 5, gridGelen: 5);
-            Satir(pa1, "1", 1, "B-IPTAL", "İptal", null, istenen: 5, gridDurum: GridDurum.Iptal);
-            Satir(pa1, "1", 3, "B-KAPALI", "Kapandı", null, istenen: 5, gridDurum: GridDurum.GridKapandi);
-            Satir(pa1, "1", 4, "B-FAZLA", "Fazla gelen", null, istenen: 2, gridGelen: 3);
-            Satir(pa2, "10", 1, "B-PA2", "Takım", "Açıklama", istenen: 2, birim: Birim.Takim);
+            Satir(pa1, "2", 1, "B-EKSIK", "Kablo", istenen: 10, gridGelen: 4, trafo: 1, birim: Birim.Metre);
+            Satir(pa1, "1", 2, "B-TAM", "Tam gelen", istenen: 5, gridGelen: 5);
+            Satir(pa1, "1", 1, "B-IPTAL", "İptal", istenen: 5, gridDurum: GridDurum.Iptal);
+            Satir(pa1, "1", 3, "B-KAPALI", "Kapandı", istenen: 5, gridDurum: GridDurum.GridKapandi);
+            Satir(pa1, "1", 4, "B-FAZLA", "Fazla gelen", istenen: 2, gridGelen: 3);
+            Satir(pa1, "1", 5, "B-STOK", "Stoktan tamamı", istenen: 16, stok: 16);
+            Satir(pa1, "1", 6, "B-TEDARIK", "Tedarikçiden kısmi", istenen: 16, tedarikci: 10);
+            Satir(pa1, "1", 7, "B-HATALI", "Hatalı ürünlü", istenen: 5, stok: 5, hatali: 1);
+            Satir(pa2, "10", 1, "B-PA2", "Takım", istenen: 2, birim: Birim.Takim);
             db.AddRange(pa1, pa2); await db.SaveChangesAsync();
 
-            var excel = await new TalepFormuRaporService(db).TopluTalepFormuExcelAsync([pa2.Id, pa1.Id]);
+            var excel = await Servis(db).TopluTalepFormuExcelAsync([pa2.Id, pa1.Id]);
             using var workbook = new XLWorkbook(new MemoryStream(excel));
             var sayfa = Assert.Single(workbook.Worksheets);
             Assert.Equal("TALEP FORMU", sayfa.Cell(1, 1).GetString());
             Assert.Equal("PA-2, PA-1", sayfa.Cell(3, 2).GetString());
-            Assert.Equal("2 kalem", sayfa.Cell(3, 4).GetString());
-            Assert.Equal(["#", "Proje No", "Barkod", "Ürün Adı", "Ürün Açıklaması", "İstenen Miktar", "Ölçü Birimi"],
-                Enumerable.Range(1, 7).Select(k => sayfa.Cell(5, k).GetString()));
-            Assert.Equal(("PA-2", "B-PA2", "Takım", "Açıklama", 2m, "Takım"), (sayfa.Cell(6, 2).GetString(), sayfa.Cell(6, 3).GetString(),
-                sayfa.Cell(6, 4).GetString(), sayfa.Cell(6, 5).GetString(), sayfa.Cell(6, 6).GetValue<decimal>(), sayfa.Cell(6, 7).GetString()));
-            Assert.Equal(("PA-1", "B-EKSIK", "Kırmızı", 5m, "Metre"), (sayfa.Cell(7, 2).GetString(), sayfa.Cell(7, 3).GetString(),
-                sayfa.Cell(7, 5).GetString(), sayfa.Cell(7, 6).GetValue<decimal>(), sayfa.Cell(7, 7).GetString()));
-            Assert.Equal(2, sayfa.Cell(7, 1).GetValue<int>());
-            Assert.True(sayfa.Cell(8, 1).IsEmpty());
-            Assert.True(sayfa.Cell(9, 1).IsEmpty());
+            Assert.Equal("4 kalem", sayfa.Cell(3, 4).GetString());
+            Assert.Equal(["#", "Proje No", "Barkod", "Ürün Adı", "İstenen Miktar", "Ölçü Birimi"],
+                Enumerable.Range(1, 6).Select(k => sayfa.Cell(5, k).GetString()));
+            Assert.True(sayfa.Cell(5, 7).IsEmpty());
+
+            (int Sira, string Proje, string Barkod, string Ad, decimal Miktar, string Birim) Satiri(int r) =>
+                (sayfa.Cell(r, 1).GetValue<int>(), sayfa.Cell(r, 2).GetString(), sayfa.Cell(r, 3).GetString(),
+                 sayfa.Cell(r, 4).GetString(), sayfa.Cell(r, 5).GetValue<decimal>(), sayfa.Cell(r, 6).GetString());
+            Assert.Equal((1, "PA-2", "B-PA2", "Takım", 2m, "Takım"), Satiri(6));
+            Assert.Equal((2, "PA-1", "B-TEDARIK", "Tedarikçiden kısmi", 6m, "Adet"), Satiri(7));
+            Assert.Equal((3, "PA-1", "B-HATALI", "Hatalı ürünlü", 1m, "Adet"), Satiri(8));
+            Assert.Equal((4, "PA-1", "B-EKSIK", "Kablo", 9m, "Metre"), Satiri(9));
+            Assert.True(sayfa.Cell(10, 1).IsEmpty());
+            Assert.DoesNotContain(Enumerable.Range(6, 4), r => sayfa.Cell(r, 3).GetString() == "B-STOK");
         });
     }
 
+    /// <summary>
+    /// S-01: aktif saha aktarımına bağlı normal kaynak satır normal projenin formuna girmez; işi sahada sürer ve
+    /// ihtiyaç saha projesinin formunda çıkar. Geri alınmış aktarım satırı normal projeye döndürür.
+    /// </summary>
+    [PostgresRaporFact, Trait("Category", "Postgres")]
+    public async Task Sahaya_aktarilan_kaynak_satir_normal_projede_degil_saha_projesinde_talep_edilir()
+    {
+        await FinansPostgresTests.InDatabase(async options =>
+        {
+            await using var db = new AppDbContext(options);
+            var normal = Proje("PA-N");
+            var saha = new Proje { ProjeNo = "SH-1", Musteri = "QA", ProjeTipiId = (int)ProjeTipi.Saha };
+            Satir(normal, "1", 1, "B-SAHADA", "Sahaya aktarılan", istenen: 4);
+            Satir(normal, "1", 2, "B-GERI", "Aktarımı geri alınan", istenen: 3);
+            Satir(normal, "1", 3, "B-NORMAL", "Aktarılmayan", istenen: 2);
+            db.AddRange(normal, saha);
+            await db.SaveChangesAsync();
+            var kaynakSatirlar = normal.Cekiler.Single().CekiSatirlari.ToDictionary(x => x.BarkodNo);
+
+            Satir(saha, "1", 1, "B-SAHADA", "Sahaya aktarılan", istenen: 4);
+            var sahaSatiri = saha.Cekiler.Single().CekiSatirlari.Single();
+            sahaSatiri.KaynakCekiSatiriId = kaynakSatirlar["B-SAHADA"].Id;
+            await db.SaveChangesAsync();
+
+            var aktarim = new SahaAktarim { SahaProjeId = saha.Id, KaynakProjeId = normal.Id };
+            SahaAktarimKalemi Kalem(CekiSatiri kaynak, SahaAktarimDurum durum, int? sahaSatirId) => new()
+            {
+                SahaAktarim = aktarim, KaynakProjeId = normal.Id, SahaProjeId = saha.Id, KaynakCekiSatiriId = kaynak.Id,
+                SahaCekiSatiriId = sahaSatirId, Miktar = kaynak.IstenenAdet, DurumId = (int)durum
+            };
+            db.AddRange(
+                Kalem(kaynakSatirlar["B-SAHADA"], SahaAktarimDurum.Planlandi, sahaSatiri.Id),
+                Kalem(kaynakSatirlar["B-GERI"], SahaAktarimDurum.GeriAlindi, null));
+            await db.SaveChangesAsync();
+
+            var servis = Servis(db);
+            using var normalForm = new XLWorkbook(new MemoryStream(await servis.TopluTalepFormuExcelAsync([normal.Id])));
+            var normalSayfa = Assert.Single(normalForm.Worksheets);
+            Assert.Equal("2 kalem", normalSayfa.Cell(3, 4).GetString());
+            Assert.Equal(["B-GERI", "B-NORMAL"], new[] { 6, 7 }.Select(r => normalSayfa.Cell(r, 3).GetString()));
+            Assert.True(normalSayfa.Cell(8, 1).IsEmpty());
+
+            using var sahaForm = new XLWorkbook(new MemoryStream(await servis.TopluTalepFormuExcelAsync([saha.Id])));
+            var sahaSayfa = Assert.Single(sahaForm.Worksheets);
+            Assert.Equal("1 kalem", sahaSayfa.Cell(3, 4).GetString());
+            Assert.Equal(("SH-1", "B-SAHADA", 4m), (sahaSayfa.Cell(6, 2).GetString(), sahaSayfa.Cell(6, 3).GetString(),
+                sahaSayfa.Cell(6, 5).GetValue<decimal>()));
+        });
+    }
+
+    private static TalepFormuRaporService Servis(AppDbContext db) => new(db, new SahaTamamlamaService(db));
+
     private static Proje Proje(string no) => new() { ProjeNo = no, Musteri = "QA", ProjeTipiId = (int)ProjeTipi.Normal };
 
-    private static void Satir(Proje proje, string sandikNo, int sira, string barkod, string aciklama, string? remarks,
-        decimal istenen, decimal gridGelen = 0, decimal trafo = 0, Birim birim = Birim.Adet, GridDurum? gridDurum = null)
+    private static void Satir(Proje proje, string sandikNo, int sira, string barkod, string aciklama,
+        decimal istenen, decimal gridGelen = 0, decimal trafo = 0, Birim birim = Birim.Adet, GridDurum? gridDurum = null,
+        decimal stok = 0, decimal tedarikci = 0, decimal hatali = 0)
     {
         var ceki = proje.Cekiler.FirstOrDefault() ?? new Ceki();
         if (proje.Cekiler.Count == 0) proje.Cekiler.Add(ceki);
         ceki.CekiSatirlari.Add(new CekiSatiri
         {
-            SiraNo = sira, BarkodNo = barkod, Aciklama = aciklama, Remarks = remarks, CekideGecenSandikNo = sandikNo,
+            SiraNo = sira, BarkodNo = barkod, Aciklama = aciklama, Remarks = "Kırmızı", CekideGecenSandikNo = sandikNo,
             IstenenAdet = istenen, GridGelenAdet = gridGelen, TrafoSevkAdet = trafo, BirimId = (int)birim,
+            StokKarsilanan = stok, TedarikciKarsilanan = tedarikci, HataliMiktar = hatali,
             GridDurumuId = (int)(gridDurum ?? GridDurum.Gelmedi)
         });
     }

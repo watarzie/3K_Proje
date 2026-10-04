@@ -101,15 +101,17 @@ Katalogdaki kapsam durumu:
 
 | Durum | Madde |
 |---|---:|
-| Doğrudan birim testli | 349 |
-| Kısmen doğrulanan | 69 |
-| Gerçek entegrasyon doğrulaması gereken | 19 |
-| Arayüz doğrulaması gereken | 33 |
-| Açık fark / karar / test ihtiyacı | 29 |
-| Çalıştırılabilir uygulama kuralı olmayan | 2 |
-| Toplam | 501 |
+| Doğrudan birim testli | 337 |
+| Kısmen doğrulanan | 77 |
+| Gerçek entegrasyon doğrulaması gereken | 18 |
+| Arayüz doğrulaması gereken | 32 |
+| Açık fark / karar / test ihtiyacı | 30 |
+| Çalıştırılabilir uygulama kuralı olmayan veya kodu kaldırılmış | 8 |
+| Toplam | 502 |
 
-Dolayısıyla **501 maddenin tamamı eksiksiz test edildi** denmiyor. Her maddenin tam sınırı aşağıdaki eşleme tablolarında görülebilir; bileşik bir kuralın tek alt senaryosunu test etmek, tamamını kapsamak sayılmadı.
+Sayılar `coverage/*_TEST_ESLESMESI.md` tablolarının kapsam sütunundan çıkarılır (05.10.2026). Kaldırılan eski uçlara (c41a0a0) ait K-040, U-221, U-222, U-224, U-227 ve U-233 "Kapsam dışı" sayılır; testleri uçlarla birlikte silindi.
+
+Dolayısıyla **502 maddenin tamamı eksiksiz test edildi** denmiyor. Her maddenin tam sınırı aşağıdaki eşleme tablolarında görülebilir; bileşik bir kuralın tek alt senaryosunu test etmek, tamamını kapsamak sayılmadı.
 
 ## Bu değişiklikte giderilen hata
 

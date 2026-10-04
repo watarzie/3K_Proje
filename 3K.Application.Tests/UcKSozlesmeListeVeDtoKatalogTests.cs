@@ -194,34 +194,38 @@ public sealed class UcKSozlesmeListeVeDtoKatalogTests
         var tamam = SatirOlustur(301, cekiC, 1m, 1m, 1m, 1m, 1m, false);
         BaglaVeEkle(uow, projeC, cekiC, [tamam], [], []);
 
+        var projeD = new Proje { Id = 4, ProjeNo = "PA-D", DurumId = (int)ProjeDurum.Hazirlaniyor };
+        var cekiD = new Ceki { Id = 14, ProjeId = projeD.Id, Proje = projeD };
+        var d1 = SatirOlustur(401, cekiD, 2m, 2m, 0m, 2m, 0m, false);
+        d1.UpdatedDate = new DateTime(2026, 9, 10, 10, 0, 0);
+        BaglaVeEkle(uow, projeD, cekiD, [d1], [], []);
+
         var handler = new GetUcKIsListesiQueryHandler(uow, new LookupStub());
         var ilkSayfa = await handler.Handle(new GetUcKIsListesiQuery { Page = 1, PageSize = 1 }, default);
-        var yenidenFiltre = await handler.Handle(new GetUcKIsListesiQuery
+        var eskiYenidenFiltresi = await handler.Handle(new GetUcKIsListesiQuery
         {
-            Page = 1, PageSize = 1, IsTipi = "yeniden"
+            Page = 1, PageSize = 10, IsTipi = "yeniden"
         }, default);
         var sinirlanmis = await handler.Handle(new GetUcKIsListesiQuery
         {
             Page = 0, PageSize = 999
         }, default);
 
+        // Yalnız 3K'nın teslim alması gereken işler listelenir; yeniden sevk gereken satır (PA-B) Grid'in işidir.
         Assert.True(ilkSayfa.IsSuccess, ilkSayfa.Error?.Message);
         Assert.Equal(2, ilkSayfa.Value!.Liste.TotalCount);
         Assert.True(ilkSayfa.Value.Liste.HasMore);
         Assert.Equal(2, ilkSayfa.Value.Liste.Items.Count);
         Assert.All(ilkSayfa.Value.Liste.Items, x => Assert.Equal(projeA.Id, x.ProjeId));
         Assert.Equal(3, ilkSayfa.Value.Toplam);
-        Assert.Equal(2, ilkSayfa.Value.TeslimBekleyen);
-        Assert.Equal(1, ilkSayfa.Value.YenidenSevkGerekli);
+        Assert.Equal(3, ilkSayfa.Value.TeslimBekleyen);
+        Assert.All(ilkSayfa.Value.Liste.Items, x => Assert.Equal(("teslim", 1), (x.IsTipi, x.Oncelik)));
 
-        Assert.True(yenidenFiltre.IsSuccess, yenidenFiltre.Error?.Message);
-        Assert.Equal(3, yenidenFiltre.Value!.Toplam);
-        Assert.Equal(2, yenidenFiltre.Value.TeslimBekleyen);
-        Assert.Equal(1, yenidenFiltre.Value.YenidenSevkGerekli);
-        var yeniden = Assert.Single(yenidenFiltre.Value.Liste.Items);
-        Assert.Equal(projeB.Id, yeniden.ProjeId);
-        Assert.Equal("yeniden", yeniden.IsTipi);
-        Assert.Equal(1, sinirlanmis.Value!.Liste.Page);
+        // Eski "yeniden" filtresi artık tanınmaz; yalnız teslim bekleyenler döner, PA-B hiçbir görünümde yoktur.
+        Assert.True(eskiYenidenFiltresi.IsSuccess, eskiYenidenFiltresi.Error?.Message);
+        Assert.Equal([projeA.Id, projeA.Id, projeD.Id], eskiYenidenFiltresi.Value!.Liste.Items.Select(x => x.ProjeId));
+        Assert.DoesNotContain(sinirlanmis.Value!.Liste.Items, x => x.ProjeId == projeB.Id);
+        Assert.Equal(1, sinirlanmis.Value.Liste.Page);
         Assert.Equal(100, sinirlanmis.Value.Liste.PageSize);
     }
 

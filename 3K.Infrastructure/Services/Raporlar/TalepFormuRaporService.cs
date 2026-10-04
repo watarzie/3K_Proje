@@ -9,13 +9,17 @@ using _3K.Infrastructure.Data;
 namespace _3K.Infrastructure.Services.Raporlar;
 
 /// <summary>
-/// Toplu talep formu Excel'i (G4). Düzen istemcideki Talep Formu PDF'inin yapısını izler (başlık, tarih/saat,
-/// toplam kalem, sıra numarası, alt not); renkler ortak Excel rapor stilidir.
+/// Toplu talep formu Excel'i (G4, G-110). Grid'de eksiği olan ve 3K'nın son durumunda hâlâ kalanı olan satırlar
+/// listelenir; istenen miktar 3K kalanıdır. 3K'nın stoktan, tedarikçiden ya da başka projeden tamamen karşıladığı
+/// satır Grid'de eksik görünse de forma girmez. Aktif saha aktarımına bağlanmış normal kaynak satır da girmez (S-01):
+/// işi saha projesinde sürer, ihtiyaç saha projesinin talep formunda çıkar; iki kez talep edilmez. Düzen istemcideki
+/// Talep Formu PDF'inin yapısını izler (başlık, tarih/saat, toplam kalem, sıra numarası, alt not); renkler ortak
+/// Excel rapor stilidir.
 /// </summary>
-internal sealed class TalepFormuRaporService(AppDbContext context) : ITalepFormuRaporService
+internal sealed class TalepFormuRaporService(AppDbContext context, ISahaTamamlamaService sahaTamamlama) : ITalepFormuRaporService
 {
     private static readonly string[] Basliklar =
-        ["#", "Proje No", "Barkod", "Ürün Adı", "Ürün Açıklaması", "İstenen Miktar", "Ölçü Birimi"];
+        ["#", "Proje No", "Barkod", "Ürün Adı", "İstenen Miktar", "Ölçü Birimi"];
 
     public async Task<byte[]> TopluTalepFormuExcelAsync(IReadOnlyList<int> projeIds, CancellationToken cancellationToken = default)
     {
@@ -23,13 +27,20 @@ internal sealed class TalepFormuRaporService(AppDbContext context) : ITalepFormu
             .Where(p => projeIds.Contains(p.Id))
             .Select(p => new { p.Id, p.ProjeNo })
             .ToDictionaryAsync(p => p.Id, p => p.ProjeNo, cancellationToken);
-        // GridEksikMiktar veritabanı kolonu değildir; formülü entity'de tek yerdedir, filtre bellekte uygulanır.
-        var satirlar = (await context.CekiSatirlari.AsNoTracking()
+        // GridEksikMiktar ve KalanMiktar veritabanı kolonu değildir; formülleri entity'de tek yerdedir, filtre bellekte uygulanır.
+        var adaylar = (await context.CekiSatirlari.AsNoTracking()
                 .Include(cs => cs.BirimLookup)
                 .Where(cs => projeIds.Contains(cs.Ceki.ProjeId))
                 .Select(cs => new { Satir = cs, cs.Ceki.ProjeId })
                 .ToListAsync(cancellationToken))
-            .Where(x => x.Satir.GridEksikMiktar > 0)
+            .Where(x => x.Satir.GridEksikMiktar > 0 && x.Satir.KalanMiktar > 0)
+            .ToList();
+        // Yalnız kaynak satırlar sahaya aktarılabilir; saha projesindeki aktarılmış satır (KaynakCekiSatiriId dolu) formda kalır.
+        var sahayaAktarilanlar = (await sahaTamamlama.GetAktifTamamlamaMapAsync(
+                adaylar.Where(x => !x.Satir.KaynakCekiSatiriId.HasValue).Select(x => x.Satir.Id), cancellationToken))
+            .Keys.ToHashSet();
+        var satirlar = adaylar
+            .Where(x => !sahayaAktarilanlar.Contains(x.Satir.Id))
             .OrderBy(x => IndexOf(projeIds, x.ProjeId))
             .ThenBy(x => x.Satir.FiiliSandikNo ?? x.Satir.CekideGecenSandikNo, SandikNumarasiComparer.Instance)
             .ThenBy(x => x.Satir.SiraNo)
@@ -69,13 +80,12 @@ internal sealed class TalepFormuRaporService(AppDbContext context) : ITalepFormu
             sayfa.Cell(satirNo, 2).Value = projeler.GetValueOrDefault(kayit.ProjeId, string.Empty);
             sayfa.Cell(satirNo, 3).Value = RaporBicimleri.RaporMetni(satir.BarkodNo);
             sayfa.Cell(satirNo, 4).Value = RaporBicimleri.RaporMetni(satir.Aciklama);
-            sayfa.Cell(satirNo, 5).Value = RaporBicimleri.RaporMetni(satir.Remarks);
-            RaporExcelStilleri.SetDecimalCell(sayfa.Cell(satirNo, 6), satir.GridEksikMiktar);
-            sayfa.Cell(satirNo, 7).Value = satir.BirimLookup?.Deger ?? string.Empty;
+            RaporExcelStilleri.SetDecimalCell(sayfa.Cell(satirNo, 5), satir.KalanMiktar);
+            sayfa.Cell(satirNo, 6).Value = satir.BirimLookup?.Deger ?? string.Empty;
             if (sira % 2 == 0)
                 sayfa.Range(satirNo, 1, satirNo, sonKolon).Style.Fill.BackgroundColor = XLColor.FromHtml("#F8FAFE");
         }
-        sayfa.Range(baslikSatiri + 1, 4, Math.Max(baslikSatiri + 1, satirNo), 5).Style.Alignment.WrapText = true;
+        sayfa.Range(baslikSatiri + 1, 4, Math.Max(baslikSatiri + 1, satirNo), 4).Style.Alignment.WrapText = true;
         RaporExcelStilleri.FinalizeExcelWorksheet(sayfa, baslikSatiri, satirNo, sonKolon);
 
         using var stream = new MemoryStream();

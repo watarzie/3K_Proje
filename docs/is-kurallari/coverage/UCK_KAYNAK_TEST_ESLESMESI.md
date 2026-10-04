@@ -82,7 +82,7 @@ sabitlenmemiştir.
 | U-064 | Birim | `GridUcKParcaliSevkPartisiRegresyonTests.CokluTahsis_SeciliSandikParentAktifPartisininTamaminiTekBasinaTuketemez` | Parent, satır, sandık ve child aktif pay min sınırı doğrulanır. |
 | U-065 | Birim | `GridUcKParcaliSevkPartisiRegresyonTests.CokluTahsis_SeciliSandikParentAktifPartisininTamaminiTekBasinaTuketemez` | Parent, satır, sandık ve child aktif pay min sınırı doğrulanır. |
 | U-066 | Birim | `GridUcKParcaliSevkPartisiRegresyonTests.CokluTahsis_SecimsizTeslimAktifPartiyiChildPaylariniAsmayanSekildeDagitir` | Seçimsiz fiziksel teslim child hedeflerini aşmadan dağıtılır. |
-| U-067 | Birim | `GridUcKParcaliSevkPartisiRegresyonTests.EskiTekliTeslimEndpointi_AktifPartiUstSiniriniAsamazVeTekrarCiftSaymaz` | Parent aktif sayaç parti üst sınırını aşamaz. |
+| U-067 | Kısmi | `GridUcKParcaliSevkPartisiRegresyonTests.TekliGridIkinciParti_TopluUcKKarsilama_KalaniTamamlarVeTekrarCagriCiftSaymaz`; `GridUcKParcaliSevkPartisiRegresyonTests.CokluTahsis_IkinciPartiSayaclariniSandikBazindaTutarVeTekrarIstegiKaydirmaz` | Canlı tekil/toplu Tam Geldi'de parent aktif sayaç parti miktarında durur, başka sandıktan tekrar istek sayacı aşırmaz. Fazla miktar reddi (`AktifPartiKarsilamasiniKaydet`, Eksik Geldi kalan üst sınırı) doğrudan testli değildir; bunu sınayan eski teslim ucu testi c41a0a0 ile kaldırıldı. |
 | U-068 | Birim | `GridUcKSevkPartisiYasamDongusuTests.SayacVeSonuclanmaBayragiNullableUyusmuyorsa_LegacyAktifPartiBelirsizdir` | Nullable sayaç/bayrak tutarsızlığı güvenli ret üretir. |
 | U-069 | Birim | `GridUcKParcaliSevkPartisiRegresyonTests.CokluTahsis_SecimsizTeslimAktifPartiyiChildPaylariniAsmayanSekildeDagitir` | Child hedefleri mevcut açıklar üzerinden kurulur ve dolu child aşılmaz. |
 | U-070 | Birim | `GridUcKSevkPartisiYasamDongusuTests.YeniPartiBaslatmaBayragiFalseYapar_TakipTemizlemeParentVeChildAlanlariniNullYapar` | Aktif sevk yokken takip temizliği null sözleşmesini korur. |
@@ -90,8 +90,8 @@ sabitlenmemiştir.
 | U-072 | Birim | `GridUcKParcaliSevkPartisiRegresyonTests.LegacyPartiSayaciBosken_EksikDurumMiktarlarEsitOlsaDaBelirsizKalir` | Legacy Eksik kaydı tahmin edilmez. |
 | U-073 | Birim | `GridUcKParcaliSevkPartisiRegresyonTests.LegacyPartiSayaciBosken_TamDurumdaGelenAktifSevkeEsitDegilseOtomatikDevamAcmaz` | Legacy Tam eşitlik/eşitsizlik ayrımı doğrudan sınanır. |
 | U-074 | Birim | `GridUcKParcaliSevkPartisiRegresyonTests.LegacyPartiSayaciBosken_TamDurumdaGelenAktifSevkeEsitDegilseOtomatikDevamAcmaz` | Legacy Tam eşitlik/eşitsizlik ayrımı doğrudan sınanır. |
-| U-075 | Birim | `GridUcKParcaliSevkPartisiRegresyonTests.LegacyAcikPartideIlkKismiTeslim_YasamDongusunuMaterializeEderVeKalanTeslimiEngellemez` | Güvenli Bekliyor kaydı sayaç 0 ve false bayrakla materialize edilir. |
-| U-076 | Birim | `GridUcKParcaliSevkPartisiRegresyonTests.LegacyAcikPartideIlkKismiTeslim_YasamDongusunuMaterializeEderVeKalanTeslimiEngellemez` | Güvenli Bekliyor kaydı sayaç 0 ve false bayrakla materialize edilir. |
+| U-075 | Kısmi | `GridUcKParcaliSevkPartisiRegresyonTests.LegacyGelmediPartisi_AlternatifKaynakKismiKapatilmadanOnceSonuclanmisOlarakMaterializeEdilir` | Gelmedi ve fiziksel geleni 0 olan legacy kayıt güvenli yorumlanıp kaynak işlemine açılır; Bekliyor dalı canlı 3K akışında testli değildir (eski teslim ucu testi c41a0a0 ile kaldırıldı). |
+| U-076 | Açık | — | Güvenli legacy Bekliyor kaydının materialize edilmesi (sayaç 0, bayrak false) yalnız eski teslim ucu testiyle sınanıyordu; uç ve test c41a0a0 ile kaldırıldı. Kod canlı; UcKDurumGuncelle/toplu tedarikçi yolunda karşılık testi yoktur. |
 | U-077 | Birim | `GridUcKParcaliSevkPartisiRegresyonTests.LegacyGelmediPartisi_AlternatifKaynakKismiKapatilmadanOnceSonuclanmisOlarakMaterializeEdilir` | Güvenli Gelmedi kaydı erken sonuçlanmış olarak materialize edilir. |
 | U-078 | Birim | `GridUcKParcaliSevkPartisiRegresyonTests.LegacyGelmediPartisi_TopluTedarikciSeciliSandikKadarKapatirVeKalanDevamSevkiniKorur` | Kaynak işlemi öncesi legacy materializasyonu toplu tedarikçide doğrulanır. |
 | U-079 | Birim | `GridUcKSevkPartisiYasamDongusuTests.SayacVeSonuclanmaBayragiNullableUyusmuyorsa_LegacyAktifPartiBelirsizdir` | Belirsiz geçmiş tahminle ilerlemez. |
@@ -180,7 +180,7 @@ sabitlenmemiştir.
 | U-162 | Birim | `UcKKaynakTransferStokIadeKatalogTests.StoktanOndalikKarsilama_AdiNormalizeEder_BakiyeHareketTahsisBorcVeLokasyonuSenkronizeEder` | Başarılı işlem sonrası child Konulan ve eksik miktarı merkezi kaynak toplamından senkronize edilir. |
 | U-163 | Birim | `GridUcKParcaliSevkPartisiRegresyonTests.PA702TahsisUyumsuzlugu_KapasiteyiAsanUcKKarsilamasiniEngeller` | Fiziksel hedef tahsis kapasitesini aşarsa kalıcı mutasyon oluşmaz. |
 | U-164 | Birim | `GridUcKParcaliSevkPartisiRegresyonTests.CokluTahsis_SecimsizTeslimAktifPartiyiChildPaylariniAsmayanSekildeDagitir` | Seçimsiz dağıtım deterministik child sırasını ve kapasiteyi korur. |
-| U-165 | Birim | `GridUcKSatirMiktarSenkronizasyonTests.CokluTahsis_SandikFiltresiTekSatirBiraksaDaDagilimDegismez` | Etkin tahsis ve child eksik hesabı filtreyle değişmez. |
+| U-165 | Kısmi | `UcKKaynakTransferStokIadeKatalogTests.EksikGeldi_OndalikAktifPartiyiBirKezSonuclandirir_ChildVeBorcSenkronKalir`; `GridUcKParcaliSevkPartisiRegresyonTests.TekliGridIkinciParti_TopluUcKKarsilama_KalaniTamamlarVeTekrarCagriCiftSaymaz` | Tekil Eksik Geldi (4 − 1,25 = 2,75) ve toplu Tam Geldi (3 − 3 = 0) sonrası child EksikAdet tahsis − Konulan olarak yenilenir. TahsisMiktari 0 iken etkin tahsis fallback'i (tek kayıtta ana istenen, çok kayıtta Konulan) ve çok child'lı senkronizasyonda Eksik değeri ayrı testli değildir. |
 | U-166 | Kısmi | `UcKKaynakTransferStokIadeKatalogTests.StoktanOndalikKarsilama_AdiNormalizeEder_BakiyeHareketTahsisBorcVeLokasyonuSenkronizeEder` | Stok kaynağı Belirsiz lokasyonu 3K yapar; diğer pozitif tipler farklı testlerde dolaylıdır. |
 | U-167 | Birim | `UcKKaynakTransferStokIadeKatalogTests.Gelmedi_AktifPartininTamaminiBorcaCevirirVeDepoLokasyonunuDegistirmez` | Gelmedi lokasyonu değiştirmez; iade koruması iade testinde de kontrol edilir. |
 | U-168 | Entegrasyon | — | Gerçek transaction commit/rollback sınırı bellek unit testiyle kanıtlanamaz. |
@@ -215,8 +215,8 @@ sabitlenmemiştir.
 | U-197 | Birim | `UcKSozlesmeListeVeDtoKatalogTests.IsListesi_SayfalamayiSatirDegilProjeBazindaYaparVeFiltreOncesiOzetSayaclariniKorur` | Page sınırları, filtre öncesi özet, öncelik ve proje bazlı pagination doğrulanır. |
 | U-198 | Birim | `UcKSozlesmeListeVeDtoKatalogTests.IsListesi_SevkEdilmisProjeyiYalnizSandikDuzeltmesiAcikkenGosterir` | Sevk edilmiş proje kapalıyken gizlenir, sandık düzeltme bayrağı açılınca iş listesine gelir. |
 | U-199 | Birim | `UcKSozlesmeListeVeDtoKatalogTests.IsListesi_SayfalamayiSatirDegilProjeBazindaYaparVeFiltreOncesiOzetSayaclariniKorur` | Page sınırları, filtre öncesi özet, öncelik ve proje bazlı pagination doğrulanır. |
-| U-200 | Birim | `UcKSozlesmeListeVeDtoKatalogTests.IsListesi_SayfalamayiSatirDegilProjeBazindaYaparVeFiltreOncesiOzetSayaclariniKorur` | Page sınırları, filtre öncesi özet, öncelik ve proje bazlı pagination doğrulanır. |
-| U-201 | Kısmi | `UcKSozlesmeListeVeDtoKatalogTests.IsListesi_SayfalamayiSatirDegilProjeBazindaYaparVeFiltreOncesiOzetSayaclariniKorur` | Açık teslim ve yeniden sevk örnekleri vardır; terminal/formül kombinasyonlarının tamamı tek testte değildir. |
+| U-200 | Birim | `UcKSozlesmeListeVeDtoKatalogTests.IsListesi_SayfalamayiSatirDegilProjeBazindaYaparVeFiltreOncesiOzetSayaclariniKorur` | Yalnız teslim işi üretildiği, yeniden sevk gereken satırın hiçbir görünümde olmadığı ve eski 'yeniden' filtresinin teslim işlerini döndürdüğü doğrulanır. |
+| U-201 | Kısmi | `UcKSozlesmeListeVeDtoKatalogTests.IsListesi_SayfalamayiSatirDegilProjeBazindaYaparVeFiltreOncesiOzetSayaclariniKorur` | Açık teslim örnekleri ve listeye girmeyen yeniden sevk satırı vardır; terminal/formül kombinasyonlarının tamamı tek testte değildir. |
 | U-202 | Kısmi | `UcKSozlesmeListeVeDtoKatalogTests.IsListesi_SayfalamayiSatirDegilProjeBazindaYaparVeFiltreOncesiOzetSayaclariniKorur` | Açık teslim ve yeniden sevk örnekleri vardır; terminal/formül kombinasyonlarının tamamı tek testte değildir. |
 | U-203 | Birim | `UcKSozlesmeListeVeDtoKatalogTests.IsListesi_SayfalamayiSatirDegilProjeBazindaYaparVeFiltreOncesiOzetSayaclariniKorur` | Page sınırları, filtre öncesi özet, öncelik ve proje bazlı pagination doğrulanır. |
 | U-204 | Kısmi | `UcKSozlesmeListeVeDtoKatalogTests.IsListesi_SayfalamayiSatirDegilProjeBazindaYaparVeFiltreOncesiOzetSayaclariniKorur` | Bellek içi filtre/grup/pagination sonucu doğrulanır; sorgu performansı entegrasyon ölçümüdür. |
@@ -236,19 +236,19 @@ sabitlenmemiştir.
 | U-218 | UI | — | Tek çağrı, istemci filtresi ve pagination yokluğu UI/API performans entegrasyon kapsamındadır. |
 | U-219 | UI | — | Aktif servis endpoint seçimi frontend servis kontratıdır. |
 | U-220 | Entegrasyon | — | Legacy controller rotalarının açık olması API rota entegrasyon testi gerektirir. |
-| U-221 | Kısmi | `GridUcKParcaliSevkPartisiRegresyonTests.EskiTeslimEndpointleri_GridKapandiSatiriDegistiremez` | Legacy endpoint terminal blokajı testlidir; saha/kilit/Tadilatta matrisi aynı testte tam değildir. |
-| U-222 | Birim | `GridUcKParcaliSevkPartisiRegresyonTests.EskiTekliTeslimEndpointi_AktifPartiUstSiniriniAsamazVeTekrarCiftSaymaz` | Legacy tekil aşan miktarı reddeder ve tekrar çift saymaz. |
+| U-221 | Kapsam dışı | — | Eski tekil teslim ucu (PUT api/Sandik/teslim-al) ve testi c41a0a0 ile kaldırıldı. Canlı 3K yolundaki saha, sevk kilidi, İptal/Kapandı ve Tadilatta blokajları U-035–U-039'da eşlenir. |
+| U-222 | Kapsam dışı | — | Eski tekil teslim ucu ve testi c41a0a0 ile kaldırıldı. Canlı Eksik Geldi'de aktif parti kalanını aşan miktarın reddi ayrı testli değildir (bkz. U-067). |
 | U-223 | Açık | — | Legacy durum etiketi formülü bilinen uyumsuzluktur; hedef diye sabitlenmedi. |
-| U-224 | Birim | `GridUcKParcaliSevkPartisiRegresyonTests.EskiTopluTeslimEndpointi_FazlaIstegiAktifPartiyeSinirlarVeSeciliChildSayaciniKorur` | Legacy toplu istek aktif parti sınırına kırpılır. |
+| U-224 | Kapsam dışı | — | Eski toplu teslim ucu (POST api/Sandik/toplu-teslim-al), Math.Min kırpması ve testi c41a0a0 ile kaldırıldı; canlı toplu Tam Geldi miktar almaz, aktif parti kalanını kullanır. |
 | U-225 | Açık | — | Legacy sessiz kırpma/durum etiketi uyumsuzlukları istenen davranış diye sabitlenmedi. |
 | U-226 | Açık | — | Legacy sessiz kırpma/durum etiketi uyumsuzlukları istenen davranış diye sabitlenmedi. |
-| U-227 | Birim | `GridUcKParcaliSevkPartisiRegresyonTests.EskiTopluTeslimEndpointi_FazlaIstegiAktifPartiyeSinirlarVeSeciliChildSayaciniKorur` | Legacy toplu helper parent/child sayacı ve çift saymama sınırını korur. |
+| U-227 | Kapsam dışı | — | Eski iki teslim ucu ve testleri c41a0a0 ile kaldırıldı; canlı yollarda aktif parti sayacı ve SandikIcerik senkronizasyonu U-081/U-082, U-161 ve U-232'de eşlenir. |
 | U-228 | Birim | `GridUcKParcaliSevkPartisiRegresyonTests.TopluGridIkinciParti_TekliUcKKarsilama_KalaniTamamlarVeTahsisDegismez` | Katalogda anılan ikinci parti tekil/toplu regresyon paketi mevcuttur. |
 | U-229 | Birim | `GridUcKParcaliSevkPartisiRegresyonTests.LegacyGelmediPartisi_AlternatifKaynakKismiKapatilmadanOnceSonuclanmisOlarakMaterializeEdilir` | Katalogda anılan legacy materializasyon paketi mevcuttur. |
 | U-230 | Birim | `GridUcKParcaliSevkPartisiRegresyonTests.YenidenSevkPartisi_EksikKarsilanincaPartiEksigiMevcutIhtiyacaBirKezEklenir` | Eksik/Gelmedi borçlarının tek kez eklenmesi testlidir. |
 | U-231 | Birim | `GridUcKParcaliSevkPartisiRegresyonTests.EksikFinalizasyonuSonrasi_ParcaliGeriGonderimTekrarliCalisir` | Parçalı iade, karışık kaynak ve açık parti varyantları regresyon paketindedir. |
 | U-232 | Birim | `GridUcKParcaliSevkPartisiRegresyonTests.CokluTahsis_IkinciPartiSayaclariniSandikBazindaTutarVeTekrarIstegiKaydirmaz` | Çoklu tahsis parent/child aktif sayaç regresyonu mevcuttur. |
-| U-233 | Birim | `GridUcKParcaliSevkPartisiRegresyonTests.EskiTekliTeslimEndpointi_AktifPartiUstSiniriniAsamazVeTekrarCiftSaymaz` | Legacy tekil/toplu aktif parti üst sınır testleri mevcuttur. |
+| U-233 | Kapsam dışı | — | Eski uçların aktif parti üst sınır testleri uçlarla birlikte c41a0a0 ile silindi; katalogdaki [TEST] iddiası artık geçerli değildir. |
 | U-234 | Birim | `UcKProjeTransferTelafiTeslimKuralTests.Satir86_KismiTransferSonrasiYeniSekizAdedinTamaminiTeslimAlir` | Telafi adaylığı, tek child ve miktar sınırı test paketi mevcuttur. |
 | U-235 | Birim | `UcKSevkKaynakSonrasiSifirlamaTests.EksikTeslimSonrasiTedarikciVeSandikSifirlama_YenidenTeslimdeSahteSevkBorcuBirakmaz` | Kaynak sonrası tekil/toplu reset borç regresyonu mevcuttur. |
 | U-236 | UI | `uck-urunler-sevk-partisi.spec.ts — aktif parti gate, Tam, Eksik, Fazla ve Geri sözleşmesi` | Katalogda anılan frontend test paketi. |

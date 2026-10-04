@@ -8,11 +8,13 @@ using _3K.Core.Interfaces;
 
 namespace _3K.Application.Features.UcKIslemleri.Queries
 {
+    /// <summary>
+    /// 3K iş listesi yalnız 3K'nın teslim alması gereken Grid sevklerini (aktif parti teslime açık ve kalanı pozitif)
+    /// listeler. Yeniden sevk gerekli ve Grid eksik geldi işleri Grid'in aksiyonudur; yalnız Grid iş listesinde görünür.
+    /// </summary>
     public class GetUcKIsListesiQueryHandler : IRequestHandler<GetUcKIsListesiQuery, Result<UcKIsListesiDto>>
     {
         private const string TipTeslim = "teslim";
-        private const string TipYeniden = "yeniden";
-        private const string TipEksik = "eksik";
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILookupCacheService _lookupCache;
 
@@ -92,9 +94,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
             {
                 Toplam = items.Count,
                 TeslimBekleyen = items.Count(i => i.IsTipi == TipTeslim),
-                EksikGelen = items.Count(i => i.IsTipi == TipEksik),
                 TrafoSevk = 0,
-                YenidenSevkGerekli = items.Count(i => i.IsTipi == TipYeniden),
                 GridKapandi = 0,
                 BugunGridIslemi = items.Count(IsTodayGridOperation)
             };
@@ -179,14 +179,12 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
             var teslimBekleyen = aktifPartiTeslimeAcik
                 ? GridUcKSevkPartisiKurali.AktifPartiKalanMiktariniHesapla(sevkSatiri)
                 : 0;
-            var ucKGelenEksik = row.GridDurumuId == (int)GridDurum.EksikGeldi ? teslimBekleyen : 0;
-            var kalan = CalculateKalan(row.GridDurumuId, row.IstenenAdet, row.GelenMiktar, row.StokKarsilanan, row.ProjeKarsilanan, row.ProjeGonderilen, row.TedarikciKarsilanan, row.TrafoSevkAdet);
-
-            var tip = GetIsTipi(row.GridDurumuId, row.GridSevkDurumuId, row.YenidenSevkGerekliAdet, row.TrafoSevkAdet, teslimBekleyen, ucKGelenEksik, row.UcKKarsilamaTipiId, aktifPartiTeslimeAcik);
-            if (tip == null)
+            if (teslimBekleyen <= 0 || !aktifPartiTeslimeAcik)
             {
                 return null;
             }
+
+            var kalan = CalculateKalan(row.GridDurumuId, row.IstenenAdet, row.GelenMiktar, row.StokKarsilanan, row.ProjeKarsilanan, row.ProjeGonderilen, row.TedarikciKarsilanan, row.TrafoSevkAdet);
 
             var sandikNo = string.IsNullOrWhiteSpace(row.FiiliSandikNo) ? row.CekideGecenSandikNo : row.FiiliSandikNo;
 
@@ -218,34 +216,10 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                 GridAciklama = row.GridAciklama,
                 GridSevkTarihi = row.GridSevkTarihi,
                 SonIslemTarihi = row.UpdatedDate ?? row.GridSevkTarihi ?? row.CreatedDate,
-                IsTipi = tip.Value.IsTipi,
-                IsTipiMetni = tip.Value.IsTipiMetni,
-                Oncelik = tip.Value.Oncelik
+                IsTipi = TipTeslim,
+                IsTipiMetni = "3K teslim bekliyor",
+                Oncelik = 1
             };
-        }
-
-        private static (string IsTipi, string IsTipiMetni, int Oncelik)? GetIsTipi(
-            int gridDurumuId,
-            int gridSevkDurumuId,
-            decimal yenidenSevkGerekliAdet,
-            decimal trafoSevkAdet,
-            decimal teslimBekleyen,
-            decimal ucKGelenEksik,
-            int ucKKarsilamaTipiId,
-            bool aktifPartiTeslimeAcik)
-        {
-            if (teslimBekleyen > 0 && aktifPartiTeslimeAcik)
-                return (TipTeslim, "3K teslim bekliyor", 2);
-
-            if (yenidenSevkGerekliAdet > 0 || gridSevkDurumuId == (int)GridSevkDurum.YenidenSevkGerekli)
-                return (TipYeniden, "Yeniden sevk gerekli", 1);
-
-            if (gridDurumuId == (int)GridDurum.EksikGeldi &&
-                ucKGelenEksik > 0 &&
-                gridSevkDurumuId == (int)GridSevkDurum.SevkEdildi)
-                return (TipEksik, "Grid eksik geldi", 3);
-
-            return null;
         }
 
         private static decimal CalculateKalan(
@@ -270,9 +244,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                 return null;
 
             var normalized = isTipi.Trim().ToLowerInvariant();
-            return normalized is TipTeslim or TipYeniden or TipEksik
-                ? normalized
-                : null;
+            return normalized == TipTeslim ? normalized : null;
         }
 
         private static bool IsTodayGridOperation(UcKIsListesiItemDto item)

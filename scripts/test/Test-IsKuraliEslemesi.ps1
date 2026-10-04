@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param([string] $TrxPath)
 
 $ErrorActionPreference = 'Stop'
