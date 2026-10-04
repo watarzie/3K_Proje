@@ -22,6 +22,7 @@ public sealed class FinansTanimCommandHandlers(
     IRequestHandler<FinansUrunGuncelleCommand, Result<FinansUrunModel>>,
     IRequestHandler<FinansUrunPasiflestirCommand, Result>,
     IRequestHandler<FinansUrunYenidenFiyatlaCommand, Result<FinansYenidenFiyatlamaSonucModel>>,
+    IRequestHandler<FinansTarifeDuzeltCommand, Result<FinansTarifeDuzeltmeSonucModel>>,
     IRequestHandler<FinansParaBirimiOlusturCommand, Result<FinansParaBirimiModel>>,
     IRequestHandler<FinansParaBirimiGuncelleCommand, Result<FinansParaBirimiModel>>,
     IRequestHandler<FinansParametreleriKaydetCommand, Result<FinansParametrelerModel>>
@@ -65,6 +66,11 @@ public sealed class FinansTanimCommandHandlers(
     public Task<Result<FinansYenidenFiyatlamaSonucModel>> Handle(FinansUrunYenidenFiyatlaCommand request, CancellationToken cancellationToken)
         => FinansHandlerHelper.ExecuteOptionalAsync(
             () => urunler.YenidenFiyatlaAsync(request.Id, request.Aciklama, cancellationToken), "Finans ürünü bulunamadı.");
+
+    public Task<Result<FinansTarifeDuzeltmeSonucModel>> Handle(FinansTarifeDuzeltCommand request, CancellationToken cancellationToken)
+        => FinansHandlerHelper.ExecuteOptionalAsync(
+            () => urunler.TarifeDuzeltAsync(request.UrunId, request.TarifeId, request.Model, cancellationToken),
+            "Finans ürünü veya tarife sürümü bulunamadı.");
 
     public Task<Result<FinansParaBirimiModel>> Handle(FinansParaBirimiOlusturCommand request, CancellationToken cancellationToken)
         => FinansHandlerHelper.ExecuteAsync(() => parametreler.ParaBirimiOlusturAsync(request.Model, cancellationToken));

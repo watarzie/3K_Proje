@@ -103,6 +103,25 @@ public sealed class FinansTanimController(IMediator mediator) : FinansController
     public async Task<ActionResult> UrunYenidenFiyatla(int id, [FromBody] FinansIptalDto model, CancellationToken ct)
         => (await Mediator.Send(new FinansUrunYenidenFiyatlaCommand { Id = id, Aciklama = model.Aciklama }, ct)).ToActionResult();
 
+    [HttpGet("urunler/{urunId:int}/tarifeler/{tarifeId:int}/duzeltme-onizleme")]
+    public async Task<ActionResult> TarifeDuzeltmeOnizleme(
+        int urunId,
+        int tarifeId,
+        [FromQuery] decimal birimFiyat,
+        [FromQuery] decimal kdvOrani,
+        CancellationToken ct)
+        => (await Mediator.Send(new FinansTarifeDuzeltmeOnizlemeQuery
+        {
+            UrunId = urunId,
+            TarifeId = tarifeId,
+            BirimFiyat = birimFiyat,
+            KdvOrani = kdvOrani
+        }, ct)).ToActionResult();
+
+    [HttpPost("urunler/{urunId:int}/tarifeler/{tarifeId:int}/duzelt")]
+    public async Task<ActionResult> TarifeDuzelt(int urunId, int tarifeId, [FromBody] FinansTarifeDuzeltModel model, CancellationToken ct)
+        => (await Mediator.Send(new FinansTarifeDuzeltCommand { UrunId = urunId, TarifeId = tarifeId, Model = model }, ct)).ToActionResult();
+
     [HttpGet("para-birimleri")]
     public async Task<ActionResult> ParaBirimleri([FromQuery] bool sadeceAktif, CancellationToken ct)
         => (await Mediator.Send(new FinansParaBirimleriQuery { SadeceAktif = sadeceAktif }, ct)).ToActionResult();

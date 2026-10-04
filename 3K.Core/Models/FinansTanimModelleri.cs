@@ -121,3 +121,46 @@ public sealed record FinansParametrelerModel(int VarsayilanVadeGunu, int VadeUya
 
 /// <summary>D4 yeniden fiyatlama sonucu: kapsamdaki açık kalem sayısı ve fiyatı değişen kalem sayısı.</summary>
 public sealed record FinansYenidenFiyatlamaSonucModel(int UrunId, int IncelenenKalem, int FiyatlananKalem);
+
+/// <summary>Hatalı tarife düzeltme girdisi: sürümün doğru birim fiyatı, KDV oranı ve zorunlu gerekçe.</summary>
+public sealed record FinansTarifeDuzeltModel(decimal BirimFiyat, decimal KdvOrani, string Aciklama);
+
+/// <summary>
+/// Tarife düzeltme önizlemesi. Fiyat ve tutarlar maskeli alan adlarıyla (birimFiyat, kdvOrani, netTutar) iç içe
+/// nesnelerde taşınır; böylece fiyat/tutar görme yetkisi olmayan kullanıcıya HTTP sınırında null döner.
+/// </summary>
+public sealed class FinansTarifeDuzeltmeOnizlemeModel
+{
+    public int TarifeId { get; init; }
+    public int UrunId { get; init; }
+    public string UrunAdi { get; init; } = string.Empty;
+    public string ParaBirimi { get; init; } = string.Empty;
+    public DateTime GecerlilikBaslangici { get; init; }
+    public DateTime GecerlilikBitisi { get; init; }
+    public FinansTarifeDuzeltmeDegerModel Mevcut { get; init; } = null!;
+    public FinansTarifeDuzeltmeDegerModel Yeni { get; init; } = null!;
+    public int DuzeltilecekKalemSayisi { get; init; }
+    public int KorunanKalemSayisi { get; init; }
+    /// <summary>Önce korunan, sonra düzeltilecek kalemler; en fazla <see cref="EnFazlaKalem"/> satır.</summary>
+    public IReadOnlyList<FinansTarifeDuzeltmeKalemModel> Kalemler { get; init; } = Array.Empty<FinansTarifeDuzeltmeKalemModel>();
+    public bool KalemListesiKisaltildi { get; init; }
+
+    public const int EnFazlaKalem = 200;
+}
+
+/// <summary>Sürüm değeri ve düzeltilecek kalemlerin toplam net bedeli (mevcut ya da yeni fiyatla).</summary>
+public sealed record FinansTarifeDuzeltmeDegerModel(decimal BirimFiyat, decimal KdvOrani, decimal NetTutar);
+
+/// <summary>Sürümle fiyatlanmış kalem; Duzeltilir false ise KorunmaNedeni doludur.</summary>
+public sealed record FinansTarifeDuzeltmeKalemModel(
+    int IsKaydiId,
+    string ProjeNo,
+    string IsAdi,
+    DateTime FinansTarihi,
+    string KaynakTuru,
+    bool Duzeltilir,
+    string? KorunmaNedeni,
+    decimal NetTutar);
+
+/// <summary>Tarife düzeltme sonucu: düzeltilen ve korunan kalem sayıları.</summary>
+public sealed record FinansTarifeDuzeltmeSonucModel(int TarifeId, int DuzeltilenKalemSayisi, int KorunanKalemSayisi);

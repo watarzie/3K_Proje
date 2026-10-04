@@ -8,6 +8,16 @@ koşum sayıları tarihsel kayıttır; depo dışında yönetilen 02–04 SQL'le
 bugünkü halini veya canlıda elle uygulanmasını doğrulamaz. Bu geçiş için
 ayrı staging provası ve DBA doğrulaması gerekir.
 
+## Hatalı tarife düzeltme — 4 Ekim 2026
+
+Kayıtlar oluştuktan sonra yanlış girilmiş bir tarife sürümünün fiyatı/KDV'si gerekçeyle düzeltilir; yalnız o sürümün tarife değeriyle fiyatlanmış açık kalemler yeni değere çekilir (`FinansTarifeDuzeltmeKurali`). PO'ya bağlı, elle fiyatlı, manuel netli, bileşenli ve iptal kalemler korunur; diğer sürümler ve tarih kuralı değişmez.
+
+- [FinansTarifeDuzeltmeTests](../../3K.Application.Tests/FinansTarifeDuzeltmeTests.cs): 14 vaka — koruma nedenleri, iptal PO'nun engellememesi, yeni net yuvarlaması, doğrulama, yazma yetkisi ve önizlemede fiyat/KDV/tutarın yetkisiz kullanıcıya null dönmesi.
+- [FinansTarifeDuzeltmePostgresTests](../../3K.Application.Tests/FinansTarifeDuzeltmePostgresTests.cs): canlıdaki 565→500 vakası; ekranda aynı gün düzeltmenin reddi, önizlemenin veriyi değiştirmemesi, yalnız tarife fiyatlı açık kalemin 565'e çekilmesi, sürüm geçmişi ve denetim kaydı.
+- Ön yüz `finans-tarife-duzeltme.component.spec.ts`: 4 vaka — yetkisiz açılmama, değer değişince önizlemenin düşmesi, gerekçe zorunluluğu, onaya düşen işlemin başarı sayılmaması.
+
+Koşum: değişen alan alt kümesi (`FinansTarifeDuzeltme|FinansUrunTarifeTests|Yeniden_fiyatlama_yalniz_posuz`, 22/22, atlanan yok) geçici dizinde açılan izole PostgreSQL 18 kümesinde (127.0.0.1:55439) çalıştı; yetki/güvenlik regresyon alt kümesi 133/133, finans aylık ön yüz testleri 21/21. Tam backend ve frontend paketleri bu değişiklikte koşulmadı. Uygulama DB'sine dokunulmadı.
+
 ## Yetki hiyerarşisi doğrulaması — 25 Eylül 2026
 
 Üst menü N/R sınırlandırması, rol/kullanıcı menüsü, rol kaydı, kişisel izin ve rol atama regresyonları eklendikten sonra backend paketinin Debug ve Release koşumlarının her birinde **1.289 başarılı, 0 başarısız, 28 atlanan** test vardır (toplam 1.317). Atlanan testler izole PostgreSQL bağlantısı gerektirir; bu koşum gerçek DB entegrasyonu kanıtı değildir. Kural–test eşlemesi denetiminde 501 kural referansı geçerlidir. Frontend üretim derlemesi ve yeni yetki odak testleri (16/16) başarılıdır. Tam frontend koşumunda 211 testin 209'u geçti; görev dışı finans panelinin mevcut iki testi başarısız kaldı. Canlı rol kayıtları ve tarayıcı kabulü ayrıca doğrulanmalıdır.

@@ -17,6 +17,7 @@ public sealed class FinansTanimQueryHandlers(
     IRequestHandler<FinansGiderKutuphaneKategorileriQuery, Result<IReadOnlyList<FinansGiderKategoriModel>>>,
     IRequestHandler<FinansGiderKutuphaneKalemleriQuery, Result<IReadOnlyList<FinansGiderKalemiModel>>>,
     IRequestHandler<FinansUrunlerQuery, Result<FinansSayfaliSonuc<FinansUrunModel>>>,
+    IRequestHandler<FinansTarifeDuzeltmeOnizlemeQuery, Result<FinansTarifeDuzeltmeOnizlemeModel>>,
     IRequestHandler<FinansParaBirimleriQuery, Result<IReadOnlyList<FinansParaBirimiModel>>>,
     IRequestHandler<FinansParametrelerQuery, Result<FinansParametrelerModel>>
 {
@@ -41,6 +42,11 @@ public sealed class FinansTanimQueryHandlers(
     public Task<Result<FinansSayfaliSonuc<FinansUrunModel>>> Handle(FinansUrunlerQuery request, CancellationToken cancellationToken)
         => FinansHandlerHelper.ExecuteAsync(() => urunler.UrunlerSayfaliAsync(
             request.SadeceAktif, request.TarifeTarihi, request.Arama, request.PageNumber, request.PageSize, cancellationToken));
+
+    public Task<Result<FinansTarifeDuzeltmeOnizlemeModel>> Handle(FinansTarifeDuzeltmeOnizlemeQuery request, CancellationToken cancellationToken)
+        => FinansHandlerHelper.ExecuteOptionalAsync(
+            () => urunler.TarifeDuzeltmeOnizleAsync(request.UrunId, request.TarifeId, request.BirimFiyat, request.KdvOrani, cancellationToken),
+            "Finans ürünü veya tarife sürümü bulunamadı.");
 
     public Task<Result<IReadOnlyList<FinansParaBirimiModel>>> Handle(FinansParaBirimleriQuery request, CancellationToken cancellationToken)
         => FinansHandlerHelper.ExecuteAsync(() => parametreler.ParaBirimleriAsync(request.SadeceAktif, cancellationToken));

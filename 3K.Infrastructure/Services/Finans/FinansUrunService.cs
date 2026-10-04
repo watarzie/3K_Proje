@@ -234,6 +234,114 @@ internal sealed class FinansUrunService(
         return new FinansYenidenFiyatlamaSonucModel(id, works.Count, fiyatlanan);
     }
 
+    public async Task<FinansTarifeDuzeltmeOnizlemeModel?> TarifeDuzeltmeOnizleAsync(
+        int urunId,
+        int tarifeId,
+        decimal birimFiyat,
+        decimal kdvOrani,
+        CancellationToken cancellationToken)
+    {
+        var plan = await TarifeDuzeltmePlaniAsync(urunId, tarifeId, tracking: false, cancellationToken);
+        if (plan is null) return null;
+        var (urun, surum, kalemler) = plan.Value;
+        FinansTarifeDuzeltmeKurali.Dogrula(surum, birimFiyat, kdvOrani);
+
+        var siniflanan = kalemler.Select(kalem => (Kalem: kalem, Neden: FinansTarifeDuzeltmeKurali.KorunmaNedeni(kalem, surum))).ToList();
+        var duzeltilecek = siniflanan.Where(x => x.Neden is null).Select(x => x.Kalem).ToList();
+        var satirlar = siniflanan
+            .OrderBy(x => x.Neden is null)
+            .ThenBy(x => x.Kalem.FinansTarihi)
+            .ThenBy(x => x.Kalem.Id)
+            .Select(x => new FinansTarifeDuzeltmeKalemModel(x.Kalem.Id, x.Kalem.ProjeNo, x.Kalem.IsAdi, x.Kalem.FinansTarihi,
+                x.Kalem.KaynakTuru, x.Neden is null, x.Neden, FinansTutarKurallari.IsNet(x.Kalem)))
+            .ToList();
+        return new FinansTarifeDuzeltmeOnizlemeModel
+        {
+            TarifeId = surum.Id,
+            UrunId = urun.Id,
+            UrunAdi = urun.Ad,
+            ParaBirimi = surum.ParaBirimi,
+            GecerlilikBaslangici = surum.GecerlilikBaslangici,
+            GecerlilikBitisi = surum.GecerlilikBitisi,
+            Mevcut = new(surum.BirimFiyat, surum.KdvOrani, duzeltilecek.Sum(FinansTutarKurallari.IsNet)),
+            Yeni = new(birimFiyat, kdvOrani, duzeltilecek.Sum(kalem => FinansTarifeDuzeltmeKurali.YeniNet(kalem, birimFiyat))),
+            DuzeltilecekKalemSayisi = duzeltilecek.Count,
+            KorunanKalemSayisi = satirlar.Count - duzeltilecek.Count,
+            Kalemler = satirlar.Take(FinansTarifeDuzeltmeOnizlemeModel.EnFazlaKalem).ToList(),
+            KalemListesiKisaltildi = satirlar.Count > FinansTarifeDuzeltmeOnizlemeModel.EnFazlaKalem
+        };
+    }
+
+    public Task<FinansTarifeDuzeltmeSonucModel?> TarifeDuzeltAsync(
+        int urunId,
+        int tarifeId,
+        FinansTarifeDuzeltModel model,
+        CancellationToken cancellationToken)
+        => islem.AtomikAsync(() => TarifeDuzeltCoreAsync(urunId, tarifeId, model, cancellationToken), cancellationToken);
+
+    private async Task<FinansTarifeDuzeltmeSonucModel?> TarifeDuzeltCoreAsync(
+        int urunId,
+        int tarifeId,
+        FinansTarifeDuzeltModel model,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        FinansGerekceKurali.Dogrula(model.Aciklama);
+        var plan = await TarifeDuzeltmePlaniAsync(urunId, tarifeId, tracking: true, cancellationToken);
+        if (plan is null) return null;
+        var (_, surum, kalemler) = plan.Value;
+        FinansTarifeDuzeltmeKurali.Dogrula(surum, model.BirimFiyat, model.KdvOrani);
+        var aciklama = model.Aciklama.Trim();
+
+        // Uygunluk sürümün düzeltilmeden önceki değerleriyle belirlenir; sürüm ondan sonra değişir.
+        var duzeltilecek = kalemler.Where(kalem => FinansTarifeDuzeltmeKurali.KorunmaNedeni(kalem, surum) is null).ToList();
+        void Duzeltme(string varlik, int id, string alan, decimal eski, decimal yeni)
+        {
+            if (eski != yeni) denetim.Ekle(varlik, id, "Tarife Düzeltme", alan, eski, yeni, aciklama);
+        }
+
+        Duzeltme(nameof(FinansFiyatTarifesi), surum.Id, nameof(surum.BirimFiyat), surum.BirimFiyat, model.BirimFiyat);
+        Duzeltme(nameof(FinansFiyatTarifesi), surum.Id, nameof(surum.KdvOrani), surum.KdvOrani, model.KdvOrani);
+        surum.BirimFiyat = model.BirimFiyat;
+        surum.KdvOrani = model.KdvOrani;
+
+        foreach (var kalem in duzeltilecek)
+        {
+            Duzeltme(nameof(FinansIsKaydi), kalem.Id, nameof(kalem.BirimFiyatSnapshot), kalem.BirimFiyatSnapshot, model.BirimFiyat);
+            Duzeltme(nameof(FinansIsKaydi), kalem.Id, nameof(kalem.KdvOraniSnapshot), kalem.KdvOraniSnapshot, model.KdvOrani);
+            var eskiDurum = kalem.Durum;
+            kalem.BirimFiyatSnapshot = model.BirimFiyat;
+            kalem.KdvOraniSnapshot = model.KdvOrani;
+            kalem.Durum = FinansTutarKurallari.Durum(kalem);
+            denetim.DegisiklikEkle(nameof(FinansIsKaydi), kalem.Id, nameof(kalem.Durum), eskiDurum, kalem.Durum);
+        }
+
+        await context.SaveChangesAsync(cancellationToken);
+        return new FinansTarifeDuzeltmeSonucModel(surum.Id, duzeltilecek.Count, kalemler.Count - duzeltilecek.Count);
+    }
+
+    /// <summary>
+    /// Ürün, ürüne ait aktif sürüm ve o sürümün snapshot'ıyla fiyatlanmış iptal edilmemiş kalemler (PO/fatura
+    /// satırlarıyla). Ürün ya da sürüm yoksa null döner.
+    /// </summary>
+    private async Task<(FinansUrun Urun, FinansFiyatTarifesi Surum, List<FinansIsKaydi> Kalemler)?> TarifeDuzeltmePlaniAsync(
+        int urunId,
+        int tarifeId,
+        bool tracking,
+        CancellationToken cancellationToken)
+    {
+        var urun = await context.Set<FinansUrun>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == urunId, cancellationToken);
+        if (urun is null) return null;
+        var surumSorgusu = context.Set<FinansFiyatTarifesi>().Where(x => x.Id == tarifeId && x.FinansUrunId == urunId && x.Aktif);
+        var surum = await (tracking ? surumSorgusu : surumSorgusu.AsNoTracking()).FirstOrDefaultAsync(cancellationToken);
+        if (surum is null) return null;
+        var kalemler = await context.IsKaydiDetayQuery(tracking)
+            .Where(x => x.TarifeIdSnapshot == tarifeId && !x.IptalEdildi && x.KaynakAktif)
+            .OrderBy(x => x.Id)
+            .ToListAsync(cancellationToken);
+        return (urun, surum, kalemler);
+    }
+
     private static FinansUrunEslesmesi NewMatch(FinansUrunEslesmesiModel model)
     {
         var entity = new FinansUrunEslesmesi();

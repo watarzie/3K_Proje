@@ -58,8 +58,8 @@ namespace _3K.Application.Behaviors
                 var correlationId = Guid.NewGuid().ToString("N")[..8];
 
                 _logger.LogError(ex,
-                    "[{CorrelationId}] Beklenmeyen hata oluştu. İstek: {RequestName}, Tip: {ExceptionType}, Detay: {Message}",
-                    correlationId, typeof(TRequest).Name, ex.GetType().Name, ex.Message);
+                    "[{CorrelationId}] Beklenmeyen hata oluştu. İstek: {RequestName}, Tip: {ExceptionType}, Detay: {Message}, Girdi: {Girdi}",
+                    correlationId, typeof(TRequest).Name, ex.GetType().Name, ex.Message, IstekGirdisi.Yaz(request));
 
                 return Failure($"Beklenmeyen bir hata oluştu. Takip kodu: {correlationId}", 500);
             }

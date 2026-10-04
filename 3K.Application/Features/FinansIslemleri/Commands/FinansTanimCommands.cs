@@ -80,6 +80,18 @@ public sealed class FinansUrunYenidenFiyatlaCommand : FinansCommand<FinansYenide
     public string Aciklama { get; init; } = string.Empty;
 }
 
+/// <summary>
+/// Hatalı tarife düzeltme: sürümün birim fiyatı/KDV'si gerekçeyle düzeltilir ve yalnız o sürümün tarife değeriyle
+/// fiyatlanmış açık kalemler yeni değere çekilir (<see cref="FinansTarifeDuzeltmeKurali"/>).
+/// </summary>
+public sealed class FinansTarifeDuzeltCommand : FinansCommand<FinansTarifeDuzeltmeSonucModel>
+{
+    public override string RequiredMenuKod => YetkiKodlari.Finans.BirimFiyatDegistir;
+    public int UrunId { get; init; }
+    public int TarifeId { get; init; }
+    public FinansTarifeDuzeltModel Model { get; init; } = null!;
+}
+
 /// <summary>Para birimi tanımı (F1); finans tanımlarıyla aynı yetkiyle yönetilir.</summary>
 public sealed class FinansParaBirimiOlusturCommand : FinansCommand<FinansParaBirimiModel>
 {

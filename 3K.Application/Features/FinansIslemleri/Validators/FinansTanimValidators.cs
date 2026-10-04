@@ -1,5 +1,6 @@
 using FluentValidation;
 using _3K.Application.Features.FinansIslemleri.Commands;
+using _3K.Application.Features.FinansIslemleri.Queries;
 using _3K.Core.Models;
 
 namespace _3K.Application.Features.FinansIslemleri.Validators;
@@ -138,6 +139,28 @@ public sealed class FinansUrunYenidenFiyatlaCommandValidator : AbstractValidator
     {
         RuleFor(x => x.Id).GreaterThan(0);
         RuleFor(x => x.Aciklama).Must(FinansGerekceKurali.Gecerli).WithMessage(FinansGerekceKurali.Mesaj);
+    }
+}
+
+/// <summary>Fiyat ve KDV sınırları servisteki <see cref="FinansTarifeDuzeltmeKurali.Dogrula"/> ile tek kaynaktan denetlenir.</summary>
+public sealed class FinansTarifeDuzeltCommandValidator : AbstractValidator<FinansTarifeDuzeltCommand>
+{
+    public FinansTarifeDuzeltCommandValidator()
+    {
+        RuleFor(x => x.UrunId).GreaterThan(0);
+        RuleFor(x => x.TarifeId).GreaterThan(0);
+        RuleFor(x => x.Model).NotNull();
+        RuleFor(x => x.Model.Aciklama).Must(FinansGerekceKurali.Gecerli).WithMessage(FinansGerekceKurali.Mesaj)
+            .When(x => x.Model is not null);
+    }
+}
+
+public sealed class FinansTarifeDuzeltmeOnizlemeQueryValidator : AbstractValidator<FinansTarifeDuzeltmeOnizlemeQuery>
+{
+    public FinansTarifeDuzeltmeOnizlemeQueryValidator()
+    {
+        RuleFor(x => x.UrunId).GreaterThan(0);
+        RuleFor(x => x.TarifeId).GreaterThan(0);
     }
 }
 
