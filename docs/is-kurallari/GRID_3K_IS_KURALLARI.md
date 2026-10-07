@@ -319,7 +319,9 @@ Kaynak: [SandikKapatCommandHandler.cs:30](C:/Users/Watarzie/source/repos/3K_Proj
 
 **D-06.** İlgili içerikler ve boş kalan sandık/çeki kayıtları temizlenebilir; kalan sandık durumları ve hareket geçmişi güncellenir. Bu nedenle kullanıcı satır iptal etmek istiyorsa silme aynı işlem değildir.
 
-Kaynak: [ManuelUrunSilmeKurali.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Common/ManuelUrunSilmeKurali.cs), [ManuelUrunSilCommandHandler.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Commands/ManuelUrunSilCommandHandler.cs), [CekiSatirlariSilCommand.cs:46](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/CekiIslemleri/Commands/CekiSatirlariSilCommand.cs:46).
+**D-07.** Proje silme (normal, saha, yedek) ambalaj üretim kayıtlarını da değerlendirir. Proje yüklenince her sandık için oluşan dokunulmamış otomatik ambalaj kaydı (planlı, üretime alınmamış) ve kullanıcının iptal ettiği kayıt, hareket geçmişiyle birlikte proje ile aynı işlemde silinir. Üretime alınmış/ilerlemiş ambalaj kaydı, elle eklenmiş aktif bağımsız sandık, ambalaj üretim formu, üretim gerçekleşmesi, başka projedeki iç sandık bağı veya projeye/ambalaj akışına bağlı finans kaydı (iş kaydı, düzenli iş, gider) varsa proje silinmez; mesaj engelleri sayar ve hiçbir kayıt silinmez. Üretim ve finans geçmişi sessizce kaybolmaz.
+
+Kaynak: [ManuelUrunSilmeKurali.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Common/ManuelUrunSilmeKurali.cs), [ManuelUrunSilCommandHandler.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Commands/ManuelUrunSilCommandHandler.cs), [CekiSatirlariSilCommand.cs:46](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/CekiIslemleri/Commands/CekiSatirlariSilCommand.cs:46), [ProjeSilmeService.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Infrastructure/Services/ProjeSilmeService.cs).
 
 ### 6.3 Raporlar
 

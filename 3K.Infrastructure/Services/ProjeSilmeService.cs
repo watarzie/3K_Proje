@@ -7,6 +7,7 @@ using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Exceptions;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 using _3K.Infrastructure.Data;
 
 namespace _3K.Infrastructure.Services
@@ -227,6 +228,10 @@ namespace _3K.Infrastructure.Services
                         .Where(s => s.ProjeId == projeId)
                         .ExecuteDeleteAsync(cancellationToken);
 
+                    silinenAltKayitSayisi += await DokunulmamisAmbalajKayitlariniSilAsync(
+                        projeId,
+                        cancellationToken);
+
                     // Kök silme SaveChanges üzerinden kalır: Audit/ProjectLock gibi
                     // mevcut interceptor semantiği korunur. Ceki ve Sevkiyat zincirleri
                     // kendi tanımlı cascade ilişkileriyle burada silinir.
@@ -429,6 +434,8 @@ namespace _3K.Infrastructure.Services
                         : "kısmi/tam sevkiyat durumu");
             }
 
+            await AmbalajVeFinansEngelleriniEkleAsync(proje.Id, engeller, cancellationToken);
+
             if (engeller.Count == 0)
                 return;
 
@@ -440,6 +447,115 @@ namespace _3K.Infrastructure.Services
 
             throw new ReferentialIntegrityConflictException(
                 $"Proje silinemez. Silmeden önce şu işlemleri geri almalısınız: {engelMetni}. İlgili ekranlardan geri alıp tekrar deneyin.");
+        }
+
+        /// <summary>
+        /// Projenin ambalaj ve finans tarafındaki gerçek işini engel olarak ekler. Proje yüklenince her sandık
+        /// için oluşan planlı otomatik ambalaj kaydı engel değildir (proje ile birlikte silinir); üretime
+        /// alınmış/ilerlemiş kayıt, elle eklenmiş aktif bağımsız sandık, üretim formu, gerçekleşme ve finans
+        /// kaydı ise üretim/finans geçmişi olduğundan sessizce silinmez.
+        /// </summary>
+        private async Task AmbalajVeFinansEngelleriniEkleAsync(
+            int projeId,
+            List<string> engeller,
+            CancellationToken cancellationToken)
+        {
+            var ambalajKayitlari = _context.AmbalajUretimKayitlari
+                .AsNoTracking()
+                .Where(k => k.ProjeId == projeId);
+            var ambalajKayitIds = ambalajKayitlari.Select(k => k.Id);
+
+            var ilerlemisAmbalajSayisi = await ambalajKayitlari
+                .CountAsync(k =>
+                    k.UretimeAlindi ||
+                    k.UretimDurumu != AmbalajUretimDurumu.Planlandi,
+                    cancellationToken);
+            if (ilerlemisAmbalajSayisi > 0)
+                engeller.Add($"{ilerlemisAmbalajSayisi} üretime alınmış ambalaj kaydı");
+
+            var bagimsizAmbalajSayisi = await ambalajKayitlari
+                .CountAsync(k => k.BagimsizKayitMi && !k.IptalMi, cancellationToken);
+            if (bagimsizAmbalajSayisi > 0)
+                engeller.Add($"{bagimsizAmbalajSayisi} elle eklenmiş ambalaj sandığı");
+
+            var uretimFormuVar =
+                await _context.AmbalajUretimFormuSurumleri
+                    .AsNoTracking()
+                    .AnyAsync(f => f.ProjeId == projeId, cancellationToken) ||
+                await _context.AmbalajUretimFormuKayitlari
+                    .AsNoTracking()
+                    .AnyAsync(f => ambalajKayitIds.Contains(f.AmbalajUretimKaydiId), cancellationToken);
+            if (uretimFormuVar)
+                engeller.Add("ambalaj üretim formu");
+
+            var gerceklesmeSayisi = await _context.AmbalajUretimGerceklesmeleri
+                .AsNoTracking()
+                .CountAsync(g =>
+                    g.ProjeId == projeId ||
+                    ambalajKayitIds.Contains(g.AmbalajUretimKaydiId),
+                    cancellationToken);
+            if (gerceklesmeSayisi > 0)
+                engeller.Add($"{gerceklesmeSayisi} ambalaj üretim gerçekleşmesi");
+
+            // Başka projenin kaydı bu projenin kaydını üst sandık olarak gösteriyorsa silmek onu yetim bırakır.
+            var disaridanBagliIcSandikVar = await _context.AmbalajUretimKayitlari
+                .AsNoTracking()
+                .AnyAsync(k =>
+                    k.ProjeId != projeId &&
+                    k.UstKayitId.HasValue &&
+                    ambalajKayitIds.Contains(k.UstKayitId.Value),
+                    cancellationToken);
+            if (disaridanBagliIcSandikVar)
+                engeller.Add("başka projedeki iç sandık bağlantısı");
+
+            var akisKimlikleri = await ambalajKayitlari
+                .Select(k => k.IsAkisKimligi)
+                .ToListAsync(cancellationToken);
+            var akisAnahtarlari = akisKimlikleri.Select(x => x.ToString("D")).ToList();
+            var finansIsSayisi = await _context.FinansIsKayitlari
+                .AsNoTracking()
+                .CountAsync(f =>
+                    f.ProjeId == projeId ||
+                    (f.KaynakTuru.ToUpper() == FinansKaynakTurleri.AmbalajUretim &&
+                     f.KaynakKayitId != null &&
+                     akisAnahtarlari.Contains(f.KaynakKayitId)),
+                    cancellationToken);
+            if (finansIsSayisi > 0)
+                engeller.Add($"{finansIsSayisi} finans iş kaydı");
+
+            var finansDigerVar =
+                await _context.FinansDuzenliIsleri.AsNoTracking().AnyAsync(d => d.ProjeId == projeId, cancellationToken) ||
+                await _context.FinansGiderleri.AsNoTracking().AnyAsync(g => g.ProjeId == projeId, cancellationToken);
+            if (finansDigerVar)
+                engeller.Add("projeye bağlı finans düzenli işi veya gideri");
+        }
+
+        /// <summary>
+        /// Engel kalmadıysa projede yalnız dokunulmamış otomatik (ve iptal edilmiş) ambalaj kayıtları vardır;
+        /// bunlar silinen sandıkların yansımasıdır ve hareket geçmişleriyle birlikte kaldırılır. İç/üst sandık
+        /// bağı önce koparılır ki RESTRICT öz-ilişki sıralama gerektirmesin.
+        /// </summary>
+        private async Task<int> DokunulmamisAmbalajKayitlariniSilAsync(
+            int projeId,
+            CancellationToken cancellationToken)
+        {
+            var ambalajKayitIds = _context.AmbalajUretimKayitlari
+                .Where(k => k.ProjeId == projeId)
+                .Select(k => k.Id);
+
+            var silinen = await _context.AmbalajUretimHareketleri
+                .Where(h => ambalajKayitIds.Contains(h.AmbalajUretimKaydiId))
+                .ExecuteDeleteAsync(cancellationToken);
+
+            await _context.AmbalajUretimKayitlari
+                .Where(k => k.ProjeId == projeId && k.UstKayitId != null)
+                .ExecuteUpdateAsync(s => s.SetProperty(k => k.UstKayitId, (int?)null), cancellationToken);
+
+            silinen += await _context.AmbalajUretimKayitlari
+                .Where(k => k.ProjeId == projeId)
+                .ExecuteDeleteAsync(cancellationToken);
+
+            return silinen;
         }
 
         private static bool GeciciEszamanlilikHatasiMi(PostgresException exception)
