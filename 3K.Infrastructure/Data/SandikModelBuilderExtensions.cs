@@ -160,12 +160,38 @@ internal static class SandikModelBuilderExtensions
                 .OnDelete(DeleteBehavior.SetNull);
         });
 
+        modelBuilder.Entity<SevkSeferi>(e =>
+        {
+            e.Property(p => p.SeferNo).HasMaxLength(40).IsRequired();
+            e.Property(p => p.AracPlaka).HasMaxLength(30);
+            e.Property(p => p.Sofor).HasMaxLength(100);
+            e.Property(p => p.DorsePlaka).HasMaxLength(30);
+            e.Property(p => p.Aciklama).HasMaxLength(500);
+            e.Property(p => p.IstekHash).HasMaxLength(64);
+            e.HasIndex(p => p.SeferNo).IsUnique();
+            // Toplu sevkin tekrar anahtarı; tekil sevkte boş olduğundan kısmi benzersiz indeks.
+            e.HasIndex(p => p.IslemAnahtari).IsUnique().HasFilter("\"IslemAnahtari\" IS NOT NULL");
+            e.HasIndex(p => p.SevkTarihi);
+            e.HasIndex(p => p.AracPlaka);
+
+            e.HasOne(p => p.Kullanici)
+                .WithMany()
+                .HasForeignKey(p => p.KullaniciId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
         modelBuilder.Entity<Sevkiyat>(e =>
         {
             e.Property(p => p.Aciklama).HasMaxLength(500);
             e.Property(p => p.AracPlaka).HasMaxLength(30);
             e.HasIndex(p => new { p.ProjeId, p.SevkiyatNo }).IsUnique();
             e.HasIndex(p => p.SevkTarihi);
+
+            // Proje silinince sevkiyatı da silinir; sefer yalnız gruplayan başlıktır, sevkiyatı varken silinemez.
+            e.HasOne(p => p.SevkSeferi)
+                .WithMany(p => p.Sevkiyatlar)
+                .HasForeignKey(p => p.SevkSeferiId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             e.HasOne(p => p.Proje)
                 .WithMany(p => p.Sevkiyatlar)

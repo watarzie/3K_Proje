@@ -22,6 +22,8 @@ public static class YetkiKodlari
         public const string Sil = "proje-sil";
         public const string CekiYukle = "ceki-yukle";
         public const string PlanlananSevkTarihi = "planlanan-sevk-tarihi";
+        /// <summary>Sevkiyatlar sayfası: tır seferleri ve sevkiyat istatistikleri (R görüntüleme).</summary>
+        public const string Sevkiyatlar = "sevkiyatlar";
     }
 
     public static class Sandik

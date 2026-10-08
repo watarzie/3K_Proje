@@ -16,6 +16,7 @@
 | Çeki ana veri düzenle / satır sil | ceki-verisi-duzenle / ceki-verisi-sil W |
 | Kalite / süreç değişikliği | kalite-modulu / surec-modulu W |
 | Stok listesi ve PDF / stok yazma / stok silme | stok R / stok W / stok-sil W |
+| Sevkiyatlar sayfası: sefer listesi, sefer detayı, istatistik | sevkiyatlar R |
 | Depo raporları | depo-durumu R |
 | Depo lokasyon tanımı | depo-durumu W (sandığa lokasyon atama ayrı işlemdir) |
 | Hareket geçmişi | hareket-gecmisi R |
@@ -39,7 +40,7 @@ Normal / Saha / Yedek türü, mevcut kaydın proje FK'si üzerinden okunur. Göv
 | Grid okuma/yazma | grid-modulu | saha-grid-modulu | yedek-grid-modulu |
 | 3K okuma/yazma | 3k-modulu | saha-3k-modulu | yedek-3k-modulu |
 | Sandık yazma / tekil-toplu taşıma / sandık sevk-düzeltme | sandik-yonetimi **veya** 3k-modulu W | saha-sandiklar **veya** saha-3k-modulu W | yedek-sandiklar **veya** yedek-3k-modulu W |
-| Proje sevki | proje-sevk-et W | saha-sevk-et W | yedek-sevk-et W |
+| Proje sevki; toplu sevkte (tır seferi) her sandığın projesinin gerçek türüne göre, bütün projeler için birlikte | proje-sevk-et W | saha-sevk-et W | yedek-sevk-et W |
 | Yeni proje | aktif-projeler **veya** sandik-yonetimi W | saha-yonetimi W | yedek-yonetimi W |
 | Proje silme | proje-sil W | saha-proje-sil W | yedek-proje-sil W |
 | Planlanan tarih | planlanan-sevk-tarihi W | planlanan-sevk-tarihi W | yedek-planlanan-sevk-tarihi W |

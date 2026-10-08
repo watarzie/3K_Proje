@@ -32,6 +32,8 @@ açılan pencere varsayılan `postgres` veritabanına bağlanır (sekme başlı�
 | 9 | `20261008_01_SandikIcerik_UrunBilgisi.sql` | `SandikIcerikleri` tablosuna kalıcı `UrunBilgisi` (seri no/SKT/lot, en fazla 1000 karakter) kolonunu ekler; mevcut satırlar boş kalır. |
 | 10 | `20261008_02_Finans_Ahsap_Kontra_Hacim.sql` | `FinansIsKayitlari` tablosuna elle girilen `AhsapM3`, `KontraM3` ve `HacimManuel` kolonlarını ekler, miktar kısıtını yeni kolonlarla yeniden kurar; mevcut kayıtlar boş kalır (pay türetilir). |
 | 11 | `20261008_03_Finans_Sekme_Yetkileri.sql` | Rol ağacına Finans sekme düğümlerini (`finans-sekme-*`, Id 5238–5245) ekler; her role sekme seviyesini mevcut izinlerinden verir, sonra yalnız o sekmeye ait işlem kodlarını sekme düğümünün altına taşır. Etkin izinler azalmaz. **Yeni API'den önce** çalıştırılır. |
+| 12 | `20261008_04_Sevk_Seferleri.sql` | Tır seferi tablosu `SevkSeferleri` ve `Sevkiyatlar."SevkSeferiId"` (boş olabilir, restrict) ekler; mevcut sevkiyatlar sefere bağlanmaz (istatistikte plaka + gün ile gruplanır). |
+| 13 | `20261008_05_Sevkiyatlar_Yetkisi.sql` | Projeler altına "Sevkiyatlar" sayfası iznini (`sevkiyatlar`, Id 5246, `/projeler/sevkiyatlar`) ekler; Projeler menüsünü gören ve sevk edilenleri gören veya sevk edebilen rollere R, Admin'e W verir. |
 
 Sekme yetkileri betiği (11) yeni API sürümü yayımlanmadan **önce** çalıştırılır: yeni API Kontrol Paneli, İş Takibi,
 Giderler ve Raporlar uçlarında sekme düğümü izni ister; düğümler yokken bu uçlar herkese (Admin dahil) 403 döner. Eski

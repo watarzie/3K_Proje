@@ -12,6 +12,7 @@ using _3K.Application.Features.RolIslemleri.Commands;
 using _3K.Application.Features.RolIslemleri.Queries;
 using _3K.Application.Features.SandikIslemleri.Commands;
 using _3K.Application.Features.SandikIslemleri.Queries;
+using _3K.Application.Features.SevkiyatIslemleri.Queries;
 using _3K.Application.Features.StokIslemleri.Commands;
 using _3K.Application.Features.StokIslemleri.Queries;
 using _3K.Application.Features.UcKIslemleri.Commands;
@@ -79,6 +80,8 @@ public sealed class RequestMenuPermissionResolver(IUnitOfWork unitOfWork, IReadQ
             GetEksikUrunlerByProjeQuery => Any(YetkiTipi.R, K.Saha.SahayaAktar, K.Saha.Sandiklar, K.Yedek.Sandiklar,
                 K.Sandik.Yonetimi),
             StokListeleQuery or StokDurumSayilariQuery or GetStokPdfQuery => One(K.Stok.Kok, YetkiTipi.R),
+            // Sevkiyatlar sayfası: tır seferleri ve istatistikler bütün proje tiplerini okur; ayrı görüntüleme izni.
+            SevkSeferleriQuery or SevkSeferiDetayQuery or SevkiyatIstatistikQuery => One(K.Proje.Sevkiyatlar, YetkiTipi.R),
             StokKaydiGuncelleCommand or StokKaydiOlusturCommand => One(K.Stok.Kok, YetkiTipi.W),
             DepoLokasyonOlusturCommand or DepoLokasyonSilCommand => One(K.DepoDurumu, YetkiTipi.W),
             KaliteDurumGuncelleCommand => One(K.Sandik.KaliteModulu, YetkiTipi.W),

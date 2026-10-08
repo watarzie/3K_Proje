@@ -9,7 +9,11 @@ namespace _3K.Core.Entities
         public string? AracPlaka { get; set; }
         public int KullaniciId { get; set; }
 
+        /// <summary>Sevkiyatın ait olduğu tır seferi; eski kayıtlarda boştur (istatistikte plaka + gün ile gruplanır).</summary>
+        public int? SevkSeferiId { get; set; }
+
         public virtual Proje Proje { get; set; } = null!;
+        public virtual SevkSeferi? SevkSeferi { get; set; }
         public virtual Kullanici Kullanici { get; set; } = null!;
         public virtual ICollection<SevkiyatSandik> Sandiklar { get; set; } = new List<SevkiyatSandik>();
     }
