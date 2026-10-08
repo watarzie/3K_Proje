@@ -1,7 +1,7 @@
 # 3K karşılama ve kaynak kuralları test eşlemesi
 
 Bu matris, `GRID_3K_IS_KURALLARI.md` belgesinin 8. bölümündeki tüm `U-*`
-kuralları ile 9.A-9.D bölümlerindeki `K-001`-`K-029` kurallarını çalışan
+kuralları ile 9.A-9.D bölümlerindeki `K-001`-`K-029` ve `K-061` kurallarını çalışan
 testlerle eşleştirir. Her kural kimliği ayrı satırdadır. `Birim` doğrudan
 üretim davranışı assertini, `Kısmi` yalnız kuralın bir bölümünün kanıtlandığını,
 `Entegrasyon` gerçek HTTP/veritabanı sınırına ihtiyaç duyulduğunu, `UI` önyüz
@@ -268,7 +268,7 @@ sabitlenmemiştir.
 | K-001 | Birim | `GridUcKSatirMiktarSenkronizasyonTests.AnaMiktarUcEskiTekTahsisBir_IstenenEksikVeKalanGuncelMiktariKullanir` | Ana talep, tahsis ve fiziksel teslim ayrı kalır. |
 | K-002 | Birim | `UcKKaynakTransferStokIadeKatalogTests.TerminalGridDurumu_TekilUcKIsleminiMutasyonsuzReddeder` | İptal/Kapandı kaynak işlemini mutasyonsuz kapatır. |
 | K-003 | Birim | `UcKKaynakTransferStokIadeKatalogTests.GridTam_OtuzBesHedeftenOtuzIkiTeslimde_AlternatifKaynakKapaliKalirVeYazmaYapilmaz` | Alternatif kaynak kapısının kabul edilen negatif örneği üç tipte doğrulanır. |
-| K-004 | Birim | `GridUcKParcaliSevkPartisiRegresyonTests.StokKarsilamasi_TahsisKapasitesiYetersizseStoguTekBasinaDusurmez` | Ana talep/tahsis kapasitesi aşımında stok dahil hiçbir yan etki kalmaz. |
+| K-004 | Birim | `GridUcKParcaliSevkPartisiRegresyonTests.StokKarsilamasi_TahsisKapasitesiYetersizseStoguTekBasinaDusurmez`; `UcKKaynakTransferStokIadeKatalogTests.TedarikciTeslimi_KapasiteSatirKalanindanKucukseKapasiteKadarKarsilanir` | Ana talep/tahsis kapasitesi aşımında stok dahil hiçbir yan etki kalmaz; tekil tedarikçide aşan adet reddedilmez, kapasiteyle sınırlanıp fazlası stoğa alınır (K-061). |
 | K-005 | Birim | `GridUcKParcaliSevkPartisiRegresyonTests.LegacyGelmediPartisi_AlternatifKaynakKismiKapatilmadanOnceSonuclanmisOlarakMaterializeEdilir` | Kaynak işlemi önce güvenli legacy parti izini materialize eder. |
 | K-006 | Kısmi | `UcKKaynakTransferStokIadeKatalogTests.ProjedenKarsilamada_KendiProjeMetniReddedilirVeKaliciDegisiklikOlusmaz` | Kaynak ID/metin sözleşmesinin kendi proje ret yolu testlidir; tüm eksik alanlar ayrı theory değildir. |
 | K-007 | Birim | `UcKKaynakTransferStokIadeKatalogTests.ProjedenOndalikKarsilama_HedefDonorTransferDefteriVeTelafiBorcunuKorunumluGunceller` | Donör kullanılabilir formülü, iki taraf sayaçları, telafi borcu ve transfer zinciri doğrulanır. |
@@ -280,7 +280,7 @@ sabitlenmemiştir.
 | K-013 | Birim | `UcKKaynakTransferStokIadeKatalogTests.StoktanOndalikKarsilama_AdiNormalizeEder_BakiyeHareketTahsisBorcVeLokasyonuSenkronizeEder` | Türkçe ad normalizasyonuyla stok eşleşmesi doğrulanır. |
 | K-014 | Birim | `UcKKaynakTransferStokIadeKatalogTests.StokHareketGeriAl_OndalikTuketimVeFazlaStoguKorunumluTersler` | Stok tüketim ve hareket defteri decimal değerlerle ileri/geri korunur. |
 | K-015 | Kısmi | `UcKKaynakTransferStokIadeKatalogTests.StokAdiVeyaBakiyeGecersizse_HedefStokVeHareketlerDegismez` | Kaydetme yolu ID/ad/bakiyeyi yeniden doğrular; uygun stok liste filtresi entegrasyon dışındadır. |
-| K-016 | Birim | `UcKKaynakTransferStokIadeKatalogTests.TedarikcidenOndalikKarsilama_BorcuKapatir_StokHareketiUretmezVeLokasyonuAtar` | Tedarikçi manuel miktarı kaynak sayaçlarını artırır, stok kartına dokunmaz. |
+| K-016 | Birim | `UcKKaynakTransferStokIadeKatalogTests.TedarikcidenOndalikKarsilama_BorcuKapatir_StokHareketiUretmezVeLokasyonuAtar`; `UcKKaynakTransferStokIadeKatalogTests.TedarikcidenKalaniAsanTeslim_KalanKadarKarsilarFazlasiniStogaAktarir` | Kalan içindeki tedarikçi miktarı kaynak sayaçlarını artırır, stok kartına dokunmaz; kalanı aşan teslimde sayaçlara yalnız kalan kadar eklenir. |
 | K-017 | Birim | `UcKKaynakTransferStokIadeKatalogTests.TopluTedarikci_AyniSandikSeciminiTekillestirirVeYalnizKalanKadarKarsilar` | Toplu tedarikçi child kalanını ve bileşik seçim tekilleştirmesini doğrular. |
 | K-018 | Kısmi | `UcKKaynakTransferStokIadeKatalogTests.TopluTedarikci_AyniSandikSeciminiTekillestirirVeYalnizKalanKadarKarsilar` | Uygun satırın işlendiği kanıtlıdır; karışık başarı+hata kısmi kalıcılık sözleşmesi açık kalır. |
 | K-019 | Birim | `UcKKaynakTransferStokIadeKatalogTests.FazlaGeldi_NormalKalanIleStokFazlasiniAyirirVeMenseiHareketiniKorur` | Normal ihtiyaç ve stok fazlası ayrılır; menşei stok/hareket kaydı korunur. |
@@ -294,3 +294,4 @@ sabitlenmemiştir.
 | K-027 | Birim | `UcKKaynakTransferStokIadeKatalogTests.FazlaStokBaskaHareketteKullanildiysa_OnceTumGruplarDogrulanirVeHicbiriDegismez` | Tüketilmiş fazla stok kök reseti bütün grupları mutasyonsuz reddeder. |
 | K-028 | Birim | `UcKSevkKaynakSonrasiSifirlamaTests.EksikTeslimSonrasiTedarikciVeSandikSifirlama_YenidenTeslimdeSahteSevkBorcuBirakmaz` | Seçili child reseti diğer payları korur ve sahte sevk borcu bırakmaz. |
 | K-029 | Kısmi | `UcKKaynakTransferStokIadeKatalogTests.TamReset_GelenProjeTransferiniTersler_DonoruIadeEderVeKapaliSandigiAcar` | Tam reset alan ve sandık etkileri testlidir; toplu mixed-result/gerçek rollback entegrasyon boşluğu sürer. |
+| K-061 | Birim | `UcKKaynakTransferStokIadeKatalogTests.TedarikcidenKalaniAsanTeslim_KalanKadarKarsilarFazlasiniStogaAktarir`; `UcKKaynakTransferStokIadeKatalogTests.TedarikciFazlasi_StogaAktarSecilmezseHicbirSayacVeyaStokDegismez`; `UcKKaynakTransferStokIadeKatalogTests.KalaniOlmayanUrundeTedarikciTeslimi_FazlaGeldiyeYonlendirilirVeYazmaYapilmaz`; `UcKKaynakTransferStokIadeKatalogTests.TedarikciTeslimi_KapasiteSatirKalanindanKucukseKapasiteKadarKarsilanir`; `UcKKaynakTransferStokIadeKatalogTests.TedarikciFazlasi_TamGeriAlmaStoguVeKarsilamayiTersler` | Ondalık kalan/fazla ayrımı, `Tedarikçi fazla teslim` stok kaydı ve 34 hareketi, stoka aktarma onayı yokken ve kalan yokken mutasyonsuz red, kapasite sınırı ve tam geri almada stok tersleme doğrulanır. Sandık bazlı geri alma stok hareketlerini terslemez (K-028, bilinen boşluk). |

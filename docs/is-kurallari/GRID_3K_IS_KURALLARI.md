@@ -994,7 +994,7 @@ Tamamlanma, liste görünürlüğü, genel yetki/onay ve sandık sevkiyat duruml
   Kaynak: [UcKDurumGuncelleCommandHandler.cs:145](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/UcKIslemleri/Commands/UcKDurumGuncelleCommandHandler.cs:145); [UcKTopluTedarikciCommandHandler.cs:166](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/UcKIslemleri/Commands/UcKTopluTedarikciCommandHandler.cs:166).
 
 - **K-004 — Kaynak karşılaması hedef ana talebi ve fiziksel tahsis kapasitesini aşamaz.** Ana 3K yolunda yeni miktarla oluşacak `Gelen + Karsilanan - ProjeGonderilen + Trafo` toplamı `IstenenAdet` sınırını geçemez.
-  Sandık kaydı varsa `Gelen + Stok + Proje + Tedarikci - ProjeGonderilen + yeniKaynak` toplamı ayrıca etkin tahsis toplamına karşı doğrulanır. Tahsis yetersizliğinde teslimi sessizce kırpmak veya tahsisi büyütmek yerine işlem reddedilir.
+  Sandık kaydı varsa `Gelen + Stok + Proje + Tedarikci - ProjeGonderilen + yeniKaynak` toplamı ayrıca etkin tahsis toplamına karşı doğrulanır. Tahsis yetersizliğinde teslimi sessizce kırpmak veya tahsisi büyütmek yerine işlem reddedilir. Tek istisna tekil tedarikçi teslimidir: kalanı veya kapasiteyi aşan adet kırpılmaz, kullanıcının açık stoka aktarma onayıyla fazla teslim olarak stoğa alınır (K-061).
   Kaynak: [UcKDurumGuncelleCommandHandler.cs:290](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/UcKIslemleri/Commands/UcKDurumGuncelleCommandHandler.cs:290); test: [GridUcKParcaliSevkPartisiRegresyonTests.cs:63](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/GridUcKParcaliSevkPartisiRegresyonTests.cs:63).
 
 - **K-005 — Kaynak karşılaması eski aktif sevkin izini kaybettirmemelidir.** Ana tekli kaynak işlemi ve toplu tedarikçi, son 3K tipini değiştirmeden önce güvenli legacy aktif sevk bilgisini somutlaştırır; belirsiz eski dağılımda reddeder.
@@ -1045,7 +1045,7 @@ Tamamlanma, liste görünürlüğü, genel yetki/onay ve sandık sevkiyat duruml
   Ana 3K kaydetme yolu stok ID üzerinden varlık, ad eşleşmesi ve yeterli miktarı yeniden kontrol eder; bu handler'da stok durumu için ayrı Aktif kontrolü yoktur. Liste filtresi tek başına kayıt işlemi güvencesi sayılmaz.
   Kaynak: [StokService.cs:39](C:/Users/Watarzie/source/repos/3K_Proje/3K.Infrastructure/Services/StokService.cs:39); [UcKDurumGuncelleCommandHandler.cs:249](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/UcKIslemleri/Commands/UcKDurumGuncelleCommandHandler.cs:249).
 
-- **K-016 — Tedarikçi karşılaması manuel miktar kaydıdır.** Tekli ana 3K yolunda miktar pozitif olmalıdır; kaynak kapısı ve hedef toplam/tahsis sınırları geçerli kalır.
+- **K-016 — Tedarikçi karşılaması manuel miktar kaydıdır.** Tekli ana 3K yolunda miktar pozitif olmalıdır; kaynak kapısı geçerli kalır. Hedef toplam/tahsis sınırını aşan adet reddedilmez, K-061'e göre fazla teslim olarak ayrılır; sayaçlara yalnız sınır içindeki adet eklenir.
   `TedarikciKarsilanan` ve `KarsilananMiktar` artar. Bu komutta tedarikçi kartı/ID/adı eşleştirilmez ve stok bakiyesi düşülmez; işlem “hangi tedarikçi kartından tüketildi” defteri olarak değerlendirilmemelidir.
   Kaynak: [UcKDurumGuncelleCommandHandler.cs:270](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/UcKIslemleri/Commands/UcKDurumGuncelleCommandHandler.cs:270); [UcKDurumGuncelleCommandHandler.cs:486](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/UcKIslemleri/Commands/UcKDurumGuncelleCommandHandler.cs:486).
 
@@ -1061,9 +1061,13 @@ Tamamlanma, liste görünürlüğü, genel yetki/onay ve sandık sevkiyat duruml
   Önce normal ihtiyaç/aktif sevk sınırında teslim karşılanır, istek miktarındaki fazla ayrı stok kaydı olur. Fazla miktar talep satırının normal `GelenMiktar` değerine sınırsız eklenmez.
   Kaynak: [UcKDurumGuncelleCommandHandler.cs:210](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/UcKIslemleri/Commands/UcKDurumGuncelleCommandHandler.cs:210); [UcKDurumGuncelleCommandHandler.cs:274](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/UcKIslemleri/Commands/UcKDurumGuncelleCommandHandler.cs:274); [UcKDurumGuncelleCommandHandler.cs:495](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/UcKIslemleri/Commands/UcKDurumGuncelleCommandHandler.cs:495).
 
-- **K-020 — Fazla teslim stoğunun menşei korunur.** Yeni stok kaydına barkod, ürün adı, birim, kaynak proje, `Fazla teslim` giriş nedeni ve aktif durum yazılır.
+- **K-020 — Fazla teslim stoğunun menşei korunur.** Yeni stok kaydına barkod, ürün adı, birim, kaynak proje, `Fazla teslim` (tedarikçi fazlasında `Tedarikçi fazla teslim`) giriş nedeni ve aktif durum yazılır.
   `FazlaTeslimStogaAktarildi` hareketi stokla kaynak çeki satırını ilişkilendirir. Aynı isimli mevcut stoğa sessizce birleştirmek bu helper'ın davranışı değildir.
   Kaynak: [UcKDurumGuncelleCommandHandler.cs:607](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/UcKIslemleri/Commands/UcKDurumGuncelleCommandHandler.cs:607).
+
+- **K-061 — Tekil tedarikçi teslimi kalanı aşarsa fazlası stoğa alınır.** Sunucu normal adedi `min(gelen, satır kalanı, sandık tahsis kapasitesi kalanı)` olarak hesaplar (K-004 formülleri); `TedarikciKarsilanan`, `KarsilananMiktar`, borç kapatma ve sandık senkronu yalnız normal adetle yapılır.
+  Aşan adet Fazla Geldi ile aynı yoldan ayrı stok kaydı ve `FazlaTeslimStogaAktarildi` (34) hareketiyle stoğa alınır; mevcut stoğa birleştirilmez (K-020), tam geri alma bu stoğu tersler (K-028). Aşan adet varken `StogaAktar` işaretli değilse veya ürünün kalanı yoksa (yalnız fazla) işlem hiçbir sayaç değiştirmeden reddedilir; ikinci durumda Fazla Geldi kullanılır. Ekrandaki sandık kalanı yalnız ön izlemedir. Toplu tedarikçi (`UcKTopluTedarikciCommand`) kalanın tamamını karşılar ve bu kuralın kapsamı dışındadır.
+  Kaynak: [UcKDurumGuncelleCommandHandler.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/UcKIslemleri/Commands/UcKDurumGuncelleCommandHandler.cs) (`TedarikciTeslimBolumu`).
 
 - **K-021 — Kaynaktan fiziksel karşılama depo konumunu yalnız belirsizse doldurur.** Tam/eksik teslim, proje/stok/tedarikçi ve fazla teslim sonucunda ilgili sandıkların Belirsiz lokasyonu 3K olur.
   Kullanıcı tarafından belirlenmiş başka bir lokasyon burada ezilmez. Gelmedi/iade işlemleri bu pozitif fiziksel konum tetikleyicileri arasında sayılmaz.

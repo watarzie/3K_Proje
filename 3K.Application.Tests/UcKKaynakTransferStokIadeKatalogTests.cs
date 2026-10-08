@@ -228,6 +228,100 @@ public sealed class UcKKaynakTransferStokIadeKatalogTests
         Assert.Empty(kurgu.Uow.Repo<StokHareketi>().Rows);
     }
 
+    /// <summary>K-061: kalanı aşan tedarikçi teslimi kalan kadar karşılanır, aşan ondalık adet ayrı stok kaydına aktarılır.</summary>
+    [Fact]
+    public async Task TedarikcidenKalaniAsanTeslim_KalanKadarKarsilarFazlasiniStogaAktarir()
+    {
+        using var kurgu = new Kurgu(2.75m, 2.75m, "Conta", "PA-TED");
+        kurgu.EksikPartiKur(1.5m, 1.25m);
+
+        var sonuc = await kurgu.KarsilaAsync(UcKDurum.TedarikcidenGeldi, 2m, stogaAktar: true);
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.Equal(1.25m, kurgu.Satir.TedarikciKarsilanan);
+        Assert.Equal(1.25m, kurgu.Satir.KarsilananMiktar);
+        Assert.Equal(0m, kurgu.Satir.YenidenSevkGerekliAdet);
+        Assert.Equal(2.75m, kurgu.Icerik.KonulanAdet);
+        Assert.Equal(1.25m, kurgu.Icerik.TedarikciKarsilanan);
+        var stok = Assert.Single(kurgu.Uow.Repo<StokKaydi>().Rows);
+        Assert.Equal(("Conta", "PA-TED", "Tedarikçi fazla teslim", 0.75m, (int)StokDurum.Aktif),
+            (stok.MalzemeAdi, stok.KaynakProje, stok.StokGirisNedeni, stok.Miktar, stok.DurumId));
+        var hareket = Assert.Single(kurgu.Uow.Repo<StokHareketi>().Rows);
+        Assert.Equal((stok.Id, 0.75m, (int)IslemTipi.FazlaTeslimStogaAktarildi, kurgu.Satir.Id),
+            (hareket.StokKaydiId, hareket.Miktar, hareket.IslemTipiId, hareket.CekiSatiriId));
+        Assert.Contains("1.25 adet karşılandı, 0.75 adet fazla teslim stoka aktarıldı", Assert.Single(kurgu.Hareket.Rows).Aciklama);
+    }
+
+    /// <summary>K-061: aşan adet varken stoka aktarma seçilmezse işlem yapılmaz; sayaç ve stok değişmez.</summary>
+    [Fact]
+    public async Task TedarikciFazlasi_StogaAktarSecilmezseHicbirSayacVeyaStokDegismez()
+    {
+        using var kurgu = new Kurgu(2.75m, 2.75m);
+        kurgu.EksikPartiKur(1.5m, 1.25m);
+        var oncekiSatir = Snapshot(kurgu.Satir);
+        var oncekiIcerik = Snapshot(kurgu.Icerik);
+
+        var sonuc = await kurgu.KarsilaAsync(UcKDurum.TedarikcidenGeldi, 2m, stogaAktar: false);
+
+        Assert.False(sonuc.IsSuccess);
+        Assert.Equal("Fazla gelen adet stoka aktarılmalıdır.", sonuc.Error!.Message);
+        Assert.Equal(0, kurgu.Uow.SaveCount);
+        Assert.Equal(oncekiSatir, Snapshot(kurgu.Satir));
+        Assert.Equal(oncekiIcerik, Snapshot(kurgu.Icerik));
+        Assert.Empty(kurgu.Uow.Repo<StokKaydi>().Rows);
+        Assert.Empty(kurgu.Uow.Repo<StokHareketi>().Rows);
+    }
+
+    /// <summary>K-061: ürünün kalanı yoksa tedarikçi teslimi yalnız fazla olamaz; Fazla Geldi'ye yönlendirilir.</summary>
+    [Fact]
+    public async Task KalaniOlmayanUrundeTedarikciTeslimi_FazlaGeldiyeYonlendirilirVeYazmaYapilmaz()
+    {
+        using var kurgu = new Kurgu(2m, 2m);
+        kurgu.EksikPartiKur(2m, 0m);
+        var oncekiSatir = Snapshot(kurgu.Satir);
+
+        var sonuc = await kurgu.KarsilaAsync(UcKDurum.TedarikcidenGeldi, 1m, stogaAktar: true);
+
+        Assert.False(sonuc.IsSuccess);
+        Assert.Contains("Fazla Geldi", sonuc.Error!.Message);
+        Assert.Equal(0, kurgu.Uow.SaveCount);
+        Assert.Equal(oncekiSatir, Snapshot(kurgu.Satir));
+        Assert.Empty(kurgu.Uow.Repo<StokKaydi>().Rows);
+    }
+
+    /// <summary>K-061: sandık tahsis kapasitesi satır kalanından küçükse normal karşılama kapasiteyle sınırlanır.</summary>
+    [Fact]
+    public async Task TedarikciTeslimi_KapasiteSatirKalanindanKucukseKapasiteKadarKarsilanir()
+    {
+        using var kurgu = new Kurgu(5m, 2m);
+
+        var sonuc = await kurgu.KarsilaAsync(UcKDurum.TedarikcidenGeldi, 3m, stogaAktar: true);
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.Equal(2m, kurgu.Satir.TedarikciKarsilanan);
+        Assert.Equal(2m, kurgu.Icerik.KonulanAdet);
+        Assert.Equal(1m, Assert.Single(kurgu.Uow.Repo<StokKaydi>().Rows).Miktar);
+    }
+
+    /// <summary>K-061 + K-028: tam geri alma tedarikçi fazlasından oluşan stoğu ve karşılamayı birlikte tersler.</summary>
+    [Fact]
+    public async Task TedarikciFazlasi_TamGeriAlmaStoguVeKarsilamayiTersler()
+    {
+        using var kurgu = new Kurgu(2.75m, 2.75m);
+        kurgu.EksikPartiKur(1.5m, 1.25m);
+        Assert.True((await kurgu.KarsilaAsync(UcKDurum.TedarikcidenGeldi, 2m, stogaAktar: true)).IsSuccess);
+        var stok = Assert.Single(kurgu.Uow.Repo<StokKaydi>().Rows);
+
+        var sonuc = await kurgu.SifirlaAsync();
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.Equal(0m, kurgu.Satir.TedarikciKarsilanan);
+        Assert.Equal(0m, kurgu.Satir.KarsilananMiktar);
+        Assert.Equal(0m, stok.Miktar);
+        Assert.Equal((int)StokDurum.Tukendi, stok.DurumId);
+        Assert.Empty(kurgu.Uow.Repo<StokHareketi>().Rows);
+    }
+
     [Fact]
     public async Task ProjedenOndalikKarsilama_HedefDonorTransferDefteriVeTelafiBorcunuKorunumluGunceller()
     {
