@@ -1,8 +1,18 @@
 using FluentValidation;
 using _3K.Application.Features.StokIslemleri.Commands;
+using _3K.Application.Features.StokIslemleri.Queries;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.StokIslemleri.Validators
 {
+    public class StokListeleQueryValidator : AbstractValidator<StokListeleQuery>
+    {
+        public StokListeleQueryValidator()
+        {
+            RuleFor(x => x.DurumId).Must(StokListeFiltresi.GecerliDurum).WithMessage("Geçersiz stok durumu.");
+        }
+    }
+
     public class StokKaydiOlusturCommandValidator : AbstractValidator<StokKaydiOlusturCommand>
     {
         public StokKaydiOlusturCommandValidator()

@@ -72,8 +72,8 @@ namespace _3K_API.Controllers
             (await _mediator.Send(new GetUcKSandikDurumPdfQuery { ProjeId = projeId }, cancellationToken)).ToFileResult();
 
         [HttpGet("stok")]
-        public async Task<IActionResult> StokPdfIndir(CancellationToken cancellationToken) =>
-            (await _mediator.Send(new GetStokPdfQuery(), cancellationToken)).ToFileResult();
+        public async Task<IActionResult> StokPdfIndir([FromQuery] int? durumId, CancellationToken cancellationToken) =>
+            (await _mediator.Send(new GetStokPdfQuery { DurumId = durumId }, cancellationToken)).ToFileResult();
 
         [HttpGet("depo-sandik")]
         public async Task<IActionResult> DepoSandikPdfIndir([FromQuery] int? projeTipiId, CancellationToken cancellationToken) =>

@@ -78,7 +78,7 @@ public sealed class RequestMenuPermissionResolver(IUnitOfWork unitOfWork, IReadQ
             GetProjeHareketleriQuery => One(K.HareketGecmisi, YetkiTipi.R),
             GetEksikUrunlerByProjeQuery => Any(YetkiTipi.R, K.Saha.SahayaAktar, K.Saha.Sandiklar, K.Yedek.Sandiklar,
                 K.Sandik.Yonetimi),
-            StokListeleQuery or GetStokPdfQuery => One(K.Stok.Kok, YetkiTipi.R),
+            StokListeleQuery or StokDurumSayilariQuery or GetStokPdfQuery => One(K.Stok.Kok, YetkiTipi.R),
             StokKaydiGuncelleCommand or StokKaydiOlusturCommand => One(K.Stok.Kok, YetkiTipi.W),
             DepoLokasyonOlusturCommand or DepoLokasyonSilCommand => One(K.DepoDurumu, YetkiTipi.W),
             KaliteDurumGuncelleCommand => One(K.Sandik.KaliteModulu, YetkiTipi.W),

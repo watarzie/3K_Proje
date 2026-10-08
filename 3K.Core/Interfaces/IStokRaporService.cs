@@ -4,7 +4,7 @@ namespace _3K.Core.Interfaces;
 public interface IStokRaporService
 {
     /// <summary>
-    /// Stok modülündeki tüm ürünlerin PDF raporunu oluşturur.
+    /// Stok modülündeki ürünlerin PDF raporunu oluşturur; durum verilirse yalnız o durumdaki kayıtlar basılır.
     /// </summary>
-    Task<byte[]> StokRaporuPdfOlusturAsync();
+    Task<byte[]> StokRaporuPdfOlusturAsync(int? durumId = null);
 }
