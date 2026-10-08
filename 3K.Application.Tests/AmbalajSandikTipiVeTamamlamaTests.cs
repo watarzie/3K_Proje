@@ -1,7 +1,10 @@
+using _3K.Application.Common;
 using _3K.Application.Features.AmbalajIslemleri;
 using _3K.Application.Features.AmbalajIslemleri.Commands;
+using _3K.Application.Features.AmbalajIslemleri.DTOs;
 using _3K.Application.Features.SandikIslemleri.Commands;
 using _3K.Application.Features.SandikIslemleri.Validators;
+using _3K.Core.Constants;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Exceptions;
@@ -144,9 +147,124 @@ public sealed class AmbalajSandikTipiVeTamamlamaTests
         var sonuc = await f.ProjeHandler().Handle(new() { ProjeId = 10, Tamamla = true }, default);
 
         Assert.Equal(409, sonuc.StatusCode);
+        Assert.Contains("Üretim formu olmayan: 2 (Normal)", sonuc.Error!.Message);
         Assert.Equal(AmbalajUretimDurumu.Uretimde, formsuz.UretimDurumu);
         Assert.Empty(f.Finans.Modeller);
     }
+
+    /// <summary>
+    /// 707-02: plan başladıktan sonra projeye eklenen sandık senkronda İlave olur ve formu olmadığı için tamamlamayı
+    /// durdurur. Red sandık numarasını ve grubunu söyler; ekran satırı issues listesinden kaynak sandıkla eşler.
+    /// </summary>
+    [Fact]
+    public async Task A2_Ilave_siniflanan_formsuz_kaynak_kayit_tamamlamayi_sandik_no_ve_grupla_engeller()
+    {
+        var f = new Fixture(OrtakRoller.TumIzinler());
+        f.KaynakSandik(101, "1", SandikTipi.AhsapKapali, PlanBaslangici.AddDays(-1));
+        var normal = f.UretimdeFormlu(f.SenkronKaydi(101, PlanBaslangici));
+        f.KaynakSandik(102, "12", SandikTipi.AhsapKapali, PlanBaslangici.AddDays(3));
+        Assert.True((await new AmbalajKaynakSenkronizasyonService(f.Uow, f.Finans).SenkronizeEtAsync(10, f.User, default)).IsSuccess);
+        var ilave = Assert.Single(f.Kayitlar, k => k.KaynakKayitId == 102);
+        Assert.Equal(AmbalajSandikTuru.Ilave, ilave.Tur);
+        f.Finans.Modeller.Clear();
+
+        var sonuc = await f.ProjeHandler().Handle(new() { ProjeId = 10, Tamamla = true }, default);
+
+        Assert.Equal(409, sonuc.StatusCode);
+        Assert.StartsWith("Üretim tamamlanamıyor. Üretim formu olmayan: 12 (İlave).", sonuc.Error!.Message);
+        var engel = Assert.Single(Engeller(sonuc));
+        Assert.Equal((ilave.Id, (int?)102, AmbalajProjeTamamlamaEngelleri.FormYok, false),
+            (engel.KayitId, engel.KaynakSandikId, engel.Neden, engel.OzelSandik));
+        Assert.Equal(AmbalajUretimDurumu.Uretimde, normal.UretimDurumu);
+        Assert.Equal(AmbalajUretimDurumu.Planlandi, ilave.UretimDurumu);
+        Assert.Empty(f.Finans.Modeller);
+    }
+
+    /// <summary>Özel Sandıklar listesindeki formsuz bağımsız kayıt da adıyla ve "özel sandık" olarak bildirilir.</summary>
+    [Fact]
+    public async Task A2_Formsuz_ozel_sandik_tamamlamayi_ozel_sandik_olarak_engeller()
+    {
+        var f = new Fixture(OrtakRoller.TumIzinler());
+        f.FormluKayit(1, AmbalajUretimDurumu.Uretimde);
+        var ozel = f.FormluKayit(2, AmbalajUretimDurumu.Planlandi, formEkle: false);
+        ozel.BagimsizKayitMi = true;
+        ozel.Tur = AmbalajSandikTuru.Ilave;
+        ozel.SandikNo = "OZEL-1";
+        ozel.UretimeAlindi = false;
+
+        var sonuc = await f.ProjeHandler().Handle(new() { ProjeId = 10, Tamamla = true }, default);
+
+        Assert.Equal(409, sonuc.StatusCode);
+        Assert.Contains("Üretim formu olmayan: OZEL-1 (İlave özel sandık)", sonuc.Error!.Message);
+        var engel = Assert.Single(Engeller(sonuc));
+        Assert.Equal((2, (int?)null, true), (engel.KayitId, engel.KaynakSandikId, engel.OzelSandik));
+        Assert.Equal("OZEL-1 (İlave özel sandık): üretim formu yok", engel.Mesaj);
+    }
+
+    /// <summary>Formu olmayan, üretime alınmamış ve ölçüsü eksik sandıklar tek yanıtta, kendi başlıklarıyla bildirilir.</summary>
+    [Fact]
+    public async Task A2_Butun_tamamlama_engelleri_tek_yanitta_toplanir_ve_hicbir_kayit_degismez()
+    {
+        var f = new Fixture(OrtakRoller.TumIzinler());
+        var hazir = f.FormluKayit(1, AmbalajUretimDurumu.Uretimde);
+        f.FormluKayit(3, AmbalajUretimDurumu.Uretimde, formEkle: false);
+        var secilmemis = f.FormluKayit(7, AmbalajUretimDurumu.Uretimde);
+        secilmemis.UretimeAlindi = false;
+        var olcusuz = f.FormluKayit(9, AmbalajUretimDurumu.Uretimde);
+        olcusuz.Boy = 0;
+        AmbalajUretimYardimcilari.M3DegerleriniHesapla(olcusuz);
+
+        var sonuc = await f.ProjeHandler().Handle(new() { ProjeId = 10, Tamamla = true }, default);
+
+        Assert.Equal(409, sonuc.StatusCode);
+        Assert.StartsWith("Üretim tamamlanamıyor. Üretim formu olmayan: 3 (Normal). Üretime alınmamış: 7 (Normal). " +
+                          "Ölçüsü veya manuel m³ değeri eksik: 9 (Normal).", sonuc.Error!.Message);
+        Assert.Equal([3, 7, 9], Engeller(sonuc).Select(e => e.KayitId));
+        Assert.All(f.Kayitlar, k => Assert.Equal(AmbalajUretimDurumu.Uretimde, k.UretimDurumu));
+        Assert.Null(hazir.TamamlanmaTarihi);
+        Assert.Empty(f.Uow.Repo<AmbalajUretimGerceklesmesi>().Rows);
+        Assert.Empty(f.Finans.Modeller);
+    }
+
+    /// <summary>Kaynak kayda müdahale izni olmayan kullanıcıya engel listesinden önce 403 döner; kayıt değişmez.</summary>
+    [Fact]
+    public async Task A2_Kaynak_kayda_mudahale_izni_yoksa_proje_tamamlama_403_doner()
+    {
+        var f = new Fixture(OrtakRoller.Haric(YetkiKodlari.Ambalaj.KaynakMudahalesi));
+        f.KaynakSandik(101, "1", SandikTipi.AhsapKapali, PlanBaslangici.AddDays(-1));
+        var kaynakli = f.UretimdeFormlu(f.SenkronKaydi(101, PlanBaslangici));
+        f.FormluKayit(5, AmbalajUretimDurumu.Uretimde, formEkle: false);
+
+        var sonuc = await f.ProjeHandler().Handle(new() { ProjeId = 10, Tamamla = true }, default);
+
+        Assert.Equal(403, sonuc.StatusCode);
+        Assert.Contains("Kaynak modülden gelen kayda müdahale", sonuc.Error!.Message);
+        Assert.Equal(AmbalajUretimDurumu.Uretimde, kaynakli.UretimDurumu);
+        Assert.Empty(f.Finans.Modeller);
+    }
+
+    /// <summary>
+    /// Finans aktarımının iş kuralı reddi (ör. aktif sipariş miktarının altına düşme) 409 olarak yukarı taşınır ve
+    /// tamamlama transaction'ı geri alınır; kayıtların değişmediği gerçek PostgreSQL'de
+    /// <see cref="AmbalajUretimV2PostgresTests"/> içinde doğrulanır.
+    /// </summary>
+    [Fact]
+    public async Task A2_Finans_reddi_proje_tamamlamayi_409_ile_durdurur()
+    {
+        var f = new Fixture(OrtakRoller.TumIzinler());
+        f.FormluKayit(1, AmbalajUretimDurumu.Uretimde);
+        f.Finans.Red = "Sentetik: üretim miktarı aktif sipariş miktarının altına düşürülemez.";
+
+        var hata = await Assert.ThrowsAsync<IsKuraliException>(
+            () => f.ProjeHandler().Handle(new() { ProjeId = 10, Tamamla = true }, default));
+
+        Assert.Equal(409, hata.StatusCode);
+        Assert.Equal(f.Finans.Red, hata.Message);
+        Assert.False(f.Uow.HasActiveTransaction);
+    }
+
+    private static IReadOnlyList<AmbalajTamamlamaEngeliDto> Engeller(Result<AmbalajProjeUretimDurumuSonucDto> sonuc) =>
+        Assert.IsAssignableFrom<IReadOnlyList<AmbalajTamamlamaEngeliDto>>(sonuc.Error!.Issues);
 
     [Fact]
     public async Task A3_Proje_geri_alma_gerekce_ister_po_bagliysa_reddedilir()
@@ -276,6 +394,16 @@ public sealed class AmbalajSandikTipiVeTamamlamaTests
             return kayit;
         }
 
+        /// <summary>Kaydı ilk üretim formuyla üretime alınmış hâle getirir (form sonrası senkron kilidi dahil).</summary>
+        public AmbalajUretimKaydi UretimdeFormlu(AmbalajUretimKaydi kayit)
+        {
+            kayit.UretimeAlindi = true;
+            kayit.UretimDurumu = AmbalajUretimDurumu.Uretimde;
+            kayit.KaynakSenkronizasyonuKilitliMi = true;
+            Uow.Repo<AmbalajUretimFormuKaydi>().Rows.Add(new AmbalajUretimFormuKaydi { FormSurumuId = 1, AmbalajUretimKaydiId = kayit.Id });
+            return kayit;
+        }
+
         public void PoBagla(AmbalajUretimKaydi kayit)
         {
             var is_ = new FinansIsKaydi
@@ -290,10 +418,14 @@ public sealed class AmbalajSandikTipiVeTamamlamaTests
     private sealed class FinansAktarimi : IFinansUretimAktarimService
     {
         public List<FinansUretimAktarimModel> Modeller { get; } = [];
+        /// <summary>Doluysa aktarım, finans servisinin iş kuralı reddi gibi 409 ile reddedilir.</summary>
+        public string? Red { get; set; }
 
         public Task<FinansSenkronizasyonSonucModel> UretimKayitlariniAktarAsync(
             IReadOnlyList<FinansUretimAktarimModel> modeller, CancellationToken cancellationToken)
         {
+            if (Red != null)
+                throw IsKuraliException.Cakisma(Red);
             Modeller.AddRange(modeller);
             return Task.FromResult(new FinansSenkronizasyonSonucModel(0, modeller.Count, 0));
         }

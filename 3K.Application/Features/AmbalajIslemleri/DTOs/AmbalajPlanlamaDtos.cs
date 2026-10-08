@@ -28,7 +28,14 @@ public sealed record AmbalajPlanlamaProjeOzetDto(
     decimal? IcSandiklarHacimM3,
     int GenelUretimDurumu = 1,
     int GerekliSandikAdedi = 0,
-    int TamamlananSandikAdedi = 0);
+    int TamamlananSandikAdedi = 0,
+    IReadOnlyList<AmbalajGrupSandikAdediDto>? GerekliSandikKirilimi = null);
+
+/// <summary>
+/// Tamamlama için gerekli sandık adedinin grup kırılımı (Normal, İlave, İç, özel sandık); "X / Y gerekli sandık"
+/// sayacındaki Y'nin proje sandık sayısından neden büyük olabileceğini açıklar.
+/// </summary>
+public sealed record AmbalajGrupSandikAdediDto(string Grup, int Adet, int TamamlananAdet);
 
 public sealed record AmbalajPlanlamaProjeFiltreOzetiDto
 {
@@ -68,7 +75,8 @@ public sealed record AmbalajPlanlamaPlanDto(
     decimal? SeciliHacimM3,
     int GenelUretimDurumu = 1,
     int GerekliSandikAdedi = 0,
-    int TamamlananSandikAdedi = 0);
+    int TamamlananSandikAdedi = 0,
+    IReadOnlyList<AmbalajGrupSandikAdediDto>? GerekliSandikKirilimi = null);
 
 public sealed record AmbalajPlanlamaKalemDto(
     int Id,
@@ -92,7 +100,8 @@ public sealed record AmbalajPlanlamaKalemDto(
     bool? AmbalajaDahilMi = true,
     bool AmbalajKarariOneriliyor = false,
     bool M3HesaplanabilirMi = true,
-    int UretimDurumu = 1);
+    int UretimDurumu = 1,
+    bool OlcuHazir = false);
 
 public sealed record AmbalajIcSandikSablonDto(
     int Id,

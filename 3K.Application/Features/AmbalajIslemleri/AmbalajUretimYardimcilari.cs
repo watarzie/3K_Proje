@@ -15,9 +15,23 @@ namespace _3K.Application.Features.AmbalajIslemleri
             kayit.KaynakModul is AmbalajKaynakModulu.Sandik or AmbalajKaynakModulu.Saha or AmbalajKaynakModulu.Yedek;
 
         public static bool OlculerGecerli(AmbalajUretimKaydi kayit) =>
-            kayit.Adet > 0 && (KaynakSandikOlculeriMi(kayit) && AmbalajUretimPolitikasi.M3HesaplanabilirMi(kayit.SandikCinsi)
-                ? AmbalajHesaplayici.KaynakDisOlculeriGecerli(kayit.Boy, kayit.En, kayit.Yukseklik)
-                : kayit.Boy > 0 && kayit.En > 0 && kayit.Yukseklik > 0);
+            OlculerGecerli(KaynakSandikOlculeriMi(kayit), kayit.SandikCinsi, kayit.Adet, kayit.Boy, kayit.En, kayit.Yukseklik);
+
+        /// <summary>
+        /// Üretim formu ve tamamlamanın kullandığı ölçü kuralı: kaynak sandığın dış ölçüsü taşıdığı ahşap/kafes
+        /// sandıkta iç ölçüye düşülebilecek dış ölçü, diğerlerinde sıfırdan büyük ölçü gerekir. Henüz kaydı
+        /// oluşmamış kaynak sandık ve listelerin ölçü durumu da aynı kuralla okunur.
+        /// </summary>
+        public static bool OlculerGecerli(
+            bool kaynakSandikOlculeri,
+            AmbalajSandikCinsi cins,
+            int adet,
+            decimal? boy,
+            decimal? en,
+            decimal? yukseklik) =>
+            adet > 0 && (kaynakSandikOlculeri && AmbalajUretimPolitikasi.M3HesaplanabilirMi(cins)
+                ? AmbalajHesaplayici.KaynakDisOlculeriGecerli(boy, en, yukseklik)
+                : boy > 0 && en > 0 && yukseklik > 0);
 
         public static bool UretimMiktariGecerli(AmbalajUretimKaydi kayit) =>
             OlculerGecerli(kayit) || (AmbalajUretimPolitikasi.M3HesaplanabilirMi(kayit.SandikCinsi) && kayit.M3Override.HasValue);

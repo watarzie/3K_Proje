@@ -143,21 +143,26 @@ public sealed class AmbalajPlanlamaSayfalamaTests
             new Sandik { Id = 12, ProjeId = 2, SandikNo = "3", Boy = null, En = 800, Yukseklik = 700 },
             new Sandik { Id = 13, ProjeId = 3, SandikNo = "1", Boy = 1000, En = 800, Yukseklik = 700 }
         };
+        // Kayıtlar senkronun kaynak sandıktan kopyaladığı adet ve ölçüyü taşır; ölçü durumu form ve tamamlama
+        // gibi kayıttan okunur (2 numaralı projenin kaynağında boy yok, kaydı da ölçüsüz).
         var kayitlar = new[]
         {
             new AmbalajUretimKaydi
             {
-                Id = 101, ProjeId = 1, KaynakKayitId = 11, Tur = AmbalajSandikTuru.Normal,
+                Id = 101, ProjeId = 1, KaynakKayitId = 11, Tur = AmbalajSandikTuru.Normal, Adet = 2,
+                Boy = 1000, En = 800, Yukseklik = 700,
                 AmbalajaDahil = true, UretimeAlindi = true, HesaplananToplamM3 = 1m
             },
             new AmbalajUretimKaydi
             {
                 Id = 102, ProjeId = 2, KaynakKayitId = 12, Tur = AmbalajSandikTuru.Normal,
+                Boy = 0, En = 800, Yukseklik = 700,
                 AmbalajaDahil = true, UretimeAlindi = true, HesaplananToplamM3 = 2m
             },
             new AmbalajUretimKaydi
             {
                 Id = 103, ProjeId = 3, KaynakKayitId = 13, Tur = AmbalajSandikTuru.Normal,
+                Boy = 1000, En = 800, Yukseklik = 700,
                 AmbalajaDahil = true, UretimeAlindi = true, HesaplananToplamM3 = 10m
             }
         };

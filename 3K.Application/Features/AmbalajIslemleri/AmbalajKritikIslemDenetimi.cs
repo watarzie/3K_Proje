@@ -69,11 +69,24 @@ public sealed class AmbalajKritikIslemDenetimi(IUnitOfWork unitOfWork, IRolServi
         CancellationToken cancellationToken,
         bool gerekceZorunlu = true)
     {
+        var yetki = await YetkileriDenetleAsync(gereksinim, cancellationToken);
+        return yetki.IsSuccess ? IsKurallariniDenetle(gereksinim, gerekce, gerekceZorunlu) : yetki;
+    }
+
+    /// <summary>Değişikliklerin gerektirdiği ek yazma izinleri; ilk eksik izin 403 ile kodu yazılarak döner.</summary>
+    public async Task<Result> YetkileriDenetleAsync(AmbalajIslemGereksinimi gereksinim, CancellationToken cancellationToken)
+    {
         foreach (var kod in gereksinim.Yetkiler)
         {
             if (!await AmbalajYetkilendirmeYardimcisi.YetkiliMiAsync(roller, kullanici, kod, cancellationToken))
                 return Result.Failure($"Bu işlem için gerekli yetkiniz bulunmuyor ({kod}).", 403);
         }
+        return Result.Success();
+    }
+
+    /// <summary>İzin dışındaki kapılar: iş kuralı engeli ve ilk form şartı 409, gerekçesiz kritik işlem 400.</summary>
+    public static Result IsKurallariniDenetle(AmbalajIslemGereksinimi gereksinim, string? gerekce, bool gerekceZorunlu = true)
+    {
         if (gereksinim.Engel is { } engel)
             return Result.Failure(engel, 409);
         if (gereksinim.IlkFormGerekli)

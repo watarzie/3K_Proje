@@ -13,6 +13,8 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands;
 /// Projenin ambalaja dahil bütün aktif sandıklarını birlikte tamamlar veya tamamlanmayı geri alır. Kayda
 /// bağlı kurallar (<see cref="AmbalajIslemKurallari"/>) her sandık için değişiklik öncesi hâliyle, aynı
 /// transaction içinde değerlendirilir; finans aktarımı değişen bütün sandıklar için tek pakette yapılır.
+/// Önce bütün izinler (403) denetlenir; tamamlamada formu olmayan, üretime alınmamış ve ölçüsü eksik bütün
+/// sandıklar tek 409 yanıtında numarası ve grubuyla bildirilir (<see cref="AmbalajProjeTamamlamaEngelleri"/>).
 /// </summary>
 public sealed class AmbalajProjeUretimDurumuCommandHandler(
     IUnitOfWork unitOfWork,
@@ -43,12 +45,12 @@ public sealed class AmbalajProjeUretimDurumuCommandHandler(
                     ? "Projenin tamamlanacak sandığı yok."
                     : "Projede geri alınacak tamamlanmış sandık yok.", 409);
 
-            var gereksinim = denetim.Degerlendir(denetim.DegisiklikleriHazirla(degisecekler,
-                degisiklik => degisiklik with { HedefDurum = hedefDurum }));
-            var kapi = await denetim.KapilariDenetleAsync(gereksinim, request.Aciklama, token);
-            if (!kapi.IsSuccess)
-                return Result<AmbalajProjeUretimDurumuSonucDto>.Failure(kapi.Error!.Message, kapi.StatusCode);
-
+            var degisiklikler = denetim.DegisiklikleriHazirla(degisecekler,
+                degisiklik => degisiklik with { HedefDurum = hedefDurum });
+            var gereksinim = denetim.Degerlendir(degisiklikler);
+            var yetki = await denetim.YetkileriDenetleAsync(gereksinim, token);
+            if (!yetki.IsSuccess)
+                return Result<AmbalajProjeUretimDurumuSonucDto>.Failure(yetki.Error!.Message, yetki.StatusCode);
             foreach (var kayit in degisecekler)
             {
                 if (!await AmbalajYetkilendirmeYardimcisi.KaynakMudahalesineYetkiliMiAsync(kayit, roller, currentUser, token))
@@ -57,15 +59,14 @@ public sealed class AmbalajProjeUretimDurumuCommandHandler(
             }
             if (request.Tamamla)
             {
-                var eksikler = degisecekler
-                    .Where(k => !k.UretimeAlindi || !AmbalajUretimYardimcilari.UretimMiktariGecerli(k))
-                    .Select(k => k.SandikNo)
-                    .OrderBy(AmbalajPlanlamaYardimcisi.SandikSiraAnahtari)
-                    .ToList();
-                if (eksikler.Count > 0)
+                var engeller = AmbalajProjeTamamlamaEngelleri.Belirle(degisiklikler);
+                if (engeller.Count > 0)
                     return Result<AmbalajProjeUretimDurumuSonucDto>.Failure(
-                        $"Üretime alınmamış veya ölçüsü eksik sandıklar tamamlanamaz: {string.Join(", ", eksikler)}", 409);
+                        AmbalajProjeTamamlamaEngelleri.Mesaj(engeller), 409, engeller);
             }
+            var kapi = AmbalajKritikIslemDenetimi.IsKurallariniDenetle(gereksinim, request.Aciklama);
+            if (!kapi.IsSuccess)
+                return Result<AmbalajProjeUretimDurumuSonucDto>.Failure(kapi.Error!.Message, kapi.StatusCode);
 
             var kullaniciId = currentUser.IslemKullaniciId ?? 0;
             foreach (var kayit in degisecekler)

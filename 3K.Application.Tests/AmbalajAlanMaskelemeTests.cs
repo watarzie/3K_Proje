@@ -14,7 +14,7 @@ public sealed class AmbalajAlanMaskelemeTests
     public void K33_PlanlamaLegacyOlcuM3_NestedKalemVeToplamdaNullOlur()
     {
         var row = new AmbalajPlanlamaKalemDto(1, 10, null, null, 1, "Proje", true,
-            "1", "Sandık", "Ahşap", 3, 1200, 1000, 900, null, null, null, 5m);
+            "1", "Sandık", "Ahşap", 3, 1200, 1000, 900, null, null, null, 5m, OlcuHazir: true);
         var plan = new AmbalajPlanlamaPlanDto(1, "P-1", null, "Müşteri", 1, "Normal", null, null,
             null, 1, 1, 1, [row], 3, 5m);
 
@@ -24,6 +24,8 @@ public sealed class AmbalajAlanMaskelemeTests
         Assert.Null(result.Kalemler[0].En);
         Assert.Null(result.Kalemler[0].Yukseklik);
         Assert.Null(result.Kalemler[0].HacimM3);
+        // Ölçü durumu sunucuda hesaplanmış bir bayraktır; ölçüyü göstermez, maskelenmez.
+        Assert.True(result.Kalemler[0].OlcuHazir);
         Assert.Null(result.SeciliHacimM3);
         Assert.Equal(3, result.SeciliSandikAdedi);
         Assert.Equal("P-1", result.ProjeNo);
@@ -173,7 +175,7 @@ public sealed class AmbalajAlanMaskelemeTests
         ["9"], 7.5m, "FP", 2, 1, 1, 2.5m, 1, 2, 3, "FP-2", "FP-3", 2, 4.5m, 1.5m, 1.0m, 2, 4, 1);
 
     private static AmbalajPlanlamaKalemDto PlanKalemi() => new(1, 10, 5, 3, 1, "Proje", true, "1", "Sandık", "Ahşap",
-        3, 1200, 1000, 900, "Amaç", "Talimat", "Açıklama", 5m, true, false, true, 2);
+        3, 1200, 1000, 900, "Amaç", "Talimat", "Açıklama", 5m, true, false, true, 2, true);
 
     private static AmbalajBagimsizSandikDto BagimsizSandik() => new(1, 4, "Saha", 5, "P-5", "Müşteri", 11, "11", "Kaynak",
         12, 3, "12", "Üst", true, "SAH-001", "Saha sandığı", "Ahşap", 2, 1200, 1000, 900, "Amaç", "Talimat", "Açıklama", 3.5m);

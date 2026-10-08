@@ -6,6 +6,20 @@ namespace _3K.Application.Features.AmbalajIslemleri.DTOs;
 /// <summary>Proje bazlı toplu tamamlama/geri alma sonucu: değişen sandık sayısı ve projenin yeni durumu.</summary>
 public sealed record AmbalajProjeUretimDurumuSonucDto(int ProjeId, int DegisenKayit, AmbalajUretimDurumu ProjeDurumu);
 
+/// <summary>
+/// Proje tamamlamayı engelleyen sandık; 409 yanıtının <c>issues</c> listesinde döner. <see cref="Neden"/>:
+/// <c>FormYok</c>, <c>UretimeAlinmadi</c> veya <c>OlcuEksik</c>. Ekran satırı <see cref="KayitId"/> ya da
+/// <see cref="KaynakSandikId"/> ile eşler; özel sandık plan çekmecesinde değil Özel Sandıklar listesindedir.
+/// </summary>
+public sealed record AmbalajTamamlamaEngeliDto(
+    int KayitId,
+    int? KaynakSandikId,
+    string SandikNo,
+    string GrupMetni,
+    bool OzelSandik,
+    string Neden,
+    string Mesaj);
+
 public sealed record AmbalajFormSurumuDto(int Id, Guid FormKimligi, int Surum,
     DateTime OlusturmaTarihi, int OlusturanKullaniciId, string? Aciklama,
     AmbalajUretimFormuModel Form);

@@ -133,6 +133,10 @@ public sealed class GetAmbalajPlanlamaProjeleriQueryHandler
                 AmbalajaDahil = k.AmbalajaDahil,
                 SandikCinsi = k.SandikCinsi,
                 NetM3 = k.M3Override ?? k.HesaplananToplamM3,
+                Adet = k.Adet,
+                Boy = k.Boy,
+                En = k.En,
+                Yukseklik = k.Yukseklik,
                 CreatedDate = k.CreatedDate
             }), cancellationToken);
         var kaynakKayitMap = kaynakKayitlari
@@ -194,7 +198,12 @@ public sealed class GetAmbalajPlanlamaProjeleriQueryHandler
             if (AmbalajUretimPolitikasi.M3HesaplanabilirMi(cins))
                 kaynakHacmi += kayit?.NetM3 ?? AmbalajPlanlamaYardimcisi.KaynakSandikToplamHacmiHesapla(
                     kaynak.Ad, kaynak.AdIngilizce, kaynak.SandikNo, kaynak.Boy, kaynak.En, kaynak.Yukseklik);
-            if (kaynak.Boy is not > 0 || kaynak.En is not > 0 || kaynak.Yukseklik is not > 0)
+            // Plan satırındaki "ölçü hazır" ile aynı kural: form ve tamamlama kaydın ölçüsünü kullanır.
+            var olcuHazir = kayit != null
+                ? AmbalajUretimYardimcilari.OlculerGecerli(true, kayit.SandikCinsi, kayit.Adet, kayit.Boy, kayit.En, kayit.Yukseklik)
+                : AmbalajUretimYardimcilari.OlculerGecerli(true, cins, AmbalajPlanlamaYardimcisi.SandikAdediHesapla(kaynak.SandikNo),
+                    kaynak.Boy, kaynak.En, kaynak.Yukseklik);
+            if (!olcuHazir)
                 eksikOlculuProjeler.Add(kaynak.ProjeId);
         }
 
@@ -217,7 +226,7 @@ public sealed class GetAmbalajPlanlamaProjeleriQueryHandler
             })
             .Take(1), cancellationToken)).FirstOrDefault() ?? new ManuelKayitOzeti();
         var eksikManuelProjeIds = await _readQueries.ToListAsync(manuelKayitlar
-            .Where(k => k.Boy <= 0 || k.En <= 0 || k.Yukseklik <= 0)
+            .Where(k => k.Adet <= 0 || k.Boy <= 0 || k.En <= 0 || k.Yukseklik <= 0)
             .Select(k => k.ProjeId!.Value).Distinct(), cancellationToken);
         eksikOlculuProjeler.UnionWith(eksikManuelProjeIds);
 
@@ -240,6 +249,10 @@ public sealed class GetAmbalajPlanlamaProjeleriQueryHandler
         public bool AmbalajaDahil { get; init; }
         public AmbalajSandikCinsi SandikCinsi { get; init; }
         public decimal NetM3 { get; init; }
+        public int Adet { get; init; }
+        public decimal Boy { get; init; }
+        public decimal En { get; init; }
+        public decimal Yukseklik { get; init; }
         public DateTime CreatedDate { get; init; }
     }
 
