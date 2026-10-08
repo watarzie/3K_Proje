@@ -101,9 +101,12 @@ internal static class FinansModelEslemeleri
 
     /// <summary>Kaydın m³ fiyat satırları (kontra/katlanır sandıkta malzeme bazlı satırlar).</summary>
     internal static IReadOnlyList<FinansFiyatBileseniModel>? Bilesenler(FinansIsKaydi entity)
-        => entity.FiyatBilesenleriJson is null
+        => Bilesenler(entity.FiyatBilesenleriJson);
+
+    internal static IReadOnlyList<FinansFiyatBileseniModel>? Bilesenler(string? fiyatBilesenleriJson)
+        => fiyatBilesenleriJson is null
             ? null
-            : System.Text.Json.JsonSerializer.Deserialize<FinansFiyatBileseniModel[]>(entity.FiyatBilesenleriJson);
+            : System.Text.Json.JsonSerializer.Deserialize<FinansFiyatBileseniModel[]>(fiyatBilesenleriJson);
 
     /// <summary>Kaydın ahşap ve kontra m³ payı (<see cref="FinansHacimKurallari"/>).</summary>
     internal static (decimal Ahsap, decimal Kontra) Hacim(FinansIsKaydi entity)

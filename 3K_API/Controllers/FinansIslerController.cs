@@ -36,6 +36,24 @@ public sealed class FinansIslerController(IMediator mediator) : FinansController
         CancellationToken cancellationToken)
         => (await Mediator.Send(new FinansAylikIslerQuery { Yil = yil, Ay = ay, Filtre = request.ToModel() }, cancellationToken)).ToActionResult();
 
+    /// <summary>Projenin sandık kırılımı; <c>yil</c>/<c>ay</c> verilirse yalnız o finans dönemi.</summary>
+    [HttpGet("proje-sandik-kirilimi")]
+    public async Task<ActionResult> ProjeSandikKirilimi(
+        [FromQuery] int? yil,
+        [FromQuery] int? ay,
+        [FromQuery] string? musteri,
+        [FromQuery] FinansFilterRequest request,
+        CancellationToken cancellationToken)
+        => (await Mediator.Send(new FinansProjeSandikKirilimiQuery
+        {
+            ProjeId = request.ProjeId,
+            ProjeNo = request.ProjeNo,
+            Musteri = musteri,
+            Yil = yil,
+            Ay = ay,
+            Filtre = request.ToModel()
+        }, cancellationToken)).ToActionResult();
+
     [HttpPost("is-kayitlari/{id:int}/finans-tarihi")]
     public async Task<ActionResult> FinansTarihi(int id, [FromBody] FinansTarihiDegistirModel model, CancellationToken ct)
         => (await Mediator.Send(new FinansTarihiDegistirCommand { Id = id, Model = model }, ct)).ToActionResult();

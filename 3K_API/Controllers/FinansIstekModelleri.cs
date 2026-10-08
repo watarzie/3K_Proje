@@ -32,12 +32,14 @@ public sealed class FinansFilterRequest
     public FinansIsKategorisi[]? Kategoriler { get; init; }
     /// <summary>Fatura ödeme/vade filtresi (D3).</summary>
     public FinansOdemeFiltresi? OdemeDurumu { get; init; }
+    /// <summary>Sandık no içinde geçen metin (büyük/küçük harf duyarsız).</summary>
+    public string? SandikNo { get; init; }
 
     public FinansListeFiltre ToModel() => new(
         PageNumber, PageSize, Arama, ProjeId, ProjeNo, IsTuru, Durum,
         Baslangic, Bitis, ParaBirimi, IptalEdilenleriDahilEt, PoNumarasi, TalepEden,
         SiparisDurumu, FaturaDurumu, FaturaBekleyen, FaturalamaBekleyen, FaturaNumarasi, Firma, SandikCinsi, GiderKategoriId,
-        SiparisKarsilanma, FaturaKarsilanma, Kategoriler, OdemeDurumu);
+        SiparisKarsilanma, FaturaKarsilanma, Kategoriler, OdemeDurumu, SandikNo);
 }
 
 /// <summary>PO açma ekranındaki grup seçicisinin sorgu parametreleri.</summary>

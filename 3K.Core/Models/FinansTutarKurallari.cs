@@ -82,11 +82,15 @@ public static class FinansTutarKurallari
     }
 
     public static FinansIsDurumu Durum(FinansIsKaydi work)
+        => Durum(!work.IptalEdildi && work.KaynakAktif, IsNet(work), SiparisNet(work), FaturaNet(work));
+
+    /// <summary>
+    /// İşin durumu, tutarları önceden hesaplanmış (ör. SQL projeksiyonundan gelen) kayıt için: iptal veya pasif
+    /// kaynak iptal sayılır; bedeli ya da siparişi olmayan iş sipariş bekler.
+    /// </summary>
+    public static FinansIsDurumu Durum(bool aktif, decimal amount, decimal ordered, decimal invoiced)
     {
-        if (work.IptalEdildi || !work.KaynakAktif) return FinansIsDurumu.IptalEdildi;
-        var amount = IsNet(work);
-        var ordered = SiparisNet(work);
-        var invoiced = FaturaNet(work);
+        if (!aktif) return FinansIsDurumu.IptalEdildi;
         if (amount <= 0 || ordered <= 0) return FinansIsDurumu.SiparisBekliyor;
         if (ordered >= amount && invoiced >= amount) return FinansIsDurumu.Faturalandi;
         if (invoiced > 0) return FinansIsDurumu.KismiFaturalandi;

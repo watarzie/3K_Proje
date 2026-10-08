@@ -8,6 +8,18 @@ koşum sayıları tarihsel kayıttır; depo dışında yönetilen 02–04 SQL'le
 bugünkü halini veya canlıda elle uygulanmasını doğrulamaz. Bu geçiş için
 ayrı staging provası ve DBA doğrulaması gerekir.
 
+## Finans İş Takibi: proje → sandık kırılımı ve ahşap/kontra m³ — 8 Ekim 2026
+
+**Sandık kırılımı.** `GET api/finans/proje-sandik-kirilimi` (`finans-kayit-goruntule` R) projenin (isteğe bağlı finans dönemindeki) bütün üretim kayıtlarını sayfalamasız döndürür; 250 kayıt sınırı yoktur, 20.000 kayıt üstü 409'dur. Tutarlar SQL'de hesaplanır; sandık başına gruplama (`FinansSandikKirilimiKurali`) sandık no + kaynak üretim kaydı + para birimiyle yapılır, çünkü ahşap/kontra payı fiyat satırlarına (JSON) bağlı kayıt kuralıdır. Aynı sandığın NET ve SARF kayıtları tek satırdadır: tutar ikisinin toplamı, adet ve m³ yalnız sandığın kendisi, durum aktif kayıtların en düşük iş durumudur (hepsi iptalse iptal). Genel aramaya `sandikNo` (ILIKE) filtresi eklendi; aylık sonuç sayfadaki projelere bağlı özel/düzenli işleri `projeOzelIsleri` ile ayrıca döndürür (sayfalama birimi değişmedi).
+
+- [FinansSandikKirilimiTests](../../3K.Application.Tests/FinansSandikKirilimiTests.cs): 11 vaka — iki sandık × NET + SARF, iptal ve para birimi ayrımı, doğal sıra, doğrulayıcı, okuma izni, yanıtın alan maskesi (tutar/m³ null, sarf kaydının m³'ü sarf iznine bağlı) ve gerçek PostgreSQL'de 264 kayıtlık kırılım + sandık no filtresi + projeye bağlı özel iş.
+- [FinansModuluTests](../../3K.Application.Tests/FinansModuluTests.cs): istek → yetki kodu eşlemesine kırılım sorgusu eklendi.
+- Ön yüz: `ortak/finans-kirilim.spec.ts` (4), `finans-aylik-po-akisi.spec.ts` (kırılımdan kategori dökümü, proje "Sandıklar" paneli ilk 8 + tümü, NET/SARF rozetleri, yenilemede önbellek, "Özel / Düzenli İşler" alt grubu), `finans-kayit-arama.component.spec.ts` (proje seçici + sandık no sunucu filtresi, proje → sandık başlıkları ve alt toplamlar).
+
+**Ahşap/kontra m³.** Kontra/katlanır sandıkta ahşap ve kontra m³ `POST is-kayitlari/{id}/hacim` ile elle girilir; `ToplamM3` bileşik toplamdır ve tarife fiyatlaması bununla çalışır; üretim aktarımı elle girilen hacmi ezmez, PO'ya bağlı kayıtta 409. Şema betiği `20261008_02_Finans_Ahsap_Kontra_Hacim.sql`. Kanıt: `FinansPoFaturaKurallariTests`, `FinansIstekDtoTests`, `FinansAlanProjeksiyonuTests`/`FinansAlanHttpSecurityTests` (ahsapM3/kontraM3 maskesi) ve `FinansPostgresTests.KontraHacim_ElleGirilir_BilesikToplamTarifeyleFiyatlanir_AktarimEzmez`.
+
+Koşum: kırılım için değişen alan alt kümesi (`FinansSandikKirilimiTests|FinansModuluTests|FinansAlanProjeksiyonuTests|FinansHataEslemeTests|FinansPostgresTests|FinansPoAkisPostgresTests|FinansVadeParaBirimiPostgresTests|FinansAlanHttpSecurityTests|FinansPoFaturaKurallariTests|FinansIstekDtoTests`) 187/187, atlanan yok; hacim için finans alt kümesi 190 başarılı/1 atlanan ve PostgreSQL alt kümesi 48/48. PostgreSQL vakaları izole sunucuda (127.0.0.1:55439) çalıştı. Ön yüz finans spec'leri 155/155. Tam backend ve frontend paketleri bu değişikliklerde koşulmadı. Uygulama DB'sine dokunulmadı.
+
 ## Hatalı tarife düzeltme — 4 Ekim 2026
 
 Kayıtlar oluştuktan sonra yanlış girilmiş bir tarife sürümünün fiyatı/KDV'si gerekçeyle düzeltilir; yalnız o sürümün tarife değeriyle fiyatlanmış açık kalemler yeni değere çekilir (`FinansTarifeDuzeltmeKurali`). PO'ya bağlı, elle fiyatlı, manuel netli, bileşenli ve iptal kalemler korunur; diğer sürümler ve tarih kuralı değişmez.

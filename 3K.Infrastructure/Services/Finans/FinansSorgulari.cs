@@ -176,6 +176,22 @@ internal static class FinansSorgulari
         return Expression.Lambda<Func<FinansIsKaydi, T>>(govde, isKaydi);
     }
 
+    /// <summary>
+    /// Projeksiyona işin net, sipariş ve fatura tutarlarını ekler (<see cref="IsNetIfadesi"/>,
+    /// <see cref="SiparisNetIfadesi"/>, <see cref="FaturaNetIfadesi"/>); üçü de veritabanında hesaplanır.
+    /// </summary>
+    internal static Expression<Func<FinansIsKaydi, T>> IsTutarlariIle<T>(
+        Expression<Func<FinansIsKaydi, decimal, decimal, decimal, T>> secici)
+    {
+        var isKaydi = secici.Parameters[0];
+        Expression Ifade(Expression<Func<FinansIsKaydi, decimal>> kural) =>
+            new ParametreDegistirici(kural.Parameters[0], isKaydi).Visit(kural.Body);
+        var govde = new ParametreDegistirici(secici.Parameters[1], Ifade(IsNetIfadesi)).Visit(secici.Body);
+        govde = new ParametreDegistirici(secici.Parameters[2], Ifade(SiparisNetIfadesi)).Visit(govde);
+        govde = new ParametreDegistirici(secici.Parameters[3], Ifade(FaturaNetIfadesi)).Visit(govde);
+        return Expression.Lambda<Func<FinansIsKaydi, T>>(govde, isKaydi);
+    }
+
     internal static (int PageNumber, int PageSize, int Skip) NormalizePagination(
         int requestedPageNumber,
         int requestedPageSize,
@@ -241,6 +257,11 @@ internal static class FinansSorgulari
         if (filtre.Baslangic.HasValue)
             query = query.Where(x => x.FinansTarihi >= filtre.Baslangic.Value.Date);
         if (filtre.SandikCinsi.HasValue) query = query.Where(x => x.SandikCinsi == filtre.SandikCinsi);
+        if (!string.IsNullOrWhiteSpace(filtre.SandikNo))
+        {
+            var sandikNo = LiteralSearchPattern(filtre.SandikNo);
+            query = query.Where(x => x.SandikNo != null && EF.Functions.ILike(x.SandikNo, sandikNo, "\\"));
+        }
         if (!string.IsNullOrWhiteSpace(filtre.Firma))
         {
             var firma = LiteralSearchPattern(filtre.Firma);

@@ -19,6 +19,7 @@ public sealed class FinansModuluTests
     [InlineData(typeof(FinansPanelQuery), "finans-yonetimi")]
     [InlineData(typeof(FinansProjeSecenekleriQuery), "finans-yonetimi")]
     [InlineData(typeof(FinansAylikIslerQuery), YetkiKodlari.Finans.KayitGoruntule)]
+    [InlineData(typeof(FinansProjeSandikKirilimiQuery), YetkiKodlari.Finans.KayitGoruntule)]
     [InlineData(typeof(FinansIsKaydiOlusturCommand), YetkiKodlari.Finans.ManuelIsEkle)]
     [InlineData(typeof(FinansIsKaydiIptalCommand), YetkiKodlari.Finans.IsIptal)]
     [InlineData(typeof(FinansIsKaydiGeriAlCommand), YetkiKodlari.Finans.IsIptal)]

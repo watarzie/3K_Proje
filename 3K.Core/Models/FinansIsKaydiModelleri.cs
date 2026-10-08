@@ -264,6 +264,11 @@ public sealed class FinansAylikSayfaliSonuc
     public IReadOnlyList<FinansAylikIsModel> Items { get; init; } = Array.Empty<FinansAylikIsModel>();
     /// <summary>Sayfadaki proje birimlerinin (özel işler hariç) birleşik sipariş/fatura durumu.</summary>
     public IReadOnlyList<FinansAylikProjeOzetiModel> Projeler { get; init; } = Array.Empty<FinansAylikProjeOzetiModel>();
+    /// <summary>
+    /// Sayfadaki projelere bağlı, aynı filtrelere uyan özel/düzenli işler (proje bloğunun "Özel/Düzenli" alt grubu).
+    /// Sayfalama birimi değişmez: bu işler kendi birimleriyle <see cref="Items"/> içinde de yer alabilir.
+    /// </summary>
+    public IReadOnlyList<FinansAylikIsModel> ProjeOzelIsleri { get; init; } = Array.Empty<FinansAylikIsModel>();
     public IReadOnlyList<FinansAylikFinansOzetiModel> FinansOzeti { get; init; } = Array.Empty<FinansAylikFinansOzetiModel>();
     public IReadOnlyList<FinansAylikGrupToplamiModel> GrupToplamlari { get; init; } = Array.Empty<FinansAylikGrupToplamiModel>();
     public int PageNumber { get; init; }

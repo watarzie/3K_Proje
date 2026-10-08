@@ -30,11 +30,6 @@ public static class FinansHacimKurallari
     };
 
     /// <summary>
-    /// Kaydın ahşap ve kontra m³ payı. Ahşap sandığın ahşabı üretim m³'üdür; kontra/katlanır sandığın hacmi m³ fiyat
-    /// satırlarından okunur (satır yoksa kayıt m³'ü). Malzemesi açıkça yazılmış m³ satırı kendi malzemesine eklenir;
-    /// malzemesi boş satır sandığın malzemesini alır (ahşap sandıkta üretim m³'ü zaten sayıldığı için eklenmez).
-    /// </summary>
-    /// <summary>
     /// Kaydın ahşap ve kontra payı: elle girilmiş değer (<see cref="FinansIsKaydi.AhsapM3"/>/<see cref="FinansIsKaydi.KontraM3"/>)
     /// varsa o kullanılır; yoksa eski kayıtlardaki gibi sandık cinsi ve fiyat satırlarından türetilir.
     /// </summary>
@@ -72,6 +67,11 @@ public static class FinansHacimKurallari
             : 0;
     }
 
+    /// <summary>
+    /// Kaydın ahşap ve kontra m³ payı. Ahşap sandığın ahşabı üretim m³'üdür; kontra/katlanır sandığın hacmi m³ fiyat
+    /// satırlarından okunur (satır yoksa kayıt m³'ü). Malzemesi açıkça yazılmış m³ satırı kendi malzemesine eklenir;
+    /// malzemesi boş satır sandığın malzemesini alır (ahşap sandıkta üretim m³'ü zaten sayıldığı için eklenmez).
+    /// </summary>
     public static (decimal Ahsap, decimal Kontra) Hacim(
         AmbalajSandikCinsi? cinsi,
         string? sandikTipi,

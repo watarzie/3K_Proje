@@ -74,6 +74,7 @@ internal sealed class FinansAylikOzetService(AppDbContext context) : IFinansAyli
 
         IReadOnlyList<FinansAylikIsModel> items = Array.Empty<FinansAylikIsModel>();
         IReadOnlyList<FinansAylikProjeOzetiModel> projects = Array.Empty<FinansAylikProjeOzetiModel>();
+        IReadOnlyList<FinansAylikIsModel> projectSpecialWorks = Array.Empty<FinansAylikIsModel>();
         if (selectedProjectIds.Length > 0 || selectedManualKeys.Length > 0)
         {
             var projectRecords = await AylikKayitlariFiltrele(context.IsKaydiDetayQuery(), baslangic, bitis)
@@ -82,6 +83,20 @@ internal sealed class FinansAylikOzetService(AppDbContext context) : IFinansAyli
                              (!x.ProjeId.HasValue && selectedManualKeys.Contains(x.ProjeNo + "\u001f" + x.Musteri))))
                 .ToListAsync(cancellationToken);
             projects = ProjeOzetleriniOlustur(projectRecords);
+
+            // Projeye bağlı özel/düzenli işler proje bloğunun altında da gösterilir; sayfalama birimleri
+            // değişmediği için bu iş başka bir sayfada kendi satırıyla da yer alabilir.
+            var projectSpecialRecords = await FinansSorgulari.ApplyFilter(
+                    AylikKayitlariFiltrele(context.IsKaydiDetayQuery(), baslangic, bitis),
+                    filtreNoDate with { Arama = null })
+                .Where(x => x.IsTuru == FinansIsTuru.OzelIs &&
+                            ((x.ProjeId.HasValue && selectedProjectIds.Contains(x.ProjeId.Value)) ||
+                             (!x.ProjeId.HasValue && x.ProjeNo != string.Empty &&
+                              selectedManualKeys.Contains(x.ProjeNo + "\u001f" + x.Musteri))))
+                .OrderBy(x => x.UretimTarihi)
+                .ThenBy(x => x.Id)
+                .ToListAsync(cancellationToken);
+            projectSpecialWorks = AylikModelleriOlustur(projectSpecialRecords, new Dictionary<int, string>());
         }
         if (selectedUnits.Count > 0)
         {
@@ -123,11 +138,107 @@ internal sealed class FinansAylikOzetService(AppDbContext context) : IFinansAyli
         {
             Items = items,
             Projeler = projects,
+            ProjeOzelIsleri = projectSpecialWorks,
             FinansOzeti = financeSummary,
             GrupToplamlari = groupTotals,
             PageNumber = page,
             PageSize = size,
             TotalCount = totalCount
+        };
+    }
+
+    public async Task<FinansProjeSandikKirilimiModel> ProjeSandikKirilimiAsync(
+        FinansProjeSandikKirilimiIstegi istek,
+        CancellationToken cancellationToken)
+    {
+        var projeNo = istek.ProjeNo?.Trim() ?? string.Empty;
+        var musteri = istek.Musteri?.Trim();
+        if (istek.ProjeId is not > 0 && projeNo.Length == 0)
+            throw IsKuraliException.Cakisma("Sandık kırılımı için proje seçilmelidir.");
+
+        // Kırılım üretim kayıtlarıdır; projeye bağlı özel/düzenli işler sandık taşımaz.
+        var query = context.Set<FinansIsKaydi>().AsNoTracking().Where(x => x.IsTuru != FinansIsTuru.OzelIs);
+        query = istek.ProjeId is > 0
+            ? query.Where(x => x.ProjeId == istek.ProjeId)
+            : string.IsNullOrEmpty(musteri)
+                ? query.Where(x => x.ProjeId == null && x.ProjeNo == projeNo)
+                : query.Where(x => x.ProjeId == null && x.ProjeNo == projeNo && x.Musteri == musteri);
+        if (istek.Yil.HasValue && istek.Ay.HasValue)
+        {
+            var (baslangic, bitis) = AylikDonem(istek.Yil.Value, istek.Ay.Value);
+            query = query.Where(x => x.FinansDonemi >= baslangic && x.FinansDonemi < bitis);
+        }
+        query = FinansSorgulari.ApplyFilter(query, istek.Filtre with { ProjeId = null, ProjeNo = null });
+
+        if (await query.CountAsync(cancellationToken) > FinansSorgulari.RaporKayitSiniri)
+            throw IsKuraliException.Cakisma("Sandık kırılımı 20.000 kaydı aşamaz; dönem veya filtre seçin.");
+
+        // Tutarlar veritabanında hesaplanır; hacim payı fiyat satırlarına (JSON) bağlı olduğundan kayıt kuralıyla bulunur.
+        var satirlar = await query
+            .Select(FinansSorgulari.IsTutarlariIle((x, net, siparis, fatura) => new KirilimSorguSatiri
+            {
+                Id = x.Id,
+                ProjeId = x.ProjeId,
+                ProjeNo = x.ProjeNo,
+                Musteri = x.Musteri,
+                IsTuru = x.IsTuru,
+                KaynakBileseni = x.KaynakBileseni,
+                KaynakKayitId = x.KaynakKayitId,
+                SandikNo = x.SandikNo,
+                SandikAdi = x.SandikAdi,
+                SandikTipi = x.SandikTipi,
+                SandikCinsi = x.SandikCinsi,
+                IsAdi = x.IsAdi,
+                FinansTarihi = x.FinansTarihi,
+                Adet = x.Adet,
+                ToplamM3 = x.ToplamM3,
+                AhsapM3 = x.AhsapM3,
+                KontraM3 = x.KontraM3,
+                FiyatBilesenleriJson = x.FiyatBilesenleriJson,
+                ParaBirimi = x.ParaBirimiSnapshot,
+                Net = net,
+                Siparis = siparis,
+                Fatura = fatura,
+                Aktif = !x.IptalEdildi && x.KaynakAktif
+            }))
+            .ToListAsync(cancellationToken);
+
+        var idler = query.Select(x => x.Id);
+        var poNumaralari = (await context.Set<FinansSiparisKalemi>().AsNoTracking()
+                .Where(x => !x.FinansSiparis.IptalEdildi && idler.Contains(x.FinansIsKaydiId))
+                .Select(x => new { x.FinansIsKaydiId, x.FinansSiparis.PoNumarasi })
+                .Distinct()
+                .ToListAsync(cancellationToken))
+            .ToLookup(x => x.FinansIsKaydiId, x => x.PoNumarasi);
+        var faturaNumaralari = (await context.Set<FinansFaturaKalemi>().AsNoTracking()
+                .Where(x => !x.FinansFatura.IptalEdildi &&
+                            !x.FinansSiparisKalemi.FinansSiparis.IptalEdildi &&
+                            idler.Contains(x.FinansSiparisKalemi.FinansIsKaydiId))
+                .Select(x => new { x.FinansSiparisKalemi.FinansIsKaydiId, x.FinansFatura.FaturaNumarasi })
+                .Distinct()
+                .ToListAsync(cancellationToken))
+            .ToLookup(x => x.FinansIsKaydiId, x => x.FaturaNumarasi);
+
+        var kayitlar = satirlar.Select(x =>
+        {
+            var hacim = FinansHacimKurallari.Hacim(x.AhsapM3, x.KontraM3, x.SandikCinsi, x.SandikTipi, x.ToplamM3,
+                FinansModelEslemeleri.Bilesenler(x.FiyatBilesenleriJson));
+            return new FinansSandikKirilimKaydi(
+                x.Id, x.IsTuru, x.KaynakBileseni, x.KaynakKayitId, x.SandikNo, x.SandikAdi, x.SandikTipi, x.SandikCinsi,
+                x.IsAdi, x.FinansTarihi, x.Adet, x.ToplamM3, hacim.Ahsap, hacim.Kontra, x.ParaBirimi,
+                x.Net, x.Siparis, x.Fatura, x.Aktif,
+                poNumaralari[x.Id].Order(StringComparer.Ordinal).ToArray(),
+                faturaNumaralari[x.Id].Order(StringComparer.Ordinal).ToArray());
+        }).ToList();
+
+        var ilk = satirlar.OrderBy(x => x.Id).FirstOrDefault();
+        return new FinansProjeSandikKirilimiModel
+        {
+            ProjeId = istek.ProjeId is > 0 ? istek.ProjeId : null,
+            ProjeNo = ilk?.ProjeNo ?? projeNo,
+            Musteri = ilk?.Musteri ?? musteri ?? string.Empty,
+            KayitSayisi = kayitlar.Count,
+            Sandiklar = FinansSandikKirilimiKurali.Olustur(kayitlar)
         };
     }
 
@@ -558,6 +669,33 @@ internal sealed class FinansAylikOzetService(AppDbContext context) : IFinansAyli
         public string IsGrubu { get; init; } = string.Empty;
         public string IsAdi { get; init; } = string.Empty;
         public int Sira { get; init; }
+    }
+
+    private sealed class KirilimSorguSatiri
+    {
+        public int Id { get; init; }
+        public int? ProjeId { get; init; }
+        public string ProjeNo { get; init; } = string.Empty;
+        public string Musteri { get; init; } = string.Empty;
+        public FinansIsTuru IsTuru { get; init; }
+        public string KaynakBileseni { get; init; } = string.Empty;
+        public string? KaynakKayitId { get; init; }
+        public string? SandikNo { get; init; }
+        public string? SandikAdi { get; init; }
+        public string? SandikTipi { get; init; }
+        public AmbalajSandikCinsi? SandikCinsi { get; init; }
+        public string IsAdi { get; init; } = string.Empty;
+        public DateTime FinansTarihi { get; init; }
+        public decimal Adet { get; init; }
+        public decimal ToplamM3 { get; init; }
+        public decimal? AhsapM3 { get; init; }
+        public decimal? KontraM3 { get; init; }
+        public string? FiyatBilesenleriJson { get; init; }
+        public string ParaBirimi { get; init; } = string.Empty;
+        public decimal Net { get; init; }
+        public decimal Siparis { get; init; }
+        public decimal Fatura { get; init; }
+        public bool Aktif { get; init; }
     }
 
     private sealed class FinansAylikTutarProjection

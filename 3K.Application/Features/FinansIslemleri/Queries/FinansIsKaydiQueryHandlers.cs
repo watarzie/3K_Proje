@@ -12,6 +12,7 @@ public sealed class FinansIsKaydiQueryHandlers(
     IRequestHandler<FinansIsKaydiGetirQuery, Result<FinansIsKaydiModel>>,
     IRequestHandler<FinansIsKayitlariSecimQuery, Result<IReadOnlyList<FinansIsKaydiModel>>>,
     IRequestHandler<FinansAylikIslerQuery, Result<FinansAylikSayfaliSonuc>>,
+    IRequestHandler<FinansProjeSandikKirilimiQuery, Result<FinansProjeSandikKirilimiModel>>,
     IRequestHandler<FinansProjeSecenekleriQuery, Result<FinansSayfaliSonuc<FinansProjeSecenekModel>>>
 {
     public Task<Result<FinansIsKaydiModel>> Handle(FinansIsKaydiGetirQuery request, CancellationToken cancellationToken)
@@ -24,6 +25,9 @@ public sealed class FinansIsKaydiQueryHandlers(
     public Task<Result<FinansAylikSayfaliSonuc>> Handle(FinansAylikIslerQuery request, CancellationToken cancellationToken)
         => FinansHandlerHelper.ExecuteAsync(() =>
             aylikOzet.AylikOzetSayfaliAsync(request.Yil, request.Ay, request.Filtre, cancellationToken));
+
+    public Task<Result<FinansProjeSandikKirilimiModel>> Handle(FinansProjeSandikKirilimiQuery request, CancellationToken cancellationToken)
+        => FinansHandlerHelper.ExecuteAsync(() => aylikOzet.ProjeSandikKirilimiAsync(request.Istek(), cancellationToken));
 
     public Task<Result<FinansSayfaliSonuc<FinansProjeSecenekModel>>> Handle(FinansProjeSecenekleriQuery request, CancellationToken cancellationToken)
         => FinansHandlerHelper.ExecuteAsync(() =>
