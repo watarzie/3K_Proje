@@ -87,6 +87,14 @@ namespace _3K.Core.Entities
         public decimal? ManuelNetTutar { get; set; }
         public int? TarifeIdSnapshot { get; set; }
         public AmbalajSandikCinsi? SandikCinsi { get; set; }
+        /// <summary>
+        /// Elle girilen ahşap ve kontra m³ (kontra/katlanır sandıkta Ambalaj m³ hesaplamaz). Boşsa pay eski kayıtlardaki
+        /// gibi türetilir; doluysa <see cref="ToplamM3"/> bileşik toplamdır (<see cref="Models.FinansHacimKurallari"/>).
+        /// </summary>
+        public decimal? AhsapM3 { get; set; }
+        public decimal? KontraM3 { get; set; }
+        /// <summary>Hacim elle girildi; üretim aktarımı m³ alanlarını ezmez, kayıt otomatik tarife fiyatlamasında kalır.</summary>
+        public bool HacimManuel { get; set; }
         public string? FiyatBilesenleriJson { get; set; }
         public DateTime KayitTarihi { get; set; }
         public FinansIsDurumu Durum { get; set; } = FinansIsDurumu.SiparisBekliyor;

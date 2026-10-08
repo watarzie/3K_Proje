@@ -36,6 +36,19 @@ public sealed class FinansAlanProjeksiyonuTests
         Assert.Equal(3m, json["sandikAdedi"]!.GetValue<decimal>());
     }
 
+    /// <summary>Ahşap ve kontra m³ ayrı alanları m³ izni yokken null döner; sayaçlar korunur.</summary>
+    [Fact]
+    public void AhsapVeKontraM3_M3IzniYokkenGizlenir()
+    {
+        var json = JsonNode.Parse("""{ "adet": 2, "ahsapM3": 1.2, "kontraM3": 0.8, "toplamM3": 2, "hacimManuel": true }""")!;
+        FinansAlanProjeksiyonu.Uygula(json, All with { UretimM3 = false });
+        Assert.Null(json["ahsapM3"]);
+        Assert.Null(json["kontraM3"]);
+        Assert.Null(json["toplamM3"]);
+        Assert.Equal(2, json["adet"]!.GetValue<int>());
+        Assert.True(json["hacimManuel"]!.GetValue<bool>());
+    }
+
     [Fact]
     public void K33_SarfRet_NetM3IzniSarfHacminiAcamaz()
     {

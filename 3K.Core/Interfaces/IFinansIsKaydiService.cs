@@ -14,4 +14,6 @@ public interface IFinansIsKaydiService
     Task<bool> OzelIsAylikDegerGuncelleAsync(int id, FinansAylikDegerModel model, CancellationToken cancellationToken);
     Task<FinansIsKaydiModel?> FinansTarihiDegistirAsync(int id, FinansTarihiDegistirModel model, CancellationToken cancellationToken);
     Task<FinansIsKaydiModel?> FiyatlandirAsync(int id, FinansFiyatlandirmaModel model, CancellationToken cancellationToken);
+    /// <summary>Ahşap/kontra m³'ü elle girer; bileşik toplam işin m³ miktarı olur, kayıt tarife fiyatlamasında kalır.</summary>
+    Task<FinansIsKaydiModel?> HacimGirAsync(int id, FinansHacimModel model, CancellationToken cancellationToken);
 }

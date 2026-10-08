@@ -44,6 +44,10 @@ public sealed class FinansIslerController(IMediator mediator) : FinansController
     public async Task<ActionResult> Fiyatlandirma(int id, [FromBody] FinansFiyatlandirmaModel model, CancellationToken ct)
         => (await Mediator.Send(new FinansFiyatlandirCommand { Id = id, Model = model }, ct)).ToActionResult();
 
+    [HttpPost("is-kayitlari/{id:int}/hacim")]
+    public async Task<ActionResult> Hacim(int id, [FromBody] FinansHacimGirDto model, CancellationToken ct)
+        => (await Mediator.Send(new FinansHacimGirCommand { Id = id, Model = model.HacimModeli() }, ct)).ToActionResult();
+
     [HttpPost("is-kayitlari/{id:int}/iptal")]
     public async Task<ActionResult> IsKaydiIptal(int id, [FromBody] FinansIptalDto model, CancellationToken cancellationToken)
         => (await Mediator.Send(new FinansIsKaydiIptalCommand { Id = id, Aciklama = model.Aciklama }, cancellationToken)).ToActionResult();

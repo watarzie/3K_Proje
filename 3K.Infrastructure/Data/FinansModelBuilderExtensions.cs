@@ -74,7 +74,8 @@ internal static class FinansModelBuilderExtensions
         {
             entity.ToTable("FinansIsKayitlari", table =>
             {
-                table.HasCheckConstraint("CK_FinansIsKayitlari_Miktarlar", "\"Adet\" > 0 AND \"BirimM3\" >= 0 AND \"ToplamM3\" >= 0");
+                table.HasCheckConstraint("CK_FinansIsKayitlari_Miktarlar",
+                    "\"Adet\" > 0 AND \"BirimM3\" >= 0 AND \"ToplamM3\" >= 0 AND \"AhsapM3\" >= 0 AND \"KontraM3\" >= 0");
                 table.HasCheckConstraint("CK_FinansIsKayitlari_Fiyat", "\"BirimFiyatSnapshot\" >= 0 AND \"KdvOraniSnapshot\" >= 0 AND \"KdvOraniSnapshot\" <= 100");
                 table.HasCheckConstraint("CK_FinansIsKayitlari_Proje", "\"ProjeId\" IS NOT NULL OR NULLIF(BTRIM(\"ProjeNo\"), '') IS NOT NULL");
             });
@@ -106,6 +107,8 @@ internal static class FinansModelBuilderExtensions
             entity.Property(x => x.Birim).HasMaxLength(30).IsRequired();
             entity.Property(x => x.BirimM3).HasPrecision(18, 6);
             entity.Property(x => x.ToplamM3).HasPrecision(18, 6);
+            entity.Property(x => x.AhsapM3).HasPrecision(18, 6);
+            entity.Property(x => x.KontraM3).HasPrecision(18, 6);
             entity.Property(x => x.FiyatlandirmaBirimiSnapshot).HasConversion<int>();
             entity.Property(x => x.BirimFiyatSnapshot).HasPrecision(18, 6);
             entity.Property(x => x.ParaBirimiSnapshot).HasMaxLength(3).IsRequired();

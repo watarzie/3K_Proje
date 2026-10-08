@@ -135,6 +135,14 @@ internal sealed class FinansIsKaydiService(
             KaynakTuru = "Manuel",
             KaynakAktif = true
         };
+        if (model.AhsapM3.HasValue || model.KontraM3.HasValue)
+        {
+            // Özel işte m³ ahşap ve kontra olarak ayrı girilir; bileşik toplam fiyatlandırma miktarıdır.
+            entity.AhsapM3 = model.AhsapM3 ?? 0;
+            entity.KontraM3 = model.KontraM3 ?? 0;
+            entity.HacimManuel = true;
+            FinansHacimKurallari.ManuelHacmiUygula(entity);
+        }
         await ApplyPriceSnapshotAsync(entity, model.FinansUrunId, model.ManuelBirimFiyat, model.ParaBirimi, model.KdvOrani, entity.FinansTarihi, cancellationToken);
         context.Set<FinansIsKaydi>().Add(entity);
         await context.SaveChangesAsync(cancellationToken);
@@ -274,7 +282,11 @@ internal sealed class FinansIsKaydiService(
         if (model.Miktar.HasValue)
         {
             entity.Adet = model.Miktar.Value;
-            entity.ToplamM3 = decimal.Round(entity.Adet * entity.BirimM3, 6, MidpointRounding.AwayFromZero);
+            // Elle girilen ahşap/kontra hacmi miktar değişse de korunur; yalnız birim m³ yeniden türetilir.
+            if (entity.HacimManuel)
+                FinansHacimKurallari.ManuelHacmiUygula(entity);
+            else
+                entity.ToplamM3 = decimal.Round(entity.Adet * entity.BirimM3, 6, MidpointRounding.AwayFromZero);
         }
         if (model.NetBirimFiyat.HasValue)
         {
@@ -326,8 +338,16 @@ internal sealed class FinansIsKaydiService(
             var before = FinansDenetimKaydi.AnlikGoruntu(work);
             work.FiyatlandirmaBirimiSnapshot = model.FiyatlandirmaBirimi;
             work.Adet = model.Adet;
-            work.BirimM3 = model.BirimM3;
-            work.ToplamM3 = decimal.Round(model.Adet * model.BirimM3, 6, MidpointRounding.AwayFromZero);
+            if (work.HacimManuel)
+            {
+                // Elle girilen ahşap/kontra hacmi Hacim bölümünden yönetilir; fiyatlandırma yalnız birim m³'ü adede göre türetir.
+                FinansHacimKurallari.ManuelHacmiUygula(work);
+            }
+            else
+            {
+                work.BirimM3 = model.BirimM3;
+                work.ToplamM3 = decimal.Round(model.Adet * model.BirimM3, 6, MidpointRounding.AwayFromZero);
+            }
             work.BirimFiyatSnapshot = model.BirimFiyat;
             work.ManuelNetTutar = componentTotal ?? model.ManuelNetTutar;
             if (work.ManuelNetTutar.HasValue && work.ManuelNetTutar != FinansTutarKurallari.Para(work.ManuelNetTutar.Value))
@@ -340,6 +360,33 @@ internal sealed class FinansIsKaydiService(
             work.Durum = FinansTutarKurallari.Durum(work);
             denetim.DegisiklikleriEkle(nameof(FinansIsKaydi), work, before);
             denetim.Ekle(nameof(FinansIsKaydi), id, "Fiyatlandırma", "Gerekçe", null, null, model.Aciklama);
+            await context.SaveChangesAsync(cancellationToken);
+            return FinansModelEslemeleri.MapIsKaydi(work);
+        }, cancellationToken);
+
+    public Task<FinansIsKaydiModel?> HacimGirAsync(int id, FinansHacimModel model, CancellationToken cancellationToken)
+        => islem.AtomikAsync(async () =>
+        {
+            FinansGerekceKurali.Dogrula(model.Aciklama);
+            if (!FinansHacimKurallari.GecerliManuelHacim(model.AhsapM3, model.KontraM3))
+                throw IsKuraliException.Cakisma("Ahşap ve kontra m³ sıfır veya pozitif olmalı; en az biri sıfırdan büyük olmalıdır.");
+            var work = await context.IsKaydiDetayQuery(true).FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+            if (work is null) return null;
+            if (work.IptalEdildi || !work.KaynakAktif) throw IsKuraliException.Cakisma("Pasif işin hacmi değiştirilemez.");
+            if (work.SiparisKalemleri.Count > 0)
+                throw IsKuraliException.Cakisma("PO'ya bağlı kaydın hacmi değiştirilemez; ek/düzeltme işi oluşturun.");
+            var before = FinansDenetimKaydi.AnlikGoruntu(work);
+            work.AhsapM3 = decimal.Round(model.AhsapM3, 6, MidpointRounding.AwayFromZero);
+            work.KontraM3 = decimal.Round(model.KontraM3, 6, MidpointRounding.AwayFromZero);
+            work.HacimManuel = true;
+            FinansHacimKurallari.ManuelHacmiUygula(work);
+            // FinansMiktariManuel'e dokunulmaz: tutar tarife snapshot'ı × bileşik m³'tür. Henüz fiyatlanmamış iş, m³ ile
+            // fiyatlanabilir hâle geldiyse geçerli tarifeyle tamamlanır.
+            if (!work.FinansMiktariManuel && work.BirimFiyatSnapshot <= 0 && !work.TarifeYiliSnapshot.HasValue)
+                await fiyatlar.OtomatikFiyatUygulaAsync(work, cancellationToken);
+            work.Durum = FinansTutarKurallari.Durum(work);
+            denetim.DegisiklikleriEkle(nameof(FinansIsKaydi), work, before);
+            denetim.Ekle(nameof(FinansIsKaydi), id, "Hacim", "Gerekçe", null, null, model.Aciklama);
             await context.SaveChangesAsync(cancellationToken);
             return FinansModelEslemeleri.MapIsKaydi(work);
         }, cancellationToken);

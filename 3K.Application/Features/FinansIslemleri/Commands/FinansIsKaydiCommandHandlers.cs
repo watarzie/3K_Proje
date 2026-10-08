@@ -12,7 +12,8 @@ public sealed class FinansIsKaydiCommandHandlers(IFinansIsKaydiService service) 
     IRequestHandler<FinansIsKaydiGeriAlCommand, Result>,
     IRequestHandler<FinansOzelIsAylikDegerGuncelleCommand, Result>,
     IRequestHandler<FinansTarihiDegistirCommand, Result<FinansIsKaydiModel>>,
-    IRequestHandler<FinansFiyatlandirCommand, Result<FinansIsKaydiModel>>
+    IRequestHandler<FinansFiyatlandirCommand, Result<FinansIsKaydiModel>>,
+    IRequestHandler<FinansHacimGirCommand, Result<FinansIsKaydiModel>>
 {
     public Task<Result<FinansIsKaydiModel>> Handle(FinansIsKaydiOlusturCommand request, CancellationToken cancellationToken)
         => FinansHandlerHelper.ExecuteAsync(() => service.IsKaydiOlusturAsync(request.Model, cancellationToken));
@@ -36,4 +37,8 @@ public sealed class FinansIsKaydiCommandHandlers(IFinansIsKaydiService service) 
     public Task<Result<FinansIsKaydiModel>> Handle(FinansFiyatlandirCommand request, CancellationToken cancellationToken)
         => FinansHandlerHelper.ExecuteOptionalAsync(
             () => service.FiyatlandirAsync(request.Id, request.Model, cancellationToken), "Finans iş kaydı bulunamadı.");
+
+    public Task<Result<FinansIsKaydiModel>> Handle(FinansHacimGirCommand request, CancellationToken cancellationToken)
+        => FinansHandlerHelper.ExecuteOptionalAsync(
+            () => service.HacimGirAsync(request.Id, request.Model, cancellationToken), "Finans iş kaydı bulunamadı.");
 }

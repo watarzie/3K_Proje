@@ -25,16 +25,36 @@ public sealed record FinansOzelIsKaydetDto(
     string ParaBirimi,
     decimal KdvOrani,
     string? TalepEdenKisi = null,
-    string? TalepEdenBolum = null)
+    string? TalepEdenBolum = null,
+    decimal? AhsapM3 = null,
+    decimal? KontraM3 = null)
 {
-    public FinansIsKaydiKaydetModel IsKaydiModeli() => new(
-        ProjeId, null, null, Musteri, FinansIsTuru.OzelIs,
-        IsAdi, Aciklama, TalepEdenKisi, TalepEdenBolum, Miktar, Birim, 0m,
-        null, BirimFiyat, ParaBirimi, KdvOrani,
-        IsTarihi.Date, IsTarihi.Date,
-        OzelIsTuru: IsTuru,
-        HesaplamaYontemi: HesaplamaYontemi,
-        RaporGrubu: RaporGrubu);
+    /// <summary>
+    /// m³ yönteminde ahşap ve kontra m³ ayrı girilir; birim m³ = bileşik toplam / miktar olur ve fiyat
+    /// "m³ × birim fiyat" hesaplanır. Diğer yöntemlerde m³ yoktur.
+    /// </summary>
+    public FinansIsKaydiKaydetModel IsKaydiModeli()
+    {
+        var m3Yontemi = HesaplamaYontemi == FinansHesaplamaYontemi.Metrekup;
+        var bilesik = m3Yontemi ? FinansHacimKurallari.Bilesik(AhsapM3, KontraM3) : 0m;
+        return new(
+            ProjeId, null, null, Musteri, FinansIsTuru.OzelIs,
+            IsAdi, Aciklama, TalepEdenKisi, TalepEdenBolum, Miktar, Birim,
+            m3Yontemi && Miktar > 0 ? decimal.Round(bilesik / Miktar, 6, MidpointRounding.AwayFromZero) : 0m,
+            null, BirimFiyat, ParaBirimi, KdvOrani,
+            IsTarihi.Date, IsTarihi.Date,
+            OzelIsTuru: IsTuru,
+            HesaplamaYontemi: HesaplamaYontemi,
+            RaporGrubu: RaporGrubu,
+            AhsapM3: m3Yontemi ? AhsapM3 ?? 0 : null,
+            KontraM3: m3Yontemi ? KontraM3 ?? 0 : null);
+    }
+}
+
+/// <summary>Kayıt detayındaki "Hacim" bölümünün isteği: ahşap ve kontra m³ ile gerekçe.</summary>
+public sealed record FinansHacimGirDto(decimal AhsapM3, decimal KontraM3, string Aciklama)
+{
+    public FinansHacimModel HacimModeli() => new(AhsapM3, KontraM3, Aciklama);
 }
 
 /// <summary>

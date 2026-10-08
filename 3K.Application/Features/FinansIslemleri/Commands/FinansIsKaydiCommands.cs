@@ -45,6 +45,14 @@ public sealed class FinansTarihiDegistirCommand : FinansCommand<FinansIsKaydiMod
     public FinansTarihiDegistirModel Model { get; init; } = null!;
 }
 
+/// <summary>Ahşap ve kontra m³'ün elle girişi; fiyatlandırma değiştirme yazma iznini kullanır.</summary>
+public sealed class FinansHacimGirCommand : FinansCommand<FinansIsKaydiModel>
+{
+    public override string RequiredMenuKod => YetkiKodlari.Finans.FiyatlandirmaDegistir;
+    public int Id { get; init; }
+    public FinansHacimModel Model { get; init; } = null!;
+}
+
 public sealed class FinansFiyatlandirCommand : FinansCommand<FinansIsKaydiModel>
 {
     public override string RequiredMenuKod => YetkiKodlari.Finans.FiyatlandirmaDegistir;

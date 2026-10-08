@@ -78,6 +78,8 @@ public sealed class FinansAlanHttpSecurityTests
     [InlineData(YetkiKodlari.Finans.TutarGoruntule, "netTutar")]
     [InlineData(YetkiKodlari.Ambalaj.OlcuGoruntule, "boy")]
     [InlineData(YetkiKodlari.Ambalaj.M3Goruntule, "toplamM3")]
+    [InlineData(YetkiKodlari.Ambalaj.M3Goruntule, "ahsapM3")]
+    [InlineData(YetkiKodlari.Ambalaj.M3Goruntule, "kontraM3")]
     public async Task Http_AltAlanIzniKaldirilinca_YalnizHassasAlanNull_OkulabilirKayitKalir(string permission, string field)
     {
         await using var host = await Host.StartAsync();
@@ -310,7 +312,7 @@ public sealed class FinansAlanHttpSecurityTests
         private static readonly FinansIsKaydiModel Row = new()
         {
             Id = 1, ProjeNo = "TEST-PROJE", IsAdi = "Sentetik kayıt", Adet = 3, Birim = "Adet",
-            Boy = 1234, En = 567, Yukseklik = 890, BirimM3 = 1.5m, ToplamM3 = 4.5m,
+            Boy = 1234, En = 567, Yukseklik = 890, BirimM3 = 1.5m, ToplamM3 = 4.5m, AhsapM3 = 3m, KontraM3 = 1.5m,
             BirimFiyat = 777.25m, NetTutar = 2331.75m, KdvTutari = 466.35m, ToplamTutar = 2798.10m,
             ParaBirimi = "EUR",
             Bilesenler = [new("Kereste", FinansFiyatlandirmaBirimi.Metrekup, 4.5m, 777.25m)]

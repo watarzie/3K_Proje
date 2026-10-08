@@ -30,9 +30,16 @@ public sealed record class FinansIsKaydiModel
     public string Birim { get; init; } = string.Empty;
     public decimal BirimM3 { get; init; }
     public decimal ToplamM3 { get; init; }
-    /// <summary>Kaydın ahşap ve kontra/katlanır m³ payı (F11; <see cref="FinansHacimKurallari.Hacim"/>).</summary>
+    /// <summary>
+    /// Kaydın ahşap ve kontra/katlanır m³ payı: elle girildiyse saklanan değer, değilse türetilen pay (F11;
+    /// <see cref="FinansHacimKurallari"/>). Bileşik toplam (ahşap + kontra) <see cref="ToplamM3"/>'tür.
+    /// </summary>
     public decimal AhsapM3 { get; init; }
     public decimal KontraM3 { get; init; }
+    /// <summary>Hacim "Hacim" bölümünden elle girildi; üretim aktarımı m³ değerlerini ezmez.</summary>
+    public bool HacimManuel { get; init; }
+    /// <summary>Sandığın malzemesi (ahşap / kontra-katlanır); ekran hacim girişini buna göre açar.</summary>
+    public FinansSandikMalzemesi SandikMalzemesi { get; init; }
     public int? FinansUrunId { get; init; }
     public FinansFiyatlandirmaBirimi FiyatlandirmaBirimi { get; init; }
     public decimal BirimFiyat { get; init; }
@@ -111,7 +118,12 @@ public sealed record FinansIsKaydiKaydetModel(
     int? IcSandikSablonId = null,
     string? OzelIsTuru = null,
     FinansHesaplamaYontemi? HesaplamaYontemi = null,
-    string? RaporGrubu = null);
+    string? RaporGrubu = null,
+    decimal? AhsapM3 = null,
+    decimal? KontraM3 = null);
+
+/// <summary>Ahşap ve kontra m³'ün elle girişi; bileşik toplam işin m³ fiyatlandırma miktarı olur.</summary>
+public sealed record FinansHacimModel(decimal AhsapM3, decimal KontraM3, string Aciklama);
 
 public sealed record FinansAylikDegerModel(decimal? Miktar = null, decimal? NetBirimFiyat = null);
 
