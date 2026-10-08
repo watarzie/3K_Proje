@@ -35,7 +35,7 @@
 --
 -- Tablo, indeks ve başlangıç verisi tanımları bu betik yazıldığı andaki EF modelinin
 -- `dotnet ef dbcontext script` çıktısından alınmıştır; sonraki şema değişiklikleri yeni tarihli betiklerle yapılır.
-SET uc_k.finans_ambalaj_sifirla = '3K_Db';
+-- SET uc_k.finans_ambalaj_sifirla = '3K_Db';
 -- =====================================================================================
 BEGIN;
 
