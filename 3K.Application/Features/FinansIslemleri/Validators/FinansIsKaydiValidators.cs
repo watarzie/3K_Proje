@@ -40,6 +40,30 @@ public sealed class FinansIsKaydiKaydetModelValidator : AbstractValidator<Finans
     }
 }
 
+public sealed class FinansMunferitIsKaydetModelValidator : AbstractValidator<FinansMunferitIsKaydetModel>
+{
+    public FinansMunferitIsKaydetModelValidator()
+    {
+        RuleFor(x => x.FinansUrunId).GreaterThan(0).WithMessage("İş/ürün tanımı seçilmelidir.");
+        RuleFor(x => x.IsAdi).NotEmpty().MaximumLength(250);
+        RuleFor(x => x.OzelIsTuru).MaximumLength(150);
+        RuleFor(x => x.Musteri).NotEmpty().MaximumLength(250);
+        RuleFor(x => x.Adet).GreaterThan(0);
+        RuleFor(x => x.Birim).NotEmpty().MaximumLength(30);
+        RuleFor(x => x.AhsapM3).InclusiveBetween(0, FinansHacimKurallari.EnFazlaM3).When(x => x.AhsapM3.HasValue);
+        RuleFor(x => x.KontraM3).InclusiveBetween(0, FinansHacimKurallari.EnFazlaM3).When(x => x.KontraM3.HasValue);
+        RuleFor(x => x.IsTarihi).Must(FinansTarihKurallari.GecerliTarih).WithMessage("Geçerli bir iş tarihi girilmelidir.");
+        RuleFor(x => x.Aciklama).MaximumLength(2000);
+        RuleFor(x => x.TalepEdenKisi).MaximumLength(200);
+        RuleFor(x => x.TalepEdenBolum).MaximumLength(200);
+    }
+}
+
+public sealed class FinansMunferitIsOlusturCommandValidator : AbstractValidator<FinansMunferitIsOlusturCommand>
+{
+    public FinansMunferitIsOlusturCommandValidator() => RuleFor(x => x.Model).NotNull().SetValidator(new FinansMunferitIsKaydetModelValidator());
+}
+
 public sealed class FinansIsKaydiOlusturCommandValidator : AbstractValidator<FinansIsKaydiOlusturCommand>
 {
     public FinansIsKaydiOlusturCommandValidator() => RuleFor(x => x.Model).NotNull().SetValidator(new FinansIsKaydiKaydetModelValidator());

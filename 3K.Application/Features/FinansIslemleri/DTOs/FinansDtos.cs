@@ -51,6 +51,30 @@ public sealed record FinansOzelIsKaydetDto(
     }
 }
 
+/// <summary>
+/// Münferit İşler sekmesinin "Yeni Münferit İş" isteği. Fiyat alanı yoktur: kayıt seçilen ürünün iş tarihindeki
+/// tarifesiyle fiyatlanır. Ürün m³ ile fiyatlanıyorsa ahşap/kontra m³ gönderilir.
+/// </summary>
+public sealed record FinansMunferitIsKaydetDto(
+    int FinansUrunId,
+    string IsAdi,
+    string? OzelIsTuru,
+    string Musteri,
+    int? ProjeId,
+    decimal Adet,
+    string Birim,
+    DateTime IsTarihi,
+    decimal? AhsapM3 = null,
+    decimal? KontraM3 = null,
+    string? Aciklama = null,
+    string? TalepEdenKisi = null,
+    string? TalepEdenBolum = null)
+{
+    public FinansMunferitIsKaydetModel MunferitIsModeli() => new(
+        FinansUrunId, IsAdi, OzelIsTuru, Musteri, ProjeId, Adet, Birim, AhsapM3, KontraM3, IsTarihi.Date,
+        Aciklama, TalepEdenKisi, TalepEdenBolum);
+}
+
 /// <summary>Kayıt detayındaki "Hacim" bölümünün isteği: ahşap ve kontra m³ ile gerekçe.</summary>
 public sealed record FinansHacimGirDto(decimal AhsapM3, decimal KontraM3, string Aciklama)
 {

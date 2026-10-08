@@ -254,15 +254,22 @@ internal sealed class FinansPanelService(AppDbContext context) : IFinansPanelSer
     }
 
     public Task<FinansSayfaliSonuc<FinansIsKaydiModel>> GenelAramaAsync(FinansListeFiltre filtre, CancellationToken cancellationToken)
-        => IsKayitlariAsync(filtre with { Baslangic = null, Bitis = null }, cancellationToken);
+        => IsKayitlariAsync(context.IsKaydiDetayQuery(), filtre with { Baslangic = null, Bitis = null }, cancellationToken);
+
+    public Task<FinansSayfaliSonuc<FinansIsKaydiModel>> MunferitIslerAsync(FinansListeFiltre filtre, CancellationToken cancellationToken)
+        => IsKayitlariAsync(
+            context.IsKaydiDetayQuery().Where(x => x.IsTuru == FinansIsTuru.OzelIs && x.KaynakTuru == "Manuel" && x.DuzenliIsId == null),
+            filtre with { IsTuru = null, Kategoriler = null },
+            cancellationToken);
 
     private async Task<FinansSayfaliSonuc<FinansIsKaydiModel>> IsKayitlariAsync(
+        IQueryable<FinansIsKaydi> kaynak,
         FinansListeFiltre filtre,
         CancellationToken cancellationToken)
     {
         var pageNumber = Math.Max(1, filtre.PageNumber);
         var pageSize = Math.Clamp(filtre.PageSize, 1, 250);
-        var query = FinansSorgulari.ApplyFilter(context.IsKaydiDetayQuery(), filtre);
+        var query = FinansSorgulari.ApplyFilter(kaynak, filtre);
         var count = await query.CountAsync(cancellationToken);
         var items = await query.OrderByDescending(x => x.FinansDonemi)
             .ThenByDescending(x => x.Id)

@@ -176,6 +176,35 @@ public sealed class FinansAlanHttpSecurityTests
         Assert.Equal(2, host.Data.Calls);
     }
 
+    /// <summary>
+    /// Münferit iş tarifeden fiyatlanır: fiyat değiştirme izni olmadan oluşturulur; sekme veya iş ekleme yazma izni
+    /// yoksa 403. Liste sekme izni ister; yanıt alan maskesine tabidir.
+    /// </summary>
+    [Fact]
+    public async Task Http_MunferitIs_FiyatIzniGerekmez_SekmeVeIsEklemeYazmasiGerekir()
+    {
+        await using var host = await Host.StartAsync();
+        host.Authenticate();
+        host.GrantAll();
+        host.Roles.Revoke(YetkiKodlari.Finans.BirimFiyatDegistir);
+        host.Roles.Revoke(YetkiKodlari.Finans.BirimFiyatGoruntule);
+        var govde = new { finansUrunId = 3, isAdi = "Kanat kasası", musteri = "GE Vernova", adet = 2, birim = "Adet", isTarihi = "2026-10-06" };
+
+        var olusan = await host.PostJson("api/finans/munferit-isler", govde);
+        Assert.Null(olusan["birimFiyat"]);
+        Assert.Equal("TEST-PROJE", olusan["projeNo"]!.GetValue<string>());
+
+        host.Roles.Grant(YetkiKodlari.Finans.SekmeMunferitIsler);
+        using (var salt = await host.Client.PostAsync("api/finans/munferit-isler", new StringContent(
+                   System.Text.Json.JsonSerializer.Serialize(govde), Encoding.UTF8, "application/json")))
+            Assert.Equal(HttpStatusCode.Forbidden, salt.StatusCode);
+        Assert.Null((await host.Json("api/finans/munferit-isler"))["items"]![0]!["birimFiyat"]);
+
+        host.Roles.Revoke(YetkiKodlari.Finans.SekmeMunferitIsler);
+        Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync("api/finans/munferit-isler")).StatusCode);
+        Assert.Equal(2, host.Data.Calls);
+    }
+
     [Fact]
     public async Task Http_TamAlanIzinleriBelgeIndirmeyiAcar_AyniTokenleSonradanKapanir()
     {
@@ -354,7 +383,8 @@ public sealed class FinansAlanHttpSecurityTests
             Interlocked.Increment(ref Calls);
             object result = method!.Name switch
             {
-                "GenelAramaAsync" => new FinansSayfaliSonuc<FinansIsKaydiModel> { Items = [Row], TotalCount = 1, PageSize = 25 },
+                "GenelAramaAsync" or "MunferitIslerAsync" => new FinansSayfaliSonuc<FinansIsKaydiModel> { Items = [Row], TotalCount = 1, PageSize = 25 },
+                "MunferitIsOlusturAsync" => Row,
                 "IsKaydiGetirAsync" => Row,
                 "PanelAsync" => new FinansPanelModel(new(2026, 1, 1), new(2026, 12, 31), "FinansTarihi",
                     [new("EUR", 1000, 1000, 400, 600, 500, 100, 400, 300, 40, 9000, 2000)],

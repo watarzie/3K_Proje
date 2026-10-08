@@ -9,6 +9,8 @@ public interface IFinansIsKaydiService
     Task<IReadOnlyList<FinansIsKaydiModel>> IsKayitlariSecimAsync(IReadOnlyCollection<int> ids, CancellationToken cancellationToken);
     Task<FinansIsKaydiModel?> IsKaydiGetirAsync(int id, CancellationToken cancellationToken);
     Task<FinansIsKaydiModel> IsKaydiOlusturAsync(FinansIsKaydiKaydetModel model, CancellationToken cancellationToken);
+    /// <summary>Münferit iş: ürünün iş tarihindeki tarifesiyle fiyatlanan özel iş; tarife yoksa 409.</summary>
+    Task<FinansIsKaydiModel> MunferitIsOlusturAsync(FinansMunferitIsKaydetModel model, CancellationToken cancellationToken);
     Task<bool> IsKaydiIptalAsync(int id, string aciklama, CancellationToken cancellationToken);
     Task<bool> IsKaydiGeriAlAsync(int id, CancellationToken cancellationToken);
     Task<bool> OzelIsAylikDegerGuncelleAsync(int id, FinansAylikDegerModel model, CancellationToken cancellationToken);

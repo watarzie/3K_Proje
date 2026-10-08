@@ -65,6 +65,9 @@ public sealed record FinansUrunEslesmesiModel(
     int? IcSandikSablonId,
     bool Aktif = true);
 
+/// <summary>Münferit iş formunun ürün seçeneği: fiyat taşımaz (fiyat kayıtta tarifeden gelir).</summary>
+public sealed record FinansUrunSecenekModel(int Id, string Kod, string Ad, FinansFiyatlandirmaBirimi FiyatlandirmaBirimi);
+
 public sealed class FinansUrunModel
 {
     public int Id { get; init; }

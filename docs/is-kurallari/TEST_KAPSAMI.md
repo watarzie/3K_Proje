@@ -8,6 +8,16 @@ koşum sayıları tarihsel kayıttır; depo dışında yönetilen 02–04 SQL'le
 bugünkü halini veya canlıda elle uygulanmasını doğrulamaz. Bu geçiş için
 ayrı staging provası ve DBA doğrulaması gerekir.
 
+## Finans Münferit İşler sekmesi (iskelet) — 8 Ekim 2026
+
+Tek seferlik işler için ayrı sekme: `GET/POST api/finans/munferit-isler`, `GET api/finans/urun-secenekleri`. Fiyat elle yazılmaz; kayıt seçilen iş/ürün tanımının iş tarihindeki tarifesiyle fiyatlanır (para birimi ve KDV de tarifeden), rapor grubu "Münferit İş". Ürün m³ ile fiyatlanıyorsa ahşap/kontra m³ zorunludur ve bileşik toplam fiyatlandırma miktarıdır. Tarifesi olmayan tarih 409 ("… tarihinde geçerli tarife yok"). Liste elle açılmış, düzenli işe bağlı olmayan özel işleri gösterir (eski "Tek Seferlik İş" kayıtları dahil; eski düğme yerinde). Veri modeline kolon eklenmedi; sekmenin alan listesi kullanıcıdan beklenmektedir.
+
+- [FinansMunferitIsTests](../../3K.Application.Tests/FinansMunferitIsTests.cs): DTO eşlemesi (fiyat alanı yok), doğrulayıcı, izinler (fiyat değiştirme istenmez) ve gerçek PostgreSQL'de adet/m³ tarifeli ürünle fiyatlama, hacimsiz m³ isteğinin ve tarifesiz tarihin reddi, pasif ürün, listenin üretim/düzenli iş kayıtlarını dışlaması, arama ve ürün seçenekleri.
+- [FinansAlanHttpSecurityTests](../../3K.Application.Tests/FinansAlanHttpSecurityTests.cs): fiyat değiştirme izni olmadan oluşturma, sekme R iken oluşturma 403, liste maskesi ve sekme izni.
+- Ön yüz: `finans-munferit-isler.component.spec.ts` (liste ve iptaller, yazma kapısı, m³ zorunluluğu, isteğin fiyat taşımaması, tarife önizlemesi yalnız izinle, gerekçeli iptal, PO aç izni), `finans-izinleri.spec.ts` (sekme kuralı).
+
+Koşum: `FinansMunferitIsTests|FinansModuluTests|FinansIstekDtoTests|FinansOzelIsContractTests|FinansAlanHttpSecurityTests|FinansSekmeYetkileriTests` 132/132 (PostgreSQL izole sunucuda); ön yüz finans spec'leri 164/164. Tam paketler koşulmadı.
+
 ## Finans sekme yetki düğümleri — 8 Ekim 2026
 
 Rol ağacına Finans sekme düğümleri eklendi ve yalnız o sekmeye ait işlem kodları sekme düğümünün altına taşındı (`20261008_03_Finans_Sekme_Yetkileri.sql`). Sekme düğümü alt kodların tavanıdır; sekmeye özel uçlar sekme kodunu mevcut kodlarla birlikte ister (Y-03).

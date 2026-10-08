@@ -26,6 +26,9 @@
 | Finans gider listesi | finans-sekme-giderler R **ve** finans-gider-goruntule R |
 | Finans iş / özet / alacak raporu, rapor önizleme | finans-sekme-raporlar R **ve** mevcut rapor, alan ve dışa aktarma izinleri |
 | Finans PO/fatura, tanım, gider kategorisi işlemleri | Mevcut kodlar; bu kodlar ağaçta ilgili sekme düğümünün altında olduğundan sekme izni tavandır |
+| Finans münferit iş listesi | finans-sekme-munferit-isler R **ve** finans-kayit-goruntule R |
+| Finans münferit iş oluşturma (tarifeden fiyatlanır) | finans-sekme-munferit-isler W **ve** finans-is-ekle W; elle fiyat olmadığı için fiyat değiştirme izni istenmez |
+| Finans ürün seçenekleri (münferit iş formu, fiyatsız) | finans-sekme-munferit-isler R |
 
 ## Gerçek proje tipine bağlı işlemler
 

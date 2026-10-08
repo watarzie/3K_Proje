@@ -122,6 +122,25 @@ public sealed record FinansIsKaydiKaydetModel(
     decimal? AhsapM3 = null,
     decimal? KontraM3 = null);
 
+/// <summary>
+/// Münferit (tek seferlik) iş: fiyat elle yazılmaz, seçilen finans ürününün iş tarihindeki tarifesinden gelir.
+/// Ürün m³ ile fiyatlanıyorsa ahşap/kontra m³ zorunludur; bileşik toplam fiyatlandırma miktarıdır.
+/// </summary>
+public sealed record FinansMunferitIsKaydetModel(
+    int FinansUrunId,
+    string IsAdi,
+    string? OzelIsTuru,
+    string Musteri,
+    int? ProjeId,
+    decimal Adet,
+    string Birim,
+    decimal? AhsapM3,
+    decimal? KontraM3,
+    DateTime IsTarihi,
+    string? Aciklama,
+    string? TalepEdenKisi,
+    string? TalepEdenBolum);
+
 /// <summary>Ahşap ve kontra m³'ün elle girişi; bileşik toplam işin m³ fiyatlandırma miktarı olur.</summary>
 public sealed record FinansHacimModel(decimal AhsapM3, decimal KontraM3, string Aciklama);
 

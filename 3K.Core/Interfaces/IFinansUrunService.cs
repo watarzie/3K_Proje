@@ -1,3 +1,4 @@
+using _3K.Core.Enums;
 using _3K.Core.Models;
 
 namespace _3K.Core.Interfaces;
@@ -9,6 +10,8 @@ public interface IFinansUrunService
     Task<FinansUrunModel> UrunOlusturAsync(FinansUrunKaydetModel model, CancellationToken cancellationToken);
     Task<FinansUrunModel?> UrunGuncelleAsync(int id, FinansUrunKaydetModel model, CancellationToken cancellationToken);
     Task<bool> UrunPasiflestirAsync(int id, CancellationToken cancellationToken);
+    /// <summary>Aktif ürünlerin hafif seçenek listesi (en fazla 50; fiyatsız); iş türü verilirse o türe eşlenenler.</summary>
+    Task<IReadOnlyList<FinansUrunSecenekModel>> UrunSecenekleriAsync(string? arama, FinansIsTuru? isTuru, CancellationToken cancellationToken);
     /// <summary>
     /// D4: ürüne bağlı, PO'ya hiç bağlanmamış açık kalemleri finans tarihlerinde geçerli tarife sürümüyle yeniden
     /// fiyatlar. Ürün yoksa null döner.

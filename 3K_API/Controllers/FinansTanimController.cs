@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using _3K.Application.Features.FinansIslemleri.Commands;
 using _3K.Application.Features.FinansIslemleri.DTOs;
 using _3K.Application.Features.FinansIslemleri.Queries;
+using _3K.Core.Enums;
 using _3K.Core.Models;
 using _3K_API.Extensions;
 
@@ -69,6 +70,11 @@ public sealed class FinansTanimController(IMediator mediator) : FinansController
     [HttpGet("gider-kutuphanesi/kalemler")]
     public async Task<ActionResult> GiderKutuphaneKalemleri([FromQuery] int? kategoriId, [FromQuery] bool sadeceAktif, CancellationToken cancellationToken)
         => (await Mediator.Send(new FinansGiderKutuphaneKalemleriQuery { KategoriId = kategoriId, SadeceAktif = sadeceAktif }, cancellationToken)).ToActionResult();
+
+    /// <summary>Münferit iş formunun ürün seçenekleri (fiyatsız, en fazla 50).</summary>
+    [HttpGet("urun-secenekleri")]
+    public async Task<ActionResult> UrunSecenekleri([FromQuery] string? arama, [FromQuery] FinansIsTuru? isTuru, CancellationToken cancellationToken)
+        => (await Mediator.Send(new FinansUrunSecenekleriQuery { Arama = arama, IsTuru = isTuru }, cancellationToken)).ToActionResult();
 
     [HttpGet("urunler")]
     public async Task<ActionResult> Urunler(

@@ -10,6 +10,7 @@ public sealed class FinansPanelQueryHandlers(IFinansPanelService service) :
     IRequestHandler<FinansPanelQuery, Result<FinansPanelModel>>,
     IRequestHandler<FinansHareketlerQuery, Result<FinansSayfaliSonuc<FinansHareketModel>>>,
     IRequestHandler<FinansGenelAramaQuery, Result<FinansSayfaliSonuc<FinansIsKaydiModel>>>,
+    IRequestHandler<FinansMunferitIslerQuery, Result<FinansSayfaliSonuc<FinansIsKaydiModel>>>,
     IRequestHandler<FinansYaslandirmaQuery, Result<FinansSayfaliSonuc<FinansBekleyenModel>>>,
     IRequestHandler<FinansDegisiklikGecmisiQuery, Result<FinansSayfaliSonuc<FinansDegisiklikModel>>>
 {
@@ -21,6 +22,9 @@ public sealed class FinansPanelQueryHandlers(IFinansPanelService service) :
 
     public Task<Result<FinansSayfaliSonuc<FinansIsKaydiModel>>> Handle(FinansGenelAramaQuery request, CancellationToken cancellationToken)
         => FinansHandlerHelper.ExecuteAsync(() => service.GenelAramaAsync(request.Filtre, cancellationToken));
+
+    public Task<Result<FinansSayfaliSonuc<FinansIsKaydiModel>>> Handle(FinansMunferitIslerQuery request, CancellationToken cancellationToken)
+        => FinansHandlerHelper.ExecuteAsync(() => service.MunferitIslerAsync(request.Filtre, cancellationToken));
 
     public Task<Result<FinansSayfaliSonuc<FinansBekleyenModel>>> Handle(FinansYaslandirmaQuery request, CancellationToken cancellationToken)
         => FinansHandlerHelper.ExecuteAsync(() =>

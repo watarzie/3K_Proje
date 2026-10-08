@@ -55,6 +55,7 @@ public sealed class FinansSekmeYetkileriTests
     [InlineData(typeof(FinansOzetRaporuDosyaQuery), YetkiKodlari.Finans.SekmeRaporlar, YetkiKodlari.Finans.RaporGoruntule)]
     [InlineData(typeof(FinansAlacakRaporuDosyaQuery), YetkiKodlari.Finans.SekmeRaporlar, YetkiKodlari.Finans.RaporGoruntule)]
     [InlineData(typeof(FinansRaporOnizlemeQuery), YetkiKodlari.Finans.SekmeRaporlar, YetkiKodlari.Finans.RaporGoruntule)]
+    [InlineData(typeof(FinansMunferitIslerQuery), YetkiKodlari.Finans.SekmeMunferitIsler, YetkiKodlari.Finans.KayitGoruntule)]
     public void SekmeyeOzelUc_SekmeKodunuMevcutKodlaBirlikteIster(Type istekTipi, string sekme, string mevcut)
     {
         var istek = Assert.IsAssignableFrom<IRequiresMenuPermissions>(Activator.CreateInstance(istekTipi));

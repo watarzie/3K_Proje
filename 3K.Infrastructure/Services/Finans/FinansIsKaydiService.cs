@@ -96,6 +96,42 @@ internal sealed class FinansIsKaydiService(
         CancellationToken cancellationToken)
         => islem.AtomikAsync(() => IsKaydiOlusturCoreAsync(model, cancellationToken), cancellationToken);
 
+    /// <summary>Münferit işlerin rapor grubu (aylık listede ve raporlarda bu adla gruplanır).</summary>
+    private const string MunferitRaporGrubu = "Münferit İş";
+
+    public Task<FinansIsKaydiModel> MunferitIsOlusturAsync(
+        FinansMunferitIsKaydetModel model,
+        CancellationToken cancellationToken)
+        => islem.AtomikAsync(async () =>
+        {
+            var urun = await context.Set<FinansUrun>().AsNoTracking()
+                .Where(x => x.Id == model.FinansUrunId && x.Aktif)
+                .Select(x => new { x.FiyatlandirmaBirimi })
+                .FirstOrDefaultAsync(cancellationToken)
+                ?? throw IsKuraliException.Cakisma("Seçilen finans ürünü bulunamadı veya pasif.");
+            var m3 = urun.FiyatlandirmaBirimi == FinansFiyatlandirmaBirimi.Metrekup;
+            if (m3 && !FinansHacimKurallari.GecerliManuelHacim(model.AhsapM3 ?? 0, model.KontraM3 ?? 0))
+                throw IsKuraliException.Cakisma("Ürün m³ ile fiyatlanıyor; ahşap veya kontra m³ girilmelidir.");
+            var bilesik = m3 ? FinansHacimKurallari.Bilesik(model.AhsapM3, model.KontraM3) : 0m;
+            // Fiyat, para birimi ve KDV ürünün tarifesinden gelir; elle fiyat yazılmaz (fiyat değiştirme izni gerekmez).
+            return await IsKaydiOlusturCoreAsync(new FinansIsKaydiKaydetModel(
+                model.ProjeId, null, null, model.Musteri, FinansIsTuru.OzelIs,
+                model.IsAdi, model.Aciklama, model.TalepEdenKisi, model.TalepEdenBolum, model.Adet, model.Birim,
+                m3 ? decimal.Round(bilesik / model.Adet, 6, MidpointRounding.AwayFromZero) : 0m,
+                model.FinansUrunId, null, null, null,
+                model.IsTarihi.Date, model.IsTarihi.Date,
+                OzelIsTuru: model.OzelIsTuru,
+                HesaplamaYontemi: urun.FiyatlandirmaBirimi switch
+                {
+                    FinansFiyatlandirmaBirimi.Metrekup => FinansHesaplamaYontemi.Metrekup,
+                    FinansFiyatlandirmaBirimi.Adet => FinansHesaplamaYontemi.DegiskenAdet,
+                    _ => FinansHesaplamaYontemi.DegiskenTutar
+                },
+                RaporGrubu: MunferitRaporGrubu,
+                AhsapM3: m3 ? model.AhsapM3 ?? 0 : null,
+                KontraM3: m3 ? model.KontraM3 ?? 0 : null), cancellationToken);
+        }, cancellationToken);
+
     private async Task<FinansIsKaydiModel> IsKaydiOlusturCoreAsync(
         FinansIsKaydiKaydetModel model,
         CancellationToken cancellationToken)
@@ -173,7 +209,7 @@ internal sealed class FinansIsKaydiService(
                 .FirstOrDefaultAsync(x => x.Id == finansUrunId && x.Aktif, cancellationToken)
                 ?? throw IsKuraliException.Cakisma("Seçilen finans ürünü bulunamadı veya pasif.");
             var tarife = await fiyatlar.GecerliTarifeAsync(urun.Id, tarih, cancellationToken)
-                ?? throw IsKuraliException.Cakisma($"{urun.Ad} için {tarih:yyyy} yılına ait geçerli fiyat tarifesi bulunamadı.");
+                ?? throw IsKuraliException.Cakisma($"{urun.Ad} için {tarih:dd.MM.yyyy} tarihinde geçerli tarife yok.");
 
             entity.FiyatlandirmaBirimiSnapshot = urun.FiyatlandirmaBirimi;
             // Ürün seçimi fiyatlandırma birimini sabitler. Yetkili kullanıcı açıkça

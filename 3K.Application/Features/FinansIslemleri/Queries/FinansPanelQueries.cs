@@ -29,6 +29,18 @@ public sealed class FinansGenelAramaQuery : FinansQuery<FinansSayfaliSonuc<Finan
     public FinansListeFiltre Filtre { get; init; } = new();
 }
 
+/// <summary>Münferit İşler sekmesinin listesi: sekme ve kayıt görüntüleme okuma izinleri birlikte.</summary>
+public sealed class FinansMunferitIslerQuery : FinansQuery<FinansSayfaliSonuc<FinansIsKaydiModel>>
+{
+    public override string RequiredMenuKod => YetkiKodlari.Finans.KayitGoruntule;
+    public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
+    [
+        MenuPermissionRequirement.Read(YetkiKodlari.Finans.SekmeMunferitIsler),
+        MenuPermissionRequirement.Read(YetkiKodlari.Finans.KayitGoruntule)
+    ];
+    public FinansListeFiltre Filtre { get; init; } = new();
+}
+
 public sealed class FinansYaslandirmaQuery : FinansQuery<FinansSayfaliSonuc<FinansBekleyenModel>>
 {
     public override string RequiredMenuKod => YetkiKodlari.Finans.RaporGoruntule;

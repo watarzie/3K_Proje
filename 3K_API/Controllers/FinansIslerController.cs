@@ -70,6 +70,16 @@ public sealed class FinansIslerController(IMediator mediator) : FinansController
     public async Task<ActionResult> IsKaydiIptal(int id, [FromBody] FinansIptalDto model, CancellationToken cancellationToken)
         => (await Mediator.Send(new FinansIsKaydiIptalCommand { Id = id, Aciklama = model.Aciklama }, cancellationToken)).ToActionResult();
 
+    /// <summary>Münferit İşler sekmesi: elle açılmış özel işler (tarih aralığı, arama, iptaller).</summary>
+    [HttpGet("munferit-isler")]
+    public async Task<ActionResult> MunferitIsler([FromQuery] FinansFilterRequest request, CancellationToken cancellationToken)
+        => (await Mediator.Send(new FinansMunferitIslerQuery { Filtre = request.ToModel() }, cancellationToken)).ToActionResult();
+
+    /// <summary>Yeni münferit iş: fiyat ürünün tarifesinden gelir.</summary>
+    [HttpPost("munferit-isler")]
+    public async Task<ActionResult> MunferitIsOlustur([FromBody] FinansMunferitIsKaydetDto model, CancellationToken cancellationToken)
+        => (await Mediator.Send(new FinansMunferitIsOlusturCommand { Model = model.MunferitIsModeli() }, cancellationToken)).ToActionResult();
+
     [HttpPost("ozel-isler")]
     public async Task<ActionResult> OzelIsOlustur([FromBody] FinansOzelIsKaydetDto model, CancellationToken cancellationToken)
         => (await Mediator.Send(new FinansIsKaydiOlusturCommand { Model = model.IsKaydiModeli() }, cancellationToken)).ToActionResult();

@@ -14,6 +14,21 @@ public sealed class FinansIsKaydiOlusturCommand : FinansCommand<FinansIsKaydiMod
     public FinansIsKaydiKaydetModel Model { get; init; } = null!;
 }
 
+/// <summary>
+/// Münferit iş oluşturma: fiyat tarifeden geldiği için yalnız iş ekleme ve Münferit İşler sekmesi yazma izni
+/// ister (fiyat değiştirme izni gerekmez).
+/// </summary>
+public sealed class FinansMunferitIsOlusturCommand : FinansCommand<FinansIsKaydiModel>
+{
+    public override string RequiredMenuKod => YetkiKodlari.Finans.ManuelIsEkle;
+    public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
+    [
+        MenuPermissionRequirement.Write(YetkiKodlari.Finans.SekmeMunferitIsler),
+        MenuPermissionRequirement.Write(YetkiKodlari.Finans.ManuelIsEkle)
+    ];
+    public FinansMunferitIsKaydetModel Model { get; init; } = null!;
+}
+
 public sealed class FinansIsKaydiIptalCommand : FinansCommand
 {
     public override string RequiredMenuKod => YetkiKodlari.Finans.IsIptal;

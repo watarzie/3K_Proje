@@ -54,6 +54,17 @@ public sealed class FinansTarifeDuzeltmeOnizlemeQuery : FinansQuery<FinansTarife
     public decimal KdvOrani { get; init; }
 }
 
+/// <summary>
+/// Münferit iş formunun ürün seçicisi: aktif ürünlerin kod/ad/fiyatlandırma birimi (fiyatsız, en fazla 50).
+/// Münferit İşler sekmesini görebilen kullanıcıya açıktır; tarife listesi yetkisi istemez.
+/// </summary>
+public sealed class FinansUrunSecenekleriQuery : FinansQuery<IReadOnlyList<FinansUrunSecenekModel>>
+{
+    public override string RequiredMenuKod => YetkiKodlari.Finans.SekmeMunferitIsler;
+    public string? Arama { get; init; }
+    public _3K.Core.Enums.FinansIsTuru? IsTuru { get; init; }
+}
+
 public sealed class FinansUrunlerQuery : FinansQuery<FinansSayfaliSonuc<FinansUrunModel>>
 {
     public override string RequiredMenuKod => YetkiKodlari.Finans.IsKutuphanesiYonet;

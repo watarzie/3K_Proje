@@ -8,6 +8,7 @@ namespace _3K.Application.Features.FinansIslemleri.Commands;
 /// <summary>İş kaydı, özel iş ve fiyatlandırma komutları.</summary>
 public sealed class FinansIsKaydiCommandHandlers(IFinansIsKaydiService service) :
     IRequestHandler<FinansIsKaydiOlusturCommand, Result<FinansIsKaydiModel>>,
+    IRequestHandler<FinansMunferitIsOlusturCommand, Result<FinansIsKaydiModel>>,
     IRequestHandler<FinansIsKaydiIptalCommand, Result>,
     IRequestHandler<FinansIsKaydiGeriAlCommand, Result>,
     IRequestHandler<FinansOzelIsAylikDegerGuncelleCommand, Result>,
@@ -17,6 +18,9 @@ public sealed class FinansIsKaydiCommandHandlers(IFinansIsKaydiService service) 
 {
     public Task<Result<FinansIsKaydiModel>> Handle(FinansIsKaydiOlusturCommand request, CancellationToken cancellationToken)
         => FinansHandlerHelper.ExecuteAsync(() => service.IsKaydiOlusturAsync(request.Model, cancellationToken));
+
+    public Task<Result<FinansIsKaydiModel>> Handle(FinansMunferitIsOlusturCommand request, CancellationToken cancellationToken)
+        => FinansHandlerHelper.ExecuteAsync(() => service.MunferitIsOlusturAsync(request.Model, cancellationToken));
 
     public Task<Result> Handle(FinansIsKaydiIptalCommand request, CancellationToken cancellationToken)
         => FinansHandlerHelper.ExecuteAsync(

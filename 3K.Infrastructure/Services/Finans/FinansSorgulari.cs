@@ -320,7 +320,7 @@ internal static class FinansSorgulari
     // Harf eşlemesini tek yerde (PostgreSQL) yap; tr-TR uygulama kültürü ile DB
     // kültürünün farklı küçültmesi aranan I/İ karakterlerini kaybettirmesin.
     // Contains sözleşmesindeki %, _ ve \ karakterleri joker değil, gerçek metindir.
-    private static string LiteralSearchPattern(string value)
+    internal static string LiteralSearchPattern(string value)
         => "%" + value.Trim().Replace("\\", "\\\\", StringComparison.Ordinal)
             .Replace("%", "\\%", StringComparison.Ordinal)
             .Replace("_", "\\_", StringComparison.Ordinal) + "%";

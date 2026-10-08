@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using _3K.Core.Entities;
+using _3K.Core.Enums;
 using _3K.Core.Exceptions;
 using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
@@ -69,6 +70,25 @@ internal sealed class FinansUrunService(
             x.Eslesmeler.Any(y =>
                 (y.SandikAdi != null && y.SandikAdi.ToLower().Contains(search)) ||
                 (y.SandikTipi != null && y.SandikTipi.ToLower().Contains(search))));
+    }
+
+    public async Task<IReadOnlyList<FinansUrunSecenekModel>> UrunSecenekleriAsync(
+        string? arama,
+        FinansIsTuru? isTuru,
+        CancellationToken cancellationToken)
+    {
+        var query = context.Set<FinansUrun>().AsNoTracking().Where(x => x.Aktif);
+        if (isTuru.HasValue)
+            query = query.Where(x => x.Eslesmeler.Any(e => e.Aktif && e.IsTuru == isTuru));
+        if (!string.IsNullOrWhiteSpace(arama))
+        {
+            var desen = FinansSorgulari.LiteralSearchPattern(arama);
+            query = query.Where(x => EF.Functions.ILike(x.Kod, desen, "\\") || EF.Functions.ILike(x.Ad, desen, "\\"));
+        }
+        return await query.OrderBy(x => x.Sira).ThenBy(x => x.Ad)
+            .Take(50)
+            .Select(x => new FinansUrunSecenekModel(x.Id, x.Kod, x.Ad, x.FiyatlandirmaBirimi))
+            .ToListAsync(cancellationToken);
     }
 
     public Task<FinansUrunModel> UrunOlusturAsync(FinansUrunKaydetModel model, CancellationToken cancellationToken)
