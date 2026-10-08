@@ -6,6 +6,8 @@ namespace _3K.Application.Features.UcKIslemleri.DTOs
     {
         public int CekiSatiriId { get; set; }
         public int? SandikIcerikId { get; set; }
+        /// <summary>Seçili sandık satırının kalıcı ürün bilgisi (seri no, SKT, lot); işlem açıklamasından bağımsızdır.</summary>
+        public string? UrunBilgisi { get; set; }
         public bool IsSahaManuelSandikIcerigi { get; set; }
         public int? KaynakCekiSatiriId { get; set; }
         public string? KaynakProjeNo { get; set; }

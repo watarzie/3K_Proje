@@ -29,6 +29,7 @@ açılan pencere varsayılan `postgres` veritabanına bağlanır (sekme başlı�
 | 6 | `20260929_01_Finans_Ambalaj_Sifirlama.sql` | **Bütün Finans ve Ambalaj tablolarını verileriyle siler** ve güncel modelle yeniden oluşturur (para birimleri TRY/EUR, vade parametreleri 30/7 gün). Onay olarak veritabanının adını ister. |
 | 7 | `20260929_02_Finans_Odeme_Yetkisi.sql` | `finans-odeme-kaydet` iznini ekler (fatura izni olan rollere aynı seviyede verir), `finans-sablon-yonet` iznini siler. |
 | 8 | `20261003_01_Kisisel_Yetkileri_Kaldir.sql` | **Kullanıcıya özel izinler tablosunu (`KullaniciYetkileri`) verileriyle siler**; yetki yalnız rolden gelir. Silmeden önce bütün kişisel kararları listeler. Onay olarak veritabanının adını ister. |
+| 9 | `20261008_01_SandikIcerik_UrunBilgisi.sql` | `SandikIcerikleri` tablosuna kalıcı `UrunBilgisi` (seri no/SKT/lot, en fazla 1000 karakter) kolonunu ekler; mevcut satırlar boş kalır. |
 
 Sıfırlama betiği (6) onay olarak sıfırlanacak veritabanının adını ister ve yalnız bağlı olduğu veritabanının adı
 onayla aynıysa çalışır. Onay yoksa veya başka bir veritabanına bağlıysa hiçbir şey değiştirmeden hata verir. Çıktıda

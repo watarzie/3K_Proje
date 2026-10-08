@@ -140,6 +140,8 @@ public sealed class RequestMenuPermissionResolver(IUnitOfWork unitOfWork, IReadQ
         TopluDurumGuncelleCommand x => UcKTopluAccess(x.ProjeId, x.CekiSatiriIdler, x.Secimler),
         SandikEkleCommand x => new(ProjectMenuOperation.CrateWrite, YetkiTipi.W, x.ProjeId),
         SandikOzellikGuncelleCommand x => new(ProjectMenuOperation.CrateWrite, YetkiTipi.W, SandikIds: [x.SandikId]),
+        SandikIcerikBilgisiGuncelleCommand x => new(ProjectMenuOperation.CrateWrite, YetkiTipi.W, x.ProjeId,
+            [x.SandikId], IcerikIds: [x.SandikIcerikId]),
         SandikKapat x => new(ProjectMenuOperation.CrateWrite, YetkiTipi.W, SandikIds: [x.SandikId]),
         EskiSandikKapat x => new(ProjectMenuOperation.CrateWrite, YetkiTipi.W, SandikIds: [x.SandikId]),
         TopluSandikKapatCommand x => new(ProjectMenuOperation.CrateWrite, YetkiTipi.W, SandikIds: x.SandikIds),

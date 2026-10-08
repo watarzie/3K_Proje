@@ -53,6 +53,18 @@ namespace _3K.Application.Features.SandikIslemleri.Validators
         }
     }
 
+    public class SandikIcerikBilgisiGuncelleCommandValidator : AbstractValidator<SandikIcerikBilgisiGuncelleCommand>
+    {
+        public SandikIcerikBilgisiGuncelleCommandValidator()
+        {
+            RuleFor(x => x.ProjeId).GreaterThan(0).WithMessage("Geçerli bir proje ID belirtilmeli.");
+            RuleFor(x => x.SandikId).GreaterThan(0).WithMessage("Geçerli bir sandık ID belirtilmeli.");
+            RuleFor(x => x.SandikIcerikId).GreaterThan(0).WithMessage("Geçerli bir sandık içeriği belirtilmeli.");
+            RuleFor(x => x.UrunBilgisi)
+                .Must(SandikIcerikUrunBilgisiKurali.Gecerli).WithMessage(SandikIcerikUrunBilgisiKurali.UzunlukMesaji);
+        }
+    }
+
     public class SandikOzellikGuncelleCommandValidator : AbstractValidator<SandikOzellikGuncelleCommand>
     {
         public SandikOzellikGuncelleCommandValidator()

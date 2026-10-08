@@ -444,6 +444,86 @@ public sealed class UcKKaynakTransferStokIadeKatalogTests
         Assert.True(kurgu.Satir.AktifGridSevkPartisiErkenSonuclandirildiMi);
     }
 
+    /// <summary>
+    /// Kalıcı ürün bilgisi (seri no/SKT) işlem açıklamasından bağımsızdır: Geri Gönderildi açıklamayı yazar ama
+    /// ürün bilgisine dokunmaz; tam, sandık bazlı ve toplu sıfırlama da ürün bilgisini korur.
+    /// </summary>
+    [Fact]
+    public async Task UrunBilgisi_GeriGondermeVeSifirlamaAkislarindaDegismez()
+    {
+        const string bilgi = "SN: A-1001 · SKT: 2027-03";
+
+        using (var kurgu = new Kurgu(5m, 5m))
+        {
+            kurgu.Icerik.UrunBilgisi = bilgi;
+            kurgu.Satir.GridDurumuId = (int)GridDurum.TamGeldi;
+            kurgu.Satir.GridGelenAdet = 5m;
+            kurgu.Satir.GridSevkDurumuId = (int)GridSevkDurum.SevkEdildi;
+            kurgu.Satir.GridSevkMiktari = 3.5m;
+            kurgu.Satir.GelenMiktar = 3.5m;
+            kurgu.Satir.AktifGridSevkKarsilananMiktari = 3.5m;
+            kurgu.Satir.AktifGridSevkPartisiErkenSonuclandirildiMi = false;
+            kurgu.Icerik.KonulanAdet = 4.5m;
+            kurgu.Icerik.EksikAdet = 0.5m;
+            kurgu.Icerik.AktifGridSevkKarsilananMiktari = 3.5m;
+
+            var sonuc = await kurgu.KarsilaAsync(UcKDurum.GeriGonderildi, 0.75m, geriSebepId: 1);
+
+            Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+            Assert.Equal("Katalog testi", kurgu.Satir.UcKAciklama);
+            Assert.Equal(bilgi, kurgu.Icerik.UrunBilgisi);
+        }
+
+        using (var kurgu = new Kurgu(2m, 2m))
+        {
+            ResetIcinDoldur(kurgu.Satir, kurgu.Icerik);
+            kurgu.Icerik.UrunBilgisi = bilgi;
+            kurgu.Satir.UcKAciklama = "Seri no açıklamaya yazılmıştı";
+
+            var sonuc = await kurgu.SifirlaAsync();
+
+            Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+            Assert.Null(kurgu.Satir.UcKAciklama);
+            Assert.Equal(bilgi, kurgu.Icerik.UrunBilgisi);
+        }
+
+        using (var kurgu = new Kurgu(2m, 1m))
+        {
+            kurgu.Satir.GridDurumuId = (int)GridDurum.TamGeldi;
+            kurgu.Satir.GridGelenAdet = 2m;
+            kurgu.Satir.GridSevkDurumuId = (int)GridSevkDurum.SevkEdildi;
+            kurgu.Satir.GridSevkMiktari = 2m;
+            kurgu.Satir.AktifGridSevkKarsilananMiktari = 2m;
+            kurgu.Satir.AktifGridSevkPartisiErkenSonuclandirildiMi = false;
+            kurgu.Satir.GelenMiktar = 2m;
+            kurgu.Satir.UcKDurumuId = (int)UcKDurum.TamGeldi;
+            kurgu.Satir.UcKKarsilamaTipiId = (int)UcKDurum.TamGeldi;
+            kurgu.Icerik.KonulanAdet = 1m;
+            kurgu.Icerik.EksikAdet = 0m;
+            kurgu.Icerik.AktifGridSevkKarsilananMiktari = 1m;
+            kurgu.Icerik.UrunBilgisi = bilgi;
+            var ikinci = IkinciIcerikEkle(kurgu, 41, 31);
+            ikinci.UrunBilgisi = "SN: A-1002";
+
+            var sonuc = await kurgu.SifirlaAsync(kurgu.Icerik.Id);
+
+            Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+            Assert.Equal(bilgi, kurgu.Icerik.UrunBilgisi);
+            Assert.Equal("SN: A-1002", ikinci.UrunBilgisi);
+        }
+
+        using (var kurgu = new Kurgu(2m, 2m))
+        {
+            ResetIcinDoldur(kurgu.Satir, kurgu.Icerik);
+            kurgu.Icerik.UrunBilgisi = bilgi;
+
+            var sonuc = await kurgu.TopluSifirlaAsync(new UcKSandikSecimDto { CekiSatiriId = kurgu.Satir.Id });
+
+            Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+            Assert.Equal(bilgi, kurgu.Icerik.UrunBilgisi);
+        }
+    }
+
     [Fact]
     public async Task HataliUrun_GuncelKomutTipiDegildir_ReddedilirVeDegisiklikYapilmaz()
     {

@@ -164,6 +164,7 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                         ProjeKarsilanan = i.ProjeKarsilanan,
                         TedarikciKarsilanan = i.TedarikciKarsilanan,
                         KaynakProjeNo = i.KaynakProjeNo,
+                        UrunBilgisi = i.UrunBilgisi,
                         SandikAktarilanGiris = transferOzeti.Giris,
                         SandikAktarilanCikis = transferOzeti.Cikis,
                         SandikTransferOzeti = string.IsNullOrWhiteSpace(transferOzeti.Metin) ? null : transferOzeti.Metin,

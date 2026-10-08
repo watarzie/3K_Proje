@@ -4,6 +4,7 @@ using _3K.Application.Features.SandikIslemleri.Commands;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.SandikIslemleri.Services
 {
@@ -498,6 +499,8 @@ namespace _3K.Application.Features.SandikIslemleri.Services
                     hedefIcerik.TahsisMiktari = hedefIcerik.TahsisMiktari > 0
                         ? hedefIcerik.TahsisMiktari
                         : hedefIcerik.KonulanAdet;
+                    // Kaynak satır boşalınca silinir; ürün bilgisi (seri no/SKT) hedef satırda korunur.
+                    hedefIcerik.UrunBilgisi = SandikIcerikUrunBilgisiKurali.Birlestir(hedefIcerik.UrunBilgisi, kaynakIcerik.UrunBilgisi);
 
                     return (hedefIcerik, false, null);
                 }
@@ -517,7 +520,8 @@ namespace _3K.Application.Features.SandikIslemleri.Services
                 Miktar = 0,
                 Aciklama = kaynakIcerik.Aciklama,
                 BirimId = kaynakIcerik.BirimId ?? cekiSatiri?.BirimId,
-                KaynakProjeNo = kaynakIcerik.KaynakProjeNo
+                KaynakProjeNo = kaynakIcerik.KaynakProjeNo,
+                UrunBilgisi = kaynakIcerik.UrunBilgisi
             }, true, null);
         }
 

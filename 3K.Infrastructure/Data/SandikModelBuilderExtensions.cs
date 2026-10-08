@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using _3K.Core.Entities;
+using _3K.Core.Models;
 
 namespace _3K.Infrastructure.Data;
 
@@ -72,6 +73,7 @@ internal static class SandikModelBuilderExtensions
             e.Property(p => p.ProjeKarsilanan).HasPrecision(18, 4);
             e.Property(p => p.TedarikciKarsilanan).HasPrecision(18, 4);
             e.Property(p => p.Miktar).HasPrecision(18, 4);
+            e.Property(p => p.UrunBilgisi).HasMaxLength(SandikIcerikUrunBilgisiKurali.EnFazlaUzunluk);
 
             // Npgsql, uint + IsRowVersion eşleşmesini PostgreSQL'in xmin sistem
             // kolonuna map eder; ayrıca fiziksel bir Version kolonu gerekmez.

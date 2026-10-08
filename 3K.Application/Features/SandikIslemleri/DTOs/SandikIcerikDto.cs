@@ -40,6 +40,9 @@ namespace _3K.Application.Features.SandikIslemleri.DTOs
         // Kaynak proje bilgisi (Saha/Yedek sandıklara projeden eklenen ürünler için)
         public string? KaynakProjeNo { get; set; }
 
+        /// <summary>Kalıcı ürün bilgisi (seri no, SKT, lot); işlem açıklamasından bağımsızdır.</summary>
+        public string? UrunBilgisi { get; set; }
+
         // Sandıklar arası yapılandırılmış transfer özeti
         public decimal SandikAktarilanGiris { get; set; }
         public decimal SandikAktarilanCikis { get; set; }
