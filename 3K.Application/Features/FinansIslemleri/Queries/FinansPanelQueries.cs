@@ -7,6 +7,11 @@ namespace _3K.Application.Features.FinansIslemleri.Queries;
 public sealed class FinansPanelQuery : FinansQuery<FinansPanelModel>
 {
     public override string RequiredMenuKod => YetkiKodlari.Finans.Modul;
+    public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
+    [
+        MenuPermissionRequirement.Read(YetkiKodlari.Finans.Modul),
+        MenuPermissionRequirement.Read(YetkiKodlari.Finans.SekmePanel)
+    ];
     public DateTime Baslangic { get; init; }
     public DateTime Bitis { get; init; }
 }

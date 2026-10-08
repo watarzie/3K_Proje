@@ -144,6 +144,38 @@ public sealed class FinansAlanHttpSecurityTests
         Assert.Equal(0, host.Data.Calls);
     }
 
+    /// <summary>
+    /// Sekme düğümü kapalıysa altındaki işlem kodu W olsa da işlem 403; sekmeye özel okuma uçları sekme izni ister,
+    /// birden çok sekmenin kullandığı uçlar (genel arama, kayıt detayı) sekmeye bağlı değildir.
+    /// </summary>
+    [Fact]
+    public async Task Http_SekmeDugumuKapaliysaAltIslemVeSekmeyeOzelOkumaReddedilir()
+    {
+        await using var host = await Host.StartAsync();
+        host.Authenticate();
+        host.GrantAll();
+        var govde = new { poNumarasi = "PO-1", siparisTarihi = "2026-09-01", kalemler = new[] { new { isKaydiId = 1, adet = 0, m3 = 0, netTutar = 777.25m } } };
+
+        host.Roles.Revoke(YetkiKodlari.Finans.SekmePoFatura);
+        using (var po = await host.Client.PostAsync("api/finans/siparisler", new StringContent(
+                   System.Text.Json.JsonSerializer.Serialize(govde), Encoding.UTF8, "application/json")))
+            Assert.Equal(HttpStatusCode.Forbidden, po.StatusCode);
+        host.Roles.Grant(YetkiKodlari.Finans.SekmePoFatura);
+        using (var salt = await host.Client.PostAsync("api/finans/siparisler", new StringContent(
+                   System.Text.Json.JsonSerializer.Serialize(govde), Encoding.UTF8, "application/json")))
+            Assert.Equal(HttpStatusCode.Forbidden, salt.StatusCode);
+        Assert.Equal(0, host.Data.Calls);
+
+        host.Roles.Revoke(YetkiKodlari.Finans.SekmePanel);
+        host.Roles.Revoke(YetkiKodlari.Finans.SekmeIsTakibi);
+        Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync("api/finans/panel?baslangic=2026-01-01&bitis=2026-12-31")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync("api/finans/aylik-isler?yil=2026&ay=9")).StatusCode);
+        Assert.Equal(0, host.Data.Calls);
+        await host.Json("api/finans/genel-arama");
+        await host.Json("api/finans/is-kayitlari/1");
+        Assert.Equal(2, host.Data.Calls);
+    }
+
     [Fact]
     public async Task Http_TamAlanIzinleriBelgeIndirmeyiAcar_AyniTokenleSonradanKapanir()
     {
@@ -280,14 +312,14 @@ public sealed class FinansAlanHttpSecurityTests
         private readonly ConcurrentDictionary<string, YetkiTipi> _permissions = new();
         public void Grant(string code, YetkiTipi level = YetkiTipi.R) => _permissions[code] = level;
         public void Revoke(string code) => _permissions.TryRemove(code, out _);
-        // Gerçek değerlendirici gibi modül kökü alt kodların tavanıdır.
+        // Gerçek değerlendirici gibi üst düğüm alt kodların tavanıdır: finans kökü → sekme düğümü → sekmenin işlem kodu.
         public Task<bool> HasUserPermissionAsync(int userId, string menuKod, YetkiTipi requiredYetkiTipi, CancellationToken ct = default) =>
             Task.FromResult(userId == 7 && Seviye(menuKod) >= requiredYetkiTipi);
         private YetkiTipi Seviye(string kod)
         {
             var kendi = _permissions.TryGetValue(kod, out var level) ? level : YetkiTipi.N;
-            var ust = kod == YetkiKodlari.Finans.Modul || kod == YetkiKodlari.Ambalaj.Listele ? null
-                : kod.StartsWith("finans-") ? YetkiKodlari.Finans.Modul
+            var ust = kod == YetkiKodlari.Ambalaj.Listele ? null
+                : kod.StartsWith("finans-") ? FinansSekmeAgaci.Ust(kod)
                 : kod.StartsWith("ambalaj-") ? YetkiKodlari.Ambalaj.Listele : null;
             if (ust == null) return kendi;
             var ustSeviye = Seviye(ust);

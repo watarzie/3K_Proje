@@ -29,6 +29,7 @@ public sealed class FinansAylikIslerQuery : FinansQuery<FinansAylikSayfaliSonuc>
     public override string RequiredMenuKod => YetkiKodlari.Finans.KayitGoruntule;
     public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
     [
+        MenuPermissionRequirement.Read(YetkiKodlari.Finans.SekmeIsTakibi),
         MenuPermissionRequirement.Read(YetkiKodlari.Finans.KayitGoruntule)
     ];
     public int Yil { get; init; }
@@ -45,6 +46,7 @@ public sealed class FinansProjeSandikKirilimiQuery : FinansQuery<FinansProjeSand
     public override string RequiredMenuKod => YetkiKodlari.Finans.KayitGoruntule;
     public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
     [
+        MenuPermissionRequirement.Read(YetkiKodlari.Finans.SekmeIsTakibi),
         MenuPermissionRequirement.Read(YetkiKodlari.Finans.KayitGoruntule)
     ];
     public int? ProjeId { get; init; }

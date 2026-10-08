@@ -76,7 +76,8 @@ public sealed class FinansParaBirimleriQuery : FinansQuery<IReadOnlyList<FinansP
     public bool SadeceAktif { get; init; }
 }
 
+/// <summary>Vade parametreleri yalnız "İş ve Tarife Tanımları" ekranında okunur; yönetimiyle aynı kod (R).</summary>
 public sealed class FinansParametrelerQuery : FinansQuery<FinansParametrelerModel>
 {
-    public override string RequiredMenuKod => YetkiKodlari.Finans.Modul;
+    public override string RequiredMenuKod => YetkiKodlari.Finans.IsKutuphanesiYonet;
 }

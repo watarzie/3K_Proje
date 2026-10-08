@@ -20,6 +20,12 @@
 | Depo lokasyon tanımı | depo-durumu W (sandığa lokasyon atama ayrı işlemdir) |
 | Hareket geçmişi | hareket-gecmisi R |
 | Kullanıcı, onay, bildirim aboneliği, ambalaj, finans | Request üzerindeki mevcut sabit veya çoklu işlem izinleri; artık header fallback yok |
+| Finans kontrol paneli | finans-yonetimi R **ve** finans-sekme-panel R |
+| Finans aylık iş listesi, proje sandık kırılımı | finans-sekme-is-takibi R **ve** finans-kayit-goruntule R |
+| Finans aylık / sipariş durumu raporu | finans-sekme-is-takibi R **ve** mevcut rapor, alan ve dışa aktarma izinleri |
+| Finans gider listesi | finans-sekme-giderler R **ve** finans-gider-goruntule R |
+| Finans iş / özet / alacak raporu, rapor önizleme | finans-sekme-raporlar R **ve** mevcut rapor, alan ve dışa aktarma izinleri |
+| Finans PO/fatura, tanım, gider kategorisi işlemleri | Mevcut kodlar; bu kodlar ağaçta ilgili sekme düğümünün altında olduğundan sekme izni tavandır |
 
 ## Gerçek proje tipine bağlı işlemler
 

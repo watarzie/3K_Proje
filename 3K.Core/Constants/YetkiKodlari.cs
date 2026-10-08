@@ -162,5 +162,16 @@ public static class YetkiKodlari
         public const string FiyatlandirmaDegistir = "finans-fiyatlandirma-degistir";
         /// <summary>Faturayı ödendi/ödenmedi olarak işaretleme (D3).</summary>
         public const string OdemeKaydet = "finans-odeme-kaydet";
+
+        // Sekme düğümleri (finans-yonetimi altında, menüde görünmez). R sekmeyi gösterir; W sekmedeki işlemlerin
+        // tavanıdır. Yalnız o sekmeye ait işlem kodları sekme düğümünün altındadır (20261008_03_Finans_Sekme_Yetkileri.sql).
+        public const string SekmePanel = "finans-sekme-panel";
+        public const string SekmeIsTakibi = "finans-sekme-is-takibi";
+        public const string SekmePoFatura = "finans-sekme-po-fatura";
+        public const string SekmeGiderler = "finans-sekme-giderler";
+        public const string SekmeGiderKategorileri = "finans-sekme-gider-kategorileri";
+        public const string SekmeTanimlar = "finans-sekme-tanimlar";
+        public const string SekmeRaporlar = "finans-sekme-raporlar";
+        public const string SekmeMunferitIsler = "finans-sekme-munferit-isler";
     }
 }

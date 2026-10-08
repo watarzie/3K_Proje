@@ -8,6 +8,16 @@ koşum sayıları tarihsel kayıttır; depo dışında yönetilen 02–04 SQL'le
 bugünkü halini veya canlıda elle uygulanmasını doğrulamaz. Bu geçiş için
 ayrı staging provası ve DBA doğrulaması gerekir.
 
+## Finans sekme yetki düğümleri — 8 Ekim 2026
+
+Rol ağacına Finans sekme düğümleri eklendi ve yalnız o sekmeye ait işlem kodları sekme düğümünün altına taşındı (`20261008_03_Finans_Sekme_Yetkileri.sql`). Sekme düğümü alt kodların tavanıdır; sekmeye özel uçlar sekme kodunu mevcut kodlarla birlikte ister (Y-03).
+
+- [FinansSekmeYetkileriTests](../../3K.Application.Tests/FinansSekmeYetkileriTests.cs): test fikstürünün betikle aynı olması, sekme N/R/W → alt W kodunun etkin seviyesi (modül R tavanı dahil), sekmeye özel 10 uç ve sekmeye bağlanmayan 5 paylaşılan uç; gerçek PostgreSQL'de canlı ağacın (kök 47 + 33 yaprak, 4 rol + tavanlı salt okuma rolü) kopyasında göç: düğümler, taşınan kodlar, **bütün mevcut kodların etkin seviyesinin değişmemesi**, rol × sekme seviyeleri, kimlik dizisi, tekrar çalıştırmanın sonradan değiştirilmiş sekme iznini ezmemesi ve eksik kodda hiçbir şey yapmadan durması.
+- [FinansAlanHttpSecurityTests](../../3K.Application.Tests/FinansAlanHttpSecurityTests.cs): izin deposu hiyerarşiyi fikstürden okur; sekme kapalıyken PO yazması ve panel/aylık okuması 403, paylaşılan uçlar açık.
+- Ön yüz: `finans-izinleri.spec.ts` (sekme kuralları, tanım alt görünümleri, açılış sekmesi), `finans-yetki-render.component.spec.ts` (sekme düğmesi/gövdesi, açılış sekmesi, oturumda izin kaldırılınca sekme değişimi, kategori sekmesinin R ile açılması), `menu-tree.component.spec.ts` (alt düzeyler kapalı, tümünü aç/kapat, sekme açıklaması ve N onayı).
+
+Koşum: `FullyQualifiedName~Finans|FullyQualifiedName~Yetki|FullyQualifiedName~ServerAuthorizationRegressionTests` 409/409 (PostgreSQL vakaları izole 127.0.0.1:55439 sunucusunda); ön yüz rol yönetimi + çekirdek servisler + finans spec'leri 235/235. Tam paketler koşulmadı. Uygulama DB'sine yalnız canlı ağacı okumak için SELECT çalıştırıldı.
+
 ## Finans İş Takibi: proje → sandık kırılımı ve ahşap/kontra m³ — 8 Ekim 2026
 
 **Sandık kırılımı.** `GET api/finans/proje-sandik-kirilimi` (`finans-kayit-goruntule` R) projenin (isteğe bağlı finans dönemindeki) bütün üretim kayıtlarını sayfalamasız döndürür; 250 kayıt sınırı yoktur, 20.000 kayıt üstü 409'dur. Tutarlar SQL'de hesaplanır; sandık başına gruplama (`FinansSandikKirilimiKurali`) sandık no + kaynak üretim kaydı + para birimiyle yapılır, çünkü ahşap/kontra payı fiyat satırlarına (JSON) bağlı kayıt kuralıdır. Aynı sandığın NET ve SARF kayıtları tek satırdadır: tutar ikisinin toplamı, adet ve m³ yalnız sandığın kendisi, durum aktif kayıtların en düşük iş durumudur (hepsi iptalse iptal). Genel aramaya `sandikNo` (ILIKE) filtresi eklendi; aylık sonuç sayfadaki projelere bağlı özel/düzenli işleri `projeOzelIsleri` ile ayrıca döndürür (sayfalama birimi değişmedi).

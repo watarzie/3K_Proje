@@ -31,6 +31,12 @@ açılan pencere varsayılan `postgres` veritabanına bağlanır (sekme başlı�
 | 8 | `20261003_01_Kisisel_Yetkileri_Kaldir.sql` | **Kullanıcıya özel izinler tablosunu (`KullaniciYetkileri`) verileriyle siler**; yetki yalnız rolden gelir. Silmeden önce bütün kişisel kararları listeler. Onay olarak veritabanının adını ister. |
 | 9 | `20261008_01_SandikIcerik_UrunBilgisi.sql` | `SandikIcerikleri` tablosuna kalıcı `UrunBilgisi` (seri no/SKT/lot, en fazla 1000 karakter) kolonunu ekler; mevcut satırlar boş kalır. |
 | 10 | `20261008_02_Finans_Ahsap_Kontra_Hacim.sql` | `FinansIsKayitlari` tablosuna elle girilen `AhsapM3`, `KontraM3` ve `HacimManuel` kolonlarını ekler, miktar kısıtını yeni kolonlarla yeniden kurar; mevcut kayıtlar boş kalır (pay türetilir). |
+| 11 | `20261008_03_Finans_Sekme_Yetkileri.sql` | Rol ağacına Finans sekme düğümlerini (`finans-sekme-*`, Id 5238–5245) ekler; her role sekme seviyesini mevcut izinlerinden verir, sonra yalnız o sekmeye ait işlem kodlarını sekme düğümünün altına taşır. Etkin izinler azalmaz. **Yeni API'den önce** çalıştırılır. |
+
+Sekme yetkileri betiği (11) yeni API sürümü yayımlanmadan **önce** çalıştırılır: yeni API Kontrol Paneli, İş Takibi,
+Giderler ve Raporlar uçlarında sekme düğümü izni ister; düğümler yokken bu uçlar herkese (Admin dahil) 403 döner. Eski
+API sekme düğümlerini kullanmaz ve taşınan kodların etkin seviyesi değişmediği için betikten etkilenmez. Betik sonunda
+rol × sekme seviyeleri ve sekmelerin altındaki kodlar NOTICE olarak listelenir.
 
 Sıfırlama betiği (6) Finans/Ambalaj tablolarını yazıldığı andaki modelle kurar; 10 numaralı betikten sonra çalıştırılırsa
 10 numaralı betik (ahşap/kontra m³ kolonları) yeniden uygulanmalıdır.

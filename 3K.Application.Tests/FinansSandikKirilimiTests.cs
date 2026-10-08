@@ -81,12 +81,13 @@ public sealed class FinansSandikKirilimiTests
             .Validate(new FinansProjeSandikKirilimiQuery { ProjeId = projeId, ProjeNo = projeNo, Yil = yil, Ay = ay }).IsValid);
 
     [Fact]
-    public void Sorgu_KayitGoruntulemeOkumaIzniIster()
+    public void Sorgu_IsTakibiSekmesiVeKayitGoruntulemeOkumaIzniIster()
     {
         var sorgu = new FinansProjeSandikKirilimiQuery();
         Assert.Equal(YetkiKodlari.Finans.KayitGoruntule, sorgu.RequiredMenuKod);
-        var izin = Assert.Single(sorgu.RequiredMenuPermissions);
-        Assert.Equal((YetkiKodlari.Finans.KayitGoruntule, YetkiTipi.R), (izin.MenuKod, izin.YetkiTipi));
+        Assert.Equal(
+            [(YetkiKodlari.Finans.SekmeIsTakibi, YetkiTipi.R), (YetkiKodlari.Finans.KayitGoruntule, YetkiTipi.R)],
+            sorgu.RequiredMenuPermissions.Select(x => (x.MenuKod, x.YetkiTipi)));
     }
 
     /// <summary>Kırılım yanıtı da HTTP sınırında maskelenir: tutar ve m³ null, sayaçlar açık; sarf kaydının m³'ü sarf iznine bağlı.</summary>
