@@ -411,6 +411,8 @@ internal sealed class FinansIsKaydiService(
             if (work.IptalEdildi || !work.KaynakAktif) throw IsKuraliException.Cakisma("Pasif işin hacmi değiştirilemez.");
             if (work.SiparisKalemleri.Count > 0)
                 throw IsKuraliException.Cakisma("PO'ya bağlı kaydın hacmi değiştirilemez; ek/düzeltme işi oluşturun.");
+            if (!FinansHacimKurallari.ElleGirilebilir(work.SandikCinsi, work.SandikTipi, work.HacimManuel))
+                throw IsKuraliException.Cakisma("Ahşap/kontra m³ yalnız kontrplak veya katlanır sandıkta girilir; ahşap sandığın m³'ü üretimden gelir.");
             var before = FinansDenetimKaydi.AnlikGoruntu(work);
             work.AhsapM3 = decimal.Round(model.AhsapM3, 6, MidpointRounding.AwayFromZero);
             work.KontraM3 = decimal.Round(model.KontraM3, 6, MidpointRounding.AwayFromZero);

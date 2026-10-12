@@ -123,6 +123,43 @@ public sealed class FinansPostgresTests
     }
 
     /// <summary>
+    /// Panel detay dökümü gruplu ve sıralıdır: Normal → Saha → Yedek projeler → Bağımsız işler; grup içinde iş bedeli
+    /// büyükten küçüğe. Projesiz işler müşteriye göre ayrı satırlardır (eskiden tek "BAĞIMSIZ" satırında birleşip ilk
+    /// müşteriyi gösteriyordu).
+    /// </summary>
+    [PostgresRaporFact, Trait("Category", "Postgres")]
+    public async Task PanelDokumu_ProjeTipineGoreGruplanir_GrupIcindeTutaraGoreSiralanir_BagimsizMusteriyeBolunur()
+    {
+        await InDatabase(async options =>
+        {
+            await using var db = new AppDbContext(options); var finans = Finans(db);
+            db.Projeler.AddRange(new Proje { Id = 101, ProjeNo = "PA-N", ProjeTipiId = (int)ProjeTipi.Normal },
+                new Proje { Id = 102, ProjeNo = "PA-N2", ProjeTipiId = (int)ProjeTipi.Normal },
+                new Proje { Id = 103, ProjeNo = "PA-S", ProjeTipiId = (int)ProjeTipi.Saha },
+                new Proje { Id = 104, ProjeNo = "PA-Y", ProjeTipiId = (int)ProjeTipi.Yedek });
+            FinansIsKaydi Is(int? projeId, string projeNo, string musteri, decimal tutar)
+            {
+                var w = Work($"{projeNo} {musteri}", tutar);
+                w.ProjeId = projeId; w.ProjeNo = projeNo; w.Musteri = musteri;
+                return w;
+            }
+            db.Set<FinansIsKaydi>().AddRange(Is(101, "PA-N", "GE", 100m), Is(102, "PA-N2", "GE", 300m), Is(103, "PA-S", "GE", 900m),
+                Is(104, "PA-Y", "GE", 500m), Is(null, "BAĞIMSIZ", "GE Vernova", 50m), Is(null, "BAĞIMSIZ", "ACME", 70m),
+                Is(null, "BAĞIMSIZ", "ACME", 5m));
+            await db.SaveChangesAsync();
+
+            var panel = await finans.Panel.PanelAsync(new(2026, 9, 1), new(2026, 9, 30), Ct);
+
+            Assert.Equal(
+                [("PA-N2", "GE", FinansPanelProjeGrubu.Normal, 1), ("PA-N", "GE", FinansPanelProjeGrubu.Normal, 1),
+                 ("PA-S", "GE", FinansPanelProjeGrubu.Saha, 1), ("PA-Y", "GE", FinansPanelProjeGrubu.Yedek, 1),
+                 ("BAĞIMSIZ", "ACME", FinansPanelProjeGrubu.Bagimsiz, 2), ("BAĞIMSIZ", "GE Vernova", FinansPanelProjeGrubu.Bagimsiz, 1)],
+                panel.ProjeOzetleri!.Select(x => (x.ProjeNo, x.Musteri, x.ProjeGrubu, x.IsKaydi)));
+            Assert.Equal(75m, panel.ProjeOzetleri!.Single(x => x.Musteri == "ACME").IsBedeli);
+        });
+    }
+
+    /// <summary>
     /// Kontra sandıkta Ambalaj m³ hesaplamaz: ahşap ve kontra m³ elle girilir, bileşik toplam m³ tarifesiyle fiyatlanır,
     /// kayıt otomatik fiyatlamada kalır (FinansMiktariManuel değişmez), üretim aktarımı hacmi ezmez ve PO'ya bağlı
     /// kaydın hacmi değiştirilemez.
@@ -163,6 +200,15 @@ public sealed class FinansPostgresTests
             db.ChangeTracker.Clear();
             var hata = await Assert.ThrowsAsync<IsKuraliException>(() => finans.IsKaydi.HacimGirAsync(kayit.Id, new(2m, 1m, "PO sonrası deneme"), Ct));
             Assert.Contains("PO'ya bağlı", hata.Message);
+
+            // Ahşap kapalı sandığın m³'ü üretimden gelir; elle hacim reddedilir.
+            db.ChangeTracker.Clear();
+            await finans.UretimAktarim.UretimKayitlariniAktarAsync([new FinansUretimAktarimModel("AMBALAJURETIM", "ahsap-1", true, null, "QA",
+                "Sentetik", FinansIsTuru.AnaAmbalaj, "Ahşap kasa", 1, 1.5m, Date, Date, SandikTipi: "Ahşap Kapalı",
+                SandikCinsi: AmbalajSandikCinsi.AhsapKapali)], Ct);
+            var ahsap = await db.Set<FinansIsKaydi>().SingleAsync(x => x.KaynakKayitId == "ahsap-1");
+            var ahsapHata = await Assert.ThrowsAsync<IsKuraliException>(() => finans.IsKaydi.HacimGirAsync(ahsap.Id, new(0m, 0.5m, "Kontra kapak"), Ct));
+            Assert.Contains("kontrplak veya katlanır", ahsapHata.Message);
         });
     }
 

@@ -8,6 +8,16 @@ koşum sayıları tarihsel kayıttır; depo dışında yönetilen 02–04 SQL'le
 bugünkü halini veya canlıda elle uygulanmasını doğrulamaz. Bu geçiş için
 ayrı staging provası ve DBA doğrulaması gerekir.
 
+## Kontrplak hacmi, özel sandık–finans ilişkisi ve panel dökümü — 10 Ekim 2026
+
+- Ahşap/kontra m³ yalnız Ambalaj'ın m³ hesaplamadığı kontrplak/katlanır sandıkta (veya daha önce elle girilmiş hacimde) girilir (`FinansHacimKurallari.ElleGirilebilir`); ekranda işin Fiyatlandırma sekmesindedir ve tarife × bileşik m³ önizlenir. Ahşap sandıkta elle hacim 409'dur.
+- Özel (bağımsız) sandık kaydedilince üretime alınmaz ve finansa aktif iş kaydı açmaz; normal plan sandıkları gibi üretim formu oluşunca üretime alınır ve finansa aktarılır. Eski davranışla üretime alınmış kayıtlar düzenlenince durumu korunur (veri taşınmadı).
+- Finans panelinin detay dökümü Normal → Saha → Yedek → Bağımsız gruplarında, grup içinde iş bedeline göre sıralıdır; projesiz işler müşteriye göre ayrı satırdır.
+
+Testler: [FinansPoFaturaKurallariTests](../../3K.Application.Tests/FinansPoFaturaKurallariTests.cs) (`Elle_hacim_yalniz_kontrplak_katlanir_sandikta_girilir`), [FinansPostgresTests](../../3K.Application.Tests/FinansPostgresTests.cs) (`KontraHacim_…` ahşap reddi, `PanelDokumu_ProjeTipineGoreGruplanir_…`), [AmbalajSandikTipiVeTamamlamaTests](../../3K.Application.Tests/AmbalajSandikTipiVeTamamlamaTests.cs) (`Ozel_sandik_kaydedilince_uretime_alinmaz_finans_kaydi_form_olusunca_acilir`); ön yüz `finans-kayit-detay`, `finans-panel-detay`, `uretim-yasam-dongusu`, `finans-urun-kaydet` spec'leri.
+
+Koşum: `FullyQualifiedName~Finans|FullyQualifiedName~Ambalaj` 554/554 (PostgreSQL vakaları izole sunucuda); ön yüz finans + ambalaj spec'leri 207/207. Tam paketler koşulmadı.
+
 ## Çok projeli toplu sevk (tır seferi) ve Sevkiyatlar — 8 Ekim 2026
 
 Birden çok projenin sevke hazır sandıkları tek tır seferinde, hepsi ya da hiçbiri sevk edilir (`POST api/sevkiyat/toplu-sevk`, C-08); sefer kaydı (`SevkSeferleri`, yıl + sıra numarası, normalize plaka, şoför, dorse) proje başına sevkiyatları gruplar ve tekil sevk de tek projelik sefer açar (C-09). Sevkiyatlar sayfası (`sevkiyatlar` R) sefer listesi, sefer detayı ve plaka/proje/ay istatistiklerini sefer ve sevkiyat kayıtlarından okur; sefere bağlı olmayan eski sevkiyatlar plaka + sevk günüyle "eski kayıt" olarak gruplanır (C-10). Şema `20261008_04_Sevk_Seferleri.sql`, izin `20261008_05_Sevkiyatlar_Yetkisi.sql`.

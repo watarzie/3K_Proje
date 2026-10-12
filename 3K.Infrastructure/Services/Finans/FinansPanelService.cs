@@ -60,25 +60,60 @@ internal sealed class FinansPanelService(AppDbContext context) : IFinansPanelSer
             works.Where(x => x.IsTuru == FinansIsTuru.OzelIs).GroupBy(x => new { x.OzelIsTuru, x.ParaBirimi }).Select(x => new FinansGrafikModel(x.Key.OzelIsTuru ?? "Özel İş", x.Key.ParaBirimi, x.Sum(y => y.FaturalananNetTutar), 0)).ToArray(),
             ProjeDurumSayilari(allWorks.Where(x => x.FinansTarihi >= baslangic.Date)),
             alacaklar, beklenenTahsilat, yaslandirma, uyariGunu, sayilar, aylikSayilar,
-            ProjeOzetleri(works, expenses), KategoriOzetleri(works));
+            ProjeOzetleri(works, expenses, await ProjeTipleriAsync(works, cancellationToken)), KategoriOzetleri(works));
+    }
+
+    /// <summary>Dökümdeki sistem projelerinin tipi (Normal/Saha/Yedek); tek sorguda okunur.</summary>
+    private async Task<IReadOnlyDictionary<int, int>> ProjeTipleriAsync(IReadOnlyCollection<FinansIsKaydiModel> works, CancellationToken cancellationToken)
+    {
+        var ids = works.Where(x => x.ProjeId.HasValue).Select(x => x.ProjeId!.Value).Distinct().ToArray();
+        if (ids.Length == 0) return new Dictionary<int, int>();
+        return await context.Set<Proje>().AsNoTracking().Where(x => ids.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, x => x.ProjeTipiId, cancellationToken);
     }
 
     /// <summary>
-    /// Proje × para birimi detay dökümü; gider, aynı proje numarası ve para birimiyle yazılmış dönem giderleridir.
-    /// Durum, projenin dönemdeki bütün kalemlerinden <see cref="FinansTutarKurallari.BirlesikDurum"/> ile türetilir.
+    /// Proje × para birimi detay dökümü, gruplu ve sıralı: Normal → Saha → Yedek projeler → Bağımsız işler; grup içinde
+    /// iş bedeline göre (büyükten küçüğe). Sistem projesine bağlı olmayan işler (ör. "BAĞIMSIZ", düzenli iş, manuel
+    /// proje no) Bağımsız gruptadır ve müşteriye göre ayrı satırlara bölünür. Gider, aynı proje numarası ve para
+    /// birimiyle yazılmış dönem giderleridir; müşteriye bölünen proje numarasında gider müşteriye bağlanamadığı için
+    /// satıra yazılmaz. Durum, satırın dönemdeki kalemlerinden <see cref="FinansTutarKurallari.BirlesikDurum"/> ile türetilir.
     /// </summary>
-    internal static IReadOnlyList<FinansPanelProjeOzetiModel> ProjeOzetleri(IReadOnlyCollection<FinansIsKaydiModel> works, IReadOnlyCollection<FinansGider> expenses)
+    internal static IReadOnlyList<FinansPanelProjeOzetiModel> ProjeOzetleri(
+        IReadOnlyCollection<FinansIsKaydiModel> works,
+        IReadOnlyCollection<FinansGider> expenses,
+        IReadOnlyDictionary<int, int>? projeTipleri = null)
     {
         var giderler = expenses.GroupBy(x => (Proje: x.Proje?.ProjeNo ?? x.ManuelProjeNo ?? "", x.ParaBirimi))
             .ToDictionary(x => x.Key, x => x.Sum(y => y.Matrah));
-        return works.GroupBy(x => (x.ProjeNo, x.ParaBirimi)).Select(g =>
+        FinansPanelProjeGrubu Grup(FinansIsKaydiModel x) => !x.ProjeId.HasValue
+            ? FinansPanelProjeGrubu.Bagimsiz
+            : (projeTipleri?.GetValueOrDefault(x.ProjeId.Value) ?? (int)ProjeTipi.Normal) switch
+            {
+                (int)ProjeTipi.Saha => FinansPanelProjeGrubu.Saha,
+                (int)ProjeTipi.Yedek => FinansPanelProjeGrubu.Yedek,
+                _ => FinansPanelProjeGrubu.Normal
+            };
+        var satirlar = works.GroupBy(x =>
+        {
+            var grup = Grup(x);
+            var musteri = grup == FinansPanelProjeGrubu.Bagimsiz ? (x.Musteri ?? "").Trim() : null;
+            return (x.ProjeNo, x.ParaBirimi, Grup: grup, Musteri: musteri);
+        }).ToArray();
+        // Bağımsız grupta aynı proje numarası birden çok müşteriye bölündüyse o numaranın gideri tek satıra yazılamaz.
+        var bolunenler = satirlar.GroupBy(g => (g.Key.ProjeNo, g.Key.ParaBirimi)).Where(x => x.Count() > 1)
+            .Select(x => x.Key).ToHashSet();
+        return satirlar.Select(g =>
         {
             var durum = FinansTutarKurallari.BirlesikDurum(g.Select(x => new FinansKalemTutarlari(x.NetTutar, x.SiparisNetTutar, x.FaturalananNetTutar)));
-            return new FinansPanelProjeOzetiModel(g.Key.ProjeNo, g.Select(x => x.Musteri).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "",
+            var gider = bolunenler.Contains((g.Key.ProjeNo, g.Key.ParaBirimi)) ? 0m : giderler.GetValueOrDefault((g.Key.ProjeNo, g.Key.ParaBirimi));
+            return new FinansPanelProjeOzetiModel(g.Key.ProjeNo,
+                g.Key.Musteri ?? g.Select(x => x.Musteri).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "",
                 g.Key.ParaBirimi, g.Count(), g.Sum(x => x.NetTutar), g.Sum(x => x.SiparisNetTutar), g.Sum(x => x.FaturalananNetTutar),
-                g.Sum(x => x.KalanSiparisNetTutar), g.Sum(x => x.KalanFaturaNetTutar), giderler.GetValueOrDefault((g.Key.ProjeNo, g.Key.ParaBirimi)),
-                durum.Siparis, durum.Fatura);
-        }).OrderByDescending(x => x.IsBedeli).ThenBy(x => x.ProjeNo, StringComparer.Ordinal).ToArray();
+                g.Sum(x => x.KalanSiparisNetTutar), g.Sum(x => x.KalanFaturaNetTutar), gider,
+                durum.Siparis, durum.Fatura, g.Key.Grup);
+        }).OrderBy(x => x.ProjeGrubu).ThenByDescending(x => x.IsBedeli).ThenBy(x => x.ProjeNo, StringComparer.Ordinal)
+            .ThenBy(x => x.Musteri, StringComparer.Ordinal).ToArray();
     }
 
     /// <summary>Kategori × para birimi detay dökümü (kategori kuralı <see cref="FinansKategoriKurali"/>).</summary>

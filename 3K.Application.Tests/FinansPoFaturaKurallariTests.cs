@@ -148,6 +148,19 @@ public sealed class FinansPoFaturaKurallariTests
         Assert.Equal(200m, FinansTutarKurallari.IsNet(kayit));
     }
 
+    /// <summary>Elle hacim yalnız Ambalaj'ın m³ hesaplamadığı kontrplak/katlanır sandıkta; önceden elle girilmiş hacim düzeltilebilir.</summary>
+    [Theory]
+    [InlineData(AmbalajSandikCinsi.Kontrplak, null, false, true)]
+    [InlineData(AmbalajSandikCinsi.Katlanir, null, false, true)]
+    [InlineData(null, "Katlanır Sandık", false, true)]
+    [InlineData(AmbalajSandikCinsi.AhsapKapali, null, false, false)]
+    [InlineData(AmbalajSandikCinsi.Kafes, null, false, false)]
+    [InlineData(null, null, false, false)]
+    [InlineData(null, null, true, true)]
+    [InlineData(AmbalajSandikCinsi.AhsapKapali, null, true, true)]
+    public void Elle_hacim_yalniz_kontrplak_katlanir_sandikta_girilir(AmbalajSandikCinsi? cinsi, string? tipi, bool hacimManuel, bool beklenen) =>
+        Assert.Equal(beklenen, FinansHacimKurallari.ElleGirilebilir(cinsi, tipi, hacimManuel));
+
     [Theory]
     [InlineData(1.2, 0.8, true)]
     [InlineData(0, 0.5, true)]

@@ -44,6 +44,13 @@ public static class FinansHacimKurallari
             ? (kayitliAhsap ?? 0, kayitliKontra ?? 0)
             : Hacim(cinsi, sandikTipi, toplamM3, bilesenler);
 
+    /// <summary>
+    /// Ahşap/kontra m³ elle girilebilir mi: Ambalaj'ın m³ hesaplamadığı kontrplak ve katlanır sandıkta; ahşap kapalı
+    /// ve kafes sandığın m³'ü üretimden gelir. Daha önce elle girilmiş hacim (ör. özel iş) düzeltilebilir kalır.
+    /// </summary>
+    public static bool ElleGirilebilir(AmbalajSandikCinsi? cinsi, string? sandikTipi, bool hacimManuel) =>
+        hacimManuel || Malzeme(cinsi, sandikTipi) == FinansSandikMalzemesi.Kontra;
+
     /// <summary>Bileşik toplam = ahşap m³ + kontra m³ (altı ondalık).</summary>
     public static decimal Bilesik(decimal? ahsap, decimal? kontra) =>
         decimal.Round((ahsap ?? 0) + (kontra ?? 0), 6, MidpointRounding.AwayFromZero);

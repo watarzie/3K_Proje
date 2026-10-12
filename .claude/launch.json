@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "onyuz",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["start", "--prefix", "C:\\Users\\Watarzie\\Desktop\\3k_onyuz"],
+      "port": 4200
+    }
+  ]
+}

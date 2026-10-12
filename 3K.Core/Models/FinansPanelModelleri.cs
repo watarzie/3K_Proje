@@ -17,10 +17,21 @@ public sealed record FinansPanelModel(DateTime Baslangic, DateTime Bitis, string
     IReadOnlyList<FinansPanelProjeOzetiModel>? ProjeOzetleri = null,
     IReadOnlyList<FinansPanelKategoriOzetiModel>? KategoriOzetleri = null);
 
+/// <summary>Panel detay dökümünün proje grubu (sıralama sırası): sistem projesinin tipi veya projesiz iş.</summary>
+public enum FinansPanelProjeGrubu
+{
+    Normal = 1,
+    Saha = 2,
+    Yedek = 3,
+    /// <summary>Sistem projesine bağlı olmayan işler (bağımsız/münferit iş, düzenli iş, manuel proje numarası).</summary>
+    Bagimsiz = 4
+}
+
 /// <summary>
 /// Panel detay dökümü, proje × para birimi: dönemdeki iş kalemi sayısı, iş bedeli, PO'ya bağlanan ve faturalanan
 /// net, kalanlar, projeye yazılan gider ve birleşik PO/fatura karşılanması. Tutar alan adları maske listesindedir
-/// (isBedeli, *NetTutar, gider); yetkisi olmayana null döner. Sayı alanları maskelenmez.
+/// (isBedeli, *NetTutar, gider); yetkisi olmayana null döner. Sayı alanları ve <see cref="ProjeGrubu"/> maskelenmez.
+/// Bağımsız grupta satır proje numarası ve müşteriyle ayrılır.
 /// </summary>
 public sealed record FinansPanelProjeOzetiModel(
     string ProjeNo,
@@ -34,7 +45,8 @@ public sealed record FinansPanelProjeOzetiModel(
     decimal? KalanFaturaNetTutar,
     decimal? Gider,
     FinansKarsilanma Siparis,
-    FinansKarsilanma Fatura);
+    FinansKarsilanma Fatura,
+    FinansPanelProjeGrubu ProjeGrubu = FinansPanelProjeGrubu.Normal);
 
 /// <summary>Panel detay dökümü, iş kategorisi × para birimi (PO/fatura ekranındaki kategori kırılımıyla aynı).</summary>
 public sealed record FinansPanelKategoriOzetiModel(

@@ -72,6 +72,40 @@ public sealed class AmbalajSandikTipiVeTamamlamaTests
         Assert.NotEqual("uygulanmaz-v1", kayit.M3HesaplamaVersiyonu);
     }
 
+    /// <summary>
+    /// Özel sandık normal plan sandıkları gibi üretim formu oluşunca üretime alınır: kaydetmek finansa aktif iş kaydı
+    /// açmaz (kaynak pasif gider), üretim tarihi yazılmaz. Daha önce üretime alınmış (eski) kayıt düzenlenince durumu korunur.
+    /// </summary>
+    [Fact]
+    public async Task Ozel_sandik_kaydedilince_uretime_alinmaz_finans_kaydi_form_olusunca_acilir()
+    {
+        var f = new Fixture(OrtakRoller.TumIzinler(), ProjeTipi.Saha);
+
+        var sonuc = await f.OzelSandikHandler().Handle(OzelSandik(tur: 4), default);
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        var kayit = Assert.Single(f.Kayitlar);
+        Assert.False(kayit.UretimeAlindi);
+        Assert.Null(kayit.UretimTarihi);
+        Assert.Equal(AmbalajUretimDurumu.Planlandi, kayit.UretimDurumu);
+        Assert.False(Assert.Single(f.Finans.Modeller).KaynakAktif);
+        Assert.False(AmbalajFinansAktarimPolitikasi.AktarimaHazirMi(kayit));
+
+        // Eski davranışla kaydedilmiş (üretime alınmış) özel sandık düzenlenince finans kaydı pasife düşmez.
+        kayit.UretimeAlindi = true;
+        kayit.UretimTarihi = PlanBaslangici;
+        f.Finans.Modeller.Clear();
+        var duzenle = new AmbalajBagimsizSandikKaydetCommand
+        {
+            SandikId = kayit.Id, ProjeId = 10, Tur = 4, SandikNo = "1", Ad = "Saha sandığı (düzeltildi)", SandikTipi = "Kontrplak Sandık",
+            Adet = 1, Boy = 1200, En = 1000, Yukseklik = 900, TalimatVeren = "Planlama"
+        };
+        Assert.True((await f.OzelSandikHandler().Handle(duzenle, default)).IsSuccess);
+        Assert.True(kayit.UretimeAlindi);
+        Assert.Equal(PlanBaslangici, kayit.UretimTarihi);
+        Assert.True(Assert.Single(f.Finans.Modeller).KaynakAktif);
+    }
+
     /// <summary>A1: aynı proje + grup + sandık no ile ikinci özel sandık eklenemez (örnek: PA484-03-SAHA sandık 1).</summary>
     [Fact]
     public async Task A1_Ayni_ozel_sandik_ikinci_kez_eklenemez()
