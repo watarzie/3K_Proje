@@ -50,8 +50,23 @@ function Baslat([int]$port) {
     return $p.ExitCode -eq 0
 }
 
+function PortAcik([int]$port) {
+    $c = New-Object System.Net.Sockets.TcpClient
+    try { $c.Connect('127.0.0.1', $port); return $true } catch { return $false } finally { $c.Dispose() }
+}
+
 $yonlendirici = $null
-if (-not (Baslat 55439)) {
+# -KeepRunning ile açık bırakılmış sunucu yeniden başlatılmaz; yalnız 55439 erişilemiyorsa yönlendirici açılır.
+$durum = Start-Process -FilePath $pgCtl -ArgumentList @('-D', "`"$DataDir`"", 'status') -WindowStyle Hidden -PassThru
+$durum.WaitForExit()
+if ($durum.ExitCode -eq 0) {
+    Write-Host 'Test sunucusu zaten çalışıyor.'
+    if (-not (PortAcik 55439)) {
+        $yonlendirici = Start-Process node -ArgumentList "`"$(Join-Path $PSScriptRoot 'pg-yonlendir.js')`"" -PassThru -WindowStyle Hidden
+        Start-Sleep -Milliseconds 500
+    }
+}
+elseif (-not (Baslat 55439)) {
     Write-Host '55439 bağlanamadı; 55440 + yerel yönlendirme deneniyor.'
     if (-not (Baslat 55440)) { throw "Test sunucusu başlatılamadı; günlük: $log" }
     $yonlendirici = Start-Process node -ArgumentList "`"$(Join-Path $PSScriptRoot 'pg-yonlendir.js')`"" -PassThru -WindowStyle Hidden
