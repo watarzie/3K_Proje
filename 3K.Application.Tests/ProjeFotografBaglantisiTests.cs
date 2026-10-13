@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using _3K.Application.Behaviors;
 using _3K.Application.Common;
 using _3K.Application.Features.ProjeIslemleri.Commands;
+using _3K.Application.Features.ProjeIslemleri.DTOs;
 using _3K.Application.Features.ProjeIslemleri.Queries;
 using _3K.Application.Features.ProjeIslemleri.Validators;
 using _3K.Core.Constants;
@@ -85,7 +86,7 @@ public sealed class ProjeFotografBaglantisiTests
         var eklendi = await handler.Handle(new() { ProjeId = 10, Baglanti = " foto.ornek.com/pa727 " }, default);
 
         Assert.True(eklendi.IsSuccess);
-        Assert.Equal("https://foto.ornek.com/pa727", eklendi.Value);
+        Assert.Equal("https://foto.ornek.com/pa727", eklendi.Value!.FotografBaglantisi);
         Assert.Equal("https://foto.ornek.com/pa727", uow.Repo<Proje>().Rows.Single().FotografBaglantisi);
         var kayit = Assert.Single(hareket.Rows);
         Assert.Equal(("Fotoğraf Bağlantısı Eklendi", "Yok", "https://foto.ornek.com/pa727", 7, 10),
@@ -101,7 +102,7 @@ public sealed class ProjeFotografBaglantisiTests
 
         var kaldirildi = await handler.Handle(new() { ProjeId = 10, Baglanti = "  " }, default);
         Assert.True(kaldirildi.IsSuccess);
-        Assert.Null(kaldirildi.Value);
+        Assert.Null(kaldirildi.Value!.FotografBaglantisi);
         Assert.Null(uow.Repo<Proje>().Rows.Single().FotografBaglantisi);
         Assert.Equal(("Fotoğraf Bağlantısı Kaldırıldı", "Yok"), (hareket.Rows[^1].Islem, hareket.Rows[^1].YeniDeger));
 
@@ -131,11 +132,12 @@ public sealed class ProjeFotografBaglantisiTests
     }
 
     /// <summary>
-    /// Betik kolonu varchar(1000) boş olabilir olarak ekler; kök düzeyde rotasız düğümü (5256) ve yalnız Admin W iznini
-    /// yazar; ikinci çalıştırmada hiçbir şey değişmez ve EF eşlemesi kolonla çalışır.
+    /// 01 betiği kolonu varchar(1000) boş olabilir olarak ekler, düğümü (5256) ve yalnız Admin W iznini yazar; 02 betiği
+    /// düğümü Projeler altına (Sira 9, ikonsuz) taşır. İkisi de ikinci çalıştırmada hiçbir şey değiştirmez; EF eşlemesi
+    /// kolonla çalışır.
     /// </summary>
     [PostgresRaporFact, Trait("Category", "Postgres")]
-    public async Task Postgres_Betik_KolonuVeKokDugumuEkler_YalnizAdmineYazmaVerir_TekrarCalisir()
+    public async Task Postgres_Betikler_KolonuVeDugumuProjelerAltindaKurar_YalnizAdmineYazmaVerir_TekrarCalisir()
     {
         await FinansPostgresTests.InDatabase(async options =>
         {
@@ -143,10 +145,14 @@ public sealed class ProjeFotografBaglantisiTests
             // EnsureCreated kolonu modelden kurar; betiğin kolonu kendisinin eklediği sınanır.
             await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Projeler\" DROP COLUMN \"FotografBaglantisi\"");
             var betik = await File.ReadAllTextAsync(FinansSekmeAgaci.BetikYolu("20261014_01_Proje_Fotograf_Baglantisi.sql"));
+            var tasima = await File.ReadAllTextAsync(FinansSekmeAgaci.BetikYolu("20261014_02_Proje_Fotograf_Baglantisi_Projeler_Altina.sql"));
 
             await db.Database.ExecuteSqlRawAsync(betik);
+            await db.Database.ExecuteSqlRawAsync(tasima);
             var ilkSatirlar = await db.RolYetkileri.AsNoTracking().CountAsync();
+            var ilkGuncelleme = (await db.MenuTanimlari.AsNoTracking().SingleAsync(x => x.Id == 5256)).UpdatedDate;
             await db.Database.ExecuteSqlRawAsync(betik);
+            await db.Database.ExecuteSqlRawAsync(tasima);
             db.ChangeTracker.Clear();
 
             var kolon = await db.Database.SqlQueryRaw<string>(
@@ -155,7 +161,10 @@ public sealed class ProjeFotografBaglantisiTests
             Assert.Equal("character varying:1000:YES", kolon);
 
             var dugum = await db.MenuTanimlari.AsNoTracking().SingleAsync(x => x.Kod == YetkiKodlari.Proje.FotografBaglantisi);
-            Assert.Equal((5256, (int?)null, (string?)null, "MENU.PROJE_FOTOGRAF_BAGLANTISI"), (dugum.Id, dugum.ParentId, dugum.Route, dugum.LabelKey));
+            var projeler = await db.MenuTanimlari.AsNoTracking().SingleAsync(x => x.Kod == YetkiKodlari.Proje.Kok);
+            Assert.Equal((5256, (int?)projeler.Id, (string?)null, "MENU.PROJE_FOTOGRAF_BAGLANTISI", 9, ""),
+                (dugum.Id, dugum.ParentId, dugum.Route, dugum.LabelKey, dugum.Sira, dugum.Icon));
+            Assert.Equal(ilkGuncelleme, dugum.UpdatedDate);
             var izin = Assert.Single(await db.RolYetkileri.AsNoTracking().Where(x => x.MenuTanimiId == 5256).ToListAsync());
             Assert.Equal((SistemRolleri.AdminId, (int)YetkiTipi.W), (izin.RolId, izin.YetkiTipiId));
             Assert.Equal(ilkSatirlar, await db.RolYetkileri.AsNoTracking().CountAsync());
@@ -171,8 +180,8 @@ public sealed class ProjeFotografBaglantisiTests
     private static async Task<bool> GecerMiAsync(ProjeFotografBaglantisiGuncelleCommand komut, OrtakRoller roller)
     {
         var gecti = false;
-        var sonuc = await new AuthorizationBehavior<ProjeFotografBaglantisiGuncelleCommand, Result<string?>>(new OrtakUser(), roller)
-            .Handle(komut, () => { gecti = true; return Task.FromResult(Result<string?>.Success(null)); }, CancellationToken.None);
+        var sonuc = await new AuthorizationBehavior<ProjeFotografBaglantisiGuncelleCommand, Result<ProjeFotografBaglantisiDto>>(new OrtakUser(), roller)
+            .Handle(komut, () => { gecti = true; return Task.FromResult(Result<ProjeFotografBaglantisiDto>.Success(new())); }, CancellationToken.None);
         if (!gecti) Assert.Equal(403, sonuc.StatusCode);
         return gecti;
     }

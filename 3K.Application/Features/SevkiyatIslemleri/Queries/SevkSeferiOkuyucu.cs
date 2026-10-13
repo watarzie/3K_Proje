@@ -110,6 +110,19 @@ internal static class SevkSeferiOkuyucu
         .ThenBy(x => x.Anahtar, StringComparer.Ordinal)
         .ToList();
 
+    /// <summary>
+    /// Sevkiyatlar sayfasının metin süzgeci: plaka normalize içerir (bkz. <see cref="PlakaEslesir"/>), proje no
+    /// seferdeki projelerden birinde büyük/küçük harf duyarsız geçer (sefer bütün projeleriyle kalır).
+    /// </summary>
+    public static IEnumerable<SevkSeferiOzetDto> Suz(IEnumerable<SevkSeferiOzetDto> seferler, string? plaka, string? projeNo)
+    {
+        var arananProje = projeNo?.Trim();
+        return seferler
+            .Where(x => PlakaEslesir(x.AracPlaka, plaka))
+            .Where(x => string.IsNullOrEmpty(arananProje) ||
+                        x.ProjeNolari.Any(p => p.Contains(arananProje, StringComparison.OrdinalIgnoreCase)));
+    }
+
     /// <summary>Normalize plaka süzgeci: "34 abc" ile "34ABC123" eşleşir.</summary>
     public static bool PlakaEslesir(string? plaka, string? aranan)
     {

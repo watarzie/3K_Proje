@@ -15,15 +15,18 @@
 --      belge, denetim ve kalıcı silme bir sekmeye taşınmaz: yeni modelde bunlar sekmenin kendi R/W iznidir.
 --      NOT: sekme W'si olan rol, sekmenin bütün işlemlerini yapar (ör. yalnız "PO gir" W'si olan rol artık PO/Fatura'da
 --      fatura da girer). Değişen seviyeler NOTICE olarak yazılır.
---   3) finans-yonetimi altında kalan bütün diğer kodlar (modül, 8 sekme ve vade uyarısı hariç) RolYetkileri kayıtlarıyla
---      birlikte SİLİNİR. Silinecek kodlar ve rol × seviye kararları önce NOTICE olarak listelenir.
+--   3) finans-yonetimi altında kalan bütün diğer kodlar (modül, sekme ve alt sekme düğümleri finans-sekme-* ve vade
+--      uyarısı hariç) RolYetkileri kayıtlarıyla birlikte SİLİNİR. Silinecek kodlar ve rol × seviye kararları önce
+--      NOTICE olarak listelenir.
 --
 -- GÜVENLİK: 3. adım yıkıcıdır. Onay, işlemin yapılacağı veritabanının adıdır; betik yalnız bağlı olduğu veritabanının
 --   adı onayla aynıysa çalışır, aksi hâlde listeyi yazıp HİÇBİR ŞEY DEĞİŞTİRMEDEN durur (bütün adımlar geri alınır).
 --   Önce onaysız çalıştırıp listeyi görün, sonra:
 --   psql -d 3K_Db ... -v ON_ERROR_STOP=1 -c "SET uc_k.finans_sekme_yetkisi = '3K_Db'" -f <bu dosya>
 --   (pgAdmin: sorgu aracını 3K_Db veritabanından açın; aynı pencerede önce SET satırını, sonra bu dosyayı çalıştırın.)
--- Tekrar çalıştırılabilir: silinecek kod kalmadıysa onay istemez, vade düğümü varsa eklemez.
+-- Tekrar çalıştırılabilir: silinecek kod kalmadıysa onay istemez ve hiçbir izni değiştirmez (yöneticinin sonradan
+-- düşürdüğü sekme izni, Admin'inki dahil, geri yükseltilmez); vade düğümü varsa eklemez. 20261013_03'ün eklediği alt
+-- sekme düğümleri (finans-sekme-*) hiçbir zaman silinmez.
 -- Yeni API sürümüyle birlikte uygulanır: eski API silinen kodları ister, yeni API yalnız sekme kodlarını.
 -- =====================================================================================
 BEGIN;
@@ -120,7 +123,7 @@ BEGIN
     END IF;
 END $$;
 
--- Silinecek kodlar: finans-yonetimi ağacındaki kalan kodlar dışındaki her şey.
+-- Silinecek kodlar: finans-yonetimi ağacındaki kalan kodlar ve sekme/alt sekme düğümleri (finans-sekme-*) dışındaki her şey.
 CREATE TEMP TABLE finans_silinecek AS
 WITH RECURSIVE agac AS (
     SELECT m."Id", m."Kod", 0 AS derinlik FROM "MenuTanimlari" m WHERE m."Kod" = 'finans-yonetimi'
@@ -129,9 +132,11 @@ WITH RECURSIVE agac AS (
 )
 SELECT a."Id" AS id, a."Kod" AS kod, a.derinlik
 FROM agac a
-WHERE a."Kod" NOT IN (SELECT kod FROM finans_kalan_kodlar);
+WHERE a."Kod" NOT IN (SELECT kod FROM finans_kalan_kodlar)
+  AND a."Kod" NOT LIKE 'finans-sekme-%';
 
--- 2) Alt kod seviyelerini sekmeye taşı (silmeden önce). Seviye: N=1 < R=2 < W=3.
+-- 2) Alt kod seviyelerini sekmeye taşı (silmeden önce). Seviye: N=1 < R=2 < W=3. Silinecek kod yoksa geçiş tamamlanmıştır;
+--    hiçbir seviye değişmez.
 CREATE TEMP TABLE finans_sekme_hedef ON COMMIT DROP AS
 WITH seviyeler AS (
     SELECT ry."RolId" AS rol_id, m."Kod" AS kod,
@@ -155,7 +160,8 @@ SELECT md.rol_id, sk.kod AS sekme_kod, coalesce(mv.seviye, 1) AS eski,
 FROM modul md
 CROSS JOIN (SELECT kod FROM finans_kalan_kodlar WHERE kod LIKE 'finans-sekme-%') sk
 LEFT JOIN alt a ON a.rol_id = md.rol_id AND a.sekme_kod = sk.kod
-LEFT JOIN mevcut mv ON mv.rol_id = md.rol_id AND mv.sekme_kod = sk.kod;
+LEFT JOIN mevcut mv ON mv.rol_id = md.rol_id AND mv.sekme_kod = sk.kod
+WHERE EXISTS (SELECT 1 FROM finans_silinecek);
 
 DO $$
 DECLARE

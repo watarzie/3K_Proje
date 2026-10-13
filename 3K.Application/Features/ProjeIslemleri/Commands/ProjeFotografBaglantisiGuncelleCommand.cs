@@ -1,5 +1,6 @@
 using MediatR;
 using _3K.Application.Common;
+using _3K.Application.Features.ProjeIslemleri.DTOs;
 using _3K.Core.Constants;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
@@ -10,9 +11,9 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
 {
     /// <summary>
     /// Projenin fotoğraf sayfası bağlantısını ekler, değiştirir veya boş gönderilirse kaldırır. Proje tipinden bağımsız
-    /// tek izin: <see cref="YetkiKodlari.Proje.FotografBaglantisi"/> W. Dönen değer kaydedilen (normalleştirilmiş) adrestir.
+    /// tek izin: <see cref="YetkiKodlari.Proje.FotografBaglantisi"/> W. Dönen değer kaydedilen (normalleştirilmiş) adrestir; JSON nesnesi olarak.
     /// </summary>
-    public class ProjeFotografBaglantisiGuncelleCommand : IRequest<Result<string?>>, ISecuredRequest, IRequiresMenuPermission
+    public class ProjeFotografBaglantisiGuncelleCommand : IRequest<Result<ProjeFotografBaglantisiDto>>, ISecuredRequest, IRequiresMenuPermission
     {
         public int ProjeId { get; set; }
         public string? Baglanti { get; set; }
@@ -25,18 +26,18 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
         IUnitOfWork unitOfWork,
         IHareketService hareketService,
         ICurrentUserService currentUserService)
-        : IRequestHandler<ProjeFotografBaglantisiGuncelleCommand, Result<string?>>
+        : IRequestHandler<ProjeFotografBaglantisiGuncelleCommand, Result<ProjeFotografBaglantisiDto>>
     {
-        public async Task<Result<string?>> Handle(ProjeFotografBaglantisiGuncelleCommand request, CancellationToken cancellationToken)
+        public async Task<Result<ProjeFotografBaglantisiDto>> Handle(ProjeFotografBaglantisiGuncelleCommand request, CancellationToken cancellationToken)
         {
             var proje = await unitOfWork.GetRepository<Proje>().GetByIdAsync(request.ProjeId);
             if (proje == null)
-                return Result<string?>.Failure("Proje bulunamadı.", 404);
+                return Result<ProjeFotografBaglantisiDto>.Failure("Proje bulunamadı.", 404);
 
             var eski = proje.FotografBaglantisi;
             var yeni = ProjeFotografBaglantisiKurali.Normalize(request.Baglanti);
             if (string.Equals(eski, yeni, StringComparison.Ordinal))
-                return Result<string?>.Success(yeni);
+                return Basarili(yeni);
 
             // İzlenen proje doğrudan değiştirilir; sevk edilmiş projede de fotoğraf eklenebildiği için durum kilidi yoktur.
             proje.FotografBaglantisi = yeni;
@@ -57,7 +58,10 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 Aciklama = "Projenin fotoğraf sayfası bağlantısı değiştirildi."
             });
 
-            return Result<string?>.Success(yeni);
+            return Basarili(yeni);
         }
+
+        private static Result<ProjeFotografBaglantisiDto> Basarili(string? baglanti) =>
+            Result<ProjeFotografBaglantisiDto>.Success(new ProjeFotografBaglantisiDto { FotografBaglantisi = baglanti });
     }
 }

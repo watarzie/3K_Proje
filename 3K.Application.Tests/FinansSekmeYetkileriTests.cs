@@ -451,12 +451,21 @@ public sealed class FinansSekmeYetkileriTests
                 (await db.RolYetkileri.SingleAsync(x => x.RolId == 14 && x.MenuTanimiId == poSekmesi)).YetkiTipiId);
             Assert.Equal(8, await db.MenuTanimlari.CountAsync(x => x.Kod.StartsWith("finans-sekme-")));
 
-            // Beklenen kod eksikse betik hiçbir şey değiştirmeden durur.
+            // Sekme düğümleri varken eksik eski kod beklenen durumdur (20261013_02 siler): betik durmaz, hiçbir şey değiştirmez.
             var odeme = menuler[FinansSekmeAgaci.EskiKodlar.OdemeKaydet].Id;
             await db.RolYetkileri.Where(x => x.MenuTanimiId == odeme).ExecuteDeleteAsync();
             await db.MenuTanimlari.Where(x => x.Id == odeme).ExecuteDeleteAsync();
+            satirSayisi = await db.RolYetkileri.CountAsync();
+            await db.Database.ExecuteSqlRawAsync(betik);
+            Assert.Equal(satirSayisi, await db.RolYetkileri.CountAsync());
+
+            // Eklenecek sekme varken beklenen kod eksikse betik hiçbir şey değiştirmeden durur.
+            var munferit = menuler[YetkiKodlari.Finans.SekmeMunferitIsler].Id;
+            await db.RolYetkileri.Where(x => x.MenuTanimiId == munferit).ExecuteDeleteAsync();
+            await db.MenuTanimlari.Where(x => x.Id == munferit).ExecuteDeleteAsync();
             var hata = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlRawAsync(betik));
             Assert.Contains(FinansSekmeAgaci.EskiKodlar.OdemeKaydet, hata.MessageText);
+            Assert.False(await db.MenuTanimlari.AnyAsync(x => x.Kod == YetkiKodlari.Finans.SekmeMunferitIsler));
         });
     }
 
@@ -659,7 +668,7 @@ public sealed class FinansSekmeYetkileriTests
     }
 
     /// <summary>Canlı finans ağacının (MenuTanimlari 47 + 5200–5237) ve rollerinin 08.10.2026 SELECT dökümü (eski kodlarla).</summary>
-    private static async Task CanliAgaciKurAsync(AppDbContext db)
+    internal static async Task CanliAgaciKurAsync(AppDbContext db)
     {
         (int Id, string Kod)[] yapraklar =
         [

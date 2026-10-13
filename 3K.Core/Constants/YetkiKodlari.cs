@@ -26,7 +26,8 @@ public static class YetkiKodlari
         public const string Sevkiyatlar = "sevkiyatlar";
         /// <summary>
         /// Proje fotoğraf sayfası bağlantısı; Normal, Saha ve Yedek proje listelerinin hepsinde aynı koddur (proje tipinden
-        /// bağımsız): R bağlantıyı görür ve açar, W ekler, değiştirir, kaldırır. Kök düzeyde rotasız düğümdür.
+        /// bağımsız): R bağlantıyı görür ve açar, W ekler, değiştirir, kaldırır. Projeler altında rotasız düğümdür
+        /// (Projeler tavanıdır).
         /// </summary>
         public const string FotografBaglantisi = "proje-fotograf-baglantisi";
     }

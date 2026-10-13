@@ -8,7 +8,8 @@
 -- Sekme alt sekmenin tavanıdır: alt sekme R görünür, W alt sekmenin işlemlerini yapar.
 --
 -- Hiçbir rolün bugünkü yetkisi değişmez: her role, alt sekmede bağlı olduğu sekmedeki seviyesi aynen verilir.
--- Yıkıcı değildir. Tekrar çalıştırılabilir: düğüm varsa eklenmez, verilmiş alt sekme izni değiştirilmez.
+-- Yıkıcı değildir. Tekrar çalıştırılabilir: düğüm varsa eklenmez; alt sekme izni yalnız bu çalıştırmada eklenen düğüme
+-- verilir (yöneticinin sonradan kaldırdığı veya düşürdüğü alt sekme izni geri gelmez).
 -- Beklenen sekme düğümü yoksa veya Id başka bir koda aitse hiçbir şey değiştirmeden durur.
 -- 20261013_02_Finans_Sekme_Yetkisine_Gecis.sql'den sonra, yeni API ile birlikte uygulanır.
 -- =====================================================================================
@@ -33,6 +34,9 @@ INSERT INTO finans_alt_sekmeleri VALUES
     (5254, 'finans-sekme-po-fatura-po',         'MENU.FINANS_SEKME_PO_FATURA_PO',         'ri-shopping-bag-3-line',  1, 'finans-sekme-po-fatura'),
     (5255, 'finans-sekme-po-fatura-fatura',     'MENU.FINANS_SEKME_PO_FATURA_FATURA',     'ri-file-list-3-line',     2, 'finans-sekme-po-fatura');
 
+-- Bu çalıştırmada eklenen alt sekme düğümleri: izin yalnız bunlara verilir.
+CREATE TEMP TABLE finans_yeni_alt_sekmeler (kod text PRIMARY KEY) ON COMMIT DROP;
+
 DO $$
 DECLARE
     eksik text;
@@ -55,20 +59,24 @@ BEGIN
         RAISE EXCEPTION 'Alt sekme Id''leri veya kodları başka bir menü tanımıyla çakışıyor: %; betik durduruldu.', cakisan;
     END IF;
 
+    INSERT INTO finans_yeni_alt_sekmeler
+    SELECT a.kod FROM finans_alt_sekmeleri a WHERE NOT EXISTS (SELECT 1 FROM "MenuTanimlari" m WHERE m."Kod" = a.kod);
+
     INSERT INTO "MenuTanimlari" ("Id", "Kod", "LabelKey", "Icon", "Route", "Sira", "ParentId", "CreatedDate", "CreatedBy")
     SELECT a.id, a.kod, a.label_key, a.icon, NULL, a.sira, sekme."Id",
            now() AT TIME ZONE 'Europe/Istanbul', '20261013_03_Finans_Alt_Sekme_Yetkileri.sql'
     FROM finans_alt_sekmeleri a
     JOIN "MenuTanimlari" sekme ON sekme."Kod" = a.sekme_kod
-    WHERE NOT EXISTS (SELECT 1 FROM "MenuTanimlari" m WHERE m."Kod" = a.kod);
+    WHERE a.kod IN (SELECT kod FROM finans_yeni_alt_sekmeler);
 
     PERFORM setval(pg_get_serial_sequence('"MenuTanimlari"', 'Id'), (SELECT max("Id") FROM "MenuTanimlari"));
 END $$;
 
--- Her role alt sekmede, bağlı olduğu sekmedeki seviye (R/W); kaydı olmayan alt sekme izni verilmez.
+-- Her role yeni alt sekmede, bağlı olduğu sekmedeki seviye (R/W); kaydı olmayan alt sekme izni verilmez.
 INSERT INTO "RolYetkileri" ("RolId", "MenuTanimiId", "YetkiTipiId", "CreatedDate", "CreatedBy")
 SELECT ry."RolId", alt."Id", ry."YetkiTipiId", now() AT TIME ZONE 'Europe/Istanbul', '20261013_03_Finans_Alt_Sekme_Yetkileri.sql'
 FROM finans_alt_sekmeleri a
+JOIN finans_yeni_alt_sekmeler yeni ON yeni.kod = a.kod
 JOIN "MenuTanimlari" alt ON alt."Kod" = a.kod
 JOIN "MenuTanimlari" sekme ON sekme."Kod" = a.sekme_kod
 JOIN "RolYetkileri" ry ON ry."MenuTanimiId" = sekme."Id"

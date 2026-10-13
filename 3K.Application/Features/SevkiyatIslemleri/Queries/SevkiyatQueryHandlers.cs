@@ -18,12 +18,7 @@ public sealed class SevkiyatQueryHandlers(IUnitOfWork unitOfWork, IReadQueryExec
     {
         var satirlar = await SevkSeferiOkuyucu.SatirlarAsync(unitOfWork, readQueries, request.Baslangic, request.Bitis,
             request.ProjeTipiId, cancellationToken);
-        var projeNo = request.ProjeNo?.Trim();
-        var seferler = SevkSeferiOkuyucu.Seferler(satirlar)
-            .Where(x => SevkSeferiOkuyucu.PlakaEslesir(x.AracPlaka, request.Plaka))
-            .Where(x => string.IsNullOrEmpty(projeNo) ||
-                        x.ProjeNolari.Any(p => p.Contains(projeNo, StringComparison.OrdinalIgnoreCase)))
-            .ToList();
+        var seferler = SevkSeferiOkuyucu.Suz(SevkSeferiOkuyucu.Seferler(satirlar), request.Plaka, request.ProjeNo).ToList();
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
         var pageNumber = Math.Max(1, request.PageNumber);
         var sayfa = seferler.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();

@@ -132,6 +132,7 @@ public static class DependencyInjection
         services.AddScoped<IEksikUrunlerRaporService, EksikUrunlerRaporService>();
         services.AddScoped<IGerceklesenCekiListesiRaporService, GerceklesenCekiListesiRaporService>();
         services.AddScoped<ISahaSandikRaporService, SahaSandikRaporService>();
+        services.AddScoped<ISevkiyatRaporDosyaService, SevkiyatRaporDosyaService>();
         services.AddScoped<IStokRaporService, StokRaporService>();
         services.AddScoped<ITalepFormuRaporService, TalepFormuRaporService>();
         services.AddScoped<IUcKSandikDurumRaporService, UcKSandikDurumRaporService>();

@@ -39,6 +39,15 @@ namespace _3K.Application.Features.ProjeIslemleri.DTOs
         public string? FotografBaglantisi { get; set; }
     }
 
+    /// <summary>
+    /// Fotoğraf bağlantısı kaydının sonucu. Nesne olarak döner: düz string sonuç ASP.NET'te text/plain yazılır ve
+    /// ön yüzün JSON çözümlemesi bozulur.
+    /// </summary>
+    public class ProjeFotografBaglantisiDto
+    {
+        public string? FotografBaglantisi { get; init; }
+    }
+
     public class ProjeDepoDagilimDto
     {
         public int DepoLokasyonId { get; set; }

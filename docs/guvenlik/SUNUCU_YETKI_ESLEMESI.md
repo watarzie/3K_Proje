@@ -16,11 +16,11 @@
 | Çeki ana veri düzenle / satır sil | ceki-verisi-duzenle / ceki-verisi-sil W |
 | Kalite / süreç değişikliği | kalite-modulu / surec-modulu W |
 | Stok listesi ve PDF / stok yazma / stok silme | stok R / stok W / stok-sil W |
-| Sevkiyatlar sayfası: sefer listesi, sefer detayı, istatistik | sevkiyatlar R |
+| Sevkiyatlar sayfası: sefer listesi, sefer detayı, istatistik, dönem raporu (PDF/Excel) ve sefer PDF'i | sevkiyatlar R |
 | Depo raporları | depo-durumu R |
 | Depo lokasyon tanımı | depo-durumu W (sandığa lokasyon atama ayrı işlemdir) |
 | Hareket geçmişi | hareket-gecmisi R |
-| Proje fotoğraf bağlantısı ekle / değiştir / kaldır (`PUT api/proje/{id}/fotograf-baglantisi`) | proje-fotograf-baglantisi W (proje tipinden bağımsız tek kod) |
+| Proje fotoğraf bağlantısı ekle / değiştir / kaldır (`PUT api/proje/{id}/fotograf-baglantisi`) | proje-fotograf-baglantisi W (proje tipinden bağımsız tek kod; Projeler altında, Projeler tavanıdır) |
 | Proje listesinde fotoğraf bağlantısının dönmesi | proje-fotograf-baglantisi R; izin yoksa liste satırında alan boş döner |
 | Kullanıcı, onay, bildirim aboneliği, ambalaj, finans | Request üzerindeki mevcut sabit veya çoklu işlem izinleri; artık header fallback yok |
 | **Finans (13 Ekim 2026'dan itibaren yalnız sekme / alt sekme izni)** | Her istek `Sekmeler` listesini bildirir (`FinansCommand`/`FinansQuery`); sorgu listelenen sekmelerden **herhangi birinin** R'sini, işlem W'sini ister. Alan maskelemesi yoktur: sekme R'si tutar, fiyat, gelir, gider, kârlılık, ölçü ve m³ dahil bütün alanları gösterir. İş Takibi, Tanımlar ve PO/Fatura işlemleri **alt sekmeye** bağlıdır (`20261013_03_Finans_Alt_Sekme_Yetkileri.sql`); sekme alt sekmenin tavanıdır, sekme W'si alt sekme W'sini kendiliğinden vermez. Kümeler: `3K.Core/Constants/FinansSekmeleri.cs` |

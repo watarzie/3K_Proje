@@ -8,7 +8,8 @@
 -- Saha ve Yedek proje listelerinin hepsinde aynı koddur. R bağlantıyı görür ve açar, W ekler/değiştirir/kaldırır.
 -- Yalnız Admin W alır; diğer roller rol ekranından ayarlanır (varsayılan N: bağlantı görünmez).
 --
--- Yıkıcı değildir. Tekrar çalıştırılabilir: kolon/düğüm varsa eklenmez, verilmiş izin değiştirilmez. Id veya kod başka
+-- Yıkıcı değildir. Tekrar çalıştırılabilir: kolon/düğüm varsa eklenmez ve izin verilmez (yöneticinin sonradan kaldırdığı
+-- izin geri gelmez). Id veya kod başka
 -- bir menü tanımına aitse hiçbir şey değiştirmeden durur. Yeni API ile birlikte uygulanır (yeni API kolonu okur).
 -- =====================================================================================
 BEGIN;
@@ -26,18 +27,16 @@ BEGIN
         INSERT INTO "MenuTanimlari" ("Id", "Kod", "LabelKey", "Icon", "Route", "Sira", "ParentId", "CreatedDate", "CreatedBy")
         VALUES (5256, 'proje-fotograf-baglantisi', 'MENU.PROJE_FOTOGRAF_BAGLANTISI', 'ri-camera-line', NULL, 2, NULL,
                 now() AT TIME ZONE 'Europe/Istanbul', '20261014_01_Proje_Fotograf_Baglantisi.sql');
+
+        -- Yalnız Admin W.
+        INSERT INTO "RolYetkileri" ("RolId", "MenuTanimiId", "YetkiTipiId", "CreatedDate", "CreatedBy")
+        SELECT r."Id", 5256, (SELECT "Id" FROM "LookupYetkiTipleri" WHERE "Deger" = 'W'),
+               now() AT TIME ZONE 'Europe/Istanbul', '20261014_01_Proje_Fotograf_Baglantisi.sql'
+        FROM "Roller" r
+        WHERE r."Id" = 1;
     END IF;
     PERFORM setval(pg_get_serial_sequence('"MenuTanimlari"', 'Id'), (SELECT max("Id") FROM "MenuTanimlari"));
 END $$;
-
--- Yalnız Admin W.
-INSERT INTO "RolYetkileri" ("RolId", "MenuTanimiId", "YetkiTipiId", "CreatedDate", "CreatedBy")
-SELECT r."Id", m."Id", (SELECT "Id" FROM "LookupYetkiTipleri" WHERE "Deger" = 'W'),
-       now() AT TIME ZONE 'Europe/Istanbul', '20261014_01_Proje_Fotograf_Baglantisi.sql'
-FROM "Roller" r
-CROSS JOIN (SELECT "Id" FROM "MenuTanimlari" WHERE "Kod" = 'proje-fotograf-baglantisi') m
-WHERE r."Id" = 1
-  AND NOT EXISTS (SELECT 1 FROM "RolYetkileri" mevcut WHERE mevcut."RolId" = r."Id" AND mevcut."MenuTanimiId" = m."Id");
 
 DO $$
 DECLARE

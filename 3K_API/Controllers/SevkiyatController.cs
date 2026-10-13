@@ -7,7 +7,7 @@ using _3K_API.Extensions;
 
 namespace _3K_API.Controllers;
 
-/// <summary>Çok projeli toplu sevk (tır seferi), sefer listesi ve sevkiyat istatistikleri.</summary>
+/// <summary>Çok projeli toplu sevk (tır seferi), sefer listesi, sevkiyat istatistikleri ve raporları.</summary>
 [ApiController]
 [Authorize]
 [Route("api/[controller]")]
@@ -47,6 +47,36 @@ public sealed class SevkiyatController(IMediator mediator) : ControllerBase
     [HttpGet("seferler/eski-detay")]
     public async Task<ActionResult> EskiSeferDetay([FromQuery] string? plaka, [FromQuery] DateTime tarih, CancellationToken cancellationToken)
         => (await mediator.Send(new SevkSeferiDetayQuery { EskiPlaka = plaka, EskiTarih = tarih }, cancellationToken)).ToActionResult();
+
+    /// <summary>Dönem raporu: sefer listesinin süzgeçleriyle; format "pdf" (özet) veya "excel" (bütün döküm).</summary>
+    [HttpGet("rapor/{format}")]
+    public async Task<ActionResult> DonemRaporu(
+        string format,
+        [FromQuery] DateTime? baslangic,
+        [FromQuery] DateTime? bitis,
+        [FromQuery] string? plaka,
+        [FromQuery] string? projeNo,
+        [FromQuery] int? projeTipiId,
+        CancellationToken cancellationToken)
+        => (await mediator.Send(new SevkiyatDonemRaporuQuery
+        {
+            Format = format,
+            Baslangic = baslangic,
+            Bitis = bitis,
+            Plaka = plaka,
+            ProjeNo = projeNo,
+            ProjeTipiId = projeTipiId
+        }, cancellationToken)).ToFileResult();
+
+    /// <summary>Tek seferin yazdırılabilir PDF raporu.</summary>
+    [HttpGet("seferler/{id:int}/rapor")]
+    public async Task<ActionResult> SeferRaporu(int id, CancellationToken cancellationToken)
+        => (await mediator.Send(new SevkSeferiRaporuQuery { SeferId = id }, cancellationToken)).ToFileResult();
+
+    /// <summary>Sefere bağlı olmayan eski sevkiyatların (plaka + sevk günü) PDF raporu.</summary>
+    [HttpGet("seferler/eski-rapor")]
+    public async Task<ActionResult> EskiSeferRaporu([FromQuery] string? plaka, [FromQuery] DateTime tarih, CancellationToken cancellationToken)
+        => (await mediator.Send(new SevkSeferiRaporuQuery { EskiPlaka = plaka, EskiTarih = tarih }, cancellationToken)).ToFileResult();
 
     [HttpGet("istatistik")]
     public async Task<ActionResult> Istatistik([FromQuery] DateTime? baslangic, [FromQuery] DateTime? bitis, CancellationToken cancellationToken)

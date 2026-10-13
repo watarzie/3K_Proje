@@ -11,9 +11,11 @@
 --    sekmenin ya da alan maskesinin kullandığı kodlar (kayıt/rapor/gider görüntüleme, parasal alanlar,
 --    birim fiyat, dışa aktarma, belge, kalıcı silme, denetim, tek seferlik iş ekleme) kökte kalır.
 --
--- Beklenen bir kod eksikse veya Id başka bir koda aitse hiçbir şey değiştirmeden durur. Tekrar
--- çalıştırılabilir: düğüm varsa eklenmez, verilmiş sekme izni değiştirilmez, doğru üstteki kod
--- yeniden taşınmaz. Uygulama açılışında çalışmaz; API ile birlikte elle uygulanır.
+-- Eklenecek sekme varken beklenen bir kod eksikse veya Id başka bir koda aitse hiçbir şey değiştirmeden durur.
+-- Tekrar çalıştırılabilir: düğüm varsa eklenmez; sekme izni yalnız bu çalıştırmada eklenen sekme düğümüne
+-- verilir (yöneticinin sonradan kaldırdığı veya düşürdüğü sekme izni geri gelmez); doğru üstteki kod yeniden
+-- taşınmaz. 20261013_02 eski kodları sildikten sonra tekrar çalıştırılınca hiçbir şey değiştirmez.
+-- Uygulama açılışında çalışmaz; API ile birlikte elle uygulanır.
 -- =====================================================================================
 BEGIN;
 
@@ -36,6 +38,9 @@ INSERT INTO finans_sekmeleri VALUES
     (5243, 'finans-sekme-tanimlar',           'MENU.FINANS_SEKME_TANIMLAR',           'ri-settings-3-line',      4, ARRAY['finans-duzenli-is-yonet', 'finans-is-kutuphanesi-yonet']),
     (5244, 'finans-sekme-raporlar',           'MENU.FINANS_SEKME_RAPORLAR',           'ri-file-chart-line',      6, ARRAY['finans-rapor-goruntule']),
     (5245, 'finans-sekme-munferit-isler',     'MENU.FINANS_SEKME_MUNFERIT_ISLER',     'ri-briefcase-4-line',     8, ARRAY['finans-is-ekle']);
+
+-- Bu çalıştırmada eklenen sekme düğümleri: izin yalnız bunlara verilir.
+CREATE TEMP TABLE finans_yeni_sekmeler (kod text PRIMARY KEY) ON COMMIT DROP;
 
 CREATE TEMP TABLE finans_sekme_altlari (
     kod text PRIMARY KEY,
@@ -74,11 +79,15 @@ BEGIN
         RAISE EXCEPTION 'finans-yonetimi menü kökü bulunamadı; betik durduruldu.';
     END IF;
 
+    INSERT INTO finans_yeni_sekmeler
+    SELECT s.kod FROM finans_sekmeleri s WHERE NOT EXISTS (SELECT 1 FROM "MenuTanimlari" m WHERE m."Kod" = s.kod);
+
+    -- Eski kodlar yalnız sekme eklenecekken gerekir (izin onlardan türetilir); 20261013_02 sonrası silinmiş olmaları beklenir.
     SELECT string_agg(k.kod, ', ' ORDER BY k.kod) INTO eksik
     FROM (SELECT kod FROM finans_sekme_altlari
           UNION SELECT unnest(acan_kodlar) FROM finans_sekmeleri) k
     WHERE NOT EXISTS (SELECT 1 FROM "MenuTanimlari" m WHERE m."Kod" = k.kod);
-    IF eksik IS NOT NULL THEN
+    IF eksik IS NOT NULL AND EXISTS (SELECT 1 FROM finans_yeni_sekmeler) THEN
         RAISE EXCEPTION 'Beklenen finans izin kodları bulunamadı: %; betik durduruldu.', eksik;
     END IF;
 
@@ -98,12 +107,13 @@ BEGIN
     SELECT s.id, s.kod, s.label_key, s.icon, NULL, s.sira, kok_id,
            now() AT TIME ZONE 'Europe/Istanbul', '20261008_03_Finans_Sekme_Yetkileri.sql'
     FROM finans_sekmeleri s
-    WHERE NOT EXISTS (SELECT 1 FROM "MenuTanimlari" m WHERE m."Kod" = s.kod);
+    WHERE s.kod IN (SELECT kod FROM finans_yeni_sekmeler);
 
     PERFORM setval(pg_get_serial_sequence('"MenuTanimlari"', 'Id'), (SELECT max("Id") FROM "MenuTanimlari"));
 END $$;
 
--- 2) Rollere sekme seviyesi (taşımadan önce). Seviye sırası N < R < W; N verilmez (kayıt yoksa N'dir).
+-- 2) Rollere sekme seviyesi (taşımadan önce), yalnız bu çalıştırmada eklenen sekmelerde. Seviye sırası N < R < W;
+--    N verilmez (kayıt yoksa N'dir).
 WITH seviyeler AS (
     SELECT ry."RolId" AS rol_id, m."Kod" AS kod,
            CASE tip."Deger" WHEN 'W' THEN 3 WHEN 'R' THEN 2 ELSE 1 END AS seviye
@@ -133,6 +143,7 @@ hedef AS (
 INSERT INTO "RolYetkileri" ("RolId", "MenuTanimiId", "YetkiTipiId", "CreatedDate", "CreatedBy")
 SELECT h.rol_id, m."Id", tip."Id", now() AT TIME ZONE 'Europe/Istanbul', '20261008_03_Finans_Sekme_Yetkileri.sql'
 FROM hedef h
+JOIN finans_yeni_sekmeler yeni ON yeni.kod = h.sekme_kod
 JOIN "MenuTanimlari" m ON m."Kod" = h.sekme_kod
 JOIN "LookupYetkiTipleri" tip ON tip."Deger" = CASE h.seviye WHEN 3 THEN 'W' ELSE 'R' END
 WHERE h.seviye >= 2

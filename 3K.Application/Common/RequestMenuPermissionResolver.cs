@@ -81,7 +81,8 @@ public sealed class RequestMenuPermissionResolver(IUnitOfWork unitOfWork, IReadQ
                 K.Sandik.Yonetimi),
             StokListeleQuery or StokDurumSayilariQuery or GetStokPdfQuery => One(K.Stok.Kok, YetkiTipi.R),
             // Sevkiyatlar sayfası: tır seferleri ve istatistikler bütün proje tiplerini okur; ayrı görüntüleme izni.
-            SevkSeferleriQuery or SevkSeferiDetayQuery or SevkiyatIstatistikQuery => One(K.Proje.Sevkiyatlar, YetkiTipi.R),
+            SevkSeferleriQuery or SevkSeferiDetayQuery or SevkiyatIstatistikQuery or SevkiyatDonemRaporuQuery or SevkSeferiRaporuQuery
+                => One(K.Proje.Sevkiyatlar, YetkiTipi.R),
             StokKaydiGuncelleCommand or StokKaydiOlusturCommand => One(K.Stok.Kok, YetkiTipi.W),
             DepoLokasyonOlusturCommand or DepoLokasyonSilCommand => One(K.DepoDurumu, YetkiTipi.W),
             KaliteDurumGuncelleCommand => One(K.Sandik.KaliteModulu, YetkiTipi.W),
