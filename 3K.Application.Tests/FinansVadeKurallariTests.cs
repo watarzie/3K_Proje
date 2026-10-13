@@ -1,4 +1,3 @@
-using System.Text.Json.Nodes;
 using _3K.Application.Common;
 using _3K.Application.Features.FinansIslemleri.Commands;
 using _3K.Application.Features.FinansIslemleri.Queries;
@@ -12,7 +11,7 @@ using _3K.Infrastructure.Services.Finans;
 
 namespace _3K.Application.Tests;
 
-/// <summary>Vade/tahsilat kuralı (D3), para birimi tanımı (F1), yeni finans istek izinleri ve alan gizleme.</summary>
+/// <summary>Vade/tahsilat kuralı (D3), para birimi tanımı (F1), yeni finans isteklerinin sekme izinleri.</summary>
 public sealed class FinansVadeKurallariTests
 {
     private static readonly DateTime Bugun = new(2026, 9, 29);
@@ -97,22 +96,24 @@ public sealed class FinansVadeKurallariTests
         Assert.Equal(faturalar.Count, FinansSorgulari.OdemeFiltresi(faturalar.AsQueryable(), null, Bugun, 7).Count());
     }
 
+    /// <summary>
+    /// Ödeme PO/Fatura sekmesinin, para birimi/parametre/yeniden fiyatlama Tanımlar sekmesinin W iznini ister; vade
+    /// uyarısı yalnız kendi R iznini (sekme izni yetmez), alacak raporu biçimden bağımsız Raporlar sekmesinin R iznini ister.
+    /// </summary>
     [Fact]
-    public void Yeni_finans_istekleri_kendi_izin_kodlarini_ister()
+    public void Yeni_finans_istekleri_kendi_sekme_izinlerini_ister()
     {
-        Assert.Equal((YetkiKodlari.Finans.OdemeKaydet, YetkiTipi.W),
+        Assert.Equal((YetkiKodlari.Finans.SekmePoFatura, YetkiTipi.W),
             (new FinansFaturaOdemeCommand().RequiredMenuKod, new FinansFaturaOdemeCommand().RequiredYetkiTipi));
-        Assert.Equal(YetkiKodlari.Finans.BirimFiyatDegistir, new FinansUrunYenidenFiyatlaCommand().RequiredMenuKod);
-        Assert.Equal(YetkiKodlari.Finans.IsKutuphanesiYonet, new FinansParaBirimiOlusturCommand().RequiredMenuKod);
-        Assert.Equal(YetkiKodlari.Finans.IsKutuphanesiYonet, new FinansParaBirimiGuncelleCommand().RequiredMenuKod);
-        Assert.Equal(YetkiKodlari.Finans.IsKutuphanesiYonet, new FinansParametreleriKaydetCommand().RequiredMenuKod);
+        Assert.Equal([MenuPermissionRequirement.Write(YetkiKodlari.Finans.SekmeTanimlar)], new FinansUrunYenidenFiyatlaCommand().RequiredMenuPermissions);
+        Assert.Equal([MenuPermissionRequirement.Write(YetkiKodlari.Finans.SekmeTanimlar)], new FinansParaBirimiOlusturCommand().RequiredMenuPermissions);
+        Assert.Equal([MenuPermissionRequirement.Write(YetkiKodlari.Finans.SekmeTanimlar)], new FinansParaBirimiGuncelleCommand().RequiredMenuPermissions);
+        Assert.Equal([MenuPermissionRequirement.Write(YetkiKodlari.Finans.SekmeTanimlar)], new FinansParametreleriKaydetCommand().RequiredMenuPermissions);
         Assert.Equal(YetkiKodlari.Finans.Modul, new FinansParaBirimleriQuery().RequiredMenuKod);
-        Assert.Contains(MenuPermissionRequirement.Read(YetkiKodlari.Finans.SiparisOperasyonGoruntule), new FinansVadeUyarilariQuery().RequiredMenuPermissions);
-        var rapor = new FinansAlacakRaporuDosyaQuery { Format = "xlsx" }.RequiredMenuPermissions;
-        Assert.Contains(MenuPermissionRequirement.Read(YetkiKodlari.Finans.SiparisOperasyonGoruntule), rapor);
-        Assert.Contains(MenuPermissionRequirement.Read(YetkiKodlari.Finans.GelirGoruntule), rapor);
-        Assert.Contains(MenuPermissionRequirement.Read(YetkiKodlari.Finans.ExcelAktar), rapor);
-        Assert.Contains(MenuPermissionRequirement.Read(YetkiKodlari.Finans.PdfAktar), new FinansAlacakRaporuDosyaQuery().RequiredMenuPermissions);
+        Assert.Equal([MenuPermissionRequirement.Read(YetkiKodlari.Finans.VadeUyarisi)], new FinansVadeUyarilariQuery().RequiredMenuPermissions);
+        Assert.Equal([MenuPermissionRequirement.Read(YetkiKodlari.Finans.SekmeRaporlar)],
+            new FinansAlacakRaporuDosyaQuery { Format = "xlsx" }.RequiredMenuPermissions);
+        Assert.Equal([MenuPermissionRequirement.Read(YetkiKodlari.Finans.SekmeRaporlar)], new FinansAlacakRaporuDosyaQuery().RequiredMenuPermissions);
     }
 
     [Fact]
@@ -139,23 +140,5 @@ public sealed class FinansVadeKurallariTests
         Assert.True(parametre.Validate(new FinansParametreleriKaydetCommand { Model = new(30, 7) }).IsValid);
         Assert.False(parametre.Validate(new FinansParametreleriKaydetCommand { Model = new(366, 7) }).IsValid);
         Assert.False(parametre.Validate(new FinansParametreleriKaydetCommand { Model = new(30, 91) }).IsValid);
-    }
-
-    [Fact]
-    public void Alacak_tutarlari_tutar_izni_olmadan_null_gonderilir()
-    {
-        var json = JsonNode.Parse("""
-            { "vadeUyariGunu": 7,
-              "alacaklar": [{ "paraBirimi": "EUR", "bekleyenTutar": 720, "bekleyenAdet": 2, "vadesiGecenTutar": 0, "vadesiGecenAdet": 0,
-                "yaklasanTutar": 360, "yaklasanAdet": 1, "zamanindaOdenenAdet": 1, "gecOdenenAdet": 1, "odenenTutar": 480 }],
-              "beklenenTahsilat": [{ "grup": "2026-10", "paraBirimi": "EUR", "gelir": 720, "gider": 0 }] }
-            """)!;
-        FinansAlanProjeksiyonu.Uygula(json, new AlanErisimYetkileri(true, true, true, true, true, true, true, true, true) with { Tutar = false, Gelir = false });
-        var alacak = json["alacaklar"]![0]!;
-        foreach (var alan in new[] { "bekleyenTutar", "vadesiGecenTutar", "yaklasanTutar", "odenenTutar" })
-            Assert.Null(alacak[alan]);
-        Assert.Equal(2, alacak["bekleyenAdet"]!.GetValue<int>());
-        Assert.Equal(1, alacak["gecOdenenAdet"]!.GetValue<int>());
-        Assert.Null(json["beklenenTahsilat"]);
     }
 }

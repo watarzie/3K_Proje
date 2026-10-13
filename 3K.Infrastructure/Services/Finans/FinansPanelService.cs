@@ -60,8 +60,24 @@ internal sealed class FinansPanelService(AppDbContext context) : IFinansPanelSer
             works.Where(x => x.IsTuru == FinansIsTuru.OzelIs).GroupBy(x => new { x.OzelIsTuru, x.ParaBirimi }).Select(x => new FinansGrafikModel(x.Key.OzelIsTuru ?? "Özel İş", x.Key.ParaBirimi, x.Sum(y => y.FaturalananNetTutar), 0)).ToArray(),
             ProjeDurumSayilari(allWorks.Where(x => x.FinansTarihi >= baslangic.Date)),
             alacaklar, beklenenTahsilat, yaslandirma, uyariGunu, sayilar, aylikSayilar,
-            ProjeOzetleri(works, expenses, await ProjeTipleriAsync(works, cancellationToken)), KategoriOzetleri(works));
+            ProjeOzetleri(works, expenses, await ProjeTipleriAsync(works, cancellationToken)), KategoriOzetleri(works),
+            MunferitIsler(works), works.Count(MunferitMi));
     }
+
+    /// <summary>Panelde gösterilen münferit iş sayısı sınırı; tamamı Münferit İşler sekmesindedir.</summary>
+    internal const int PanelMunferitIsSiniri = 20;
+
+    /// <summary>Münferit iş: elle açılmış ve düzenli işe bağlı olmayan özel iş (Münferit İşler sekmesiyle aynı kural).</summary>
+    private static bool MunferitMi(FinansIsKaydiModel x) =>
+        x.IsTuru == FinansIsTuru.OzelIs && x.KaynakTuru == "Manuel" && x.DuzenliIsId == null;
+
+    internal static IReadOnlyList<FinansPanelMunferitIsModel> MunferitIsler(IReadOnlyCollection<FinansIsKaydiModel> works) =>
+        works.Where(MunferitMi)
+            .OrderByDescending(x => x.FinansTarihi).ThenByDescending(x => x.Id)
+            .Take(PanelMunferitIsSiniri)
+            .Select(x => new FinansPanelMunferitIsModel(x.Id, x.FinansTarihi, x.ProjeNo, x.Musteri, x.IsAdi, x.Adet, x.Birim,
+                x.NetTutar, x.ParaBirimi, x.Durum))
+            .ToArray();
 
     /// <summary>Dökümdeki sistem projelerinin tipi (Normal/Saha/Yedek); tek sorguda okunur.</summary>
     private async Task<IReadOnlyDictionary<int, int>> ProjeTipleriAsync(IReadOnlyCollection<FinansIsKaydiModel> works, CancellationToken cancellationToken)

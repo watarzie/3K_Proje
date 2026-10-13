@@ -59,7 +59,8 @@ public static class AmbalajIslemKurallari
         var kayit = degisiklik.Kayit;
         if (degisiklik.HedefDurum is { } hedef && hedef != kayit.UretimDurumu)
         {
-            if (hedef != AmbalajUretimDurumu.Planlandi && !degisiklik.FormuVar)
+            // Özel sandıkta üretim formu yoktur; ilerlemesi "Finansa aktar" (üretime alındı) ile açılır.
+            if (hedef != AmbalajUretimDurumu.Planlandi && !degisiklik.FormuVar && !kayit.BagimsizKayitMi)
                 gereksinim.IlkFormIste();
             gereksinim.YetkiEkle(YetkiKodlari.Ambalaj.DurumDuzenle);
             if (hedef == AmbalajUretimDurumu.Tamamlandi)

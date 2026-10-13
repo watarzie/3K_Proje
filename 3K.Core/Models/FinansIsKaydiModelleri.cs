@@ -43,6 +43,12 @@ public sealed record class FinansIsKaydiModel
     public int? FinansUrunId { get; init; }
     public FinansFiyatlandirmaBirimi FiyatlandirmaBirimi { get; init; }
     public decimal BirimFiyat { get; init; }
+    /// <summary>
+    /// Malzemeli fiyat (kontrplak/katlanır): doluysa <see cref="BirimFiyat"/> kontra m³ fiyatı, bu ahşap m³ fiyatıdır;
+    /// net = kontra m³ × BirimFiyat + ahşap m³ × AhsapBirimFiyat. Boşsa iş tek tarifeyle fiyatlanır.
+    /// </summary>
+    public decimal? AhsapBirimFiyat { get; init; }
+    public int? AhsapFinansUrunId { get; init; }
     public string ParaBirimi { get; init; } = string.Empty;
     public decimal KdvOrani { get; init; }
     public int? TarifeYili { get; init; }
@@ -126,23 +132,22 @@ public sealed record FinansIsKaydiKaydetModel(
 /// Münferit (tek seferlik) iş: fiyat elle yazılmaz, seçilen finans ürününün iş tarihindeki tarifesinden gelir.
 /// Ürün m³ ile fiyatlanıyorsa ahşap/kontra m³ zorunludur; bileşik toplam fiyatlandırma miktarıdır.
 /// </summary>
+/// <summary>
+/// Münferit iş: İş ve Tarife Tanımları'ndan seçilen tarife, proje (sistem projesi ya da serbest proje adı) ve tarih.
+/// İş adı tarifenin adıdır; fiyat, para birimi ve KDV tarifenin o tarihteki sürümünden gelir. Miktar tarifenin
+/// birimine göredir: adet tarifesinde <see cref="Adet"/>, m³ tarifesinde ahşap/kontra m³, sabit tutarda 1.
+/// </summary>
 public sealed record FinansMunferitIsKaydetModel(
     int FinansUrunId,
-    string IsAdi,
-    string? OzelIsTuru,
-    string Musteri,
     int? ProjeId,
-    decimal Adet,
-    string Birim,
-    decimal? AhsapM3,
-    decimal? KontraM3,
+    string? ProjeAdi,
     DateTime IsTarihi,
-    string? Aciklama,
-    string? TalepEdenKisi,
-    string? TalepEdenBolum);
+    decimal Adet = 1,
+    decimal? AhsapM3 = null,
+    decimal? KontraM3 = null);
 
-/// <summary>Ahşap ve kontra m³'ün elle girişi; bileşik toplam işin m³ fiyatlandırma miktarı olur.</summary>
-public sealed record FinansHacimModel(decimal AhsapM3, decimal KontraM3, string Aciklama);
+/// <summary>Elle ahşap/kontra m³ girişi; gerekçe isteğe bağlıdır.</summary>
+public sealed record FinansHacimModel(decimal AhsapM3, decimal KontraM3, string? Aciklama = null);
 
 public sealed record FinansAylikDegerModel(decimal? Miktar = null, decimal? NetBirimFiyat = null);
 
@@ -247,7 +252,8 @@ public sealed record FinansAylikIsModel(
     decimal AhsapM3 = 0,
     decimal KontraM3 = 0,
     decimal KalanSiparisNetTutar = 0,
-    decimal KalanFaturaNetTutar = 0);
+    decimal KalanFaturaNetTutar = 0,
+    decimal? AhsapBirimFiyat = null);
 
 /// <summary>
 /// Aylık PO/fatura alanında proje satırının özeti: projenin ayın bütün aktif kalemlerinden türetilen

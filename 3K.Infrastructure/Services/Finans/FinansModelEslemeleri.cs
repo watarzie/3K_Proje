@@ -60,6 +60,8 @@ internal static class FinansModelEslemeleri
             FinansUrunId = entity.FinansUrunId,
             FiyatlandirmaBirimi = entity.FiyatlandirmaBirimiSnapshot,
             BirimFiyat = entity.BirimFiyatSnapshot,
+            AhsapBirimFiyat = entity.AhsapBirimFiyatSnapshot,
+            AhsapFinansUrunId = entity.AhsapFinansUrunId,
             ParaBirimi = entity.ParaBirimiSnapshot,
             KdvOrani = entity.KdvOraniSnapshot,
             TarifeYili = entity.TarifeYiliSnapshot,

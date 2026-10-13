@@ -71,10 +71,11 @@ public sealed class FinansTanimController(IMediator mediator) : FinansController
     public async Task<ActionResult> GiderKutuphaneKalemleri([FromQuery] int? kategoriId, [FromQuery] bool sadeceAktif, CancellationToken cancellationToken)
         => (await Mediator.Send(new FinansGiderKutuphaneKalemleriQuery { KategoriId = kategoriId, SadeceAktif = sadeceAktif }, cancellationToken)).ToActionResult();
 
-    /// <summary>Münferit iş formunun ürün seçenekleri (fiyatsız, en fazla 50).</summary>
+    /// <summary>Münferit iş formunun tarife seçenekleri (en fazla 50) ve verilen tarihteki tarife fiyatı.</summary>
     [HttpGet("urun-secenekleri")]
-    public async Task<ActionResult> UrunSecenekleri([FromQuery] string? arama, [FromQuery] FinansIsTuru? isTuru, CancellationToken cancellationToken)
-        => (await Mediator.Send(new FinansUrunSecenekleriQuery { Arama = arama, IsTuru = isTuru }, cancellationToken)).ToActionResult();
+    public async Task<ActionResult> UrunSecenekleri(
+        [FromQuery] string? arama, [FromQuery] FinansIsTuru? isTuru, [FromQuery] DateTime? tarih, CancellationToken cancellationToken)
+        => (await Mediator.Send(new FinansUrunSecenekleriQuery { Arama = arama, IsTuru = isTuru, Tarih = tarih?.Date }, cancellationToken)).ToActionResult();
 
     [HttpGet("urunler")]
     public async Task<ActionResult> Urunler(

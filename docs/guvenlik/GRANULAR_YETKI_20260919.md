@@ -20,6 +20,12 @@ Sunucu, yalnız o sekmeye özel uçlarda sekme kodunu mevcut kodlarla birlikte (
 
 Geçiş `scripts/database/20261008_03_Finans_Sekme_Yetkileri.sql` ile yapılır: önce düğümler eklenir, sonra her role sekme seviyesi (taşınacak alt kodlardaki ve sekmeyi bugün açan koddaki seviyelerin yükseği, modül seviyesiyle sınırlı; Admin W) verilir, en son kodlar taşınır. Sıra tersine olsaydı taşınan kodlar fiilen N olur ve rol editöründeki ilk kayıtta eski W kalıcı silinirdi. Betik yeni API'den önce uygulanır.
 
+## Finans yalnız sekme izni (13 Ekim 2026)
+
+Finans'ta alt işlem ve alan izinleri kaldırıldı: yalnız 8 sekme düğümü ve İş Takibi üstündeki vade uyarısı için `finans-vade-uyarisi` (R) kalır. Sekmenin R'si sekmedeki bütün verileri (tutar, birim fiyat, gelir, gider, kârlılık, ölçü, m³) gösterir; W'si sekmedeki bütün işlemleri (kalıcı silme dahil) yapar. `FinansAlanErisimFiltresi`/`FinansAlanProjeksiyonu` ve `IAlanErisimService` kaldırıldı; rapor ve belge dosyaları ayrıca alan izni istemez. Yukarıdaki "Finans sekme düğümleri" bölümünde anlatılan alt kodlar ve alan maskesi artık geçerli değildir. Birden çok sekmede açılan ortak işlemler (kayıt detayı, belgeler, PO açma…) `3K.Core/Constants/FinansSekmeleri.cs` kümelerinden herhangi bir sekmenin izniyle yapılır; ön yüz aynası `ortak/finans-izinleri.ts`. Eşleme tablosu: `SUNUCU_YETKI_ESLEMESI.md`.
+
+Geçiş `scripts/database/20261013_02_Finans_Sekme_Yetkisine_Gecis.sql` ile yapılır (onaylı, yıkıcı): önce her rolün sekme seviyesi alt kodlardaki seviyesine yükseltilir (modül seviyesiyle sınırlı, Admin W), vade uyarısı izni eski kapıyı geçen rollere (sipariş ve kayıt görüntüleme R) verilir, sonra alt kodlar rol izinleriyle silinir. Sekme W'si olan rol sekmedeki bütün işlemleri yapar; ince ayrım gerekiyorsa sekme bazında ayrı rol tanımlanır. Ambalaj alan maskelemesi (`AmbalajAlanMaskesi`) bu değişikliğin dışındadır.
+
 ## Rol ve yönetim
 
 Yetki yalnız rolden gelir: rol izni üst düğümün etkin seviyesiyle sınırlanır, kaydı olmayan kod N'dir. Kullanıcıya özel açık izin/ret özelliği (`KullaniciYetkileri` tablosu, `/api/kullanici/{id}/yetkiler` uçları ve ön yüzdeki "Kullanıcıya özel izinler" penceresi) 3 Ekim 2026'da kaldırıldı; tablo `scripts/database/20261003_01_Kisisel_Yetkileri_Kaldir.sql` ile silinir. Tek bir kişiye istisna gerekiyorsa ayrı, dar bir rol tanımlanır.

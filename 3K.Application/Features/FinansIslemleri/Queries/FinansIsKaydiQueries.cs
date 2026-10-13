@@ -6,32 +6,19 @@ namespace _3K.Application.Features.FinansIslemleri.Queries;
 
 public sealed class FinansIsKaydiGetirQuery : FinansQuery<FinansIsKaydiModel>
 {
-    public override string RequiredMenuKod => YetkiKodlari.Finans.KayitGoruntule;
-    public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
-    [
-        MenuPermissionRequirement.Read(YetkiKodlari.Finans.KayitGoruntule)
-    ];
+    public override IReadOnlyList<string> Sekmeler => FinansSekmeleri.Kayit;
     public int Id { get; init; }
 }
 
 public sealed class FinansIsKayitlariSecimQuery : FinansQuery<IReadOnlyList<FinansIsKaydiModel>>
 {
-    public override string RequiredMenuKod => YetkiKodlari.Finans.KayitGoruntule;
-    public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
-    [
-        MenuPermissionRequirement.Read(YetkiKodlari.Finans.KayitGoruntule)
-    ];
+    public override IReadOnlyList<string> Sekmeler => FinansSekmeleri.Kayit;
     public IReadOnlyCollection<int> Ids { get; init; } = Array.Empty<int>();
 }
 
 public sealed class FinansAylikIslerQuery : FinansQuery<FinansAylikSayfaliSonuc>
 {
-    public override string RequiredMenuKod => YetkiKodlari.Finans.KayitGoruntule;
-    public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
-    [
-        MenuPermissionRequirement.Read(YetkiKodlari.Finans.SekmeIsTakibi),
-        MenuPermissionRequirement.Read(YetkiKodlari.Finans.KayitGoruntule)
-    ];
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeIsTakibi];
     public int Yil { get; init; }
     public int Ay { get; init; }
     public FinansListeFiltre Filtre { get; init; } = new();
@@ -43,12 +30,7 @@ public sealed class FinansAylikIslerQuery : FinansQuery<FinansAylikSayfaliSonuc>
 /// </summary>
 public sealed class FinansProjeSandikKirilimiQuery : FinansQuery<FinansProjeSandikKirilimiModel>
 {
-    public override string RequiredMenuKod => YetkiKodlari.Finans.KayitGoruntule;
-    public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
-    [
-        MenuPermissionRequirement.Read(YetkiKodlari.Finans.SekmeIsTakibi),
-        MenuPermissionRequirement.Read(YetkiKodlari.Finans.KayitGoruntule)
-    ];
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeIsTakibi];
     public int? ProjeId { get; init; }
     public string? ProjeNo { get; init; }
     public string? Musteri { get; init; }
@@ -61,9 +43,7 @@ public sealed class FinansProjeSandikKirilimiQuery : FinansQuery<FinansProjeSand
 
 public sealed class FinansProjeSecenekleriQuery : FinansQuery<FinansSayfaliSonuc<FinansProjeSecenekModel>>
 {
-    public override string RequiredMenuKod => YetkiKodlari.Finans.Modul;
-    public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
-        [MenuPermissionRequirement.Read(YetkiKodlari.Finans.Modul)];
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.Modul];
     public string? Arama { get; init; }
     public int PageNumber { get; init; } = 1;
     public int PageSize { get; init; } = 25;

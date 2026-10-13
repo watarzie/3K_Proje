@@ -334,13 +334,12 @@ internal sealed class FinansAylikOzetService(AppDbContext context) : IFinansAyli
                      Musteri = x.ProjeId.HasValue ? null : x.Musteri,
                      x.IsTuru,
                      SandikTipi = OzelSandikTuru(x.IsTuru) ? x.SandikTipi : null,
-                     Boy = OzelSandikTuru(x.IsTuru) ? x.Boy : null,
-                     En = OzelSandikTuru(x.IsTuru) ? x.En : null,
-                     Yukseklik = OzelSandikTuru(x.IsTuru) ? x.Yukseklik : null,
+                     // Katlanır sandık boyutla değil, kontrplak gibi ahşap/kontra m³ ile fiyatlanır; satır boyuta bölünmez.
                      IcSandikSablonId = x.IsTuru == FinansIsTuru.IcSandik ? x.IcSandikSablonId : null,
                      x.FinansUrunId,
                      x.FiyatlandirmaBirimiSnapshot,
                      x.BirimFiyatSnapshot,
+                     x.AhsapBirimFiyatSnapshot,
                      x.ParaBirimiSnapshot,
                      x.KdvOraniSnapshot
                  }))
@@ -372,17 +371,14 @@ internal sealed class FinansAylikOzetService(AppDbContext context) : IFinansAyli
             var isAdi = IsAdi(
                 grup.Key.IsTuru,
                 grup.Key.SandikTipi,
-                grup.Key.Boy,
-                grup.Key.En,
-                grup.Key.Yukseklik,
                 grup.Key.IcSandikSablonId,
                 sablonAdlari);
             sonuc.Add(new FinansAylikIsModel(
                 "Proje", null, grup.Key.ProjeId,
                 ProjectUnitKey(grup.Key.ProjeId, projeNo, tarife.Musteri), tarife.Musteri,
                 grup.Key.IsTuru, IsGrubu(grup.Key.IsTuru),
-                projeNo, isAdi, grup.Key.SandikTipi, grup.Key.Boy, grup.Key.En,
-                grup.Key.Yukseklik, satirlar.Min(x => x.UretimTarihi), satirlar.Max(x => x.UretimTarihi),
+                projeNo, isAdi, grup.Key.SandikTipi, null, null,
+                null, satirlar.Min(x => x.UretimTarihi), satirlar.Max(x => x.UretimTarihi),
                 grup.Key.IsTuru == FinansIsTuru.SarfKereste ? 0m : satirlar.Sum(x => x.Adet),
                 miktar, Birim(tarife.FiyatlandirmaBirimiSnapshot), tarife.BirimFiyatSnapshot,
                 tarife.KdvOraniSnapshot, net, kdv, net + kdv, tarife.ParaBirimiSnapshot,
@@ -396,7 +392,7 @@ internal sealed class FinansAylikOzetService(AppDbContext context) : IFinansAyli
                 false, false, satirlar.All(x => x.IptalEdildi),
                 satirlar.Select(x => x.IptalAciklamasi).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)),
                 FinansKategoriKurali.Kategori(grup.Key.IsTuru, null), ozet.Durum.Siparis, ozet.Durum.Fatura,
-                ozet.AhsapM3, ozet.KontraM3, ozet.KalanSiparis, ozet.KalanFatura));
+                ozet.AhsapM3, ozet.KontraM3, ozet.KalanSiparis, ozet.KalanFatura, grup.Key.AhsapBirimFiyatSnapshot));
         }
 
         foreach (var kayit in kayitlar.Where(x => x.IsTuru == FinansIsTuru.OzelIs))
@@ -434,7 +430,7 @@ internal sealed class FinansAylikOzetService(AppDbContext context) : IFinansAyli
                 !kayit.IptalEdildi && siparisler.Count == 0 && FinansTutarKurallari.AylikBirimFiyatDuzenlenebilir(kayit),
                 kayit.IptalEdildi, kayit.IptalAciklamasi,
                 FinansKategoriKurali.Kategori(kayit.IsTuru, kayit.DuzenliIsId), ozelOzet.Durum.Siparis, ozelOzet.Durum.Fatura,
-                ozelOzet.AhsapM3, ozelOzet.KontraM3, ozelOzet.KalanSiparis, ozelOzet.KalanFatura));
+                ozelOzet.AhsapM3, ozelOzet.KontraM3, ozelOzet.KalanSiparis, ozelOzet.KalanFatura, kayit.AhsapBirimFiyatSnapshot));
         }
 
         return sonuc.OrderBy(x => x.IsGrubu).ThenBy(x => x.ProjeNo).ThenBy(x => x.IsAdi).ToArray();
@@ -644,21 +640,13 @@ internal sealed class FinansAylikOzetService(AppDbContext context) : IFinansAyli
     private static string IsAdi(
         FinansIsTuru tur,
         string? sandikTipi,
-        decimal? boy,
-        decimal? en,
-        decimal? yukseklik,
         int? sablonId,
         IReadOnlyDictionary<int, string> sablonlar)
-    {
-        var ad = tur == FinansIsTuru.IcSandik && sablonId.HasValue
+        => tur == FinansIsTuru.IcSandik && sablonId.HasValue
             ? sablonlar.GetValueOrDefault(sablonId.Value, "Silinmiş İç Sandık Tipi")
             : tur is FinansIsTuru.SahaSandigi or FinansIsTuru.YedekSandik && !string.IsNullOrWhiteSpace(sandikTipi)
                 ? $"{IsGrubu(tur)} · {sandikTipi}"
                 : IsGrubu(tur);
-        return sandikTipi == "Katlanır Sandık"
-            ? $"{ad} · {boy:0.##}×{en:0.##}×{yukseklik:0.##} mm"
-            : ad;
-    }
 
     internal sealed record FinansAylikSayfaBirimi
     {

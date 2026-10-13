@@ -71,7 +71,6 @@ public static class DependencyInjection
         services.AddScoped<IDurumHesaplaService, DurumHesaplaService>();
         services.AddScoped<ILookupService, LookupService>();
         services.AddScoped<IRolService, RolService>();
-        services.AddScoped<IAlanErisimService, AlanErisimService>();
         services.AddScoped<IAmbalajFormIslemKilidi, AmbalajFormIslemKilidi>();
         services.AddScoped<IRolAtamaService, RolAtamaService>();
         services.AddScoped<IOnayYetkiService, OnayYetkiService>();

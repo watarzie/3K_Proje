@@ -41,6 +41,7 @@ internal static class FinansModelBuilderExtensions
             entity.Property(x => x.Boy).HasPrecision(18, 4);
             entity.Property(x => x.En).HasPrecision(18, 4);
             entity.Property(x => x.Yukseklik).HasPrecision(18, 4);
+            entity.Property(x => x.Malzeme).HasConversion<int?>();
             entity.Property(x => x.Aktif).HasDefaultValue(true);
             entity.HasOne(x => x.FinansUrun)
                 .WithMany(x => x.Eslesmeler)
@@ -77,6 +78,7 @@ internal static class FinansModelBuilderExtensions
                 table.HasCheckConstraint("CK_FinansIsKayitlari_Miktarlar",
                     "\"Adet\" > 0 AND \"BirimM3\" >= 0 AND \"ToplamM3\" >= 0 AND \"AhsapM3\" >= 0 AND \"KontraM3\" >= 0");
                 table.HasCheckConstraint("CK_FinansIsKayitlari_Fiyat", "\"BirimFiyatSnapshot\" >= 0 AND \"KdvOraniSnapshot\" >= 0 AND \"KdvOraniSnapshot\" <= 100");
+                table.HasCheckConstraint("CK_FinansIsKayitlari_AhsapFiyat", "\"AhsapBirimFiyatSnapshot\" IS NULL OR \"AhsapBirimFiyatSnapshot\" >= 0");
                 table.HasCheckConstraint("CK_FinansIsKayitlari_Proje", "\"ProjeId\" IS NOT NULL OR NULLIF(BTRIM(\"ProjeNo\"), '') IS NOT NULL");
             });
             // Veritabanındaki dizin adı korunur.
@@ -111,6 +113,7 @@ internal static class FinansModelBuilderExtensions
             entity.Property(x => x.KontraM3).HasPrecision(18, 6);
             entity.Property(x => x.FiyatlandirmaBirimiSnapshot).HasConversion<int>();
             entity.Property(x => x.BirimFiyatSnapshot).HasPrecision(18, 6);
+            entity.Property(x => x.AhsapBirimFiyatSnapshot).HasPrecision(18, 6);
             entity.Property(x => x.ParaBirimiSnapshot).HasMaxLength(3).IsRequired();
             entity.Property(x => x.KdvOraniSnapshot).HasPrecision(7, 4);
             entity.Property(x => x.Durum).HasConversion<int>();
@@ -127,6 +130,8 @@ internal static class FinansModelBuilderExtensions
 
             entity.HasOne(x => x.Proje).WithMany().HasForeignKey(x => x.ProjeId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(x => x.FinansUrun).WithMany().HasForeignKey(x => x.FinansUrunId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.AhsapFinansUrun).WithMany().HasForeignKey(x => x.AhsapFinansUrunId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(x => x.AhsapTarifeIdSnapshot);
             entity.HasOne(x => x.DuzenliIs).WithMany(x => x.OlusanKayitlar).HasForeignKey(x => x.DuzenliIsId).OnDelete(DeleteBehavior.SetNull);
         });
     }

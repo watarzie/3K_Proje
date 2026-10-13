@@ -106,21 +106,29 @@ internal sealed class FinansIsKaydiService(
         {
             var urun = await context.Set<FinansUrun>().AsNoTracking()
                 .Where(x => x.Id == model.FinansUrunId && x.Aktif)
-                .Select(x => new { x.FiyatlandirmaBirimi })
+                .Select(x => new { x.Ad, x.FiyatlandirmaBirimi })
                 .FirstOrDefaultAsync(cancellationToken)
-                ?? throw IsKuraliException.Cakisma("Seçilen finans ürünü bulunamadı veya pasif.");
+                ?? throw IsKuraliException.Cakisma("Seçilen tarife bulunamadı veya pasif.");
+            if (model.ProjeId.HasValue == !string.IsNullOrWhiteSpace(model.ProjeAdi))
+                throw IsKuraliException.Cakisma("Sistemden bir proje seçin veya proje adını yazın.");
             var m3 = urun.FiyatlandirmaBirimi == FinansFiyatlandirmaBirimi.Metrekup;
+            var adetli = urun.FiyatlandirmaBirimi == FinansFiyatlandirmaBirimi.Adet;
             if (m3 && !FinansHacimKurallari.GecerliManuelHacim(model.AhsapM3 ?? 0, model.KontraM3 ?? 0))
-                throw IsKuraliException.Cakisma("Ürün m³ ile fiyatlanıyor; ahşap veya kontra m³ girilmelidir.");
+                throw IsKuraliException.Cakisma("Tarife m³ ile fiyatlanıyor; ahşap veya kontra m³ girilmelidir.");
+            if (adetli && model.Adet <= 0)
+                throw IsKuraliException.Cakisma("Adet sıfırdan büyük olmalıdır.");
+            // Miktar tarifenin birimine göre: adet tarifesinde girilen adet, m³ ve sabit tutarda tek iş (1).
+            var adet = adetli ? model.Adet : 1m;
             var bilesik = m3 ? FinansHacimKurallari.Bilesik(model.AhsapM3, model.KontraM3) : 0m;
-            // Fiyat, para birimi ve KDV ürünün tarifesinden gelir; elle fiyat yazılmaz (fiyat değiştirme izni gerekmez).
+            // Serbest proje adı manuel proje numarası ve müşteri olarak yazılır (panelde bağımsız işlerde ayrı satır).
+            var projeAdi = model.ProjeId.HasValue ? null : model.ProjeAdi!.Trim();
+            // Fiyat, para birimi ve KDV tarifenin iş tarihindeki sürümünden gelir; elle fiyat yazılmaz.
             return await IsKaydiOlusturCoreAsync(new FinansIsKaydiKaydetModel(
-                model.ProjeId, null, null, model.Musteri, FinansIsTuru.OzelIs,
-                model.IsAdi, model.Aciklama, model.TalepEdenKisi, model.TalepEdenBolum, model.Adet, model.Birim,
-                m3 ? decimal.Round(bilesik / model.Adet, 6, MidpointRounding.AwayFromZero) : 0m,
+                model.ProjeId, projeAdi, projeAdi, projeAdi, FinansIsTuru.OzelIs,
+                urun.Ad, null, null, null, adet, m3 ? "m³" : "Adet",
+                m3 ? bilesik : 0m,
                 model.FinansUrunId, null, null, null,
                 model.IsTarihi.Date, model.IsTarihi.Date,
-                OzelIsTuru: model.OzelIsTuru,
                 HesaplamaYontemi: urun.FiyatlandirmaBirimi switch
                 {
                     FinansFiyatlandirmaBirimi.Metrekup => FinansHesaplamaYontemi.Metrekup,
@@ -385,6 +393,8 @@ internal sealed class FinansIsKaydiService(
                 work.ToplamM3 = decimal.Round(model.Adet * model.BirimM3, 6, MidpointRounding.AwayFromZero);
             }
             work.BirimFiyatSnapshot = model.BirimFiyat;
+            // Elle fiyat tek birim fiyattır; malzemeli (ahşap/kontra ayrı) tarife fiyatı bırakılır.
+            FinansFiyatBelirleyici.MalzemeliFiyatiTemizle(work);
             work.ManuelNetTutar = componentTotal ?? model.ManuelNetTutar;
             if (work.ManuelNetTutar.HasValue && work.ManuelNetTutar != FinansTutarKurallari.Para(work.ManuelNetTutar.Value))
                 throw IsKuraliException.Cakisma("Net tutar en fazla iki ondalıklı olmalıdır.");
@@ -403,7 +413,8 @@ internal sealed class FinansIsKaydiService(
     public Task<FinansIsKaydiModel?> HacimGirAsync(int id, FinansHacimModel model, CancellationToken cancellationToken)
         => islem.AtomikAsync(async () =>
         {
-            FinansGerekceKurali.Dogrula(model.Aciklama);
+            if (!FinansGerekceKurali.IstegeBagliGecerli(model.Aciklama))
+                throw IsKuraliException.Cakisma(FinansGerekceKurali.IstegeBagliMesaj);
             if (!FinansHacimKurallari.GecerliManuelHacim(model.AhsapM3, model.KontraM3))
                 throw IsKuraliException.Cakisma("Ahşap ve kontra m³ sıfır veya pozitif olmalı; en az biri sıfırdan büyük olmalıdır.");
             var work = await context.IsKaydiDetayQuery(true).FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
@@ -418,13 +429,15 @@ internal sealed class FinansIsKaydiService(
             work.KontraM3 = decimal.Round(model.KontraM3, 6, MidpointRounding.AwayFromZero);
             work.HacimManuel = true;
             FinansHacimKurallari.ManuelHacmiUygula(work);
-            // FinansMiktariManuel'e dokunulmaz: tutar tarife snapshot'ı × bileşik m³'tür. Henüz fiyatlanmamış iş, m³ ile
-            // fiyatlanabilir hâle geldiyse geçerli tarifeyle tamamlanır.
-            if (!work.FinansMiktariManuel && work.BirimFiyatSnapshot <= 0 && !work.TarifeYiliSnapshot.HasValue)
+            // Tarifeden fiyatlanmış (veya henüz fiyatsız) iş yeniden fiyatlanır: malzemeli tarife varsa ahşap m³ ahşap,
+            // kontra m³ kontra tarifesiyle; yoksa tek tarife × bileşik m³. Elle girilmiş fiyat korunur.
+            if (!work.FinansMiktariManuel && !work.ManuelNetTutar.HasValue &&
+                (work.FinansUrunId.HasValue || work.BirimFiyatSnapshot <= 0 && !work.TarifeYiliSnapshot.HasValue))
                 await fiyatlar.OtomatikFiyatUygulaAsync(work, cancellationToken);
             work.Durum = FinansTutarKurallari.Durum(work);
             denetim.DegisiklikleriEkle(nameof(FinansIsKaydi), work, before);
-            denetim.Ekle(nameof(FinansIsKaydi), id, "Hacim", "Gerekçe", null, null, model.Aciklama);
+            if (!string.IsNullOrWhiteSpace(model.Aciklama))
+                denetim.Ekle(nameof(FinansIsKaydi), id, "Hacim", "Gerekçe", null, null, model.Aciklama.Trim());
             await context.SaveChangesAsync(cancellationToken);
             return FinansModelEslemeleri.MapIsKaydi(work);
         }, cancellationToken);

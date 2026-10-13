@@ -21,15 +21,25 @@
 | Depo lokasyon tanımı | depo-durumu W (sandığa lokasyon atama ayrı işlemdir) |
 | Hareket geçmişi | hareket-gecmisi R |
 | Kullanıcı, onay, bildirim aboneliği, ambalaj, finans | Request üzerindeki mevcut sabit veya çoklu işlem izinleri; artık header fallback yok |
-| Finans kontrol paneli | finans-yonetimi R **ve** finans-sekme-panel R |
-| Finans aylık iş listesi, proje sandık kırılımı | finans-sekme-is-takibi R **ve** finans-kayit-goruntule R |
-| Finans aylık / sipariş durumu raporu | finans-sekme-is-takibi R **ve** mevcut rapor, alan ve dışa aktarma izinleri |
-| Finans gider listesi | finans-sekme-giderler R **ve** finans-gider-goruntule R |
-| Finans iş / özet / alacak raporu, rapor önizleme | finans-sekme-raporlar R **ve** mevcut rapor, alan ve dışa aktarma izinleri |
-| Finans PO/fatura, tanım, gider kategorisi işlemleri | Mevcut kodlar; bu kodlar ağaçta ilgili sekme düğümünün altında olduğundan sekme izni tavandır |
-| Finans münferit iş listesi | finans-sekme-munferit-isler R **ve** finans-kayit-goruntule R |
-| Finans münferit iş oluşturma (tarifeden fiyatlanır) | finans-sekme-munferit-isler W **ve** finans-is-ekle W; elle fiyat olmadığı için fiyat değiştirme izni istenmez |
-| Finans ürün seçenekleri (münferit iş formu, fiyatsız) | finans-sekme-munferit-isler R |
+| **Finans (13 Ekim 2026'dan itibaren yalnız sekme izni)** | Her istek `Sekmeler` listesini bildirir (`FinansCommand`/`FinansQuery`); sorgu listelenen sekmelerden **herhangi birinin** R'sini, işlem W'sini ister. Alan maskelemesi yoktur: sekme R'si tutar, fiyat, gelir, gider, kârlılık, ölçü ve m³ dahil bütün alanları gösterir. Kümeler: `3K.Core/Constants/FinansSekmeleri.cs` |
+| Finans kontrol paneli | finans-sekme-panel R |
+| Finans aylık iş listesi, proje sandık kırılımı, aylık değer, tek seferlik iş ekleme | finans-sekme-is-takibi R / W |
+| Finans iş kaydı / PO / fatura detayı, seçim, hareketler, genel arama | Kayıt sekmelerinden biri R: is-takibi, panel, po-fatura, munferit-isler, raporlar |
+| Finans iş fiyatlandırma, hacim, finans tarihi, iptal/geri alma | is-takibi veya munferit-isler W |
+| Finans PO açma, PO'ya kalem ekleme, PO grup seçici | po-fatura, is-takibi veya munferit-isler W (seçici R) |
+| Finans PO/fatura listesi; PO düzeltme/iptal, fatura girişi/düzeltme/iptal, ödeme | finans-sekme-po-fatura R / W |
+| Finans vade uyarısı (İş Takibi üstü) | **finans-vade-uyarisi R** (sekme izninden bağımsız) |
+| Finans gider listesi ve gider işlemleri | finans-sekme-giderler R / W |
+| Finans gider kategori/kalem listesi (formlar, rapor filtreleri) | giderler, gider-kategorileri veya raporlar R |
+| Finans gider kütüphanesi yönetimi | finans-sekme-gider-kategorileri R / W |
+| Finans düzenli iş, tarife (ürün), yeniden fiyatlama, tarife düzeltme, para birimi, parametreler | finans-sekme-tanimlar R / W |
+| Finans münferit iş listesi / oluşturma (tarifeden fiyatlanır), tarife seçenekleri | finans-sekme-munferit-isler R / W |
+| Finans iş / gider / özet / alacak raporu ve önizleme | finans-sekme-raporlar R |
+| Finans aylık / sipariş durumu raporu | is-takibi veya raporlar R |
+| Finans bekleyen işler (yaşlandırma) | panel, is-takibi veya raporlar R |
+| Finans belge listeleme/indirme, değişiklik geçmişi | Kayıt sekmelerinden biri veya giderler R |
+| Finans belge yükleme, kalıcı silme (önizleme dahil) | Hedef kaydın sekmesi W: iş kaydı → is-takibi/munferit-isler, PO/fatura → po-fatura, gider → giderler |
+| Finans proje seçenekleri, para birimleri | finans-yonetimi R |
 
 ## Gerçek proje tipine bağlı işlemler
 

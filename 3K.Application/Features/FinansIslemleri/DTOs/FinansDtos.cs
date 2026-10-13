@@ -57,26 +57,19 @@ public sealed record FinansOzelIsKaydetDto(
 /// </summary>
 public sealed record FinansMunferitIsKaydetDto(
     int FinansUrunId,
-    string IsAdi,
-    string? OzelIsTuru,
-    string Musteri,
     int? ProjeId,
-    decimal Adet,
-    string Birim,
+    string? ProjeAdi,
     DateTime IsTarihi,
+    decimal Adet = 1,
     decimal? AhsapM3 = null,
-    decimal? KontraM3 = null,
-    string? Aciklama = null,
-    string? TalepEdenKisi = null,
-    string? TalepEdenBolum = null)
+    decimal? KontraM3 = null)
 {
     public FinansMunferitIsKaydetModel MunferitIsModeli() => new(
-        FinansUrunId, IsAdi, OzelIsTuru, Musteri, ProjeId, Adet, Birim, AhsapM3, KontraM3, IsTarihi.Date,
-        Aciklama, TalepEdenKisi, TalepEdenBolum);
+        FinansUrunId, ProjeId, string.IsNullOrWhiteSpace(ProjeAdi) ? null : ProjeAdi.Trim(), IsTarihi.Date, Adet, AhsapM3, KontraM3);
 }
 
 /// <summary>Kayıt detayındaki "Hacim" bölümünün isteği: ahşap ve kontra m³ ile gerekçe.</summary>
-public sealed record FinansHacimGirDto(decimal AhsapM3, decimal KontraM3, string Aciklama)
+public sealed record FinansHacimGirDto(decimal AhsapM3, decimal KontraM3, string? Aciklama = null)
 {
     public FinansHacimModel HacimModeli() => new(AhsapM3, KontraM3, Aciklama);
 }

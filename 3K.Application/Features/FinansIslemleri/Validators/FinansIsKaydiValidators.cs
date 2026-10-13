@@ -44,18 +44,15 @@ public sealed class FinansMunferitIsKaydetModelValidator : AbstractValidator<Fin
 {
     public FinansMunferitIsKaydetModelValidator()
     {
-        RuleFor(x => x.FinansUrunId).GreaterThan(0).WithMessage("İş/ürün tanımı seçilmelidir.");
-        RuleFor(x => x.IsAdi).NotEmpty().MaximumLength(250);
-        RuleFor(x => x.OzelIsTuru).MaximumLength(150);
-        RuleFor(x => x.Musteri).NotEmpty().MaximumLength(250);
+        RuleFor(x => x.FinansUrunId).GreaterThan(0).WithMessage("Tarife seçilmelidir.");
+        RuleFor(x => x).Must(x => x.ProjeId.HasValue != !string.IsNullOrWhiteSpace(x.ProjeAdi))
+            .WithName("Proje").WithMessage("Sistemden bir proje seçin veya proje adını yazın.");
+        RuleFor(x => x.ProjeId).GreaterThan(0).When(x => x.ProjeId.HasValue);
+        RuleFor(x => x.ProjeAdi).MaximumLength(100);
         RuleFor(x => x.Adet).GreaterThan(0);
-        RuleFor(x => x.Birim).NotEmpty().MaximumLength(30);
         RuleFor(x => x.AhsapM3).InclusiveBetween(0, FinansHacimKurallari.EnFazlaM3).When(x => x.AhsapM3.HasValue);
         RuleFor(x => x.KontraM3).InclusiveBetween(0, FinansHacimKurallari.EnFazlaM3).When(x => x.KontraM3.HasValue);
         RuleFor(x => x.IsTarihi).Must(FinansTarihKurallari.GecerliTarih).WithMessage("Geçerli bir iş tarihi girilmelidir.");
-        RuleFor(x => x.Aciklama).MaximumLength(2000);
-        RuleFor(x => x.TalepEdenKisi).MaximumLength(200);
-        RuleFor(x => x.TalepEdenBolum).MaximumLength(200);
     }
 }
 
@@ -102,7 +99,7 @@ public sealed class FinansHacimGirCommandValidator : AbstractValidator<FinansHac
             RuleFor(x => x.Model)
                 .Must(x => FinansHacimKurallari.GecerliManuelHacim(x.AhsapM3, x.KontraM3))
                 .WithMessage("Ahşap ve kontra m³ sıfır veya pozitif olmalı; en az biri sıfırdan büyük olmalıdır.");
-            RuleFor(x => x.Model.Aciklama).Must(FinansGerekceKurali.Gecerli).WithMessage(FinansGerekceKurali.Mesaj);
+            RuleFor(x => x.Model.Aciklama).Must(FinansGerekceKurali.IstegeBagliGecerli).WithMessage(FinansGerekceKurali.IstegeBagliMesaj);
         });
     }
 }

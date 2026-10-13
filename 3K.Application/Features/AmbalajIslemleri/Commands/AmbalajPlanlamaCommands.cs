@@ -109,3 +109,20 @@ public sealed class AmbalajBagimsizSandikSilCommand : AmbalajPlanlamaCommand
 {
     public int SandikId { get; init; }
 }
+
+/// <summary>
+/// Özel sandığı finansa aktarır (<see cref="Aktar"/> true) veya finanstan geri alır. Özel sandıkta üretim formu yoktur;
+/// aktarım Finans iş kaydını açar. Geri alma ayrıca durum geri alma iznini ister.
+/// </summary>
+public sealed class AmbalajOzelSandikFinansCommand : IRequest<Result<AmbalajBagimsizSandikDto>>, ISecuredRequest,
+    IRequiresMenuPermissions
+{
+    public int SandikId { get; set; }
+    public bool Aktar { get; set; } = true;
+    /// <summary>İsteğe bağlı finans tarihi; boşsa aktarım günü kullanılır.</summary>
+    public DateTime? FinansTarihi { get; init; }
+    public string? Gerekce { get; init; }
+    public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions => Aktar
+        ? [MenuPermissionRequirement.Write(YetkiKodlari.Ambalaj.DurumDuzenle)]
+        : [MenuPermissionRequirement.Write(YetkiKodlari.Ambalaj.DurumDuzenle), MenuPermissionRequirement.Write(YetkiKodlari.Ambalaj.DurumuGeriAl)];
+}

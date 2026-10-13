@@ -212,6 +212,92 @@ public sealed class FinansPostgresTests
         });
     }
 
+    /// <summary>
+    /// Malzemeli tarife: kontrplak ve katlanır sandıkta (boyutsuz) ahşap m³ ahşap, kontra m³ kontra tarifesiyle fiyatlanır.
+    /// Ahşap tarifesi sonradan tanımlanınca fiyatsız kalan ahşap tarafı tamamlanır; ahşap kapalı sandık ahşap tarifesini
+    /// tek tarife olarak kullanır; m³ ile kısmi PO işin netinden m³ oranıyla pay alır ve kalan m³ kalan neti kapatır.
+    /// </summary>
+    /// <summary>
+    /// Yalnız ahşap malzemeli tarife tanımlıysa kontrplak sandığın kontra tarafı malzemesiz genel m³ tarifesiyle fiyatlanır;
+    /// adetle fiyatlanan genel tarife (sırası önde olsa da) kontra m³'ü fiyatlamak için kullanılmaz.
+    /// </summary>
+    [PostgresRaporFact, Trait("Category", "Postgres")]
+    public async Task MalzemeliTarife_KontraTarifesiYoksa_GenelM3TarifesiKullanilir_AdetTarifesiKullanilmaz()
+    {
+        await InDatabase(async options =>
+        {
+            await using var db = new AppDbContext(options); var finans = Finans(db);
+            var baslangic = new DateTime(2026, 1, 1);
+            FinansUrunEslesmesiModel Eslesme(FinansSandikMalzemesi? malzeme) => new(null, FinansIsTuru.AnaAmbalaj, null, null, null, malzeme);
+            await finans.Urun.UrunOlusturAsync(new("ADET", "Adet kasa", FinansFiyatlandirmaBirimi.Adet, true, 0, [Eslesme(null)], 999m, "EUR", 20, baslangic), Ct);
+            await finans.Urun.UrunOlusturAsync(new("GENEL", "Genel m³", FinansFiyatlandirmaBirimi.Metrekup, true, 1, [Eslesme(null)], 280m, "EUR", 20, baslangic), Ct);
+            await finans.Urun.UrunOlusturAsync(new("AHSAP", "Ahşap m³", FinansFiyatlandirmaBirimi.Metrekup, true, 2,
+                [Eslesme(FinansSandikMalzemesi.Ahsap)], 150m, "EUR", 20, baslangic), Ct);
+            db.ChangeTracker.Clear();
+            await finans.UretimAktarim.UretimKayitlariniAktarAsync([new FinansUretimAktarimModel("AMBALAJURETIM", "kontra-genel", true, null, "QA",
+                "Sentetik", FinansIsTuru.AnaAmbalaj, "Kontra kasa", 1, 0m, Date, Date, SandikTipi: "Kontrplak Sandık",
+                SandikCinsi: AmbalajSandikCinsi.Kontrplak, UretimM3Hesaplanabilir: false)], Ct);
+            var id = (await db.Set<FinansIsKaydi>().AsNoTracking().SingleAsync()).Id;
+            db.ChangeTracker.Clear();
+
+            var kayit = (await finans.IsKaydi.HacimGirAsync(id, new(1.2m, 0.8m), Ct))!;
+
+            Assert.Equal((280m, 150m, 0.8m * 280m + 1.2m * 150m), (kayit.BirimFiyat, kayit.AhsapBirimFiyat, kayit.NetTutar));
+        });
+    }
+
+    [PostgresRaporFact, Trait("Category", "Postgres")]
+    public async Task MalzemeliTarife_AhsapVeKontraM3KendiTarifesiyle_KatlanirBoyutsuz_KismiPoOranli()
+    {
+        await InDatabase(async options =>
+        {
+            await using var db = new AppDbContext(options); var finans = Finans(db);
+            var baslangic = new DateTime(2026, 1, 1);
+            FinansUretimAktarimModel Sandik(string id, string tipi, AmbalajSandikCinsi cinsi, decimal birimM3) =>
+                new("AMBALAJURETIM", id, true, null, "QA", "Sentetik", FinansIsTuru.AnaAmbalaj, tipi, 1, birimM3, Date, Date,
+                    SandikTipi: tipi, SandikCinsi: cinsi, UretimM3Hesaplanabilir: birimM3 > 0);
+            await finans.UretimAktarim.UretimKayitlariniAktarAsync([
+                Sandik("kontra-m", "Kontrplak Sandık", AmbalajSandikCinsi.Kontrplak, 0m),
+                Sandik("katlanir-m", "Katlanır Sandık", AmbalajSandikCinsi.Katlanir, 0m),
+                Sandik("ahsap-m", "Ahşap Kapalı", AmbalajSandikCinsi.AhsapKapali, 1.5m)], Ct);
+            var kayitlar = await db.Set<FinansIsKaydi>().AsNoTracking().ToDictionaryAsync(x => x.KaynakKayitId!, x => x.Id);
+            db.ChangeTracker.Clear();
+
+            await finans.Urun.UrunOlusturAsync(new("KONTRA", "Kontra m³", FinansFiyatlandirmaBirimi.Metrekup, true, 0,
+                [new FinansUrunEslesmesiModel(null, FinansIsTuru.AnaAmbalaj, null, null, null, FinansSandikMalzemesi.Kontra)],
+                300m, "EUR", 20, baslangic), Ct);
+            db.ChangeTracker.Clear();
+            await finans.IsKaydi.HacimGirAsync(kayitlar["kontra-m"], new(1.2m, 0.8m), Ct);
+            await finans.IsKaydi.HacimGirAsync(kayitlar["katlanir-m"], new(0.5m, 1m), Ct);
+            db.ChangeTracker.Clear();
+            var ahsapsiz = (await finans.IsKaydi.IsKaydiGetirAsync(kayitlar["kontra-m"], Ct))!;
+            Assert.Equal((300m, 0m, 240m), (ahsapsiz.BirimFiyat, ahsapsiz.AhsapBirimFiyat, ahsapsiz.NetTutar));
+
+            await finans.Urun.UrunOlusturAsync(new("AHSAP", "Ahşap m³", FinansFiyatlandirmaBirimi.Metrekup, true, 1,
+                [new FinansUrunEslesmesiModel(null, FinansIsTuru.AnaAmbalaj, null, null, null, FinansSandikMalzemesi.Ahsap)],
+                150m, "EUR", 20, baslangic), Ct);
+            db.ChangeTracker.Clear();
+            var kontra = (await finans.IsKaydi.IsKaydiGetirAsync(kayitlar["kontra-m"], Ct))!;
+            var katlanir = (await finans.IsKaydi.IsKaydiGetirAsync(kayitlar["katlanir-m"], Ct))!;
+            var ahsap = (await finans.IsKaydi.IsKaydiGetirAsync(kayitlar["ahsap-m"], Ct))!;
+            Assert.Equal((300m, 150m, 0.8m * 300m + 1.2m * 150m), (kontra.BirimFiyat, kontra.AhsapBirimFiyat, kontra.NetTutar));
+            Assert.Equal((300m, 150m, 375m), (katlanir.BirimFiyat, katlanir.AhsapBirimFiyat, katlanir.NetTutar));
+            Assert.Equal((150m, (decimal?)null, 225m), (ahsap.BirimFiyat, ahsap.AhsapBirimFiyat, ahsap.NetTutar));
+
+            // SQL tutar ifadesi (panel/iş takibi) domain kuralıyla aynı neti verir.
+            var sqlNetler = await db.Set<FinansIsKaydi>().AsNoTracking().Select(FinansSorgulari.IsNetIfadesi).ToListAsync();
+            Assert.Equal(420m + 375m + 225m, sqlNetler.Sum());
+
+            db.ChangeTracker.Clear();
+            await finans.SiparisFatura.SiparisOlusturAsync(new("PO-MALZ-1", Date, "QA", [new(katlanir.Id, 0, 0.75m)], "EUR"), Ct);
+            db.ChangeTracker.Clear();
+            Assert.Equal(187.5m, (await finans.IsKaydi.IsKaydiGetirAsync(katlanir.Id, Ct))!.SiparisNetTutar);
+            await finans.SiparisFatura.SiparisOlusturAsync(new("PO-MALZ-2", Date, "QA", [new(katlanir.Id, 0, 0.75m)], "EUR"), Ct);
+            db.ChangeTracker.Clear();
+            Assert.Equal(375m, (await finans.IsKaydi.IsKaydiGetirAsync(katlanir.Id, Ct))!.SiparisNetTutar);
+        });
+    }
+
     [PostgresRaporFact, Trait("Category", "Postgres")]
     public async Task KaynakNetSarf_ManuelFinansSahipligi_SilmeBastirmasi_Duzenli31Catchup()
     {

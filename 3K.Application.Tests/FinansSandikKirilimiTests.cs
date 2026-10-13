@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using _3K.Application.Common;
 using _3K.Application.Features.FinansIslemleri.Queries;
@@ -80,49 +79,17 @@ public sealed class FinansSandikKirilimiTests
         => Assert.Equal(gecerli, new FinansProjeSandikKirilimiQueryValidator()
             .Validate(new FinansProjeSandikKirilimiQuery { ProjeId = projeId, ProjeNo = projeNo, Yil = yil, Ay = ay }).IsValid);
 
+    /// <summary>Kırılım yalnız İş Takibi sekmesinin okuma iznini ister; ayrı kayıt görüntüleme veya alan izni yoktur.</summary>
     [Fact]
-    public void Sorgu_IsTakibiSekmesiVeKayitGoruntulemeOkumaIzniIster()
+    public void Sorgu_YalnizIsTakibiSekmesiOkumaIzniIster()
     {
         var sorgu = new FinansProjeSandikKirilimiQuery();
-        Assert.Equal(YetkiKodlari.Finans.KayitGoruntule, sorgu.RequiredMenuKod);
+        Assert.Equal(YetkiKodlari.Finans.SekmeIsTakibi, sorgu.RequiredMenuKod);
+        Assert.Equal(YetkiTipi.R, sorgu.RequiredYetkiTipi);
+        Assert.Equal(MenuPermissionMatch.Any, sorgu.PermissionMatch);
         Assert.Equal(
-            [(YetkiKodlari.Finans.SekmeIsTakibi, YetkiTipi.R), (YetkiKodlari.Finans.KayitGoruntule, YetkiTipi.R)],
+            [(YetkiKodlari.Finans.SekmeIsTakibi, YetkiTipi.R)],
             sorgu.RequiredMenuPermissions.Select(x => (x.MenuKod, x.YetkiTipi)));
-    }
-
-    /// <summary>Kırılım yanıtı da HTTP sınırında maskelenir: tutar ve m³ null, sayaçlar açık; sarf kaydının m³'ü sarf iznine bağlı.</summary>
-    [Fact]
-    public void KirilimYaniti_AlanMaskesineUyar()
-    {
-        var model = new FinansProjeSandikKirilimiModel
-        {
-            ProjeNo = "PA-1",
-            KayitSayisi = 2,
-            Sandiklar = FinansSandikKirilimiKurali.Olustur(
-            [
-                Kayit(1, "1", "K-1", net: 100m, siparis: 0m, fatura: 0m, m3: 2m),
-                Kayit(2, "1", "K-1", net: 10m, siparis: 0m, fatura: 0m, m3: 0.5m, sarf: true),
-            ])
-        };
-        var json = JsonSerializer.SerializeToNode(model, JsonSerializerOptions.Web)!;
-        FinansAlanProjeksiyonu.Uygula(json, Tam with { Tutar = false, Sarf = false });
-        var sandik = json["sandiklar"]![0]!;
-        Assert.Null(sandik["netTutar"]);
-        Assert.Null(sandik["siparisNetTutar"]);
-        Assert.Null(sandik["faturalananNetTutar"]);
-        Assert.Equal(2m, sandik["toplamM3"]!.GetValue<decimal>());
-        Assert.Equal(2, sandik["kayitSayisi"]!.GetValue<int>());
-        Assert.Equal(2, json["kayitSayisi"]!.GetValue<int>());
-        var sarf = sandik["kayitlar"]![1]!;
-        Assert.Null(sarf["toplamM3"]);
-        Assert.Null(sarf["ahsapM3"]);
-        Assert.Equal(2m, sandik["kayitlar"]![0]!["toplamM3"]!.GetValue<decimal>());
-
-        json = JsonSerializer.SerializeToNode(model, JsonSerializerOptions.Web)!;
-        FinansAlanProjeksiyonu.Uygula(json, Tam with { UretimM3 = false });
-        Assert.Null(json["sandiklar"]![0]!["toplamM3"]);
-        Assert.Null(json["sandiklar"]![0]!["kontraM3"]);
-        Assert.Equal(110m, json["sandiklar"]![0]!["netTutar"]!.GetValue<decimal>());
     }
 
     /// <summary>
@@ -206,8 +173,6 @@ public sealed class FinansSandikKirilimiTests
             Assert.Contains(aylik.Projeler, x => x.ProjeBirimAnahtari == projeOzelIs.ProjeBirimAnahtari);
         });
     }
-
-    private static readonly AlanErisimYetkileri Tam = new(true, true, true, true, true, true, true, true, true);
 
     private static FinansSandikKirilimKaydi Kayit(
         int id, string? sandikNo, string? kaynak, decimal net, decimal siparis, decimal fatura, decimal m3,

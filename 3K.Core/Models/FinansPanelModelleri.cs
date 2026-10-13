@@ -15,7 +15,25 @@ public sealed record FinansPanelModel(DateTime Baslangic, DateTime Bitis, string
     FinansPanelSayilariModel? Sayilar = null,
     IReadOnlyList<FinansPanelAylikSayiModel>? AylikSayilar = null,
     IReadOnlyList<FinansPanelProjeOzetiModel>? ProjeOzetleri = null,
-    IReadOnlyList<FinansPanelKategoriOzetiModel>? KategoriOzetleri = null);
+    IReadOnlyList<FinansPanelKategoriOzetiModel>? KategoriOzetleri = null,
+    IReadOnlyList<FinansPanelMunferitIsModel>? MunferitIsler = null,
+    int MunferitIsSayisi = 0);
+
+/// <summary>
+/// Ana paneldeki münferit iş satırı (elle açılmış, düzenli işe bağlı olmayan özel iş): dönemde finans tarihine göre en
+/// yeni kayıtlar. <see cref="NetTutar"/> maske listesindedir; sayı ve metin alanları maskelenmez.
+/// </summary>
+public sealed record FinansPanelMunferitIsModel(
+    int Id,
+    DateTime FinansTarihi,
+    string ProjeNo,
+    string Musteri,
+    string IsAdi,
+    decimal Adet,
+    string Birim,
+    decimal? NetTutar,
+    string ParaBirimi,
+    FinansIsDurumu Durum);
 
 /// <summary>Panel detay dökümünün proje grubu (sıralama sırası): sistem projesinin tipi veya projesiz iş.</summary>
 public enum FinansPanelProjeGrubu

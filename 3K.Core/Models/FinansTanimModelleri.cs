@@ -54,19 +54,32 @@ public sealed record FinansDonemOlusturSonucModel(int Taranan, int Olusturulan, 
     public IReadOnlyList<string> Hatalar { get; init; } = [];
 }
 
+/// <summary>
+/// Ürünün iş türü eşleşmesi. <see cref="Malzeme"/> doluysa malzemeli tarifedir: kontrplak/katlanır sandıkta ahşap m³
+/// ahşap, kontra m³ kontra eşleşmesinin tarifesiyle fiyatlanır. Katlanır sandık artık boyutla eşleşmez.
+/// </summary>
 public sealed record FinansUrunEslesmesiModel(
     int? Id,
     FinansIsTuru IsTuru,
     string? SandikAdi,
     string? SandikTipi,
-    decimal? Boy,
-    decimal? En,
-    decimal? Yukseklik,
     int? IcSandikSablonId,
+    FinansSandikMalzemesi? Malzeme = null,
     bool Aktif = true);
 
 /// <summary>Münferit iş formunun ürün seçeneği: fiyat taşımaz (fiyat kayıtta tarifeden gelir).</summary>
-public sealed record FinansUrunSecenekModel(int Id, string Kod, string Ad, FinansFiyatlandirmaBirimi FiyatlandirmaBirimi);
+/// <summary>
+/// Münferit iş formunun tarife seçeneği: istenen tarihte geçerli tarife sürümünün birim fiyatı, para birimi ve KDV'si
+/// (o tarihte tarife yoksa boş). Kullanıcı tarifeyi seçtiği anda fiyatın eşleşip eşleşmediğini görür.
+/// </summary>
+public sealed record FinansUrunSecenekModel(
+    int Id,
+    string Kod,
+    string Ad,
+    FinansFiyatlandirmaBirimi FiyatlandirmaBirimi,
+    decimal? BirimFiyat = null,
+    string? ParaBirimi = null,
+    decimal? KdvOrani = null);
 
 public sealed class FinansUrunModel
 {

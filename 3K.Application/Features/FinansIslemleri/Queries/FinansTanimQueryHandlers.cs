@@ -45,7 +45,7 @@ public sealed class FinansTanimQueryHandlers(
             request.SadeceAktif, request.TarifeTarihi, request.Arama, request.PageNumber, request.PageSize, cancellationToken));
 
     public Task<Result<IReadOnlyList<FinansUrunSecenekModel>>> Handle(FinansUrunSecenekleriQuery request, CancellationToken cancellationToken)
-        => FinansHandlerHelper.ExecuteAsync(() => urunler.UrunSecenekleriAsync(request.Arama, request.IsTuru, cancellationToken));
+        => FinansHandlerHelper.ExecuteAsync(() => urunler.UrunSecenekleriAsync(request.Arama, request.IsTuru, request.Tarih, cancellationToken));
 
     public Task<Result<FinansTarifeDuzeltmeOnizlemeModel>> Handle(FinansTarifeDuzeltmeOnizlemeQuery request, CancellationToken cancellationToken)
         => FinansHandlerHelper.ExecuteOptionalAsync(

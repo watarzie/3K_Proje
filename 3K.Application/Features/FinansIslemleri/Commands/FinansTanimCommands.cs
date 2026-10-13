@@ -5,13 +5,13 @@ namespace _3K.Application.Features.FinansIslemleri.Commands;
 
 public sealed class FinansDuzenliIsOlusturCommand : FinansCommand<FinansDuzenliIsModel>
 {
-    public override string RequiredMenuKod => YetkiKodlari.Finans.DuzenliIsYonet;
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeTanimlar];
     public FinansDuzenliIsKaydetModel Model { get; init; } = null!;
 }
 
 public sealed class FinansDuzenliIsGuncelleCommand : FinansCommand<FinansDuzenliIsModel>
 {
-    public override string RequiredMenuKod => YetkiKodlari.Finans.DuzenliIsYonet;
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeTanimlar];
     public int Id { get; init; }
     public FinansDuzenliIsKaydetModel Model { get; init; } = null!;
 }
@@ -19,53 +19,53 @@ public sealed class FinansDuzenliIsGuncelleCommand : FinansCommand<FinansDuzenli
 /// <summary>Düzenli işin verilen tarihe kadarki dönem kayıtlarını üretir (gelecek aylar için PO açılabilsin diye).</summary>
 public sealed class FinansDuzenliIsDonemUretCommand : FinansCommand<FinansDonemOlusturSonucModel>
 {
-    public override string RequiredMenuKod => YetkiKodlari.Finans.DuzenliIsYonet;
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeTanimlar];
     public int Id { get; init; }
     public DateTime BitisTarihi { get; init; }
 }
 
 public sealed class FinansGiderKategoriOlusturCommand : FinansCommand<FinansGiderKategoriModel>
 {
-    public override string RequiredMenuKod => YetkiKodlari.Finans.GiderKutuphanesiYonet;
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeGiderKategorileri];
     public FinansGiderKategoriKaydetModel Model { get; init; } = null!;
 }
 
 public sealed class FinansGiderKategoriGuncelleCommand : FinansCommand<FinansGiderKategoriModel>
 {
-    public override string RequiredMenuKod => YetkiKodlari.Finans.GiderKutuphanesiYonet;
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeGiderKategorileri];
     public int Id { get; init; }
     public FinansGiderKategoriKaydetModel Model { get; init; } = null!;
 }
 
 public sealed class FinansGiderKalemiOlusturCommand : FinansCommand<FinansGiderKalemiModel>
 {
-    public override string RequiredMenuKod => YetkiKodlari.Finans.GiderKutuphanesiYonet;
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeGiderKategorileri];
     public FinansGiderKalemiKaydetModel Model { get; init; } = null!;
 }
 
 public sealed class FinansGiderKalemiGuncelleCommand : FinansCommand<FinansGiderKalemiModel>
 {
-    public override string RequiredMenuKod => YetkiKodlari.Finans.GiderKutuphanesiYonet;
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeGiderKategorileri];
     public int Id { get; init; }
     public FinansGiderKalemiKaydetModel Model { get; init; } = null!;
 }
 
 public sealed class FinansUrunOlusturCommand : FinansCommand<FinansUrunModel>
 {
-    public override string RequiredMenuKod => YetkiKodlari.Finans.IsKutuphanesiYonet;
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeTanimlar];
     public FinansUrunKaydetModel Model { get; init; } = null!;
 }
 
 public sealed class FinansUrunGuncelleCommand : FinansCommand<FinansUrunModel>
 {
-    public override string RequiredMenuKod => YetkiKodlari.Finans.IsKutuphanesiYonet;
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeTanimlar];
     public int Id { get; init; }
     public FinansUrunKaydetModel Model { get; init; } = null!;
 }
 
 public sealed class FinansUrunPasiflestirCommand : FinansCommand
 {
-    public override string RequiredMenuKod => YetkiKodlari.Finans.IsKutuphanesiYonet;
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeTanimlar];
     public int Id { get; init; }
 }
 
@@ -75,7 +75,7 @@ public sealed class FinansUrunPasiflestirCommand : FinansCommand
 /// </summary>
 public sealed class FinansUrunYenidenFiyatlaCommand : FinansCommand<FinansYenidenFiyatlamaSonucModel>
 {
-    public override string RequiredMenuKod => YetkiKodlari.Finans.BirimFiyatDegistir;
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeTanimlar];
     public int Id { get; init; }
     public string Aciklama { get; init; } = string.Empty;
 }
@@ -86,7 +86,7 @@ public sealed class FinansUrunYenidenFiyatlaCommand : FinansCommand<FinansYenide
 /// </summary>
 public sealed class FinansTarifeDuzeltCommand : FinansCommand<FinansTarifeDuzeltmeSonucModel>
 {
-    public override string RequiredMenuKod => YetkiKodlari.Finans.BirimFiyatDegistir;
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeTanimlar];
     public int UrunId { get; init; }
     public int TarifeId { get; init; }
     public FinansTarifeDuzeltModel Model { get; init; } = null!;
@@ -95,13 +95,13 @@ public sealed class FinansTarifeDuzeltCommand : FinansCommand<FinansTarifeDuzelt
 /// <summary>Para birimi tanımı (F1); finans tanımlarıyla aynı yetkiyle yönetilir.</summary>
 public sealed class FinansParaBirimiOlusturCommand : FinansCommand<FinansParaBirimiModel>
 {
-    public override string RequiredMenuKod => YetkiKodlari.Finans.IsKutuphanesiYonet;
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeTanimlar];
     public FinansParaBirimiKaydetModel Model { get; init; } = null!;
 }
 
 public sealed class FinansParaBirimiGuncelleCommand : FinansCommand<FinansParaBirimiModel>
 {
-    public override string RequiredMenuKod => YetkiKodlari.Finans.IsKutuphanesiYonet;
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeTanimlar];
     public int Id { get; init; }
     public FinansParaBirimiKaydetModel Model { get; init; } = null!;
 }
@@ -109,6 +109,6 @@ public sealed class FinansParaBirimiGuncelleCommand : FinansCommand<FinansParaBi
 /// <summary>Vade parametreleri (D3): varsayılan vade günü ve vade uyarısı penceresi.</summary>
 public sealed class FinansParametreleriKaydetCommand : FinansCommand<FinansParametrelerModel>
 {
-    public override string RequiredMenuKod => YetkiKodlari.Finans.IsKutuphanesiYonet;
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeTanimlar];
     public FinansParametrelerModel Model { get; init; } = null!;
 }

@@ -64,8 +64,20 @@ public static class FinansTutarKurallari
         work.FiyatlandirmaBirimiSnapshot != FinansFiyatlandirmaBirimi.ManuelToplam &&
         work.HesaplamaYontemi != FinansHesaplamaYontemi.Bilesenli;
 
-    public static decimal IsNet(FinansIsKaydi work) => work.ManuelNetTutar ?? Para(work.BirimFiyatSnapshot *
-        FiyatlandirmaMiktari(work.FiyatlandirmaBirimiSnapshot, work.Adet, work.ToplamM3));
+    /// <summary>
+    /// İşin net bedeli: elle girilmiş net tutar; malzemeli fiyatta (kontrplak/katlanır) kontra m³ × kontra tarifesi +
+    /// ahşap m³ × ahşap tarifesi; diğerlerinde birim fiyat × fiyatlandırma miktarı. SQL karşılığı FinansSorgulari.IsNetIfadesi.
+    /// </summary>
+    public static decimal IsNet(FinansIsKaydi work) => work.ManuelNetTutar ?? (work.AhsapBirimFiyatSnapshot.HasValue
+        ? MalzemeliNet(work, work.BirimFiyatSnapshot, work.AhsapBirimFiyatSnapshot.Value)
+        : Para(work.BirimFiyatSnapshot * FiyatlandirmaMiktari(work.FiyatlandirmaBirimiSnapshot, work.Adet, work.ToplamM3)));
+
+    /// <summary>
+    /// Malzemeli net: kontra m³ × kontra fiyatı + ahşap m³ × ahşap fiyatı. Hacim henüz elle girilmediyse kayıt m³'ünün
+    /// tamamı kontra sayılır (kontrplak/katlanır sandık; <see cref="FinansHacimKurallari"/>).
+    /// </summary>
+    public static decimal MalzemeliNet(FinansIsKaydi work, decimal kontraFiyati, decimal ahsapFiyati) =>
+        Para(kontraFiyati * (work.KontraM3 ?? work.ToplamM3 - (work.AhsapM3 ?? 0m)) + ahsapFiyati * (work.AhsapM3 ?? 0m));
 
     public static decimal SiparisNet(FinansIsKaydi work) => work.SiparisKalemleri.Where(x => !x.FinansSiparis.IptalEdildi).Sum(x => x.NetTutarSnapshot);
 

@@ -104,9 +104,11 @@ internal static class FinansSorgulari
     /// yarımları sıfırdan uzağa yuvarlar; kuralın para yuvarlamasıyla aynıdır.
     /// </summary>
     internal static readonly Expression<Func<FinansIsKaydi, decimal>> IsNetIfadesi = x =>
-        x.ManuelNetTutar ?? decimal.Round(x.BirimFiyatSnapshot *
-            (x.FiyatlandirmaBirimiSnapshot == FinansFiyatlandirmaBirimi.Adet ? x.Adet
-                : x.FiyatlandirmaBirimiSnapshot == FinansFiyatlandirmaBirimi.Metrekup ? x.ToplamM3 : 1m), 2);
+        x.ManuelNetTutar ?? (x.AhsapBirimFiyatSnapshot.HasValue
+            ? decimal.Round(x.BirimFiyatSnapshot * (x.KontraM3 ?? x.ToplamM3 - (x.AhsapM3 ?? 0m)) + x.AhsapBirimFiyatSnapshot.Value * (x.AhsapM3 ?? 0m), 2)
+            : decimal.Round(x.BirimFiyatSnapshot *
+                (x.FiyatlandirmaBirimiSnapshot == FinansFiyatlandirmaBirimi.Adet ? x.Adet
+                    : x.FiyatlandirmaBirimiSnapshot == FinansFiyatlandirmaBirimi.Metrekup ? x.ToplamM3 : 1m), 2));
 
     /// <summary><see cref="FinansTutarKurallari.SiparisNet(FinansIsKaydi)"/> kuralının SQL karşılığı.</summary>
     internal static readonly Expression<Func<FinansIsKaydi, decimal>> SiparisNetIfadesi = x =>

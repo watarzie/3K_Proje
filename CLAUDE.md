@@ -45,10 +45,10 @@ Akış: **Controller → Command/Query → (Authorization → Validation → App
   - Birden çok izin gerekiyorsa `IRequiresMenuPermissions.RequiredMenuPermissions` (`MenuPermissionRequirement.Read(kod)` / `.Write(kod)`; varsayılan AND, `PermissionMatch => MenuPermissionMatch.Any` açıkça belirtilir).
   - Proje/sandık bağlamlı izinler `IRequiresProjectMenuPermission` / `IRequiresSandikMenuPermission` ile ya da `RequestMenuPermissionResolver` içinde tanımlanır (proje tipi DB'den okunur, istemciden değil).
   - `ISecuredRequest` olmayan istek, açık istisna listesinde (`MenuAuthorizationExceptions`) değilse 403 alır.
-- Finans tabanları:
-  - `FinansQuery<T>` (`Features/FinansIslemleri/Queries/FinansQuery.cs`): `RequiredYetkiTipi => R`.
-  - `FinansCommand<T>` ve `FinansCommand` (`Commands/FinansCommand.cs`): `RequiredYetkiTipi => W`.
-  - Alt sınıf `public override string RequiredMenuKod => YetkiKodlari.Finans.GiderEkle;` yazar; ek izin gerekiyorsa `RequiredMenuPermissions`'ı override eder.
+- Finans tabanları (yetki yalnız sekme düzeyindedir):
+  - `FinansQuery<T>` (`Features/FinansIslemleri/Queries/FinansQuery.cs`): listelenen sekmelerden herhangi birinin R'si; işlem önizlemeleri `RequiredYetkiTipi`'ni W yapar.
+  - `FinansCommand<T>` ve `FinansCommand` (`Commands/FinansCommand.cs`): listelenen sekmelerden herhangi birinin W'si.
+  - Alt sınıf yalnız `public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeGiderler];` yazar. Birden çok sekmede açılan ortak işlem `3K.Core/Constants/FinansSekmeleri.cs` kümelerini kullanır (`Kayit`, `KayitVeGider`, `IsDuzenleme`, `SiparisAcma`, `GiderTanimlari`, `Varlik(tur)`).
 - Finans alanları: Panel, IsKaydi, SiparisFatura, Gider, Tanim, Belge, Rapor. Dosya adları `Finans<Alan>Commands.cs` / `Finans<Alan>CommandHandlers.cs` / `Finans<Alan>Queries.cs` / `Finans<Alan>QueryHandlers.cs` / `Validators/Finans<Alan>Validators.cs` kalıbındadır.
 
 ### Handler
@@ -89,16 +89,12 @@ Akış: **Controller → Command/Query → (Authorization → Validation → App
 - Kullanıcıya rol atama denetimi `IRolAtamaService` (`RolAtamaService`): `kullanicilar:W` ister; kullanıcı kendi rolünü değiştiremez, sahip olmadığı izinleri içeren rolü başkasına atayamaz, Admin rolünü yalnız mevcut Admin atar.
 - Yeni kod eklerken birlikte güncelle: `YetkiKodlari` + `scripts/database/` altında `MenuTanimlari` satırı (`LabelKey` = `MENU.<KOD>`) + ön yüz `src/app/core/constants/yetki-kodlari.ts` + TR/EN `MENU.*` çevirileri.
 
-### Finans alan maskeleme (dikkat!)
+### Finans: yalnız sekme izni, alan maskesi yok
 
-- Alan izinleri (parasal veri, birim fiyat, tutar, gelir, gider, kârlılık, ölçü, m³, sarf) **yalnız HTTP sınırında** uygulanır: `FinansAlanErisimFiltresi` (`3K_API/Controllers`) başarılı yanıtı JSON'a çevirip `FinansAlanProjeksiyonu.Uygula` (`3K.Core/Models`) çağırır. Servis ve handler ham modeli döndürür.
-- Görülemeyen alan `null` döner, sıfır değil.
-- **Maskeleme JSON özellik ADINA göre yapılır** (büyük/küçük harf duyarsız, iç içe bütün nesnelerde). `FinansAlanProjeksiyonu` içindeki kümeler: `Fiyat`, `Tutar`, `Gelir`, `Gider`, `Kar`, `Olcu`, `M3`. Örnek maskeli adlar: `tutar`, `toplam`, `netTutar`, `matrah`, `gider`, `giderler`, `gelir`, `net`, `kar`, `fark`, `boy`, `en`, `yukseklik`, `m3`, `toplamM3`.
-- Bu yüzden **yeni bir DTO özelliğine maskeli bir adı sayaç/metin için verme**; ör. iş adedi için `toplam`/`net`/`gider` yerine `isSayisi`, `kayitAdedi`, `giderKayitSayisi` gibi adlar kullan. Yoksa yetkisi olmayan kullanıcıya `null` gider.
-- Özel durumlar: `kategoriId` içeren veya `tur == "Gider"` olan nesnede fiyat/tutar alanları gider iznine bağlanır; birimi m³ olan `miktar` m³ iznine bağlanır; `toplamIs`/`siparisTam`/`toplamProje` içeren sayaç nesnelerinde `siparisBekleyen`/`faturaBekleyen`/`siparisAcik`/`faturalanan` maskelenmez.
-- `/raporlar/` ve `/belgeler/.../indir` dosya yanıtları bütün alan izinlerini ister, yoksa 403. Ön yüz aynası: `features/finans-yonetimi/ortak/finans-izinleri.ts`.
-- Panelin genel durum sayıları bu kurala göre adlandırılmıştır: `FinansPanelSayilariModel` (`isKaydi`, `po`, `fatura`, `giderKaydi`… — `gider` değil).
-- Yeni finans DTO alanı eklediğinde maskeli kümeyi ve `FinansAlanProjeksiyonuTests` / `FinansAlanHttpSecurityTests` testlerini güncelle.
+- 13 Ekim 2026'dan beri Finans'ta alt işlem ve alan izni yoktur: yalnız 8 sekme düğümü (`YetkiKodlari.Finans.Sekme*`) ve İş Takibi üstündeki vade uyarısı için `finans-vade-uyarisi` (R). Sekmenin R'si sekmedeki bütün alanları (tutar, birim fiyat, gelir, gider, kârlılık, ölçü, m³) gösterir; W'si sekmedeki bütün işlemleri (kalıcı silme dahil) yapar.
+- Yanıtlar maskelenmez (`FinansAlanErisimFiltresi`/`FinansAlanProjeksiyonu` kaldırıldı); rapor ve belge dosyaları ayrıca alan izni istemez. Yeni Finans alanı/DTO'su için yetki işi yoktur; yeni istek için doğru `Sekmeler` yeterlidir.
+- Yeni Finans alt izin kodu ekleme; ince ayrım gerekiyorsa sekme bazında ayrı rol tanımlanır. Ön yüz aynası: `features/finans-yonetimi/ortak/finans-izinleri.ts` (sunucudaki kümelerle aynı). Eşleme tablosu: `docs/guvenlik/SUNUCU_YETKI_ESLEMESI.md`.
+- Testler: `FinansSekmeYetkileriTests`, `FinansModuluTests`, `FinansAlanHttpSecurityTests`.
 - Ambalaj tarafında maskeleme açıktır: `AmbalajAlanMaskesi` ve `AmbalajYetkilendirmeYardimcisi.DtoyuMaskele` (`3K.Application/Features/AmbalajIslemleri`); yeni Ambalaj DTO'sunda maskeyi ve `AmbalajAlanMaskelemeTests`'i güncelle. Kayda bağlı ek izinler handler içinde `AmbalajIslemKurallari` + `AmbalajKritikIslemDenetimi` ile kontrol edilir.
 
 ## Veri erişimi

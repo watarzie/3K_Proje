@@ -130,43 +130,9 @@ public static class YetkiKodlari
     public static class Finans
     {
         public const string Modul = "finans-yonetimi";
-        public const string GelirGoruntule = "finans-gelir-goruntule";
-        public const string GiderGoruntule = "finans-gider-goruntule";
-        public const string SiparisOperasyonGoruntule = "finans-siparis-goruntule";
-        public const string RaporGoruntule = "finans-rapor-goruntule";
-        public const string ManuelIsEkle = "finans-is-ekle";
-        public const string IsIptal = "finans-is-iptal";
-        public const string TarihDegistir = "finans-tarih-degistir";
-        public const string PoGir = "finans-po-gir";
-        public const string PoDegistir = "finans-po-degistir";
-        public const string BirimFiyatGoruntule = "finans-birim-fiyat-goruntule";
-        public const string BirimFiyatDegistir = "finans-birim-fiyat-degistir";
-        public const string KarlilikGoruntule = "finans-karlilik-goruntule";
-        public const string ExcelAktar = "finans-excel-aktar";
-        public const string PdfAktar = "finans-pdf-aktar";
-        public const string GiderEkle = "finans-gider-ekle";
-        public const string GiderDuzenle = "finans-gider-duzenle";
-        public const string GiderKutuphanesiYonet = "finans-gider-kutuphanesi-yonet";
-        public const string IsKutuphanesiYonet = "finans-is-kutuphanesi-yonet";
-        public const string DuzenliIsYonet = "finans-duzenli-is-yonet";
-        public const string ParasalVeriGoruntule = "finans-parasal-veri-goruntule";
-        public const string TutarGoruntule = "finans-tutar-goruntule";
-        public const string KayitGoruntule = "finans-kayit-goruntule";
-        public const string FaturaGir = "finans-fatura-gir";
-        public const string FaturaDegistir = "finans-fatura-degistir";
-        public const string FaturaIptal = "finans-fatura-iptal";
-        public const string PoIptal = "finans-po-iptal";
-        public const string GiderIptal = "finans-gider-iptal";
-        public const string KaliciSil = "finans-kalici-sil";
-        public const string BelgeYukle = "finans-belge-yukle";
-        public const string BelgeIndir = "finans-belge-indir";
-        public const string DenetimGor = "finans-denetim-gor";
-        public const string FiyatlandirmaDegistir = "finans-fiyatlandirma-degistir";
-        /// <summary>Faturayı ödendi/ödenmedi olarak işaretleme (D3).</summary>
-        public const string OdemeKaydet = "finans-odeme-kaydet";
-
-        // Sekme düğümleri (finans-yonetimi altında, menüde görünmez). R sekmeyi gösterir; W sekmedeki işlemlerin
-        // tavanıdır. Yalnız o sekmeye ait işlem kodları sekme düğümünün altındadır (20261008_03_Finans_Sekme_Yetkileri.sql).
+        // Finans yetkisi yalnız sekme düzeyindedir (finans-yonetimi altında, menüde görünmez): R sekmedeki bütün verileri
+        // gösterir, W sekmedeki bütün işlemleri yapar; alt işlem ve alan izni yoktur (20261013_02_Finans_Sekme_Yetkisine_Gecis.sql).
+        // Birden çok sekmede açılan ortak işlemler FinansSekmeleri kümeleriyle yetkilendirilir.
         public const string SekmePanel = "finans-sekme-panel";
         public const string SekmeIsTakibi = "finans-sekme-is-takibi";
         public const string SekmePoFatura = "finans-sekme-po-fatura";
@@ -175,5 +141,7 @@ public static class YetkiKodlari
         public const string SekmeTanimlar = "finans-sekme-tanimlar";
         public const string SekmeRaporlar = "finans-sekme-raporlar";
         public const string SekmeMunferitIsler = "finans-sekme-munferit-isler";
+        /// <summary>İş Takibi'ndeki vade uyarısı (vadesi geçen/yaklaşan faturalar, tek tek kalan günüyle); yalnız R.</summary>
+        public const string VadeUyarisi = "finans-vade-uyarisi";
     }
 }

@@ -23,10 +23,18 @@ namespace _3K.Core.Entities
         public FinansIsTuru IsTuru { get; set; }
         public string? SandikAdi { get; set; }
         public string? SandikTipi { get; set; }
+        /// <summary>Eski katlanır sandık boyut eşleşmesi; artık eşleşmede kullanılmaz (kayıtlı değer korunur).</summary>
         public decimal? Boy { get; set; }
+        /// <inheritdoc cref="Boy"/>
         public decimal? En { get; set; }
+        /// <inheritdoc cref="Boy"/>
         public decimal? Yukseklik { get; set; }
         public int? IcSandikSablonId { get; set; }
+        /// <summary>
+        /// Malzemeli tarife: kontrplak/katlanır sandıkta ahşap m³ ahşap tarifesiyle, kontra m³ kontra tarifesiyle fiyatlanır.
+        /// Boşsa eşleşme malzemeden bağımsızdır (eski tek m³ tarifesi).
+        /// </summary>
+        public Models.FinansSandikMalzemesi? Malzeme { get; set; }
         public bool Aktif { get; set; } = true;
         public virtual FinansUrun FinansUrun { get; set; } = null!;
     }
@@ -95,6 +103,15 @@ namespace _3K.Core.Entities
         public decimal? KontraM3 { get; set; }
         /// <summary>Hacim elle girildi; üretim aktarımı m³ alanlarını ezmez, kayıt otomatik tarife fiyatlamasında kalır.</summary>
         public bool HacimManuel { get; set; }
+        /// <summary>
+        /// Malzemeli fiyat (kontrplak/katlanır): doluysa <see cref="FinansUrunId"/>/<see cref="BirimFiyatSnapshot"/> kontra
+        /// tarifesidir ve net = kontra m³ × kontra fiyatı + ahşap m³ × <see cref="AhsapBirimFiyatSnapshot"/>
+        /// (<see cref="Models.FinansTutarKurallari.IsNet"/>). Boşsa iş tek tarifeyle fiyatlanır.
+        /// </summary>
+        public decimal? AhsapBirimFiyatSnapshot { get; set; }
+        public int? AhsapFinansUrunId { get; set; }
+        public int? AhsapTarifeIdSnapshot { get; set; }
+        public virtual FinansUrun? AhsapFinansUrun { get; set; }
         public string? FiyatBilesenleriJson { get; set; }
         public DateTime KayitTarihi { get; set; }
         public FinansIsDurumu Durum { get; set; } = FinansIsDurumu.SiparisBekliyor;

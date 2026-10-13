@@ -6,11 +6,6 @@ namespace _3K.Application.Features.FinansIslemleri.Queries;
 
 public sealed class FinansGiderlerQuery : FinansQuery<FinansSayfaliSonuc<FinansGiderModel>>
 {
-    public override string RequiredMenuKod => YetkiKodlari.Finans.GiderGoruntule;
-    public override IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions =>
-    [
-        MenuPermissionRequirement.Read(YetkiKodlari.Finans.SekmeGiderler),
-        MenuPermissionRequirement.Read(YetkiKodlari.Finans.GiderGoruntule)
-    ];
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeGiderler];
     public FinansListeFiltre Filtre { get; init; } = new();
 }

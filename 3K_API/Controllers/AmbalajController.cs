@@ -141,6 +141,30 @@ namespace _3K_API.Controllers
             return (await _mediator.Send(command, ct)).ToActionResult();
         }
 
+        /// <summary>Özel sandığı finansa aktarır: Finans iş kaydı açılır (üretim formu gerekmez).</summary>
+        [HttpPost("bagimsiz-sandiklar/{sandikId:int}/finansa-aktar")]
+        public async Task<ActionResult> OzelSandikFinansaAktar(
+            int sandikId,
+            [FromBody] AmbalajOzelSandikFinansCommand command,
+            CancellationToken ct)
+        {
+            command.SandikId = sandikId;
+            command.Aktar = true;
+            return (await _mediator.Send(command, ct)).ToActionResult();
+        }
+
+        /// <summary>Özel sandığı finanstan geri alır; finans kaydı PO'ya bağlıysa 409.</summary>
+        [HttpPost("bagimsiz-sandiklar/{sandikId:int}/finanstan-geri-al")]
+        public async Task<ActionResult> OzelSandikFinanstanGeriAl(
+            int sandikId,
+            [FromBody] AmbalajOzelSandikFinansCommand command,
+            CancellationToken ct)
+        {
+            command.SandikId = sandikId;
+            command.Aktar = false;
+            return (await _mediator.Send(command, ct)).ToActionResult();
+        }
+
         [HttpDelete("bagimsiz-sandiklar/{sandikId:int}")]
         public async Task<ActionResult> BagimsizSandikSil(int sandikId, [FromQuery] string? gerekce, CancellationToken ct) =>
             (await _mediator.Send(new AmbalajBagimsizSandikSilCommand { SandikId = sandikId, Gerekce = gerekce }, ct)).ToActionResult();

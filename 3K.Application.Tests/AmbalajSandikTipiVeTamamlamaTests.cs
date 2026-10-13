@@ -73,11 +73,11 @@ public sealed class AmbalajSandikTipiVeTamamlamaTests
     }
 
     /// <summary>
-    /// Özel sandık normal plan sandıkları gibi üretim formu oluşunca üretime alınır: kaydetmek finansa aktif iş kaydı
-    /// açmaz (kaynak pasif gider), üretim tarihi yazılmaz. Daha önce üretime alınmış (eski) kayıt düzenlenince durumu korunur.
+    /// Özel sandıkta üretim formu yoktur: kaydetmek finansa aktif iş kaydı açmaz (kaynak pasif gider), üretim tarihi
+    /// yazılmaz; finans kaydı "Finansa aktar" ile açılır. Daha önce aktarılmış kayıt düzenlenince durumu korunur.
     /// </summary>
     [Fact]
-    public async Task Ozel_sandik_kaydedilince_uretime_alinmaz_finans_kaydi_form_olusunca_acilir()
+    public async Task Ozel_sandik_kaydedilince_uretime_alinmaz_finans_kaydi_finansa_aktarilinca_acilir()
     {
         var f = new Fixture(OrtakRoller.TumIzinler(), ProjeTipi.Saha);
 
@@ -104,6 +104,62 @@ public sealed class AmbalajSandikTipiVeTamamlamaTests
         Assert.True(kayit.UretimeAlindi);
         Assert.Equal(PlanBaslangici, kayit.UretimTarihi);
         Assert.True(Assert.Single(f.Finans.Modeller).KaynakAktif);
+    }
+
+    /// <summary>
+    /// "Finansa aktar": özel sandık üretime alınmış sayılır, finans tarihiyle aktif iş kaydı açılır; ikinci aktarım 409.
+    /// "Finanstan geri al": iş kaydı pasife düşer; PO'ya bağlıysa veya proje tamamlamasıyla tamamlandıysa 409.
+    /// </summary>
+    [Fact]
+    public async Task Ozel_sandik_finansa_aktarilir_ve_po_yoksa_finanstan_geri_alinir()
+    {
+        var f = new Fixture(OrtakRoller.TumIzinler(), ProjeTipi.Saha);
+        Assert.True((await f.OzelSandikHandler().Handle(OzelSandik(tur: 4), default)).IsSuccess);
+        var kayit = Assert.Single(f.Kayitlar);
+        f.Finans.Modeller.Clear();
+
+        var aktar = await f.OzelFinansHandler().Handle(new() { SandikId = kayit.Id, FinansTarihi = new DateTime(2026, 9, 30) }, default);
+
+        Assert.True(aktar.IsSuccess, aktar.Error?.Message);
+        Assert.True(aktar.Value!.UretimeAlindi);
+        Assert.Equal((true, AmbalajUretimDurumu.Uretimde), (kayit.UretimeAlindi, kayit.UretimDurumu));
+        Assert.NotNull(kayit.UretimTarihi);
+        var model = Assert.Single(f.Finans.Modeller);
+        Assert.Equal((true, new DateTime(2026, 9, 30)), (model.KaynakAktif, model.FinansTarihi));
+        Assert.Equal(409, (await f.OzelFinansHandler().Handle(new() { SandikId = kayit.Id }, default)).StatusCode);
+
+        f.Finans.Modeller.Clear();
+        var geriAl = await f.OzelFinansHandler().Handle(new() { SandikId = kayit.Id, Aktar = false }, default);
+
+        Assert.True(geriAl.IsSuccess, geriAl.Error?.Message);
+        Assert.Equal((false, AmbalajUretimDurumu.Planlandi, (DateTime?)null), (kayit.UretimeAlindi, kayit.UretimDurumu, kayit.UretimTarihi));
+        Assert.False(Assert.Single(f.Finans.Modeller).KaynakAktif);
+
+        // PO'ya bağlanmış finans kaydı geri alınamaz.
+        Assert.True((await f.OzelFinansHandler().Handle(new() { SandikId = kayit.Id }, default)).IsSuccess);
+        f.PoBagla(kayit);
+        var poluGeriAl = await f.OzelFinansHandler().Handle(new() { SandikId = kayit.Id, Aktar = false }, default);
+        Assert.Equal(409, poluGeriAl.StatusCode);
+        Assert.Contains("PO'ya bağlı", poluGeriAl.Error!.Message);
+        Assert.True(kayit.UretimeAlindi);
+    }
+
+    [Fact]
+    public async Task Ozel_sandik_olculeri_eksikse_veya_yapilmayacaksa_finansa_aktarilamaz_form_olusturulamaz()
+    {
+        var f = new Fixture(OrtakRoller.TumIzinler(), ProjeTipi.Saha);
+        Assert.True((await f.OzelSandikHandler().Handle(OzelSandik(tur: 4), default)).IsSuccess);
+        var kayit = Assert.Single(f.Kayitlar);
+
+        kayit.Adet = 0;
+        Assert.Equal(409, (await f.OzelFinansHandler().Handle(new() { SandikId = kayit.Id }, default)).StatusCode);
+        kayit.Adet = 1;
+        kayit.AmbalajKarariniUygula(false);
+        Assert.Equal(409, (await f.OzelFinansHandler().Handle(new() { SandikId = kayit.Id }, default)).StatusCode);
+        Assert.False(kayit.UretimeAlindi);
+        // Normal plan kaydı bu komutla aktarılamaz.
+        var plan = f.FormluKayit(50, AmbalajUretimDurumu.Planlandi);
+        Assert.Equal(404, (await f.OzelFinansHandler().Handle(new() { SandikId = plan.Id }, default)).StatusCode);
     }
 
     /// <summary>A1: aynı proje + grup + sandık no ile ikinci özel sandık eklenemez (örnek: PA484-03-SAHA sandık 1).</summary>
@@ -214,9 +270,12 @@ public sealed class AmbalajSandikTipiVeTamamlamaTests
         Assert.Empty(f.Finans.Modeller);
     }
 
-    /// <summary>Özel Sandıklar listesindeki formsuz bağımsız kayıt da adıyla ve "özel sandık" olarak bildirilir.</summary>
+    /// <summary>
+    /// Özel sandıkta form yoktur: tamamlamayı yalnız finansa aktarılmamış özel sandık engeller ve "özel sandık" olarak
+    /// bildirilir; finansa aktarılmış formsuz özel sandık projeyle birlikte tamamlanır.
+    /// </summary>
     [Fact]
-    public async Task A2_Formsuz_ozel_sandik_tamamlamayi_ozel_sandik_olarak_engeller()
+    public async Task A2_Finansa_aktarilmamis_ozel_sandik_tamamlamayi_ozel_sandik_olarak_engeller()
     {
         var f = new Fixture(OrtakRoller.TumIzinler());
         f.FormluKayit(1, AmbalajUretimDurumu.Uretimde);
@@ -229,10 +288,23 @@ public sealed class AmbalajSandikTipiVeTamamlamaTests
         var sonuc = await f.ProjeHandler().Handle(new() { ProjeId = 10, Tamamla = true }, default);
 
         Assert.Equal(409, sonuc.StatusCode);
-        Assert.Contains("Üretim formu olmayan: OZEL-1 (İlave özel sandık)", sonuc.Error!.Message);
+        Assert.Contains("Finansa aktarılmamış özel sandık: OZEL-1 (İlave özel sandık)", sonuc.Error!.Message);
+        Assert.EndsWith("Özel sandıkları Özel Sandıklar listesinden finansa aktarın.", sonuc.Error.Message);
         var engel = Assert.Single(Engeller(sonuc));
-        Assert.Equal((2, (int?)null, true), (engel.KayitId, engel.KaynakSandikId, engel.OzelSandik));
-        Assert.Equal("OZEL-1 (İlave özel sandık): üretim formu yok", engel.Mesaj);
+        Assert.Equal((2, (int?)null, true, AmbalajProjeTamamlamaEngelleri.FinansaAktarilmadi),
+            (engel.KayitId, engel.KaynakSandikId, engel.OzelSandik, engel.Neden));
+        Assert.Equal("OZEL-1 (İlave özel sandık): finansa aktarılmamış", engel.Mesaj);
+
+        ozel.UretimeAlindi = true;
+        ozel.UretimTarihi = PlanBaslangici;
+        var tamam = await f.ProjeHandler().Handle(new() { ProjeId = 10, Tamamla = true }, default);
+        Assert.True(tamam.IsSuccess, tamam.Error?.Message);
+        Assert.Equal(AmbalajUretimDurumu.Tamamlandi, ozel.UretimDurumu);
+
+        // Tamamlanmış özel sandık finanstan geri alınamaz (önce proje tamamlaması geri alınır).
+        var geriAl = await f.OzelFinansHandler().Handle(new() { SandikId = ozel.Id, Aktar = false }, default);
+        Assert.Equal(409, geriAl.StatusCode);
+        Assert.Contains("proje tamamlamasını geri alın", geriAl.Error!.Message);
     }
 
     /// <summary>Formu olmayan, üretime alınmamış ve ölçüsü eksik sandıklar tek yanıtta, kendi başlıklarıyla bildirilir.</summary>
@@ -384,6 +456,8 @@ public sealed class AmbalajSandikTipiVeTamamlamaTests
             new(Uow, User, Roller, new AmbalajKaynakSenkronizasyonService(Uow, Finans), Finans, Denetim);
 
         public AmbalajProjeUretimDurumuCommandHandler ProjeHandler() => new(Uow, User, Finans, Roller, Denetim);
+
+        public AmbalajOzelSandikFinansCommandHandler OzelFinansHandler() => new(Uow, User, Roller, Finans, Denetim);
 
         public Sandik KaynakSandik(int id, string no, SandikTipi tip, DateTime olusturma)
         {

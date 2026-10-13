@@ -15,6 +15,12 @@ public static class FinansGerekceKurali
     public static bool Gecerli(string? gerekce) =>
         !string.IsNullOrWhiteSpace(gerekce) && gerekce.Trim().Length >= EnKisa && gerekce.Length <= EnUzun;
 
+    /// <summary>İsteğe bağlı gerekçe (ör. hacim girişi): boş bırakılabilir; yazılırsa en fazla <see cref="EnUzun"/> karakter.</summary>
+    public static bool IstegeBagliGecerli(string? gerekce) =>
+        string.IsNullOrWhiteSpace(gerekce) || gerekce.Length <= EnUzun;
+
+    public const string IstegeBagliMesaj = "Gerekçe en fazla 1000 karakter olabilir.";
+
     /// <summary>Servis koruması: gerekçe kurala uymuyorsa iş kuralı hatası fırlatır.</summary>
     public static void Dogrula(string? gerekce)
     {
