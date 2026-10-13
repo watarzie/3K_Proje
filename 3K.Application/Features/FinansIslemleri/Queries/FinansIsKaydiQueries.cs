@@ -18,7 +18,7 @@ public sealed class FinansIsKayitlariSecimQuery : FinansQuery<IReadOnlyList<Fina
 
 public sealed class FinansAylikIslerQuery : FinansQuery<FinansAylikSayfaliSonuc>
 {
-    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeIsTakibi];
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeIsTakibiAylik];
     public int Yil { get; init; }
     public int Ay { get; init; }
     public FinansListeFiltre Filtre { get; init; } = new();
@@ -30,7 +30,7 @@ public sealed class FinansAylikIslerQuery : FinansQuery<FinansAylikSayfaliSonuc>
 /// </summary>
 public sealed class FinansProjeSandikKirilimiQuery : FinansQuery<FinansProjeSandikKirilimiModel>
 {
-    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeIsTakibi];
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeIsTakibiAylik];
     public int? ProjeId { get; init; }
     public string? ProjeNo { get; init; }
     public string? Musteri { get; init; }

@@ -165,6 +165,11 @@ namespace _3K_API.Controllers
             return (await _mediator.Send(command, ct)).ToActionResult();
         }
 
+        /// <summary>Ambalaj kaydının değişiklik geçmişi (kim, ne zaman, ne değiştirdi).</summary>
+        [HttpGet("kayitlar/{id:int}/gecmis")]
+        public async Task<ActionResult> KayitGecmisi(int id, CancellationToken ct) =>
+            (await _mediator.Send(new GetAmbalajKayitGecmisiQuery { KayitId = id }, ct)).ToActionResult();
+
         [HttpDelete("bagimsiz-sandiklar/{sandikId:int}")]
         public async Task<ActionResult> BagimsizSandikSil(int sandikId, [FromQuery] string? gerekce, CancellationToken ct) =>
             (await _mediator.Send(new AmbalajBagimsizSandikSilCommand { SandikId = sandikId, Gerekce = gerekce }, ct)).ToActionResult();

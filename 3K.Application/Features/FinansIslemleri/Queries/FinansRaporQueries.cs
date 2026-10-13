@@ -21,7 +21,7 @@ public sealed class FinansGiderRaporuDosyaQuery : FinansQuery<DosyaIcerigi>
 
 public sealed class FinansAylikRaporDosyaQuery : FinansQuery<DosyaIcerigi>
 {
-    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeIsTakibi, YetkiKodlari.Finans.SekmeRaporlar];
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeIsTakibiAylik, YetkiKodlari.Finans.SekmeRaporlar];
     public string Format { get; init; } = "pdf";
     public int Yil { get; init; }
     public int Ay { get; init; }
@@ -30,7 +30,7 @@ public sealed class FinansAylikRaporDosyaQuery : FinansQuery<DosyaIcerigi>
 
 public sealed class FinansSiparisDurumRaporuDosyaQuery : FinansQuery<DosyaIcerigi>
 {
-    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeIsTakibi, YetkiKodlari.Finans.SekmeRaporlar];
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeIsTakibiAylik, YetkiKodlari.Finans.SekmeRaporlar];
     public string Format { get; init; } = "pdf";
     public FinansListeFiltre Filtre { get; init; } = new();
 }

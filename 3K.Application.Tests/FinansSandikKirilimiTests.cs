@@ -79,16 +79,16 @@ public sealed class FinansSandikKirilimiTests
         => Assert.Equal(gecerli, new FinansProjeSandikKirilimiQueryValidator()
             .Validate(new FinansProjeSandikKirilimiQuery { ProjeId = projeId, ProjeNo = projeNo, Yil = yil, Ay = ay }).IsValid);
 
-    /// <summary>Kırılım yalnız İş Takibi sekmesinin okuma iznini ister; ayrı kayıt görüntüleme veya alan izni yoktur.</summary>
+    /// <summary>Kırılım yalnız İş Takibi'nin Aylık görünüm alt sekmesinin okuma iznini ister; ayrı kayıt görüntüleme veya alan izni yoktur.</summary>
     [Fact]
-    public void Sorgu_YalnizIsTakibiSekmesiOkumaIzniIster()
+    public void Sorgu_YalnizIsTakibiAylikAltSekmesiOkumaIzniIster()
     {
         var sorgu = new FinansProjeSandikKirilimiQuery();
-        Assert.Equal(YetkiKodlari.Finans.SekmeIsTakibi, sorgu.RequiredMenuKod);
+        Assert.Equal(YetkiKodlari.Finans.SekmeIsTakibiAylik, sorgu.RequiredMenuKod);
         Assert.Equal(YetkiTipi.R, sorgu.RequiredYetkiTipi);
         Assert.Equal(MenuPermissionMatch.Any, sorgu.PermissionMatch);
         Assert.Equal(
-            [(YetkiKodlari.Finans.SekmeIsTakibi, YetkiTipi.R)],
+            [(YetkiKodlari.Finans.SekmeIsTakibiAylik, YetkiTipi.R)],
             sorgu.RequiredMenuPermissions.Select(x => (x.MenuKod, x.YetkiTipi)));
     }
 

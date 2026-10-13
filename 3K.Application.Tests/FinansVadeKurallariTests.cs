@@ -97,18 +97,19 @@ public sealed class FinansVadeKurallariTests
     }
 
     /// <summary>
-    /// Ödeme PO/Fatura sekmesinin, para birimi/parametre/yeniden fiyatlama Tanımlar sekmesinin W iznini ister; vade
-    /// uyarısı yalnız kendi R iznini (sekme izni yetmez), alacak raporu biçimden bağımsız Raporlar sekmesinin R iznini ister.
+    /// Ödeme PO/Fatura'nın Faturalar alt sekmesinin, para birimi/parametre Tanımlar'ın Para Birimi ve Vade alt sekmesinin,
+    /// yeniden fiyatlama Ürün ve Tarifeler alt sekmesinin W iznini ister; vade uyarısı yalnız kendi R iznini (sekme izni
+    /// yetmez), alacak raporu biçimden bağımsız Raporlar sekmesinin R iznini ister.
     /// </summary>
     [Fact]
     public void Yeni_finans_istekleri_kendi_sekme_izinlerini_ister()
     {
-        Assert.Equal((YetkiKodlari.Finans.SekmePoFatura, YetkiTipi.W),
+        Assert.Equal((YetkiKodlari.Finans.SekmePoFaturaFatura, YetkiTipi.W),
             (new FinansFaturaOdemeCommand().RequiredMenuKod, new FinansFaturaOdemeCommand().RequiredYetkiTipi));
-        Assert.Equal([MenuPermissionRequirement.Write(YetkiKodlari.Finans.SekmeTanimlar)], new FinansUrunYenidenFiyatlaCommand().RequiredMenuPermissions);
-        Assert.Equal([MenuPermissionRequirement.Write(YetkiKodlari.Finans.SekmeTanimlar)], new FinansParaBirimiOlusturCommand().RequiredMenuPermissions);
-        Assert.Equal([MenuPermissionRequirement.Write(YetkiKodlari.Finans.SekmeTanimlar)], new FinansParaBirimiGuncelleCommand().RequiredMenuPermissions);
-        Assert.Equal([MenuPermissionRequirement.Write(YetkiKodlari.Finans.SekmeTanimlar)], new FinansParametreleriKaydetCommand().RequiredMenuPermissions);
+        Assert.Equal([MenuPermissionRequirement.Write(YetkiKodlari.Finans.SekmeTanimlarTarifeler)], new FinansUrunYenidenFiyatlaCommand().RequiredMenuPermissions);
+        Assert.Equal([MenuPermissionRequirement.Write(YetkiKodlari.Finans.SekmeTanimlarParaBirimi)], new FinansParaBirimiOlusturCommand().RequiredMenuPermissions);
+        Assert.Equal([MenuPermissionRequirement.Write(YetkiKodlari.Finans.SekmeTanimlarParaBirimi)], new FinansParaBirimiGuncelleCommand().RequiredMenuPermissions);
+        Assert.Equal([MenuPermissionRequirement.Write(YetkiKodlari.Finans.SekmeTanimlarParaBirimi)], new FinansParametreleriKaydetCommand().RequiredMenuPermissions);
         Assert.Equal(YetkiKodlari.Finans.Modul, new FinansParaBirimleriQuery().RequiredMenuKod);
         Assert.Equal([MenuPermissionRequirement.Read(YetkiKodlari.Finans.VadeUyarisi)], new FinansVadeUyarilariQuery().RequiredMenuPermissions);
         Assert.Equal([MenuPermissionRequirement.Read(YetkiKodlari.Finans.SekmeRaporlar)],

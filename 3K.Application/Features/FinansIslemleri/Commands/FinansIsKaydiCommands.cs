@@ -6,7 +6,7 @@ namespace _3K.Application.Features.FinansIslemleri.Commands;
 
 public sealed class FinansIsKaydiOlusturCommand : FinansCommand<FinansIsKaydiModel>
 {
-    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeIsTakibi];
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeIsTakibiAylik];
     public FinansIsKaydiKaydetModel Model { get; init; } = null!;
 }
 
@@ -35,7 +35,7 @@ public sealed class FinansIsKaydiGeriAlCommand : FinansCommand
 
 public sealed class FinansOzelIsAylikDegerGuncelleCommand : FinansCommand
 {
-    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeIsTakibi];
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeIsTakibiAylik];
     public int Id { get; init; }
     public FinansAylikDegerModel Model { get; init; } = null!;
 }

@@ -166,7 +166,7 @@ public sealed class FinansAlanHttpSecurityTests
         host.GrantAll();
         var govde = new { poNumarasi = "PO-1", siparisTarihi = "2026-09-01", kalemler = new[] { new { isKaydiId = 1, adet = 0, m3 = 0, netTutar = 777.25m } } };
 
-        // PO açma PO/Fatura, İş Takibi veya Münferit İşler sekmesinin yazmasını ister.
+        // PO açma PO'lar alt sekmesinin (PO/Fatura sekmesi tavanıyla), İş Takibi veya Münferit İşler sekmesinin yazmasını ister.
         host.Roles.Revoke(YetkiKodlari.Finans.SekmePoFatura);
         host.Roles.Revoke(YetkiKodlari.Finans.SekmeIsTakibi);
         host.Roles.Revoke(YetkiKodlari.Finans.SekmeMunferitIsler);
@@ -244,7 +244,10 @@ public sealed class FinansAlanHttpSecurityTests
         Assert.Equal(1, host.Data.Calls);
     }
 
-    /// <summary>Oluşturma yanıtı sahte sıfır üretmez; yalnız PO/Fatura sekmesi yazması olan kullanıcı da birim fiyatı görür.</summary>
+    /// <summary>
+    /// Oluşturma yanıtı sahte sıfır üretmez; yalnız PO/Fatura sekmesi ve PO'lar alt sekmesi yazması olan kullanıcı da birim
+    /// fiyatı görür. Alt sekme izni olmadan sekme yazması PO açmaz.
+    /// </summary>
     [Fact]
     public async Task Http_OlusturmaYanitiSahteSifirUretmez_SekmeYazmasiylaFiyatGorunur()
     {
@@ -262,6 +265,13 @@ public sealed class FinansAlanHttpSecurityTests
         sekmeli.Authenticate();
         sekmeli.Roles.Grant(YetkiKodlari.Finans.Modul, YetkiTipi.W);
         sekmeli.Roles.Grant(YetkiKodlari.Finans.SekmePoFatura, YetkiTipi.W);
+        // Sekmenin W'si PO'lar alt sekmesinin iznini kendiliğinden vermez; Faturalar alt sekmesi de PO açmaz.
+        sekmeli.Roles.Grant(YetkiKodlari.Finans.SekmePoFaturaFatura, YetkiTipi.W);
+        using (var altSekmesiz = await sekmeli.Client.PostAsync("api/finans/siparisler", new StringContent(
+                   System.Text.Json.JsonSerializer.Serialize(govde), Encoding.UTF8, "application/json")))
+            Assert.Equal(HttpStatusCode.Forbidden, altSekmesiz.StatusCode);
+        Assert.Equal(0, sekmeli.Data.Calls);
+        sekmeli.Roles.Grant(YetkiKodlari.Finans.SekmePoFaturaPo, YetkiTipi.W);
         var yanit = await sekmeli.PostJson("api/finans/siparisler", govde);
         Assert.Equal(777.25m, yanit["kalemler"]![0]!["birimFiyat"]!.GetValue<decimal>());
         Assert.Equal(777.25m, yanit["kalemler"]![0]!["netTutar"]!.GetValue<decimal>());
@@ -358,7 +368,7 @@ public sealed class FinansAlanHttpSecurityTests
         private readonly ConcurrentDictionary<string, YetkiTipi> _permissions = new();
         public void Grant(string code, YetkiTipi level = YetkiTipi.R) => _permissions[code] = level;
         public void Revoke(string code) => _permissions.TryRemove(code, out _);
-        // Gerçek değerlendirici gibi üst düğüm alt kodların tavanıdır: finans kökü → sekme düğümü / vade uyarısı.
+        // Gerçek değerlendirici gibi üst düğüm alt kodların tavanıdır: finans kökü → sekme düğümü / vade uyarısı → alt sekme.
         public Task<bool> HasUserPermissionAsync(int userId, string menuKod, YetkiTipi requiredYetkiTipi, CancellationToken ct = default) =>
             Task.FromResult(userId == 7 && Seviye(menuKod) >= requiredYetkiTipi);
         private YetkiTipi Seviye(string kod)

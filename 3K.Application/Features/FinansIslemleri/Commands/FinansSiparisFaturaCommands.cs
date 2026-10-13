@@ -23,34 +23,34 @@ public sealed class FinansSiparisKalemEkleCommand : FinansCommand<FinansSiparisM
 
 public sealed class FinansSiparisGuncelleCommand : FinansCommand<FinansSiparisModel>
 {
-    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmePoFatura];
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmePoFaturaPo];
     public int Id { get; init; }
     public FinansSiparisGuncelleModel Model { get; init; } = null!;
 }
 
 public sealed class FinansSiparisIptalCommand : FinansCommand
 {
-    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmePoFatura];
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmePoFaturaPo];
     public int Id { get; init; }
     public string Aciklama { get; init; } = string.Empty;
 }
 
 public sealed class FinansFaturaOlusturCommand : FinansCommand<FinansFaturaModel>
 {
-    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmePoFatura];
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmePoFaturaFatura];
     public FinansFaturaOlusturModel Model { get; init; } = null!;
 }
 
 public sealed class FinansFaturaGuncelleCommand : FinansCommand<FinansFaturaModel>
 {
-    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmePoFatura];
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmePoFaturaFatura];
     public int Id { get; init; }
     public FinansFaturaGuncelleModel Model { get; init; } = null!;
 }
 
 public sealed class FinansFaturaIptalCommand : FinansCommand
 {
-    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmePoFatura];
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmePoFaturaFatura];
     public int Id { get; init; }
     public string Aciklama { get; init; } = string.Empty;
 }
@@ -58,7 +58,7 @@ public sealed class FinansFaturaIptalCommand : FinansCommand
 /// <summary>Faturayı ödendi/ödenmedi işaretler (D3); tahsilat bilgisi dışarıdan gelir.</summary>
 public sealed class FinansFaturaOdemeCommand : FinansCommand<FinansFaturaModel>
 {
-    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmePoFatura];
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmePoFaturaFatura];
     public int Id { get; init; }
     public FinansOdemeKaydetModel Model { get; init; } = null!;
 }

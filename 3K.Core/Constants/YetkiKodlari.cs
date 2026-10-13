@@ -130,8 +130,10 @@ public static class YetkiKodlari
     public static class Finans
     {
         public const string Modul = "finans-yonetimi";
-        // Finans yetkisi yalnız sekme düzeyindedir (finans-yonetimi altında, menüde görünmez): R sekmedeki bütün verileri
-        // gösterir, W sekmedeki bütün işlemleri yapar; alt işlem ve alan izni yoktur (20261013_02_Finans_Sekme_Yetkisine_Gecis.sql).
+        // Finans yetkisi sekme ve alt sekme düzeyindedir (finans-yonetimi altında, menüde görünmez): R verileri gösterir,
+        // W işlemleri yapar; alt işlem ve alan izni yoktur (20261013_02 ve 20261013_03 betikleri). İş Takibi, Tanımlar ve
+        // PO/Fatura sekmelerinin işlemleri alt sekmeye bağlıdır; sekme alt sekmenin tavanıdır, alt sekme izni ayrıca verilir.
+        // "Tüm dönemlerde ara" alt sekmesi yalnız ekranı açar; genel arama ucu kayıt sekmeleri kümesiyle (FinansSekmeleri.Kayit) çalışır.
         // Birden çok sekmede açılan ortak işlemler FinansSekmeleri kümeleriyle yetkilendirilir.
         public const string SekmePanel = "finans-sekme-panel";
         public const string SekmeIsTakibi = "finans-sekme-is-takibi";
@@ -141,6 +143,15 @@ public static class YetkiKodlari
         public const string SekmeTanimlar = "finans-sekme-tanimlar";
         public const string SekmeRaporlar = "finans-sekme-raporlar";
         public const string SekmeMunferitIsler = "finans-sekme-munferit-isler";
+        // Alt sekmeler (sekme düğümünün altında; sekme alt sekmenin tavanıdır). R alt sekmeyi gösterir, W işlemlerini yapar.
+        public const string SekmeIsTakibiAylik = "finans-sekme-is-takibi-aylik";
+        public const string SekmeIsTakibiArama = "finans-sekme-is-takibi-arama";
+        public const string SekmeIsTakibiBekleyen = "finans-sekme-is-takibi-bekleyen";
+        public const string SekmeTanimlarDuzenli = "finans-sekme-tanimlar-duzenli";
+        public const string SekmeTanimlarTarifeler = "finans-sekme-tanimlar-tarifeler";
+        public const string SekmeTanimlarParaBirimi = "finans-sekme-tanimlar-para-birimi";
+        public const string SekmePoFaturaPo = "finans-sekme-po-fatura-po";
+        public const string SekmePoFaturaFatura = "finans-sekme-po-fatura-fatura";
         /// <summary>İş Takibi'ndeki vade uyarısı (vadesi geçen/yaklaşan faturalar, tek tek kalan günüyle); yalnız R.</summary>
         public const string VadeUyarisi = "finans-vade-uyarisi";
     }

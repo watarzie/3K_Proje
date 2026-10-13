@@ -50,6 +50,24 @@ internal static partial class AmbalajPlanlamaYardimcisi
             .ThenBy(k => k.SandikNo, StringComparer.OrdinalIgnoreCase)
             .Select(KalemDtoOlustur)
             .ToList();
+        // Tamamlama sayacı: kaydı henüz oluşmamış (senkronize edilmemiş) kaynak sandıklar da gereklidir; "Yapılmaz"
+        // varsayılanı olan ve tamamlanmış projeye sonradan eklenen sandık sayılmaz (plan satırındaki kararla aynı).
+        // Herhangi bir kayda (özel sandık dahil) bağlanmış kaynak zaten kaydıyla sayılır. Grup filtresinden bağımsızdır.
+        var kayitliKaynaklar = kayitlar.Where(k => k.KaynakKayitId.HasValue).Select(k => k.KaynakKayitId!.Value).ToHashSet();
+        var projeGrubu = proje.ProjeTipiId switch
+        {
+            (int)ProjeTipi.Saha => AmbalajSandikTuru.Saha,
+            (int)ProjeTipi.Yedek => AmbalajSandikTuru.Yedek,
+            _ => AmbalajSandikTuru.Normal
+        };
+        var gerekliSandiklar = gerekenler
+            .Select(k => new GerekliSandik(k.BagimsizKayitMi, k.Tur, k.Adet, k.UretimDurumu == AmbalajUretimDurumu.Tamamlandi))
+            .Concat(genelDurum == AmbalajUretimDurumu.Tamamlandi ? [] : sandiklar
+                .Where(s => !kayitliKaynaklar.Contains(s.Id) && !AmbalajUretimPolitikasi.VarsayilanYapilmazMi(s.Ad, s.AdIngilizce))
+                .Select(s => new GerekliSandik(false,
+                    AmbalajUretimPolitikasi.KaynakGrubu(projeGrubu, null, planBaslangici, s.CreatedDate),
+                    SandikAdediHesapla(s.SandikNo), false)))
+            .ToList();
         var tumKalemler = kaynaklar.Concat(manueller)
             .Where(k => izinliDurumlar == null || izinliDurumlar.Contains(k.UretimDurumu)).ToList();
         aktifKayitlar = aktifKayitlar.Where(k => izinliDurumlar == null || izinliDurumlar.Contains((int)k.UretimDurumu)).ToList();
@@ -73,24 +91,27 @@ internal static partial class AmbalajPlanlamaYardimcisi
             tumKalemler,
             tumKalemler.Where(k => k.UretimeAlindi).Sum(k => k.Adet),
             tumKalemler.Where(k => k.UretimeAlindi).Sum(k => k.HacimM3),
-            (int)genelDurum, gerekenler.Sum(k => k.Adet), gerekenler.Where(k => k.UretimDurumu == AmbalajUretimDurumu.Tamamlandi).Sum(k => k.Adet),
-            GerekliSandikKirilimi(gerekenler));
+            (int)genelDurum, gerekliSandiklar.Sum(k => k.Adet), gerekliSandiklar.Where(k => k.Tamamlandi).Sum(k => k.Adet),
+            GerekliSandikKirilimi(gerekliSandiklar));
     }
+
+    /// <summary>Tamamlama sayacının bir sandığı: kayıt ya da kaydı henüz oluşmamış kaynak sandık.</summary>
+    private sealed record GerekliSandik(bool Ozel, AmbalajSandikTuru Tur, int Adet, bool Tamamlandi);
 
     /// <summary>
     /// Tamamlama için gerekli kayıtların grup kırılımı. Özel Sandıklar listesindeki bağımsız kayıtlar plan
     /// çekmecesinde görünmediği için ayrı grupta sayılır.
     /// </summary>
-    private static IReadOnlyList<AmbalajGrupSandikAdediDto> GerekliSandikKirilimi(IEnumerable<AmbalajUretimKaydi> gerekenler) =>
+    private static IReadOnlyList<AmbalajGrupSandikAdediDto> GerekliSandikKirilimi(IEnumerable<GerekliSandik> gerekenler) =>
         gerekenler
-            .GroupBy(k => (k.BagimsizKayitMi, k.Tur))
-            .OrderBy(g => g.Key.BagimsizKayitMi)
+            .GroupBy(k => (k.Ozel, k.Tur))
+            .OrderBy(g => g.Key.Ozel)
             .ThenBy(g => GrupSirasi(g.Key.Tur))
-            .GroupBy(g => g.Key.BagimsizKayitMi ? "Özel sandık" : AmbalajUretimYardimcilari.TurMetni(g.Key.Tur))
+            .GroupBy(g => g.Key.Ozel ? "Özel sandık" : AmbalajUretimYardimcilari.TurMetni(g.Key.Tur))
             .Select(g => new AmbalajGrupSandikAdediDto(
                 g.Key,
                 g.SelectMany(x => x).Sum(k => k.Adet),
-                g.SelectMany(x => x).Where(k => k.UretimDurumu == AmbalajUretimDurumu.Tamamlandi).Sum(k => k.Adet)))
+                g.SelectMany(x => x).Where(k => k.Tamamlandi).Sum(k => k.Adet)))
             .ToList();
 
     private static int GrupSirasi(AmbalajSandikTuru tur) => tur switch

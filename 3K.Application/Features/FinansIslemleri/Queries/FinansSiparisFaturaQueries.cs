@@ -4,9 +4,10 @@ using _3K.Core.Models;
 
 namespace _3K.Application.Features.FinansIslemleri.Queries;
 
+/// <summary>PO listesi: PO'lar alt sekmesi ve fatura girişinde PO seçimi için Faturalar alt sekmesi okur.</summary>
 public sealed class FinansSiparislerQuery : FinansQuery<FinansSayfaliSonuc<FinansSiparisModel>>
 {
-    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmePoFatura];
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmePoFaturaPo, YetkiKodlari.Finans.SekmePoFaturaFatura];
     public FinansListeFiltre Filtre { get; init; } = new();
 }
 
@@ -25,7 +26,7 @@ public sealed class FinansSiparisGetirQuery : FinansQuery<FinansSiparisModel>
 
 public sealed class FinansFaturalarQuery : FinansQuery<FinansSayfaliSonuc<FinansFaturaModel>>
 {
-    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmePoFatura];
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmePoFaturaFatura];
     public FinansListeFiltre Filtre { get; init; } = new();
 }
 

@@ -1,7 +1,8 @@
 namespace _3K.Core.Constants;
 
 /// <summary>
-/// Finans yetkisi yalnız sekme düzeyindedir: sekmenin R izni sekmedeki bütün verileri (tutar, fiyat, gelir, gider,
+/// Finans yetkisi yalnız sekme ve alt sekme düzeyindedir (İş Takibi, Tanımlar ve PO/Fatura işlemleri alt sekmeye
+/// bağlıdır; sekme alt sekmenin tavanıdır): sekmenin R izni sekmedeki bütün verileri (tutar, fiyat, gelir, gider,
 /// kârlılık, ölçü, m³ dahil) gösterir, W izni sekmedeki bütün işlemleri (kalıcı silme dahil) yapar. Birden çok sekmede
 /// açılan ortak işlemler (ör. kayıt detayı, belgeler) aşağıdaki sekme kümelerinden herhangi birinin izniyle yapılır.
 /// Ön yüz aynası: <c>features/finans-yonetimi/ortak/finans-izinleri.ts</c>.
@@ -28,10 +29,10 @@ public static class FinansSekmeleri
         YetkiKodlari.Finans.SekmeMunferitIsler
     ];
 
-    /// <summary>PO açma: PO/Fatura sekmesi ve "Sipariş aç" düğmesi bulunan İş Takibi ile Münferit İşler sekmeleri.</summary>
+    /// <summary>PO açma: PO'lar alt sekmesi ve "Sipariş aç" düğmesi bulunan İş Takibi ile Münferit İşler sekmeleri.</summary>
     public static readonly IReadOnlyList<string> SiparisAcma =
     [
-        YetkiKodlari.Finans.SekmePoFatura,
+        YetkiKodlari.Finans.SekmePoFaturaPo,
         YetkiKodlari.Finans.SekmeIsTakibi,
         YetkiKodlari.Finans.SekmeMunferitIsler
     ];
@@ -45,12 +46,13 @@ public static class FinansSekmeleri
     ];
 
     /// <summary>
-    /// Belge yükleme ve kalıcı silmede hedef kaydın sekmesi: iş kaydı → İş Takibi/Münferit İşler, PO ve fatura →
-    /// PO/Fatura, gider → Giderler. Bilinmeyen tür İş Takibi sayılır (tür doğrulaması servistedir).
+    /// Belge yükleme ve kalıcı silmede hedef kaydın sekmesi: iş kaydı → İş Takibi/Münferit İşler, PO → PO'lar,
+    /// fatura → Faturalar alt sekmesi, gider → Giderler. Bilinmeyen tür İş Takibi sayılır (tür doğrulaması servistedir).
     /// </summary>
     public static IReadOnlyList<string> Varlik(string? varlikTuru) => varlikTuru switch
     {
-        "Siparis" or "Fatura" => [YetkiKodlari.Finans.SekmePoFatura],
+        "Siparis" => [YetkiKodlari.Finans.SekmePoFaturaPo],
+        "Fatura" => [YetkiKodlari.Finans.SekmePoFaturaFatura],
         "Gider" => [YetkiKodlari.Finans.SekmeGiderler],
         "IsKaydi" => IsDuzenleme,
         _ => [YetkiKodlari.Finans.SekmeIsTakibi]

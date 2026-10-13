@@ -21,6 +21,10 @@ public sealed class AmbalajOzelSandikFinansCommandHandler(
     AmbalajKritikIslemDenetimi denetim)
     : IRequestHandler<AmbalajOzelSandikFinansCommand, Result<AmbalajBagimsizSandikDto>>
 {
+    /// <summary>Hareket geçmişindeki işlem adları; liste "finansa aktaran" bilgisini bu adla bulur.</summary>
+    public const string AktarimIslemi = "Özel sandık finansa aktarıldı";
+    public const string GeriAlmaIslemi = "Özel sandık finanstan geri alındı";
+
     public Task<Result<AmbalajBagimsizSandikDto>> Handle(
         AmbalajOzelSandikFinansCommand request,
         CancellationToken cancellationToken) =>
@@ -59,7 +63,7 @@ public sealed class AmbalajOzelSandikFinansCommandHandler(
             repo.Update(kayit);
             await AmbalajUretimYardimcilari.AlanHareketleriniEkleAsync(
                 unitOfWork, kayit, eski,
-                request.Aktar ? "Özel sandık finansa aktarıldı" : "Özel sandık finanstan geri alındı",
+                request.Aktar ? AktarimIslemi : GeriAlmaIslemi,
                 currentUser.IslemKullaniciId ?? 0, request.Gerekce);
             var proje = kayit.ProjeId.HasValue ? await unitOfWork.GetRepository<Proje>().GetByIdAsync(kayit.ProjeId.Value) : null;
             await AmbalajFinansSenkronizasyonu.KaydetVeAktarAsync(unitOfWork, finans, kayit, proje, token);
@@ -70,7 +74,11 @@ public sealed class AmbalajOzelSandikFinansCommandHandler(
                 : null;
             var izin = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(roller, currentUser, token);
             return Result<AmbalajBagimsizSandikDto>.Success(AmbalajAlanMaskesi.Maskele(
-                AmbalajPlanlamaYardimcisi.BagimsizDtoOlustur(kayit, proje, ust, kaynak), izin));
+                AmbalajPlanlamaYardimcisi.BagimsizDtoOlustur(kayit, proje, ust, kaynak) with
+                {
+                    OlusturmaTarihi = kayit.CreatedDate,
+                    FinansaAktarimTarihi = kayit.UretimeAlindi ? TurkeyTime.Now : null
+                }, izin));
         }, cancellationToken);
 
     private static string? AktarimEngeli(AmbalajUretimKaydi kayit)

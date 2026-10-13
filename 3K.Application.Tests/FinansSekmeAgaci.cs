@@ -4,14 +4,18 @@ using _3K.Core.Constants;
 namespace _3K.Application.Tests;
 
 /// <summary>
-/// Testlerin kullandığı Finans izin hiyerarşisi: kök → sekme düğümü (ve vade uyarısı). Finans yetkisi yalnız sekme
-/// düzeyindedir; sekmelerin altında işlem/alan kodu yoktur. <see cref="SekmeAltlari"/> yalnız sekme düğümlerini ekleyen
-/// eski <c>20261008_03_Finans_Sekme_Yetkileri.sql</c> betiğinin taşıdığı alt kodları (<see cref="EskiKodlar"/>) tutar;
-/// <see cref="BetiktekiAltKodlar"/> bu fikstürün betikle aynı kaldığını doğrulamak için betiği okur.
+/// Testlerin kullandığı Finans izin hiyerarşisi: kök → sekme düğümü (ve vade uyarısı) → alt sekme (İş Takibi, Tanımlar
+/// ve PO/Fatura altında; <see cref="AltSekmeler"/>). Finans yetkisi yalnız sekme ve alt sekme düzeyindedir; işlem/alan
+/// kodu yoktur. <see cref="SekmeAltlari"/> yalnız sekme düğümlerini ekleyen eski
+/// <c>20261008_03_Finans_Sekme_Yetkileri.sql</c> betiğinin taşıdığı alt kodları (<see cref="EskiKodlar"/>) tutar;
+/// <see cref="BetiktekiAltKodlar"/> ve <see cref="BetiktekiAltSekmeler"/> fikstürün betiklerle aynı kaldığını doğrulamak
+/// için betikleri okur.
 /// </summary>
 internal static class FinansSekmeAgaci
 {
     public const string BetikAdi = "20261008_03_Finans_Sekme_Yetkileri.sql";
+    public const string AltSekmeBetikAdi = "20261013_03_Finans_Alt_Sekme_Yetkileri.sql";
+    public const int KokId = 47, VadeUyarisiId = 5247;
 
     /// <summary>
     /// 08.10.2026 canlı ağacındaki eski Finans alt işlem/alan kodları. Uygulamadan kaldırıldılar (yetki artık yalnız
@@ -75,6 +79,7 @@ internal static class FinansSekmeAgaci
         [EskiKodlar.FiyatlandirmaDegistir] = YetkiKodlari.Finans.SekmeIsTakibi
     };
 
+    /// <summary>Sekme düğümleri canlı Id sırasıyla (5238–5245, 20261008_03 betiği).</summary>
     public static readonly IReadOnlyList<string> Sekmeler =
     [
         YetkiKodlari.Finans.SekmePanel, YetkiKodlari.Finans.SekmeIsTakibi, YetkiKodlari.Finans.SekmePoFatura,
@@ -82,20 +87,54 @@ internal static class FinansSekmeAgaci
         YetkiKodlari.Finans.SekmeRaporlar, YetkiKodlari.Finans.SekmeMunferitIsler
     ];
 
-    /// <summary>Kodun üst düğümü: sekme düğümleri ve vade uyarısı dahil bütün finans kodları için modül kökü.</summary>
+    public static int SekmeId(string sekme)
+    {
+        var sira = Sekmeler.ToList().IndexOf(sekme);
+        return sira >= 0 ? 5238 + sira : throw new ArgumentException("Bilinmeyen sekme: " + sekme, nameof(sekme));
+    }
+
+    /// <summary>Alt sekme düğümleri (Id, kod, bağlı olduğu sekme); 20261013_03 betiğiyle aynıdır.</summary>
+    public static readonly IReadOnlyList<(int Id, string Kod, string Sekme)> AltSekmeler =
+    [
+        (5248, YetkiKodlari.Finans.SekmeIsTakibiAylik, YetkiKodlari.Finans.SekmeIsTakibi),
+        (5249, YetkiKodlari.Finans.SekmeIsTakibiArama, YetkiKodlari.Finans.SekmeIsTakibi),
+        (5250, YetkiKodlari.Finans.SekmeIsTakibiBekleyen, YetkiKodlari.Finans.SekmeIsTakibi),
+        (5251, YetkiKodlari.Finans.SekmeTanimlarDuzenli, YetkiKodlari.Finans.SekmeTanimlar),
+        (5252, YetkiKodlari.Finans.SekmeTanimlarTarifeler, YetkiKodlari.Finans.SekmeTanimlar),
+        (5253, YetkiKodlari.Finans.SekmeTanimlarParaBirimi, YetkiKodlari.Finans.SekmeTanimlar),
+        (5254, YetkiKodlari.Finans.SekmePoFaturaPo, YetkiKodlari.Finans.SekmePoFatura),
+        (5255, YetkiKodlari.Finans.SekmePoFaturaFatura, YetkiKodlari.Finans.SekmePoFatura)
+    ];
+
+    /// <summary>Sekmenin alt sekme kodları (alt sekmesi olmayan sekme için boş).</summary>
+    public static IEnumerable<string> AltSekmeleri(string sekme) => AltSekmeler.Where(x => x.Sekme == sekme).Select(x => x.Kod);
+
+    /// <summary>Kodun üst düğümü: alt sekme için sekmesi; sekme düğümleri ve vade uyarısı dahil diğer finans kodları için modül kökü.</summary>
     public static string? Ust(string kod) =>
         kod == YetkiKodlari.Finans.Modul ? null
         : SekmeAltlari.TryGetValue(kod, out var sekme) ? sekme
+        : AltSekmeler.FirstOrDefault(x => x.Kod == kod).Sekme is { } altSekmeninSekmesi ? altSekmeninSekmesi
         : kod.StartsWith("finans-", StringComparison.Ordinal) ? YetkiKodlari.Finans.Modul
         : null;
 
-    public static string BetikYolu()
+    public static string BetikYolu(string betikAdi = BetikAdi)
     {
         var dizin = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dizin != null && !File.Exists(Path.Combine(dizin.FullName, "scripts", "database", BetikAdi)))
+        while (dizin != null && !File.Exists(Path.Combine(dizin.FullName, "scripts", "database", betikAdi)))
             dizin = dizin.Parent;
         Assert.NotNull(dizin);
-        return Path.Combine(dizin.FullName, "scripts", "database", BetikAdi);
+        return Path.Combine(dizin.FullName, "scripts", "database", betikAdi);
+    }
+
+    /// <summary>20261013_03 betiğindeki <c>finans_alt_sekmeleri</c> satırları (Id, alt sekme kodu, sekme kodu).</summary>
+    public static IReadOnlyList<(int Id, string Kod, string Sekme)> BetiktekiAltSekmeler()
+    {
+        var betik = File.ReadAllText(BetikYolu(AltSekmeBetikAdi));
+        var blok = betik[betik.IndexOf("INSERT INTO finans_alt_sekmeleri", StringComparison.Ordinal)..];
+        blok = blok[..blok.IndexOf(';')];
+        return Regex.Matches(blok, @"\((?<id>\d+),\s*'(?<kod>finans-sekme-[a-z-]+)',[^\n]*'(?<sekme>finans-sekme-[a-z-]+)'\)")
+            .Select(x => (int.Parse(x.Groups["id"].Value), x.Groups["kod"].Value, x.Groups["sekme"].Value))
+            .ToList();
     }
 
     /// <summary>Betikteki <c>finans_sekme_altlari</c> satırları (alt kod → sekme kodu).</summary>

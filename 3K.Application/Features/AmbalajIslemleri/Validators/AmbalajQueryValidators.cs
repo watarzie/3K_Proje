@@ -4,6 +4,11 @@ using _3K.Core.Enums;
 
 namespace _3K.Application.Features.AmbalajIslemleri.Validators
 {
+    public sealed class GetAmbalajKayitGecmisiQueryValidator : AbstractValidator<GetAmbalajKayitGecmisiQuery>
+    {
+        public GetAmbalajKayitGecmisiQueryValidator() => RuleFor(x => x.KayitId).GreaterThan(0);
+    }
+
     public sealed class GetAmbalajPlanlamaProjeleriQueryValidator
         : AbstractValidator<GetAmbalajPlanlamaProjeleriQuery>
     {

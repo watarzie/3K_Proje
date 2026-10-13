@@ -2,6 +2,7 @@ using _3K.Application.Common;
 using _3K.Application.Features.AmbalajIslemleri;
 using _3K.Application.Features.AmbalajIslemleri.Commands;
 using _3K.Application.Features.AmbalajIslemleri.DTOs;
+using _3K.Application.Features.AmbalajIslemleri.Queries;
 using _3K.Application.Features.SandikIslemleri.Commands;
 using _3K.Application.Features.SandikIslemleri.Validators;
 using _3K.Core.Constants;
@@ -142,6 +143,73 @@ public sealed class AmbalajSandikTipiVeTamamlamaTests
         Assert.Equal(409, poluGeriAl.StatusCode);
         Assert.Contains("PO'ya bağlı", poluGeriAl.Error!.Message);
         Assert.True(kayit.UretimeAlindi);
+    }
+
+    /// <summary>
+    /// Özel Sandıklar listesi finans durumuna göre süzülür (bekleyen / aktarılan) ve iki sekmenin sayısını taşır; satır
+    /// oluşturan ve finansa aktaran kullanıcıyla tarihleri, geçmiş ise her işlemi kullanıcı ve okunur alan değerleriyle verir.
+    /// </summary>
+    [Fact]
+    public async Task Ozel_sandik_listesi_finans_durumuna_gore_suzulur_denetim_ve_gecmis_gosterilir()
+    {
+        var f = new Fixture(OrtakRoller.TumIzinler(), ProjeTipi.Saha);
+        f.Uow.Repo<Kullanici>().Rows.Add(new Kullanici { Id = 7, AdSoyad = "Ayşe Planlama" });
+        Assert.True((await f.OzelSandikHandler().Handle(OzelSandik(tur: 4, sandikNo: "1"), default)).IsSuccess);
+        Assert.True((await f.OzelSandikHandler().Handle(OzelSandik(tur: 4, sandikNo: "2"), default)).IsSuccess);
+        var aktarilan = f.Kayitlar.Single(k => k.SandikNo == "2");
+        Assert.True((await f.OzelFinansHandler().Handle(new() { SandikId = aktarilan.Id }, default)).IsSuccess);
+        var liste = new GetAmbalajBagimsizSandiklarQueryHandler(f.Uow, f.Roller, f.User);
+
+        var bekleyen = (await liste.Handle(new() { FinansDurumu = "bekleyen" }, default)).Value!;
+        var aktarilanlar = (await liste.Handle(new() { FinansDurumu = "aktarilan" }, default)).Value!;
+
+        Assert.Equal(["1"], bekleyen.Items.Select(x => x.SandikNo));
+        Assert.Equal((1, 1), (bekleyen.FilteredSummary!.FinansaAktarilmayanKayitSayisi, bekleyen.FilteredSummary.FinansaAktarilanKayitSayisi));
+        var satir = Assert.Single(aktarilanlar.Items);
+        Assert.Equal(("2", "Ayşe Planlama", "Ayşe Planlama"), (satir.SandikNo, satir.OlusturanAdi, satir.FinansaAktaranAdi));
+        Assert.NotNull(satir.OlusturmaTarihi);
+        Assert.NotNull(satir.FinansaAktarimTarihi);
+        Assert.Null(Assert.Single(bekleyen.Items).FinansaAktarimTarihi);
+        Assert.False((await liste.Handle(new() { FinansDurumu = "yanlis" }, default)).IsSuccess);
+
+        var gecmisHandler = new GetAmbalajKayitGecmisiQueryHandler(f.Uow, f.Roller, f.User);
+        var gecmis = (await gecmisHandler.Handle(new() { KayitId = aktarilan.Id }, default)).Value!;
+        Assert.Equal((AmbalajOzelSandikFinansCommandHandler.AktarimIslemi, "Ayşe Planlama"), (gecmis[0].Islem, gecmis[0].Kullanici));
+        Assert.Contains(gecmis[0].Degisiklikler, d => d.Alan == "Üretime alındı / finansa aktarıldı" && d.EskiDeger == "Hayır" && d.YeniDeger == "Evet");
+        Assert.Contains(gecmis[0].Degisiklikler, d => d.Alan == "Üretim durumu" && d.EskiDeger == "Planlandı" && d.YeniDeger == "Üretimde");
+        var olusturma = Assert.Single(gecmis, o => o.Islem == "Bağımsız ambalaj sandığı eklendi");
+        Assert.Contains(olusturma.Degisiklikler, d => d.Alan == "Yapı" && d.YeniDeger == "Kontrplak Sandık");
+        Assert.DoesNotContain(olusturma.Degisiklikler, d => d.Alan == "M3HesaplamaVersiyonu");
+        Assert.Equal(404, (await gecmisHandler.Handle(new() { KayitId = 999 }, default)).StatusCode);
+    }
+
+    /// <summary>
+    /// Geçmiş, listedeki alan maskesiyle aynı izinleri uygular: ölçü/m³ izni olmayan kullanıcı o alanların eski/yeni
+    /// değerlerini geçmişte de göremez; kaydın üretim durumunu göremeyen kullanıcı geçmişi hiç göremez (404).
+    /// </summary>
+    [Fact]
+    public async Task Ozel_sandik_gecmisi_olcu_ve_m3_iznine_gore_alan_gizler_gorulemeyen_durumda_404_doner()
+    {
+        var f = new Fixture(OrtakRoller.TumIzinler(), ProjeTipi.Saha);
+        Assert.True((await f.OzelSandikHandler().Handle(OzelSandik(tur: 4), default)).IsSuccess);
+        var kayit = Assert.Single(f.Kayitlar);
+        string[] olcuAlanlari = ["Boy (mm)", "En (mm)", "Yükseklik (mm)"];
+        static IEnumerable<string> Alanlar(IReadOnlyList<AmbalajKayitGecmisiDto> gecmis) =>
+            gecmis.SelectMany(o => o.Degisiklikler).Select(d => d.Alan);
+
+        var tum = (await new GetAmbalajKayitGecmisiQueryHandler(f.Uow, f.Roller, f.User).Handle(new() { KayitId = kayit.Id }, default)).Value!;
+        Assert.All(olcuAlanlari, alan => Assert.Contains(alan, Alanlar(tum)));
+
+        var olcusuz = OrtakRoller.Haric(YetkiKodlari.Ambalaj.OlcuGoruntule, YetkiKodlari.Ambalaj.M3Goruntule);
+        var kisitli = (await new GetAmbalajKayitGecmisiQueryHandler(f.Uow, olcusuz, f.User).Handle(new() { KayitId = kayit.Id }, default)).Value!;
+        Assert.NotEmpty(kisitli);
+        Assert.All(olcuAlanlari, alan => Assert.DoesNotContain(alan, Alanlar(kisitli)));
+        Assert.DoesNotContain(Alanlar(kisitli), alan => alan.Contains("m³", StringComparison.Ordinal));
+        Assert.Contains("Sandık no", Alanlar(kisitli));
+
+        // Kayıt Planlandı: bekleyen kayıtları göremeyen kullanıcı için geçmiş yoktur.
+        var bekleyenKapali = OrtakRoller.Haric(YetkiKodlari.Ambalaj.BekleyenGoruntule);
+        Assert.Equal(404, (await new GetAmbalajKayitGecmisiQueryHandler(f.Uow, bekleyenKapali, f.User).Handle(new() { KayitId = kayit.Id }, default)).StatusCode);
     }
 
     [Fact]

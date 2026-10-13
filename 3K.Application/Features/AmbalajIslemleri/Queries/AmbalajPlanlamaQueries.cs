@@ -53,6 +53,8 @@ public sealed class GetAmbalajBagimsizSandiklarQuery
 {
     public string? Arama { get; set; }
     public int? Tur { get; set; }
+    /// <summary>Finans durumu: "bekleyen" (finansa aktarılmamış), "aktarilan" ya da boş (hepsi).</summary>
+    public string? FinansDurumu { get; set; }
     public int PageNumber { get; set; } = 1;
     public int PageSize { get; set; } = 25;
     public bool IncludeSummary { get; set; } = true;

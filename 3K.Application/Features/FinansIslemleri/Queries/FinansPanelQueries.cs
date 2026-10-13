@@ -33,7 +33,7 @@ public sealed class FinansMunferitIslerQuery : FinansQuery<FinansSayfaliSonuc<Fi
 
 public sealed class FinansYaslandirmaQuery : FinansQuery<FinansSayfaliSonuc<FinansBekleyenModel>>
 {
-    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmePanel, YetkiKodlari.Finans.SekmeIsTakibi, YetkiKodlari.Finans.SekmeRaporlar];
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmePanel, YetkiKodlari.Finans.SekmeIsTakibiBekleyen, YetkiKodlari.Finans.SekmeRaporlar];
     public FinansListeFiltre Filtre { get; init; } = new();
     public DateTime ReferansTarihi { get; init; }
     public int MinimumGun { get; init; }

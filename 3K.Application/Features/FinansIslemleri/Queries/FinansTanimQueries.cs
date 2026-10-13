@@ -7,7 +7,7 @@ namespace _3K.Application.Features.FinansIslemleri.Queries;
 
 public sealed class FinansDuzenliIslerQuery : FinansQuery<FinansSayfaliSonuc<FinansDuzenliIsModel>>
 {
-    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeTanimlar];
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeTanimlarDuzenli];
     public bool SadeceAktif { get; init; }
     public string? Arama { get; init; }
     public int PageNumber { get; init; } = 1;
@@ -46,7 +46,7 @@ public sealed class FinansGiderKutuphaneKalemleriQuery : FinansQuery<IReadOnlyLi
 /// </summary>
 public sealed class FinansTarifeDuzeltmeOnizlemeQuery : FinansQuery<FinansTarifeDuzeltmeOnizlemeModel>
 {
-    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeTanimlar];
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeTanimlarTarifeler];
     public override YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
     public int UrunId { get; init; }
     public int TarifeId { get; init; }
@@ -69,7 +69,7 @@ public sealed class FinansUrunSecenekleriQuery : FinansQuery<IReadOnlyList<Finan
 
 public sealed class FinansUrunlerQuery : FinansQuery<FinansSayfaliSonuc<FinansUrunModel>>
 {
-    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeTanimlar];
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeTanimlarTarifeler];
     public bool SadeceAktif { get; init; }
     public DateTime? TarifeTarihi { get; init; }
     public string? Arama { get; init; }
@@ -88,6 +88,6 @@ public sealed class FinansParaBirimleriQuery : FinansQuery<IReadOnlyList<FinansP
 /// <summary>Vade parametreleri: Tanımlar'da yönetilir, fatura formu varsayılan vade gününü okur (PO/Fatura).</summary>
 public sealed class FinansParametrelerQuery : FinansQuery<FinansParametrelerModel>
 {
-    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeTanimlar, YetkiKodlari.Finans.SekmePoFatura];
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeTanimlarParaBirimi, YetkiKodlari.Finans.SekmePoFaturaFatura];
 
 }
