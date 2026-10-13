@@ -34,6 +34,9 @@ namespace _3K.Application.Features.ProjeIslemleri.DTOs
         public string? NakilOlcuResmiNo { get; set; }
         public string? SonMontajResmiNo { get; set; }
         public string? ProjeMuduru { get; set; }
+
+        /// <summary>Fotoğraf sayfası bağlantısı; yalnız proje-fotograf-baglantisi R izniyle dolu döner.</summary>
+        public string? FotografBaglantisi { get; set; }
     }
 
     public class ProjeDepoDagilimDto

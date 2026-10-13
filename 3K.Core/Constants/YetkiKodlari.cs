@@ -24,6 +24,11 @@ public static class YetkiKodlari
         public const string PlanlananSevkTarihi = "planlanan-sevk-tarihi";
         /// <summary>Sevkiyatlar sayfası: tır seferleri ve sevkiyat istatistikleri (R görüntüleme).</summary>
         public const string Sevkiyatlar = "sevkiyatlar";
+        /// <summary>
+        /// Proje fotoğraf sayfası bağlantısı; Normal, Saha ve Yedek proje listelerinin hepsinde aynı koddur (proje tipinden
+        /// bağımsız): R bağlantıyı görür ve açar, W ekler, değiştirir, kaldırır. Kök düzeyde rotasız düğümdür.
+        /// </summary>
+        public const string FotografBaglantisi = "proje-fotograf-baglantisi";
     }
 
     public static class Sandik

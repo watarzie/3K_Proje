@@ -161,6 +161,16 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
         /// <summary>
+        /// Projenin fotoğraf sayfası bağlantısını ekler/değiştirir; boş bağlantı kaldırır (proje-fotograf-baglantisi W).
+        /// </summary>
+        [HttpPut("{id:int}/fotograf-baglantisi")]
+        public async Task<ActionResult> FotografBaglantisi(int id, [FromBody] FotografBaglantisiRequest request)
+        {
+            var result = await _mediator.Send(new ProjeFotografBaglantisiGuncelleCommand { ProjeId = id, Baglanti = request.Baglanti });
+            return result.ToActionResult();
+        }
+
+        /// <summary>
         /// Projeyi ve tüm alt verilerini (sandık, ürün, çeki vb.) siler
         /// </summary>
         [HttpDelete("{id}")]
@@ -177,6 +187,11 @@ namespace _3K_API.Controllers
         public List<int>? SandikIds { get; init; }
         public string? Aciklama { get; init; }
         public string? AracPlaka { get; init; }
+    }
+
+    public record FotografBaglantisiRequest
+    {
+        public string? Baglanti { get; init; }
     }
 
     public record KilitAcRequest

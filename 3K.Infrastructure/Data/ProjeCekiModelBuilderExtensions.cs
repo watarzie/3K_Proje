@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using _3K.Core.Entities;
+using _3K.Core.Models;
 
 namespace _3K.Infrastructure.Data;
 
@@ -27,6 +28,11 @@ internal static class ProjeCekiModelBuilderExtensions
             .WithMany()
             .HasForeignKey(p => p.ProjeTipiId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // Fotoğraf sayfası bağlantısı (20261014_01_Proje_Fotograf_Baglantisi.sql).
+        modelBuilder.Entity<Proje>()
+            .Property(p => p.FotografBaglantisi)
+            .HasMaxLength(ProjeFotografBaglantisiKurali.EnFazlaUzunluk);
 
         // Proje listeleri en yeni kayıttan başlar.
         modelBuilder.Entity<Proje>()
