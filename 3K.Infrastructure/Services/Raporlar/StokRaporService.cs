@@ -1,8 +1,10 @@
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using _3K.Core.Enums;
 using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 using _3K.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,11 +13,17 @@ namespace _3K.Infrastructure.Services.Raporlar;
 /// <summary>Stok modülündeki ürünlerin PDF raporu.</summary>
 internal sealed class StokRaporService(AppDbContext context) : IStokRaporService
 {
-    public async Task<byte[]> StokRaporuPdfOlusturAsync()
+    public async Task<byte[]> StokRaporuPdfOlusturAsync(int? durumId = null)
     {
-        var stoklar = await context.StokKayitlari
+        var stoklar = await StokListeFiltresi.Uygula(context.StokKayitlari, null, durumId)
             .OrderBy(s => s.MalzemeKodu)
             .ToListAsync();
+        var kapsam = durumId switch
+        {
+            (int)StokDurum.Aktif => " (Aktif Stok)",
+            (int)StokDurum.Tukendi => " (Tükendiler)",
+            _ => string.Empty
+        };
 
         QuestPDF.Settings.License = LicenseType.Community;
 
@@ -47,7 +55,7 @@ internal sealed class StokRaporService(AppDbContext context) : IStokRaporService
                         });
                         row.RelativeItem(2).AlignCenter().Column(col =>
                         {
-                            col.Item().Text("Stok Raporu").Bold().FontSize(16).FontColor(headerText);
+                            col.Item().Text("Stok Raporu" + kapsam).Bold().FontSize(16).FontColor(headerText);
                             col.Item().Text("3K Sevkiyat Yönetim Sistemi – Stok Yönetimi Çıktısı").FontSize(7).FontColor(Colors.Grey.Lighten3);
                         });
                         row.RelativeItem().AlignRight().Column(col =>

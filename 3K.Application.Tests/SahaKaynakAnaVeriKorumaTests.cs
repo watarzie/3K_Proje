@@ -84,7 +84,7 @@ public sealed class SahaKaynakAnaVeriKorumaTests
 
         public async Task<Result> CalistirAsync()
         {
-            var sonuc = await new CekiSatiriAnaVeriGuncelleCommandHandler(Uow, new DurumStub(), _saha).Handle(
+            var sonuc = await new CekiSatiriAnaVeriGuncelleCommandHandler(Uow, new DurumStub(), _saha, new OrtakHareket(), new OrtakUser()).Handle(
                 new CekiSatiriAnaVeriGuncelleCommand { CekiSatiriId = 50, SiraNo = 1, BarkodNo = "TEST",
                     Aciklama = "YENI", IstenenAdet = 4, BirimId = (int)Birim.Adet, SandikNo = "1" }, default);
             return sonuc.IsSuccess ? Result.Success() : Result.Failure(sonuc.Error!.Message);

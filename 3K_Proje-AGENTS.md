@@ -110,10 +110,7 @@ The application is a layered monolith on .NET 10 and PostgreSQL. Commands and qu
   - Record-dependent extra permissions (state transition, post-form selection, include/exclude decision, critical data, cancellation, adding to a completed project), the first-form requirement and the critical-operation justification are checked inside the handler with `AmbalajIslemKurallari` and `AmbalajKritikIslemDenetimi`, against the record as it was before the change, in the same `ExecuteAtomicAsync` transaction.
   - Dimension, m³ and consumable fields are masked explicitly with `AmbalajAlanMaskesi`/`DtoyuMaskele` before the response is returned. When you add an Ambalaj DTO, update the mask and the mask-equivalence test.
   - Do not select behavior by namespace, and do not mask through reflection.
-- Finance field permissions (monetary data, unit price, amount, income, expense, profitability, dimension, m³, consumables) are applied only at the HTTP boundary with `FinansAlanErisimFiltresi` and `FinansAlanProjeksiyonu`.
-  - A field the user may not see is returned as `null`, not zero.
-  - Services and handlers return the raw model.
-  - File responses such as report and document downloads require every field permission; the frontend gates mirror the same rule in `finans-izinleri.ts`.
+- Finance permissions are tab-only (since 2026-10-13): each `FinansCommand`/`FinansQuery` declares `Sekmeler`; a query needs R and a command W on ANY listed tab (shared sets in `3K.Core/Constants/FinansSekmeleri.cs`, frontend mirror `features/finans-yonetimi/ortak/finans-izinleri.ts`). There are no finance sub-action or field permissions and no field masking: a tab's R shows every field (amounts, prices, dimensions, m³). The due-date alert has its own `finans-vade-uyarisi` (R). Do not reintroduce per-field or per-action finance codes; if finer control is needed, define a narrower role per tab.
 - Keep the login/2FA challenge separate from the full session. When you add authorization, do not accidentally lock the public login flow; check the existing service-user and approval-execution contexts.
 - Never bypass the approval pipeline, stored-command integrity, approver permission or execution-state checks. Request, decision and actual execution are separate events; a repeated request must never apply the operation twice.
 

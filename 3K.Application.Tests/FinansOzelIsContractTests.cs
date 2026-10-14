@@ -38,14 +38,6 @@ public sealed class FinansOzelIsContractTests
         Assert.True((await new FinansIsKaydiOlusturCommandValidator().ValidateAsync(command)).IsValid);
     }
 
-    [Fact]
-    public void DetayManuelNetTutar_ParasalIzinsizNullKalir()
-    {
-        var json = JsonSerializer.SerializeToNode(new FinansIsKaydiModel { ManuelNetTutar = 1200m }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
-        FinansAlanProjeksiyonu.Uygula(json, AlanErisimYetkileri.Yok);
-        Assert.Null(json!["manuelNetTutar"]);
-    }
-
     public class CaptureMediator : DispatchProxy
     {
         public object? Request { get; private set; }

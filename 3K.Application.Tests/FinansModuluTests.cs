@@ -16,35 +16,30 @@ namespace _3K.Application.Tests;
 public sealed class FinansModuluTests
 {
     [Theory]
-    [InlineData(typeof(FinansPanelQuery), "finans-yonetimi")]
+    [InlineData(typeof(FinansPanelQuery), YetkiKodlari.Finans.SekmePanel)]
     [InlineData(typeof(FinansProjeSecenekleriQuery), "finans-yonetimi")]
-    [InlineData(typeof(FinansAylikIslerQuery), YetkiKodlari.Finans.KayitGoruntule)]
-    [InlineData(typeof(FinansIsKaydiOlusturCommand), YetkiKodlari.Finans.ManuelIsEkle)]
-    [InlineData(typeof(FinansIsKaydiIptalCommand), YetkiKodlari.Finans.IsIptal)]
-    [InlineData(typeof(FinansIsKaydiGeriAlCommand), YetkiKodlari.Finans.IsIptal)]
-    [InlineData(typeof(FinansSiparisOlusturCommand), YetkiKodlari.Finans.PoGir)]
-    [InlineData(typeof(FinansSiparisGuncelleCommand), YetkiKodlari.Finans.PoDegistir)]
-    [InlineData(typeof(FinansFaturaOlusturCommand), YetkiKodlari.Finans.FaturaGir)]
-    [InlineData(typeof(FinansFaturaGuncelleCommand), YetkiKodlari.Finans.FaturaDegistir)]
-    [InlineData(typeof(FinansGiderlerQuery), YetkiKodlari.Finans.GiderGoruntule)]
-    [InlineData(typeof(FinansGiderOlusturCommand), YetkiKodlari.Finans.GiderEkle)]
-    [InlineData(typeof(FinansUrunGuncelleCommand), YetkiKodlari.Finans.IsKutuphanesiYonet)]
-    [InlineData(typeof(FinansIsRaporuDosyaQuery), YetkiKodlari.Finans.RaporGoruntule)]
+    [InlineData(typeof(FinansAylikIslerQuery), YetkiKodlari.Finans.SekmeIsTakibiAylik)]
+    [InlineData(typeof(FinansProjeSandikKirilimiQuery), YetkiKodlari.Finans.SekmeIsTakibiAylik)]
+    [InlineData(typeof(FinansMunferitIslerQuery), YetkiKodlari.Finans.SekmeMunferitIsler)]
+    [InlineData(typeof(FinansMunferitIsOlusturCommand), YetkiKodlari.Finans.SekmeMunferitIsler)]
+    [InlineData(typeof(FinansUrunSecenekleriQuery), YetkiKodlari.Finans.SekmeMunferitIsler)]
+    [InlineData(typeof(FinansIsKaydiOlusturCommand), YetkiKodlari.Finans.SekmeIsTakibiAylik)]
+    [InlineData(typeof(FinansIsKaydiIptalCommand), YetkiKodlari.Finans.SekmeIsTakibi)]
+    [InlineData(typeof(FinansIsKaydiGeriAlCommand), YetkiKodlari.Finans.SekmeIsTakibi)]
+    [InlineData(typeof(FinansSiparisOlusturCommand), YetkiKodlari.Finans.SekmePoFaturaPo)]
+    [InlineData(typeof(FinansSiparisGuncelleCommand), YetkiKodlari.Finans.SekmePoFaturaPo)]
+    [InlineData(typeof(FinansFaturaOlusturCommand), YetkiKodlari.Finans.SekmePoFaturaFatura)]
+    [InlineData(typeof(FinansFaturaGuncelleCommand), YetkiKodlari.Finans.SekmePoFaturaFatura)]
+    [InlineData(typeof(FinansGiderlerQuery), YetkiKodlari.Finans.SekmeGiderler)]
+    [InlineData(typeof(FinansGiderOlusturCommand), YetkiKodlari.Finans.SekmeGiderler)]
+    [InlineData(typeof(FinansUrunGuncelleCommand), YetkiKodlari.Finans.SekmeTanimlarTarifeler)]
+    [InlineData(typeof(FinansIsRaporuDosyaQuery), YetkiKodlari.Finans.SekmeRaporlar)]
     public void Finans_requestleri_beklenen_sabit_yetki_kodunu_kullanir(Type requestType, string expectedCode)
     {
         var request = Activator.CreateInstance(requestType);
         var permission = Assert.IsAssignableFrom<IRequiresMenuPermission>(request);
         Assert.IsAssignableFrom<ISecuredRequest>(request);
         Assert.Equal(expectedCode, permission.RequiredMenuKod);
-    }
-
-    [Fact]
-    public void Manuel_is_fiyat_tarih_ve_iptal_gelir_goruntulemeden_bagimsizdir()
-    {
-        var codes = new[] { YetkiKodlari.Finans.GelirGoruntule, YetkiKodlari.Finans.ManuelIsEkle,
-            YetkiKodlari.Finans.IsIptal, YetkiKodlari.Finans.TarihDegistir,
-            YetkiKodlari.Finans.BirimFiyatDegistir, YetkiKodlari.Finans.Modul };
-        Assert.Equal(codes.Length, codes.Distinct().Count());
     }
 
     [Fact]
@@ -63,8 +58,9 @@ public sealed class FinansModuluTests
             parameter.ParameterType == typeof(_3K.Core.Interfaces.IRolService));
     }
 
+    /// <summary>Fiyat girilse de PO açma yalnız sipariş açılan sekmelerden birinin W iznini ister; ek fiyat izni yoktur.</summary>
     [Fact]
-    public void Po_komutu_fiyat_override_edilirse_ek_fiyat_yetkisi_ister()
+    public void Po_komutu_fiyat_override_edilse_de_yalniz_siparis_acma_sekmelerini_ister()
     {
         var plain = new FinansSiparisOlusturCommand
         {
@@ -79,26 +75,27 @@ public sealed class FinansModuluTests
                 new[] { new FinansSiparisDagitimModel(1, 1, 0, BirimFiyat: 100) })
         };
 
-        Assert.Equal(
-            new[] { YetkiKodlari.Finans.PoGir },
-            plain.RequiredMenuPermissions.Select(x => x.MenuKod));
-        Assert.Equal(
-            new[] { YetkiKodlari.Finans.PoGir, YetkiKodlari.Finans.BirimFiyatDegistir },
-            overridden.RequiredMenuPermissions.Select(x => x.MenuKod));
+        var beklenen = FinansSekmeleri.SiparisAcma.Select(MenuPermissionRequirement.Write).ToArray();
+        Assert.Equal(beklenen, plain.RequiredMenuPermissions);
+        Assert.Equal(beklenen, overridden.RequiredMenuPermissions);
+        Assert.Equal(MenuPermissionMatch.Any, overridden.PermissionMatch);
     }
 
+    /// <summary>Aylık rapor dosyası İş Takibi'nin Aylık görünüm alt sekmesi veya Raporlar sekmesinin R izniyle alınır; biçim (xlsx/pdf) izni değiştirmez.</summary>
     [Fact]
-    public void Aylik_rapor_dosyasi_hassas_yetkileri_ve_format_yetkisini_birlikte_ister()
+    public void Aylik_rapor_dosyasi_aylik_gorunum_veya_raporlar_okumasini_ister_format_yetkiyi_degistirmez()
     {
         var excel = new FinansAylikRaporDosyaQuery { Format = "xlsx", Yil = 2026, Ay = 8 };
         var pdf = new FinansAylikRaporDosyaQuery { Format = "pdf", Yil = 2026, Ay = 8 };
 
-        foreach (var kod in new[] { YetkiKodlari.Finans.GelirGoruntule, YetkiKodlari.Finans.GiderGoruntule, YetkiKodlari.Finans.KarlilikGoruntule })
-            Assert.Contains(excel.RequiredMenuPermissions, x => x.MenuKod == kod && x.YetkiTipi == YetkiTipi.R);
-        Assert.Contains(excel.RequiredMenuPermissions, x => x.MenuKod == YetkiKodlari.Finans.ExcelAktar);
-        Assert.Contains(excel.RequiredMenuPermissions, x => x.MenuKod == YetkiKodlari.Finans.RaporGoruntule && x.YetkiTipi == YetkiTipi.R);
-        Assert.Contains(pdf.RequiredMenuPermissions, x => x.MenuKod == YetkiKodlari.Finans.PdfAktar);
-        Assert.Contains(pdf.RequiredMenuPermissions, x => x.MenuKod == YetkiKodlari.Finans.RaporGoruntule && x.YetkiTipi == YetkiTipi.R);
+        MenuPermissionRequirement[] beklenen =
+        [
+            MenuPermissionRequirement.Read(YetkiKodlari.Finans.SekmeIsTakibiAylik),
+            MenuPermissionRequirement.Read(YetkiKodlari.Finans.SekmeRaporlar)
+        ];
+        Assert.Equal(beklenen, excel.RequiredMenuPermissions);
+        Assert.Equal(beklenen, pdf.RequiredMenuPermissions);
+        Assert.Equal(MenuPermissionMatch.Any, excel.PermissionMatch);
     }
 
     [Fact]
@@ -216,9 +213,11 @@ public sealed class FinansModuluTests
     [Fact]
     public void Kutuphane_okuma_endpointleri_yonetici_yetkisini_baska_gorme_yetkisine_baglamaz()
     {
-        Assert.Equal(YetkiKodlari.Finans.GiderKutuphanesiYonet, new FinansGiderKutuphaneKategorileriQuery().RequiredMenuKod);
-        Assert.Equal(YetkiKodlari.Finans.GiderKutuphanesiYonet, new FinansGiderKutuphaneKalemleriQuery().RequiredMenuKod);
-        Assert.Equal(YetkiKodlari.Finans.IsKutuphanesiYonet, new FinansUrunlerQuery().RequiredMenuKod);
+        Assert.Equal([MenuPermissionRequirement.Read(YetkiKodlari.Finans.SekmeGiderKategorileri)],
+            new FinansGiderKutuphaneKategorileriQuery().RequiredMenuPermissions);
+        Assert.Equal([MenuPermissionRequirement.Read(YetkiKodlari.Finans.SekmeGiderKategorileri)],
+            new FinansGiderKutuphaneKalemleriQuery().RequiredMenuPermissions);
+        Assert.Equal([MenuPermissionRequirement.Read(YetkiKodlari.Finans.SekmeTanimlarTarifeler)], new FinansUrunlerQuery().RequiredMenuPermissions);
     }
 
     [Fact]

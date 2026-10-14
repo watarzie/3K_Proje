@@ -16,6 +16,11 @@ public sealed class FinansIsKaydiKaydetModelValidator : AbstractValidator<Finans
         RuleFor(x => x.Adet).GreaterThan(0);
         RuleFor(x => x.Birim).NotEmpty().MaximumLength(30);
         RuleFor(x => x.BirimM3).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.AhsapM3).InclusiveBetween(0, FinansHacimKurallari.EnFazlaM3).When(x => x.AhsapM3.HasValue);
+        RuleFor(x => x.KontraM3).InclusiveBetween(0, FinansHacimKurallari.EnFazlaM3).When(x => x.KontraM3.HasValue);
+        RuleFor(x => x).Must(x => FinansHacimKurallari.Bilesik(x.AhsapM3, x.KontraM3) > 0)
+            .When(x => x.HesaplamaYontemi == _3K.Core.Enums.FinansHesaplamaYontemi.Metrekup)
+            .WithMessage("m³ yönteminde ahşap veya kontra m³ girilmelidir.");
         RuleFor(x => x.UretimTarihi).Must(FinansTarihKurallari.GecerliTarih).WithMessage("Geçerli bir üretim tarihi girilmelidir.");
         RuleFor(x => x.FinansDonemi).Must(FinansTarihKurallari.GecerliTarih).WithMessage("Geçerli bir finans dönemi girilmelidir.");
         RuleFor(x => x.ManuelProjeNo).MaximumLength(100);
@@ -33,6 +38,27 @@ public sealed class FinansIsKaydiKaydetModelValidator : AbstractValidator<Finans
         RuleFor(x => x).Must(x => !(x.ProjeId.HasValue && !string.IsNullOrWhiteSpace(x.ManuelProjeNo)))
             .WithMessage("Sistem projesi ile manuel proje aynı anda seçilemez.");
     }
+}
+
+public sealed class FinansMunferitIsKaydetModelValidator : AbstractValidator<FinansMunferitIsKaydetModel>
+{
+    public FinansMunferitIsKaydetModelValidator()
+    {
+        RuleFor(x => x.FinansUrunId).GreaterThan(0).WithMessage("Tarife seçilmelidir.");
+        RuleFor(x => x).Must(x => x.ProjeId.HasValue != !string.IsNullOrWhiteSpace(x.ProjeAdi))
+            .WithName("Proje").WithMessage("Sistemden bir proje seçin veya proje adını yazın.");
+        RuleFor(x => x.ProjeId).GreaterThan(0).When(x => x.ProjeId.HasValue);
+        RuleFor(x => x.ProjeAdi).MaximumLength(100);
+        RuleFor(x => x.Adet).GreaterThan(0);
+        RuleFor(x => x.AhsapM3).InclusiveBetween(0, FinansHacimKurallari.EnFazlaM3).When(x => x.AhsapM3.HasValue);
+        RuleFor(x => x.KontraM3).InclusiveBetween(0, FinansHacimKurallari.EnFazlaM3).When(x => x.KontraM3.HasValue);
+        RuleFor(x => x.IsTarihi).Must(FinansTarihKurallari.GecerliTarih).WithMessage("Geçerli bir iş tarihi girilmelidir.");
+    }
+}
+
+public sealed class FinansMunferitIsOlusturCommandValidator : AbstractValidator<FinansMunferitIsOlusturCommand>
+{
+    public FinansMunferitIsOlusturCommandValidator() => RuleFor(x => x.Model).NotNull().SetValidator(new FinansMunferitIsKaydetModelValidator());
 }
 
 public sealed class FinansIsKaydiOlusturCommandValidator : AbstractValidator<FinansIsKaydiOlusturCommand>
@@ -59,6 +85,21 @@ public sealed class FinansTarihiDegistirCommandValidator : AbstractValidator<Fin
         {
             RuleFor(x => x.Model.FinansTarihi).Must(FinansTarihKurallari.GecerliTarih).WithMessage("Geçerli finans tarihi girin.");
             RuleFor(x => x.Model.Aciklama).Must(FinansGerekceKurali.Gecerli).WithMessage(FinansGerekceKurali.Mesaj);
+        });
+    }
+}
+
+public sealed class FinansHacimGirCommandValidator : AbstractValidator<FinansHacimGirCommand>
+{
+    public FinansHacimGirCommandValidator()
+    {
+        RuleFor(x => x.Id).GreaterThan(0);
+        RuleFor(x => x.Model).NotNull().DependentRules(() =>
+        {
+            RuleFor(x => x.Model)
+                .Must(x => FinansHacimKurallari.GecerliManuelHacim(x.AhsapM3, x.KontraM3))
+                .WithMessage("Ahşap ve kontra m³ sıfır veya pozitif olmalı; en az biri sıfırdan büyük olmalıdır.");
+            RuleFor(x => x.Model.Aciklama).Must(FinansGerekceKurali.IstegeBagliGecerli).WithMessage(FinansGerekceKurali.IstegeBagliMesaj);
         });
     }
 }

@@ -404,7 +404,9 @@ internal sealed class FinansSiparisFaturaService(
             activeLines.Count > 0,
             "Sipariş");
         var pricingQuantity = FinansTutarKurallari.FiyatlandirmaMiktari(pricingUnit, distribution.Adet, distribution.M3);
-        var requestedNet = requested.NetTutar ?? FinansTutarKurallari.Hesapla(pricingQuantity, unitPrice, vat).Net;
+        var requestedNet = requested.NetTutar ?? (work.AhsapBirimFiyatSnapshot.HasValue
+            ? MalzemeliSiparisNet(work, activeLines, distribution.M3)
+            : FinansTutarKurallari.Hesapla(pricingQuantity, unitPrice, vat).Net);
         FinansTutarKurallari.Kapasite(requestedNet, activeLines.Sum(x => x.NetTutarSnapshot), FinansTutarKurallari.IsNet(work), "Sipariş");
         if (existing is not null)
         {
@@ -433,6 +435,19 @@ internal sealed class FinansSiparisFaturaService(
             KdvTutariSnapshot = money.Kdv,
             ToplamTutarSnapshot = money.Toplam
         });
+    }
+
+    /// <summary>
+    /// Malzemeli (ahşap + kontra tarifeli) işte m³ dağıtımının neti, işin netinden m³ oranıyla alınır; kalan m³'ün
+    /// tamamı siparişe girerse kalan net birebir verilir (kuruş yuvarlaması kapasiteyi aşmaz).
+    /// </summary>
+    private static decimal MalzemeliSiparisNet(FinansIsKaydi work, IReadOnlyCollection<FinansSiparisKalemi> activeLines, decimal m3)
+    {
+        var isNet = FinansTutarKurallari.IsNet(work);
+        var kalanM3 = work.ToplamM3 - activeLines.Sum(x => x.M3);
+        if (work.ToplamM3 <= 0 || m3 >= kalanM3)
+            return isNet - activeLines.Sum(x => x.NetTutarSnapshot);
+        return FinansTutarKurallari.Para(isNet * m3 / work.ToplamM3);
     }
 
     internal static string PoNumarasiNormalize(string poNumarasi) => poNumarasi.Trim().ToUpperInvariant();

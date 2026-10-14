@@ -91,7 +91,8 @@ internal sealed class FinansUretimAktarimService(
                 var activeOrderLines = entity.SiparisKalemleri.Where(x => !x.FinansSiparis.IptalEdildi).ToList();
                 var orderedAdet = activeOrderLines.Sum(x => x.Adet);
                 var orderedM3 = activeOrderLines.Sum(x => x.M3);
-                var requestedM3 = decimal.Round(model.Adet * model.BirimM3, 6);
+                // Elle girilen hacimde PO kapasitesi bileşik toplama göre ölçülür; üretim m³'ü bu kaydı ezmez.
+                var requestedM3 = entity.HacimManuel ? entity.ToplamM3 : decimal.Round(model.Adet * model.BirimM3, 6);
                 var pricingUnit = activeOrderLines.Select(x => x.FiyatlandirmaBirimiSnapshot).Distinct().Count() == 1
                     ? activeOrderLines[0].FiyatlandirmaBirimiSnapshot
                     : entity.FiyatlandirmaBirimiSnapshot;
@@ -171,7 +172,13 @@ internal sealed class FinansUretimAktarimService(
         entity.Yukseklik = model.Yukseklik;
         entity.IcSandikSablonId = model.IcSandikSablonId;
         entity.SandikCinsi = model.SandikCinsi;
-        if (!entity.FinansMiktariManuel)
+        if (!entity.FinansMiktariManuel && entity.HacimManuel)
+        {
+            // Elle girilen ahşap/kontra hacmi korunur; adet değişirse yalnız birim m³ yeniden türetilir.
+            entity.Adet = model.Adet;
+            FinansHacimKurallari.ManuelHacmiUygula(entity);
+        }
+        else if (!entity.FinansMiktariManuel)
         {
             entity.Adet = model.Adet;
             entity.Birim = model.BirimM3 > 0 ? "m³" : "Adet";

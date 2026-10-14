@@ -150,6 +150,38 @@ public sealed class SandikTasimaKatalogKurallariTests
         Assert.Equal(1, hedef.EksikAdet);
     }
 
+    /// <summary>
+    /// Ürün bilgisi (seri no/SKT) taşımada kaybolmaz: yeni hedef satıra kopyalanır; hedefte aynı ürünün satırı
+    /// varsa kaynak satır boşalıp silinirken iki bilgi birleştirilir.
+    /// </summary>
+    [Fact]
+    public async Task SandikUrunTasi_UrunBilgisiYeniHedefeKopyalanirMevcutHedefteBirlestirilir()
+    {
+        using (var kurgu = new Kurgu(tahsis: 3, konulan: 2))
+        {
+            kurgu.KaynakIcerik.UrunBilgisi = "SN-1";
+
+            var sonuc = await kurgu.TasiAsync(miktar: 3, islemAnahtari: Guid.NewGuid());
+
+            Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+            var hedef = Assert.Single(kurgu.Uow.Repo<SandikIcerik>().Rows, i => i.SandikId == kurgu.HedefSandik.Id);
+            Assert.Equal("SN-1", hedef.UrunBilgisi);
+        }
+
+        using (var kurgu = new Kurgu(tahsis: 3, konulan: 2))
+        {
+            kurgu.KaynakIcerik.UrunBilgisi = "SN-1";
+            var mevcut = kurgu.IcerikEkle(kurgu.HedefSandik, tahsis: 2, konulan: 1);
+            mevcut.UrunBilgisi = "SKT 2027-03";
+
+            var sonuc = await kurgu.TasiAsync(miktar: 3, islemAnahtari: Guid.NewGuid());
+
+            Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+            Assert.DoesNotContain(kurgu.Uow.Repo<SandikIcerik>().Rows, i => i.Id == kurgu.KaynakIcerik.Id);
+            Assert.Equal("SKT 2027-03 | SN-1", mevcut.UrunBilgisi);
+        }
+    }
+
     private sealed class Kurgu : IDisposable
     {
         public const int ProjeId = 10;

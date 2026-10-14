@@ -42,7 +42,7 @@ public sealed class CekiSatiriAnaVeriTahsisTests
         var once = kurgu.TumKayitlar();
 
         var sonuc = await new CekiSatiriAnaVeriGuncelleCommandHandler(
-            kurgu.Uow, new DurumHesaplaService(), kurgu.Saha).Handle(istek, default);
+            kurgu.Uow, new DurumHesaplaService(), kurgu.Saha, kurgu.Hareket, new OrtakUser()).Handle(istek, default);
 
         Assert.False(sonuc.IsSuccess);
         Assert.Equal(once, kurgu.TumKayitlar());
@@ -576,10 +576,85 @@ public sealed class CekiSatiriAnaVeriTahsisTests
         Assert.Equal(0, kurgu.Uow.WriteCount);
     }
 
+    /// <summary>
+    /// PA600-51 vakası: çekide sandık numarası boş gelen satıra bu ekrandan numara verilince ürün sandığa
+    /// yalnız numarasıyla bağlı kalıyor, depo sayımında görünmüyordu. Hedef sandıkta tahsis oluşmalı ve
+    /// değerleri satırın 3K toplamlarıyla tutarlı olmalıdır.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TahsissizSatiraSandikNumarasiVerilince_HedefSandiktaTahsisOlusur(bool hedefSandikVar)
+    {
+        using var kurgu = new Kurgu(4);
+        kurgu.TahsisiKaldir(satirSandikNo: "");
+        kurgu.Satir.GelenMiktar = 3;
+        kurgu.Satir.StokKarsilanan = 1;
+        if (hedefSandikVar) kurgu.HedefSandikEkle();
+
+        var sonuc = await kurgu.CalistirAsync(4, sandikNo: "2");
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        var hedef = Assert.Single(kurgu.Uow.Repo<Sandik>().Rows, s => s.SandikNo == "2");
+        var tahsis = kurgu.TekIcerik;
+        Assert.Equal(hedef.Id, tahsis.SandikId);
+        Assert.Equal(50, tahsis.CekiSatiriId);
+        Assert.Equal(4, tahsis.TahsisMiktari);
+        Assert.Equal(4, tahsis.KonulanAdet);
+        Assert.Equal(1, tahsis.StokKarsilanan);
+        Assert.Equal(0, tahsis.EksikAdet);
+        Assert.Equal((int)Birim.Adet, tahsis.BirimId);
+        Assert.Equal("2", kurgu.Satir.FiiliSandikNo);
+        Assert.Equal(1, kurgu.Uow.TransactionCount);
+
+        var hareket = Assert.Single(kurgu.Hareket.Rows);
+        Assert.Equal("CekiSatiri", hareket.ReferansTipi);
+        Assert.Equal("50", hareket.ReferansId);
+        Assert.Equal(10, hareket.ProjeId);
+        Assert.EndsWith("Sandık: -", hareket.EskiDeger);
+        Assert.EndsWith("Sandık: 2", hareket.YeniDeger);
+        Assert.Contains("tahsis oluşturuldu", hareket.Aciklama);
+    }
+
+    [Fact]
+    public async Task TahsissizKismenGelmisSatir_YeniTahsisteKalanEksikOlarakKalir()
+    {
+        using var kurgu = new Kurgu(4);
+        kurgu.TahsisiKaldir(satirSandikNo: "");
+        kurgu.Satir.GelenMiktar = 1;
+
+        var sonuc = await kurgu.CalistirAsync(4, sandikNo: "2");
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        var tahsis = kurgu.TekIcerik;
+        Assert.Equal(4, tahsis.TahsisMiktari);
+        Assert.Equal(1, tahsis.KonulanAdet);
+        Assert.Equal(3, tahsis.EksikAdet);
+    }
+
+    [Fact]
+    public async Task AnaVeriDuzenlemesi_EskiVeYeniDegerleHareketGecmisineYazilir()
+    {
+        using var kurgu = new Kurgu(2);
+
+        var sonuc = await kurgu.CalistirAsync(2);
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        var hareket = Assert.Single(kurgu.Hareket.Rows);
+        Assert.Equal("Çeki Verisi Düzenlendi", hareket.Islem);
+        Assert.Equal((int)IslemTipi.UrunGuncellendi, hareket.IslemTipiId);
+        Assert.Equal(7, hareket.KullaniciId);
+        Assert.Contains("Barkod: ESKI", hareket.EskiDeger);
+        Assert.Contains("Barkod: YENI", hareket.YeniDeger);
+        Assert.Null(hareket.Aciklama);
+        Assert.Single(kurgu.Uow.Repo<SandikIcerik>().Rows);
+    }
+
     private sealed class Kurgu : IDisposable
     {
         public TestUnitOfWork Uow { get; } = new();
         public SahaStub Saha { get; } = new();
+        public OrtakHareket Hareket { get; } = new();
         public CekiSatiri Satir => Uow.Repo<CekiSatiri>().Rows.Single();
         public SandikIcerik TekIcerik => Assert.Single(Uow.Repo<SandikIcerik>().Rows);
 
@@ -610,6 +685,14 @@ public sealed class CekiSatiriAnaVeriTahsisTests
             Id = 21, ProjeId = 10, SandikNo = "2", DurumId = (int)SandikDurum.Hazirlaniyor
         });
 
+        /// <summary>Çekide sandık numarası boş gelmiş, hiç tahsis edilmemiş satır.</summary>
+        public void TahsisiKaldir(string satirSandikNo)
+        {
+            Uow.Repo<SandikIcerik>().Rows.Clear();
+            Satir.CekideGecenSandikNo = satirSandikNo;
+            Satir.FiiliSandikNo = satirSandikNo;
+        }
+
         public void IkinciTahsisEkle(decimal tahsis, decimal konulan)
         {
             HedefSandikEkle();
@@ -621,7 +704,7 @@ public sealed class CekiSatiriAnaVeriTahsisTests
         }
 
         public Task<Result<CekiSatiriAnaVeriGuncelleDto>> CalistirAsync(decimal miktar, string sandikNo = "1", Birim birim = Birim.Adet) =>
-            new CekiSatiriAnaVeriGuncelleCommandHandler(Uow, new DurumHesaplaService(), Saha).Handle(
+            new CekiSatiriAnaVeriGuncelleCommandHandler(Uow, new DurumHesaplaService(), Saha, Hareket, new OrtakUser()).Handle(
                 new CekiSatiriAnaVeriGuncelleCommand
                 {
                     CekiSatiriId = 50, SiraNo = 2, BarkodNo = "YENI", Aciklama = "YENI ACIKLAMA",
@@ -631,7 +714,8 @@ public sealed class CekiSatiriAnaVeriTahsisTests
         public string TahsisKayitlari() => JsonSerializer.Serialize(Uow.Repo<SandikIcerik>().Rows);
         public string TumKayitlar() => JsonSerializer.Serialize(new
         {
-            Satir, Sandiklar = Uow.Repo<Sandik>().Rows, Icerikler = Uow.Repo<SandikIcerik>().Rows
+            Satir, Sandiklar = Uow.Repo<Sandik>().Rows, Icerikler = Uow.Repo<SandikIcerik>().Rows,
+            Hareketler = Hareket.Rows
         });
 
         public string FizikselKayitlar() => JsonSerializer.Serialize(new

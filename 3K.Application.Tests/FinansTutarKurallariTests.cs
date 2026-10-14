@@ -70,6 +70,33 @@ public sealed class FinansTutarKurallariTests
         Assert.Equal(FinansTutarKurallari.IsNet(is_), sqlNet(is_));
     }
 
+    /// <summary>
+    /// Malzemeli fiyat (kontrplak/katlanır): kontra m³ kontra, ahşap m³ ahşap tarifesiyle fiyatlanır. Hacim henüz elle
+    /// girilmediyse kayıt m³'ünün tamamı kontra sayılır. SQL ifadesi aynı sonucu verir.
+    /// </summary>
+    [Fact]
+    public void Malzemeli_net_ahsap_ve_kontra_m3_u_kendi_tarifesiyle_fiyatlar_sql_ile_ayni()
+    {
+        var sqlNet = FinansSorgulari.IsNetIfadesi.Compile();
+        var is_ = new FinansIsKaydi
+        {
+            FiyatlandirmaBirimiSnapshot = FinansFiyatlandirmaBirimi.Metrekup, Adet = 2, ToplamM3 = 3.4m,
+            AhsapM3 = 1.2m, KontraM3 = 2.2m, BirimFiyatSnapshot = 300m, AhsapBirimFiyatSnapshot = 150m
+        };
+
+        Assert.Equal(300m * 2.2m + 150m * 1.2m, FinansTutarKurallari.IsNet(is_));
+        Assert.Equal(FinansTutarKurallari.IsNet(is_), sqlNet(is_));
+
+        is_.AhsapM3 = null;
+        is_.KontraM3 = null;
+        Assert.Equal(300m * 3.4m, FinansTutarKurallari.IsNet(is_));
+        Assert.Equal(FinansTutarKurallari.IsNet(is_), sqlNet(is_));
+
+        is_.ManuelNetTutar = 99m;
+        Assert.Equal(99m, FinansTutarKurallari.IsNet(is_));
+        Assert.Equal(99m, sqlNet(is_));
+    }
+
     [Fact]
     public void Manuel_net_tutar_is_bedelini_belirler()
     {

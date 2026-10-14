@@ -1,3 +1,4 @@
+using _3K.Core.Entities;
 using _3K.Core.Enums;
 
 namespace _3K.Core.Models;
@@ -27,6 +28,51 @@ public static class FinansHacimKurallari
             _ => FinansSandikMalzemesi.Bilinmiyor
         }
     };
+
+    /// <summary>
+    /// Kaydın ahşap ve kontra payı: elle girilmiş değer (<see cref="FinansIsKaydi.AhsapM3"/>/<see cref="FinansIsKaydi.KontraM3"/>)
+    /// varsa o kullanılır; yoksa eski kayıtlardaki gibi sandık cinsi ve fiyat satırlarından türetilir.
+    /// </summary>
+    public static (decimal Ahsap, decimal Kontra) Hacim(
+        decimal? kayitliAhsap,
+        decimal? kayitliKontra,
+        AmbalajSandikCinsi? cinsi,
+        string? sandikTipi,
+        decimal toplamM3,
+        IReadOnlyList<FinansFiyatBileseniModel>? bilesenler) =>
+        kayitliAhsap.HasValue || kayitliKontra.HasValue
+            ? (kayitliAhsap ?? 0, kayitliKontra ?? 0)
+            : Hacim(cinsi, sandikTipi, toplamM3, bilesenler);
+
+    /// <summary>
+    /// Ahşap/kontra m³ elle girilebilir mi: Ambalaj'ın m³ hesaplamadığı kontrplak ve katlanır sandıkta; ahşap kapalı
+    /// ve kafes sandığın m³'ü üretimden gelir. Daha önce elle girilmiş hacim (ör. özel iş) düzeltilebilir kalır.
+    /// </summary>
+    public static bool ElleGirilebilir(AmbalajSandikCinsi? cinsi, string? sandikTipi, bool hacimManuel) =>
+        hacimManuel || Malzeme(cinsi, sandikTipi) == FinansSandikMalzemesi.Kontra;
+
+    /// <summary>Bileşik toplam = ahşap m³ + kontra m³ (altı ondalık).</summary>
+    public static decimal Bilesik(decimal? ahsap, decimal? kontra) =>
+        decimal.Round((ahsap ?? 0) + (kontra ?? 0), 6, MidpointRounding.AwayFromZero);
+
+    /// <summary>Elle hacim girişi: iki değer de sıfır veya pozitif, en az biri sıfırdan büyük ve kolon sınırında.</summary>
+    public static bool GecerliManuelHacim(decimal ahsap, decimal kontra) =>
+        ahsap >= 0 && kontra >= 0 && ahsap + kontra > 0 && ahsap <= EnFazlaM3 && kontra <= EnFazlaM3;
+
+    public const decimal EnFazlaM3 = 999_999m;
+
+    /// <summary>
+    /// Elle girilen ahşap/kontra hacmini işin fiyatlandırma miktarına yansıtır: <c>ToplamM3 = ahşap + kontra</c>,
+    /// <c>BirimM3 = ToplamM3 / Adet</c>. Tutar kuralı, SQL tutar ifadesi, tarife düzeltmesi ve PO kapasitesi böylece
+    /// değişmeden bileşik toplamla çalışır; adet değişirse yalnız birim m³ yeniden türetilir.
+    /// </summary>
+    public static void ManuelHacmiUygula(FinansIsKaydi kayit)
+    {
+        kayit.ToplamM3 = Bilesik(kayit.AhsapM3, kayit.KontraM3);
+        kayit.BirimM3 = kayit.Adet > 0
+            ? decimal.Round(kayit.ToplamM3 / kayit.Adet, 6, MidpointRounding.AwayFromZero)
+            : 0;
+    }
 
     /// <summary>
     /// Kaydın ahşap ve kontra m³ payı. Ahşap sandığın ahşabı üretim m³'üdür; kontra/katlanır sandığın hacmi m³ fiyat

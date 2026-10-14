@@ -12,7 +12,7 @@ internal sealed partial class FinansRaporService
     private static readonly string[] IsBasliklari =
     [
         "Kayıt No", "Proje No", "Müşteri", "İş Türü", "İş Adı", "Sandık No", "Adet",
-        "Talep Eden", "Talep Eden Bölüm", "Birim m³", "Toplam m³", "Üretim Tarihi", "Finans Dönemi", "Durum",
+        "Talep Eden", "Talep Eden Bölüm", "Birim m³", "Toplam m³", "Ahşap m³", "Kontra m³", "Üretim Tarihi", "Finans Dönemi", "Durum",
         "Fiyatlandırma", "Birim Fiyat", "Para Birimi", "KDV %", "Net", "KDV", "Toplam", "PO", "Fatura"
     ];
 
@@ -25,7 +25,7 @@ internal sealed partial class FinansRaporService
     private static object?[] IsSatiri(FinansIsKaydiModel item) =>
     [
         item.Id, item.ProjeNo, item.Musteri, FinansEtiketleri.IsTuru(item.IsTuru), item.IsAdi, item.SandikNo,
-        item.Adet, item.TalepEdenKisi, item.TalepEdenBolum, item.BirimM3, item.ToplamM3, item.UretimTarihi, item.FinansDonemi, FinansEtiketleri.IsDurumu(item.Durum),
+        item.Adet, item.TalepEdenKisi, item.TalepEdenBolum, item.BirimM3, item.ToplamM3, item.AhsapM3, item.KontraM3, item.UretimTarihi, item.FinansDonemi, FinansEtiketleri.IsDurumu(item.Durum),
         FinansEtiketleri.FiyatlandirmaBirimi(item.FiyatlandirmaBirimi), item.BirimFiyat, item.ParaBirimi, item.KdvOrani,
         item.NetTutar, item.KdvTutari, item.ToplamTutar,
         string.Join(", ", item.PoNumaralari), string.Join(", ", item.FaturaNumaralari)

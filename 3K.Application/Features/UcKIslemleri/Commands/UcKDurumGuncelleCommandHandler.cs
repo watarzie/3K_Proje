@@ -287,9 +287,29 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     break;
             }
 
+            decimal? tedarikciFazlaAdedi = null;
             if (kaynakKarsilamaTipleri.Contains(request.KarsilamaTipiId))
             {
                 var eklenecekMiktar = request.GelenAdet!.Value;
+                var satirIcerikleri = _unitOfWork.GetRepository<SandikIcerik>()
+                    .Queryable()
+                    .Where(i => i.CekiSatiriId == satir.Id)
+                    .ToList();
+                if (request.KarsilamaTipiId == (int)UcKDurum.TedarikcidenGeldi)
+                {
+                    // K-061: tedarikçi teslimi kalanı aşarsa kalan kadarı karşılanır, aşan kısım Fazla Geldi ile aynı
+                    // yoldan (ayrı stok kaydı + 34 hareketi) stoğa alınır. Hiçbir sayaç değişmeden önce karar verilir.
+                    var bolum = TedarikciTeslimBolumu(satir, satirIcerikleri, eklenecekMiktar);
+                    if (bolum.Fazla > 0)
+                    {
+                        if (bolum.Normal <= 0)
+                            return Result.Failure("Ürünün kalanı yok; yalnız fazla teslim için Fazla Geldi işlemini kullanın.");
+                        if (!request.StogaAktar)
+                            return Result.Failure("Fazla gelen adet stoka aktarılmalıdır.");
+                        tedarikciFazlaAdedi = bolum.Fazla;
+                        eklenecekMiktar = bolum.Normal;
+                    }
+                }
                 var hedefToplam =
                     satir.GelenMiktar +
                     satir.KarsilananMiktar -
@@ -303,10 +323,6 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                         409);
                 }
 
-                var satirIcerikleri = _unitOfWork.GetRepository<SandikIcerik>()
-                    .Queryable()
-                    .Where(i => i.CekiSatiriId == satir.Id)
-                    .ToList();
                 if (satirIcerikleri.Count > 0)
                 {
                     var hedefKonulan = Math.Max(
@@ -484,11 +500,14 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     break;
 
                 case (int)UcKDurum.TedarikcidenGeldi:
-                    satir.KarsilananMiktar += request.GelenAdet!.Value;
-                    satir.TedarikciKarsilanan += request.GelenAdet!.Value; // Madde 2: Parçalı tracking
+                    // Sayaçlara yalnız kalan kadar normal karşılama eklenir; fazlası sonradan stoğa aktarılır (K-061).
+                    var tedarikciNormalAdet = request.GelenAdet!.Value - (tedarikciFazlaAdedi ?? 0);
+                    satir.KarsilananMiktar += tedarikciNormalAdet;
+                    satir.TedarikciKarsilanan += tedarikciNormalAdet; // Madde 2: Parçalı tracking
                     satir.UcKDurumuId = (int)UcKDurum.TedarikcidenGeldi;
                     satir.TeslimTarihi = TurkeyTime.Now;
-                    KapatYenidenSevkIhtiyaci(satir, request.GelenAdet.Value);
+                    KapatYenidenSevkIhtiyaci(satir, tedarikciNormalAdet);
+                    fazlaTeslimStokAdedi = tedarikciFazlaAdedi;
                     break;
 
                 case (int)UcKDurum.FazlaGeldi:
@@ -581,6 +600,11 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
             // Hareket kaydı
             var hareketAciklama = request.Aciklama ?? "";
+            if (tedarikciFazlaAdedi is > 0)
+            {
+                hareketAciklama = $"Tedarikçiden {FormatAdet(request.GelenAdet!.Value)} adet geldi: {FormatAdet(request.GelenAdet.Value - tedarikciFazlaAdedi.Value)} adet karşılandı, " +
+                                  $"{FormatAdet(tedarikciFazlaAdedi.Value)} adet fazla teslim stoka aktarıldı. {hareketAciklama}".Trim();
+            }
             // Geri gönderildi durumunda açıklamaya sebep ve adet bilgisi ekle
             if (request.KarsilamaTipiId == (int)UcKDurum.GeriGonderildi)
             {
@@ -605,6 +629,30 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             return Result.Success();
         }
 
+        /// <summary>
+        /// Tekil tedarikçi teslimini satırın kalanı ve sandık tahsis kapasitesiyle sınırlar (formüller kalan ve kapasite
+        /// kapılarıyla aynıdır): sınır içindeki kısım normal karşılama, aşan kısım fazla teslimdir.
+        /// </summary>
+        private static (decimal Normal, decimal Fazla) TedarikciTeslimBolumu(
+            CekiSatiri satir,
+            IReadOnlyList<SandikIcerik> icerikler,
+            decimal gelen)
+        {
+            var sinir = Math.Max(
+                satir.IstenenAdet - (satir.GelenMiktar + satir.KarsilananMiktar - satir.ProjeGonderilen + satir.TrafoSevkAdet),
+                0);
+            if (icerikler.Count > 0)
+            {
+                var mevcutKonulan = Math.Max(
+                    satir.GelenMiktar + satir.StokKarsilanan + satir.ProjeKarsilanan + satir.TedarikciKarsilanan - satir.ProjeGonderilen,
+                    0);
+                var kapasite = icerikler.Sum(i => UcKSandikIcerikSenkronizasyonHelper.TahsisMiktari(satir, i, icerikler.Count));
+                sinir = Math.Min(sinir, Math.Max(kapasite - mevcutKonulan, 0));
+            }
+            var normal = Math.Min(gelen, sinir);
+            return (normal, gelen - normal);
+        }
+
         private async Task FazlaTeslimStogaAktarAsync(CekiSatiri satir, UcKDurumGuncelleCommand request, decimal fazlaAdet)
         {
             var projeNo = request.MevcutProjeNo;
@@ -615,6 +663,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 projeNo = proje?.ProjeNo;
             }
 
+            // Tedarikçi fazlası da Fazla Geldi ile aynı mevcut stoğa birleşmeyen ayrı kayıt ve 34 hareketiyle izlenir;
+            // geri alma yolları yalnız hareket tipine baktığından gerekçe metni ayırt edici olabilir.
+            var tedarikcidenMi = request.KarsilamaTipiId == (int)UcKDurum.TedarikcidenGeldi;
             var stokRepo = _unitOfWork.GetRepository<StokKaydi>();
             var stokKaydi = new StokKaydi
             {
@@ -623,7 +674,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 Miktar = fazlaAdet,
                 BirimId = satir.BirimId,
                 KaynakProje = projeNo,
-                StokGirisNedeni = "Fazla teslim",
+                StokGirisNedeni = tedarikcidenMi ? "Tedarikçi fazla teslim" : "Fazla teslim",
                 DurumId = (int)StokDurum.Aktif
             };
 
@@ -639,7 +690,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 KullaniciId = _currentUserService.UserId ?? 0,
                 Miktar = fazlaAdet,
                 IslemTipiId = (int)IslemTipi.FazlaTeslimStogaAktarildi,
-                Aciklama = $"Fazla teslim nedeniyle {FormatAdet(fazlaAdet)} adet stoka aktarıldı.",
+                Aciklama = tedarikcidenMi
+                    ? $"Tedarikçiden kalanı aşan {FormatAdet(fazlaAdet)} adet fazla teslim stoka aktarıldı."
+                    : $"Fazla teslim nedeniyle {FormatAdet(fazlaAdet)} adet stoka aktarıldı.",
                 Tarih = TurkeyTime.Now
             });
         }

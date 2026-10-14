@@ -17,7 +17,7 @@ namespace _3K.Application.Features.StokIslemleri.Queries
 
         public async Task<Result<PaginatedList<StokKaydiDto>>> Handle(StokListeleQuery request, CancellationToken cancellationToken)
         {
-            var pagedData = await _stokService.GetPaginatedStoklarAsync(request.SearchTerm, request.PageNumber, request.PageSize);
+            var pagedData = await _stokService.GetPaginatedStoklarAsync(request.SearchTerm, request.PageNumber, request.PageSize, request.DurumId);
 
             var dtos = pagedData.Items.Select(s => new StokKaydiDto
             {

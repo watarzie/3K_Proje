@@ -12,6 +12,7 @@ using _3K.Application.Features.RolIslemleri.Commands;
 using _3K.Application.Features.RolIslemleri.Queries;
 using _3K.Application.Features.SandikIslemleri.Commands;
 using _3K.Application.Features.SandikIslemleri.Queries;
+using _3K.Application.Features.SevkiyatIslemleri.Queries;
 using _3K.Application.Features.StokIslemleri.Commands;
 using _3K.Application.Features.StokIslemleri.Queries;
 using _3K.Application.Features.UcKIslemleri.Commands;
@@ -78,7 +79,10 @@ public sealed class RequestMenuPermissionResolver(IUnitOfWork unitOfWork, IReadQ
             GetProjeHareketleriQuery => One(K.HareketGecmisi, YetkiTipi.R),
             GetEksikUrunlerByProjeQuery => Any(YetkiTipi.R, K.Saha.SahayaAktar, K.Saha.Sandiklar, K.Yedek.Sandiklar,
                 K.Sandik.Yonetimi),
-            StokListeleQuery or GetStokPdfQuery => One(K.Stok.Kok, YetkiTipi.R),
+            StokListeleQuery or StokDurumSayilariQuery or GetStokPdfQuery => One(K.Stok.Kok, YetkiTipi.R),
+            // Sevkiyatlar sayfası: tır seferleri ve istatistikler bütün proje tiplerini okur; ayrı görüntüleme izni.
+            SevkSeferleriQuery or SevkSeferiDetayQuery or SevkiyatIstatistikQuery or SevkiyatDonemRaporuQuery or SevkSeferiRaporuQuery
+                => One(K.Proje.Sevkiyatlar, YetkiTipi.R),
             StokKaydiGuncelleCommand or StokKaydiOlusturCommand => One(K.Stok.Kok, YetkiTipi.W),
             DepoLokasyonOlusturCommand or DepoLokasyonSilCommand => One(K.DepoDurumu, YetkiTipi.W),
             KaliteDurumGuncelleCommand => One(K.Sandik.KaliteModulu, YetkiTipi.W),
@@ -140,6 +144,8 @@ public sealed class RequestMenuPermissionResolver(IUnitOfWork unitOfWork, IReadQ
         TopluDurumGuncelleCommand x => UcKTopluAccess(x.ProjeId, x.CekiSatiriIdler, x.Secimler),
         SandikEkleCommand x => new(ProjectMenuOperation.CrateWrite, YetkiTipi.W, x.ProjeId),
         SandikOzellikGuncelleCommand x => new(ProjectMenuOperation.CrateWrite, YetkiTipi.W, SandikIds: [x.SandikId]),
+        SandikIcerikBilgisiGuncelleCommand x => new(ProjectMenuOperation.CrateWrite, YetkiTipi.W, x.ProjeId,
+            [x.SandikId], IcerikIds: [x.SandikIcerikId]),
         SandikKapat x => new(ProjectMenuOperation.CrateWrite, YetkiTipi.W, SandikIds: [x.SandikId]),
         EskiSandikKapat x => new(ProjectMenuOperation.CrateWrite, YetkiTipi.W, SandikIds: [x.SandikId]),
         TopluSandikKapatCommand x => new(ProjectMenuOperation.CrateWrite, YetkiTipi.W, SandikIds: x.SandikIds),

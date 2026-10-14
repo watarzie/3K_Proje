@@ -12,7 +12,8 @@ namespace _3K.Application.Common
             DateTime sevkTarihi,
             string? aciklama,
             string? aracPlaka,
-            int kullaniciId)
+            int kullaniciId,
+            SevkSeferi? sefer = null)
         {
             var sandikList = sandiklar.ToList();
             var sevkiyatRepo = unitOfWork.GetRepository<Sevkiyat>();
@@ -31,7 +32,8 @@ namespace _3K.Application.Common
                 SevkTarihi = sevkTarihi,
                 Aciklama = string.IsNullOrWhiteSpace(aciklama) ? null : aciklama.Trim(),
                 AracPlaka = temizAracPlaka,
-                KullaniciId = kullaniciId
+                KullaniciId = kullaniciId,
+                SevkSeferi = sefer
             };
 
             await sevkiyatRepo.AddAsync(sevkiyat);

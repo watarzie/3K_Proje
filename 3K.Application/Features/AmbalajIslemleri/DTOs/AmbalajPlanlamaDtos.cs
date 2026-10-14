@@ -28,7 +28,14 @@ public sealed record AmbalajPlanlamaProjeOzetDto(
     decimal? IcSandiklarHacimM3,
     int GenelUretimDurumu = 1,
     int GerekliSandikAdedi = 0,
-    int TamamlananSandikAdedi = 0);
+    int TamamlananSandikAdedi = 0,
+    IReadOnlyList<AmbalajGrupSandikAdediDto>? GerekliSandikKirilimi = null);
+
+/// <summary>
+/// Tamamlama için gerekli sandık adedinin grup kırılımı (Normal, İlave, İç, özel sandık); "X / Y gerekli sandık"
+/// sayacındaki Y'nin proje sandık sayısından neden büyük olabileceğini açıklar.
+/// </summary>
+public sealed record AmbalajGrupSandikAdediDto(string Grup, int Adet, int TamamlananAdet);
 
 public sealed record AmbalajPlanlamaProjeFiltreOzetiDto
 {
@@ -68,7 +75,8 @@ public sealed record AmbalajPlanlamaPlanDto(
     decimal? SeciliHacimM3,
     int GenelUretimDurumu = 1,
     int GerekliSandikAdedi = 0,
-    int TamamlananSandikAdedi = 0);
+    int TamamlananSandikAdedi = 0,
+    IReadOnlyList<AmbalajGrupSandikAdediDto>? GerekliSandikKirilimi = null);
 
 public sealed record AmbalajPlanlamaKalemDto(
     int Id,
@@ -92,7 +100,8 @@ public sealed record AmbalajPlanlamaKalemDto(
     bool? AmbalajaDahilMi = true,
     bool AmbalajKarariOneriliyor = false,
     bool M3HesaplanabilirMi = true,
-    int UretimDurumu = 1);
+    int UretimDurumu = 1,
+    bool OlcuHazir = false);
 
 public sealed record AmbalajIcSandikSablonDto(
     int Id,
@@ -152,7 +161,21 @@ public sealed record AmbalajBagimsizSandikDto(
     decimal? HacimM3,
     bool M3HesaplanabilirMi = true,
     int UretimDurumu = 1,
-    bool AmbalajaDahilMi = true);
+    bool AmbalajaDahilMi = true,
+    DateTime? OlusturmaTarihi = null,
+    string? OlusturanAdi = null,
+    DateTime? FinansaAktarimTarihi = null,
+    string? FinansaAktaranAdi = null);
+
+/// <summary>Ambalaj kaydının bir değişiklik olayı (aynı işlemde değişen alanlar birlikte).</summary>
+public sealed record AmbalajKayitGecmisiDto(
+    DateTime Tarih,
+    string Kullanici,
+    string Islem,
+    string? Aciklama,
+    IReadOnlyList<AmbalajAlanDegisikligiDto> Degisiklikler);
+
+public sealed record AmbalajAlanDegisikligiDto(string Alan, string? EskiDeger, string? YeniDeger);
 
 public sealed record AmbalajBagimsizSandikTurOzetiDto
 {
@@ -169,6 +192,9 @@ public sealed record AmbalajBagimsizSandikFiltreOzetiDto
     public int UretimeAlinanSandikAdedi { get; init; }
     public decimal? ToplamHacimM3 { get; init; }
     public IReadOnlyList<AmbalajBagimsizSandikTurOzetiDto> TurOzetleri { get; init; } = [];
+    /// <summary>Arama ve tür filtresindeki finansa aktarılmamış / aktarılmış kayıt sayıları (finans durumu sekmeleri).</summary>
+    public int FinansaAktarilmayanKayitSayisi { get; init; }
+    public int FinansaAktarilanKayitSayisi { get; init; }
 }
 
 public sealed record AmbalajBagimsizSandiklarSayfasiDto

@@ -26,19 +26,37 @@ public static class FinansTarifeDuzeltmeKurali
     {
         ArgumentNullException.ThrowIfNull(kalem);
         ArgumentNullException.ThrowIfNull(surum);
+        return KorunmaNedeni(kalem, surum, AhsapTarafi(kalem, surum));
+    }
+
+    /// <summary>Malzemeli fiyatta sürüm kalemin ahşap tarafına mı ait (ahşap tarifesi sürümü).</summary>
+    public static bool AhsapTarafi(FinansIsKaydi kalem, FinansFiyatTarifesi surum) =>
+        kalem.AhsapBirimFiyatSnapshot.HasValue && kalem.AhsapTarifeIdSnapshot == surum.Id && kalem.TarifeIdSnapshot != surum.Id;
+
+    private static string? KorunmaNedeni(FinansIsKaydi kalem, FinansFiyatTarifesi surum, bool ahsapTarafi)
+    {
         if (kalem.IptalEdildi || !kalem.KaynakAktif) return IptalVeyaPasif;
         if (kalem.SiparisKalemleri.Any(x => !x.FinansSiparis.IptalEdildi)) return PoyaBagli;
         if (kalem.ManuelNetTutar.HasValue) return ManuelNet;
         if (kalem.HesaplamaYontemi == FinansHesaplamaYontemi.Bilesenli) return Bilesenli;
-        if (kalem.BirimFiyatSnapshot != surum.BirimFiyat || kalem.KdvOraniSnapshot != surum.KdvOrani ||
+        var fiyat = ahsapTarafi ? kalem.AhsapBirimFiyatSnapshot!.Value : kalem.BirimFiyatSnapshot;
+        if (fiyat != surum.BirimFiyat || (!ahsapTarafi && kalem.KdvOraniSnapshot != surum.KdvOrani) ||
             !string.Equals(kalem.ParaBirimiSnapshot, surum.ParaBirimi, StringComparison.OrdinalIgnoreCase))
             return ElleFiyat;
         return null;
     }
 
     /// <summary>Kalemin yeni birim fiyatla hesaplanan net bedeli; <see cref="FinansTutarKurallari.IsNet"/> ile aynı yuvarlama.</summary>
-    public static decimal YeniNet(FinansIsKaydi kalem, decimal yeniBirimFiyat) => FinansTutarKurallari.Para(yeniBirimFiyat *
-        FinansTutarKurallari.FiyatlandirmaMiktari(kalem.FiyatlandirmaBirimiSnapshot, kalem.Adet, kalem.ToplamM3));
+    /// <remarks>Malzemeli fiyatta yalnız sürümün ait olduğu taraf (kontra ve/veya ahşap) yeni fiyatı alır.</remarks>
+    public static decimal YeniNet(FinansIsKaydi kalem, decimal yeniBirimFiyat, int? surumId = null)
+    {
+        if (!kalem.AhsapBirimFiyatSnapshot.HasValue)
+            return FinansTutarKurallari.Para(yeniBirimFiyat *
+                FinansTutarKurallari.FiyatlandirmaMiktari(kalem.FiyatlandirmaBirimiSnapshot, kalem.Adet, kalem.ToplamM3));
+        var kontra = surumId is null || kalem.TarifeIdSnapshot == surumId ? yeniBirimFiyat : kalem.BirimFiyatSnapshot;
+        var ahsap = surumId is not null && kalem.AhsapTarifeIdSnapshot == surumId ? yeniBirimFiyat : kalem.AhsapBirimFiyatSnapshot.Value;
+        return FinansTutarKurallari.MalzemeliNet(kalem, kontra, ahsap);
+    }
 
     /// <summary>Düzeltme değerlerini doğrular; sürümle aynı değer bir düzeltme değildir.</summary>
     public static void Dogrula(FinansFiyatTarifesi surum, decimal birimFiyat, decimal kdvOrani)

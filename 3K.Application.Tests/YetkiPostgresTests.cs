@@ -15,7 +15,7 @@ namespace _3K.Application.Tests;
 /// </summary>
 public sealed class YetkiPostgresTests
 {
-    private const int FinansKok = 47, PoGir = 5211, PoDegistir = 5212, KaliciSil = 5231;
+    private const int FinansKok = 47, SekmeIsTakibi = 5239, SekmePoFatura = 5240, SekmeGiderler = 5241;
 
     [PostgresRaporFact]
     [Trait("Category", "Postgres")]
@@ -42,10 +42,10 @@ public sealed class YetkiPostgresTests
             Task<bool> Yetkili(int kullanici, string kod) =>
                 new RolService(context).HasUserPermissionAsync(kullanici, kod, YetkiTipi.W);
 
-            Assert.True(await Yetkili(8, YetkiKodlari.Finans.PoGir));
-            Assert.False(await Yetkili(8, YetkiKodlari.Finans.KaliciSil));
-            Assert.False(await Yetkili(8, YetkiKodlari.Finans.PoDegistir));
-            Assert.True(await Yetkili(7, YetkiKodlari.Finans.KaliciSil));
+            Assert.True(await Yetkili(8, YetkiKodlari.Finans.SekmePoFatura));
+            Assert.False(await Yetkili(8, YetkiKodlari.Finans.SekmeGiderler));
+            Assert.False(await Yetkili(8, YetkiKodlari.Finans.SekmeIsTakibi));
+            Assert.True(await Yetkili(7, YetkiKodlari.Finans.SekmeGiderler));
 
             // Rol atama: yönetici, sahip olduğu izinlerden oluşan rolü atayabilir; kullanıcı yazma izni
             // olmayan operatör rol atayamaz.
@@ -55,13 +55,13 @@ public sealed class YetkiPostgresTests
                 .RolAtamayiDogrulaAsync(7, 77)).DurumKodu);
 
             // Rolden kaldırılan izin bir sonraki istekte geçersizdir.
-            var poIzni = await context.RolYetkileri.SingleAsync(x => x.RolId == 77 && x.MenuTanimiId == PoGir);
+            var poIzni = await context.RolYetkileri.SingleAsync(x => x.RolId == 77 && x.MenuTanimiId == SekmePoFatura);
             context.RolYetkileri.Remove(poIzni);
-            var kaliciSilIzni = await context.RolYetkileri.SingleAsync(x => x.RolId == 1 && x.MenuTanimiId == KaliciSil);
-            context.RolYetkileri.Remove(kaliciSilIzni);
+            var giderlerIzni = await context.RolYetkileri.SingleAsync(x => x.RolId == 1 && x.MenuTanimiId == SekmeGiderler);
+            context.RolYetkileri.Remove(giderlerIzni);
             await context.SaveChangesAsync();
-            Assert.False(await Yetkili(8, YetkiKodlari.Finans.PoGir));
-            Assert.False(await Yetkili(7, YetkiKodlari.Finans.KaliciSil));
+            Assert.False(await Yetkili(8, YetkiKodlari.Finans.SekmePoFatura));
+            Assert.False(await Yetkili(7, YetkiKodlari.Finans.SekmeGiderler));
         }
         finally
         {
@@ -76,9 +76,9 @@ public sealed class YetkiPostgresTests
         var menuler = new[]
         {
             (FinansKok, YetkiKodlari.Finans.Modul, (int?)null),
-            (PoGir, YetkiKodlari.Finans.PoGir, (int?)FinansKok),
-            (PoDegistir, YetkiKodlari.Finans.PoDegistir, (int?)FinansKok),
-            (KaliciSil, YetkiKodlari.Finans.KaliciSil, (int?)FinansKok),
+            (SekmePoFatura, YetkiKodlari.Finans.SekmePoFatura, (int?)FinansKok),
+            (SekmeIsTakibi, YetkiKodlari.Finans.SekmeIsTakibi, (int?)FinansKok),
+            (SekmeGiderler, YetkiKodlari.Finans.SekmeGiderler, (int?)FinansKok),
             (11, YetkiKodlari.Kullanicilar, (int?)null)
         };
         foreach (var (id, kod, ust) in menuler)
@@ -96,10 +96,10 @@ public sealed class YetkiPostgresTests
         context.RolYetkileri.AddRange(
             new RolYetki { RolId = SistemRolleri.AdminId, MenuTanimiId = 11, YetkiTipiId = (int)YetkiTipi.W },
             new RolYetki { RolId = SistemRolleri.AdminId, MenuTanimiId = FinansKok, YetkiTipiId = (int)YetkiTipi.W },
-            new RolYetki { RolId = SistemRolleri.AdminId, MenuTanimiId = PoGir, YetkiTipiId = (int)YetkiTipi.W },
-            new RolYetki { RolId = SistemRolleri.AdminId, MenuTanimiId = KaliciSil, YetkiTipiId = (int)YetkiTipi.W },
+            new RolYetki { RolId = SistemRolleri.AdminId, MenuTanimiId = SekmePoFatura, YetkiTipiId = (int)YetkiTipi.W },
+            new RolYetki { RolId = SistemRolleri.AdminId, MenuTanimiId = SekmeGiderler, YetkiTipiId = (int)YetkiTipi.W },
             new RolYetki { RolId = 77, MenuTanimiId = FinansKok, YetkiTipiId = (int)YetkiTipi.W },
-            new RolYetki { RolId = 77, MenuTanimiId = PoGir, YetkiTipiId = (int)YetkiTipi.W });
+            new RolYetki { RolId = 77, MenuTanimiId = SekmePoFatura, YetkiTipiId = (int)YetkiTipi.W });
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
     }

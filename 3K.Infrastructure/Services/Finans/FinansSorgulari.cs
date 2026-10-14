@@ -104,9 +104,11 @@ internal static class FinansSorgulari
     /// yarımları sıfırdan uzağa yuvarlar; kuralın para yuvarlamasıyla aynıdır.
     /// </summary>
     internal static readonly Expression<Func<FinansIsKaydi, decimal>> IsNetIfadesi = x =>
-        x.ManuelNetTutar ?? decimal.Round(x.BirimFiyatSnapshot *
-            (x.FiyatlandirmaBirimiSnapshot == FinansFiyatlandirmaBirimi.Adet ? x.Adet
-                : x.FiyatlandirmaBirimiSnapshot == FinansFiyatlandirmaBirimi.Metrekup ? x.ToplamM3 : 1m), 2);
+        x.ManuelNetTutar ?? (x.AhsapBirimFiyatSnapshot.HasValue
+            ? decimal.Round(x.BirimFiyatSnapshot * (x.KontraM3 ?? x.ToplamM3 - (x.AhsapM3 ?? 0m)) + x.AhsapBirimFiyatSnapshot.Value * (x.AhsapM3 ?? 0m), 2)
+            : decimal.Round(x.BirimFiyatSnapshot *
+                (x.FiyatlandirmaBirimiSnapshot == FinansFiyatlandirmaBirimi.Adet ? x.Adet
+                    : x.FiyatlandirmaBirimiSnapshot == FinansFiyatlandirmaBirimi.Metrekup ? x.ToplamM3 : 1m), 2));
 
     /// <summary><see cref="FinansTutarKurallari.SiparisNet(FinansIsKaydi)"/> kuralının SQL karşılığı.</summary>
     internal static readonly Expression<Func<FinansIsKaydi, decimal>> SiparisNetIfadesi = x =>
@@ -176,6 +178,22 @@ internal static class FinansSorgulari
         return Expression.Lambda<Func<FinansIsKaydi, T>>(govde, isKaydi);
     }
 
+    /// <summary>
+    /// Projeksiyona işin net, sipariş ve fatura tutarlarını ekler (<see cref="IsNetIfadesi"/>,
+    /// <see cref="SiparisNetIfadesi"/>, <see cref="FaturaNetIfadesi"/>); üçü de veritabanında hesaplanır.
+    /// </summary>
+    internal static Expression<Func<FinansIsKaydi, T>> IsTutarlariIle<T>(
+        Expression<Func<FinansIsKaydi, decimal, decimal, decimal, T>> secici)
+    {
+        var isKaydi = secici.Parameters[0];
+        Expression Ifade(Expression<Func<FinansIsKaydi, decimal>> kural) =>
+            new ParametreDegistirici(kural.Parameters[0], isKaydi).Visit(kural.Body);
+        var govde = new ParametreDegistirici(secici.Parameters[1], Ifade(IsNetIfadesi)).Visit(secici.Body);
+        govde = new ParametreDegistirici(secici.Parameters[2], Ifade(SiparisNetIfadesi)).Visit(govde);
+        govde = new ParametreDegistirici(secici.Parameters[3], Ifade(FaturaNetIfadesi)).Visit(govde);
+        return Expression.Lambda<Func<FinansIsKaydi, T>>(govde, isKaydi);
+    }
+
     internal static (int PageNumber, int PageSize, int Skip) NormalizePagination(
         int requestedPageNumber,
         int requestedPageSize,
@@ -241,6 +259,11 @@ internal static class FinansSorgulari
         if (filtre.Baslangic.HasValue)
             query = query.Where(x => x.FinansTarihi >= filtre.Baslangic.Value.Date);
         if (filtre.SandikCinsi.HasValue) query = query.Where(x => x.SandikCinsi == filtre.SandikCinsi);
+        if (!string.IsNullOrWhiteSpace(filtre.SandikNo))
+        {
+            var sandikNo = LiteralSearchPattern(filtre.SandikNo);
+            query = query.Where(x => x.SandikNo != null && EF.Functions.ILike(x.SandikNo, sandikNo, "\\"));
+        }
         if (!string.IsNullOrWhiteSpace(filtre.Firma))
         {
             var firma = LiteralSearchPattern(filtre.Firma);
@@ -299,7 +322,7 @@ internal static class FinansSorgulari
     // Harf eşlemesini tek yerde (PostgreSQL) yap; tr-TR uygulama kültürü ile DB
     // kültürünün farklı küçültmesi aranan I/İ karakterlerini kaybettirmesin.
     // Contains sözleşmesindeki %, _ ve \ karakterleri joker değil, gerçek metindir.
-    private static string LiteralSearchPattern(string value)
+    internal static string LiteralSearchPattern(string value)
         => "%" + value.Trim().Replace("\\", "\\\\", StringComparison.Ordinal)
             .Replace("%", "\\%", StringComparison.Ordinal)
             .Replace("_", "\\_", StringComparison.Ordinal) + "%";

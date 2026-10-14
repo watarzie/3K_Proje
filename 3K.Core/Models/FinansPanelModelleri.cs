@@ -15,12 +15,41 @@ public sealed record FinansPanelModel(DateTime Baslangic, DateTime Bitis, string
     FinansPanelSayilariModel? Sayilar = null,
     IReadOnlyList<FinansPanelAylikSayiModel>? AylikSayilar = null,
     IReadOnlyList<FinansPanelProjeOzetiModel>? ProjeOzetleri = null,
-    IReadOnlyList<FinansPanelKategoriOzetiModel>? KategoriOzetleri = null);
+    IReadOnlyList<FinansPanelKategoriOzetiModel>? KategoriOzetleri = null,
+    IReadOnlyList<FinansPanelMunferitIsModel>? MunferitIsler = null,
+    int MunferitIsSayisi = 0);
+
+/// <summary>
+/// Ana paneldeki münferit iş satırı (elle açılmış, düzenli işe bağlı olmayan özel iş): dönemde finans tarihine göre en
+/// yeni kayıtlar. <see cref="NetTutar"/> maske listesindedir; sayı ve metin alanları maskelenmez.
+/// </summary>
+public sealed record FinansPanelMunferitIsModel(
+    int Id,
+    DateTime FinansTarihi,
+    string ProjeNo,
+    string Musteri,
+    string IsAdi,
+    decimal Adet,
+    string Birim,
+    decimal? NetTutar,
+    string ParaBirimi,
+    FinansIsDurumu Durum);
+
+/// <summary>Panel detay dökümünün proje grubu (sıralama sırası): sistem projesinin tipi veya projesiz iş.</summary>
+public enum FinansPanelProjeGrubu
+{
+    Normal = 1,
+    Saha = 2,
+    Yedek = 3,
+    /// <summary>Sistem projesine bağlı olmayan işler (bağımsız/münferit iş, düzenli iş, manuel proje numarası).</summary>
+    Bagimsiz = 4
+}
 
 /// <summary>
 /// Panel detay dökümü, proje × para birimi: dönemdeki iş kalemi sayısı, iş bedeli, PO'ya bağlanan ve faturalanan
 /// net, kalanlar, projeye yazılan gider ve birleşik PO/fatura karşılanması. Tutar alan adları maske listesindedir
-/// (isBedeli, *NetTutar, gider); yetkisi olmayana null döner. Sayı alanları maskelenmez.
+/// (isBedeli, *NetTutar, gider); yetkisi olmayana null döner. Sayı alanları ve <see cref="ProjeGrubu"/> maskelenmez.
+/// Bağımsız grupta satır proje numarası ve müşteriyle ayrılır.
 /// </summary>
 public sealed record FinansPanelProjeOzetiModel(
     string ProjeNo,
@@ -34,7 +63,8 @@ public sealed record FinansPanelProjeOzetiModel(
     decimal? KalanFaturaNetTutar,
     decimal? Gider,
     FinansKarsilanma Siparis,
-    FinansKarsilanma Fatura);
+    FinansKarsilanma Fatura,
+    FinansPanelProjeGrubu ProjeGrubu = FinansPanelProjeGrubu.Normal);
 
 /// <summary>Panel detay dökümü, iş kategorisi × para birimi (PO/fatura ekranındaki kategori kırılımıyla aynı).</summary>
 public sealed record FinansPanelKategoriOzetiModel(

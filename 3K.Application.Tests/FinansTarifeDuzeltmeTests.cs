@@ -1,4 +1,3 @@
-using System.Text.Json;
 using _3K.Application.Common;
 using _3K.Application.Features.FinansIslemleri.Commands;
 using _3K.Application.Features.FinansIslemleri.Queries;
@@ -13,7 +12,7 @@ namespace _3K.Application.Tests;
 
 /// <summary>
 /// Hatalı tarife düzeltme kuralı: yalnız sürümün tarife değeriyle fiyatlanmış açık kalem düzeltilir; PO'da sabitlenmiş,
-/// elle fiyatlanmış, bileşenli ya da iptal kalem korunur. Yetki, doğrulama ve önizlemenin alan maskesi de sabitlenir.
+/// elle fiyatlanmış, bileşenli ya da iptal kalem korunur. Yetki (Ürün ve Tarifeler alt sekmesi W) ve doğrulama da sabitlenir.
 /// </summary>
 public sealed class FinansTarifeDuzeltmeTests
 {
@@ -27,6 +26,35 @@ public sealed class FinansTarifeDuzeltmeTests
     };
 
     private static FinansSiparisKalemi PoSatiri(bool iptal) => new() { FinansSiparis = new FinansSiparis { IptalEdildi = iptal } };
+
+    /// <summary>Malzemeli kalem: kontra tarifesi sürüm 12 (500), ahşap tarifesi sürüm 30 (200).</summary>
+    private static FinansIsKaydi MalzemeliKalem()
+    {
+        var kalem = Kalem();
+        kalem.AhsapM3 = 1m;
+        kalem.KontraM3 = 1.5m;
+        kalem.AhsapBirimFiyatSnapshot = 200m;
+        kalem.AhsapTarifeIdSnapshot = 30;
+        return kalem;
+    }
+
+    [Fact]
+    public void Malzemeli_kalemde_duzeltme_yalniz_surumun_tarafini_degistirir()
+    {
+        var kalem = MalzemeliKalem();
+        var ahsapSurumu = new FinansFiyatTarifesi { Id = 30, BirimFiyat = 200m, KdvOrani = 0m, ParaBirimi = "EUR" };
+
+        Assert.Equal(500m * 1.5m + 200m * 1m, FinansTutarKurallari.IsNet(kalem));
+        Assert.Equal(520m * 1.5m + 200m * 1m, FinansTarifeDuzeltmeKurali.YeniNet(kalem, 520m, 12));
+        Assert.Equal(500m * 1.5m + 260m * 1m, FinansTarifeDuzeltmeKurali.YeniNet(kalem, 260m, 30));
+
+        // Ahşap sürümünde fiyat ahşap tarafıyla karşılaştırılır; KDV kontra tarafından gelir, elle fiyat sayılmaz.
+        Assert.True(FinansTarifeDuzeltmeKurali.AhsapTarafi(kalem, ahsapSurumu));
+        Assert.Null(FinansTarifeDuzeltmeKurali.KorunmaNedeni(kalem, ahsapSurumu));
+        kalem.AhsapBirimFiyatSnapshot = 190m;
+        Assert.Equal(FinansTarifeDuzeltmeKurali.ElleFiyat, FinansTarifeDuzeltmeKurali.KorunmaNedeni(kalem, ahsapSurumu));
+        Assert.Null(FinansTarifeDuzeltmeKurali.KorunmaNedeni(kalem, Surum()));
+    }
 
     [Fact]
     public void Tarife_degeriyle_fiyatlanmis_acik_kalem_duzeltilir_iptal_po_kalemi_engellemez()
@@ -84,13 +112,15 @@ public sealed class FinansTarifeDuzeltmeTests
         FinansTarifeDuzeltmeKurali.Dogrula(Surum(), 565m, 20m);
     }
 
+    /// <summary>Düzeltme ve önizlemesi Tanımlar'ın Ürün ve Tarifeler alt sekmesinin yazma iznini ister (önizleme sorgu olsa da W).</summary>
     [Fact]
-    public void Duzeltme_ve_onizleme_birim_fiyat_degistirme_yazma_yetkisi_ister()
+    public void Duzeltme_ve_onizleme_tarifeler_alt_sekmesi_yazma_yetkisi_ister()
     {
-        Assert.Equal(YetkiKodlari.Finans.BirimFiyatDegistir, new FinansTarifeDuzeltCommand().RequiredMenuKod);
+        Assert.Equal(YetkiKodlari.Finans.SekmeTanimlarTarifeler, new FinansTarifeDuzeltCommand().RequiredMenuKod);
         Assert.Equal(YetkiTipi.W, new FinansTarifeDuzeltCommand().RequiredYetkiTipi);
+        Assert.Equal([MenuPermissionRequirement.Write(YetkiKodlari.Finans.SekmeTanimlarTarifeler)], new FinansTarifeDuzeltCommand().RequiredMenuPermissions);
         var onizleme = Assert.Single(new FinansTarifeDuzeltmeOnizlemeQuery().RequiredMenuPermissions);
-        Assert.Equal(MenuPermissionRequirement.Write(YetkiKodlari.Finans.BirimFiyatDegistir), onizleme);
+        Assert.Equal(MenuPermissionRequirement.Write(YetkiKodlari.Finans.SekmeTanimlarTarifeler), onizleme);
     }
 
     [Fact]
@@ -102,33 +132,5 @@ public sealed class FinansTarifeDuzeltmeTests
         Assert.False(validator.Validate(Komut("kısa")).IsValid);
         Assert.False(validator.Validate(new FinansTarifeDuzeltCommand { UrunId = 0, TarifeId = 12, Model = new(565m, 20m, "500 yanlış girildi") }).IsValid);
         Assert.True(validator.Validate(Komut("500 yanlışlıkla girildi")).IsValid);
-    }
-
-    [Fact]
-    public void Onizlemede_fiyat_kdv_ve_tutar_yetkisiz_kullaniciya_null_doner_sayilar_gorunur()
-    {
-        var model = new FinansTarifeDuzeltmeOnizlemeModel
-        {
-            TarifeId = 12, UrunId = 3, UrunAdi = "AĞAÇ KERESTE", ParaBirimi = "EUR",
-            Mevcut = new(500m, 20m, 1250m), Yeni = new(565m, 20m, 1412.5m),
-            DuzeltilecekKalemSayisi = 1, KorunanKalemSayisi = 2,
-            Kalemler = [new(1, "PA727-03", "Sarf kereste", new DateTime(2026, 10, 4), "Manuel", true, null, 1250m)]
-        };
-        var json = JsonSerializer.SerializeToNode(model, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
-
-        // Parasal veri görülür, birim fiyat ve tutar görülmez.
-        FinansAlanProjeksiyonu.Uygula(json, new AlanErisimYetkileri(
-            Olcu: true, UretimM3: true, Sarf: true, ParasalVeri: true, BirimFiyat: false, Tutar: false, Gelir: true, Gider: true, Karlilik: true));
-
-        foreach (var deger in new[] { "mevcut", "yeni" })
-        {
-            Assert.Null(json[deger]!["birimFiyat"]);
-            Assert.Null(json[deger]!["kdvOrani"]);
-            Assert.Null(json[deger]!["netTutar"]);
-        }
-        Assert.Null(json["kalemler"]![0]!["netTutar"]);
-        Assert.Equal(1, json["duzeltilecekKalemSayisi"]!.GetValue<int>());
-        Assert.Equal(2, json["korunanKalemSayisi"]!.GetValue<int>());
-        Assert.Equal("PA727-03", json["kalemler"]![0]!["projeNo"]!.GetValue<string>());
     }
 }

@@ -36,6 +36,24 @@ public sealed class FinansIslerController(IMediator mediator) : FinansController
         CancellationToken cancellationToken)
         => (await Mediator.Send(new FinansAylikIslerQuery { Yil = yil, Ay = ay, Filtre = request.ToModel() }, cancellationToken)).ToActionResult();
 
+    /// <summary>Projenin sandık kırılımı; <c>yil</c>/<c>ay</c> verilirse yalnız o finans dönemi.</summary>
+    [HttpGet("proje-sandik-kirilimi")]
+    public async Task<ActionResult> ProjeSandikKirilimi(
+        [FromQuery] int? yil,
+        [FromQuery] int? ay,
+        [FromQuery] string? musteri,
+        [FromQuery] FinansFilterRequest request,
+        CancellationToken cancellationToken)
+        => (await Mediator.Send(new FinansProjeSandikKirilimiQuery
+        {
+            ProjeId = request.ProjeId,
+            ProjeNo = request.ProjeNo,
+            Musteri = musteri,
+            Yil = yil,
+            Ay = ay,
+            Filtre = request.ToModel()
+        }, cancellationToken)).ToActionResult();
+
     [HttpPost("is-kayitlari/{id:int}/finans-tarihi")]
     public async Task<ActionResult> FinansTarihi(int id, [FromBody] FinansTarihiDegistirModel model, CancellationToken ct)
         => (await Mediator.Send(new FinansTarihiDegistirCommand { Id = id, Model = model }, ct)).ToActionResult();
@@ -44,9 +62,23 @@ public sealed class FinansIslerController(IMediator mediator) : FinansController
     public async Task<ActionResult> Fiyatlandirma(int id, [FromBody] FinansFiyatlandirmaModel model, CancellationToken ct)
         => (await Mediator.Send(new FinansFiyatlandirCommand { Id = id, Model = model }, ct)).ToActionResult();
 
+    [HttpPost("is-kayitlari/{id:int}/hacim")]
+    public async Task<ActionResult> Hacim(int id, [FromBody] FinansHacimGirDto model, CancellationToken ct)
+        => (await Mediator.Send(new FinansHacimGirCommand { Id = id, Model = model.HacimModeli() }, ct)).ToActionResult();
+
     [HttpPost("is-kayitlari/{id:int}/iptal")]
     public async Task<ActionResult> IsKaydiIptal(int id, [FromBody] FinansIptalDto model, CancellationToken cancellationToken)
         => (await Mediator.Send(new FinansIsKaydiIptalCommand { Id = id, Aciklama = model.Aciklama }, cancellationToken)).ToActionResult();
+
+    /// <summary>Münferit İşler sekmesi: elle açılmış özel işler (tarih aralığı, arama, iptaller).</summary>
+    [HttpGet("munferit-isler")]
+    public async Task<ActionResult> MunferitIsler([FromQuery] FinansFilterRequest request, CancellationToken cancellationToken)
+        => (await Mediator.Send(new FinansMunferitIslerQuery { Filtre = request.ToModel() }, cancellationToken)).ToActionResult();
+
+    /// <summary>Yeni münferit iş: fiyat ürünün tarifesinden gelir.</summary>
+    [HttpPost("munferit-isler")]
+    public async Task<ActionResult> MunferitIsOlustur([FromBody] FinansMunferitIsKaydetDto model, CancellationToken cancellationToken)
+        => (await Mediator.Send(new FinansMunferitIsOlusturCommand { Model = model.MunferitIsModeli() }, cancellationToken)).ToActionResult();
 
     [HttpPost("ozel-isler")]
     public async Task<ActionResult> OzelIsOlustur([FromBody] FinansOzelIsKaydetDto model, CancellationToken cancellationToken)

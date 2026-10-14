@@ -126,6 +126,50 @@ public sealed class FinansPoFaturaKurallariTests
         Assert.Equal((2m, 0m), eskiKayit);
     }
 
+    /// <summary>
+    /// Elle girilen ahşap/kontra m³ türetilen payın yerine geçer; bileşik toplam (ahşap + kontra) fiyatlandırma
+    /// miktarıdır: ToplamM3 bileşik, BirimM3 = ToplamM3 / Adet. Boş değer eski türetmeye düşer.
+    /// </summary>
+    [Fact]
+    public void Elle_girilen_ahsap_kontra_m3_bilesik_toplam_olur_ve_turetmenin_yerine_gecer()
+    {
+        Assert.Equal((1.2m, 0.8m), FinansHacimKurallari.Hacim(1.2m, 0.8m, AmbalajSandikCinsi.Kontrplak, null, 99m, null));
+        Assert.Equal((0m, 3m), FinansHacimKurallari.Hacim(null, 3m, AmbalajSandikCinsi.AhsapKapali, null, 12.5m, null));
+        Assert.Equal((12.5m, 0m), FinansHacimKurallari.Hacim(null, null, AmbalajSandikCinsi.AhsapKapali, null, 12.5m, null));
+
+        var kayit = new FinansIsKaydi { Adet = 3, AhsapM3 = 1.2m, KontraM3 = 0.8m };
+        FinansHacimKurallari.ManuelHacmiUygula(kayit);
+        Assert.Equal((2m, 0.666667m), (kayit.ToplamM3, kayit.BirimM3));
+        kayit.Adet = 4;
+        FinansHacimKurallari.ManuelHacmiUygula(kayit);
+        Assert.Equal((2m, 0.5m), (kayit.ToplamM3, kayit.BirimM3));
+        kayit.FiyatlandirmaBirimiSnapshot = FinansFiyatlandirmaBirimi.Metrekup;
+        kayit.BirimFiyatSnapshot = 100m;
+        Assert.Equal(200m, FinansTutarKurallari.IsNet(kayit));
+    }
+
+    /// <summary>Elle hacim yalnız Ambalaj'ın m³ hesaplamadığı kontrplak/katlanır sandıkta; önceden elle girilmiş hacim düzeltilebilir.</summary>
+    [Theory]
+    [InlineData(AmbalajSandikCinsi.Kontrplak, null, false, true)]
+    [InlineData(AmbalajSandikCinsi.Katlanir, null, false, true)]
+    [InlineData(null, "Katlanır Sandık", false, true)]
+    [InlineData(AmbalajSandikCinsi.AhsapKapali, null, false, false)]
+    [InlineData(AmbalajSandikCinsi.Kafes, null, false, false)]
+    [InlineData(null, null, false, false)]
+    [InlineData(null, null, true, true)]
+    [InlineData(AmbalajSandikCinsi.AhsapKapali, null, true, true)]
+    public void Elle_hacim_yalniz_kontrplak_katlanir_sandikta_girilir(AmbalajSandikCinsi? cinsi, string? tipi, bool hacimManuel, bool beklenen) =>
+        Assert.Equal(beklenen, FinansHacimKurallari.ElleGirilebilir(cinsi, tipi, hacimManuel));
+
+    [Theory]
+    [InlineData(1.2, 0.8, true)]
+    [InlineData(0, 0.5, true)]
+    [InlineData(0, 0, false)]
+    [InlineData(-1, 2, false)]
+    [InlineData(1000000, 0, false)]
+    public void Elle_hacim_girisi_negatif_olamaz_en_az_biri_pozitif_olmalidir(double ahsap, double kontra, bool gecerli) =>
+        Assert.Equal(gecerli, FinansHacimKurallari.GecerliManuelHacim((decimal)ahsap, (decimal)kontra));
+
     /// <summary>F11: m³ fiyat satırı kendi malzemesini taşır; malzemesi boş satır sandığın malzemesini alır.</summary>
     [Fact]
     public void Malzemeli_m3_satirlari_kendi_malzemesine_eklenir()

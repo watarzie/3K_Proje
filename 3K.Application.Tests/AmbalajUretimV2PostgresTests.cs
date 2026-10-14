@@ -1,11 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
+using _3K.Application.Features.AmbalajIslemleri;
 using _3K.Application.Features.AmbalajIslemleri.Commands;
 using _3K.Application.Features.AmbalajIslemleri.Queries;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Constants;
+using _3K.Core.Exceptions;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
 using _3K.Infrastructure.Data;
@@ -214,6 +216,55 @@ public sealed class AmbalajUretimV2PostgresTests
         });
     }
 
+    /// <summary>
+    /// Finans aktarımı proje tamamlamayı iş kuralıyla reddederse (ör. üretim miktarı aktif siparişin altına düşer)
+    /// bütün tamamlama geri alınır: kayıt durumu, tamamlanma tarihi, gerçekleşme ve hareket satırları yazılmaz.
+    /// </summary>
+    [PostgresRaporFact]
+    [Trait("Category", "Postgres")]
+    public async Task ProjeTamamlama_FinansReddindeHicbirKayitDegismez()
+    {
+        await WithDatabase(async options =>
+        {
+            await using (var seed = new AppDbContext(options))
+            {
+                seed.Projeler.Add(new Proje { Id = 40, ProjeNo = "PA-40" });
+                seed.Set<AmbalajUretimKaydi>().Add(new AmbalajUretimKaydi
+                {
+                    Id = 41, ProjeId = 40, SandikNo = "1", Ad = "Radyatör", SandikCinsi = AmbalajSandikCinsi.AhsapKapali,
+                    Adet = 1, Boy = 1800, En = 900, Yukseklik = 800, AmbalajaDahil = true
+                });
+                await seed.SaveChangesAsync();
+            }
+            await using (var ctx = new AppDbContext(options))
+            {
+                using var uow = new UnitOfWork(ctx, NullLogger<UnitOfWork>.Instance);
+                var form = await Handler(ctx, uow).Handle(new() { ProjeId = 40, KayitIdleri = [41], IdempotencyAnahtari = Guid.NewGuid() }, default);
+                Assert.True(form.IsSuccess, form.Error?.Message);
+            }
+            int hareketSayisi;
+            await using (var once = new AppDbContext(options))
+                hareketSayisi = await once.Set<AmbalajUretimHareketi>().CountAsync(h => h.AmbalajUretimKaydiId == 41);
+
+            await using (var ctx = new AppDbContext(options))
+            {
+                using var uow = new UnitOfWork(ctx, NullLogger<UnitOfWork>.Instance);
+                var handler = new AmbalajProjeUretimDurumuCommandHandler(uow, new User(), new FinansRed(), new Roles(),
+                    new AmbalajKritikIslemDenetimi(uow, new Roles(), new User()));
+                var hata = await Assert.ThrowsAsync<IsKuraliException>(
+                    () => handler.Handle(new() { ProjeId = 40, Tamamla = true }, default));
+                Assert.Equal(409, hata.StatusCode);
+            }
+
+            await using var verify = new AppDbContext(options);
+            var kayit = await verify.Set<AmbalajUretimKaydi>().SingleAsync(k => k.Id == 41);
+            Assert.Equal(AmbalajUretimDurumu.Uretimde, kayit.UretimDurumu);
+            Assert.Null(kayit.TamamlanmaTarihi);
+            Assert.Empty(await verify.Set<AmbalajUretimGerceklesmesi>().ToListAsync());
+            Assert.Equal(hareketSayisi, await verify.Set<AmbalajUretimHareketi>().CountAsync(h => h.AmbalajUretimKaydiId == 41));
+        });
+    }
+
     private static AmbalajFormOlusturCommandHandler Handler(AppDbContext ctx, IUnitOfWork uow, bool fail = false) =>
         new(uow, new User(), new Roles(), new Finans(fail), islemKilidi: new AmbalajFormIslemKilidi(ctx));
 
@@ -264,5 +315,11 @@ public sealed class AmbalajUretimV2PostgresTests
     {
         public Task<FinansSenkronizasyonSonucModel> UretimKayitlariniAktarAsync(IReadOnlyList<FinansUretimAktarimModel> m, CancellationToken ct) =>
             fail ? throw new InvalidOperationException("Sentetik aktarım hatası") : Task.FromResult(new FinansSenkronizasyonSonucModel(0, m.Count, 0));
+    }
+    /// <summary>Finans servisinin kullanıcıya gösterilen iş kuralı reddi (409).</summary>
+    private sealed class FinansRed : IFinansUretimAktarimService
+    {
+        public Task<FinansSenkronizasyonSonucModel> UretimKayitlariniAktarAsync(IReadOnlyList<FinansUretimAktarimModel> m, CancellationToken ct) =>
+            throw IsKuraliException.Cakisma("Sentetik: üretim miktarı aktif sipariş miktarının altına düşürülemez.");
     }
 }

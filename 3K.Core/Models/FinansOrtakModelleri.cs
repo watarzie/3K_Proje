@@ -43,7 +43,8 @@ public sealed record FinansListeFiltre(
     FinansKarsilanma? SiparisKarsilanma = null,
     FinansKarsilanma? FaturaKarsilanma = null,
     IReadOnlyList<FinansIsKategorisi>? Kategoriler = null,
-    FinansOdemeFiltresi? OdemeDurumu = null);
+    FinansOdemeFiltresi? OdemeDurumu = null,
+    string? SandikNo = null);
 
 /// <summary>PO açma ekranındaki proje × kategori / düzenli iş seçici filtresi.</summary>
 public sealed record FinansSiparisGrupFiltre(

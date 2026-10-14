@@ -228,6 +228,100 @@ public sealed class UcKKaynakTransferStokIadeKatalogTests
         Assert.Empty(kurgu.Uow.Repo<StokHareketi>().Rows);
     }
 
+    /// <summary>K-061: kalanı aşan tedarikçi teslimi kalan kadar karşılanır, aşan ondalık adet ayrı stok kaydına aktarılır.</summary>
+    [Fact]
+    public async Task TedarikcidenKalaniAsanTeslim_KalanKadarKarsilarFazlasiniStogaAktarir()
+    {
+        using var kurgu = new Kurgu(2.75m, 2.75m, "Conta", "PA-TED");
+        kurgu.EksikPartiKur(1.5m, 1.25m);
+
+        var sonuc = await kurgu.KarsilaAsync(UcKDurum.TedarikcidenGeldi, 2m, stogaAktar: true);
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.Equal(1.25m, kurgu.Satir.TedarikciKarsilanan);
+        Assert.Equal(1.25m, kurgu.Satir.KarsilananMiktar);
+        Assert.Equal(0m, kurgu.Satir.YenidenSevkGerekliAdet);
+        Assert.Equal(2.75m, kurgu.Icerik.KonulanAdet);
+        Assert.Equal(1.25m, kurgu.Icerik.TedarikciKarsilanan);
+        var stok = Assert.Single(kurgu.Uow.Repo<StokKaydi>().Rows);
+        Assert.Equal(("Conta", "PA-TED", "Tedarikçi fazla teslim", 0.75m, (int)StokDurum.Aktif),
+            (stok.MalzemeAdi, stok.KaynakProje, stok.StokGirisNedeni, stok.Miktar, stok.DurumId));
+        var hareket = Assert.Single(kurgu.Uow.Repo<StokHareketi>().Rows);
+        Assert.Equal((stok.Id, 0.75m, (int)IslemTipi.FazlaTeslimStogaAktarildi, kurgu.Satir.Id),
+            (hareket.StokKaydiId, hareket.Miktar, hareket.IslemTipiId, hareket.CekiSatiriId));
+        Assert.Contains("1.25 adet karşılandı, 0.75 adet fazla teslim stoka aktarıldı", Assert.Single(kurgu.Hareket.Rows).Aciklama);
+    }
+
+    /// <summary>K-061: aşan adet varken stoka aktarma seçilmezse işlem yapılmaz; sayaç ve stok değişmez.</summary>
+    [Fact]
+    public async Task TedarikciFazlasi_StogaAktarSecilmezseHicbirSayacVeyaStokDegismez()
+    {
+        using var kurgu = new Kurgu(2.75m, 2.75m);
+        kurgu.EksikPartiKur(1.5m, 1.25m);
+        var oncekiSatir = Snapshot(kurgu.Satir);
+        var oncekiIcerik = Snapshot(kurgu.Icerik);
+
+        var sonuc = await kurgu.KarsilaAsync(UcKDurum.TedarikcidenGeldi, 2m, stogaAktar: false);
+
+        Assert.False(sonuc.IsSuccess);
+        Assert.Equal("Fazla gelen adet stoka aktarılmalıdır.", sonuc.Error!.Message);
+        Assert.Equal(0, kurgu.Uow.SaveCount);
+        Assert.Equal(oncekiSatir, Snapshot(kurgu.Satir));
+        Assert.Equal(oncekiIcerik, Snapshot(kurgu.Icerik));
+        Assert.Empty(kurgu.Uow.Repo<StokKaydi>().Rows);
+        Assert.Empty(kurgu.Uow.Repo<StokHareketi>().Rows);
+    }
+
+    /// <summary>K-061: ürünün kalanı yoksa tedarikçi teslimi yalnız fazla olamaz; Fazla Geldi'ye yönlendirilir.</summary>
+    [Fact]
+    public async Task KalaniOlmayanUrundeTedarikciTeslimi_FazlaGeldiyeYonlendirilirVeYazmaYapilmaz()
+    {
+        using var kurgu = new Kurgu(2m, 2m);
+        kurgu.EksikPartiKur(2m, 0m);
+        var oncekiSatir = Snapshot(kurgu.Satir);
+
+        var sonuc = await kurgu.KarsilaAsync(UcKDurum.TedarikcidenGeldi, 1m, stogaAktar: true);
+
+        Assert.False(sonuc.IsSuccess);
+        Assert.Contains("Fazla Geldi", sonuc.Error!.Message);
+        Assert.Equal(0, kurgu.Uow.SaveCount);
+        Assert.Equal(oncekiSatir, Snapshot(kurgu.Satir));
+        Assert.Empty(kurgu.Uow.Repo<StokKaydi>().Rows);
+    }
+
+    /// <summary>K-061: sandık tahsis kapasitesi satır kalanından küçükse normal karşılama kapasiteyle sınırlanır.</summary>
+    [Fact]
+    public async Task TedarikciTeslimi_KapasiteSatirKalanindanKucukseKapasiteKadarKarsilanir()
+    {
+        using var kurgu = new Kurgu(5m, 2m);
+
+        var sonuc = await kurgu.KarsilaAsync(UcKDurum.TedarikcidenGeldi, 3m, stogaAktar: true);
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.Equal(2m, kurgu.Satir.TedarikciKarsilanan);
+        Assert.Equal(2m, kurgu.Icerik.KonulanAdet);
+        Assert.Equal(1m, Assert.Single(kurgu.Uow.Repo<StokKaydi>().Rows).Miktar);
+    }
+
+    /// <summary>K-061 + K-028: tam geri alma tedarikçi fazlasından oluşan stoğu ve karşılamayı birlikte tersler.</summary>
+    [Fact]
+    public async Task TedarikciFazlasi_TamGeriAlmaStoguVeKarsilamayiTersler()
+    {
+        using var kurgu = new Kurgu(2.75m, 2.75m);
+        kurgu.EksikPartiKur(1.5m, 1.25m);
+        Assert.True((await kurgu.KarsilaAsync(UcKDurum.TedarikcidenGeldi, 2m, stogaAktar: true)).IsSuccess);
+        var stok = Assert.Single(kurgu.Uow.Repo<StokKaydi>().Rows);
+
+        var sonuc = await kurgu.SifirlaAsync();
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.Equal(0m, kurgu.Satir.TedarikciKarsilanan);
+        Assert.Equal(0m, kurgu.Satir.KarsilananMiktar);
+        Assert.Equal(0m, stok.Miktar);
+        Assert.Equal((int)StokDurum.Tukendi, stok.DurumId);
+        Assert.Empty(kurgu.Uow.Repo<StokHareketi>().Rows);
+    }
+
     [Fact]
     public async Task ProjedenOndalikKarsilama_HedefDonorTransferDefteriVeTelafiBorcunuKorunumluGunceller()
     {
@@ -442,6 +536,86 @@ public sealed class UcKKaynakTransferStokIadeKatalogTests
         Assert.Equal(3.75m, kurgu.Icerik.KonulanAdet);
         Assert.Equal(2.75m, kurgu.Icerik.AktifGridSevkKarsilananMiktari);
         Assert.True(kurgu.Satir.AktifGridSevkPartisiErkenSonuclandirildiMi);
+    }
+
+    /// <summary>
+    /// Kalıcı ürün bilgisi (seri no/SKT) işlem açıklamasından bağımsızdır: Geri Gönderildi açıklamayı yazar ama
+    /// ürün bilgisine dokunmaz; tam, sandık bazlı ve toplu sıfırlama da ürün bilgisini korur.
+    /// </summary>
+    [Fact]
+    public async Task UrunBilgisi_GeriGondermeVeSifirlamaAkislarindaDegismez()
+    {
+        const string bilgi = "SN: A-1001 · SKT: 2027-03";
+
+        using (var kurgu = new Kurgu(5m, 5m))
+        {
+            kurgu.Icerik.UrunBilgisi = bilgi;
+            kurgu.Satir.GridDurumuId = (int)GridDurum.TamGeldi;
+            kurgu.Satir.GridGelenAdet = 5m;
+            kurgu.Satir.GridSevkDurumuId = (int)GridSevkDurum.SevkEdildi;
+            kurgu.Satir.GridSevkMiktari = 3.5m;
+            kurgu.Satir.GelenMiktar = 3.5m;
+            kurgu.Satir.AktifGridSevkKarsilananMiktari = 3.5m;
+            kurgu.Satir.AktifGridSevkPartisiErkenSonuclandirildiMi = false;
+            kurgu.Icerik.KonulanAdet = 4.5m;
+            kurgu.Icerik.EksikAdet = 0.5m;
+            kurgu.Icerik.AktifGridSevkKarsilananMiktari = 3.5m;
+
+            var sonuc = await kurgu.KarsilaAsync(UcKDurum.GeriGonderildi, 0.75m, geriSebepId: 1);
+
+            Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+            Assert.Equal("Katalog testi", kurgu.Satir.UcKAciklama);
+            Assert.Equal(bilgi, kurgu.Icerik.UrunBilgisi);
+        }
+
+        using (var kurgu = new Kurgu(2m, 2m))
+        {
+            ResetIcinDoldur(kurgu.Satir, kurgu.Icerik);
+            kurgu.Icerik.UrunBilgisi = bilgi;
+            kurgu.Satir.UcKAciklama = "Seri no açıklamaya yazılmıştı";
+
+            var sonuc = await kurgu.SifirlaAsync();
+
+            Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+            Assert.Null(kurgu.Satir.UcKAciklama);
+            Assert.Equal(bilgi, kurgu.Icerik.UrunBilgisi);
+        }
+
+        using (var kurgu = new Kurgu(2m, 1m))
+        {
+            kurgu.Satir.GridDurumuId = (int)GridDurum.TamGeldi;
+            kurgu.Satir.GridGelenAdet = 2m;
+            kurgu.Satir.GridSevkDurumuId = (int)GridSevkDurum.SevkEdildi;
+            kurgu.Satir.GridSevkMiktari = 2m;
+            kurgu.Satir.AktifGridSevkKarsilananMiktari = 2m;
+            kurgu.Satir.AktifGridSevkPartisiErkenSonuclandirildiMi = false;
+            kurgu.Satir.GelenMiktar = 2m;
+            kurgu.Satir.UcKDurumuId = (int)UcKDurum.TamGeldi;
+            kurgu.Satir.UcKKarsilamaTipiId = (int)UcKDurum.TamGeldi;
+            kurgu.Icerik.KonulanAdet = 1m;
+            kurgu.Icerik.EksikAdet = 0m;
+            kurgu.Icerik.AktifGridSevkKarsilananMiktari = 1m;
+            kurgu.Icerik.UrunBilgisi = bilgi;
+            var ikinci = IkinciIcerikEkle(kurgu, 41, 31);
+            ikinci.UrunBilgisi = "SN: A-1002";
+
+            var sonuc = await kurgu.SifirlaAsync(kurgu.Icerik.Id);
+
+            Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+            Assert.Equal(bilgi, kurgu.Icerik.UrunBilgisi);
+            Assert.Equal("SN: A-1002", ikinci.UrunBilgisi);
+        }
+
+        using (var kurgu = new Kurgu(2m, 2m))
+        {
+            ResetIcinDoldur(kurgu.Satir, kurgu.Icerik);
+            kurgu.Icerik.UrunBilgisi = bilgi;
+
+            var sonuc = await kurgu.TopluSifirlaAsync(new UcKSandikSecimDto { CekiSatiriId = kurgu.Satir.Id });
+
+            Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+            Assert.Equal(bilgi, kurgu.Icerik.UrunBilgisi);
+        }
     }
 
     [Fact]

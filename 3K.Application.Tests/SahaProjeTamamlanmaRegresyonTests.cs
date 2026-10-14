@@ -36,7 +36,7 @@ public sealed class SahaProjeTamamlanmaRegresyonTests
         var iptalIcerik = proje.Sandiklar.Single().SandikIcerikleri.Last();
         var repo = new ProjeRepo(proje);
         var saha = new SahaStub();
-        var sonuc = await new ProjeListeleQueryHandler(repo, new LookupStub(), saha)
+        var sonuc = await new ProjeListeleQueryHandler(repo, new LookupStub(), saha, OrtakRoller.TumIzinler(), new OrtakUser())
             .Handle(new ProjeListeleQuery(), default);
         var dashboard = await new DashboardProjelerQueryHandler(repo, new LookupStub(), saha)
             .Handle(new DashboardProjelerQuery(), default);
@@ -63,7 +63,7 @@ public sealed class SahaProjeTamamlanmaRegresyonTests
         var saha = new SahaStub { IsTamamlama = new Dictionary<int, decimal> { [5] = 1 } };
         var repo = new ProjeRepo(proje);
 
-        var sonuc = await new ProjeListeleQueryHandler(repo, new LookupStub(), saha)
+        var sonuc = await new ProjeListeleQueryHandler(repo, new LookupStub(), saha, OrtakRoller.TumIzinler(), new OrtakUser())
             .Handle(new ProjeListeleQuery(), default);
         var dashboard = await new DashboardProjelerQueryHandler(repo, new LookupStub(), saha)
             .Handle(new DashboardProjelerQuery(), default);
@@ -106,7 +106,7 @@ public sealed class SahaProjeTamamlanmaRegresyonTests
         };
         proje.Sandiklar.Single().SandikIcerikleri.Add(ikinci);
 
-        var sonuc = await new ProjeListeleQueryHandler(new ProjeRepo(proje), new LookupStub(), new SahaStub())
+        var sonuc = await new ProjeListeleQueryHandler(new ProjeRepo(proje), new LookupStub(), new SahaStub(), OrtakRoller.TumIzinler(), new OrtakUser())
             .Handle(new ProjeListeleQuery(), default);
 
         var dto = Assert.Single(sonuc.Value!.Items);
@@ -191,7 +191,7 @@ public sealed class SahaProjeTamamlanmaRegresyonTests
         return icerik;
     }
 
-    private sealed class ProjeRepo(Proje proje) : IProjeRepository
+    internal sealed class ProjeRepo(Proje proje) : IProjeRepository
     {
         public Task<(IEnumerable<Proje> Items, int TotalCount)> GetFilteredPagedAsync(
             int? tip, string? arama, bool? sevk, int sayfa, int boyut, CancellationToken token = default)
@@ -204,14 +204,14 @@ public sealed class SahaProjeTamamlanmaRegresyonTests
             int take, IReadOnlyCollection<int>? ids, CancellationToken token = default) => throw new NotSupportedException();
     }
 
-    private sealed class LookupStub : ILookupCacheService
+    internal sealed class LookupStub : ILookupCacheService
     {
         public string GetDeger<T>(int id) where T : LookupBase => id.ToString();
         public Task WarmupAsync(CancellationToken token = default) => throw new NotSupportedException();
         public Task RefreshAsync<T>(CancellationToken token = default) where T : LookupBase => throw new NotSupportedException();
     }
 
-    private sealed class SahaStub : ISahaTamamlamaService
+    internal sealed class SahaStub : ISahaTamamlamaService
     {
         public Dictionary<int, decimal> IsTamamlama { get; init; } = [];
         public int IsTamamlamaOkumaSayisi { get; private set; }

@@ -30,12 +30,25 @@ public sealed record class FinansIsKaydiModel
     public string Birim { get; init; } = string.Empty;
     public decimal BirimM3 { get; init; }
     public decimal ToplamM3 { get; init; }
-    /// <summary>Kaydın ahşap ve kontra/katlanır m³ payı (F11; <see cref="FinansHacimKurallari.Hacim"/>).</summary>
+    /// <summary>
+    /// Kaydın ahşap ve kontra/katlanır m³ payı: elle girildiyse saklanan değer, değilse türetilen pay (F11;
+    /// <see cref="FinansHacimKurallari"/>). Bileşik toplam (ahşap + kontra) <see cref="ToplamM3"/>'tür.
+    /// </summary>
     public decimal AhsapM3 { get; init; }
     public decimal KontraM3 { get; init; }
+    /// <summary>Hacim "Hacim" bölümünden elle girildi; üretim aktarımı m³ değerlerini ezmez.</summary>
+    public bool HacimManuel { get; init; }
+    /// <summary>Sandığın malzemesi (ahşap / kontra-katlanır); ekran hacim girişini buna göre açar.</summary>
+    public FinansSandikMalzemesi SandikMalzemesi { get; init; }
     public int? FinansUrunId { get; init; }
     public FinansFiyatlandirmaBirimi FiyatlandirmaBirimi { get; init; }
     public decimal BirimFiyat { get; init; }
+    /// <summary>
+    /// Malzemeli fiyat (kontrplak/katlanır): doluysa <see cref="BirimFiyat"/> kontra m³ fiyatı, bu ahşap m³ fiyatıdır;
+    /// net = kontra m³ × BirimFiyat + ahşap m³ × AhsapBirimFiyat. Boşsa iş tek tarifeyle fiyatlanır.
+    /// </summary>
+    public decimal? AhsapBirimFiyat { get; init; }
+    public int? AhsapFinansUrunId { get; init; }
     public string ParaBirimi { get; init; } = string.Empty;
     public decimal KdvOrani { get; init; }
     public int? TarifeYili { get; init; }
@@ -111,7 +124,30 @@ public sealed record FinansIsKaydiKaydetModel(
     int? IcSandikSablonId = null,
     string? OzelIsTuru = null,
     FinansHesaplamaYontemi? HesaplamaYontemi = null,
-    string? RaporGrubu = null);
+    string? RaporGrubu = null,
+    decimal? AhsapM3 = null,
+    decimal? KontraM3 = null);
+
+/// <summary>
+/// Münferit (tek seferlik) iş: fiyat elle yazılmaz, seçilen finans ürününün iş tarihindeki tarifesinden gelir.
+/// Ürün m³ ile fiyatlanıyorsa ahşap/kontra m³ zorunludur; bileşik toplam fiyatlandırma miktarıdır.
+/// </summary>
+/// <summary>
+/// Münferit iş: İş ve Tarife Tanımları'ndan seçilen tarife, proje (sistem projesi ya da serbest proje adı) ve tarih.
+/// İş adı tarifenin adıdır; fiyat, para birimi ve KDV tarifenin o tarihteki sürümünden gelir. Miktar tarifenin
+/// birimine göredir: adet tarifesinde <see cref="Adet"/>, m³ tarifesinde ahşap/kontra m³, sabit tutarda 1.
+/// </summary>
+public sealed record FinansMunferitIsKaydetModel(
+    int FinansUrunId,
+    int? ProjeId,
+    string? ProjeAdi,
+    DateTime IsTarihi,
+    decimal Adet = 1,
+    decimal? AhsapM3 = null,
+    decimal? KontraM3 = null);
+
+/// <summary>Elle ahşap/kontra m³ girişi; gerekçe isteğe bağlıdır.</summary>
+public sealed record FinansHacimModel(decimal AhsapM3, decimal KontraM3, string? Aciklama = null);
 
 public sealed record FinansAylikDegerModel(decimal? Miktar = null, decimal? NetBirimFiyat = null);
 
@@ -216,7 +252,8 @@ public sealed record FinansAylikIsModel(
     decimal AhsapM3 = 0,
     decimal KontraM3 = 0,
     decimal KalanSiparisNetTutar = 0,
-    decimal KalanFaturaNetTutar = 0);
+    decimal KalanFaturaNetTutar = 0,
+    decimal? AhsapBirimFiyat = null);
 
 /// <summary>
 /// Aylık PO/fatura alanında proje satırının özeti: projenin ayın bütün aktif kalemlerinden türetilen
@@ -252,6 +289,11 @@ public sealed class FinansAylikSayfaliSonuc
     public IReadOnlyList<FinansAylikIsModel> Items { get; init; } = Array.Empty<FinansAylikIsModel>();
     /// <summary>Sayfadaki proje birimlerinin (özel işler hariç) birleşik sipariş/fatura durumu.</summary>
     public IReadOnlyList<FinansAylikProjeOzetiModel> Projeler { get; init; } = Array.Empty<FinansAylikProjeOzetiModel>();
+    /// <summary>
+    /// Sayfadaki projelere bağlı, aynı filtrelere uyan özel/düzenli işler (proje bloğunun "Özel/Düzenli" alt grubu).
+    /// Sayfalama birimi değişmez: bu işler kendi birimleriyle <see cref="Items"/> içinde de yer alabilir.
+    /// </summary>
+    public IReadOnlyList<FinansAylikIsModel> ProjeOzelIsleri { get; init; } = Array.Empty<FinansAylikIsModel>();
     public IReadOnlyList<FinansAylikFinansOzetiModel> FinansOzeti { get; init; } = Array.Empty<FinansAylikFinansOzetiModel>();
     public IReadOnlyList<FinansAylikGrupToplamiModel> GrupToplamlari { get; init; } = Array.Empty<FinansAylikGrupToplamiModel>();
     public int PageNumber { get; init; }

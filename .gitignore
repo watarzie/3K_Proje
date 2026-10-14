@@ -367,3 +367,6 @@ FodyWeavers.xsd
 
 # 3K - Hassas bilgiler (connection string, JWT key vb.)
 appsettings.Secrets.json
+# Claude Code: oturuma özel worktree kopyaları ve kişisel ayarlar (ekip ayarları .claude/settings.json ile paylaşılır)
+.claude/worktrees/
+.claude/settings.local.json

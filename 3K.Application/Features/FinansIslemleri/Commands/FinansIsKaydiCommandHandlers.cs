@@ -8,14 +8,19 @@ namespace _3K.Application.Features.FinansIslemleri.Commands;
 /// <summary>İş kaydı, özel iş ve fiyatlandırma komutları.</summary>
 public sealed class FinansIsKaydiCommandHandlers(IFinansIsKaydiService service) :
     IRequestHandler<FinansIsKaydiOlusturCommand, Result<FinansIsKaydiModel>>,
+    IRequestHandler<FinansMunferitIsOlusturCommand, Result<FinansIsKaydiModel>>,
     IRequestHandler<FinansIsKaydiIptalCommand, Result>,
     IRequestHandler<FinansIsKaydiGeriAlCommand, Result>,
     IRequestHandler<FinansOzelIsAylikDegerGuncelleCommand, Result>,
     IRequestHandler<FinansTarihiDegistirCommand, Result<FinansIsKaydiModel>>,
-    IRequestHandler<FinansFiyatlandirCommand, Result<FinansIsKaydiModel>>
+    IRequestHandler<FinansFiyatlandirCommand, Result<FinansIsKaydiModel>>,
+    IRequestHandler<FinansHacimGirCommand, Result<FinansIsKaydiModel>>
 {
     public Task<Result<FinansIsKaydiModel>> Handle(FinansIsKaydiOlusturCommand request, CancellationToken cancellationToken)
         => FinansHandlerHelper.ExecuteAsync(() => service.IsKaydiOlusturAsync(request.Model, cancellationToken));
+
+    public Task<Result<FinansIsKaydiModel>> Handle(FinansMunferitIsOlusturCommand request, CancellationToken cancellationToken)
+        => FinansHandlerHelper.ExecuteAsync(() => service.MunferitIsOlusturAsync(request.Model, cancellationToken));
 
     public Task<Result> Handle(FinansIsKaydiIptalCommand request, CancellationToken cancellationToken)
         => FinansHandlerHelper.ExecuteAsync(
@@ -36,4 +41,8 @@ public sealed class FinansIsKaydiCommandHandlers(IFinansIsKaydiService service) 
     public Task<Result<FinansIsKaydiModel>> Handle(FinansFiyatlandirCommand request, CancellationToken cancellationToken)
         => FinansHandlerHelper.ExecuteOptionalAsync(
             () => service.FiyatlandirAsync(request.Id, request.Model, cancellationToken), "Finans iş kaydı bulunamadı.");
+
+    public Task<Result<FinansIsKaydiModel>> Handle(FinansHacimGirCommand request, CancellationToken cancellationToken)
+        => FinansHandlerHelper.ExecuteOptionalAsync(
+            () => service.HacimGirAsync(request.Id, request.Model, cancellationToken), "Finans iş kaydı bulunamadı.");
 }

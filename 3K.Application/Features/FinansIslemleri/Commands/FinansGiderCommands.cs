@@ -5,20 +5,20 @@ namespace _3K.Application.Features.FinansIslemleri.Commands;
 
 public sealed class FinansGiderOlusturCommand : FinansCommand<FinansGiderModel>
 {
-    public override string RequiredMenuKod => YetkiKodlari.Finans.GiderEkle;
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeGiderler];
     public FinansGiderKaydetModel Model { get; init; } = null!;
 }
 
 public sealed class FinansGiderGuncelleCommand : FinansCommand<FinansGiderModel>
 {
-    public override string RequiredMenuKod => YetkiKodlari.Finans.GiderDuzenle;
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeGiderler];
     public int Id { get; init; }
     public FinansGiderKaydetModel Model { get; init; } = null!;
 }
 
 public sealed class FinansGiderIptalCommand : FinansCommand
 {
-    public override string RequiredMenuKod => YetkiKodlari.Finans.GiderIptal;
+    public override IReadOnlyList<string> Sekmeler => [YetkiKodlari.Finans.SekmeGiderler];
     public int Id { get; init; }
     public string Aciklama { get; init; } = string.Empty;
 }

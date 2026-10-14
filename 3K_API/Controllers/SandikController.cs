@@ -46,6 +46,13 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
 
+        [HttpPut("icerik-bilgisi-guncelle")]
+        public async Task<ActionResult> IcerikBilgisiGuncelle([FromBody] SandikIcerikBilgisiGuncelleCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
         [HttpPut("ceki-satiri-guncelle")]
         public async Task<ActionResult> CekiSatiriGuncelle([FromBody] CekiSatiriAnaVeriGuncelleCommand command)
         {

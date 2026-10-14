@@ -38,6 +38,40 @@ public sealed class AmbalajPlanlamaSayfalamaTests
         Assert.Equal(0, uow.SaveCount);
     }
 
+    /// <summary>
+    /// "X / Y gerekli sandık" sayacı: kaydı henüz oluşmamış (senkronize edilmemiş) kaynak sandıklar da gereklidir;
+    /// varsayılan "Yapılmaz" olan sayılmaz, kayda bağlanmış kaynak kaydıyla bir kez sayılır, özel sandık ayrı gruptadır.
+    /// </summary>
+    [Fact]
+    public void GerekliSandik_KayitsizKaynaklariSayar_VarsayilanYapilmazVeKayitliKaynagiTekrarSaymaz()
+    {
+        var proje = new Proje { Id = 1, ProjeNo = "PA639-01", ProjeTipiId = 1 };
+        Sandik Kaynak(int id, string ad) => new()
+        {
+            Id = id, ProjeId = 1, SandikNo = id.ToString(), Ad = ad, TipId = 1, Boy = 1800, En = 900, Yukseklik = 800,
+            CreatedDate = new DateTime(2026, 1, 1)
+        };
+        var kaynaklar = new[] { Kaynak(1, "Radyatör"), Kaynak(2, "Transformatör"), Kaynak(3, "Aksesuar") };
+        var tamamlanan = new AmbalajUretimKaydi
+        {
+            Id = 10, ProjeId = 1, KaynakKayitId = 3, Tur = AmbalajSandikTuru.Normal, SandikNo = "3", Adet = 1, AmbalajaDahil = true,
+            UretimeAlindi = true, UretimDurumu = AmbalajUretimDurumu.Tamamlandi, CreatedDate = new DateTime(2026, 2, 1)
+        };
+        var ozel = new AmbalajUretimKaydi
+        {
+            Id = 11, ProjeId = 1, BagimsizKayitMi = true, Tur = AmbalajSandikTuru.Ilave, SandikNo = "OZ-1", Adet = 2, AmbalajaDahil = true,
+            CreatedDate = new DateTime(2026, 2, 1)
+        };
+
+        var bos = AmbalajPlanlamaYardimcisi.PlanDtoOlustur(proje, "Normal", kaynaklar, []);
+        var plan = AmbalajPlanlamaYardimcisi.PlanDtoOlustur(proje, "Normal", kaynaklar, [tamamlanan, ozel]);
+
+        Assert.Equal((2, 0), (bos.GerekliSandikAdedi, bos.TamamlananSandikAdedi));
+        Assert.Equal((4, 1), (plan.GerekliSandikAdedi, plan.TamamlananSandikAdedi));
+        Assert.Equal([("Normal", 2, 1), ("Özel sandık", 2, 0)],
+            plan.GerekliSandikKirilimi!.Select(x => (x.Grup, x.Adet, x.TamamlananAdet)));
+    }
+
     [Theory]
     [InlineData(1, AmbalajSandikTuru.Normal)]
     [InlineData(2, AmbalajSandikTuru.Ilave)]
@@ -143,21 +177,26 @@ public sealed class AmbalajPlanlamaSayfalamaTests
             new Sandik { Id = 12, ProjeId = 2, SandikNo = "3", Boy = null, En = 800, Yukseklik = 700 },
             new Sandik { Id = 13, ProjeId = 3, SandikNo = "1", Boy = 1000, En = 800, Yukseklik = 700 }
         };
+        // Kayıtlar senkronun kaynak sandıktan kopyaladığı adet ve ölçüyü taşır; ölçü durumu form ve tamamlama
+        // gibi kayıttan okunur (2 numaralı projenin kaynağında boy yok, kaydı da ölçüsüz).
         var kayitlar = new[]
         {
             new AmbalajUretimKaydi
             {
-                Id = 101, ProjeId = 1, KaynakKayitId = 11, Tur = AmbalajSandikTuru.Normal,
+                Id = 101, ProjeId = 1, KaynakKayitId = 11, Tur = AmbalajSandikTuru.Normal, Adet = 2,
+                Boy = 1000, En = 800, Yukseklik = 700,
                 AmbalajaDahil = true, UretimeAlindi = true, HesaplananToplamM3 = 1m
             },
             new AmbalajUretimKaydi
             {
                 Id = 102, ProjeId = 2, KaynakKayitId = 12, Tur = AmbalajSandikTuru.Normal,
+                Boy = 0, En = 800, Yukseklik = 700,
                 AmbalajaDahil = true, UretimeAlindi = true, HesaplananToplamM3 = 2m
             },
             new AmbalajUretimKaydi
             {
                 Id = 103, ProjeId = 3, KaynakKayitId = 13, Tur = AmbalajSandikTuru.Normal,
+                Boy = 1000, En = 800, Yukseklik = 700,
                 AmbalajaDahil = true, UretimeAlindi = true, HesaplananToplamM3 = 10m
             }
         };
@@ -527,8 +566,11 @@ public sealed class AmbalajPlanlamaSayfalamaTests
             return this;
         }
 
+        // Testin kurmadığı depo (ör. hareket geçmişi, kullanıcılar) boş okunur.
         public IGenericRepository<T> GetRepository<T>() where T : BaseEntity =>
-            (IGenericRepository<T>)_repositories[typeof(T)];
+            (IGenericRepository<T>)(_repositories.TryGetValue(typeof(T), out var depo)
+                ? depo
+                : _repositories[typeof(T)] = new FakeRepository<T>([]));
 
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {

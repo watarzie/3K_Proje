@@ -64,8 +64,20 @@ public static class FinansTutarKurallari
         work.FiyatlandirmaBirimiSnapshot != FinansFiyatlandirmaBirimi.ManuelToplam &&
         work.HesaplamaYontemi != FinansHesaplamaYontemi.Bilesenli;
 
-    public static decimal IsNet(FinansIsKaydi work) => work.ManuelNetTutar ?? Para(work.BirimFiyatSnapshot *
-        FiyatlandirmaMiktari(work.FiyatlandirmaBirimiSnapshot, work.Adet, work.ToplamM3));
+    /// <summary>
+    /// İşin net bedeli: elle girilmiş net tutar; malzemeli fiyatta (kontrplak/katlanır) kontra m³ × kontra tarifesi +
+    /// ahşap m³ × ahşap tarifesi; diğerlerinde birim fiyat × fiyatlandırma miktarı. SQL karşılığı FinansSorgulari.IsNetIfadesi.
+    /// </summary>
+    public static decimal IsNet(FinansIsKaydi work) => work.ManuelNetTutar ?? (work.AhsapBirimFiyatSnapshot.HasValue
+        ? MalzemeliNet(work, work.BirimFiyatSnapshot, work.AhsapBirimFiyatSnapshot.Value)
+        : Para(work.BirimFiyatSnapshot * FiyatlandirmaMiktari(work.FiyatlandirmaBirimiSnapshot, work.Adet, work.ToplamM3)));
+
+    /// <summary>
+    /// Malzemeli net: kontra m³ × kontra fiyatı + ahşap m³ × ahşap fiyatı. Hacim henüz elle girilmediyse kayıt m³'ünün
+    /// tamamı kontra sayılır (kontrplak/katlanır sandık; <see cref="FinansHacimKurallari"/>).
+    /// </summary>
+    public static decimal MalzemeliNet(FinansIsKaydi work, decimal kontraFiyati, decimal ahsapFiyati) =>
+        Para(kontraFiyati * (work.KontraM3 ?? work.ToplamM3 - (work.AhsapM3 ?? 0m)) + ahsapFiyati * (work.AhsapM3 ?? 0m));
 
     public static decimal SiparisNet(FinansIsKaydi work) => work.SiparisKalemleri.Where(x => !x.FinansSiparis.IptalEdildi).Sum(x => x.NetTutarSnapshot);
 
@@ -82,11 +94,15 @@ public static class FinansTutarKurallari
     }
 
     public static FinansIsDurumu Durum(FinansIsKaydi work)
+        => Durum(!work.IptalEdildi && work.KaynakAktif, IsNet(work), SiparisNet(work), FaturaNet(work));
+
+    /// <summary>
+    /// İşin durumu, tutarları önceden hesaplanmış (ör. SQL projeksiyonundan gelen) kayıt için: iptal veya pasif
+    /// kaynak iptal sayılır; bedeli ya da siparişi olmayan iş sipariş bekler.
+    /// </summary>
+    public static FinansIsDurumu Durum(bool aktif, decimal amount, decimal ordered, decimal invoiced)
     {
-        if (work.IptalEdildi || !work.KaynakAktif) return FinansIsDurumu.IptalEdildi;
-        var amount = IsNet(work);
-        var ordered = SiparisNet(work);
-        var invoiced = FaturaNet(work);
+        if (!aktif) return FinansIsDurumu.IptalEdildi;
         if (amount <= 0 || ordered <= 0) return FinansIsDurumu.SiparisBekliyor;
         if (ordered >= amount && invoiced >= amount) return FinansIsDurumu.Faturalandi;
         if (invoiced > 0) return FinansIsDurumu.KismiFaturalandi;

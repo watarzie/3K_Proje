@@ -22,6 +22,14 @@ public static class YetkiKodlari
         public const string Sil = "proje-sil";
         public const string CekiYukle = "ceki-yukle";
         public const string PlanlananSevkTarihi = "planlanan-sevk-tarihi";
+        /// <summary>Sevkiyatlar sayfası: tır seferleri ve sevkiyat istatistikleri (R görüntüleme).</summary>
+        public const string Sevkiyatlar = "sevkiyatlar";
+        /// <summary>
+        /// Proje fotoğraf sayfası bağlantısı; Normal, Saha ve Yedek proje listelerinin hepsinde aynı koddur (proje tipinden
+        /// bağımsız): R bağlantıyı görür ve açar, W ekler, değiştirir, kaldırır. Projeler altında rotasız düğümdür
+        /// (Projeler tavanıdır).
+        /// </summary>
+        public const string FotografBaglantisi = "proje-fotograf-baglantisi";
     }
 
     public static class Sandik
@@ -128,39 +136,29 @@ public static class YetkiKodlari
     public static class Finans
     {
         public const string Modul = "finans-yonetimi";
-        public const string GelirGoruntule = "finans-gelir-goruntule";
-        public const string GiderGoruntule = "finans-gider-goruntule";
-        public const string SiparisOperasyonGoruntule = "finans-siparis-goruntule";
-        public const string RaporGoruntule = "finans-rapor-goruntule";
-        public const string ManuelIsEkle = "finans-is-ekle";
-        public const string IsIptal = "finans-is-iptal";
-        public const string TarihDegistir = "finans-tarih-degistir";
-        public const string PoGir = "finans-po-gir";
-        public const string PoDegistir = "finans-po-degistir";
-        public const string BirimFiyatGoruntule = "finans-birim-fiyat-goruntule";
-        public const string BirimFiyatDegistir = "finans-birim-fiyat-degistir";
-        public const string KarlilikGoruntule = "finans-karlilik-goruntule";
-        public const string ExcelAktar = "finans-excel-aktar";
-        public const string PdfAktar = "finans-pdf-aktar";
-        public const string GiderEkle = "finans-gider-ekle";
-        public const string GiderDuzenle = "finans-gider-duzenle";
-        public const string GiderKutuphanesiYonet = "finans-gider-kutuphanesi-yonet";
-        public const string IsKutuphanesiYonet = "finans-is-kutuphanesi-yonet";
-        public const string DuzenliIsYonet = "finans-duzenli-is-yonet";
-        public const string ParasalVeriGoruntule = "finans-parasal-veri-goruntule";
-        public const string TutarGoruntule = "finans-tutar-goruntule";
-        public const string KayitGoruntule = "finans-kayit-goruntule";
-        public const string FaturaGir = "finans-fatura-gir";
-        public const string FaturaDegistir = "finans-fatura-degistir";
-        public const string FaturaIptal = "finans-fatura-iptal";
-        public const string PoIptal = "finans-po-iptal";
-        public const string GiderIptal = "finans-gider-iptal";
-        public const string KaliciSil = "finans-kalici-sil";
-        public const string BelgeYukle = "finans-belge-yukle";
-        public const string BelgeIndir = "finans-belge-indir";
-        public const string DenetimGor = "finans-denetim-gor";
-        public const string FiyatlandirmaDegistir = "finans-fiyatlandirma-degistir";
-        /// <summary>Faturayı ödendi/ödenmedi olarak işaretleme (D3).</summary>
-        public const string OdemeKaydet = "finans-odeme-kaydet";
+        // Finans yetkisi sekme ve alt sekme düzeyindedir (finans-yonetimi altında, menüde görünmez): R verileri gösterir,
+        // W işlemleri yapar; alt işlem ve alan izni yoktur (20261013_02 ve 20261013_03 betikleri). İş Takibi, Tanımlar ve
+        // PO/Fatura sekmelerinin işlemleri alt sekmeye bağlıdır; sekme alt sekmenin tavanıdır, alt sekme izni ayrıca verilir.
+        // "Tüm dönemlerde ara" alt sekmesi yalnız ekranı açar; genel arama ucu kayıt sekmeleri kümesiyle (FinansSekmeleri.Kayit) çalışır.
+        // Birden çok sekmede açılan ortak işlemler FinansSekmeleri kümeleriyle yetkilendirilir.
+        public const string SekmePanel = "finans-sekme-panel";
+        public const string SekmeIsTakibi = "finans-sekme-is-takibi";
+        public const string SekmePoFatura = "finans-sekme-po-fatura";
+        public const string SekmeGiderler = "finans-sekme-giderler";
+        public const string SekmeGiderKategorileri = "finans-sekme-gider-kategorileri";
+        public const string SekmeTanimlar = "finans-sekme-tanimlar";
+        public const string SekmeRaporlar = "finans-sekme-raporlar";
+        public const string SekmeMunferitIsler = "finans-sekme-munferit-isler";
+        // Alt sekmeler (sekme düğümünün altında; sekme alt sekmenin tavanıdır). R alt sekmeyi gösterir, W işlemlerini yapar.
+        public const string SekmeIsTakibiAylik = "finans-sekme-is-takibi-aylik";
+        public const string SekmeIsTakibiArama = "finans-sekme-is-takibi-arama";
+        public const string SekmeIsTakibiBekleyen = "finans-sekme-is-takibi-bekleyen";
+        public const string SekmeTanimlarDuzenli = "finans-sekme-tanimlar-duzenli";
+        public const string SekmeTanimlarTarifeler = "finans-sekme-tanimlar-tarifeler";
+        public const string SekmeTanimlarParaBirimi = "finans-sekme-tanimlar-para-birimi";
+        public const string SekmePoFaturaPo = "finans-sekme-po-fatura-po";
+        public const string SekmePoFaturaFatura = "finans-sekme-po-fatura-fatura";
+        /// <summary>İş Takibi'ndeki vade uyarısı (vadesi geçen/yaklaşan faturalar, tek tek kalan günüyle); yalnız R.</summary>
+        public const string VadeUyarisi = "finans-vade-uyarisi";
     }
 }

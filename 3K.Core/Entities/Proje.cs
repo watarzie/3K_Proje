@@ -21,6 +21,8 @@ namespace _3K.Core.Entities
         public string? NakilOlcuResmiNo { get; set; }
         public string? SonMontajResmiNo { get; set; }
         public string? ProjeMuduru { get; set; }
+        /// <summary>Projenin fotoğraflarının bulunduğu web sayfası (http/https); bkz. <see cref="Models.ProjeFotografBaglantisiKurali"/>.</summary>
+        public string? FotografBaglantisi { get; set; }
 
         // Navigation Properties
         public virtual LookupProjeDurum? DurumLookup { get; set; }

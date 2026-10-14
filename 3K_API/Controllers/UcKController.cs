@@ -43,6 +43,20 @@ namespace _3K_API.Controllers
         }
 
         /// <summary>
+        /// "Projeden Karşılandı" için kaynak projede seçilebilecek ürünler — hedef projenin 3K yazma izniyle.
+        /// </summary>
+        [HttpGet("{projeId}/projeden-karsilama-kaynaklari")]
+        public async Task<ActionResult> GetProjedenKarsilamaKaynaklari(int projeId, [FromQuery] int kaynakProjeId)
+        {
+            var result = await _mediator.Send(new GetProjedenKarsilamaKaynaklariQuery
+            {
+                HedefProjeId = projeId,
+                KaynakProjeId = kaynakProjeId
+            });
+            return result.ToActionResult();
+        }
+
+        /// <summary>
         /// 3K personeli ürün karşılama durumunu günceller.
         /// </summary>
         [HttpPut("durum-guncelle")]

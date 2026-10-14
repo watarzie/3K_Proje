@@ -75,6 +75,13 @@ namespace _3K.Core.Entities
         /// </summary>
         public string? KaynakProjeNo { get; set; }
 
+        /// <summary>
+        /// Kalıcı ürün bilgisi (seri no, son kullanma tarihi, lot). İşlem açıklamasından bağımsızdır; Grid/3K
+        /// karşılama, geri gönderme ve geri alma akışları yazmaz, sandık taşıması korur
+        /// (<see cref="Models.SandikIcerikUrunBilgisiKurali"/>).
+        /// </summary>
+        public string? UrunBilgisi { get; set; }
+
         // Navigation Properties
         public virtual Sandik Sandik { get; set; } = null!;
         public virtual CekiSatiri? CekiSatiri { get; set; }

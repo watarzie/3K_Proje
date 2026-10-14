@@ -1,6 +1,7 @@
 using FluentValidation;
 using _3K.Application.Features.FinansIslemleri.Commands;
 using _3K.Application.Features.FinansIslemleri.Queries;
+using _3K.Core.Enums;
 using _3K.Core.Models;
 
 namespace _3K.Application.Features.FinansIslemleri.Validators;
@@ -121,14 +122,19 @@ public sealed class FinansUrunKaydetModelValidator : AbstractValidator<FinansUru
         RuleFor(x => x.GecerlilikBaslangici!.Value).Must(FinansTarihKurallari.GecerliTarih)
             .WithMessage("Tarife geçerlilik başlangıcı geçerli bir tarih olmalıdır.")
             .When(x => x.GecerlilikBaslangici.HasValue);
+        // Malzemeli tarife (ahşap/kontra) m³ fiyatıdır: net = ahşap m³ × ahşap fiyatı + kontra m³ × kontra fiyatı.
+        RuleFor(x => x.FiyatlandirmaBirimi)
+            .Equal(FinansFiyatlandirmaBirimi.Metrekup)
+            .When(x => x.Eslesmeler?.Any(e => e?.Malzeme is not null) == true)
+            .WithMessage("Ahşap veya kontra malzemeli tarife m³ ile fiyatlanır.");
         RuleForEach(x => x.Eslesmeler).ChildRules(match =>
         {
             match.RuleFor(x => x.IsTuru).IsInEnum();
             match.RuleFor(x => x.SandikAdi).MaximumLength(250);
             match.RuleFor(x => x.SandikTipi).MaximumLength(100);
-            match.RuleFor(x => x.Boy).GreaterThan(0).When(x => x.Boy.HasValue);
-            match.RuleFor(x => x.En).GreaterThan(0).When(x => x.En.HasValue);
-            match.RuleFor(x => x.Yukseklik).GreaterThan(0).When(x => x.Yukseklik.HasValue);
+            match.RuleFor(x => x.Malzeme)
+                .Must(x => x is null or FinansSandikMalzemesi.Ahsap or FinansSandikMalzemesi.Kontra)
+                .WithMessage("Tarife malzemesi Ahşap veya Kontra olmalıdır.");
         });
     }
 }

@@ -49,7 +49,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 return $"{m_proje} projesi {m_sandik} {m_urun} ürünü için, stok deposundan (Kayıt No: {StokKaydiId}) {asGelenAdet} kullanılacak.";
 
             if (KarsilamaTipiId == (int)UcKDurum.TedarikcidenGeldi)
-                return $"{m_proje} projesi {m_sandik} {m_urun} ürünü için, harici tedarikçiden {asGelenAdet} teslim alınacak.";
+                return StogaAktar
+                    ? $"{m_proje} projesi {m_sandik} {m_urun} ürünü için, harici tedarikçiden {asGelenAdet} teslim alınacak; ürünün kalanı kadarı karşılanır, aşan adet fazla teslim olarak stoka aktarılacak."
+                    : $"{m_proje} projesi {m_sandik} {m_urun} ürünü için, harici tedarikçiden {asGelenAdet} teslim alınacak.";
 
             return $"3K Kritik Durum Güncellemesi: {m_proje} / {m_urun} -> {(UcKDurum)KarsilamaTipiId}";
         }
@@ -96,6 +98,10 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
         /// </summary>
         public int? StokKaydiId { get; set; }
 
+        /// <summary>
+        /// Fazla Geldi'de ve kalanı aşan Tedarikçiden Geldi'de aşan adedin stoka aktarılması onayı; aşan adet varken
+        /// işaretli değilse işlem yapılmaz.
+        /// </summary>
         public bool StogaAktar { get; set; }
     }
 }

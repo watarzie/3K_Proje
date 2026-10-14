@@ -29,7 +29,8 @@ namespace _3K.Application.Tests;
 /// <summary>
 /// Gerçek Kestrel + JWT + MVC/controller + MediatR authorization + JSON output sınırı.
 /// Program/appsettings/worker çalıştırılmaz; veri servisinin sentetik sonuçları kullanılır.
-/// PostgreSQL rol/override kalıcılığı ayrı GranularYetkiPostgresTests kapsamındadır.
+/// Finans yetkisi yalnız sekme düzeyindedir ve yanıtlarda alan maskelemesi yoktur: sekmeyi okuyabilen kullanıcı
+/// tutar, fiyat, ölçü ve m³ dahil bütün alanları görür. PostgreSQL rol kalıcılığı ayrı YetkiPostgresTests kapsamındadır.
 /// </summary>
 public sealed class FinansAlanHttpSecurityTests
 {
@@ -44,132 +45,211 @@ public sealed class FinansAlanHttpSecurityTests
         Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync("api/finans/genel-arama")).StatusCode);
         Assert.Equal(0, host.Data.Calls);
 
-        host.Roles.Grant(YetkiKodlari.Finans.KayitGoruntule);
+        host.Roles.Grant(YetkiKodlari.Finans.SekmeIsTakibi);
         host.Roles.Grant(YetkiKodlari.Finans.Modul);
         var json = await host.Json("api/finans/genel-arama");
         var item = json["items"]![0]!;
         Assert.Equal("TEST-PROJE", item["projeNo"]!.GetValue<string>());
         Assert.Equal(3m, item["adet"]!.GetValue<decimal>());
+        // Sekme okuması bütün alanları gösterir: alan maskelemesi yoktur.
         foreach (var field in new[] { "birimFiyat", "netTutar", "toplamTutar", "boy", "en", "yukseklik", "birimM3", "toplamM3", "bilesenler" })
-            Assert.Null(item[field]);
+            Assert.NotNull(item[field]);
         Assert.Equal(1, host.Data.Calls);
 
-        host.Roles.Revoke(YetkiKodlari.Finans.KayitGoruntule);
+        host.Roles.Revoke(YetkiKodlari.Finans.SekmeIsTakibi);
         Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync("api/finans/genel-arama")).StatusCode);
         Assert.Equal(1, host.Data.Calls);
     }
 
     [Fact]
-    public async Task Http_ModulReddedilirseTumAltIzinlerVeSahteHeaderApiErisimiSaglamaz()
+    public async Task Http_ModulReddedilirseTumSekmeIzinleriVeSahteHeaderApiErisimiSaglamaz()
     {
         await using var host = await Host.StartAsync();
         host.Authenticate();
         host.GrantAll();
         host.Roles.Revoke(YetkiKodlari.Finans.Modul);
-        host.Client.DefaultRequestHeaders.Add("X-Menu-Kod", YetkiKodlari.Finans.KayitGoruntule);
+        host.Client.DefaultRequestHeaders.Add("X-Menu-Kod", YetkiKodlari.Finans.SekmeIsTakibi);
         Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync("api/finans/genel-arama")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync("api/finans/belgeler/1/indir")).StatusCode);
         Assert.Equal(0, host.Data.Calls);
     }
 
-    [Theory]
-    [InlineData(YetkiKodlari.Finans.ParasalVeriGoruntule, "netTutar")]
-    [InlineData(YetkiKodlari.Finans.BirimFiyatGoruntule, "birimFiyat")]
-    [InlineData(YetkiKodlari.Finans.TutarGoruntule, "netTutar")]
-    [InlineData(YetkiKodlari.Ambalaj.OlcuGoruntule, "boy")]
-    [InlineData(YetkiKodlari.Ambalaj.M3Goruntule, "toplamM3")]
-    public async Task Http_AltAlanIzniKaldirilinca_YalnizHassasAlanNull_OkulabilirKayitKalir(string permission, string field)
+    /// <summary>
+    /// Alan maskelemesi kaldırıldı: yalnız İş Takibi sekmesini okuyabilen kullanıcı (hiçbir Ambalaj ölçü/m³ izni olmadan)
+    /// kayıt detayında fiyat, tutar, ölçü, m³ ve bileşenleri görür.
+    /// </summary>
+    [Fact]
+    public async Task Http_YalnizSekmeOkumasiylaFiyatTutarOlcuVeM3Gorunur()
     {
         await using var host = await Host.StartAsync();
         host.Authenticate();
-        host.GrantAll();
-        var initial = await host.Json("api/finans/is-kayitlari/1");
-        Assert.NotNull(initial[field]);
-        host.Roles.Revoke(permission);
-        var denied = await host.Json("api/finans/is-kayitlari/1");
-        Assert.Null(denied[field]);
-        Assert.Equal("TEST-PROJE", denied["projeNo"]!.GetValue<string>());
-        Assert.Equal(3m, denied["adet"]!.GetValue<decimal>());
-        Assert.Null(denied["bilesenler"]);
+        host.Roles.Grant(YetkiKodlari.Finans.Modul);
+        host.Roles.Grant(YetkiKodlari.Finans.SekmeIsTakibi);
+
+        var kayit = await host.Json("api/finans/is-kayitlari/1");
+        Assert.Equal(777.25m, kayit["birimFiyat"]!.GetValue<decimal>());
+        Assert.Equal(2331.75m, kayit["netTutar"]!.GetValue<decimal>());
+        Assert.Equal(2798.10m, kayit["toplamTutar"]!.GetValue<decimal>());
+        Assert.Equal(1234m, kayit["boy"]!.GetValue<decimal>());
+        Assert.Equal(567m, kayit["en"]!.GetValue<decimal>());
+        Assert.Equal(890m, kayit["yukseklik"]!.GetValue<decimal>());
+        Assert.Equal(4.5m, kayit["toplamM3"]!.GetValue<decimal>());
+        Assert.Equal(3m, kayit["ahsapM3"]!.GetValue<decimal>());
+        Assert.Equal(1.5m, kayit["kontraM3"]!.GetValue<decimal>());
+        Assert.Single(kayit["bilesenler"]!.AsArray());
+        Assert.Equal(1, host.Data.Calls);
     }
 
-    [Theory]
-    [InlineData(YetkiKodlari.Finans.GelirGoruntule, "gelir")]
-    [InlineData(YetkiKodlari.Finans.GiderGoruntule, "gider")]
-    [InlineData(YetkiKodlari.Finans.KarlilikGoruntule, "karOrani")]
-    public async Task Http_PaneldeGelirGiderKarBagimsizMaskelenir_SayacSifirlanmaz(string permission, string field)
+    /// <summary>Panel sekmesinin okuması gelir, gider ve kârlılığı gösterir; sayaçlar da açıktır.</summary>
+    [Fact]
+    public async Task Http_PanelSekmesiOkumasiGelirGiderKarGosterir()
     {
         await using var host = await Host.StartAsync();
         host.Authenticate();
-        host.GrantAll();
-        host.Roles.Revoke(permission);
+        host.Roles.Grant(YetkiKodlari.Finans.Modul);
+        host.Roles.Grant(YetkiKodlari.Finans.SekmePanel);
         var json = await host.Json("api/finans/panel?baslangic=2026-01-01&bitis=2026-12-31");
-        Assert.Null(json["tutarlar"]![0]![field]);
+        var tutar = json["tutarlar"]![0]!;
+        Assert.Equal((500m, 100m, 40m), (tutar["gelir"]!.GetValue<decimal>(), tutar["gider"]!.GetValue<decimal>(), tutar["karOrani"]!.GetValue<decimal>()));
+        Assert.Equal((500m, 100m), (json["aylik"]![0]!["gelir"]!.GetValue<decimal>(), json["aylik"]![0]!["gider"]!.GetValue<decimal>()));
         Assert.Equal(7, json["siparisBekleyen"]!.GetValue<int>());
-        if (field != "karOrani") Assert.Null(json["aylik"]![0]![field]);
     }
 
-    [Theory]
-    [InlineData(YetkiKodlari.Finans.BirimFiyatGoruntule)]
-    [InlineData(YetkiKodlari.Ambalaj.OlcuGoruntule)]
-    [InlineData(YetkiKodlari.Ambalaj.M3Goruntule)]
-    public async Task Http_AuditStringSnapshotHassasIzinEksikkenSizmaz(string permission)
+    /// <summary>Değişiklik geçmişindeki eski/yeni değer metinleri, geçmişi açan tek bir sekmenin okumasıyla görünür.</summary>
+    [Fact]
+    public async Task Http_DenetimKaydiEskiYeniDegerleriSekmeOkumasiylaGorunur()
     {
         await using var host = await Host.StartAsync();
         host.Authenticate();
-        host.GrantAll();
-        host.Roles.Revoke(permission);
-        var json = await host.Json("api/finans/denetim");
-        var audit = json["items"]![0]!;
-        Assert.Null(audit["eskiDeger"]);
-        Assert.Null(audit["yeniDeger"]);
-        Assert.Null(audit["aciklama"]);
+        host.Roles.Grant(YetkiKodlari.Finans.Modul);
+        host.Roles.Grant(YetkiKodlari.Finans.SekmeGiderler);
+        var audit = (await host.Json("api/finans/denetim"))["items"]![0]!;
+        Assert.Equal("{\"birimFiyat\":777.25}", audit["eskiDeger"]!.GetValue<string>());
+        Assert.Equal("1234x567x890", audit["yeniDeger"]!.GetValue<string>());
+        Assert.Equal("777.25 EUR", audit["aciklama"]!.GetValue<string>());
         Assert.Equal("Fiyatlandirma", audit["islem"]!.GetValue<string>());
     }
 
+    /// <summary>
+    /// Dosyalar yalnız ilgili sekmenin okumasını ister; ayrı alan, Excel/PDF veya Ambalaj ölçü/m³/sarf izni gerekmez.
+    /// Sekme izni yoksa (başka sekmenin yazması olsa da) 403 ve servis çağrılmaz.
+    /// </summary>
     [Theory]
-    [InlineData("api/finans/raporlar/isler/pdf")]
-    [InlineData("api/finans/raporlar/isler/xlsx")]
-    [InlineData("api/finans/raporlar/aylik/ayri?yil=2026&ay=9")]
-    [InlineData("api/finans/belgeler/1/indir")]
-    public async Task Http_HassasDosyaEksikAlanIzniyleUretilmez(string path)
+    [InlineData("api/finans/raporlar/isler/pdf", YetkiKodlari.Finans.SekmeRaporlar)]
+    [InlineData("api/finans/raporlar/isler/xlsx", YetkiKodlari.Finans.SekmeRaporlar)]
+    [InlineData("api/finans/belgeler/1/indir", YetkiKodlari.Finans.SekmeGiderler)]
+    public async Task Http_DosyaYalnizSekmeOkumasiylaUretilir(string path, string sekme)
+    {
+        await using var host = await Host.StartAsync();
+        host.Authenticate();
+        host.Roles.Grant(YetkiKodlari.Finans.Modul);
+        host.Roles.Grant(YetkiKodlari.Finans.SekmeTanimlar, YetkiTipi.W);
+        Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync(path)).StatusCode);
+        Assert.Equal(0, host.Data.Calls);
+
+        host.Roles.Grant(sekme);
+        using var response = await host.Client.GetAsync(path);
+        Assert.True(response.StatusCode == HttpStatusCode.OK, $"{path}: {(int)response.StatusCode} {await response.Content.ReadAsStringAsync()}");
+        Assert.NotEmpty(await response.Content.ReadAsByteArrayAsync());
+        Assert.Equal(1, host.Data.Calls);
+    }
+
+    /// <summary>
+    /// Sekme kapalıysa işlem 403; sekmeye özel okuma uçları sekme izni ister, birden çok sekmenin kullandığı uçlar
+    /// (genel arama, kayıt detayı) kümedeki herhangi bir sekmenin okumasıyla açılır.
+    /// </summary>
+    [Fact]
+    public async Task Http_SekmeKapaliysaIslemVeSekmeyeOzelOkumaReddedilir()
     {
         await using var host = await Host.StartAsync();
         host.Authenticate();
         host.GrantAll();
-        host.Roles.Revoke(YetkiKodlari.Ambalaj.OlcuGoruntule);
-        Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync(path)).StatusCode);
+        var govde = new { poNumarasi = "PO-1", siparisTarihi = "2026-09-01", kalemler = new[] { new { isKaydiId = 1, adet = 0, m3 = 0, netTutar = 777.25m } } };
+
+        // PO açma PO'lar alt sekmesinin (PO/Fatura sekmesi tavanıyla), İş Takibi veya Münferit İşler sekmesinin yazmasını ister.
+        host.Roles.Revoke(YetkiKodlari.Finans.SekmePoFatura);
+        host.Roles.Revoke(YetkiKodlari.Finans.SekmeIsTakibi);
+        host.Roles.Revoke(YetkiKodlari.Finans.SekmeMunferitIsler);
+        using (var po = await host.Client.PostAsync("api/finans/siparisler", new StringContent(
+                   System.Text.Json.JsonSerializer.Serialize(govde), Encoding.UTF8, "application/json")))
+            Assert.Equal(HttpStatusCode.Forbidden, po.StatusCode);
+        host.Roles.Grant(YetkiKodlari.Finans.SekmePoFatura);
+        using (var salt = await host.Client.PostAsync("api/finans/siparisler", new StringContent(
+                   System.Text.Json.JsonSerializer.Serialize(govde), Encoding.UTF8, "application/json")))
+            Assert.Equal(HttpStatusCode.Forbidden, salt.StatusCode);
+        Assert.Equal(0, host.Data.Calls);
+
+        host.Roles.Revoke(YetkiKodlari.Finans.SekmePanel);
+        Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync("api/finans/panel?baslangic=2026-01-01&bitis=2026-12-31")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync("api/finans/aylik-isler?yil=2026&ay=9")).StatusCode);
+        Assert.Equal(0, host.Data.Calls);
+        await host.Json("api/finans/genel-arama");
+        await host.Json("api/finans/is-kayitlari/1");
+        Assert.Equal(2, host.Data.Calls);
+    }
+
+    /// <summary>Vade uyarısı kendi okuma iznini ister; bütün sekmelerin yazma izni yetmez.</summary>
+    [Fact]
+    public async Task Http_VadeUyarisiKendiIzniOlmadanReddedilir()
+    {
+        await using var host = await Host.StartAsync();
+        host.Authenticate();
+        host.GrantAll();
+        host.Roles.Revoke(YetkiKodlari.Finans.VadeUyarisi);
+        Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync("api/finans/vade-uyarilari")).StatusCode);
         Assert.Equal(0, host.Data.Calls);
     }
 
+    /// <summary>
+    /// Münferit iş tarifeden fiyatlanır: sekmenin yazma izni yeter, ayrı fiyat izni yoktur; sekme okuması yalnız listeyi
+    /// (fiyatıyla) açar, oluşturmayı açmaz.
+    /// </summary>
     [Fact]
-    public async Task Http_TamAlanIzinleriBelgeIndirmeyiAcar_AyniTokenleSonradanKapanir()
+    public async Task Http_MunferitIs_SekmeYazmasiYeter_SekmeOkumasiListeyiFiyatlaGosterir()
     {
         await using var host = await Host.StartAsync();
         host.Authenticate();
-        host.GrantAll();
+        host.Roles.Grant(YetkiKodlari.Finans.Modul, YetkiTipi.W);
+        host.Roles.Grant(YetkiKodlari.Finans.SekmeMunferitIsler, YetkiTipi.W);
+        var govde = new { finansUrunId = 3, isAdi = "Kanat kasası", musteri = "GE Vernova", adet = 2, birim = "Adet", isTarihi = "2026-10-06" };
+
+        var olusan = await host.PostJson("api/finans/munferit-isler", govde);
+        Assert.Equal(777.25m, olusan["birimFiyat"]!.GetValue<decimal>());
+        Assert.Equal("TEST-PROJE", olusan["projeNo"]!.GetValue<string>());
+
+        host.Roles.Grant(YetkiKodlari.Finans.SekmeMunferitIsler);
+        using (var salt = await host.Client.PostAsync("api/finans/munferit-isler", new StringContent(
+                   System.Text.Json.JsonSerializer.Serialize(govde), Encoding.UTF8, "application/json")))
+            Assert.Equal(HttpStatusCode.Forbidden, salt.StatusCode);
+        Assert.Equal(777.25m, (await host.Json("api/finans/munferit-isler"))["items"]![0]!["birimFiyat"]!.GetValue<decimal>());
+
+        host.Roles.Revoke(YetkiKodlari.Finans.SekmeMunferitIsler);
+        Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync("api/finans/munferit-isler")).StatusCode);
+        Assert.Equal(2, host.Data.Calls);
+    }
+
+    [Fact]
+    public async Task Http_BelgeIndirmeSekmeIzniyleAcilir_AyniTokenleSonradanKapanir()
+    {
+        await using var host = await Host.StartAsync();
+        host.Authenticate();
+        host.Roles.Grant(YetkiKodlari.Finans.Modul);
+        host.Roles.Grant(YetkiKodlari.Finans.SekmePoFatura);
         var response = await host.Client.GetAsync("api/finans/belgeler/1/indir");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("application/pdf", response.Content.Headers.ContentType!.MediaType);
         Assert.StartsWith("%PDF", await response.Content.ReadAsStringAsync());
-        host.Roles.Revoke(YetkiKodlari.Finans.TutarGoruntule);
+        host.Roles.Revoke(YetkiKodlari.Finans.SekmePoFatura);
         Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync("api/finans/belgeler/1/indir")).StatusCode);
         Assert.Equal(1, host.Data.Calls);
     }
 
+    /// <summary>
+    /// Oluşturma yanıtı sahte sıfır üretmez; yalnız PO/Fatura sekmesi ve PO'lar alt sekmesi yazması olan kullanıcı da birim
+    /// fiyatı görür. Alt sekme izni olmadan sekme yazması PO açmaz.
+    /// </summary>
     [Fact]
-    public async Task Http_SarfIzniYoksaHassasBinaryRaporAcilmaz()
-    {
-        await using var host = await Host.StartAsync();
-        host.Authenticate();
-        host.GrantAll();
-        host.Roles.Revoke(YetkiKodlari.Ambalaj.SarfGoruntule);
-        Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync("api/finans/raporlar/isler/pdf")).StatusCode);
-        Assert.Equal(0, host.Data.Calls);
-    }
-
-    [Fact]
-    public async Task Http_OlusturmaYanitiSahteSifirUretmez_AlanIzniKaldirilincaNullOlur()
+    public async Task Http_OlusturmaYanitiSahteSifirUretmez_SekmeYazmasiylaFiyatGorunur()
     {
         await using var host = await Host.StartAsync();
         host.Authenticate();
@@ -181,10 +261,21 @@ public sealed class FinansAlanHttpSecurityTests
         Assert.Equal("EUR", tam["kalemler"]![0]!["paraBirimi"]!.GetValue<string>());
         Assert.Equal(932.70m, tam["tutarlar"]![0]!["toplamTutar"]!.GetValue<decimal>());
 
-        host.Roles.Revoke(YetkiKodlari.Finans.BirimFiyatGoruntule);
-        var maskeli = await host.PostJson("api/finans/siparisler", govde);
-        Assert.Null(maskeli["kalemler"]![0]!["birimFiyat"]);
-        Assert.Equal(777.25m, maskeli["kalemler"]![0]!["netTutar"]!.GetValue<decimal>());
+        await using var sekmeli = await Host.StartAsync();
+        sekmeli.Authenticate();
+        sekmeli.Roles.Grant(YetkiKodlari.Finans.Modul, YetkiTipi.W);
+        sekmeli.Roles.Grant(YetkiKodlari.Finans.SekmePoFatura, YetkiTipi.W);
+        // Sekmenin W'si PO'lar alt sekmesinin iznini kendiliğinden vermez; Faturalar alt sekmesi de PO açmaz.
+        sekmeli.Roles.Grant(YetkiKodlari.Finans.SekmePoFaturaFatura, YetkiTipi.W);
+        using (var altSekmesiz = await sekmeli.Client.PostAsync("api/finans/siparisler", new StringContent(
+                   System.Text.Json.JsonSerializer.Serialize(govde), Encoding.UTF8, "application/json")))
+            Assert.Equal(HttpStatusCode.Forbidden, altSekmesiz.StatusCode);
+        Assert.Equal(0, sekmeli.Data.Calls);
+        sekmeli.Roles.Grant(YetkiKodlari.Finans.SekmePoFaturaPo, YetkiTipi.W);
+        var yanit = await sekmeli.PostJson("api/finans/siparisler", govde);
+        Assert.Equal(777.25m, yanit["kalemler"]![0]!["birimFiyat"]!.GetValue<decimal>());
+        Assert.Equal(777.25m, yanit["kalemler"]![0]!["netTutar"]!.GetValue<decimal>());
+        Assert.Equal(932.70m, yanit["tutarlar"]![0]!["toplamTutar"]!.GetValue<decimal>());
     }
 
     private sealed class Host : IAsyncDisposable
@@ -216,7 +307,6 @@ public sealed class FinansAlanHttpSecurityTests
             builder.Services.AddAuthorization();
             builder.Services.AddHttpContextAccessor();
             builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
-            builder.Services.AddScoped<IAlanErisimService, AlanErisimService>();
             var roles = new PermissionStore();
             builder.Services.AddSingleton<IRolService>(roles);
             var finance = DispatchProxy.Create<ITumFinansServisleri, FinanceProxy>();
@@ -278,14 +368,14 @@ public sealed class FinansAlanHttpSecurityTests
         private readonly ConcurrentDictionary<string, YetkiTipi> _permissions = new();
         public void Grant(string code, YetkiTipi level = YetkiTipi.R) => _permissions[code] = level;
         public void Revoke(string code) => _permissions.TryRemove(code, out _);
-        // Gerçek değerlendirici gibi modül kökü alt kodların tavanıdır.
+        // Gerçek değerlendirici gibi üst düğüm alt kodların tavanıdır: finans kökü → sekme düğümü / vade uyarısı → alt sekme.
         public Task<bool> HasUserPermissionAsync(int userId, string menuKod, YetkiTipi requiredYetkiTipi, CancellationToken ct = default) =>
             Task.FromResult(userId == 7 && Seviye(menuKod) >= requiredYetkiTipi);
         private YetkiTipi Seviye(string kod)
         {
             var kendi = _permissions.TryGetValue(kod, out var level) ? level : YetkiTipi.N;
-            var ust = kod == YetkiKodlari.Finans.Modul || kod == YetkiKodlari.Ambalaj.Listele ? null
-                : kod.StartsWith("finans-") ? YetkiKodlari.Finans.Modul
+            var ust = kod == YetkiKodlari.Ambalaj.Listele ? null
+                : kod.StartsWith("finans-") ? FinansSekmeAgaci.Ust(kod)
                 : kod.StartsWith("ambalaj-") ? YetkiKodlari.Ambalaj.Listele : null;
             if (ust == null) return kendi;
             var ustSeviye = Seviye(ust);
@@ -300,7 +390,8 @@ public sealed class FinansAlanHttpSecurityTests
     public interface ITumFinansServisleri :
         IFinansPanelService, IFinansIsKaydiService, IFinansAylikOzetService, IFinansSiparisFaturaService,
         IFinansGiderService, IFinansGiderTanimService, IFinansUrunService, IFinansParametreService,
-        IFinansDuzenliIsService, IFinansBelgeService, IFinansKaliciSilmeService, IFinansRaporVerisiService
+        IFinansDuzenliIsService, IFinansBelgeService, IFinansKaliciSilmeService, IFinansRaporVerisiService,
+        IFinansRaporService
     {
     }
 
@@ -310,7 +401,7 @@ public sealed class FinansAlanHttpSecurityTests
         private static readonly FinansIsKaydiModel Row = new()
         {
             Id = 1, ProjeNo = "TEST-PROJE", IsAdi = "Sentetik kayıt", Adet = 3, Birim = "Adet",
-            Boy = 1234, En = 567, Yukseklik = 890, BirimM3 = 1.5m, ToplamM3 = 4.5m,
+            Boy = 1234, En = 567, Yukseklik = 890, BirimM3 = 1.5m, ToplamM3 = 4.5m, AhsapM3 = 3m, KontraM3 = 1.5m,
             BirimFiyat = 777.25m, NetTutar = 2331.75m, KdvTutari = 466.35m, ToplamTutar = 2798.10m,
             ParaBirimi = "EUR",
             Bilesenler = [new("Kereste", FinansFiyatlandirmaBirimi.Metrekup, 4.5m, 777.25m)]
@@ -320,7 +411,8 @@ public sealed class FinansAlanHttpSecurityTests
             Interlocked.Increment(ref Calls);
             object result = method!.Name switch
             {
-                "GenelAramaAsync" => new FinansSayfaliSonuc<FinansIsKaydiModel> { Items = [Row], TotalCount = 1, PageSize = 25 },
+                "GenelAramaAsync" or "MunferitIslerAsync" => new FinansSayfaliSonuc<FinansIsKaydiModel> { Items = [Row], TotalCount = 1, PageSize = 25 },
+                "MunferitIsOlusturAsync" => Row,
                 "IsKaydiGetirAsync" => Row,
                 "PanelAsync" => new FinansPanelModel(new(2026, 1, 1), new(2026, 12, 31), "FinansTarihi",
                     [new("EUR", 1000, 1000, 400, 600, 500, 100, 400, 300, 40, 9000, 2000)],
@@ -333,6 +425,7 @@ public sealed class FinansAlanHttpSecurityTests
                     Kalemler = [new FinansSiparisKalemiModel { Id = 1, IsKaydiId = 1, BirimFiyat = 777.25m, ParaBirimi = "EUR", NetTutar = 777.25m, KdvTutari = 155.45m, ToplamTutar = 932.70m }]
                 },
                 "BelgeIndirAsync" => new DosyaIcerigi(Encoding.ASCII.GetBytes("%PDF-SENTETIK"), "application/pdf", "test.pdf"),
+                "IslerPdfAsync" or "IslerExcelAsync" => Encoding.ASCII.GetBytes("SENTETIK-RAPOR"),
                 _ => throw new NotSupportedException("Beklenmeyen sentetik servis çağrısı: " + method.Name)
             };
             return typeof(Task).GetMethod(nameof(Task.FromResult))!.MakeGenericMethod(method.ReturnType.GenericTypeArguments[0]).Invoke(null, [result]);

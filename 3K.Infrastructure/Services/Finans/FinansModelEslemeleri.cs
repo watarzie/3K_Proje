@@ -23,7 +23,7 @@ internal static class FinansModelEslemeleri
         var bilesenler = entity.FiyatBilesenleriJson is null
             ? null
             : System.Text.Json.JsonSerializer.Deserialize<FinansFiyatBileseniModel[]>(entity.FiyatBilesenleriJson);
-        var hacim = FinansHacimKurallari.Hacim(entity.SandikCinsi, entity.SandikTipi, entity.ToplamM3, bilesenler);
+        var hacim = FinansHacimKurallari.Hacim(entity.AhsapM3, entity.KontraM3, entity.SandikCinsi, entity.SandikTipi, entity.ToplamM3, bilesenler);
 
         return new FinansIsKaydiModel
         {
@@ -55,9 +55,13 @@ internal static class FinansModelEslemeleri
             ToplamM3 = entity.ToplamM3,
             AhsapM3 = hacim.Ahsap,
             KontraM3 = hacim.Kontra,
+            HacimManuel = entity.HacimManuel,
+            SandikMalzemesi = FinansHacimKurallari.Malzeme(entity.SandikCinsi, entity.SandikTipi),
             FinansUrunId = entity.FinansUrunId,
             FiyatlandirmaBirimi = entity.FiyatlandirmaBirimiSnapshot,
             BirimFiyat = entity.BirimFiyatSnapshot,
+            AhsapBirimFiyat = entity.AhsapBirimFiyatSnapshot,
+            AhsapFinansUrunId = entity.AhsapFinansUrunId,
             ParaBirimi = entity.ParaBirimiSnapshot,
             KdvOrani = entity.KdvOraniSnapshot,
             TarifeYili = entity.TarifeYiliSnapshot,
@@ -99,13 +103,16 @@ internal static class FinansModelEslemeleri
 
     /// <summary>Kaydın m³ fiyat satırları (kontra/katlanır sandıkta malzeme bazlı satırlar).</summary>
     internal static IReadOnlyList<FinansFiyatBileseniModel>? Bilesenler(FinansIsKaydi entity)
-        => entity.FiyatBilesenleriJson is null
+        => Bilesenler(entity.FiyatBilesenleriJson);
+
+    internal static IReadOnlyList<FinansFiyatBileseniModel>? Bilesenler(string? fiyatBilesenleriJson)
+        => fiyatBilesenleriJson is null
             ? null
-            : System.Text.Json.JsonSerializer.Deserialize<FinansFiyatBileseniModel[]>(entity.FiyatBilesenleriJson);
+            : System.Text.Json.JsonSerializer.Deserialize<FinansFiyatBileseniModel[]>(fiyatBilesenleriJson);
 
     /// <summary>Kaydın ahşap ve kontra m³ payı (<see cref="FinansHacimKurallari"/>).</summary>
     internal static (decimal Ahsap, decimal Kontra) Hacim(FinansIsKaydi entity)
-        => FinansHacimKurallari.Hacim(entity.SandikCinsi, entity.SandikTipi, entity.ToplamM3, Bilesenler(entity));
+        => FinansHacimKurallari.Hacim(entity.AhsapM3, entity.KontraM3, entity.SandikCinsi, entity.SandikTipi, entity.ToplamM3, Bilesenler(entity));
 
     internal static FinansGiderModel MapExpense(FinansGider entity) => new()
     {

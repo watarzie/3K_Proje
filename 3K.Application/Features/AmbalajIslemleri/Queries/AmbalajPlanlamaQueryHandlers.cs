@@ -133,6 +133,10 @@ public sealed class GetAmbalajPlanlamaProjeleriQueryHandler
                 AmbalajaDahil = k.AmbalajaDahil,
                 SandikCinsi = k.SandikCinsi,
                 NetM3 = k.M3Override ?? k.HesaplananToplamM3,
+                Adet = k.Adet,
+                Boy = k.Boy,
+                En = k.En,
+                Yukseklik = k.Yukseklik,
                 CreatedDate = k.CreatedDate
             }), cancellationToken);
         var kaynakKayitMap = kaynakKayitlari
@@ -194,7 +198,12 @@ public sealed class GetAmbalajPlanlamaProjeleriQueryHandler
             if (AmbalajUretimPolitikasi.M3HesaplanabilirMi(cins))
                 kaynakHacmi += kayit?.NetM3 ?? AmbalajPlanlamaYardimcisi.KaynakSandikToplamHacmiHesapla(
                     kaynak.Ad, kaynak.AdIngilizce, kaynak.SandikNo, kaynak.Boy, kaynak.En, kaynak.Yukseklik);
-            if (kaynak.Boy is not > 0 || kaynak.En is not > 0 || kaynak.Yukseklik is not > 0)
+            // Plan satırındaki "ölçü hazır" ile aynı kural: form ve tamamlama kaydın ölçüsünü kullanır.
+            var olcuHazir = kayit != null
+                ? AmbalajUretimYardimcilari.OlculerGecerli(true, kayit.SandikCinsi, kayit.Adet, kayit.Boy, kayit.En, kayit.Yukseklik)
+                : AmbalajUretimYardimcilari.OlculerGecerli(true, cins, AmbalajPlanlamaYardimcisi.SandikAdediHesapla(kaynak.SandikNo),
+                    kaynak.Boy, kaynak.En, kaynak.Yukseklik);
+            if (!olcuHazir)
                 eksikOlculuProjeler.Add(kaynak.ProjeId);
         }
 
@@ -217,7 +226,7 @@ public sealed class GetAmbalajPlanlamaProjeleriQueryHandler
             })
             .Take(1), cancellationToken)).FirstOrDefault() ?? new ManuelKayitOzeti();
         var eksikManuelProjeIds = await _readQueries.ToListAsync(manuelKayitlar
-            .Where(k => k.Boy <= 0 || k.En <= 0 || k.Yukseklik <= 0)
+            .Where(k => k.Adet <= 0 || k.Boy <= 0 || k.En <= 0 || k.Yukseklik <= 0)
             .Select(k => k.ProjeId!.Value).Distinct(), cancellationToken);
         eksikOlculuProjeler.UnionWith(eksikManuelProjeIds);
 
@@ -240,6 +249,10 @@ public sealed class GetAmbalajPlanlamaProjeleriQueryHandler
         public bool AmbalajaDahil { get; init; }
         public AmbalajSandikCinsi SandikCinsi { get; init; }
         public decimal NetM3 { get; init; }
+        public int Adet { get; init; }
+        public decimal Boy { get; init; }
+        public decimal En { get; init; }
+        public decimal Yukseklik { get; init; }
         public DateTime CreatedDate { get; init; }
     }
 
@@ -405,6 +418,9 @@ public sealed class GetAmbalajBagimsizSandiklarQueryHandler
     {
         if (request.Tur.HasValue && request.Tur is not (2 or 3 or 4 or 5))
             return Result<AmbalajBagimsizSandiklarSayfasiDto>.Failure("Özel sandık türü geçersiz.");
+        var finansDurumu = request.FinansDurumu?.Trim().ToLowerInvariant();
+        if (!string.IsNullOrEmpty(finansDurumu) && finansDurumu is not ("bekleyen" or "aktarilan"))
+            return Result<AmbalajBagimsizSandiklarSayfasiDto>.Failure("Finans durumu \"bekleyen\" veya \"aktarilan\" olmalıdır.");
 
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
         var tumKayitlar = _readQueries
@@ -429,6 +445,12 @@ public sealed class GetAmbalajBagimsizSandiklarQueryHandler
             var tur = AmbalajPlanlamaYardimcisi.OzelTurCoz(request.Tur.Value);
             query = query.Where(k => k.Tur == tur);
         }
+        // Finans durumu sekmeleri: sayılar arama ve tür filtresine göredir, finans durumu süzgecinden önce alınır.
+        var finansSayilari = request.IncludeSummary
+            ? await _readQueries.ToListAsync(query.GroupBy(k => k.UretimeAlindi).Select(g => new { Aktarildi = g.Key, Adet = g.Count() }), cancellationToken)
+            : [];
+        if (finansDurumu == "bekleyen") query = query.Where(k => !k.UretimeAlindi);
+        else if (finansDurumu == "aktarilan") query = query.Where(k => k.UretimeAlindi);
 
         AmbalajBagimsizSandikFiltreOzetiDto? filteredSummary = null;
         int totalCount;
@@ -480,7 +502,9 @@ public sealed class GetAmbalajBagimsizSandiklarQueryHandler
                 ToplamSandikAdedi = filtreToplami.ToplamSandikAdedi,
                 UretimeAlinanSandikAdedi = filtreToplami.UretimeAlinanSandikAdedi,
                 ToplamHacimM3 = filtreToplami.ToplamHacimM3,
-                TurOzetleri = turOzetleri
+                TurOzetleri = turOzetleri,
+                FinansaAktarilmayanKayitSayisi = finansSayilari.Where(x => !x.Aktarildi).Sum(x => x.Adet),
+                FinansaAktarilanKayitSayisi = finansSayilari.Where(x => x.Aktarildi).Sum(x => x.Adet)
             };
         }
         else
@@ -511,6 +535,7 @@ public sealed class GetAmbalajBagimsizSandiklarQueryHandler
                 k.UstKayitId.HasValue ? ustler.GetValueOrDefault(k.UstKayitId.Value) : null,
                 k.KaynakKayitId.HasValue ? kaynaklar.GetValueOrDefault(k.KaynakKayitId.Value) : null))
             .ToList();
+        sonuc = await DenetimBilgileriniEkleAsync(kayitlar, sonuc, cancellationToken);
         var izin = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(_roller, _kullanici, cancellationToken);
         return Result<AmbalajBagimsizSandiklarSayfasiDto>.Success(AmbalajAlanMaskesi.Maskele(
             new AmbalajBagimsizSandiklarSayfasiDto
@@ -522,6 +547,47 @@ public sealed class GetAmbalajBagimsizSandiklarQueryHandler
                 TotalPages = sayfa.TotalPages,
                 FilteredSummary = filteredSummary
             }, izin));
+    }
+
+    /// <summary>
+    /// Satırın denetim bilgisi: oluşturan ve oluşturma tarihi; finansa aktaran ve aktarım tarihi (son "Finansa aktar"
+    /// hareketi; eski yolla üretime alınmış kayıtta aktaran bilinmez, tarih üretim tarihidir).
+    /// </summary>
+    private async Task<List<AmbalajBagimsizSandikDto>> DenetimBilgileriniEkleAsync(
+        IReadOnlyList<AmbalajUretimKaydi> kayitlar,
+        List<AmbalajBagimsizSandikDto> sonuc,
+        CancellationToken cancellationToken)
+    {
+        var ids = kayitlar.Select(k => k.Id).ToList();
+        var aktarimlar = (await _readQueries.ToListAsync(
+                _readQueries.AsNoTracking(_unitOfWork.GetRepository<AmbalajUretimHareketi>().Queryable())
+                    .Where(h => ids.Contains(h.AmbalajUretimKaydiId) && h.Islem == Commands.AmbalajOzelSandikFinansCommandHandler.AktarimIslemi),
+                cancellationToken))
+            .GroupBy(h => h.AmbalajUretimKaydiId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(h => h.Tarih).ThenByDescending(h => h.Id).First());
+        var kullaniciIds = kayitlar
+            .Select(k => int.TryParse(k.CreatedBy, out var id) ? id : 0)
+            .Concat(aktarimlar.Values.Select(h => h.KullaniciId))
+            .Where(id => id > 0)
+            .Distinct()
+            .ToList();
+        var adlar = (await _readQueries.ToListAsync(
+                _readQueries.AsNoTracking(_unitOfWork.GetRepository<Kullanici>().Queryable()).Where(k => kullaniciIds.Contains(k.Id)),
+                cancellationToken))
+            .ToDictionary(k => k.Id, k => k.AdSoyad);
+        var kayitById = kayitlar.ToDictionary(k => k.Id);
+        return sonuc.Select(dto =>
+        {
+            var kayit = kayitById[dto.Id];
+            var aktarim = kayit.UretimeAlindi ? aktarimlar.GetValueOrDefault(kayit.Id) : null;
+            return dto with
+            {
+                OlusturmaTarihi = kayit.CreatedDate,
+                OlusturanAdi = int.TryParse(kayit.CreatedBy, out var olusturan) ? adlar.GetValueOrDefault(olusturan) : null,
+                FinansaAktarimTarihi = kayit.UretimeAlindi ? aktarim?.Tarih ?? kayit.UretimTarihi : null,
+                FinansaAktaranAdi = aktarim is null ? null : adlar.GetValueOrDefault(aktarim.KullaniciId)
+            };
+        }).ToList();
     }
 
     private sealed class BagimsizTurToplami

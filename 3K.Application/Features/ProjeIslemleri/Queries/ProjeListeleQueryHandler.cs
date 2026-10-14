@@ -2,6 +2,7 @@ using MediatR;
 using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Application.Features.ProjeIslemleri.DTOs;
+using _3K.Core.Constants;
 using _3K.Core.Entities;
 using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
@@ -13,15 +14,21 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
         private readonly IProjeRepository _projeRepository;
         private readonly ILookupCacheService _lookupCache;
         private readonly ISahaTamamlamaService _sahaTamamlamaService;
+        private readonly IRolService _rolService;
+        private readonly ICurrentUserService _currentUserService;
 
         public ProjeListeleQueryHandler(
             IProjeRepository projeRepository,
             ILookupCacheService lookupCache,
-            ISahaTamamlamaService sahaTamamlamaService)
+            ISahaTamamlamaService sahaTamamlamaService,
+            IRolService rolService,
+            ICurrentUserService currentUserService)
         {
             _projeRepository = projeRepository;
             _lookupCache = lookupCache;
             _sahaTamamlamaService = sahaTamamlamaService;
+            _rolService = rolService;
+            _currentUserService = currentUserService;
         }
 
         public async Task<Result<PaginatedList<ProjeDto>>> Handle(ProjeListeleQuery request, CancellationToken cancellationToken)
@@ -47,6 +54,9 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                 normalKaynakSandikIds,
                 cancellationToken);
             var sahaUzerindenSevkEdilenSandikIds = kaynakSandikSahaDurumu.SahaUzerindenSevkEdilenSandikIds;
+            // Fotoğraf bağlantısı yalnız kendi R izniyle döner; listeyi görebilen ama izni olmayan kullanıcıya boş gelir.
+            var fotografGorunur = _currentUserService.UserId is int kullaniciId &&
+                await _rolService.HasUserPermissionAsync(kullaniciId, YetkiKodlari.Proje.FotografBaglantisi, YetkiTipi.R, cancellationToken);
 
             var result = projeler.Select(p =>
             {
@@ -167,7 +177,8 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                     OlcuResmiNo = p.OlcuResmiNo,
                     NakilOlcuResmiNo = p.NakilOlcuResmiNo,
                     SonMontajResmiNo = p.SonMontajResmiNo,
-                    ProjeMuduru = p.ProjeMuduru
+                    ProjeMuduru = p.ProjeMuduru,
+                    FotografBaglantisi = fotografGorunur ? p.FotografBaglantisi : null
                 };
             });
 

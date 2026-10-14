@@ -707,7 +707,9 @@ public sealed class AmbalajBagimsizSandikKaydetCommandHandler
         kayit.Tur = tur;
         kayit.UstKayitId = request.Tur == 3 ? ustKayit?.Id : null;
         kayit.IcSandikSablonId = request.Tur == 3 ? request.IcSandikSablonId : null;
-        kayit.UretimeAlindi = true;
+        // Özel sandık normal plan sandıkları gibi üretim formu oluşturulunca üretime alınır ve finansa o zaman
+        // aktarılır; kaydetmek tek başına iş kaydı açmaz. Mevcut kaydın üretime alınma durumu korunur.
+        if (yeniKayitMi) kayit.UretimeAlindi = false;
         kayit.AmbalajaDahil = true;
         kayit.SandikNo = sandikNo;
         kayit.Ad = request.Ad!.Trim();
@@ -726,7 +728,7 @@ public sealed class AmbalajBagimsizSandikKaydetCommandHandler
         }
         kayit.TalimatVeren = AmbalajUretimYardimcilari.Temizle(request.TalimatVeren);
         kayit.Aciklama = AmbalajUretimYardimcilari.Temizle(request.Aciklama);
-        kayit.UretimTarihi ??= TurkeyTime.Now;
+        if (kayit.UretimeAlindi) kayit.UretimTarihi ??= TurkeyTime.Now;
         kayit.UpdatedDate = eski == null ? null : TurkeyTime.Now;
         kayit.UpdatedBy = eski == null ? null : _currentUser.IslemKullaniciId.Value.ToString();
         AmbalajUretimYardimcilari.M3DegerleriniHesapla(kayit);

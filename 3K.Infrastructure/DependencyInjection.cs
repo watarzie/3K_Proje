@@ -71,7 +71,6 @@ public static class DependencyInjection
         services.AddScoped<IDurumHesaplaService, DurumHesaplaService>();
         services.AddScoped<ILookupService, LookupService>();
         services.AddScoped<IRolService, RolService>();
-        services.AddScoped<IAlanErisimService, AlanErisimService>();
         services.AddScoped<IAmbalajFormIslemKilidi, AmbalajFormIslemKilidi>();
         services.AddScoped<IRolAtamaService, RolAtamaService>();
         services.AddScoped<IOnayYetkiService, OnayYetkiService>();
@@ -133,6 +132,7 @@ public static class DependencyInjection
         services.AddScoped<IEksikUrunlerRaporService, EksikUrunlerRaporService>();
         services.AddScoped<IGerceklesenCekiListesiRaporService, GerceklesenCekiListesiRaporService>();
         services.AddScoped<ISahaSandikRaporService, SahaSandikRaporService>();
+        services.AddScoped<ISevkiyatRaporDosyaService, SevkiyatRaporDosyaService>();
         services.AddScoped<IStokRaporService, StokRaporService>();
         services.AddScoped<ITalepFormuRaporService, TalepFormuRaporService>();
         services.AddScoped<IUcKSandikDurumRaporService, UcKSandikDurumRaporService>();

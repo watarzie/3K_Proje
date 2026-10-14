@@ -177,7 +177,7 @@ public sealed class FinansPoAkisPostgresTests
             var eylul = Sandik("1", 2m, new DateTime(2026, 9, 10), fiyat: 0m);
             db.Add(eylul); await db.SaveChangesAsync();
             var finans = Finans(db);
-            var eslesme = new FinansUrunEslesmesiModel(null, FinansIsTuru.AnaAmbalaj, null, null, null, null, null, null);
+            var eslesme = new FinansUrunEslesmesiModel(null, FinansIsTuru.AnaAmbalaj, null, null, null);
 
             var urun = await finans.Urun.UrunOlusturAsync(new("AMB", "Ana ambalaj", FinansFiyatlandirmaBirimi.Metrekup, true, 0,
                 [eslesme], 550m, "EUR", 20, new DateTime(2026, 9, 26)), Ct);

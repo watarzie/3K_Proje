@@ -60,6 +60,10 @@ public sealed class AmbalajFormOlusturCommandHandler(IUnitOfWork uow, ICurrentUs
             // İzlenen sorgu: senkronizasyon bu kayıtları aynı DbContext'te izliyor olabilir; izlenmeyen ikinci
             // örnek Update ile eklenince EF aynı anahtarı iki kez izleyemez (plan kaydedilmeden form oluşturma).
             var kayitlar = repo.Queryable().Where(x => ids.Contains(x.Id)).ToList();
+            // Özel sandıkta üretim formu yoktur; finans ilişkisi "Finansa aktar" ile kurulur.
+            if (kayitlar.Any(k => k.BagimsizKayitMi))
+                return Result<AmbalajFormSurumuDto>.Failure(
+                    "Özel sandık için üretim formu oluşturulmaz; Özel Sandıklar listesinde \"Finansa aktar\" işlemini kullanın.", 409);
             // Bütün seçim ve snapshot doğrulanmadan hiçbir kayıt değiştirilmez.
             var sonuc = await AmbalajUretimFormuOlusturucu.OlusturAsync(uow, ids, token);
             if (!sonuc.IsSuccess) return Result<AmbalajFormSurumuDto>.Failure(sonuc.Error!.Message, sonuc.StatusCode);

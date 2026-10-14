@@ -26,6 +26,20 @@ public sealed class FinansUrunTarifeTests
         Assert.False(model.Eslesmeler[1].Aktif);
     }
 
+    /// <summary>Malzemeli eşleşme (ahşap/kontra) yalnız m³ tarifede ve yalnız Ahşap/Kontra değeriyle kabul edilir.</summary>
+    [Theory]
+    [InlineData(FinansFiyatlandirmaBirimi.Metrekup, FinansSandikMalzemesi.Kontra, true)]
+    [InlineData(FinansFiyatlandirmaBirimi.Metrekup, FinansSandikMalzemesi.Ahsap, true)]
+    [InlineData(FinansFiyatlandirmaBirimi.Adet, FinansSandikMalzemesi.Ahsap, false)]
+    [InlineData(FinansFiyatlandirmaBirimi.Metrekup, FinansSandikMalzemesi.Bilinmiyor, false)]
+    public void Malzemeli_eslesme_m3_tarifede_ahsap_veya_kontra_olmalidir(FinansFiyatlandirmaBirimi birim, FinansSandikMalzemesi malzeme, bool gecerli)
+    {
+        var model = new FinansUrunKaydetModel("KON", "Kontra m³", birim, true, 0,
+            [new FinansUrunEslesmesiModel(null, FinansIsTuru.AnaAmbalaj, null, "Katlanır Sandık", null, malzeme)], 300m, "EUR", 20);
+
+        Assert.Equal(gecerli, new _3K.Application.Features.FinansIslemleri.Validators.FinansUrunKaydetModelValidator().Validate(model).IsValid);
+    }
+
     /// <summary>R1 §11: fiyat değişikliği geçmişi düzenlemez; eski sürüm kapanır, yeni sürüm açılır.</summary>
     [Fact]
     public void Fiyat_degisikligi_eski_surumu_kapatir_ve_yeni_surum_acar()

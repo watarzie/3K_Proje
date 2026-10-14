@@ -18,9 +18,20 @@ namespace _3K_API.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult> GetAll([FromQuery] string? searchTerm = null, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
+        public async Task<ActionResult> GetAll([FromQuery] string? searchTerm = null, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10,
+            [FromQuery] int? durumId = null)
         {
-            var result = await _mediator.Send(new StokListeleQuery { SearchTerm = searchTerm, PageNumber = pageNumber, PageSize = pageSize });
+            var result = await _mediator.Send(new StokListeleQuery
+            {
+                SearchTerm = searchTerm, PageNumber = pageNumber, PageSize = pageSize, DurumId = durumId
+            });
+            return result.ToActionResult();
+        }
+
+        [HttpGet("sayilar")]
+        public async Task<ActionResult> DurumSayilari([FromQuery] string? searchTerm = null)
+        {
+            var result = await _mediator.Send(new StokDurumSayilariQuery { SearchTerm = searchTerm });
             return result.ToActionResult();
         }
 

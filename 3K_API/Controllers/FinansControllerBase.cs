@@ -5,13 +5,12 @@ using Microsoft.AspNetCore.Authorization;
 namespace _3K_API.Controllers;
 
 /// <summary>
-/// Finans uçlarının ortak tabanı: kimlik doğrulaması, "api/finans" rotası ve bütün yanıtlara
-/// uygulanan alan izni projeksiyonu (FinansAlanErisimFiltresi) burada tanımlanır.
+/// Finans uçlarının ortak tabanı: kimlik doğrulaması ve "api/finans" rotası. Yetki yalnız sekme düzeyindedir ve
+/// isteklerde (FinansCommand/FinansQuery.Sekmeler) denetlenir; yanıtlarda alan maskelemesi yoktur.
 /// </summary>
 [ApiController]
 [Authorize]
 [Route("api/finans")]
-[TypeFilter(typeof(FinansAlanErisimFiltresi))]
 public abstract class FinansControllerBase(IMediator mediator) : ControllerBase
 {
     protected IMediator Mediator { get; } = mediator;
