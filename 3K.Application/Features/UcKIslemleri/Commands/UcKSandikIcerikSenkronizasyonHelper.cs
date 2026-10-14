@@ -32,14 +32,34 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     return Task.FromResult(Result<List<SandikIcerik>>.Failure("Seçilen sandık içeriği bu ürüne ait değil.", 400));
             }
 
+            var yansitma = Yansit(satir, icerikler, tercihEdilen);
+            if (!yansitma.IsSuccess)
+                return Task.FromResult(yansitma);
+
+            foreach (var icerik in icerikler)
+                repo.Update(icerik);
+
+            return Task.FromResult(yansitma);
+        }
+
+        /// <summary>
+        /// Çeki satırının kümülatif 3K toplamlarını verilen tahsislere fark kadar dağıtır ve eksikleri
+        /// yeniden hesaplar; veritabanına dokunmaz. Henüz kaydedilmemiş yeni bir tahsisin değerleri de
+        /// bununla hesaplanır, böylece sonradan oluşan tahsis 3K işlemleriyle oluşmuş gibi tutarlı olur.
+        /// </summary>
+        public static Result<List<SandikIcerik>> Yansit(
+            CekiSatiri satir,
+            List<SandikIcerik> icerikler,
+            SandikIcerik? tercihEdilen = null)
+        {
             var hedefKonulan = Math.Max(
                 satir.GelenMiktar + satir.StokKarsilanan + satir.ProjeKarsilanan + satir.TedarikciKarsilanan - satir.ProjeGonderilen,
                 0);
             var toplamKapasite = icerikler.Sum(i => TahsisMiktari(satir, i, icerikler.Count));
             if (hedefKonulan > toplamKapasite)
             {
-                return Task.FromResult(Result<List<SandikIcerik>>.Failure(
-                    $"3K toplamı ({hedefKonulan}) sandıklara tahsis edilen toplam miktarı ({toplamKapasite}) aşamaz."));
+                return Result<List<SandikIcerik>>.Failure(
+                    $"3K toplamı ({hedefKonulan}) sandıklara tahsis edilen toplam miktarı ({toplamKapasite}) aşamaz.");
             }
 
             Esitle(
@@ -75,12 +95,9 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 tercihEdilen);
 
             foreach (var icerik in icerikler)
-            {
                 icerik.EksikAdet = Math.Max(TahsisMiktari(satir, icerik, icerikler.Count) - icerik.KonulanAdet, 0);
-                repo.Update(icerik);
-            }
 
-            return Task.FromResult(Result<List<SandikIcerik>>.Success(icerikler));
+            return Result<List<SandikIcerik>>.Success(icerikler);
         }
 
         public static async Task<Result<SandikIcerik?>> GetSeciliIcerikAsync(

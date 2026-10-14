@@ -25,7 +25,8 @@ veritabanı adı görünür).
 
 Tekrar çalıştırma: 9–18 numaralı betikler tekrar çalıştırıldığında (onay ayarı oturumda açık kalsa da) hiçbir şey
 değiştirmez; izinleri yalnız düğümü ekledikleri çalıştırmada verirler, yöneticinin sonradan kaldırdığı veya düşürdüğü
-izni geri vermezler (`CanliyaAlimBetikleriTests`). 6 (sıfırlama) canlıda bir kez, bilinçli olarak çalıştırılır; 4
+izni geri vermezler (`CanliyaAlimBetikleriTests`). 19 (tahsis onarımı) tekrarında yalnız henüz onarılmamış satırlara bakar; onarılmış ve atlanan satırlar değişmez
+(`SandikTahsissizSatirOnarimiBetigiTests`). 6 (sıfırlama) canlıda bir kez, bilinçli olarak çalıştırılır; 4
 (eşleşme onarımı) ve 7 (ödeme izni) de yalnız bir kez çalıştırılır: 4, bilerek pasifleştirilmiş eşleşmeyi yeniden
 aktifleştirebilir; 7, 15 numaralı betikten sonra çalıştırılırsa silinmiş `finans-odeme-kaydet` düğümünü geri ekler.
 
@@ -49,6 +50,7 @@ aktifleştirebilir; 7, 15 numaralı betikten sonra çalıştırılırsa silinmi�
 | 16 | `20261013_03_Finans_Alt_Sekme_Yetkileri.sql` | Finans alt sekme düğümlerini ekler (Id 5248–5255): İş Takibi → Aylık / Tüm dönemlerde ara / Bekleyen işler; İş ve Tarife Tanımları → Düzenli İşler / Ürün ve Tarifeler / Para Birimi ve Vade; PO ve Faturalar → PO'lar / Faturalar. Her role alt sekmede sekmedeki seviyesi aynen verilir; yetkiler değişmez. Yıkıcı değildir. 15 numaralı betikten sonra, **yeni API ile birlikte** uygulanır. |
 | 17 | `20261014_01_Proje_Fotograf_Baglantisi.sql` | `Projeler."FotografBaglantisi"` (varchar 1000, boş olabilir) kolonunu ve kök düzeyde rotasız `proje-fotograf-baglantisi` iznini (Id 5256) ekler: Normal/Saha/Yedek proje listelerinde R fotoğraf bağlantısını görür ve açar, W ekler/değiştirir/kaldırır. Yalnız Admin W alır; diğer roller rol ekranından ayarlanır. Yıkıcı değildir, tekrar çalıştırılabilir; yeni API ile birlikte uygulanır. |
 | 18 | `20261014_02_Proje_Fotograf_Baglantisi_Projeler_Altina.sql` | `proje-fotograf-baglantisi` iznini kökten Projeler menüsünün altına taşır (Sira 9, ikonsuz). Projeler bu iznin tavanı olur: Projeler R olmayan rolde bağlantı izni etkisizdir (NOTICE ile listelenir). Rol izinleri değişmez; yıkıcı değildir, tekrar çalıştırılabilir. 17. betikten sonra. |
+| 19 | `20261014_03_Sandik_Tahsissiz_Satir_Onarimi.sql` | **Veri onarımı:** sandık tahsisi olmayan çeki satırlarını sandık numaralarının gösterdiği sandığa bağlar. "Çeki verisi düzenle" tahsisi olmayan satıra numara verince tahsis oluşturmuyordu; ürün sandık kartında ve 3K ekranında görünüp Depo Durumu sayımında görünmüyordu. Yalnız projede tek ve sevk edilmemiş sandıkla eşleşen satırlar onarılır; değerler 3K senkronuyla aynıdır (konulan = gelen + stok + proje + tedarikçi − başka projeye verilen, tahsis = istenen). Sandık yok / birden çok sandık / sevk edilmiş sandık durumları NOTICE ile listelenip atlanır. Yıkıcı değildir, tekrar çalıştırılabilir; API sürümünden bağımsız, istenen anda uygulanır. Durum sorgusunda onarılacak satır kaldıkça `UYGULANMAMIŞ` görünür. |
 
 Sekme yetkileri betiği (11) yeni API sürümü yayımlanmadan **önce** çalıştırılır: yeni API Kontrol Paneli, İş Takibi,
 Giderler ve Raporlar uçlarında sekme düğümü izni ister; düğümler yokken bu uçlar herkese (Admin dahil) 403 döner. Eski

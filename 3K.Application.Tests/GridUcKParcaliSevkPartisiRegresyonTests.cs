@@ -1726,7 +1726,7 @@ public sealed class GridUcKParcaliSevkPartisiRegresyonTests
         }
 
         public Task<Result<CekiSatiriAnaVeriGuncelleDto>> CekiMiktariniDuzenleAsync(decimal miktar) =>
-            new CekiSatiriAnaVeriGuncelleCommandHandler(Uow, _durum, _saha)
+            new CekiSatiriAnaVeriGuncelleCommandHandler(Uow, _durum, _saha, _hareket, _user)
                 .Handle(new CekiSatiriAnaVeriGuncelleCommand
                 {
                     CekiSatiriId = Satir.Id, SiraNo = Satir.SiraNo,

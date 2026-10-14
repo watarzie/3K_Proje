@@ -230,6 +230,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
                     {
                         CekiSatiriId = cs.Id,
                         SandikIcerikId = icerik?.Id,
+                        SandikId = sandik?.Id,
                         UrunBilgisi = icerik?.UrunBilgisi,
                         KaynakCekiSatiriId = cs.KaynakCekiSatiriId,
                         KaynakProjeNo = kaynakIz?.KaynakProjeNo,
@@ -332,6 +333,7 @@ namespace _3K.Application.Features.UcKIslemleri.Queries
             {
                 CekiSatiriId = -icerik.Id,
                 SandikIcerikId = icerik.Id,
+                SandikId = sandik?.Id,
                 UrunBilgisi = icerik.UrunBilgisi,
                 IsSahaManuelSandikIcerigi = true,
                 SiraNo = siraNo,

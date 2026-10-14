@@ -4,6 +4,8 @@
 -- Her betik bıraktığı kalıcı izle (kolon, tablo, menü düğümü) tanınır; hiçbir şey değiştirmez. Canlıya alımdan önce
 -- 3K_Db düğümünden açılan sorgu penceresinde çalıştırın; UYGULANMAMIŞ satırlar README sırasıyla uygulanır.
 -- 4 numaralı betik (ürün eşleşmesi onarımı) iz bırakmaz; sıfırlama (6) sonrası zaten iş yapmaz.
+-- 19 numaralı betik veri onarımıdır: onarılabilir (tek sevk edilmemiş sandıkla eşleşen) tahsissiz satır kalmadıysa
+-- uygulanmış görünür; UYGULANMAMIŞ ise onarılacak satır vardır.
 -- Yeni betik eklenince buraya satır eklenir (CanliyaAlimBetikleriTests dosya listesiyle karşılaştırır).
 -- =====================================================================================
 WITH kolon(tablo, ad) AS (SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public'),
@@ -35,6 +37,19 @@ FROM (VALUES
     (16, '20261013_03_Finans_Alt_Sekme_Yetkileri',     EXISTS (SELECT 1 FROM kod WHERE "Kod" = 'finans-sekme-po-fatura-fatura')),
     (17, '20261014_01_Proje_Fotograf_Baglantisi',      EXISTS (SELECT 1 FROM kolon WHERE tablo = 'Projeler' AND ad = 'FotografBaglantisi')),
     (18, '20261014_02_Proje_Fotograf_Baglantisi_Projeler_Altina',
-         EXISTS (SELECT 1 FROM kod f JOIN kod p ON p."Id" = f."ParentId" AND p."Kod" = 'projeler' WHERE f."Kod" = 'proje-fotograf-baglantisi'))
+         EXISTS (SELECT 1 FROM kod f JOIN kod p ON p."Id" = f."ParentId" AND p."Kod" = 'projeler' WHERE f."Kod" = 'proje-fotograf-baglantisi')),
+    (19, '20261014_03_Sandik_Tahsissiz_Satir_Onarimi',
+         NOT EXISTS (SELECT 1
+                     FROM "CekiSatirlari" cs
+                     JOIN "Cekiler" c ON c."Id" = cs."CekiId"
+                     CROSS JOIN LATERAL (SELECT UPPER(TRIM(COALESCE(NULLIF(TRIM(cs."FiiliSandikNo"), ''),
+                                                                    cs."CekideGecenSandikNo", ''))) AS anahtar) a
+                     WHERE a.anahtar <> ''
+                       AND NOT EXISTS (SELECT 1 FROM "SandikIcerikleri" i WHERE i."CekiSatiriId" = cs."Id")
+                       AND (SELECT COUNT(*) FROM "Sandiklar" s
+                            WHERE s."ProjeId" = c."ProjeId" AND UPPER(TRIM(s."SandikNo")) = a.anahtar) = 1
+                       AND NOT EXISTS (SELECT 1 FROM "Sandiklar" s
+                                       WHERE s."ProjeId" = c."ProjeId" AND UPPER(TRIM(s."SandikNo")) = a.anahtar
+                                         AND s."DurumId" = 4)))
 ) AS t(sira, betik, uygulandi)
 ORDER BY sira;

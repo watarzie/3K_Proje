@@ -1,5 +1,7 @@
+using System.Globalization;
 using MediatR;
 using _3K.Application.Common;
+using _3K.Application.Features.UcKIslemleri.Commands;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
@@ -38,15 +40,21 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
         private readonly IUnitOfWork _unitOfWork;
         private readonly IDurumHesaplaService _durumHesaplaService;
         private readonly ISahaTamamlamaService _sahaTamamlamaService;
+        private readonly IHareketService _hareketService;
+        private readonly ICurrentUserService _currentUserService;
 
         public CekiSatiriAnaVeriGuncelleCommandHandler(
             IUnitOfWork unitOfWork,
             IDurumHesaplaService durumHesaplaService,
-            ISahaTamamlamaService sahaTamamlamaService)
+            ISahaTamamlamaService sahaTamamlamaService,
+            IHareketService hareketService,
+            ICurrentUserService currentUserService)
         {
             _unitOfWork = unitOfWork;
             _durumHesaplaService = durumHesaplaService;
             _sahaTamamlamaService = sahaTamamlamaService;
+            _hareketService = hareketService;
+            _currentUserService = currentUserService;
         }
 
         public async Task<Result<CekiSatiriAnaVeriGuncelleDto>> Handle(
@@ -118,13 +126,26 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
                 string.Equals(Normalize(satir.FiiliSandikNo), oldCekideSandikNo, StringComparison.OrdinalIgnoreCase);
             var newEffectiveSandikNo = shouldSyncFiiliSandik ? newCekideSandikNo : oldEffectiveSandikNo;
             var sandikDegisti = !string.Equals(oldEffectiveSandikNo, newEffectiveSandikNo, StringComparison.OrdinalIgnoreCase);
+            var eskiOzet = AnaVeriOzeti(satir, oldEffectiveSandikNo);
 
             Sandik? hedefSandik = null;
+            SandikIcerik? yeniTahsis = null;
             if (sandikDegisti)
             {
                 if (icerikler.Count > 1)
                     return Result<CekiSatiriAnaVeriGuncelleDto>.Failure(
                         "Birden fazla sandığa tahsis edilmiş ürünün sandığı bu ekrandan değiştirilemez. Sandık ürün taşıma işlemini kullanın.");
+
+                if (icerikler.Count == 0)
+                {
+                    // Tahsisi olmayan satır sandığa yalnız numarasıyla bağlı görünür; depo sayımı gerçek
+                    // tahsisi okuduğu için sandık depoda eksik kalır. Revizyon akışındaki gibi hedef sandıkta
+                    // tahsis oluşturulur. Değerler yazmadan önce hesaplanır, red durumunda hiçbir kayıt değişmez.
+                    yeniTahsis = new SandikIcerik { TahsisMiktari = request.IstenenAdet, BirimId = request.BirimId };
+                    var yansitma = UcKSandikIcerikSenkronizasyonHelper.Yansit(satir, [yeniTahsis]);
+                    if (!yansitma.IsSuccess)
+                        return Result<CekiSatiriAnaVeriGuncelleDto>.Failure(yansitma.Error!.Message, yansitma.StatusCode);
+                }
 
                 var sandikRepo = _unitOfWork.GetRepository<Sandik>();
                 hedefSandik = (await sandikRepo.FindAsync(s =>
@@ -183,10 +204,37 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
                 icerikRepo.Update(icerik);
             }
 
+            if (yeniTahsis != null)
+            {
+                yeniTahsis.SandikId = hedefSandik!.Id;
+                yeniTahsis.CekiSatiriId = satir.Id;
+                await icerikRepo.AddAsync(yeniTahsis);
+            }
+
             _durumHesaplaService.HesaplaKalanVeDurum(satir);
             satirRepo.Update(satir);
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            // Ana veri düzenlemesi (özellikle sandık değişikliği) hareket geçmişinde iz bırakmalıdır.
+            var yeniOzet = AnaVeriOzeti(satir, newEffectiveSandikNo);
+            if (yeniTahsis != null || !string.Equals(eskiOzet, yeniOzet, StringComparison.Ordinal))
+            {
+                await _hareketService.HareketKaydetAsync(new HareketGecmisi
+                {
+                    ProjeId = ceki.ProjeId,
+                    ReferansTipi = "CekiSatiri",
+                    ReferansId = satir.Id.ToString(),
+                    Islem = "Çeki Verisi Düzenlendi",
+                    IslemTipiId = (int)IslemTipi.UrunGuncellendi,
+                    KullaniciId = _currentUserService.UserId ?? 0,
+                    EskiDeger = eskiOzet,
+                    YeniDeger = yeniOzet,
+                    Aciklama = yeniTahsis != null
+                        ? $"Ürünün sandık tahsisi yoktu; {hedefSandik!.SandikNo} numaralı sandıkta tahsis oluşturuldu."
+                        : null
+                });
+            }
 
             return Result<CekiSatiriAnaVeriGuncelleDto>.Success(new CekiSatiriAnaVeriGuncelleDto
             {
@@ -255,6 +303,14 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
         private static string Normalize(string? value)
         {
             return string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
+        }
+
+        private static string AnaVeriOzeti(CekiSatiri satir, string sandikNo)
+        {
+            var miktar = satir.IstenenAdet.ToString("0.####", CultureInfo.InvariantCulture);
+            return $"Sıra: {satir.SiraNo}, Barkod: {satir.BarkodNo}, Poz: {satir.OlcuResmiPozNo ?? "-"}, " +
+                $"Açıklama: {satir.Aciklama}, Miktar: {miktar} {(Birim)satir.BirimId}, " +
+                $"Sandık: {(string.IsNullOrEmpty(sandikNo) ? "-" : sandikNo)}";
         }
     }
 }

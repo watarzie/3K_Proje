@@ -158,7 +158,10 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                         Isim = i.Isim,
                         Miktar = i.Miktar,
                         BirimId = i.BirimId,
-                        BirimMetni = i.BirimId.HasValue ? _lookupCache.GetDeger<LookupBirim>(i.BirimId.Value) : null,
+                        // Çeki yüklemesinden gelen tahsiste birim tutulmaz; miktarın birimi çeki satırındadır.
+                        BirimMetni = (i.BirimId ?? i.CekiSatiri?.BirimId) is int birimId
+                            ? _lookupCache.GetDeger<LookupBirim>(birimId)
+                            : null,
                         // Madde 2: Parçalı karşılama
                         StokKarsilanan = i.StokKarsilanan,
                         ProjeKarsilanan = i.ProjeKarsilanan,
