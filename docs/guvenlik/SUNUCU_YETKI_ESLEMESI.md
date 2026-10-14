@@ -59,6 +59,7 @@ Normal / Saha / Yedek türü, mevcut kaydın proje FK'si üzerinden okunur. Göv
 |---|---|---|---|
 | Grid okuma/yazma | grid-modulu | saha-grid-modulu | yedek-grid-modulu |
 | 3K okuma/yazma | 3k-modulu | saha-3k-modulu | yedek-3k-modulu |
+| Projeden karşılama kaynak listesi (`GET api/uck/{hedefProjeId}/projeden-karsilama-kaynaklari`); tür **hedef** projeden okunur | 3k-modulu W | saha-3k-modulu W | yedek-3k-modulu W |
 | Sandık yazma / tekil-toplu taşıma / sandık sevk-düzeltme | sandik-yonetimi **veya** 3k-modulu W | saha-sandiklar **veya** saha-3k-modulu W | yedek-sandiklar **veya** yedek-3k-modulu W |
 | Proje sevki; toplu sevkte (tır seferi) her sandığın projesinin gerçek türüne göre, bütün projeler için birlikte | proje-sevk-et W | saha-sevk-et W | yedek-sevk-et W |
 | Yeni proje | aktif-projeler **veya** sandik-yonetimi W | saha-yonetimi W | yedek-yonetimi W |
@@ -70,6 +71,8 @@ Normal / Saha / Yedek türü, mevcut kaydın proje FK'si üzerinden okunur. Göv
 | Tekil / toplu eksik raporu | eksik-raporu R | saha-sevk-sonrasi-eksik-raporu R | yedek-eksik-raporu R |
 
 Ortak proje/sandık okumaları ilgili türün yönetim, Grid, 3K ekranlarından kullanılabilir. Depo görünümü, genel sevk listesi ve kaynak/hedef seçen sahaya aktar ekranı kendi okuma izinleriyle ortak okumaları kullanır. Proje dropdown'u yalnız seçim bilgisi veren ortak lookup'tır; erişimi çağıran kullanım senaryolarının açık OR listesine bağlıdır, yazma izni kazandırmaz. Normal eksik kaynak seçimi, saha/yedek sandık ve sahaya aktar ekranlarının ortak okumasıdır.
+
+Projeden karşılama kaynak listesi (14 Ekim 2026): 3K paneli kaynak projenin ürünlerini eskiden Grid ekranının listesinden (`GET api/grid/{kaynakProjeId}/urunler`, kaynak projede Grid R) okuyordu; Grid izni olmayan 3K personeli 403 alıyor ve ekranda "eşleşen ürün yok" görüyordu. Liste artık karşılamayı kaydeden `UcKDurumGuncelleCommand` ile aynı izne, hedef projenin 3K W iznine bağlıdır; kaynak projenin Grid izni sorulmaz ve Grid izni tek başına bu listeyi açmaz. Yalnız eşleştirme alanları döner (sıra, barkod, poz, açıklama, 3K gelen, kullanılabilir). Testler: `ServerAuthorizationRegressionTests.ProjedenKarsilamaKaynaklari_*`, `ProjedenKarsilamaKaynaklariTests`.
 
 Revizyon geçmişi/liste/detay/dosya için gerçek türün yönetim izni (`sandik-yonetimi`, `saha-yonetimi`, `yedek-yonetimi`) **veya** `ceki-revizyon-yukle` **veya** `sevk-edilen` R gerekir. Proje kilit açma talebinde gerçek türün yönetim izni **veya** `sevk-edilen` W gerekir; onay süreci ayrıca korunur.
 

@@ -55,8 +55,10 @@ Giderler ve Raporlar uçlarında sekme düğümü izni ister; düğümler yokken
 API sekme düğümlerini kullanmaz ve taşınan kodların etkin seviyesi değişmediği için betikten etkilenmez. Betik sonunda
 rol × sekme seviyeleri ve sekmelerin altındaki kodlar NOTICE olarak listelenir.
 
-Sıfırlama betiği (6) Finans/Ambalaj tablolarını yazıldığı andaki modelle kurar; 10 numaralı betikten sonra çalıştırılırsa
-10 numaralı betik (ahşap/kontra m³ kolonları) yeniden uygulanmalıdır.
+Sıfırlama betiği (6) Finans/Ambalaj tablolarını yazıldığı andaki modelle kurar; sonraki Finans kolonları yoktur. Sıfırlama
+9–18'den önce yapılıyorsa 9–18 sırayla uygulanır; 10 ve 14 uygulandıktan sonra yapılıyorsa ardından 10 numaralı
+(ahşap/kontra m³) ve 14 numaralı (malzemeli tarife) betikler yeniden çalıştırılır. Bu ikisiyle şema EF modeliyle aynıdır
+(`CanliyaAlimBetikleriTests`).
 
 Sıfırlama betiği (6) onay olarak sıfırlanacak veritabanının adını ister ve yalnız bağlı olduğu veritabanının adı
 onayla aynıysa çalışır. Onay yoksa veya başka bir veritabanına bağlıysa hiçbir şey değiştirmeden hata verir. Çıktıda

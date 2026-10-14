@@ -15,6 +15,7 @@ using _3K.Application.Features.RolIslemleri.Queries;
 using _3K.Application.Features.SandikIslemleri.Commands;
 using _3K.Application.Features.SandikIslemleri.Queries;
 using _3K.Application.Features.UcKIslemleri.Commands;
+using _3K.Application.Features.UcKIslemleri.Queries;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
@@ -113,6 +114,47 @@ public class ServerAuthorizationRegressionTests
         var fixture = new Fixture("grid-modulu", YetkiTipi.W);
         fixture.Seed(type);
         Assert.Equal(403, (await fixture.Run(new GridDurumGuncelleCommand { ProjeId = 10, CekiSatiriId = 30 })).StatusCode);
+        Assert.Equal(0, fixture.Executed);
+    }
+
+    /// <summary>
+    /// Projeden karşılama kaynak listesi hedef projenin 3K yazma iznine bağlıdır; karşılamayı
+    /// kaydeden komut da yalnız bunu ister. Kaynak projenin Grid izni sorulmaz.
+    /// </summary>
+    [Theory]
+    [InlineData(ProjeTipi.Normal, "3k-modulu")]
+    [InlineData(ProjeTipi.Saha, "saha-3k-modulu")]
+    [InlineData(ProjeTipi.Yedek, "yedek-3k-modulu")]
+    public async Task ProjedenKarsilamaKaynaklari_HedefProjenin3KYazmaIzniyleAcilir_GridIzniSorulmaz(ProjeTipi type, string expectedMenu)
+    {
+        var fixture = new Fixture(expectedMenu, YetkiTipi.W);
+        fixture.Seed(type);
+        fixture.Uow.Repo<Proje>().Rows.Add(new() { Id = 11, ProjeTipiId = (int)ProjeTipi.Normal });
+        var result = await fixture.Run(new GetProjedenKarsilamaKaynaklariQuery { HedefProjeId = 10, KaynakProjeId = 11 });
+        Assert.True(result.IsSuccess);
+        Assert.Equal([(expectedMenu, YetkiTipi.W)], fixture.Roles.Calls);
+    }
+
+    [Theory]
+    [InlineData("3k-modulu", YetkiTipi.R)]
+    [InlineData("grid-modulu", YetkiTipi.W)]
+    public async Task ProjedenKarsilamaKaynaklari_3KYazmaIzniOlmadanAcilmaz(string grantedMenu, YetkiTipi permission)
+    {
+        var fixture = new Fixture(grantedMenu, permission);
+        fixture.Seed(ProjeTipi.Normal);
+        fixture.Uow.Repo<Proje>().Rows.Add(new() { Id = 11, ProjeTipiId = (int)ProjeTipi.Normal });
+        var result = await fixture.Run(new GetProjedenKarsilamaKaynaklariQuery { HedefProjeId = 10, KaynakProjeId = 11 });
+        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(0, fixture.Executed);
+    }
+
+    [Fact]
+    public async Task ProjedenKarsilamaKaynaklari_OlmayanHedefProjeIleAcilmaz()
+    {
+        var fixture = new Fixture("3k-modulu", YetkiTipi.W);
+        fixture.Seed(ProjeTipi.Normal);
+        var result = await fixture.Run(new GetProjedenKarsilamaKaynaklariQuery { HedefProjeId = 99, KaynakProjeId = 10 });
+        Assert.Equal(403, result.StatusCode);
         Assert.Equal(0, fixture.Executed);
     }
 
