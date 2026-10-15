@@ -39,7 +39,8 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             if (string.Equals(eski, yeni, StringComparison.Ordinal))
                 return Basarili(yeni);
 
-            // İzlenen proje doğrudan değiştirilir; sevk edilmiş projede de fotoğraf eklenebildiği için durum kilidi yoktur.
+            // İzlenen proje doğrudan değiştirilir (yalnız bu alan IsModified olur). Sevk edilmiş projede de fotoğraf
+            // eklenebilir: ProjectLockInterceptor yalnız fotoğraf bağlantısının değiştiği güncellemeyi kilitten muaf tutar.
             proje.FotografBaglantisi = yeni;
             await unitOfWork.SaveChangesAsync(cancellationToken);
 

@@ -1,7 +1,7 @@
 # CLAUDE.md — 3K_Proje (Backend)
 
 3K platformunun .NET 10 + PostgreSQL arka ucu. Ön yüz ayrı depodadır: `C:\Users\Watarzie\Desktop\3k_onyuz` (Angular 20).
-Kalıcı mühendislik kurallarının tamamı `3K_Proje-AGENTS.md` dosyasındadır; bu dosya hızlı yön bulma ve çalışma kurallarıdır.
+Bu dosya depodaki kalıcı mühendislik kurallarının tek kaynağıdır.
 İş kuralı değişikliğinden önce `docs/is-kurallari/GRID_3K_IS_KURALLARI.md` ve `docs/is-kurallari/TEST_KAPSAMI.md` okunur.
 
 Kullanıcıyla Türkçe konuşulur. Kod içindeki Türkçe alan adları (`Proje`, `Ceki`, `Sandik`, `Tahsis`, `Sevk`, `Onay`, `Finans`, `Ambalaj`…) korunur; İngilizceye çevrilmez.
@@ -116,6 +116,25 @@ Akış: **Controller → Command/Query → (Authorization → Validation → App
 - pgAdmin kullanıcısına sorgu aracını `3K_Db` düğümünden açmasını söyle (sunucu düğümü varsayılan `postgres` DB'sine bağlanır).
 - Eşleme taşıma/bölme gibi davranış değiştirmemesi gereken refactor'larda `ToDebugString` ve `GenerateCreateScript` çıktısını önce/sonra karşılaştır.
 
+## Korunacak alan kuralları
+
+- Zincir `Proje → Ceki → CekiSatiri` ve `SandikIcerik` tahsis ilişkileri korunur. Barkod satır kimliği değildir; bölünmüş satırda ilgili `SandikIcerikId` ile çalışılır.
+- `IstenenAdet`, `TahsisMiktari` ve `KonulanAdet` ayrı miktarlardır; planlama değişikliği fiziksel teslim üretmez. `EksikMiktar`, `KalanMiktar` ve `GridEksikMiktar` birbirinin yerine kullanılmaz; eski `null` sayaçlar sebepsiz sıfıra çevrilmez. Miktarlar `decimal` kalır.
+- Aktif Grid sevk partisi sayaçları ile kümülatif 3K teslimi ayrıdır; yeni parti önceki fiziksel teslimi veya başka sandığın karşılamasını sıfırlamaz.
+- Sandık kapatma, Grid sevki ve son sevkiyat ayrı olaylardır; kalite durumları, Grid iptal/kapalı durumları, sevk kilidi ve saha kaynak korumaları korunur.
+- Aynı işi yapan tekil, toplu ve eski uçlar birlikte kontrol edilir; birinde düzeltilen kural ötekinde farklı kalmaz.
+- Çeki revizyonu dosya özetini, değişmez önizlemeyi, kaynak/saha bağlarını ve geçmişi korur; geçmiş güncel veriden yeniden kurulmaz.
+- Üretim tamamlandı varsayımıyla finans kaydı oluşturulmaz veya silinmez; uygunluk ve fiyat geçmişi servis politikalarıyla doğrulanır.
+- Sorgular durum değiştirmez; yalnız komutlar değiştirir.
+
+### Onay, tekrar ve eşzamanlılık
+
+- Onay hattı, saklanan komut bütünlüğü, onaylayan izni ve yürütme durumu kontrolleri atlanmaz; istek, karar ve yürütme ayrı olaylardır. Giriş/2FA adımı tam oturumdan ayrıdır; yeni yetkilendirme herkese açık giriş akışını kilitlemez.
+- `xmin` eşzamanlılığı, tekrar anahtarları, benzersiz kısıtlar ve hareket geçmişi korunur: aynı anahtarla aynı istek ikinci kez uygulanmaz, farklı gövdeyle gelirse çakışmadır (409).
+- Dosya ve bildirim yan etkileri transaction sınırına göre (`RegisterAfterCommit`/`RegisterAfterRollback`) çalışır. Kullanıcının verdiği dosya adı güvenilmezdir; dosya sunucunun ürettiği güvenli adla, hedef klasör denetlenerek saklanır.
+- Koda veya log'a gizli değer, bağlantı cümlesi, JWT anahtarı, TOTP sırrı/kurtarma kodu ya da gerçek kullanıcı verisi konmaz. API veya worker'lar test için canlı ayarlarla başlatılmaz; canlı veri değiştirilmez.
+- Rapor değişikliğinde ortak stil, doğru sandık kimliği/adı, doğal numara sırası ve tekil/toplu PDF-Excel çıktılarında aynı içerik korunur; örnek çıktı kontrol edilir.
+
 ## Zaman ve para birimi
 
 - Saklanan/gösterilen işlem ve rapor zamanları `TurkeyTime.Now` (`3K.Core/Helpers/TurkeyTime.cs`). `DateTime.Now` kullanma. JWT/2FA ömürleri ayrı sözleşmedir.
@@ -149,6 +168,7 @@ dotnet test 3K.Application.Tests/3K.Application.Tests.csproj -c Release --filter
 - In-memory testler PostgreSQL transaction/trigger/FK/eşzamanlılık davranışının kanıtı değildir; bu sınırlar değiştiyse izole entegrasyon testi koş, koşamıyorsan açıkça söyle.
 - İş kuralı kapıları için runner: `./scripts/test/Invoke-IsKurallariTests.ps1 -Configuration Release`.
 - Test devre dışı bırakma veya beklentiyi yanlış davranışa uydurma yok. Bilinen önceden var olan hata: `SandikTopluTasimaTests` silinmiş bir betiği arıyor.
+- Hata düzeltmesinde gerçek işlem sırası ve ret durumunda verinin değişmediği sınanır; kural, sahibi olan en alt katmanda test edilir (saf Core politikası veritabanısız, handler orkestrasyonu, veritabanı/HTTP sınırı entegrasyon testiyle).
 
 ## Kod stili ve kurallar
 

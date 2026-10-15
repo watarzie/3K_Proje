@@ -25,6 +25,17 @@ namespace _3K.Infrastructure.Data.Interceptors
             nameof(BaseEntity.UpdatedBy)
         };
 
+        /// <summary>
+        /// Sevk edilmiş (kilitli) projede de yazılabilen proje alanları: fotoğraf sayfası bağlantısı proje tipinden ve
+        /// sevk durumundan bağımsız eklenir, değişir ve kaldırılır. Değişiklik kaydı alanlarını AuditInterceptor önce yazar.
+        /// </summary>
+        private static readonly HashSet<string> LockedProjectWritableProperties = new()
+        {
+            nameof(Proje.FotografBaglantisi),
+            nameof(BaseEntity.UpdatedDate),
+            nameof(BaseEntity.UpdatedBy)
+        };
+
         public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
             DbContextEventData eventData,
             InterceptionResult<int> result,
@@ -43,6 +54,7 @@ namespace _3K.Infrastructure.Data.Interceptors
             var lockableEntries = entries
                 .Where(e => !AuditBypassTypes.Contains(e.Entity.GetType()))
                 .Where(e => !IsSafeSevkiyatDuzeltmeFlagChange(e))
+                .Where(e => !IsSafeProjectPhotoLinkChange(e))
                 .ToList();
 
             if (!lockableEntries.Any()) return await base.SavingChangesAsync(eventData, result, cancellationToken);
@@ -261,6 +273,20 @@ namespace _3K.Infrastructure.Data.Interceptors
 
             return changedProperties.Contains(nameof(Sandik.SevkiyatDuzeltmeAcikMi)) &&
                    changedProperties.All(SevkiyatDuzeltmeBypassProperties.Contains);
+        }
+
+        /// <summary>
+        /// Projede yalnız fotoğaf bağlantısı (ve değişiklik kaydı) değişiyorsa kilit uygulanmaz. Değer karşılaştırması değil
+        /// IsModified kullanılır: kopuk (detached) Update bütün alanları değişmiş işaretler ve böylece güvenli sayılmaz.
+        /// </summary>
+        private static bool IsSafeProjectPhotoLinkChange(EntityEntry entry)
+        {
+            if (entry.Entity is not Proje || entry.State != EntityState.Modified)
+                return false;
+
+            var modified = entry.Properties.Where(p => p.IsModified).Select(p => p.Metadata.Name).ToList();
+            return modified.Contains(nameof(Proje.FotografBaglantisi)) &&
+                   modified.All(LockedProjectWritableProperties.Contains);
         }
 
         private static T? GetPropertyValue<T>(EntityEntry entry, string propertyName, bool useOriginal)

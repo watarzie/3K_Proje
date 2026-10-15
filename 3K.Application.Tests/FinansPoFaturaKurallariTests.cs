@@ -77,7 +77,7 @@ public sealed class FinansPoFaturaKurallariTests
         Assert.Equal(1, bos.FiyatBekleyenKalem);
     }
 
-    /// <summary>SQL karşılanma ifadesi Core kuralıyla aynı sonucu verir (AGENTS.md: kural ve SQL eşdeğerliği sabitlenir).</summary>
+    /// <summary>SQL karşılanma ifadesi Core kuralıyla aynı sonucu verir (CLAUDE.md: kural ve SQL eşdeğerliği sabitlenir).</summary>
     [Theory]
     [InlineData(1000, 0, FinansKarsilanma.Yok)]
     [InlineData(1000, 600, FinansKarsilanma.Kismi)]
