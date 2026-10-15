@@ -33,8 +33,11 @@
 -- adımda hata olursa hiçbir değişiklik kalmaz. Çalıştırmadan önce API'yi durdurun ve yedek alın.
 -- Tekrar çalıştırılabilir: her çalıştırmada tablolar boş ve güncel şemayla yeniden kurulur.
 --
--- Tablo, indeks ve başlangıç verisi tanımları bu betik yazıldığı andaki EF modelinin
--- `dotnet ef dbcontext script` çıktısından alınmıştır; sonraki şema değişiklikleri yeni tarihli betiklerle yapılır.
+-- Tablo, indeks ve başlangıç verisi tanımları EF modelinin `dotnet ef dbcontext script` çıktısından alınmıştır ve
+-- GÜNCEL modeli kurar: sonradan gelen 20261008_02 (ahşap/kontra m³) ve 20261013_01 (malzemeli tarife) kolonları da
+-- buraya işlendi; sıfırlamadan sonra ek betik gerekmez (çalıştırılırlarsa hiçbir şey değiştirmezler). Finans/Ambalaj
+-- tablolarına yeni şema betiği eklenince bu betik de güncellenir; CanliyaAlimBetikleriTests sıfırlama sonrası şemayı
+-- EF modeliyle karşılaştırır.
 -- SET uc_k.finans_ambalaj_sifirla = '3K_Db';
 -- =====================================================================================
 BEGIN;
@@ -349,6 +352,7 @@ CREATE TABLE "FinansUrunEslesmeleri" (
     "En" numeric(18,4),
     "Yukseklik" numeric(18,4),
     "IcSandikSablonId" integer,
+    "Malzeme" integer,
     "Aktif" boolean NOT NULL DEFAULT TRUE,
     "CreatedDate" timestamp without time zone NOT NULL,
     "UpdatedDate" timestamp without time zone,
@@ -610,9 +614,15 @@ CREATE TABLE "FinansIsKayitlari" (
     "Birim" character varying(30) NOT NULL,
     "BirimM3" numeric(18,6) NOT NULL,
     "ToplamM3" numeric(18,6) NOT NULL,
+    "AhsapM3" numeric(18,6),
+    "KontraM3" numeric(18,6),
+    "HacimManuel" boolean NOT NULL DEFAULT FALSE,
     "FinansUrunId" integer,
     "FiyatlandirmaBirimiSnapshot" integer NOT NULL,
     "BirimFiyatSnapshot" numeric(18,6) NOT NULL,
+    "AhsapFinansUrunId" integer,
+    "AhsapBirimFiyatSnapshot" numeric(18,6),
+    "AhsapTarifeIdSnapshot" integer,
     "ParaBirimiSnapshot" character varying(3) NOT NULL,
     "KdvOraniSnapshot" numeric(7,4) NOT NULL,
     "TarifeYiliSnapshot" integer,
@@ -641,9 +651,11 @@ CREATE TABLE "FinansIsKayitlari" (
     "UpdatedBy" text,
     CONSTRAINT "PK_FinansIsKayitlari" PRIMARY KEY ("Id"),
     CONSTRAINT "CK_FinansIsKayitlari_Fiyat" CHECK ("BirimFiyatSnapshot" >= 0 AND "KdvOraniSnapshot" >= 0 AND "KdvOraniSnapshot" <= 100),
-    CONSTRAINT "CK_FinansIsKayitlari_Miktarlar" CHECK ("Adet" > 0 AND "BirimM3" >= 0 AND "ToplamM3" >= 0),
+    CONSTRAINT "CK_FinansIsKayitlari_AhsapFiyat" CHECK ("AhsapBirimFiyatSnapshot" IS NULL OR "AhsapBirimFiyatSnapshot" >= 0),
+    CONSTRAINT "CK_FinansIsKayitlari_Miktarlar" CHECK ("Adet" > 0 AND "BirimM3" >= 0 AND "ToplamM3" >= 0 AND "AhsapM3" >= 0 AND "KontraM3" >= 0),
     CONSTRAINT "CK_FinansIsKayitlari_Proje" CHECK ("ProjeId" IS NOT NULL OR NULLIF(BTRIM("ProjeNo"), '') IS NOT NULL),
     CONSTRAINT "FK_FinansIsKayitlari_FinansDuzenliIsleri_DuzenliIsId" FOREIGN KEY ("DuzenliIsId") REFERENCES "FinansDuzenliIsleri" ("Id") ON DELETE SET NULL,
+    CONSTRAINT "FK_FinansIsKayitlari_FinansUrunleri_AhsapFinansUrunId" FOREIGN KEY ("AhsapFinansUrunId") REFERENCES "FinansUrunleri" ("Id") ON DELETE RESTRICT,
     CONSTRAINT "FK_FinansIsKayitlari_FinansUrunleri_FinansUrunId" FOREIGN KEY ("FinansUrunId") REFERENCES "FinansUrunleri" ("Id") ON DELETE RESTRICT,
     CONSTRAINT "FK_FinansIsKayitlari_Projeler_ProjeId" FOREIGN KEY ("ProjeId") REFERENCES "Projeler" ("Id") ON DELETE RESTRICT
 );
@@ -753,6 +765,8 @@ CREATE INDEX "IX_FinansGiderleri_FinansGiderKategoriId_FinansGiderKalemiId" ON "
 CREATE INDEX "IX_FinansGiderleri_FinansSiparisId" ON "FinansGiderleri" ("FinansSiparisId");
 CREATE INDEX "IX_FinansGiderleri_MahsupEdilenAvansId" ON "FinansGiderleri" ("MahsupEdilenAvansId");
 CREATE INDEX "IX_FinansGiderleri_ProjeId" ON "FinansGiderleri" ("ProjeId");
+CREATE INDEX "IX_FinansIsKayitlari_AhsapFinansUrunId" ON "FinansIsKayitlari" ("AhsapFinansUrunId");
+CREATE INDEX "IX_FinansIsKayitlari_AhsapTarifeIdSnapshot" ON "FinansIsKayitlari" ("AhsapTarifeIdSnapshot");
 CREATE INDEX "IX_FinansIsKayitlari_Durum_IptalEdildi_KaynakAktif" ON "FinansIsKayitlari" ("Durum", "IptalEdildi", "KaynakAktif");
 CREATE INDEX "IX_FinansIsKayitlari_DuzenliIsId" ON "FinansIsKayitlari" ("DuzenliIsId");
 CREATE INDEX "IX_FinansIsKayitlari_FinansUrunId" ON "FinansIsKayitlari" ("FinansUrunId");

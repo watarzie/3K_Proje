@@ -154,12 +154,13 @@ public sealed class CanliyaAlimBetikleriTests
     }
 
     /// <summary>
-    /// Sıfırlama (20260929_01) Finans/Ambalaj tablolarını yazıldığı andaki modelle kurar: sonraki kolonlar (ahşap/kontra m³,
-    /// malzemeli tarife) yoktur. Ardından 10 ve 14 numaralı betikler (20261008_02, 20261013_01) çalıştırılınca şema EF
-    /// modeliyle aynıdır. Başka tablodan Finans/Ambalaj'a yabancı anahtar olmadığı için sıfırlama durmadan çalışır.
+    /// Sıfırlama (20260929_01) Finans/Ambalaj tablolarını GÜNCEL EF modeliyle kurar: tek başına çalıştırıldığında şema
+    /// modelle aynıdır (canlıda sıfırlamadan sonra eksik kolon hatası olmaz). Sonradan 10 ve 14 numaralı betikler
+    /// (20261008_02, 20261013_01) çalıştırılsa da şema değişmez. Finans/Ambalaj'a yeni kolon eklenip sıfırlama betiği
+    /// güncellenmezse bu test kırılır. Başka tablodan Finans/Ambalaj'a yabancı anahtar olmadığı için sıfırlama durmaz.
     /// </summary>
     [PostgresRaporFact, Trait("Category", "Postgres")]
-    public async Task Postgres_SifirlamaSonrasi_HacimVeMalzemeliTarifeBetikleriSemayiModeleGetirir()
+    public async Task Postgres_Sifirlama_TekBasinaSemayiModeleGetirir_SonrakiBetiklerDegistirmez()
     {
         await FinansPostgresTests.InDatabase(async options =>
         {
@@ -170,14 +171,13 @@ public sealed class CanliyaAlimBetikleriTests
                 db.Database.GetDbConnection().Database);
 
             await CalistirAsync(db, "20260929_01_Finans_Ambalaj_Sifirlama.sql");
-            var sifirlanmis = await SemaAsync(db);
-            Assert.Contains(modelSemasi, x => x.Contains("FinansIsKayitlari.AhsapM3") && !sifirlanmis.Contains(x));
-
-            await CalistirAsync(db, "20261008_02_Finans_Ahsap_Kontra_Hacim.sql");
-            await CalistirAsync(db, "20261013_01_Finans_Malzemeli_Tarife.sql");
             var sema = await SemaAsync(db);
             var fark = modelSemasi.Except(sema).Select(x => "eksik: " + x).Concat(sema.Except(modelSemasi).Select(x => "fazla: " + x)).ToList();
             Assert.True(fark.Count == 0, string.Join(Environment.NewLine, fark));
+
+            await CalistirAsync(db, "20261008_02_Finans_Ahsap_Kontra_Hacim.sql");
+            await CalistirAsync(db, "20261013_01_Finans_Malzemeli_Tarife.sql");
+            Assert.Equal(sema, await SemaAsync(db));
         });
     }
 
