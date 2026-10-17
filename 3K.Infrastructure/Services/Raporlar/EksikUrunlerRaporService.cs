@@ -6,6 +6,7 @@ using _3K.Core.Helpers;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 using _3K.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using _3K.Core.Common;
@@ -85,6 +86,12 @@ internal sealed class EksikUrunlerRaporService(AppDbContext context) : IEksikUru
         var summaryAccentColor = sahaEksikRaporuMu ? "#1565C0" : dangerColor;
         var (projedenAlinanMap, projeyeVerilenMap) = await GetProjeTransferRaporMapleriAsync(raporSatirlari, cancellationToken);
         var (kaynakProjeMap, hedefSahaMap) = await GetSahaAktarimRaporMapleriAsync(raporSatirlari, cancellationToken);
+        // R-07: SEVK ürünün fiziksel sevkidir (kendi ve saha tarafında sevkli sandığa fiilen konan adet; trafoyla
+        // kapanan ayrı); kalan/3K durumu iş tamamlanmasını gösterir.
+        var sahaAktarimlari = await context.GetSahaAktarimParcalariAsync(raporSatirlari, cancellationToken);
+        UrunSevkSonucu? GetSevkDurumu(CekiSatiri cs) =>
+            UrunSevkDurumuKurali.Belirle(cs, proje.Id, sahaAktarimlari.GetValueOrDefault(cs.Id));
+        var sevkOzeti = UrunSevkDurumuKurali.OzetMetni(raporSatirlari.Select(GetSevkDurumu));
 
         var document = Document.Create(container =>
         {
@@ -140,6 +147,7 @@ internal sealed class EksikUrunlerRaporService(AppDbContext context) : IEksikUru
                                 col.Item().Text($"Eksik: {toplamEksikUrun} / Tamamlanan: {toplamTamamlananUrun}").FontSize(8);
                             col.Item().Text($"Toplam Kalan: {RaporBicimleri.FormatAdet(toplamKalanAdet)} adet").FontSize(8);
                             col.Item().Text($"Karşılama Oranı: %{RaporBicimleri.FormatAdet(toplamIstenenAdet > 0 ? (toplamGelenAdet * 100 / toplamIstenenAdet) : 0)}").FontSize(8);
+                            col.Item().Text($"Sevk (satır): {sevkOzeti}").FontSize(8);
                         });
                     });
 
@@ -157,15 +165,17 @@ internal sealed class EksikUrunlerRaporService(AppDbContext context) : IEksikUru
                         columns.ConstantColumn(42);   // Poz No
                         columns.RelativeColumn(2.1f); // Açıklama
                         columns.RelativeColumn(1.45f); // Sandık no ve adı
+                        // SEVK sütunu için sayı/proje sütunları daraltıldı; metin sütunları önceki genişliğini korur.
                         columns.ConstantColumn(42);   // İstenen
-                        columns.ConstantColumn(46);   // 3K Gelen
-                        columns.ConstantColumn(46);   // Karşılanan
-                        columns.ConstantColumn(46);   // Geri Gönd.
-                        columns.ConstantColumn(55);   // Kaynak Proje
-                        columns.ConstantColumn(55);   // Hedef Saha
-                        columns.ConstantColumn(52);   // Prj. Alındı
-                        columns.ConstantColumn(52);   // Prj. Verildi
+                        columns.ConstantColumn(42);   // 3K Gelen
+                        columns.ConstantColumn(40);   // Karşılanan
+                        columns.ConstantColumn(42);   // Geri Gönd.
+                        columns.ConstantColumn(45);   // Kaynak Proje
+                        columns.ConstantColumn(45);   // Hedef Saha
+                        columns.ConstantColumn(46);   // Prj. Alındı
+                        columns.ConstantColumn(46);   // Prj. Verildi
                         columns.ConstantColumn(42);   // Kalan
+                        columns.ConstantColumn(44);   // Sevk
                         columns.RelativeColumn(1.35f); // 3K Durum
                         columns.RelativeColumn(1);    // Sürec
                         columns.RelativeColumn(1.7f); // Grid / 3K açıklamaları
@@ -199,6 +209,7 @@ internal sealed class EksikUrunlerRaporService(AppDbContext context) : IEksikUru
                         BiHeader(header.Cell(), "PRJ. ALINDI", "From Prj.");
                         BiHeader(header.Cell(), "PRJ. VERİLDİ", "Given to Prj.");
                         BiHeader(header.Cell(), "KALAN", "Remaining");
+                        BiHeader(header.Cell(), "SEVK", "Shipment");
                         BiHeader(header.Cell(), "3K DURUM", "3K Status");
                         BiHeader(header.Cell(), "SÜREÇ", "Process");
                         BiHeader(header.Cell(), "AÇIKLAMALAR", "Grid / 3K Notes");
@@ -243,6 +254,8 @@ internal sealed class EksikUrunlerRaporService(AppDbContext context) : IEksikUru
                         DataCell(table.Cell(), projedenAlindi, fontColor: projedenAlindi != "-" ? "#2E7D32" : null);
                         DataCell(table.Cell(), projeyeVerildi, fontColor: projeyeVerildi != "-" ? "#1565C0" : null);
                         DataCell(table.Cell(), RaporBicimleri.FormatAdet(kalan), bold: true, fontColor: kalan > 0 ? dangerColor : "#2E7D32");
+                        var sevk = GetSevkDurumu(cs);
+                        DataCell(table.Cell(), RaporBicimleri.SevkMetni(sevk), bold: true, fontColor: RaporBicimleri.SevkRengi(sevk?.Durum));
                         DataCell(table.Cell(), ucKDurum, fontColor: cs.UcKKarsilamaTipiId == (int)_3K.Core.Enums.UcKDurum.Bekliyor ? dangerColor : warningColor);
                         DataCell(table.Cell(), cs.SurecDurumLookup?.Deger ?? "-");
                         DataCell(table.Cell(), RaporBicimleri.GetRaporAciklama(cs));
@@ -319,10 +332,14 @@ internal sealed class EksikUrunlerRaporService(AppDbContext context) : IEksikUru
         var (projedenAlinanMap, projeyeVerilenMap) = await GetProjeTransferRaporMapleriAsync(raporSatirlari, cancellationToken);
         var (kaynakProjeMap, hedefSahaMap) = await GetSahaAktarimRaporMapleriAsync(raporSatirlari, cancellationToken);
         var raporBasligi = sahaEksikRaporuMu ? "Sevk Sonrası Eksik Raporu" : "Eksik Ürünler Raporu";
+        var sahaAktarimlari = await context.GetSahaAktarimParcalariAsync(raporSatirlari, cancellationToken);
+        UrunSevkSonucu? GetSevkDurumu(CekiSatiri cs) =>
+            UrunSevkDurumuKurali.Belirle(cs, proje.Id, sahaAktarimlari.GetValueOrDefault(cs.Id));
+        var sevkOzeti = UrunSevkDurumuKurali.OzetMetni(raporSatirlari.Select(GetSevkDurumu));
 
         using var workbook = new XLWorkbook();
         var worksheet = workbook.Worksheets.Add(sahaEksikRaporuMu ? "Sevk Sonrasi Eksik" : "Eksik Raporu");
-        const int lastColumn = 18;
+        const int lastColumn = 19;
         const int headerRow = 6;
 
         worksheet.Cell(1, 1).Value = raporBasligi;
@@ -355,13 +372,15 @@ internal sealed class EksikUrunlerRaporService(AppDbContext context) : IEksikUru
             worksheet.Cell(3, 8).Value = "Karşılama Oranı";
             worksheet.Cell(3, 9).Value = $"%{RaporBicimleri.FormatAdet(karsilamaOrani)}";
         }
+        worksheet.Cell(3, 14).Value = "Sevk (satır)";
+        worksheet.Cell(3, 15).Value = sevkOzeti;
         RaporExcelStilleri.StyleExcelInfoRows(worksheet, lastColumn);
 
         var headers = new[]
         {
             "#", "Sıra", "Barkod No", "Poz No", "Ürün Açıklaması", "Sandık",
             "İstenen", "3K Gelen", "Karşılanan", "Geri Gön.", "Kaynak Proje",
-            "Hedef Saha", "Prj. Alındı", "Prj. Verildi", "Kalan", "3K Durum",
+            "Hedef Saha", "Prj. Alındı", "Prj. Verildi", "Kalan", "Sevk", "3K Durum",
             "Süreç", "Grid / 3K Açıklamaları"
         };
 
@@ -400,9 +419,11 @@ internal sealed class EksikUrunlerRaporService(AppDbContext context) : IEksikUru
             RaporExcelStilleri.SetDecimalCell(worksheet.Cell(row, 15), kalan);
             worksheet.Cell(row, 15).Style.Font.Bold = true;
             worksheet.Cell(row, 15).Style.Font.FontColor = XLColor.FromHtml(kalan > 0 ? "#D32F2F" : "#2E7D32");
-            worksheet.Cell(row, 16).Value = cs.UcKDurumLookup?.Deger ?? "-";
-            worksheet.Cell(row, 17).Value = cs.SurecDurumLookup?.Deger ?? "-";
-            worksheet.Cell(row, 18).Value = RaporBicimleri.GetRaporAciklama(cs);
+            var sevk = GetSevkDurumu(cs);
+            RaporExcelStilleri.SetSevkCell(worksheet.Cell(row, 16), RaporBicimleri.SevkMetni(sevk), sevk?.Durum);
+            worksheet.Cell(row, 17).Value = cs.UcKDurumLookup?.Deger ?? "-";
+            worksheet.Cell(row, 18).Value = cs.SurecDurumLookup?.Deger ?? "-";
+            worksheet.Cell(row, 19).Value = RaporBicimleri.GetRaporAciklama(cs);
 
             if (sira % 2 == 0)
                 worksheet.Range(row, 1, row, lastColumn).Style.Fill.BackgroundColor = XLColor.FromHtml("#F8FAFE");
@@ -413,7 +434,7 @@ internal sealed class EksikUrunlerRaporService(AppDbContext context) : IEksikUru
 
         worksheet.Column(5).Style.Alignment.WrapText = true;
         worksheet.Column(6).Style.Alignment.WrapText = true;
-        worksheet.Column(18).Style.Alignment.WrapText = true;
+        worksheet.Column(19).Style.Alignment.WrapText = true;
         RaporExcelStilleri.FinalizeExcelWorksheet(worksheet, headerRow, Math.Max(row - 1, headerRow), lastColumn);
 
         using var stream = new MemoryStream();

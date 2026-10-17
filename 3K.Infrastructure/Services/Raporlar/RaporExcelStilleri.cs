@@ -1,4 +1,5 @@
 using ClosedXML.Excel;
+using _3K.Core.Enums;
 
 namespace _3K.Infrastructure.Services.Raporlar;
 
@@ -9,6 +10,14 @@ internal static class RaporExcelStilleri
     {
         cell.SetValue(value);
         cell.Style.NumberFormat.Format = decimal.Truncate(value) == value ? "0" : "0.####";
+    }
+
+    /// <summary>SEVK hücresi: metin kalın ve sevk durumunun rengiyle yazılır (PDF ile aynı).</summary>
+    internal static void SetSevkCell(IXLCell cell, string metin, UrunSevkDurumu? durum)
+    {
+        cell.Value = metin;
+        cell.Style.Font.Bold = true;
+        cell.Style.Font.FontColor = XLColor.FromHtml(RaporBicimleri.SevkRengi(durum));
     }
 
     internal static void StyleExcelInfoRows(IXLWorksheet worksheet, int lastColumn)

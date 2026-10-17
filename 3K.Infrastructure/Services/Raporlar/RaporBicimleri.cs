@@ -1,4 +1,6 @@
 using _3K.Core.Entities;
+using _3K.Core.Enums;
+using _3K.Core.Models;
 
 namespace _3K.Infrastructure.Services.Raporlar;
 
@@ -19,6 +21,26 @@ internal static class RaporBicimleri
         string.IsNullOrWhiteSpace(sandik.Ad) && string.IsNullOrWhiteSpace(sandik.AdIngilizce)
             ? "-"
             : $"{RaporMetni(sandik.Ad)} / {RaporMetni(sandik.AdIngilizce)}";
+
+    /// <summary>SEVK sütununun yazı rengi: sevk edildi yeşil, kısmi turuncu, sevk edilmedi kırmızı, trafoyla mavi.</summary>
+    internal static string SevkRengi(UrunSevkDurumu? durum) => durum switch
+    {
+        UrunSevkDurumu.SevkEdildi => "#2E7D32",
+        UrunSevkDurumu.KismiSevk => "#F57C00",
+        UrunSevkDurumu.SevkEdilmedi => "#D32F2F",
+        UrunSevkDurumu.Trafoyla => "#1565C0",
+        _ => "#000000"
+    };
+
+    /// <summary>SEVK sütunu metni; kısmi sevkte sevk edilen/istenen adet yazılır ("Kısmi Sevk (3/5)").</summary>
+    internal static string SevkMetni(UrunSevkSonucu? sonuc) =>
+        sonuc is { Durum: UrunSevkDurumu.KismiSevk } kismi
+            ? $"{UrunSevkDurumuKurali.Etiket(kismi.Durum)} ({FormatAdet(kismi.SevkEdilen)}/{FormatAdet(kismi.Beklenen)})"
+            : UrunSevkDurumuKurali.Etiket(sonuc?.Durum);
+
+    /// <summary>Sandığın son sevkiyat tarihi; sevkiyat kaydı yoksa "-".</summary>
+    internal static string SevkTarihiMetni(IReadOnlyDictionary<int, DateTime> sandikSevkTarihleri, int sandikId) =>
+        sandikSevkTarihleri.TryGetValue(sandikId, out var tarih) ? tarih.ToString("dd.MM.yyyy") : "-";
 
     internal static string GetRaporAciklama(CekiSatiri satir)
     {
