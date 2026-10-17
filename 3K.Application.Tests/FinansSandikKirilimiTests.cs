@@ -102,6 +102,7 @@ public sealed class FinansSandikKirilimiTests
         await FinansPostgresTests.InDatabase(async options =>
         {
             await using var db = new AppDbContext(options);
+            await FinansPostgresTests.PoOnayiniKapatAsync(db);
             var kaynak10 = Guid.NewGuid().ToString("D");
             var kaynak2 = Guid.NewGuid().ToString("D");
             var net10 = Sandik("10", 2m, kaynak10);

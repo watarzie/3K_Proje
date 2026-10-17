@@ -153,6 +153,7 @@ namespace _3K.Application.Features.OnayIslemleri.Queries
         private readonly ICurrentUserService _currentUserService;
         private readonly IOnayYetkiService _onayYetkiService;
         private readonly IRolService _rolService;
+        private readonly IFinansPoOnayService _finansPoOnay;
         private readonly ILogger<GetOnayGecmisiDetayiQueryHandler> _logger;
 
         public GetOnayGecmisiDetayiQueryHandler(
@@ -160,12 +161,14 @@ namespace _3K.Application.Features.OnayIslemleri.Queries
             ICurrentUserService currentUserService,
             IOnayYetkiService onayYetkiService,
             IRolService rolService,
+            IFinansPoOnayService finansPoOnay,
             ILogger<GetOnayGecmisiDetayiQueryHandler> logger)
         {
             _onayRepository = onayRepository;
             _currentUserService = currentUserService;
             _onayYetkiService = onayYetkiService;
             _rolService = rolService;
+            _finansPoOnay = finansPoOnay;
             _logger = logger;
         }
 
@@ -197,6 +200,28 @@ namespace _3K.Application.Features.OnayIslemleri.Queries
                 return Result<OnayGecmisiKayitDto>.Failure("Onay kaydı bulunamadı.", 404);
 
             var dto = kayit.ToDto();
+            if (kayit.IslemKodu == OnayIslemKodlari.FinansPoIsOnayi &&
+                kayit.ReferansTipi == OnayReferansTipleri.FinansPoOnayTalebi &&
+                kayit.ReferansId.HasValue)
+            {
+                // Onaycı Finans sekmesi izni olmadan da onayladığı kalemlerin tutarını ve ölçüsünü görür.
+                var finansDetayi = await _finansPoOnay.TalepDetayiAsync(
+                    kayit.ReferansId.Value,
+                    kayit.TalepEdenKullaniciId,
+                    kayit.ProjeId,
+                    cancellationToken);
+                if (finansDetayi == null)
+                {
+                    _logger.LogError(
+                        "PO onay talebi {TalepId} görüntüsü bütünlük doğrulamasından geçemedi.",
+                        kayit.ReferansId.Value);
+                    return Result<OnayGecmisiKayitDto>.Failure("PO onay talebinin görüntüsü okunamadı.", 500);
+                }
+
+                dto.FinansPoOnayDetayi = finansDetayi;
+                return Result<OnayGecmisiKayitDto>.Success(dto);
+            }
+
             if (kayit.IslemKodu != OnayIslemKodlari.CekiRevizyonuUygula ||
                 kayit.ReferansTipi != OnayReferansTipleri.CekiRevizyonTalebi ||
                 !kayit.ReferansId.HasValue)

@@ -92,6 +92,7 @@ public static class DependencyInjection
         services.AddScoped<FinansIslemYurutucu>();
         services.AddScoped<FinansDenetimKaydi>();
         services.AddScoped<FinansFiyatBelirleyici>();
+        services.AddScoped<FinansPoOnayOkuyucu>();
 
         services.AddScoped<IFinansPanelService, FinansPanelService>();
         services.AddScoped<IFinansIsKaydiService, FinansIsKaydiService>();
@@ -107,6 +108,7 @@ public static class DependencyInjection
         services.AddScoped<IFinansRaporVerisiService, FinansRaporVerisiService>();
         services.AddScoped<IFinansUretimAktarimService, FinansUretimAktarimService>();
         services.AddScoped<IFinansRaporService, FinansRaporService>();
+        services.AddScoped<IFinansPoOnayService, FinansPoOnayService>();
         return services;
     }
 

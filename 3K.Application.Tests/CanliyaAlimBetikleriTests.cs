@@ -8,7 +8,7 @@ using _3K.Infrastructure.Data;
 namespace _3K.Application.Tests;
 
 /// <summary>
-/// Canlıya alım provası: bu sürümün veritabanı betikleri (README sıra 9–18) önceki sürümün şemasında ve eski Finans yetki
+/// Canlıya alım provası: bu sürümün veritabanı betikleri (README sıra 9–18 ve 20) önceki sürümün şemasında ve eski Finans yetki
 /// ağacında ad sırasıyla çalıştırılır. Sonuç şeması EF modeliyle aynıdır, Finans yalnız sekme/alt sekme düğümlerinde
 /// kalır. Betiklerin hepsi (onay ayarı oturumda açık kalsa da) tekrar çalıştırılınca hiçbir şey değişmez: yöneticinin
 /// sonradan kaldırdığı veya düşürdüğü izinler geri verilmez, yeni düğümler silinmez. Salt okunur durum sorgusu
@@ -16,7 +16,7 @@ namespace _3K.Application.Tests;
 /// </summary>
 public sealed class CanliyaAlimBetikleriTests
 {
-    /// <summary>Canlıda çalıştırma sırası (scripts/database/README.md, sıra 9–18).</summary>
+    /// <summary>Canlıda çalıştırma sırası (scripts/database/README.md, sıra 9–18 ve 20; 19 veri onarımıdır).</summary>
     private static readonly string[] Betikler =
     [
         "20261008_01_SandikIcerik_UrunBilgisi.sql",
@@ -29,11 +29,15 @@ public sealed class CanliyaAlimBetikleriTests
         "20261013_03_Finans_Alt_Sekme_Yetkileri.sql",
         "20261014_01_Proje_Fotograf_Baglantisi.sql",
         "20261014_02_Proje_Fotograf_Baglantisi_Projeler_Altina.sql",
+        "20261017_01_Finans_Po_Is_Onayi.sql",
     ];
     private const string YetkiGecisi = "20261013_02_Finans_Sekme_Yetkisine_Gecis.sql";
 
     /// <summary>Önceki sürümün (master) şeması: bu sürümün eklediği tablo, kolon, kısıt ve indeksler yoktur.</summary>
     private const string OncekiSema = """
+        ALTER TABLE "FinansIsKayitlari" DROP COLUMN "PoOnayTalebiId", DROP COLUMN "PoOnayNetTutar",
+            DROP COLUMN "PoOnayParaBirimi", DROP COLUMN "PoOnayTarihi", DROP COLUMN "PoOnaylayanKullaniciId";
+        DROP TABLE "FinansPoOnayTalepleri";
         ALTER TABLE "Sevkiyatlar" DROP COLUMN "SevkSeferiId";
         DROP TABLE "SevkSeferleri";
         ALTER TABLE "SandikIcerikleri" DROP COLUMN "UrunBilgisi";
@@ -128,6 +132,9 @@ public sealed class CanliyaAlimBetikleriTests
             Assert.Contains($"14 5246 {(int)YetkiTipi.R}", izinler);
             Assert.Contains($"{SistemRolleri.AdminId} 5256 {(int)YetkiTipi.W}", izinler);
             Assert.Contains($"14 {FinansSekmeAgaci.SekmeId(YetkiKodlari.Finans.SekmePoFatura)} {(int)YetkiTipi.W}", izinler);
+            // PO öncesi iş onayı kuralı açık eklendi, ilk onaycı rol Admin.
+            Assert.Equal(["FINANS_PO_IS_ONAYI True"], await PoOnayKuraliAsync(db));
+            Assert.Equal([SistemRolleri.AdminId], await PoOnayRolleriAsync(db));
 
             // Yönetici rol ekranında izin kaldırdı (N = satır yok) veya düşürdü; betiklerin tekrarı bunları geri vermez.
             int Id(string kod) => menuler.Single(x => x.Kod == kod).Id;
@@ -143,20 +150,26 @@ public sealed class CanliyaAlimBetikleriTests
                 .ExecuteDeleteAsync();
             await db.RolYetkileri.Where(x => x.RolId == SistemRolleri.AdminId && x.MenuTanimiId == panel)
                 .ExecuteUpdateAsync(x => x.SetProperty(r => r.YetkiTipiId, (int)YetkiTipi.R));
+            // Onay Merkezi'nde PO öncesi iş onayı kapatıldı ve Admin onaycı rollerden çıkarıldı.
+            await db.Set<OnayOperasyonKurali>().Where(x => x.IslemKodu == OnayIslemKodlari.FinansPoIsOnayi)
+                .ExecuteUpdateAsync(x => x.SetProperty(r => r.OnayGerektirirMi, false));
+            await db.Set<OnayIslemYetki>().Where(x => x.IslemKodu == OnayIslemKodlari.FinansPoIsOnayi).ExecuteDeleteAsync();
             var kararlar = await DurumAsync(db);
 
             foreach (var betik in Betikler)
                 await CalistirAsync(db, betik);
 
             AyniDurum(kararlar, await DurumAsync(db));
+            Assert.Equal(["FINANS_PO_IS_ONAYI False"], await PoOnayKuraliAsync(db));
+            Assert.Empty(await PoOnayRolleriAsync(db));
             Assert.Equal(sema, await SemaAsync(db));
         });
     }
 
     /// <summary>
     /// Sıfırlama (20260929_01) Finans/Ambalaj tablolarını GÜNCEL EF modeliyle kurar: tek başına çalıştırıldığında şema
-    /// modelle aynıdır (canlıda sıfırlamadan sonra eksik kolon hatası olmaz). Sonradan 10 ve 14 numaralı betikler
-    /// (20261008_02, 20261013_01) çalıştırılsa da şema değişmez. Finans/Ambalaj'a yeni kolon eklenip sıfırlama betiği
+    /// modelle aynıdır (canlıda sıfırlamadan sonra eksik kolon hatası olmaz). Sonradan 10, 14 ve 20 numaralı betikler
+    /// (20261008_02, 20261013_01, 20261017_01) çalıştırılsa da şema değişmez. Finans/Ambalaj'a yeni kolon eklenip sıfırlama betiği
     /// güncellenmezse bu test kırılır. Başka tablodan Finans/Ambalaj'a yabancı anahtar olmadığı için sıfırlama durmaz.
     /// </summary>
     [PostgresRaporFact, Trait("Category", "Postgres")]
@@ -177,6 +190,7 @@ public sealed class CanliyaAlimBetikleriTests
 
             await CalistirAsync(db, "20261008_02_Finans_Ahsap_Kontra_Hacim.sql");
             await CalistirAsync(db, "20261013_01_Finans_Malzemeli_Tarife.sql");
+            await CalistirAsync(db, "20261017_01_Finans_Po_Is_Onayi.sql");
             Assert.Equal(sema, await SemaAsync(db));
         });
     }
@@ -222,6 +236,15 @@ public sealed class CanliyaAlimBetikleriTests
                 .Select(x => new { x.Id, x.Kod, x.ParentId, x.Sira, x.Icon, x.Route, x.LabelKey }).ToListAsync())
             .Select(x => $"{x.Id} {x.Kod} {x.ParentId} {x.Sira} {x.Icon} {x.Route} {x.LabelKey}").ToList(),
          await IzinlerAsync(db));
+
+    private static async Task<List<string>> PoOnayKuraliAsync(AppDbContext db) =>
+        (await db.Set<OnayOperasyonKurali>().AsNoTracking().Where(x => x.IslemKodu == OnayIslemKodlari.FinansPoIsOnayi)
+            .Select(x => new { x.IslemKodu, x.OnayGerektirirMi }).ToListAsync())
+            .Select(x => $"{x.IslemKodu} {x.OnayGerektirirMi}").ToList();
+
+    private static async Task<List<int>> PoOnayRolleriAsync(AppDbContext db) =>
+        await db.Set<OnayIslemYetki>().AsNoTracking().Where(x => x.IslemKodu == OnayIslemKodlari.FinansPoIsOnayi)
+            .OrderBy(x => x.RolId).Select(x => x.RolId).ToListAsync();
 
     private static async Task<List<string>> IzinlerAsync(AppDbContext db) =>
         (await db.RolYetkileri.AsNoTracking().OrderBy(x => x.RolId).ThenBy(x => x.MenuTanimiId)

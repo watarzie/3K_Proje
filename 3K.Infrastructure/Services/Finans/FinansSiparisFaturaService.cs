@@ -13,7 +13,8 @@ namespace _3K.Infrastructure.Services.Finans;
 internal sealed class FinansSiparisFaturaService(
     AppDbContext context,
     FinansIslemYurutucu islem,
-    FinansDenetimKaydi denetim) : IFinansSiparisFaturaService
+    FinansDenetimKaydi denetim,
+    FinansPoOnayOkuyucu poOnay) : IFinansSiparisFaturaService
 {
     public async Task<FinansSayfaliSonuc<FinansSiparisModel>> SiparislerAsync(
         FinansListeFiltre filtre,
@@ -112,7 +113,11 @@ internal sealed class FinansSiparisFaturaService(
         if (await query.CountAsync(cancellationToken) > FinansSorgulari.RaporKayitSiniri)
             throw IsKuraliException.Cakisma("Seçim 20.000 işi aşıyor; dönem, kategori veya proje filtresini daraltın.");
 
-        var groups = SiparisGruplariniOlustur(await query.ToListAsync(cancellationToken));
+        var works = await query.ToListAsync(cancellationToken);
+        var groups = SiparisGruplariniOlustur(
+            works,
+            await poOnay.BilgileriGetirAsync(works, cancellationToken),
+            await poOnay.KuralAcikMiAsync(cancellationToken));
         var (page, size, skip) = FinansSorgulari.NormalizePagination(filtre.PageNumber, filtre.PageSize, groups.Count, 100);
         return new FinansSayfaliSonuc<FinansSiparisGrubuModel>
         {
@@ -126,10 +131,28 @@ internal sealed class FinansSiparisFaturaService(
         };
     }
 
-    /// <summary>İşleri PO seçicisi gruplarına ayırır; grup durumu <see cref="FinansTutarKurallari.BirlesikDurum"/> ile türetilir.</summary>
-    internal static IReadOnlyList<FinansSiparisGrubuModel> SiparisGruplariniOlustur(IEnumerable<FinansIsKaydi> works)
-        => works
-            .GroupBy(SiparisGrupAnahtari)
+    /// <summary>
+    /// İşleri PO seçicisi gruplarına ayırır; grup durumu <see cref="FinansTutarKurallari.BirlesikDurum"/> ile türetilir.
+    /// PO öncesi onay kuralı açıkken onay kapsamındaki kalemler onay durumuna göre ayrı gruplara ayrılır.
+    /// </summary>
+    internal static IReadOnlyList<FinansSiparisGrubuModel> SiparisGruplariniOlustur(
+        IEnumerable<FinansIsKaydi> works,
+        IReadOnlyDictionary<int, FinansPoOnayBilgisi>? poOnay = null,
+        bool poOnayKuralAcik = false)
+    {
+        FinansPoOnayBilgisi OnayBilgisi(FinansIsKaydi work)
+            => poOnay?.GetValueOrDefault(work.Id) ?? new FinansPoOnayBilgisi(FinansPoOnayDurumu.Gerekmiyor, null, null);
+
+        string GrupAnahtari(FinansIsKaydi work)
+        {
+            var onayDurumu = OnayBilgisi(work).Durum;
+            return poOnayKuralAcik && onayDurumu != FinansPoOnayDurumu.Gerekmiyor
+                ? $"{SiparisGrupAnahtari(work)}:A{(int)onayDurumu}"
+                : SiparisGrupAnahtari(work);
+        }
+
+        return works
+            .GroupBy(GrupAnahtari)
             .Select(group =>
             {
                 var items = group.OrderBy(x => x.FinansTarihi).ThenBy(x => x.Id).ToList();
@@ -138,6 +161,8 @@ internal sealed class FinansSiparisFaturaService(
                 var amounts = items.Select(FinansTutarKurallari.KalemTutarlari).ToList();
                 var durum = FinansTutarKurallari.BirlesikDurum(amounts);
                 var volumes = items.Select(FinansModelEslemeleri.Hacim).ToList();
+                var onaylar = items.Select(OnayBilgisi).ToList();
+                var onayDurumu = FinansPoOnayKurali.Birlesik(onaylar.Select(x => x.Durum));
                 return new FinansSiparisGrubuModel
                 {
                     Anahtar = group.Key,
@@ -161,7 +186,14 @@ internal sealed class FinansSiparisFaturaService(
                     KontraM3 = volumes.Sum(x => x.Kontra),
                     SiparisKarsilanma = durum.Siparis,
                     FaturaKarsilanma = durum.Fatura,
-                    FiyatBekleyenKalem = durum.FiyatBekleyenKalem
+                    FiyatBekleyenKalem = durum.FiyatBekleyenKalem,
+                    PoOnayDurumu = onayDurumu,
+                    PoOnayAciklamasi = onaylar.Select(x => x.Aciklama).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)),
+                    PoyaBaglanabilir = !poOnayKuralAcik ||
+                                       onayDurumu is FinansPoOnayDurumu.Gerekmiyor or FinansPoOnayDurumu.Onaylandi,
+                    PoOnayaGonderilebilir = poOnayKuralAcik &&
+                                            FinansPoOnayKurali.OnayaGonderilebilir(onayDurumu) &&
+                                            amounts.Any(x => x.Net > 0)
                 };
             })
             .OrderBy(x => x.ProjeNo, StringComparer.Ordinal)
@@ -169,6 +201,7 @@ internal sealed class FinansSiparisFaturaService(
             .ThenBy(x => x.IlkTarih)
             .ThenBy(x => x.Anahtar, StringComparer.Ordinal)
             .ToArray();
+    }
 
     /// <summary>Üretim işi proje × iş türü × para birimi, düzenli iş dönemi iş × para birimi, özel iş tek başına gruplanır.</summary>
     internal static string SiparisGrupAnahtari(FinansIsKaydi work)
@@ -231,6 +264,9 @@ internal sealed class FinansSiparisFaturaService(
                     ?? throw IsKuraliException.Cakisma("Revizyon yalnız bu PO'nun mevcut kalemlerinde yapılabilir.");
                 if (!requested.NetTutar.HasValue) throw IsKuraliException.Cakisma("Revizyon net tutarı zorunludur.");
                 var work = await context.IsKaydiDetayQuery(true).FirstAsync(x => x.Id == requested.IsKaydiId, cancellationToken);
+                // Tutar artışı yeni sipariş sayılır: kalemin PO öncesi onayı geçerli olmalıdır. Azaltma her zaman serbesttir.
+                if (requested.NetTutar.Value > line.NetTutarSnapshot)
+                    await poOnay.PoyaBaglanabilirDogrulaAsync([work], cancellationToken);
                 var used = work.SiparisKalemleri.Where(x => x.Id != line.Id && !x.FinansSiparis.IptalEdildi).Sum(x => x.NetTutarSnapshot);
                 FinansTutarKurallari.Kapasite(requested.NetTutar.Value, used, FinansTutarKurallari.IsNet(work), "PO revizyonu");
                 var money = FinansTutarKurallari.Hesapla(1, requested.NetTutar.Value, line.KdvOraniSnapshot);
@@ -338,6 +374,8 @@ internal sealed class FinansSiparisFaturaService(
         if (works.Count != tumIds.Length)
             throw IsKuraliException.Cakisma("Sipariş kalemlerinden en az biri bulunamadı.");
         var byId = works.ToDictionary(x => x.Id);
+        // PO öncesi iş onayı: kalem ve grup yolunda istenen bütün işler, yeni PO'da da mevcut PO'ya eklemede de.
+        await poOnay.PoyaBaglanabilirDogrulaAsync(works, cancellationToken);
 
         var sonuc = kalemler.Select(x => (byId[x.IsKaydiId], x)).ToList();
         foreach (var grup in gruplar)

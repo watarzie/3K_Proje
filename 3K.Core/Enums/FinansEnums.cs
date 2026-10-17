@@ -102,6 +102,22 @@ namespace _3K.Core.Enums
     }
 
     /// <summary>
+    /// İşin PO öncesi onay durumu. Saklanmaz; işin onay alanlarından ve son onay talebinin Onay Merkezi
+    /// kararından türetilir (<see cref="Models.FinansPoOnayKurali"/>). Sayısal değerler ön yüz sözleşmesiyle sabittir.
+    /// </summary>
+    public enum FinansPoOnayDurumu
+    {
+        /// <summary>Onay kapsamı dışında (özel/düzenli iş) veya iptal/pasif kalem.</summary>
+        Gerekmiyor = 0,
+        OnayaSunulmadi = 1,
+        OnayBekliyor = 2,
+        Onaylandi = 3,
+        Reddedildi = 4,
+        /// <summary>Onaydan sonra net tutar veya para birimi değişti ya da onay uygulanamadı; yeniden onay ister.</summary>
+        OnayDustu = 5
+    }
+
+    /// <summary>
     /// Referans finans ekranındaki aylık özel iş düzenleme davranışını belirler.
     /// Sayısal değerler ön yüz sözleşmesiyle sabittir.
     /// </summary>

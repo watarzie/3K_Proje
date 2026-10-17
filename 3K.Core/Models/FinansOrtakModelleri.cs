@@ -88,6 +88,17 @@ public sealed record class FinansSiparisGrubuModel
     public FinansKarsilanma SiparisKarsilanma { get; init; }
     public FinansKarsilanma FaturaKarsilanma { get; init; }
     public int FiyatBekleyenKalem { get; init; }
+    /// <summary>
+    /// PO öncesi onay durumu (<see cref="FinansPoOnayKurali"/>). Kural açıkken grup aynı onay durumundaki kalemlerden
+    /// oluşur; onaylı kısım ayrı satır olarak PO'ya bağlanabilir.
+    /// </summary>
+    public FinansPoOnayDurumu PoOnayDurumu { get; init; }
+    /// <summary>Ret nedeni veya onayın düşme/uygulanamama nedeni.</summary>
+    public string? PoOnayAciklamasi { get; init; }
+    /// <summary>Grup PO'ya bağlanabilir: onay kuralı kapalı, grup onay kapsamı dışında veya onaylı.</summary>
+    public bool PoyaBaglanabilir { get; init; } = true;
+    /// <summary>Kural açık ve grup onaya gönderilebilir (sunulmamış, reddedilmiş veya onayı düşmüş fiyatlı kalemler).</summary>
+    public bool PoOnayaGonderilebilir { get; init; }
 }
 
 public sealed record FinansParaToplamiModel(

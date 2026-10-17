@@ -31,6 +31,8 @@ namespace _3K.Application.Features.OnayIslemleri.DTOs
         public string? HedefUrl { get; set; }
         public bool AksiyonAktifMi { get; set; }
         public CekiRevizyonOnayDetayiDto? RevizyonDetayi { get; set; }
+        /// <summary>PO öncesi iş onayı talebinin görüntüsü ve kalemlerin şimdiki durumu.</summary>
+        public FinansPoOnayDetayModel? FinansPoOnayDetayi { get; set; }
     }
 
     /// <summary>

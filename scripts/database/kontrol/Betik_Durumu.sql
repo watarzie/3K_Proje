@@ -6,6 +6,8 @@
 -- 4 numaralı betik (ürün eşleşmesi onarımı) iz bırakmaz; sıfırlama (6) sonrası zaten iş yapmaz.
 -- 19 numaralı betik veri onarımıdır: onarılabilir (tek sevk edilmemiş sandıkla eşleşen) tahsissiz satır kalmadıysa
 -- uygulanmış görünür; UYGULANMAMIŞ ise onarılacak satır vardır.
+-- 20 numaralı betik kolonları ve onay kuralı kaydını birlikte arar: sıfırlamadan (6) sonra kolonlar vardır ama kural
+-- kaydı yoksa UYGULANMAMIŞ görünür ve betik çalıştırılır (yalnız kuralı ve ilk onaycı rolü ekler).
 -- Yeni betik eklenince buraya satır eklenir (CanliyaAlimBetikleriTests dosya listesiyle karşılaştırır).
 -- =====================================================================================
 WITH kolon(tablo, ad) AS (SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public'),
@@ -50,6 +52,8 @@ FROM (VALUES
                             WHERE s."ProjeId" = c."ProjeId" AND UPPER(TRIM(s."SandikNo")) = a.anahtar) = 1
                        AND NOT EXISTS (SELECT 1 FROM "Sandiklar" s
                                        WHERE s."ProjeId" = c."ProjeId" AND UPPER(TRIM(s."SandikNo")) = a.anahtar
-                                         AND s."DurumId" = 4)))
+                                         AND s."DurumId" = 4))),
+    (20, '20261017_01_Finans_Po_Is_Onayi',             EXISTS (SELECT 1 FROM kolon WHERE tablo = 'FinansIsKayitlari' AND ad = 'PoOnayTalebiId')
+                                                       AND EXISTS (SELECT 1 FROM "OnayOperasyonKurallari" WHERE "IslemKodu" = 'FINANS_PO_IS_ONAYI'))
 ) AS t(sira, betik, uygulandi)
 ORDER BY sira;

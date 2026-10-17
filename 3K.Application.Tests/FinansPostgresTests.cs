@@ -170,6 +170,7 @@ public sealed class FinansPostgresTests
         await InDatabase(async options =>
         {
             await using var db = new AppDbContext(options); var finans = Finans(db);
+            await FinansPostgresTests.PoOnayiniKapatAsync(db);
             var kaynak = new FinansUretimAktarimModel("AMBALAJURETIM", "kontra-1", true, null, "QA", "Sentetik", FinansIsTuru.AnaAmbalaj,
                 "Kontra kasa", 2, 0m, Date, Date, SandikTipi: "Kontrplak Sandık", SandikCinsi: AmbalajSandikCinsi.Kontrplak,
                 UretimM3Hesaplanabilir: false);
@@ -252,6 +253,7 @@ public sealed class FinansPostgresTests
         await InDatabase(async options =>
         {
             await using var db = new AppDbContext(options); var finans = Finans(db);
+            await FinansPostgresTests.PoOnayiniKapatAsync(db);
             var baslangic = new DateTime(2026, 1, 1);
             FinansUretimAktarimModel Sandik(string id, string tipi, AmbalajSandikCinsi cinsi, decimal birimM3) =>
                 new("AMBALAJURETIM", id, true, null, "QA", "Sentetik", FinansIsTuru.AnaAmbalaj, tipi, 1, birimM3, Date, Date,
@@ -604,6 +606,7 @@ public sealed class FinansPostgresTests
         await InDatabase(async options =>
         {
             await using var db = new AppDbContext(options); var finans = Finans(db);
+            await FinansPostgresTests.PoOnayiniKapatAsync(db);
             var main = Work("Ana iş", 10000); main.ProjeNo = "K12-A"; main.IsTuru = FinansIsTuru.AnaAmbalaj;
             var sarf = Work("Ayrı sarf", 500); sarf.ProjeNo = main.ProjeNo; sarf.IsTuru = FinansIsTuru.SarfKereste;
             sarf.KaynakBileseni = "SARF"; sarf.KayitTarihi = new(2026, 8, 1);
@@ -728,6 +731,16 @@ public sealed class FinansPostgresTests
     private static FinansTestServisleri Finans(AppDbContext db) => new(db, new User());
     private sealed class User : ICurrentUserService { public int? UserId => 7; public bool IsAuthenticated => true; }
     private static FinansIsKaydi Work(string name, decimal amount) => new() { IsAdi = name, ProjeNo = "QA", Musteri = "QA", IsTuru = FinansIsTuru.OzelIs, KaynakTuru = "Manuel", KaynakAktif = true, Adet = 1, Birim = "Adet", FiyatlandirmaBirimiSnapshot = FinansFiyatlandirmaBirimi.SabitTutar, BirimFiyatSnapshot = amount, ParaBirimiSnapshot = "EUR", KdvOraniSnapshot = 20, UretimTarihi = Date, FinansTarihi = Date, FinansDonemi = new(2026, 9, 1), KayitTarihi = Date };
+
+    /// <summary>
+    /// Onay Merkezi'nde PO öncesi iş onayını kapatır. PO dağıtımını, faturayı veya fiyatlamayı sınayan testler onayı konu
+    /// almaz; kural kaydı yoksa onay açık sayılır. Onay akışı <see cref="FinansPoOnayPostgresTests"/> sınıfındadır.
+    /// </summary>
+    internal static async Task PoOnayiniKapatAsync(AppDbContext db)
+    {
+        db.Set<OnayOperasyonKurali>().Add(new OnayOperasyonKurali { IslemKodu = _3K.Core.Constants.OnayIslemKodlari.FinansPoIsOnayi, OnayGerektirirMi = false });
+        await db.SaveChangesAsync();
+    }
 
     internal static async Task InDatabase(Func<DbContextOptions<AppDbContext>, Task> test)
     {

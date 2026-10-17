@@ -23,7 +23,7 @@ Betiklerin hepsi ad sırasıyla, uygulamanın veritabanına (`3K_Db`) bağlıyke
 `3K_Db` düğümünden açın: sunucu düğümünden açılan pencere varsayılan `postgres` veritabanına bağlanır (sekme başlığında
 veritabanı adı görünür).
 
-Tekrar çalıştırma: 9–18 numaralı betikler tekrar çalıştırıldığında (onay ayarı oturumda açık kalsa da) hiçbir şey
+Tekrar çalıştırma: 9–18 ve 20 numaralı betikler tekrar çalıştırıldığında (onay ayarı oturumda açık kalsa da) hiçbir şey
 değiştirmez; izinleri yalnız düğümü ekledikleri çalıştırmada verirler, yöneticinin sonradan kaldırdığı veya düşürdüğü
 izni geri vermezler (`CanliyaAlimBetikleriTests`). 19 (tahsis onarımı) tekrarında yalnız henüz onarılmamış satırlara bakar; onarılmış ve atlanan satırlar değişmez
 (`SandikTahsissizSatirOnarimiBetigiTests`). 6 (sıfırlama) canlıda bir kez, bilinçli olarak çalıştırılır; 4
@@ -51,14 +51,18 @@ aktifleştirebilir; 7, 15 numaralı betikten sonra çalıştırılırsa silinmi�
 | 17 | `20261014_01_Proje_Fotograf_Baglantisi.sql` | `Projeler."FotografBaglantisi"` (varchar 1000, boş olabilir) kolonunu ve kök düzeyde rotasız `proje-fotograf-baglantisi` iznini (Id 5256) ekler: Normal/Saha/Yedek proje listelerinde R fotoğraf bağlantısını görür ve açar, W ekler/değiştirir/kaldırır. Yalnız Admin W alır; diğer roller rol ekranından ayarlanır. Yıkıcı değildir, tekrar çalıştırılabilir; yeni API ile birlikte uygulanır. |
 | 18 | `20261014_02_Proje_Fotograf_Baglantisi_Projeler_Altina.sql` | `proje-fotograf-baglantisi` iznini kökten Projeler menüsünün altına taşır (Sira 9, ikonsuz). Projeler bu iznin tavanı olur: Projeler R olmayan rolde bağlantı izni etkisizdir (NOTICE ile listelenir). Rol izinleri değişmez; yıkıcı değildir, tekrar çalıştırılabilir. 17. betikten sonra. |
 | 19 | `20261014_03_Sandik_Tahsissiz_Satir_Onarimi.sql` | **Veri onarımı:** sandık tahsisi olmayan çeki satırlarını sandık numaralarının gösterdiği sandığa bağlar. "Çeki verisi düzenle" tahsisi olmayan satıra numara verince tahsis oluşturmuyordu; ürün sandık kartında ve 3K ekranında görünüp Depo Durumu sayımında görünmüyordu. Yalnız projede tek ve sevk edilmemiş sandıkla eşleşen satırlar onarılır; değerler 3K senkronuyla aynıdır (konulan = gelen + stok + proje + tedarikçi − başka projeye verilen, tahsis = istenen). Sandık yok / birden çok sandık / sevk edilmiş sandık durumları NOTICE ile listelenip atlanır. Yıkıcı değildir, tekrar çalıştırılabilir; API sürümünden bağımsız, istenen anda uygulanır. Durum sorgusunda onarılacak satır kaldıkça `UYGULANMAMIŞ` görünür. |
+| 20 | `20261017_01_Finans_Po_Is_Onayi.sql` | **PO öncesi iş onayı:** `FinansPoOnayTalepleri` (onaya sunulan proje × iş türü × para birimi grubunun değişmez görüntüsü) tablosunu ve `FinansIsKayitlari` tablosuna `PoOnayTalebiId` (restrict), `PoOnayNetTutar`, `PoOnayParaBirimi`, `PoOnayTarihi`, `PoOnaylayanKullaniciId` kolonlarını ekler. İşlem Onay Merkezi'ne `FINANS_PO_IS_ONAYI` kuralını açık ekler, ilk onaycı rol Admin'dir (diğerleri Sistem Kuralları ekranından seçilir). Geçiş: iptal edilmemiş bir PO'ya bağlı proje kayıtları onaylı sayılır (onaylanan tutar o anki net tutar); sipariş bekleyen proje kayıtları onaysız başlar. Özel/düzenli iş onay istemez. Tekrar çalıştırılınca kural, onaycı roller ve geçiş değişmez. Yıkıcı değildir; **yeni API ile birlikte** uygulanır. |
 
 Sekme yetkileri betiği (11) yeni API sürümü yayımlanmadan **önce** çalıştırılır: yeni API Kontrol Paneli, İş Takibi,
 Giderler ve Raporlar uçlarında sekme düğümü izni ister; düğümler yokken bu uçlar herkese (Admin dahil) 403 döner. Eski
 API sekme düğümlerini kullanmaz ve taşınan kodların etkin seviyesi değişmediği için betikten etkilenmez. Betik sonunda
 rol × sekme seviyeleri ve sekmelerin altındaki kodlar NOTICE olarak listelenir.
 
-Sıfırlama betiği (6) Finans/Ambalaj tablolarını güncel modelle kurar (2026-10-15'ten beri 10 ve 14 numaralı betiklerin
-kolonları dahil); sıfırlamadan sonra ek betik gerekmez, 10 ve 14 çalıştırılsa da bir şey değiştirmez. Finans/Ambalaj
+Sıfırlama betiği (6) Finans/Ambalaj tablolarını güncel modelle kurar (2026-10-15'ten beri 10 ve 14, 2026-10-17'den beri
+20 numaralı betiğin tablo ve kolonları dahil); sıfırlamadan sonra ek şema betiği gerekmez, 10 ve 14 çalıştırılsa da bir
+şey değiştirmez. 20 sıfırlamadan sonra da çalıştırılır: şemayı değiştirmez, yalnız onay kuralı kaydı yoksa kuralı ve ilk
+onaycı rolü ekler. Sıfırlama, silinen PO onay taleplerine bağlı onay kuyruğu kayıtlarını (`OnayBekleyenIslemler`,
+`ReferansTipi = FinansPoOnayTalebi`) da siler. Finans/Ambalaj
 tablolarına yeni şema betiği eklenince sıfırlama betiği de aynı işte güncellenir; `CanliyaAlimBetikleriTests` sıfırlama
 sonrası şemayı EF modeliyle karşılaştırır.
 

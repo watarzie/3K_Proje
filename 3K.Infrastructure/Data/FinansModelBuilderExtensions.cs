@@ -133,6 +133,29 @@ internal static class FinansModelBuilderExtensions
             entity.HasOne(x => x.AhsapFinansUrun).WithMany().HasForeignKey(x => x.AhsapFinansUrunId).OnDelete(DeleteBehavior.Restrict);
             entity.HasIndex(x => x.AhsapTarifeIdSnapshot);
             entity.HasOne(x => x.DuzenliIs).WithMany(x => x.OlusanKayitlar).HasForeignKey(x => x.DuzenliIsId).OnDelete(DeleteBehavior.SetNull);
+            entity.Property(x => x.PoOnayNetTutar).HasPrecision(18, 2);
+            entity.Property(x => x.PoOnayParaBirimi).HasMaxLength(3);
+            entity.HasOne(x => x.PoOnayTalebi).WithMany().HasForeignKey(x => x.PoOnayTalebiId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // PO öncesi iş onayı talebi: proje ve kullanıcı bilgisi görüntü olarak tutulur, dış tabloya bağlanmaz.
+        modelBuilder.Entity<FinansPoOnayTalebi>(entity =>
+        {
+            entity.ToTable("FinansPoOnayTalepleri", table =>
+            {
+                table.HasCheckConstraint("CK_FinansPoOnayTalepleri_Tutar", "\"KalemSayisi\" > 0 AND \"NetTutar\" > 0");
+                // Görüntü en az bir kalem taşır (Web JSON: "kalemler").
+                table.HasCheckConstraint("CK_FinansPoOnayTalepleri_OnizlemeJson",
+                    "jsonb_typeof(\"OnizlemeJson\" -> 'kalemler') = 'array' AND jsonb_array_length(\"OnizlemeJson\" -> 'kalemler') > 0");
+            });
+            entity.HasIndex(x => x.ProjeId);
+            entity.Property(x => x.ProjeNo).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Musteri).HasMaxLength(250).IsRequired();
+            entity.Property(x => x.IsTuru).HasConversion<int>();
+            entity.Property(x => x.ParaBirimi).HasMaxLength(3).IsRequired();
+            entity.Property(x => x.NetTutar).HasPrecision(18, 2);
+            entity.Property(x => x.OnizlemeJson).HasColumnType("jsonb").IsRequired();
+            entity.Property(x => x.OnizlemeHash).HasMaxLength(64).IsRequired();
         });
     }
 

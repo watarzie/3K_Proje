@@ -44,6 +44,7 @@ Yeni testler gerçek entity/helper/handler/behavior/service kodunu çalıştır�
 | Y-14 | UI | — | Eski lookup tanımı ve güncel ekran seçenekleri DB/UI envanteridir; unit testi lookup varlığını yeni işlem kabulü saymaz. |
 | Y-15 | Kısmi | `OrtakYetkiOnayIsKurallariTests.KilitAcmaHerZamanOnayIster_TopluTedarikciTekliKuraliOtomatikDevralmaz` | Gerçek UcKTopluTedarikciCommand örneğinde tekil ayar devralınmaz; bütün alternatif API yolları tek tek sınanmadı. |
 | Y-16 | Birim | `OrtakSandikRaporIsKurallariTests.EksikVeyaHataliKapatma_ForceYalnizUyariyiKabulEderTeslimUretmez` | Force uyarı kabulüdür, fiziki teslim üretmez. |
+| Y-17 | Entegrasyon | `FinansPoOnayKuraliTests.Durum_TalepKarariVeOnayAlanlarindanTuretilir`; `FinansPoOnayPostgresTests.KuralAcik_OnaysizKalemPoyaBaglanmaz_OnayRetVeDusmeKalemlereYansir`; `FinansPoOnayPostgresTests.KuralKapali_OnaysizPoAcilir_GondermeHemenOnaylar_KuralKaydiYoksaOnayAranir`; `FinansPoOnayPostgresTests.GecisBetigi_PoyaBagliProjeKayitlariniUygulamaNetiyleOnaylar_TekrarindaDegistirmez` | Saf kural birim testinde; onay hattı, PO ret/kabul ve geçiş betiği gerçek MediatR ve izole PostgreSQL ile. HTTP/JWT katmanı ve ön yüz ayrı testlerde. |
 
 ## Kilit, kalite ve süreç
 

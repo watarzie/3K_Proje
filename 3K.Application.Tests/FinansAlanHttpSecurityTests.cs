@@ -173,10 +173,18 @@ public sealed class FinansAlanHttpSecurityTests
         using (var po = await host.Client.PostAsync("api/finans/siparisler", new StringContent(
                    System.Text.Json.JsonSerializer.Serialize(govde), Encoding.UTF8, "application/json")))
             Assert.Equal(HttpStatusCode.Forbidden, po.StatusCode);
+        // PO öncesi iş onayına gönderme de PO açma sekmelerinin yazmasını ister.
+        var onayGovdesi = new { isKaydiIds = new[] { 1 } };
+        using (var onay = await host.Client.PostAsync("api/finans/po-onay-talepleri", new StringContent(
+                   System.Text.Json.JsonSerializer.Serialize(onayGovdesi), Encoding.UTF8, "application/json")))
+            Assert.Equal(HttpStatusCode.Forbidden, onay.StatusCode);
         host.Roles.Grant(YetkiKodlari.Finans.SekmePoFatura);
         using (var salt = await host.Client.PostAsync("api/finans/siparisler", new StringContent(
                    System.Text.Json.JsonSerializer.Serialize(govde), Encoding.UTF8, "application/json")))
             Assert.Equal(HttpStatusCode.Forbidden, salt.StatusCode);
+        using (var saltOnay = await host.Client.PostAsync("api/finans/po-onay-talepleri", new StringContent(
+                   System.Text.Json.JsonSerializer.Serialize(onayGovdesi), Encoding.UTF8, "application/json")))
+            Assert.Equal(HttpStatusCode.Forbidden, saltOnay.StatusCode);
         Assert.Equal(0, host.Data.Calls);
 
         host.Roles.Revoke(YetkiKodlari.Finans.SekmePanel);

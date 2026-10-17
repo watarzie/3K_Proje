@@ -26,6 +26,7 @@ public sealed class FinansTarifeDuzeltmePostgresTests
         await FinansPostgresTests.InDatabase(async options =>
         {
             await using var db = new AppDbContext(options);
+            await FinansPostgresTests.PoOnayiniKapatAsync(db);
             var finans = new FinansTestServisleri(db, new Kullanici());
             static FinansUrunKaydetModel Urun(string kod, decimal fiyat, DateTime baslangic) =>
                 new(kod, "AĞAÇ KERESTE", FinansFiyatlandirmaBirimi.Metrekup, true, 1, [], fiyat, "EUR", 20m, baslangic);

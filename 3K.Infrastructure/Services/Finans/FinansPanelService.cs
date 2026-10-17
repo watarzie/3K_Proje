@@ -10,7 +10,7 @@ using _3K.Infrastructure.Data;
 namespace _3K.Infrastructure.Services.Finans;
 
 /// <summary>Finans paneli, para hareketleri, genel arama, yaşlandırma ve denetim geçmişi (salt okunur).</summary>
-internal sealed class FinansPanelService(AppDbContext context) : IFinansPanelService
+internal sealed class FinansPanelService(AppDbContext context, FinansPoOnayOkuyucu poOnay) : IFinansPanelService
 {
     public async Task<FinansPanelModel> PanelAsync(DateTime baslangic, DateTime bitis, CancellationToken cancellationToken)
     {
@@ -327,10 +327,11 @@ internal sealed class FinansPanelService(AppDbContext context) : IFinansPanelSer
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
+        var onaylar = await poOnay.BilgileriGetirAsync(items, cancellationToken);
 
         return new FinansSayfaliSonuc<FinansIsKaydiModel>
         {
-            Items = items.Select(FinansModelEslemeleri.MapIsKaydi).ToArray(),
+            Items = items.Select(x => FinansModelEslemeleri.MapIsKaydi(x, onaylar[x.Id])).ToArray(),
             Toplamlar = await WorkMoneyTotalsAsync(query.Where(x => !x.IptalEdildi && x.KaynakAktif), cancellationToken),
             PageNumber = pageNumber,
             PageSize = pageSize,

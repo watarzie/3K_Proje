@@ -123,10 +123,44 @@ namespace _3K.Core.Entities
         public bool IptalEdildi { get; set; }
         public DateTime? IptalTarihi { get; set; }
         public string? IptalAciklamasi { get; set; }
+        /// <summary>İşin PO öncesi onay için en son sunulduğu talep; kararı Onay Merkezi'ndedir.</summary>
+        public int? PoOnayTalebiId { get; set; }
+        /// <summary>
+        /// Onaylanan net tutar ve para birimi. Güncel net tutar (<see cref="Models.FinansTutarKurallari.IsNet"/>) veya
+        /// para birimi bunlardan farklıysa onay düşmüştür (<see cref="Models.FinansPoOnayKurali"/>).
+        /// </summary>
+        public decimal? PoOnayNetTutar { get; set; }
+        public string? PoOnayParaBirimi { get; set; }
+        public DateTime? PoOnayTarihi { get; set; }
+        /// <summary>Onayı veren kullanıcı; geçiş betiğiyle onaylı sayılan kayıtta boştur.</summary>
+        public int? PoOnaylayanKullaniciId { get; set; }
         public virtual Proje? Proje { get; set; }
         public virtual FinansUrun? FinansUrun { get; set; }
         public virtual FinansDuzenliIs? DuzenliIs { get; set; }
+        public virtual FinansPoOnayTalebi? PoOnayTalebi { get; set; }
         public virtual ICollection<FinansSiparisKalemi> SiparisKalemleri { get; set; } = new List<FinansSiparisKalemi>();
+    }
+
+    /// <summary>
+    /// PO öncesi onaya sunulan grubun (proje × iş türü × para birimi) değişmez görüntüsü. Karar Onay Merkezi'nde
+    /// <see cref="OnayBekleyenIslem"/> üzerinde verilir (ReferansTipi FinansPoOnayTalebi); onaylanınca görüntü
+    /// güncel kayıtlarla aynıysa işlere uygulanır.
+    /// </summary>
+    public class FinansPoOnayTalebi : BaseEntity
+    {
+        public int? ProjeId { get; set; }
+        public string ProjeNo { get; set; } = string.Empty;
+        public string Musteri { get; set; } = string.Empty;
+        public FinansIsTuru IsTuru { get; set; }
+        public string ParaBirimi { get; set; } = string.Empty;
+        public int KalemSayisi { get; set; }
+        public decimal NetTutar { get; set; }
+        /// <summary>Kalemlerin onaya sunulduğu andaki değerleri (<see cref="Models.FinansPoOnayOnizleme"/>).</summary>
+        public string OnizlemeJson { get; set; } = string.Empty;
+        public string OnizlemeHash { get; set; } = string.Empty;
+        public int TalepEdenKullaniciId { get; set; }
+        /// <summary>Onay kalemlere uygulandığında dolar; talep bir kez uygulanır.</summary>
+        public DateTime? UygulamaTarihi { get; set; }
     }
 
     public class FinansSiparis : BaseEntity

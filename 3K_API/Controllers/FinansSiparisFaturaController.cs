@@ -19,6 +19,11 @@ public sealed class FinansSiparisFaturaController(IMediator mediator) : FinansCo
     public async Task<ActionResult> SiparisGruplari([FromQuery] FinansSiparisGrupRequest request, CancellationToken cancellationToken)
         => (await Mediator.Send(new FinansSiparisGruplariQuery { Filtre = request.ToModel() }, cancellationToken)).ToActionResult();
 
+    /// <summary>Seçilen işleri PO öncesi onaya gönderir; kural açıksa 202 (Onay Merkezi'ne düştü).</summary>
+    [HttpPost("po-onay-talepleri")]
+    public async Task<ActionResult> PoOnayinaGonder([FromBody] FinansPoOnayGonderModel model, CancellationToken cancellationToken)
+        => (await Mediator.Send(new FinansPoOnayGonderCommand { Model = model }, cancellationToken)).ToActionResult();
+
     [HttpGet("siparisler/{id:int}")]
     public async Task<ActionResult> Siparis(int id, CancellationToken cancellationToken)
         => (await Mediator.Send(new FinansSiparisGetirQuery { Id = id }, cancellationToken)).ToActionResult();

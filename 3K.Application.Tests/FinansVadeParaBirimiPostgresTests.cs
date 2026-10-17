@@ -202,6 +202,7 @@ public sealed class FinansVadeParaBirimiPostgresTests
         await FinansPostgresTests.InDatabase(async options =>
         {
             await using var db = new AppDbContext(options);
+            await FinansPostgresTests.PoOnayiniKapatAsync(db);
             var finans = Finans(db);
             var urun = await finans.Urun.UrunOlusturAsync(new("AHSAP-M3", "Ahşap m³", FinansFiyatlandirmaBirimi.Metrekup, true, 1, [],
                 350m, "EUR", 20m, new DateTime(2026, 1, 1)), Ct);

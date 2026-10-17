@@ -97,6 +97,7 @@ public sealed class FinansSekmeYetkileriTests
         { typeof(FinansVadeUyarilariQuery), [Vade], YetkiTipi.R },
         { typeof(FinansSiparisOlusturCommand), SiparisAcma, YetkiTipi.W },
         { typeof(FinansSiparisKalemEkleCommand), SiparisAcma, YetkiTipi.W },
+        { typeof(FinansPoOnayGonderCommand), SiparisAcma, YetkiTipi.W },
         { typeof(FinansSiparisGuncelleCommand), [PoFaturaPo], YetkiTipi.W },
         { typeof(FinansSiparisIptalCommand), [PoFaturaPo], YetkiTipi.W },
         { typeof(FinansFaturaOlusturCommand), [PoFaturaFatura], YetkiTipi.W },

@@ -85,6 +85,14 @@ public sealed record class FinansIsKaydiModel
     public string? IptalAciklamasi { get; init; }
     public DateTime CreatedDate { get; init; }
     public string? CreatedBy { get; init; }
+    /// <summary>
+    /// PO öncesi onay durumu (<see cref="FinansPoOnayKurali"/>). Liste, seçim ve detay uçlarında doldurulur; panel ve
+    /// rapor hesaplarında kullanılmaz.
+    /// </summary>
+    public FinansPoOnayDurumu PoOnayDurumu { get; init; }
+    /// <summary>Ret nedeni veya onayın düşme/uygulanamama nedeni.</summary>
+    public string? PoOnayAciklamasi { get; init; }
+    public DateTime? PoOnayTarihi { get; init; }
 }
 
 /// <summary>
@@ -253,7 +261,15 @@ public sealed record FinansAylikIsModel(
     decimal KontraM3 = 0,
     decimal KalanSiparisNetTutar = 0,
     decimal KalanFaturaNetTutar = 0,
-    decimal? AhsapBirimFiyat = null);
+    decimal? AhsapBirimFiyat = null)
+{
+    /// <summary>Satırın kalemlerinden birleşik PO öncesi onay durumu (<see cref="FinansPoOnayKurali.Birlesik"/>).</summary>
+    public FinansPoOnayDurumu PoOnayDurumu { get; init; }
+    /// <summary>Onay kapsamındaki aktif kalem sayısı ve bunlardan onayı geçerli olanlar.</summary>
+    public int PoOnayGerekliKalemSayisi { get; init; }
+    public int PoOnayliKalemSayisi { get; init; }
+    public string? PoOnayAciklamasi { get; init; }
+}
 
 /// <summary>
 /// Aylık PO/fatura alanında proje satırının özeti: projenin ayın bütün aktif kalemlerinden türetilen
@@ -296,6 +312,8 @@ public sealed class FinansAylikSayfaliSonuc
     public IReadOnlyList<FinansAylikIsModel> ProjeOzelIsleri { get; init; } = Array.Empty<FinansAylikIsModel>();
     public IReadOnlyList<FinansAylikFinansOzetiModel> FinansOzeti { get; init; } = Array.Empty<FinansAylikFinansOzetiModel>();
     public IReadOnlyList<FinansAylikGrupToplamiModel> GrupToplamlari { get; init; } = Array.Empty<FinansAylikGrupToplamiModel>();
+    /// <summary>PO öncesi iş onayı kuralı açık mı; kapalıyken PO onay aramaz ve "Onaya gönder" gösterilmez.</summary>
+    public bool PoOnayKuraliAcik { get; init; }
     public int PageNumber { get; init; }
     public int PageSize { get; init; }
     public int TotalCount { get; init; }

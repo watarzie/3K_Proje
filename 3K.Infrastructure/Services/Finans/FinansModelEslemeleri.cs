@@ -101,6 +101,15 @@ internal static class FinansModelEslemeleri
         };
     }
 
+    /// <summary>İş kaydı modeli ve PO öncesi onay durumu (<see cref="FinansPoOnayOkuyucu"/>).</summary>
+    internal static FinansIsKaydiModel MapIsKaydi(FinansIsKaydi entity, FinansPoOnayBilgisi poOnay)
+        => MapIsKaydi(entity) with
+        {
+            PoOnayDurumu = poOnay.Durum,
+            PoOnayAciklamasi = poOnay.Aciklama,
+            PoOnayTarihi = poOnay.OnayTarihi
+        };
+
     /// <summary>Kaydın m³ fiyat satırları (kontra/katlanır sandıkta malzeme bazlı satırlar).</summary>
     internal static IReadOnlyList<FinansFiyatBileseniModel>? Bilesenler(FinansIsKaydi entity)
         => Bilesenler(entity.FiyatBilesenleriJson);

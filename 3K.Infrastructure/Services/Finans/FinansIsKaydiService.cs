@@ -15,7 +15,8 @@ internal sealed class FinansIsKaydiService(
     AppDbContext context,
     FinansIslemYurutucu islem,
     FinansDenetimKaydi denetim,
-    FinansFiyatBelirleyici fiyatlar) : IFinansIsKaydiService
+    FinansFiyatBelirleyici fiyatlar,
+    FinansPoOnayOkuyucu poOnay) : IFinansIsKaydiService
 {
     public async Task<FinansSayfaliSonuc<FinansProjeSecenekModel>> ProjeSecenekleriAsync(
         string? arama,
@@ -64,10 +65,11 @@ internal sealed class FinansIsKaydiService(
             .Where(x => normalizedIds.Contains(x.Id))
             .ToListAsync(cancellationToken);
         var byId = entities.ToDictionary(x => x.Id);
+        var onaylar = await poOnay.BilgileriGetirAsync(entities, cancellationToken);
 
         return normalizedIds
             .Where(byId.ContainsKey)
-            .Select(id => FinansModelEslemeleri.MapIsKaydi(byId[id]))
+            .Select(id => FinansModelEslemeleri.MapIsKaydi(byId[id], onaylar[id]))
             .ToArray();
     }
 
@@ -88,8 +90,12 @@ internal sealed class FinansIsKaydiService(
     {
         var entity = await context.IsKaydiDetayQuery().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (entity is null) return null;
-        return FinansModelEslemeleri.MapIsKaydi(entity);
+        return await ModelAsync(entity, cancellationToken);
     }
+
+    /// <summary>Tek kaydın modeli, PO öncesi onay durumuyla.</summary>
+    private async Task<FinansIsKaydiModel> ModelAsync(FinansIsKaydi work, CancellationToken cancellationToken)
+        => FinansModelEslemeleri.MapIsKaydi(work, (await poOnay.BilgileriGetirAsync([work], cancellationToken))[work.Id]);
 
     public Task<FinansIsKaydiModel> IsKaydiOlusturAsync(
         FinansIsKaydiKaydetModel model,
@@ -357,7 +363,7 @@ internal sealed class FinansIsKaydiService(
             work.FinansDonemi = FinansTarihKurallari.AyBasi(model.FinansTarihi);
             work.FinansTarihiManuel = true;
             await context.SaveChangesAsync(cancellationToken);
-            return FinansModelEslemeleri.MapIsKaydi(work);
+            return await ModelAsync(work, cancellationToken);
         }, cancellationToken);
 
     public Task<FinansIsKaydiModel?> FiyatlandirAsync(int id, FinansFiyatlandirmaModel model, CancellationToken cancellationToken)
@@ -407,7 +413,7 @@ internal sealed class FinansIsKaydiService(
             denetim.DegisiklikleriEkle(nameof(FinansIsKaydi), work, before);
             denetim.Ekle(nameof(FinansIsKaydi), id, "Fiyatlandırma", "Gerekçe", null, null, model.Aciklama);
             await context.SaveChangesAsync(cancellationToken);
-            return FinansModelEslemeleri.MapIsKaydi(work);
+            return await ModelAsync(work, cancellationToken);
         }, cancellationToken);
 
     public Task<FinansIsKaydiModel?> HacimGirAsync(int id, FinansHacimModel model, CancellationToken cancellationToken)
@@ -439,7 +445,7 @@ internal sealed class FinansIsKaydiService(
             if (!string.IsNullOrWhiteSpace(model.Aciklama))
                 denetim.Ekle(nameof(FinansIsKaydi), id, "Hacim", "Gerekçe", null, null, model.Aciklama.Trim());
             await context.SaveChangesAsync(cancellationToken);
-            return FinansModelEslemeleri.MapIsKaydi(work);
+            return await ModelAsync(work, cancellationToken);
         }, cancellationToken);
 
     internal static decimal? ValidatePriceComponents(IReadOnlyList<FinansFiyatBileseniModel>? components)

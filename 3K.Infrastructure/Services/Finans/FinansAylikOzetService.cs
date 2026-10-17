@@ -9,7 +9,7 @@ using _3K.Infrastructure.Data;
 namespace _3K.Infrastructure.Services.Finans;
 
 /// <summary>Aylık iş özeti: proje birimleriyle sayfalanan ekran listesi, grup toplamları, dönem finans özeti ve raporlar için tam liste.</summary>
-internal sealed class FinansAylikOzetService(AppDbContext context) : IFinansAylikOzetService
+internal sealed class FinansAylikOzetService(AppDbContext context, FinansPoOnayOkuyucu poOnay) : IFinansAylikOzetService
 {
     public async Task<IReadOnlyList<FinansAylikIsModel>> AylikOzetAsync(
         int yil,
@@ -116,7 +116,8 @@ internal sealed class FinansAylikOzetService(AppDbContext context) : IFinansAyli
                 .ThenBy(x => x.Id)
                 .ToListAsync(cancellationToken);
             var templateNames = await TemplateNamesAsync(pageRecords, cancellationToken);
-            items = AylikModelleriOlustur(pageRecords, templateNames);
+            items = await poOnay.AylikSatirlaraEkleAsync(
+                AylikModelleriOlustur(pageRecords, templateNames), pageRecords, cancellationToken);
         }
 
         // Üst finans özeti arama ve "iptalleri göster" seçiminden bağımsızdır;
@@ -141,6 +142,7 @@ internal sealed class FinansAylikOzetService(AppDbContext context) : IFinansAyli
             ProjeOzelIsleri = projectSpecialWorks,
             FinansOzeti = financeSummary,
             GrupToplamlari = groupTotals,
+            PoOnayKuraliAcik = await poOnay.KuralAcikMiAsync(cancellationToken),
             PageNumber = page,
             PageSize = size,
             TotalCount = totalCount

@@ -25,6 +25,7 @@ public sealed class FinansPoAkisPostgresTests
         await FinansPostgresTests.InDatabase(async options =>
         {
             await using var db = new AppDbContext(options);
+            await FinansPostgresTests.PoOnayiniKapatAsync(db);
             var sandiklar = new[] { Sandik("1", 5.00m), Sandik("2", 4.50m), Sandik("3", 3.00m) };
             db.AddRange(sandiklar); await db.SaveChangesAsync();
             var finans = Finans(db);
@@ -82,6 +83,7 @@ public sealed class FinansPoAkisPostgresTests
             int[] ids; int mevcutPoId;
             await using (var db = new AppDbContext(options))
             {
+                await FinansPostgresTests.PoOnayiniKapatAsync(db);
                 var sandiklar = new[] { Sandik("1", 5.00m), Sandik("2", 4.50m), Sandik("3", 3.00m) };
                 var diger = OzelIs("Başka iş", 100m, "EUR");
                 db.AddRange(sandiklar); db.Add(diger); await db.SaveChangesAsync();
@@ -276,6 +278,7 @@ public sealed class FinansPoAkisPostgresTests
         await FinansPostgresTests.InDatabase(async options =>
         {
             await using var db = new AppDbContext(options);
+            await FinansPostgresTests.PoOnayiniKapatAsync(db);
             var ana1 = Sandik("1", 1m); var ana2 = Sandik("2", 1m);
             var sarf = Sandik("S", 1m); sarf.IsTuru = FinansIsTuru.SarfKereste; sarf.KaynakBileseni = "SARF";
             db.AddRange(ana1, ana2, sarf); await db.SaveChangesAsync();

@@ -29,6 +29,7 @@
 | Finans iş kaydı / PO / fatura detayı, seçim, hareketler, genel arama | Kayıt sekmelerinden biri R: is-takibi, panel, po-fatura, munferit-isler, raporlar |
 | Finans iş fiyatlandırma, hacim, finans tarihi, iptal/geri alma | is-takibi veya munferit-isler W |
 | Finans PO açma, PO'ya kalem ekleme, PO grup seçici | po-fatura-po, is-takibi veya munferit-isler W (seçici R) |
+| Finans PO öncesi iş onayına gönderme (`POST api/finans/po-onay-talepleri`) | po-fatura-po, is-takibi veya munferit-isler W. Talebi onaylama/reddetme Finans izni değildir: `islem-onay-merkezi` W ve `OnayIslemYetkileri`'nde `FINANS_PO_IS_ONAYI` rolü (Admin her zaman; Admin dışında kimse kendi talebini onaylayamaz). Onay detayını (kalemler, ölçü, m³, tutar; kalemlerin şimdiki net tutarı) Finans sekme izni olmadan şunlar görür: talep eden, karar veren ve `islem-onay-merkezi` R ile rolünde `FINANS_PO_IS_ONAYI` bulunanlar (onay geçmişinin genel erişim kuralı). Detay yalnız onay kaydındaki talep eden ve projeyle eşleşen talepten okunur. İç komut `FinansPoOnayUygulaCommand` HTTP ucu olmayan sunucu içi komuttur. |
 | Finans PO listesi (fatura girişinde PO seçimi dahil) | finans-sekme-po-fatura-po **veya** finans-sekme-po-fatura-fatura R |
 | Finans PO düzeltme / iptal | finans-sekme-po-fatura-po W |
 | Finans fatura listesi; fatura girişi/düzeltme/iptal, ödeme | finans-sekme-po-fatura-fatura R / W |
