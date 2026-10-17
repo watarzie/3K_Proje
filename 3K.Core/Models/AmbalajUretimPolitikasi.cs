@@ -6,6 +6,14 @@ using _3K.Core.Enums;
 
 namespace _3K.Core.Models;
 
+/// <summary>Kaynak sandıktan ambalaj kaydına aktarılan ad, cins ve milimetre dış ölçü.</summary>
+public readonly record struct AmbalajKaynakSandikDegerleri(
+    string? Ad,
+    AmbalajSandikCinsi Cins,
+    decimal Boy,
+    decimal En,
+    decimal Yukseklik);
+
 public static class AmbalajUretimPolitikasi
 {
     public static bool M3HesaplanabilirMi(AmbalajSandikCinsi cins) =>
@@ -18,6 +26,27 @@ public static class AmbalajUretimPolitikasi
         (int)SandikTipi.Kontrplak => AmbalajSandikCinsi.Kontrplak,
         _ => AmbalajSandikCinsi.Diger
     };
+
+    /// <summary>
+    /// Kaynak sandığın ambalaj kaydına taşıdığı ad, cins ve dış ölçü (boş ölçü 0). Senkronizasyon ve üretim
+    /// formundaki kaynak tazelemesi aynı eşlemeyi kullanır.
+    /// </summary>
+    public static AmbalajKaynakSandikDegerleri KaynakDegerleri(Sandik sandik) =>
+        new(sandik.Ad, KaynakCinsi(sandik.TipId), sandik.Boy ?? 0, sandik.En ?? 0, sandik.Yukseklik ?? 0);
+
+    /// <summary>
+    /// Kaynak sandık, kaydın finans fiyat eşleşmesini belirleyen ad, cins veya ölçüsünü değiştiriyor mu?
+    /// PO geçmişi olan finans kaleminde bu değişiklik fiyat snapshot'ını bozacağı için reddedilir.
+    /// </summary>
+    public static bool KaynakFiyatEslesmesiniDegistirirMi(AmbalajUretimKaydi kayit, Sandik sandik)
+    {
+        var kaynak = KaynakDegerleri(sandik);
+        return !string.Equals(kayit.Ad?.Trim(), kaynak.Ad?.Trim(), StringComparison.OrdinalIgnoreCase) ||
+               kayit.SandikCinsi != kaynak.Cins ||
+               kayit.Boy != kaynak.Boy ||
+               kayit.En != kaynak.En ||
+               kayit.Yukseklik != kaynak.Yukseklik;
+    }
 
     // Kaynakta amaç kodu bulunmadığından iki sandık adı ayrı ayrı değerlendirilir.
     // Sandık numarası ekipman türünün kanıtı değildir.

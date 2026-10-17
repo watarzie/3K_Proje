@@ -124,6 +124,18 @@ namespace _3K.Core.Entities
             UretimDurumu == AmbalajUretimDurumu.Planlandi;
 
         /// <summary>
+        /// Üretim formu oluşturulurken (yeniden oluşturma dahil) kayıt güncel kaynak sandıktan tazelenir mi?
+        /// Otomatik senkronizasyon ilk formdan sonra kaydı kilitler ve ezmez; ölçüsü yalnız sandıktan gelen kayıt
+        /// başka yoldan düzeltilemediği için kullanıcının açık form işlemi sandıktaki son değeri alır. Tamamlanan
+        /// üretim fiziksel gerçekleşmedir, iptal ve bağımsız kayıt kaynağa bağlı değildir; bunlar tazelenmez.
+        /// </summary>
+        public bool FormdaKaynaktanTazelenirMi() =>
+            KaynakKayitId.HasValue &&
+            !BagimsizKayitMi &&
+            !IptalMi &&
+            UretimDurumu != AmbalajUretimDurumu.Tamamlandi;
+
+        /// <summary>
         /// Kaynak sandığı kaybolan kaydı sistem adına iptal eder. İptal öncesi durum,
         /// kaynak yeniden görüldüğünde geri yüklenmek üzere saklanır.
         /// </summary>

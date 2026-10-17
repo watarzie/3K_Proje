@@ -205,6 +205,15 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
             return kayit;
         }
 
+        /// <summary>
+        /// Üretim formu oluşturulurken seçimdeki kaydı güncel kaynak sandıktan tazeler (ad, cins, numara/adet,
+        /// ölçü ve m³). Otomatik senkronizasyon kilitli/üretimdeki kaydı ezmez; aynı kaynak kuralı burada
+        /// kullanıcının açık form işlemiyle uygulanır. Kayıtlı Normal/İlave grubu korunur.
+        /// </summary>
+        internal static void FormIcinKaynaktanTazele(AmbalajUretimKaydi kayit, Proje proje, Sandik sandik) =>
+            KaynakAlanlariniUygula(kayit, proje, sandik, KaynakModulBelirle(proje.ProjeTipiId),
+                AmbalajUretimPolitikasi.KaynakGrubu(TurBelirle(proje.ProjeTipiId), kayit.Tur, null, sandik.CreatedDate));
+
         private static void KaynakAlanlariniUygula(
             AmbalajUretimKaydi kayit,
             Proje proje,
@@ -219,13 +228,16 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
             kayit.KaynakModul = kaynakModul;
             kayit.KaynakKayitId = sandik.Id;
             kayit.KaynakSonSenkronizasyonTarihi = TurkeyTime.Now;
+            var kaynak = AmbalajUretimPolitikasi.KaynakDegerleri(sandik);
             kayit.SandikNo = sandik.SandikNo;
-            kayit.Ad = sandik.Ad;
-            kayit.SandikCinsi = AmbalajUretimPolitikasi.KaynakCinsi(sandik.TipId);
+            kayit.Ad = kaynak.Ad;
+            kayit.SandikCinsi = kaynak.Cins;
             kayit.Adet = AmbalajUretimYardimcilari.SandikAdediHesapla(sandik.SandikNo);
-            kayit.Boy = sandik.Boy ?? 0;
-            kayit.En = sandik.En ?? 0;
-            kayit.Yukseklik = sandik.Yukseklik ?? 0;
+            // Sandık ölçüsü ölçeksiz numeric, ambalaj kaydınınki numeric(18,4)'tür: aynı değer (1400 ile 1400.0000)
+            // yeniden atanırsa hareket geçmişine sahte değişiklik yazılır; yalnız farklı değer atanır.
+            if (kayit.Boy != kaynak.Boy) kayit.Boy = kaynak.Boy;
+            if (kayit.En != kaynak.En) kayit.En = kaynak.En;
+            if (kayit.Yukseklik != kaynak.Yukseklik) kayit.Yukseklik = kaynak.Yukseklik;
             AmbalajUretimYardimcilari.M3DegerleriniHesapla(kayit);
         }
 

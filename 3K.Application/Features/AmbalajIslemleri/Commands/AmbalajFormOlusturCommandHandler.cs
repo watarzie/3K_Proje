@@ -64,7 +64,11 @@ public sealed class AmbalajFormOlusturCommandHandler(IUnitOfWork uow, ICurrentUs
             if (kayitlar.Any(k => k.BagimsizKayitMi))
                 return Result<AmbalajFormSurumuDto>.Failure(
                     "Özel sandık için üretim formu oluşturulmaz; Özel Sandıklar listesinde \"Finansa aktar\" işlemini kullanın.", 409);
-            // Bütün seçim ve snapshot doğrulanmadan hiçbir kayıt değiştirilmez.
+            // Sandık ölçüsü/tipi ilk formdan sonra değişmiş olabilir: otomatik senkronizasyon üretimdeki kilitli
+            // kaydı ezmediği için form, tamamlanmamış kaynak kayıtları güncel sandıktan alır.
+            var tazeleme = await KaynaktanTazeleAsync(kayitlar, user.IslemKullaniciId.Value, token);
+            if (!tazeleme.IsSuccess) return Result<AmbalajFormSurumuDto>.Failure(tazeleme.Error!.Message, tazeleme.StatusCode);
+            // Seçim ve snapshot doğrulanamazsa tazeleme dahil bütün değişiklikler geri alınır.
             var sonuc = await AmbalajUretimFormuOlusturucu.OlusturAsync(uow, ids, token);
             if (!sonuc.IsSuccess) return Result<AmbalajFormSurumuDto>.Failure(sonuc.Error!.Message, sonuc.StatusCode);
             var kapsam = kayitlar[0].ProjeId.HasValue ? $"P:{kayitlar[0].ProjeId}" : $"M:{kayitlar[0].ManuelProjeNo?.Trim()}";
@@ -111,5 +115,84 @@ public sealed class AmbalajFormOlusturCommandHandler(IUnitOfWork uow, ICurrentUs
             await finans.UretimKayitlariniAktarAsync(kayitlar.Select(k => AmbalajFinansSenkronizasyonu.ModelOlustur(k, proje)).ToList(), token);
             return Result<AmbalajFormSurumuDto>.Success(await AmbalajYasamDongusuYardimcisi.FormDtoAsync(form, roles, user, token));
         }, ct);
+    }
+
+    /// <summary>
+    /// Seçimdeki tamamlanmamış kaynak kayıtları güncel sandıktan tazeler ve aynı transaction'da kaydeder; form
+    /// hesabı kayıtları veritabanından okur. Kaynakta ölçüsü eksik sandık veya PO geçmişi olan finans kaleminde
+    /// fiyat eşleşmesini (ad, cins, ölçü) değiştiren tazeleme 409 ile, hiçbir kayıt değiştirilmeden reddedilir.
+    /// Kaynağı silinmiş ya da başka projeye taşınmış sandığın kaydı bilinen son değerleriyle kalır.
+    /// </summary>
+    private async Task<Result> KaynaktanTazeleAsync(IReadOnlyList<AmbalajUretimKaydi> kayitlar, int kullaniciId,
+        CancellationToken ct)
+    {
+        var adaylar = kayitlar.Where(k => k.FormdaKaynaktanTazelenirMi() && k.ProjeId.HasValue).ToList();
+        if (adaylar.Count == 0) return Result.Success();
+        var sandikIdleri = adaylar.Select(k => k.KaynakKayitId!.Value).Distinct().ToList();
+        var sandiklar = uow.GetRepository<Sandik>().Queryable().Where(s => sandikIdleri.Contains(s.Id)).ToDictionary(s => s.Id);
+        var projeIdleri = adaylar.Select(k => k.ProjeId!.Value).Distinct().ToList();
+        var projeler = uow.GetRepository<Proje>().Queryable().Where(p => projeIdleri.Contains(p.Id)).ToDictionary(p => p.Id);
+        var eslesmeler = adaylar
+            .Where(k => projeler.ContainsKey(k.ProjeId!.Value) &&
+                        sandiklar.TryGetValue(k.KaynakKayitId!.Value, out var kaynakSandik) && kaynakSandik.ProjeId == k.ProjeId)
+            .Select(k => (Kayit: k, Sandik: sandiklar[k.KaynakKayitId!.Value], Proje: projeler[k.ProjeId!.Value]))
+            .ToList();
+
+        var olcusuEksik = eslesmeler.Where(x =>
+            {
+                var kaynak = AmbalajUretimPolitikasi.KaynakDegerleri(x.Sandik);
+                return !AmbalajUretimYardimcilari.OlculerGecerli(true, kaynak.Cins,
+                    AmbalajUretimYardimcilari.SandikAdediHesapla(x.Sandik.SandikNo), kaynak.Boy, kaynak.En, kaynak.Yukseklik);
+            })
+            .Select(x => x.Sandik.SandikNo).ToList();
+        if (olcusuEksik.Count > 0)
+            return Result.Failure(
+                $"{string.Join(", ", olcusuEksik)} numaralı sandığın ölçüleri eksik olduğu için üretim formu oluşturulamadı.", 409);
+
+        // Finans servisi PO geçmişi olan kalemde fiyat eşleşmesi değişikliğini reddeder; kullanıcıya sandık
+        // numarasıyla, hiçbir kayıt değiştirilmeden burada söylenir.
+        var eslesmesiDegisenler = eslesmeler
+            .Where(x => AmbalajUretimPolitikasi.KaynakFiyatEslesmesiniDegistirirMi(x.Kayit, x.Sandik)).ToList();
+        if (eslesmesiDegisenler.Count > 0)
+        {
+            var akisIdleri = eslesmesiDegisenler.Select(x => x.Kayit.IsAkisKimligi.ToString("D")).ToList();
+            var poGecmisliAkislar = uow.GetRepository<FinansIsKaydi>().Queryable()
+                .Where(f => f.KaynakTuru.ToUpper() == FinansKaynakTurleri.AmbalajUretim &&
+                            akisIdleri.Contains(f.KaynakKayitId!) && f.SiparisKalemleri.Any())
+                .Select(f => f.KaynakKayitId!)
+                .ToHashSet();
+            var poluSandiklar = eslesmesiDegisenler
+                .Where(x => poGecmisliAkislar.Contains(x.Kayit.IsAkisKimligi.ToString("D")))
+                .Select(x => x.Kayit.SandikNo).ToList();
+            if (poluSandiklar.Count > 0)
+                return Result.Failure(
+                    $"{string.Join(", ", poluSandiklar)} numaralı sandığın ölçü, tip veya adı kaynak sandıkta değişti; " +
+                    "finans kaleminin PO geçmişi olduğu için fiyat eşleşmesi korunur ve üretim formu güncel değerlerle " +
+                    "oluşturulamadı. Önce Finans'ta ilgili PO/fatura kayıtlarını uzlaştırın.", 409);
+        }
+
+        var repo = uow.GetRepository<AmbalajUretimKaydi>();
+        var tazelenen = 0;
+        foreach (var (kayit, sandik, proje) in eslesmeler)
+        {
+            var eski = AmbalajUretimYardimcilari.Snapshot(kayit);
+            var eskiSenkronizasyonTarihi = kayit.KaynakSonSenkronizasyonTarihi;
+            AmbalajKaynakSenkronizasyonService.FormIcinKaynaktanTazele(kayit, proje, sandik);
+            var degismedi = AmbalajUretimYardimcilari.Snapshot(kayit)
+                .Where(x => x.Key != nameof(AmbalajUretimKaydi.KaynakSonSenkronizasyonTarihi))
+                .All(x => eski.TryGetValue(x.Key, out var eskiDeger) && eskiDeger == x.Value);
+            if (degismedi)
+            {
+                // Değişiklik yoksa kayıt ve geçmiş yazılmaz; son senkronizasyon tarihi de yerinde kalır.
+                kayit.KaynakSonSenkronizasyonTarihi = eskiSenkronizasyonTarihi;
+                continue;
+            }
+            repo.Update(kayit);
+            await AmbalajUretimYardimcilari.AlanHareketleriniEkleAsync(uow, kayit, eski,
+                "Kaynak sandık değişiklikleri üretim formuna alındı", kullaniciId);
+            tazelenen++;
+        }
+        if (tazelenen > 0) await uow.SaveChangesAsync(ct);
+        return Result.Success();
     }
 }

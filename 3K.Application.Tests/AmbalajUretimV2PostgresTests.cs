@@ -1,9 +1,11 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using _3K.Application.Features.AmbalajIslemleri;
 using _3K.Application.Features.AmbalajIslemleri.Commands;
 using _3K.Application.Features.AmbalajIslemleri.Queries;
+using _3K.Application.Features.SandikIslemleri.Commands;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Constants;
@@ -217,6 +219,155 @@ public sealed class AmbalajUretimV2PostgresTests
     }
 
     /// <summary>
+    /// Gerçek sıra: kaynak sandıkla ilk form → sandık ölçüsü güncellenir → kuyruk senkronu kilitli kaydı atlar →
+    /// yeniden oluşturma kaydı, çam m³'ünü ve form snapshot'ını (izlenmeden okunan form hesabı dahil) yeni ölçüyle yazar.
+    /// </summary>
+    [PostgresRaporFact]
+    [Trait("Category", "Postgres")]
+    public async Task Form_SandikOlcusuGuncellenince_YenidenOlusturmaGuncelOlcuyleHesaplar()
+    {
+        await WithDatabase(async options =>
+        {
+            var kayitId = await OlcuGuncellenmisUretimKaydiAsync(options);
+            var finans = new FinansKaydedici();
+            await using (var ctx = new AppDbContext(options))
+            {
+                using var uow = new UnitOfWork(ctx, NullLogger<UnitOfWork>.Instance);
+                var handler = new AmbalajFormOlusturCommandHandler(uow, new User(), new Roles(), finans,
+                    islemKilidi: new AmbalajFormIslemKilidi(ctx));
+                var sonuc = await handler.Handle(new()
+                {
+                    ProjeId = 30, KayitIdleri = [kayitId], YenidenOlustur = true, IdempotencyAnahtari = Guid.NewGuid()
+                }, default);
+                Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+            }
+
+            var beklenen = AmbalajHesaplayici.M3OzetiHesapla(1308, 1108, 1120, 1, AmbalajHesaplayici.VarsayilanSarfOrani,
+                ayakHesapBoyu: 1400);
+            await using var verify = new AppDbContext(options);
+            var kayit = await verify.Set<AmbalajUretimKaydi>().SingleAsync(k => k.Id == kayitId);
+            Assert.Equal((1400m, 1200m, 1375m), (kayit.Boy, kayit.En, kayit.Yukseklik));
+            Assert.Equal(beklenen.HesaplananToplamM3, kayit.HesaplananToplamM3);
+            Assert.Equal(beklenen.SarfM3, kayit.SarfM3);
+            Assert.Equal(AmbalajUretimDurumu.Uretimde, kayit.UretimDurumu);
+            Assert.True(kayit.KaynakSenkronizasyonuKilitliMi);
+            var formlar = await verify.Set<AmbalajUretimFormuSurumu>().Where(f => f.ProjeId == 30)
+                .OrderBy(f => f.Surum).ToListAsync();
+            Assert.Equal([1, 2], formlar.Select(f => f.Surum));
+            var ilk = JsonSerializer.Deserialize<AmbalajUretimFormuModel>(formlar[0].SnapshotJson)!.Kalemler.Single();
+            var son = JsonSerializer.Deserialize<AmbalajUretimFormuModel>(formlar[1].SnapshotJson)!.Kalemler.Single();
+            Assert.Equal(new AmbalajOlculeri(1400, 1000, 1375), ilk.DisOlculer);
+            Assert.Equal(new AmbalajOlculeri(1400, 1200, 1375), son.DisOlculer);
+            Assert.Equal(beklenen.NetM3, son.NetM3);
+            Assert.Equal(beklenen.SarfM3, son.SarfM3);
+            // Yalnız gerçekten değişen ölçü geçmişe yazılır: numeric(18,4) kayıt ile ölçeksiz sandık değeri (1400.0000
+            // ile 1400) aynı sayılır.
+            var olcuHareketleri = await verify.Set<AmbalajUretimHareketi>()
+                .Where(h => h.AmbalajUretimKaydiId == kayitId && h.Islem == "Kaynak sandık değişiklikleri üretim formuna alındı" &&
+                            (h.AlanAdi == "Boy" || h.AlanAdi == "En" || h.AlanAdi == "Yukseklik"))
+                .Select(h => new { h.AlanAdi, h.EskiDeger, h.YeniDeger }).ToListAsync();
+            var olcuHareketi = Assert.Single(olcuHareketleri);
+            Assert.Equal("En", olcuHareketi.AlanAdi);
+            Assert.Equal(1000m, decimal.Parse(olcuHareketi.EskiDeger!, System.Globalization.CultureInfo.InvariantCulture));
+            Assert.Equal(1200m, decimal.Parse(olcuHareketi.YeniDeger!, System.Globalization.CultureInfo.InvariantCulture));
+            Assert.Equal(1200, finans.Modeller.Single().En);
+        });
+    }
+
+    /// <summary>
+    /// Tazeleme formdan önce yazılır; aynı işlemde sonraki adım (finans aktarımı) başarısız olursa tazelenen ölçü,
+    /// m³, geçmiş ve form sürümü veritabanında geri alınır.
+    /// </summary>
+    [PostgresRaporFact]
+    [Trait("Category", "Postgres")]
+    public async Task Form_YenidenOlusturmaFinansHatasi_KaynakTazelemesiniGeriAlir()
+    {
+        await WithDatabase(async options =>
+        {
+            var kayitId = await OlcuGuncellenmisUretimKaydiAsync(options);
+            AmbalajUretimKaydi once;
+            int hareketSayisi;
+            await using (var oncesi = new AppDbContext(options))
+            {
+                once = await oncesi.Set<AmbalajUretimKaydi>().AsNoTracking().SingleAsync(k => k.Id == kayitId);
+                hareketSayisi = await oncesi.Set<AmbalajUretimHareketi>().CountAsync(h => h.AmbalajUretimKaydiId == kayitId);
+            }
+            await using (var ctx = new AppDbContext(options))
+            {
+                using var uow = new UnitOfWork(ctx, NullLogger<UnitOfWork>.Instance);
+                await Assert.ThrowsAsync<InvalidOperationException>(() => Handler(ctx, uow, fail: true).Handle(new()
+                {
+                    ProjeId = 30, KayitIdleri = [kayitId], YenidenOlustur = true, IdempotencyAnahtari = Guid.NewGuid()
+                }, default));
+            }
+
+            await using var verify = new AppDbContext(options);
+            var kayit = await verify.Set<AmbalajUretimKaydi>().SingleAsync(k => k.Id == kayitId);
+            Assert.Equal((once.Boy, once.En, once.Yukseklik), (kayit.Boy, kayit.En, kayit.Yukseklik));
+            Assert.Equal(1000, kayit.En);
+            Assert.Equal((once.HesaplananToplamM3, once.SarfM3, once.ToplamM3), (kayit.HesaplananToplamM3, kayit.SarfM3, kayit.ToplamM3));
+            Assert.Equal(once.KaynakSonSenkronizasyonTarihi, kayit.KaynakSonSenkronizasyonTarihi);
+            Assert.Single(await verify.Set<AmbalajUretimFormuSurumu>().Where(f => f.ProjeId == 30).ToListAsync());
+            Assert.Equal(hareketSayisi, await verify.Set<AmbalajUretimHareketi>().CountAsync(h => h.AmbalajUretimKaydiId == kayitId));
+        });
+    }
+
+    /// <summary>
+    /// Proje 30'daki 3 numaralı Ahşap Kapalı sandığı (1400×1000×1375) kaynak senkronuyla ilk forma alır, ölçüsünü
+    /// sandık özellik güncellemesiyle 1400×1200×1375 yapar ve kuyruk senkronunun kilitli kaydı atladığını doğrular.
+    /// </summary>
+    private static async Task<int> OlcuGuncellenmisUretimKaydiAsync(DbContextOptions<AppDbContext> options)
+    {
+        await using (var seed = new AppDbContext(options))
+        {
+            seed.Projeler.Add(new Proje { Id = 30, ProjeNo = "PA-30" });
+            seed.Sandiklar.Add(new Sandik
+            {
+                Id = 301, ProjeId = 30, SandikNo = "3", Ad = "Radyatör", TipId = (int)SandikTipi.AhsapKapali,
+                Boy = 1400, En = 1000, Yukseklik = 1375, NetKg = 260, GrossKg = 410
+            });
+            await seed.SaveChangesAsync();
+            // Ortak kurulum kaydı elle kimlik aldığı için kimlik dizisi ilerletilir; senkronizasyon yeni kayıt ekler.
+            await seed.Database.ExecuteSqlRawAsync(
+                "SELECT setval(pg_get_serial_sequence('\"AmbalajUretimKayitlari\"', 'Id'), (SELECT MAX(\"Id\") FROM \"AmbalajUretimKayitlari\"))");
+        }
+        await using (var ctx = new AppDbContext(options))
+        {
+            using var uow = new UnitOfWork(ctx, NullLogger<UnitOfWork>.Instance);
+            var sync = new AmbalajKaynakSenkronizasyonService(uow, new Finans(false));
+            var ilk = await new AmbalajFormOlusturCommandHandler(uow, new User(), new Roles(), new Finans(false), sync,
+                new AmbalajFormIslemKilidi(ctx)).Handle(new()
+            {
+                ProjeId = 30, KaynakSandikIdleri = [301], IdempotencyAnahtari = Guid.NewGuid()
+            }, default);
+            Assert.True(ilk.IsSuccess, ilk.Error?.Message);
+        }
+        await using (var ctx = new AppDbContext(options))
+        {
+            using var uow = new UnitOfWork(ctx, NullLogger<UnitOfWork>.Instance);
+            var guncelle = await new SandikOzellikGuncelleCommandHandler(uow).Handle(new()
+            {
+                SandikId = 301, SandikIsmi = "Radyatör", TipId = (int)SandikTipi.AhsapKapali,
+                Boy = 1400, En = 1200, Yukseklik = 1375, NetKg = 260, GrossKg = 410
+            }, default);
+            Assert.True(guncelle.IsSuccess, guncelle.Error?.Message);
+        }
+        await using (var ctx = new AppDbContext(options))
+        {
+            using var uow = new UnitOfWork(ctx, NullLogger<UnitOfWork>.Instance);
+            var kuyruk = await new AmbalajKaynakSenkronizasyonService(uow, new Finans(false))
+                .SenkronizeEtAsync(30, new User(), default);
+            Assert.True(kuyruk.IsSuccess, kuyruk.Error?.Message);
+            Assert.Equal(1, kuyruk.Value!.Degismeyen);
+        }
+        await using var verify = new AppDbContext(options);
+        var kayit = await verify.Set<AmbalajUretimKaydi>().SingleAsync(k => k.KaynakKayitId == 301);
+        Assert.Equal(1000, kayit.En);
+        Assert.True(kayit.KaynakSenkronizasyonuKilitliMi);
+        return kayit.Id;
+    }
+
+    /// <summary>
     /// Finans aktarımı proje tamamlamayı iş kuralıyla reddederse (ör. üretim miktarı aktif siparişin altına düşer)
     /// bütün tamamlama geri alınır: kayıt durumu, tamamlanma tarihi, gerçekleşme ve hareket satırları yazılmaz.
     /// </summary>
@@ -315,6 +466,15 @@ public sealed class AmbalajUretimV2PostgresTests
     {
         public Task<FinansSenkronizasyonSonucModel> UretimKayitlariniAktarAsync(IReadOnlyList<FinansUretimAktarimModel> m, CancellationToken ct) =>
             fail ? throw new InvalidOperationException("Sentetik aktarım hatası") : Task.FromResult(new FinansSenkronizasyonSonucModel(0, m.Count, 0));
+    }
+    private sealed class FinansKaydedici : IFinansUretimAktarimService
+    {
+        public List<FinansUretimAktarimModel> Modeller { get; } = [];
+        public Task<FinansSenkronizasyonSonucModel> UretimKayitlariniAktarAsync(IReadOnlyList<FinansUretimAktarimModel> m, CancellationToken ct)
+        {
+            Modeller.AddRange(m);
+            return Task.FromResult(new FinansSenkronizasyonSonucModel(0, m.Count, 0));
+        }
     }
     /// <summary>Finans servisinin kullanıcıya gösterilen iş kuralı reddi (409).</summary>
     private sealed class FinansRed : IFinansUretimAktarimService
