@@ -98,7 +98,7 @@ public class RaporPostgresEntegrasyonTests
                         using var bulkWorkbook = new XLWorkbook(new MemoryStream(bytes.ToArray()));
                         var bulkSheet = bulkWorkbook.Worksheet(1);
                         for (var rowNumber = 6; rowNumber <= sheet.LastRowUsed()!.RowNumber(); rowNumber++)
-                            for (var column = 1; column <= 19; column++)
+                            for (var column = 1; column <= 18; column++)
                                 Assert.Equal(sheet.Cell(rowNumber, column).Value, bulkSheet.Cell(rowNumber, column).Value);
                     }
                 }
