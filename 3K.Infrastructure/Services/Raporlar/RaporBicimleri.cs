@@ -1,4 +1,6 @@
 using _3K.Core.Entities;
+using _3K.Core.Enums;
+using _3K.Core.Models;
 
 namespace _3K.Infrastructure.Services.Raporlar;
 
@@ -19,6 +21,27 @@ internal static class RaporBicimleri
         string.IsNullOrWhiteSpace(sandik.Ad) && string.IsNullOrWhiteSpace(sandik.AdIngilizce)
             ? "-"
             : $"{RaporMetni(sandik.Ad)} / {RaporMetni(sandik.AdIngilizce)}";
+
+    /// <summary>
+    /// SEVK sütununun yazı rengi: sevk edildi yeşil, eksik sevk turuncu, sevk edilmedi kırmızı, trafoyla mavi.
+    /// </summary>
+    internal static string SevkRengi(UrunSevkDurumu? durum) => durum switch
+    {
+        UrunSevkDurumu.SevkEdildi => "#2E7D32",
+        UrunSevkDurumu.EksikSevk => "#F57C00",
+        UrunSevkDurumu.SevkEdilmedi => "#D32F2F",
+        UrunSevkDurumu.Trafoyla => "#1565C0",
+        _ => "#000000"
+    };
+
+    /// <summary>Normal rapordaki sahaya aktarılan adet ve sandık bilgisinin rengi (mor); SEVK renklerinden ayrışır.</summary>
+    internal const string SahaAktarimRengi = "#6A1B9A";
+
+    /// <summary>SEVK sütunu metni; eksik sevkte gönderilen/beklenen adet yazılır ("Eksik Sevk (20/40)").</summary>
+    internal static string SevkMetni(UrunSevkSonucu? sonuc) =>
+        sonuc is { Durum: UrunSevkDurumu.EksikSevk } eksik
+            ? $"{UrunSevkDurumuKurali.Etiket(eksik.Durum)} ({FormatAdet(eksik.SevkEdilen)}/{FormatAdet(eksik.Beklenen)})"
+            : UrunSevkDurumuKurali.Etiket(sonuc?.Durum);
 
     internal static string GetRaporAciklama(CekiSatiri satir)
     {
