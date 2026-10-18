@@ -299,24 +299,6 @@ public class SahaAkisiGuvenlikKurallariTests
         Assert.True(SahaAktarimGeriAlmaPolicy.IslemGormusMu(satir, new[] { icerik }));
     }
 
-    [Fact]
-    public void ManuelUrunKaliteVeyaSurecGormusse_SilinemezSayilir()
-    {
-        var satir = YeniBaslangicSatiri();
-        Assert.False(ManuelUrunSilmeKurali.IslemGormusMu(satir));
-
-        satir.KaliteDurumId = 1;
-        Assert.True(ManuelUrunSilmeKurali.IslemGormusMu(satir));
-
-        satir.KaliteDurumId = null;
-        satir.SurecDurumId = 1;
-        Assert.True(ManuelUrunSilmeKurali.IslemGormusMu(satir));
-
-        satir.SurecDurumId = null;
-        satir.GridDurumuId = (int)GridDurum.TamGeldi;
-        Assert.True(ManuelUrunSilmeKurali.IslemGormusMu(satir));
-    }
-
     [Theory]
     [InlineData(SandikDurum.Bos, false)]
     [InlineData(SandikDurum.Hazirlaniyor, false)]

@@ -86,15 +86,6 @@ public sealed class KullaniciIkiFaktorPolitikaTests
         Assert.Contains(result.Errors, x => x.PropertyName == "ZorunluMu");
     }
 
-    [Fact]
-    public void ZorunlulukKomutu_SabitKullaniciYonetimiYazmaYetkisineBaglidir()
-    {
-        var command = new KullaniciIkiFaktorZorunluluguGuncelleCommand();
-
-        Assert.IsAssignableFrom<ISecuredRequest>(command);
-        Assert.Equal("kullanicilar", ((IRequiresMenuPermission)command).RequiredMenuKod);
-    }
-
     public static IEnumerable<object[]> KullaniciYonetimiIstekleri()
     {
         yield return new object[] { new KullaniciListeleQuery() };

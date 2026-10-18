@@ -144,14 +144,14 @@ Akış: **Controller → Command/Query → (Authorization → Validation → App
 
 ## Test
 
-- Tek test projesi: `3K.Application.Tests` (xUnit). Testler alanlara göre adlandırılmış sınıflardır (ör. `FinansAlanProjeksiyonuTests`, `FinansPoFaturaKurallariTests`, `AmbalajUretimTests`, `YetkiModeliTests`).
+- Tek test projesi: `3K.Application.Tests` (xUnit). Testler alanlara göre adlandırılmış sınıflardır (ör. `FinansSekmeYetkileriTests`, `FinansPoFaturaKurallariTests`, `AmbalajUretimTests`, `YetkiModeliTests`).
 - Finans servislerini testte üretim DI kaydıyla kur: `FinansTestServisleri`.
 - **Release konfigürasyonunda çalıştır**: Visual Studio'da açık çalışan API `bin/Debug` dosyalarını kilitler.
 - **Sadece değişen alanın testlerini koş**; tam paketi yalnız kullanıcı isterse çalıştır. Raporda hangi alt kümenin koştuğunu söyle.
 
 ```powershell
 dotnet build 3K_Proje.slnx -c Release
-dotnet test 3K.Application.Tests/3K.Application.Tests.csproj -c Release --filter "FullyQualifiedName~FinansAlanProjeksiyonuTests"
+dotnet test 3K.Application.Tests/3K.Application.Tests.csproj -c Release --filter "FullyQualifiedName~FinansSekmeYetkileriTests"
 dotnet test 3K.Application.Tests/3K.Application.Tests.csproj -c Release --filter "FullyQualifiedName~FinansPoFaturaKurallariTests|FullyQualifiedName~FinansGiderFiltresiTests"
 dotnet test 3K.Application.Tests/3K.Application.Tests.csproj -c Release --filter "FullyQualifiedName~Ambalaj&Category!=Postgres"
 ```

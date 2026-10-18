@@ -96,27 +96,6 @@ public sealed class FinansVadeKurallariTests
         Assert.Equal(faturalar.Count, FinansSorgulari.OdemeFiltresi(faturalar.AsQueryable(), null, Bugun, 7).Count());
     }
 
-    /// <summary>
-    /// Ödeme PO/Fatura'nın Faturalar alt sekmesinin, para birimi/parametre Tanımlar'ın Para Birimi ve Vade alt sekmesinin,
-    /// yeniden fiyatlama Ürün ve Tarifeler alt sekmesinin W iznini ister; vade uyarısı yalnız kendi R iznini (sekme izni
-    /// yetmez), alacak raporu biçimden bağımsız Raporlar sekmesinin R iznini ister.
-    /// </summary>
-    [Fact]
-    public void Yeni_finans_istekleri_kendi_sekme_izinlerini_ister()
-    {
-        Assert.Equal((YetkiKodlari.Finans.SekmePoFaturaFatura, YetkiTipi.W),
-            (new FinansFaturaOdemeCommand().RequiredMenuKod, new FinansFaturaOdemeCommand().RequiredYetkiTipi));
-        Assert.Equal([MenuPermissionRequirement.Write(YetkiKodlari.Finans.SekmeTanimlarTarifeler)], new FinansUrunYenidenFiyatlaCommand().RequiredMenuPermissions);
-        Assert.Equal([MenuPermissionRequirement.Write(YetkiKodlari.Finans.SekmeTanimlarParaBirimi)], new FinansParaBirimiOlusturCommand().RequiredMenuPermissions);
-        Assert.Equal([MenuPermissionRequirement.Write(YetkiKodlari.Finans.SekmeTanimlarParaBirimi)], new FinansParaBirimiGuncelleCommand().RequiredMenuPermissions);
-        Assert.Equal([MenuPermissionRequirement.Write(YetkiKodlari.Finans.SekmeTanimlarParaBirimi)], new FinansParametreleriKaydetCommand().RequiredMenuPermissions);
-        Assert.Equal(YetkiKodlari.Finans.Modul, new FinansParaBirimleriQuery().RequiredMenuKod);
-        Assert.Equal([MenuPermissionRequirement.Read(YetkiKodlari.Finans.VadeUyarisi)], new FinansVadeUyarilariQuery().RequiredMenuPermissions);
-        Assert.Equal([MenuPermissionRequirement.Read(YetkiKodlari.Finans.SekmeRaporlar)],
-            new FinansAlacakRaporuDosyaQuery { Format = "xlsx" }.RequiredMenuPermissions);
-        Assert.Equal([MenuPermissionRequirement.Read(YetkiKodlari.Finans.SekmeRaporlar)], new FinansAlacakRaporuDosyaQuery().RequiredMenuPermissions);
-    }
-
     [Fact]
     public void Istek_dogrulayicilari_vade_odeme_ve_para_birimi_girdisini_sinirlar()
     {

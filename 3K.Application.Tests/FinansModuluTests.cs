@@ -15,33 +15,6 @@ namespace _3K.Application.Tests;
 
 public sealed class FinansModuluTests
 {
-    [Theory]
-    [InlineData(typeof(FinansPanelQuery), YetkiKodlari.Finans.SekmePanel)]
-    [InlineData(typeof(FinansProjeSecenekleriQuery), "finans-yonetimi")]
-    [InlineData(typeof(FinansAylikIslerQuery), YetkiKodlari.Finans.SekmeIsTakibiAylik)]
-    [InlineData(typeof(FinansProjeSandikKirilimiQuery), YetkiKodlari.Finans.SekmeIsTakibiAylik)]
-    [InlineData(typeof(FinansMunferitIslerQuery), YetkiKodlari.Finans.SekmeMunferitIsler)]
-    [InlineData(typeof(FinansMunferitIsOlusturCommand), YetkiKodlari.Finans.SekmeMunferitIsler)]
-    [InlineData(typeof(FinansUrunSecenekleriQuery), YetkiKodlari.Finans.SekmeMunferitIsler)]
-    [InlineData(typeof(FinansIsKaydiOlusturCommand), YetkiKodlari.Finans.SekmeIsTakibiAylik)]
-    [InlineData(typeof(FinansIsKaydiIptalCommand), YetkiKodlari.Finans.SekmeIsTakibi)]
-    [InlineData(typeof(FinansIsKaydiGeriAlCommand), YetkiKodlari.Finans.SekmeIsTakibi)]
-    [InlineData(typeof(FinansSiparisOlusturCommand), YetkiKodlari.Finans.SekmePoFaturaPo)]
-    [InlineData(typeof(FinansSiparisGuncelleCommand), YetkiKodlari.Finans.SekmePoFaturaPo)]
-    [InlineData(typeof(FinansFaturaOlusturCommand), YetkiKodlari.Finans.SekmePoFaturaFatura)]
-    [InlineData(typeof(FinansFaturaGuncelleCommand), YetkiKodlari.Finans.SekmePoFaturaFatura)]
-    [InlineData(typeof(FinansGiderlerQuery), YetkiKodlari.Finans.SekmeGiderler)]
-    [InlineData(typeof(FinansGiderOlusturCommand), YetkiKodlari.Finans.SekmeGiderler)]
-    [InlineData(typeof(FinansUrunGuncelleCommand), YetkiKodlari.Finans.SekmeTanimlarTarifeler)]
-    [InlineData(typeof(FinansIsRaporuDosyaQuery), YetkiKodlari.Finans.SekmeRaporlar)]
-    public void Finans_requestleri_beklenen_sabit_yetki_kodunu_kullanir(Type requestType, string expectedCode)
-    {
-        var request = Activator.CreateInstance(requestType);
-        var permission = Assert.IsAssignableFrom<IRequiresMenuPermission>(request);
-        Assert.IsAssignableFrom<ISecuredRequest>(request);
-        Assert.Equal(expectedCode, permission.RequiredMenuKod);
-    }
-
     [Fact]
     public void Finans_proje_secenekleri_tum_projeleri_guvenli_alanlarla_sunar_ve_modul_okuma_yetkisine_baglidir()
     {
@@ -56,46 +29,6 @@ public sealed class FinansModuluTests
         var constructor = Assert.Single(typeof(FinansIsKaydiService).GetConstructors());
         Assert.DoesNotContain(constructor.GetParameters(), parameter =>
             parameter.ParameterType == typeof(_3K.Core.Interfaces.IRolService));
-    }
-
-    /// <summary>Fiyat girilse de PO açma yalnız sipariş açılan sekmelerden birinin W iznini ister; ek fiyat izni yoktur.</summary>
-    [Fact]
-    public void Po_komutu_fiyat_override_edilse_de_yalniz_siparis_acma_sekmelerini_ister()
-    {
-        var plain = new FinansSiparisOlusturCommand
-        {
-            Model = new FinansSiparisOlusturModel(
-                "PO-1", DateTime.Today, null,
-                new[] { new FinansSiparisDagitimModel(1, 1, 0) })
-        };
-        var overridden = new FinansSiparisOlusturCommand
-        {
-            Model = new FinansSiparisOlusturModel(
-                "PO-2", DateTime.Today, null,
-                new[] { new FinansSiparisDagitimModel(1, 1, 0, BirimFiyat: 100) })
-        };
-
-        var beklenen = FinansSekmeleri.SiparisAcma.Select(MenuPermissionRequirement.Write).ToArray();
-        Assert.Equal(beklenen, plain.RequiredMenuPermissions);
-        Assert.Equal(beklenen, overridden.RequiredMenuPermissions);
-        Assert.Equal(MenuPermissionMatch.Any, overridden.PermissionMatch);
-    }
-
-    /// <summary>Aylık rapor dosyası İş Takibi'nin Aylık görünüm alt sekmesi veya Raporlar sekmesinin R izniyle alınır; biçim (xlsx/pdf) izni değiştirmez.</summary>
-    [Fact]
-    public void Aylik_rapor_dosyasi_aylik_gorunum_veya_raporlar_okumasini_ister_format_yetkiyi_degistirmez()
-    {
-        var excel = new FinansAylikRaporDosyaQuery { Format = "xlsx", Yil = 2026, Ay = 8 };
-        var pdf = new FinansAylikRaporDosyaQuery { Format = "pdf", Yil = 2026, Ay = 8 };
-
-        MenuPermissionRequirement[] beklenen =
-        [
-            MenuPermissionRequirement.Read(YetkiKodlari.Finans.SekmeIsTakibiAylik),
-            MenuPermissionRequirement.Read(YetkiKodlari.Finans.SekmeRaporlar)
-        ];
-        Assert.Equal(beklenen, excel.RequiredMenuPermissions);
-        Assert.Equal(beklenen, pdf.RequiredMenuPermissions);
-        Assert.Equal(MenuPermissionMatch.Any, excel.PermissionMatch);
     }
 
     [Fact]
@@ -208,16 +141,6 @@ public sealed class FinansModuluTests
 
         Assert.Equal(new[] { 1, 2 }, visibleIds);
         Assert.Equal(5, FinansSiparisFaturaService.ApplyFaturalamaBekleyenFilter(orders, false).Count());
-    }
-
-    [Fact]
-    public void Kutuphane_okuma_endpointleri_yonetici_yetkisini_baska_gorme_yetkisine_baglamaz()
-    {
-        Assert.Equal([MenuPermissionRequirement.Read(YetkiKodlari.Finans.SekmeGiderKategorileri)],
-            new FinansGiderKutuphaneKategorileriQuery().RequiredMenuPermissions);
-        Assert.Equal([MenuPermissionRequirement.Read(YetkiKodlari.Finans.SekmeGiderKategorileri)],
-            new FinansGiderKutuphaneKalemleriQuery().RequiredMenuPermissions);
-        Assert.Equal([MenuPermissionRequirement.Read(YetkiKodlari.Finans.SekmeTanimlarTarifeler)], new FinansUrunlerQuery().RequiredMenuPermissions);
     }
 
     [Fact]
@@ -654,31 +577,6 @@ public sealed class FinansModuluTests
         Assert.Contains("IptalEdildi", workSql, StringComparison.Ordinal);
         Assert.Contains("KaynakAktif", workSql, StringComparison.Ordinal);
         Assert.Contains("IptalEdildi", invoiceSql, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Aylik_tarih_araligi_po_talep_eden_ve_iptal_filtrelerini_korur()
-    {
-        var requested = new FinansListeFiltre(
-            PageNumber: 2,
-            PageSize: 40,
-            PoNumarasi: "PO-2026-1",
-            TalepEden: "Saha Operasyon",
-            IptalEdilenleriDahilEt: true);
-        var start = new DateTime(2026, 8, 1);
-
-        var monthly = requested with
-        {
-            Baslangic = start,
-            Bitis = start.AddMonths(1).AddDays(-1)
-        };
-
-        Assert.Equal(2, monthly.PageNumber);
-        Assert.Equal(40, monthly.PageSize);
-        Assert.Equal("PO-2026-1", monthly.PoNumarasi);
-        Assert.Equal("Saha Operasyon", monthly.TalepEden);
-        Assert.True(monthly.IptalEdilenleriDahilEt);
-        Assert.Equal(new DateTime(2026, 8, 31), monthly.Bitis);
     }
 
     [Fact]

@@ -112,17 +112,6 @@ public sealed class FinansTarifeDuzeltmeTests
         FinansTarifeDuzeltmeKurali.Dogrula(Surum(), 565m, 20m);
     }
 
-    /// <summary>Düzeltme ve önizlemesi Tanımlar'ın Ürün ve Tarifeler alt sekmesinin yazma iznini ister (önizleme sorgu olsa da W).</summary>
-    [Fact]
-    public void Duzeltme_ve_onizleme_tarifeler_alt_sekmesi_yazma_yetkisi_ister()
-    {
-        Assert.Equal(YetkiKodlari.Finans.SekmeTanimlarTarifeler, new FinansTarifeDuzeltCommand().RequiredMenuKod);
-        Assert.Equal(YetkiTipi.W, new FinansTarifeDuzeltCommand().RequiredYetkiTipi);
-        Assert.Equal([MenuPermissionRequirement.Write(YetkiKodlari.Finans.SekmeTanimlarTarifeler)], new FinansTarifeDuzeltCommand().RequiredMenuPermissions);
-        var onizleme = Assert.Single(new FinansTarifeDuzeltmeOnizlemeQuery().RequiredMenuPermissions);
-        Assert.Equal(MenuPermissionRequirement.Write(YetkiKodlari.Finans.SekmeTanimlarTarifeler), onizleme);
-    }
-
     [Fact]
     public void Gerekcesiz_duzeltme_dogrulamadan_gecmez()
     {
