@@ -489,6 +489,13 @@ public sealed class CekiOrijinalMiktarTests
                     new DataTable().CreateDataReader()));
 
             var table = TahsisTablosuOlustur();
+            // EF sütunları sırayla okur; modele alan eklenip tablo güncellenmezse kayma anlamsız bir InvalidCast'e döner.
+            var model = eventData.Context!.Model;
+            var modelSutunSayisi = model.FindEntityType(typeof(SandikIcerik))!.GetProperties().Count()
+                + model.FindEntityType(typeof(Sandik))!.GetProperties().Count();
+            Assert.True(table.Columns.Count == modelSutunSayisi,
+                $"Sahte tahsis tablosu {table.Columns.Count} sütunlu, SandikIcerik + Sandik modeli {modelSutunSayisi} sütunlu. " +
+                "Yeni alanı TahsisTablosuOlustur ve TahsisSatiriEkle içinde sorgudaki SELECT sırasına ekleyin.");
             foreach (var satir in satirlar)
                 TahsisSatiriEkle(table, satir);
 
@@ -503,7 +510,7 @@ public sealed class CekiOrijinalMiktarTests
                 typeof(int), typeof(string), typeof(decimal), typeof(string), typeof(int),
                 typeof(int), typeof(string), typeof(DateTime), typeof(decimal), typeof(string),
                 typeof(string), typeof(decimal), typeof(decimal), typeof(decimal), typeof(int),
-                typeof(decimal), typeof(decimal), typeof(decimal), typeof(string), typeof(DateTime), typeof(uint),
+                typeof(decimal), typeof(decimal), typeof(decimal), typeof(string), typeof(DateTime), typeof(string), typeof(uint),
                 typeof(int), typeof(string), typeof(string), typeof(decimal), typeof(string),
                 typeof(DateTime), typeof(int), typeof(int), typeof(decimal), typeof(decimal),
                 typeof(decimal), typeof(int), typeof(string), typeof(int), typeof(bool),
@@ -521,7 +528,7 @@ public sealed class CekiOrijinalMiktarTests
                 veri.Id, bos, veri.AktifPartideKarsilanan.HasValue ? veri.AktifPartideKarsilanan.Value : bos, bos, (int)Birim.Adet,
                 veri.CekiSatiriId, bos, DateTime.UtcNow, veri.Eksik ?? Math.Max(veri.Tahsis - veri.Konulan, 0), bos,
                 bos, veri.Konulan, 0m, 0m, veri.SandikId,
-                0m, veri.Tahsis, 0m, bos, bos, 1u,
+                0m, veri.Tahsis, 0m, bos, bos, bos, 1u,
                 veri.SandikId, bos, bos, bos, bos,
                 DateTime.UtcNow, (int)DepoLokasyon.Belirsiz, (int)SandikDurum.Hazirlaniyor, bos, bos,
                 bos, veri.ProjeId, veri.SandikNo, bos, false,

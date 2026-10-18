@@ -22,10 +22,10 @@ Sunucu yetkisi gerçek kaynak/hedef sandıklarının proje türünden yazma izni
 ## Testler ve kurulum
 
 - `SandikTopluTasimaTests`: miktar/limit/mükerrer seçim/anahtar doğrulaması; legacy belirsiz kaydı yazmadan reddetme.
-- `SandikTopluTasimaPostgresTests`: gerçek rollback, eşzamanlı aynı/farklı anahtarlar, tekrar payload/kullanıcı çakışması, miktar/aktif sayaç/kaynak payları, sevkiyat kilidi, proje ilişkisi, saha blokajı, aynı barkodlu kayıtların ayrılığı ve SQL'in iki kez uygulanması.
+- `SandikTopluTasimaPostgresTests`: gerçek rollback, eşzamanlı aynı/farklı anahtarlar, tekrar payload/kullanıcı çakışması, miktar/aktif sayaç/kaynak payları, sevkiyat kilidi, proje ilişkisi, saha blokajı, aynı barkodlu kayıtların ayrılığı ve işlem defterinin gerçek şemada benzersiz anahtar ile 1–250 satır sınırını zorlaması.
 - `SandikTasimaKatalogKurallariTests`: mevcut tekil akışın regresyonları korunur.
 - Frontend `sandik-toplu-tasi.component.spec.ts` ve `sandik-toplu-tasima.service.spec.ts`: tek istek, tahsis/fiziksel önizleme, izin/loading, dört basamak ve ağ tekrar anahtarı.
 
 PostgreSQL testleri, yalnız açıkça verilen `THREEK_TEST_POSTGRES` yönetim bağlantısındaki **izole localhost test sunucusunda** geçici `sandik_toplu_tests_<guid>` veritabanları oluşturup kaldırır. Uygulama appsettings bağlantısı kullanılmaz. Değişken yoksa entegrasyon testleri açıkça atlanır; sıfır-atlama kontrolü olan tam regresyon kapısı bu değişkenle çalıştırılmalıdır. Bu testler gerçek üretim trigger'ları veya bütün saha servislerinin entegrasyon kanıtı değildir; saha servisi bağımlılığı testte kontrollüdür.
 
-Yayın öncesi `scripts/database/20260919_01_Sandik_Toplu_Tasima.sql` uygulanır. Sıfır kurulum/güncelleme açıklaması aynı dizindeki README'dedir. Script mevcut miktar/tahsis/iş verilerini değiştirmez.
+İşlem defteri tablosu (`SandikTopluTasimaIslemleri`) `20260919_01_Sandik_Toplu_Tasima.sql` ile kuruldu. Betik canlıya uygulandıktan sonra 27.09.2026'da depodan kaldırıldı. Tablonun benzersiz `IslemAnahtari` indeksi ve `CK_SandikTopluTasimaIslemleri_SatirSayisi` kontrolü EF modelinde (`SandikModelBuilderExtensions`) tanımlıdır; PostgreSQL testi bunları gerçek şemada doğrular.

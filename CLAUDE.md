@@ -168,7 +168,7 @@ dotnet test 3K.Application.Tests/3K.Application.Tests.csproj -c Release --filter
 
 - In-memory testler PostgreSQL transaction/trigger/FK/eşzamanlılık davranışının kanıtı değildir; bu sınırlar değiştiyse izole entegrasyon testi koş, koşamıyorsan açıkça söyle.
 - İş kuralı kapıları için runner: `./scripts/test/Invoke-IsKurallariTests.ps1 -Configuration Release`.
-- Test devre dışı bırakma veya beklentiyi yanlış davranışa uydurma yok. Bilinen önceden var olan hata: `SandikTopluTasimaTests` silinmiş bir betiği arıyor.
+- Test devre dışı bırakma veya beklentiyi yanlış davranışa uydurma yok. Bilinen önceden var olan test hatası yoktur.
 - Hata düzeltmesinde gerçek işlem sırası ve ret durumunda verinin değişmediği sınanır; kural, sahibi olan en alt katmanda test edilir (saf Core politikası veritabanısız, handler orkestrasyonu, veritabanı/HTTP sınırı entegrasyon testiyle).
 
 ## Kod stili ve kurallar

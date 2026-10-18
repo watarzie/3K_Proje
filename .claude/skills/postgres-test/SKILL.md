@@ -31,6 +31,4 @@ Argüman verilmezse değişen dosyalardan uygun filtreyi seç (ör. `FullyQualif
 
 ## Rapor
 Sonuçta şunu söyle: koşulan filtre, başarılı/başarısız/atlanan sayıları, PostgreSQL vakalarının gerçekten koştuğu
-(Atlanan: 0). Bilinen önceden var olan hatalar: `SandikTopluTasimaTests` (silinmiş betiği arar) ve
-`CekiOrijinalMiktarTests.RevizyonU_AyniPlanliTahsisDuzeltmesi_*` (temiz HEAD'de de başarısız). Bunları yeni hata diye
-raporlama; başka bir başarısızlık varsa çıktısıyla birlikte bildir.
+(Atlanan: 0). Bilinen önceden var olan hata yoktur (2026-10-18'de giderildi); her başarısızlığı çıktısıyla birlikte bildir.

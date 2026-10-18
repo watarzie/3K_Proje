@@ -62,22 +62,39 @@ public sealed class SandikTopluTasimaTests
 /// <summary>Yalnız açıkça belirtilen, localhost üzerindeki izole PostgreSQL test sunucusunda çalışır.</summary>
 public sealed class SandikTopluTasimaPostgresTests
 {
+    /// <summary>
+    /// İşlem defterinin kurulum betiği (20260919_01) canlıya uygulandıktan sonra depodan kaldırıldı; şemanın kaynağı
+    /// artık EF modelidir. Ağ tekrarını tanıyan benzersiz işlem anahtarı ve 1–250 satır sınırı gerçek PostgreSQL'de zorlanır.
+    /// </summary>
     [SandikPostgresFact]
-    public async Task KurulumSqli_YeniTabloyuVeriKaybetmedenOlusturur_VeTekrarCalisir()
+    public async Task IslemDefteri_GercekSemadaBenzersizAnahtarVeSatirSiniriniZorlar_TasimaTekDefterSatiriYazar()
     {
         await using var kurgu = await PostgresKurgu.CreateAsync();
         await using var db = kurgu.Db();
-        await db.Database.ExecuteSqlRawAsync("DROP TABLE public.\"SandikTopluTasimaIslemleri\"");
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory != null && !File.Exists(Path.Combine(directory.FullName, "scripts", "database", "20260919_01_Sandik_Toplu_Tasima.sql")))
-            directory = directory.Parent;
-        Assert.NotNull(directory);
-        var sql = await File.ReadAllTextAsync(Path.Combine(directory.FullName, "scripts", "database", "20260919_01_Sandik_Toplu_Tasima.sql"));
-        await db.Database.ExecuteSqlRawAsync(sql);
-        await db.Database.ExecuteSqlRawAsync(sql);
-        Assert.Equal(0, await db.SandikTopluTasimaIslemleri.CountAsync());
+        var anahtar = Guid.NewGuid();
+        await DefterSatiriEkleAsync(db, anahtar, 1);
+
+        var tekrar = await Assert.ThrowsAsync<PostgresException>(() => DefterSatiriEkleAsync(db, anahtar, 1));
+        Assert.Equal(PostgresErrorCodes.UniqueViolation, tekrar.SqlState);
+        Assert.Equal("IX_SandikTopluTasimaIslemleri_IslemAnahtari", tekrar.ConstraintName);
+        foreach (var satirSayisi in new[] { 0, 251 })
+        {
+            var sinir = await Assert.ThrowsAsync<PostgresException>(() => DefterSatiriEkleAsync(db, Guid.NewGuid(), satirSayisi));
+            Assert.Equal(PostgresErrorCodes.CheckViolation, sinir.SqlState);
+            Assert.Equal("CK_SandikTopluTasimaIslemleri_SatirSayisi", sinir.ConstraintName);
+        }
+        Assert.Equal(1, await db.SandikTopluTasimaIslemleri.CountAsync());
+
         Assert.True((await kurgu.TasiAsync(kurgu.Istek(.5m, .5m))).IsSuccess);
+        Assert.Equal(2, await db.SandikTopluTasimaIslemleri.CountAsync());
     }
+
+    private static Task<int> DefterSatiriEkleAsync(AppDbContext db, Guid anahtar, int satirSayisi) =>
+        db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO public."SandikTopluTasimaIslemleri"
+                ("IslemAnahtari", "IstekHash", "KullaniciId", "ProjeId", "KaynakSandikId", "HedefSandikId", "SatirSayisi", "CreatedDate")
+            VALUES ({anahtar}, 'test', 1, 1, 1, 2, {satirSayisi}, now()::timestamp)
+            """);
 
     [SandikPostgresFact]
     public async Task CokluManuelIcerik_AyniBarkodBirlesmez_TahsisFizikselKirilimlarVeOndalikKorunur()
