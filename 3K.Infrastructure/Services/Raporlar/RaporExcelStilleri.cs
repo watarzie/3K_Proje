@@ -1,4 +1,5 @@
 using ClosedXML.Excel;
+using _3K.Core.Enums;
 
 namespace _3K.Infrastructure.Services.Raporlar;
 
@@ -9,6 +10,59 @@ internal static class RaporExcelStilleri
     {
         cell.SetValue(value);
         cell.Style.NumberFormat.Format = decimal.Truncate(value) == value ? "0" : "0.####";
+    }
+
+    /// <summary>SEVK hücresi: metin kalın ve sevk durumunun rengiyle yazılır (PDF ile aynı).</summary>
+    internal static void SetSevkCell(IXLCell cell, string metin, UrunSevkDurumu? durum)
+    {
+        cell.Value = metin;
+        cell.Style.Font.Bold = true;
+        cell.Style.Font.FontColor = XLColor.FromHtml(RaporBicimleri.SevkRengi(durum));
+    }
+
+    /// <summary>
+    /// Sahaya aktarılan adet hücresi: adet sayı olarak (süzülür ve toplanır) kalın ve morla yazılır; aktarım yoksa "-".
+    /// </summary>
+    internal static void SetSahaAktarimCell(IXLCell cell, decimal adet)
+    {
+        if (adet <= 0)
+        {
+            cell.Value = "-";
+            return;
+        }
+
+        SetDecimalCell(cell, adet);
+        SahaAktarimStili(cell);
+    }
+
+    /// <summary>Sandığın sahaya aktarım metni; "-" dışındaki değer kalın ve morla yazılır (PDF ile aynı).</summary>
+    internal static void SetSahaAktarimCell(IXLCell cell, string metin)
+    {
+        cell.Value = metin;
+        if (metin != "-")
+            SahaAktarimStili(cell);
+    }
+
+    private static void SahaAktarimStili(IXLCell cell)
+    {
+        cell.Style.Font.Bold = true;
+        cell.Style.Font.FontColor = XLColor.FromHtml(RaporBicimleri.SahaAktarimRengi);
+    }
+
+    /// <summary>
+    /// Tablo başlığının üstündeki açıklama notu: satır boyunca birleştirilir (birleşik hücre sütun genişliğini
+    /// etkilemez), sarılır ve italik gri yazılır.
+    /// </summary>
+    internal static void SetNotSatiri(IXLWorksheet worksheet, int row, int lastColumn, string metin)
+    {
+        var range = worksheet.Range(row, 1, row, lastColumn);
+        range.Merge();
+        range.Value = metin;
+        range.Style.Font.Italic = true;
+        range.Style.Font.FontColor = XLColor.FromHtml("#616161");
+        range.Style.Alignment.WrapText = true;
+        range.Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+        worksheet.Row(row).Height = 30;
     }
 
     internal static void StyleExcelInfoRows(IXLWorksheet worksheet, int lastColumn)
