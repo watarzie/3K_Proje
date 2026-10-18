@@ -184,6 +184,62 @@ public class ServerAuthorizationRegressionTests
         Assert.True((await fixture.Run(new GetSandikIcerikQuery { SandikId = 40 })).IsSuccess);
     }
 
+    /// <summary>
+    /// U-249: ürün bilgisi Grid ve 3K ekranlarında aynı alandır; gerçek proje tipinin Sandıklar, 3K veya Grid
+    /// yazma izinlerinden biri yeter. Grid yazma izni sandık yazmanın geri kalanını açmaz.
+    /// </summary>
+    [Theory]
+    [InlineData(ProjeTipi.Normal, "grid-modulu")]
+    [InlineData(ProjeTipi.Normal, "3k-modulu")]
+    [InlineData(ProjeTipi.Normal, "sandik-yonetimi")]
+    [InlineData(ProjeTipi.Saha, "saha-grid-modulu")]
+    [InlineData(ProjeTipi.Saha, "saha-3k-modulu")]
+    [InlineData(ProjeTipi.Yedek, "yedek-grid-modulu")]
+    [InlineData(ProjeTipi.Yedek, "yedek-3k-modulu")]
+    public async Task UrunBilgisi_GercekProjeTipininSandikGridVeya3KYazmaIzniyleKaydedilir(ProjeTipi type, string menu)
+    {
+        var fixture = new Fixture(menu, YetkiTipi.W);
+        fixture.Seed(type);
+        var result = await fixture.Run(new SandikIcerikBilgisiGuncelleCommand { ProjeId = 10, SandikId = 40, SandikIcerikId = 50 });
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, fixture.Executed);
+    }
+
+    [Theory]
+    [InlineData(ProjeTipi.Normal, "grid-modulu", YetkiTipi.R)]
+    [InlineData(ProjeTipi.Saha, "grid-modulu", YetkiTipi.W)]
+    [InlineData(ProjeTipi.Yedek, "saha-grid-modulu", YetkiTipi.W)]
+    [InlineData(ProjeTipi.Normal, "stok", YetkiTipi.W)]
+    public async Task UrunBilgisi_OkumaVeyaBaskaTipinGridIzniyleKaydedilemez(ProjeTipi type, string menu, YetkiTipi permission)
+    {
+        var fixture = new Fixture(menu, permission);
+        fixture.Seed(type);
+        var result = await fixture.Run(new SandikIcerikBilgisiGuncelleCommand { ProjeId = 10, SandikId = 40, SandikIcerikId = 50 });
+        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(0, fixture.Executed);
+    }
+
+    [Fact]
+    public async Task GridYazmaIzni_UrunBilgisiDisindakiSandikYazmasiniAcamaz()
+    {
+        var fixture = new Fixture("grid-modulu", YetkiTipi.W);
+        fixture.Seed(ProjeTipi.Normal);
+        Assert.Equal(403, (await fixture.Run(new SandikOzellikGuncelleCommand { SandikId = 40 })).StatusCode);
+        Assert.Equal(403, (await fixture.Run(new UrunGuncelleCommand { ProjeId = 10, SandikId = 40, SandikIcerikId = 50 })).StatusCode);
+        Assert.Equal(0, fixture.Executed);
+    }
+
+    [Fact]
+    public async Task UrunBilgisi_GovdedekiProjeBaskaProjeninSandikIceriginiYetkilendiremez()
+    {
+        var fixture = new Fixture("grid-modulu", YetkiTipi.W);
+        fixture.Seed(ProjeTipi.Normal);
+        fixture.Uow.Repo<Proje>().Rows.Add(new() { Id = 11, ProjeTipiId = (int)ProjeTipi.Normal });
+        var result = await fixture.Run(new SandikIcerikBilgisiGuncelleCommand { ProjeId = 11, SandikId = 40, SandikIcerikId = 50 });
+        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(0, fixture.Executed);
+    }
+
     [Fact]
     public async Task OrtakSandik_YalnizOkumaYazmaIsleminiAcamaz()
     {

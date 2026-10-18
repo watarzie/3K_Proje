@@ -9,7 +9,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 {
     /// <summary>
     /// Ürün bilgisini yalnız projeye ait, sevk kilidi olmayan sandıktaki satırda değiştirir ve eski/yeni değeri
-    /// hareket geçmişine yazar. Değer değişmediyse hiçbir şey yazılmaz.
+    /// hareket geçmişine yazar. Değer değişmediyse hiçbir şey yazılmaz. Grid ve 3K aynı alanı düzenlediği için
+    /// ekrandaki eski değer kayıtlı değerle eşleşmiyorsa 409 döner; eşzamanlı iki kayıt <c>xmin</c> ile ayrıca yakalanır.
     /// </summary>
     public class SandikIcerikBilgisiGuncelleCommandHandler(
         IUnitOfWork unitOfWork,
@@ -34,8 +35,11 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             if (!SandikIcerikUrunBilgisiKurali.Gecerli(yeni))
                 return Result.Failure(SandikIcerikUrunBilgisiKurali.UzunlukMesaji);
             var eski = icerik.UrunBilgisi;
+            // Aynı değerin tekrarı (çift tıklama, ağ tekrarı) çakışma sayılmaz; yazılacak bir şey yoktur.
             if (string.Equals(eski, yeni, StringComparison.Ordinal))
                 return Result.Success();
+            if (!SandikIcerikUrunBilgisiKurali.EkrandakiDegerGuncel(eski, request.OncekiUrunBilgisi))
+                return Result.Failure(SandikIcerikUrunBilgisiKurali.CakismaMesaji, 409);
 
             icerik.UrunBilgisi = yeni;
             await unitOfWork.SaveChangesAsync(cancellationToken);

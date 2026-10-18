@@ -365,6 +365,33 @@ public sealed class GridUcKSatirMiktarSenkronizasyonTests
         Assert.Equal(0, kurgu.IlkIcerik.KonulanAdet);
     }
 
+    /// <summary>
+    /// U-249: Grid ve 3K ekranları ürün bilgisini aynı sandık satırından okur ve aynı sandık/içerik kimliğiyle
+    /// kaydeder. Bölünmüş üründe her sandık parçası kendi bilgisini taşır; tahsissiz satırda kayıt kimliği yoktur.
+    /// </summary>
+    [Fact]
+    public async Task UrunBilgisi_IkiListedeAyniSandikSatirindanAyniKimlikleDoner()
+    {
+        using var kurgu = new Kurgu(3, 2);
+        kurgu.IkinciTahsisEkle(1);
+        kurgu.IlkIcerik.UrunBilgisi = "SN: A-1001";
+        kurgu.Uow.Repo<SandikIcerik>().Rows.Single(i => i.Id == 201).UrunBilgisi = "SKT: 03.2027";
+
+        var (gridSatirlari, ucKSatirlari) = await kurgu.OkuAsync();
+
+        var grid = gridSatirlari.Select(s => (s.SandikId, s.SandikIcerikId, s.UrunBilgisi)).OrderBy(s => s.SandikIcerikId).ToArray();
+        var ucK = ucKSatirlari.Select(s => (s.SandikId, s.SandikIcerikId, s.UrunBilgisi)).OrderBy(s => s.SandikIcerikId).ToArray();
+        Assert.Equal(new (int?, int?, string?)[] { (20, 200, "SN: A-1001"), (21, 201, "SKT: 03.2027") }, grid);
+        Assert.Equal(grid, ucK);
+
+        kurgu.Uow.Repo<SandikIcerik>().Rows.Clear();
+        var (tahsissizGrid, tahsissizUcK) = await kurgu.OkuAsync();
+        Assert.Null(Assert.Single(tahsissizGrid).SandikIcerikId);
+        Assert.Null(Assert.Single(tahsissizGrid).UrunBilgisi);
+        Assert.Null(Assert.Single(tahsissizUcK).SandikIcerikId);
+        Assert.Equal(Assert.Single(tahsissizUcK).SandikId, Assert.Single(tahsissizGrid).SandikId);
+    }
+
     private sealed class Kurgu : IDisposable
     {
         public SaltOkunurUow Uow { get; } = new();

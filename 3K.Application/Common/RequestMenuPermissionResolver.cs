@@ -144,7 +144,7 @@ public sealed class RequestMenuPermissionResolver(IUnitOfWork unitOfWork, IReadQ
         TopluDurumGuncelleCommand x => UcKTopluAccess(x.ProjeId, x.CekiSatiriIdler, x.Secimler),
         SandikEkleCommand x => new(ProjectMenuOperation.CrateWrite, YetkiTipi.W, x.ProjeId),
         SandikOzellikGuncelleCommand x => new(ProjectMenuOperation.CrateWrite, YetkiTipi.W, SandikIds: [x.SandikId]),
-        SandikIcerikBilgisiGuncelleCommand x => new(ProjectMenuOperation.CrateWrite, YetkiTipi.W, x.ProjeId,
+        SandikIcerikBilgisiGuncelleCommand x => new(ProjectMenuOperation.ProductInfoWrite, YetkiTipi.W, x.ProjeId,
             [x.SandikId], IcerikIds: [x.SandikIcerikId]),
         SandikKapat x => new(ProjectMenuOperation.CrateWrite, YetkiTipi.W, SandikIds: [x.SandikId]),
         EskiSandikKapat x => new(ProjectMenuOperation.CrateWrite, YetkiTipi.W, SandikIds: [x.SandikId]),
@@ -249,6 +249,9 @@ public sealed class RequestMenuPermissionResolver(IUnitOfWork unitOfWork, IReadQ
             ProjectMenuOperation.Grid => One(p.GridModulu, yetki),
             ProjectMenuOperation.UcK => One(p.UcKModulu, yetki),
             ProjectMenuOperation.CrateWrite => Any(yetki, p.Sandiklar, p.UcKModulu),
+            // Ürün bilgisi (seri no, SKT, lot) Grid ve 3K ekranlarında aynı alandır. Grid yazma izni yalnız bu
+            // işlemi açar; sandık yazmanın geri kalanı (CrateWrite) Grid iznine bağlanmaz.
+            ProjectMenuOperation.ProductInfoWrite => Any(yetki, p.Sandiklar, p.UcKModulu, p.GridModulu),
             ProjectMenuOperation.CrateRead => Any(yetki, p.Sandiklar, p.ProjeYonetimi, p.UcKModulu, p.GridModulu,
                 K.DepoDurumu, K.Saha.SahayaAktar),
             ProjectMenuOperation.ProjectRead => normal

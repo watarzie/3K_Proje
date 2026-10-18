@@ -62,6 +62,7 @@ Normal / Saha / Yedek türü, mevcut kaydın proje FK'si üzerinden okunur. Göv
 | 3K okuma/yazma | 3k-modulu | saha-3k-modulu | yedek-3k-modulu |
 | Projeden karşılama kaynak listesi (`GET api/uck/{hedefProjeId}/projeden-karsilama-kaynaklari`); tür **hedef** projeden okunur | 3k-modulu W | saha-3k-modulu W | yedek-3k-modulu W |
 | Sandık yazma / tekil-toplu taşıma / sandık sevk-düzeltme | sandik-yonetimi **veya** 3k-modulu W | saha-sandiklar **veya** saha-3k-modulu W | yedek-sandiklar **veya** yedek-3k-modulu W |
+| Sandık satırının ürün bilgisi (seri no, SKT, lot; `PUT api/sandik/icerik-bilgisi-guncelle`, Grid ve 3K ekranları); Grid W yalnız bu işlemi açar | sandik-yonetimi **veya** 3k-modulu **veya** grid-modulu W | saha-sandiklar **veya** saha-3k-modulu **veya** saha-grid-modulu W | yedek-sandiklar **veya** yedek-3k-modulu **veya** yedek-grid-modulu W |
 | Proje sevki; toplu sevkte (tır seferi) her sandığın projesinin gerçek türüne göre, bütün projeler için birlikte | proje-sevk-et W | saha-sevk-et W | yedek-sevk-et W |
 | Yeni proje | aktif-projeler **veya** sandik-yonetimi W | saha-yonetimi W | yedek-yonetimi W |
 | Proje silme | proje-sil W | saha-proje-sil W | yedek-proje-sil W |

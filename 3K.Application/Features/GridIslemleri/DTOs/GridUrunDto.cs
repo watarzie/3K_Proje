@@ -6,6 +6,10 @@ namespace _3K.Application.Features.GridIslemleri.DTOs
     {
         public int CekiSatiriId { get; set; }
         public int? SandikIcerikId { get; set; }
+        /// <summary>Satırın sandığı; ürün bilgisi bu sandık ve içerik üzerinden kaydedilir (3K listesiyle aynı).</summary>
+        public int? SandikId { get; set; }
+        /// <summary>Sandık satırının kalıcı ürün bilgisi (seri no, SKT, lot); 3K listesindekiyle aynı alandır.</summary>
+        public string? UrunBilgisi { get; set; }
         public bool IsSahaManuelSandikIcerigi { get; set; }
         public int? KaynakCekiSatiriId { get; set; }
         public string? KaynakProjeNo { get; set; }

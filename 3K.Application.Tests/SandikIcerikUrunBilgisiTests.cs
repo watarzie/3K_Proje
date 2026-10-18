@@ -8,7 +8,8 @@ namespace _3K.Application.Tests;
 
 /// <summary>
 /// Sandık satırının kalıcı "Ürün bilgisi" alanı (seri no, SKT, lot): normalleştirme ve taşıma birleşimi kuralı,
-/// yalnız projeye ait ve sevk kilidi olmayan sandıkta düzenleme, eski/yeni değerin hareket geçmişine yazılması.
+/// yalnız projeye ait ve sevk kilidi olmayan sandıkta düzenleme, eski/yeni değerin hareket geçmişine yazılması,
+/// Grid ile 3K aynı alanı düzenlediği için ekrandaki eski değer güncel değilse kaydın reddedilmesi (U-249).
 /// </summary>
 public sealed class SandikIcerikUrunBilgisiTests
 {
@@ -26,6 +27,16 @@ public sealed class SandikIcerikUrunBilgisiTests
     [InlineData("SKT 2027", "SN-1", "SKT 2027 | SN-1")]
     public void Birlestir_iki_bilgiyi_de_korur(string? hedef, string? kaynak, string? beklenen) =>
         Assert.Equal(beklenen, SandikIcerikUrunBilgisiKurali.Birlestir(hedef, kaynak));
+
+    [Theory]
+    [InlineData(null, null, true)]
+    [InlineData(null, "   ", true)]
+    [InlineData("SN-1", " SN-1 ", true)]
+    [InlineData("SN-1", null, false)]
+    [InlineData(null, "SN-1", false)]
+    [InlineData("SN-1", "sn-1", false)]
+    public void EkrandakiDegerGuncel_bosluk_farkini_yok_sayar_icerik_farkini_yakalar(string? kayitli, string? ekrandaki, bool beklenen) =>
+        Assert.Equal(beklenen, SandikIcerikUrunBilgisiKurali.EkrandakiDegerGuncel(kayitli, ekrandaki));
 
     [Fact]
     public void Birlestir_kolon_sinirini_asmaz()
@@ -76,6 +87,47 @@ public sealed class SandikIcerikUrunBilgisiTests
         Assert.Single(k.Hareket.Rows);
     }
 
+    /// <summary>
+    /// 3K "SN-3K" girmişken Grid ekranı bilgiyi boş görüyordu: Grid'in kaydı 3K'nın bilgisini ezmez, 409 döner;
+    /// kayıt, kaydetme ve hareket geçmişi değişmez. Güncel değeri gören kullanıcı aynı değişikliği yapabilir.
+    /// </summary>
+    [Fact]
+    public async Task Ekrandaki_eski_deger_degistiyse_409_doner_ve_kayitli_bilgi_ezilmez()
+    {
+        var k = new Kurgu();
+        k.Icerik.UrunBilgisi = "SN-3K";
+
+        var sonuc = await k.GuncelleAsync("SKT 2027-03", onceki: null);
+
+        Assert.Equal(409, sonuc.StatusCode);
+        Assert.Equal(SandikIcerikUrunBilgisiKurali.CakismaMesaji, sonuc.Error?.Message);
+        Assert.Equal("SN-3K", k.Icerik.UrunBilgisi);
+        Assert.Equal(0, k.Uow.SaveCount);
+        Assert.Empty(k.Hareket.Rows);
+
+        var guncelGorerek = await k.GuncelleAsync("SN-3K · SKT 2027-03", onceki: " SN-3K ");
+
+        Assert.True(guncelGorerek.IsSuccess, guncelGorerek.Error?.Message);
+        Assert.Equal("SN-3K · SKT 2027-03", k.Icerik.UrunBilgisi);
+        var hareket = Assert.Single(k.Hareket.Rows);
+        Assert.Equal(("SN-3K", "SN-3K · SKT 2027-03"), (hareket.EskiDeger, hareket.YeniDeger));
+    }
+
+    /// <summary>Kaydı uygulanmış isteğin tekrarı (çift tıklama, ağ tekrarı) eski "önceki" değeri taşır; çakışma sayılmaz.</summary>
+    [Fact]
+    public async Task Ayni_degerin_tekrari_cakisma_sayilmaz_ve_hicbir_sey_yazmaz()
+    {
+        var k = new Kurgu();
+        k.Icerik.UrunBilgisi = "SN-2";
+
+        var sonuc = await k.GuncelleAsync("SN-2", onceki: "SN-1");
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.Equal("SN-2", k.Icerik.UrunBilgisi);
+        Assert.Equal(0, k.Uow.SaveCount);
+        Assert.Empty(k.Hareket.Rows);
+    }
+
     [Fact]
     public async Task Sevk_kilitli_sandikta_bilgi_degistirilemez()
     {
@@ -123,8 +175,15 @@ public sealed class SandikIcerikUrunBilgisiTests
         public Sandik Sandik { get; }
         public SandikIcerik Icerik { get; }
 
-        public Task<_3K.Application.Common.Result> GuncelleAsync(string? bilgi) =>
+        /// <summary>Önceki değer verilmezse kullanıcı ekranda kayıtlı (güncel) değeri görüyordur.</summary>
+        public Task<_3K.Application.Common.Result> GuncelleAsync(string? bilgi) => GuncelleAsync(bilgi, Icerik.UrunBilgisi);
+
+        public Task<_3K.Application.Common.Result> GuncelleAsync(string? bilgi, string? onceki) =>
             new SandikIcerikBilgisiGuncelleCommandHandler(Uow, Hareket, new OrtakUser())
-                .Handle(new() { ProjeId = 10, SandikId = Sandik.Id, SandikIcerikId = Icerik.Id, UrunBilgisi = bilgi }, default);
+                .Handle(new()
+                {
+                    ProjeId = 10, SandikId = Sandik.Id, SandikIcerikId = Icerik.Id,
+                    UrunBilgisi = bilgi, OncekiUrunBilgisi = onceki
+                }, default);
     }
 }

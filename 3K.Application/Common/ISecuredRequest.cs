@@ -60,7 +60,7 @@ namespace _3K.Application.Common
     {
         ProjectRead, CrateRead, CrateWrite, Grid, UcK, Shipment, RevisionHistory,
         ProjectDelete, PlannedShipmentDate, CrateReport, ActualPackingReport, UcKCrateReport, ProjectUnlock, ProjectCreate,
-        MissingItemsReport
+        MissingItemsReport, ProductInfoWrite
     }
 
     public sealed record MenuPermissionGroup(
