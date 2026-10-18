@@ -39,18 +39,6 @@ internal static class RaporSorgulari
             .ToDictionaryAsync(x => x.CekiSatiriId, x => x.TamamlananAdet, cancellationToken);
     }
 
-    /// <summary>Projenin sevkiyat kayıtlarındaki sandıkların son sevk tarihi (sandık kimliğine göre).</summary>
-    internal static async Task<Dictionary<int, DateTime>> GetSandikSevkTarihleriAsync(
-        this AppDbContext context,
-        int projeId,
-        CancellationToken cancellationToken = default) =>
-        await context.SevkiyatSandiklari
-            .AsNoTracking()
-            .Where(ss => ss.Sevkiyat.ProjeId == projeId)
-            .GroupBy(ss => ss.SandikId)
-            .Select(g => new { SandikId = g.Key, Tarih = g.Max(ss => ss.Sevkiyat.SevkTarihi) })
-            .ToDictionaryAsync(x => x.SandikId, x => x.Tarih, cancellationToken);
-
     /// <summary>
     /// Hiç sandık içeriği olmayan eski (tahsissiz) satırların sandığı; satır kimliğine göre. Sistemin etkin içerik
     /// kuralıyla (SandikService) aynıdır: fiili, yoksa çekideki sandık numarası projede tek bir sandıkla eşleşiyorsa o

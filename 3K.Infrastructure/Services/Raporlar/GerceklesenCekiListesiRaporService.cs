@@ -49,8 +49,13 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context, I
             throw new IsKuraliException($"{raporAdi} raporu sadece {beklenenTip} projeleri için alınabilir.");
         }
 
-        var sandikSevkTarihleri = await context.GetSandikSevkTarihleriAsync(projeId);
-        var sevkiyatKaydiVar = sandikSevkTarihleri.Count > 0;
+        var sevkEdilmisSandikIdleri = await context.SevkiyatSandiklari
+            .AsNoTracking()
+            .Where(ss => ss.Sevkiyat.ProjeId == projeId)
+            .Select(ss => ss.SandikId)
+            .Distinct()
+            .ToListAsync();
+        var sevkiyatKaydiVar = sevkEdilmisSandikIdleri.Any();
 
         if (raporProjeTipi == ProjeTipi.Normal && !ProjeSevkEdilmisSayilir(proje, sevkiyatKaydiVar))
             throw new IsKuraliException("Gerçekleşen çeki listesi raporu sadece sevk edilmiş projeler için alınabilir.");
@@ -67,7 +72,7 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context, I
             throw new KayitBulunamadiException($"Projeye ait çeki satırı bulunamadı: {projeId}");
 
         // R-07: Durum iş tamamlanmasını, SEVK ürünün bu projenin kendi sevkiyatıyla gidip gitmediğini gösterir.
-        var sevkBilgisi = await GetSevkBilgisiAsync(projeId, !sahaYedekRaporuMu, satirlar, projeSandiklari, sandikSevkTarihleri);
+        var sevkBilgisi = await GetSevkBilgisiAsync(projeId, !sahaYedekRaporuMu, satirlar, projeSandiklari);
         UrunSevkSonucu? GetSevkDurumu(CekiSatiri satir) => sevkBilgisi.Sonuc(satir);
         var tamamlamaPlanMap = await GetKalanTamamlamaMapAsync(satirlar, sahaYedekRaporuMu);
 
@@ -162,7 +167,7 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context, I
         var sevkOzeti = UrunSevkDurumuKurali.OzetMetni(satirlar.Select(GetSevkDurumu));
         var sevkEdilenSandikSayisi = sevkBilgisi.SevkEdilenSandikSayisi(projeSandiklari);
         var sandikSayaci = GetSandikSayaci(sevkBilgisi, projeSandiklari);
-        var toplamMetni = GetToplamMetni(sevkBilgisi, toplamSatir, toplamAdet, toplamGerceklesen, toplamTrafodaSevk, toplamKalan);
+        var toplamMetni = GetToplamMetni(toplamSatir, toplamAdet, toplamGerceklesen, toplamTrafodaSevk, toplamKalan);
 
         var document = Document.Create(container =>
         {
@@ -237,7 +242,6 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context, I
                             columns.ConstantColumn(64);    // En (mm)
                             columns.ConstantColumn(72);    // Yükseklik (mm)
                             columns.ConstantColumn(66);    // Sevk
-                            columns.ConstantColumn(62);    // Sevk Tarihi
                             if (sevkBilgisi.SahaAktarimSutunu)
                                 columns.ConstantColumn(72);    // Sahaya Aktarıldı
                         });
@@ -264,7 +268,6 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context, I
                             BiHeader(header.Cell(), "EN (mm)", "Width (mm)");
                             BiHeader(header.Cell(), "YÜKSEKLİK (mm)", "Height (mm)");
                             BiHeader(header.Cell(), "SEVK", "Shipment");
-                            BiHeader(header.Cell(), "SEVK TARİHİ", "Ship Date");
                             if (sevkBilgisi.SahaAktarimSutunu)
                                 BiHeader(header.Cell(), "SAHAYA AKT.", "To Site");
                         });
@@ -302,7 +305,6 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context, I
                             var sandikSevk = sevkBilgisi.SandikDurumu(sandik);
                             SandikDataCell(table.Cell(), UrunSevkDurumuKurali.Etiket(sandikSevk), bold: true,
                                 fontColor: RaporBicimleri.SevkRengi(sandikSevk));
-                            SandikDataCell(table.Cell(), sevkBilgisi.SandikTarihMetni(sandik));
                             if (sevkBilgisi.SahaAktarimSutunu)
                             {
                                 var sahaAktarimi = sevkBilgisi.SandikSahaAktarimMetni(sandik);
@@ -330,7 +332,6 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context, I
                         ToplamCell(table.Cell(), "");
                         ToplamCell(table.Cell(), "");
                         ToplamCell(table.Cell(), $"{sevkEdilenSandikSayisi} / {projeSandiklari.Count}");
-                        ToplamCell(table.Cell(), "");
                         if (sevkBilgisi.SahaAktarimSutunu)
                             ToplamCell(table.Cell(), sevkBilgisi.SahayaAktarilanSandikSayisi(projeSandiklari).ToString());
                     });
@@ -422,8 +423,6 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context, I
                         columns.ConstantColumn(38);
                         columns.ConstantColumn(60);
                         columns.ConstantColumn(58);
-                        if (sevkBilgisi.SahaAktarimSutunu)
-                            columns.ConstantColumn(42); // Sahaya Akt.
                         columns.RelativeColumn(1.2f);
                     });
 
@@ -451,8 +450,6 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context, I
                         BiHeader(header.Cell(), "KALAN", "Remaining");
                         BiHeader(header.Cell(), "DURUM", "Status");
                         BiHeader(header.Cell(), "SEVK", "Shipment");
-                        if (sevkBilgisi.SahaAktarimSutunu)
-                            BiHeader(header.Cell(), "SAHAYA AKT.", "To Site");
                         BiHeader(header.Cell(), "AÇIKLAMA", "Remarks");
                     });
 
@@ -515,12 +512,6 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context, I
                         DurumCell(table.Cell(), durumMetni);
                         var sevk = GetSevkDurumu(satir);
                         DataCell(table.Cell(), RaporBicimleri.SevkMetni(sevk), bold: true, color: RaporBicimleri.SevkRengi(sevk?.Durum));
-                        if (sevkBilgisi.SahaAktarimSutunu)
-                        {
-                            var sahayaAktarilan = sevkBilgisi.SahayaAktarilan(satir) > 0;
-                            DataCell(table.Cell(), sevkBilgisi.SahayaAktarilanMetni(satir), bold: sahayaAktarilan,
-                                color: sahayaAktarilan ? RaporBicimleri.SahaAktarimRengi : null);
-                        }
                         DataCell(table.Cell(), aciklama);
 
                         sira++;
@@ -577,8 +568,13 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context, I
             throw new IsKuraliException($"{raporAdi} raporu sadece {beklenenTip} projeleri için alınabilir.");
         }
 
-        var sandikSevkTarihleri = await context.GetSandikSevkTarihleriAsync(projeId);
-        var sevkiyatKaydiVar = sandikSevkTarihleri.Count > 0;
+        var sevkEdilmisSandikIdleri = await context.SevkiyatSandiklari
+            .AsNoTracking()
+            .Where(ss => ss.Sevkiyat.ProjeId == projeId)
+            .Select(ss => ss.SandikId)
+            .Distinct()
+            .ToListAsync();
+        var sevkiyatKaydiVar = sevkEdilmisSandikIdleri.Any();
 
         if (raporProjeTipi == ProjeTipi.Normal && !ProjeSevkEdilmisSayilir(proje, sevkiyatKaydiVar))
             throw new IsKuraliException("Gerçekleşen çeki listesi raporu sadece sevk edilmiş projeler için alınabilir.");
@@ -594,7 +590,7 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context, I
             throw new KayitBulunamadiException($"Projeye ait çeki satırı bulunamadı: {projeId}");
 
         // R-07: Durum iş tamamlanmasını, SEVK ürünün bu projenin kendi sevkiyatıyla gidip gitmediğini gösterir.
-        var sevkBilgisi = await GetSevkBilgisiAsync(projeId, !sahaYedekRaporuMu, satirlar, projeSandiklari, sandikSevkTarihleri);
+        var sevkBilgisi = await GetSevkBilgisiAsync(projeId, !sahaYedekRaporuMu, satirlar, projeSandiklari);
         UrunSevkSonucu? GetSevkDurumu(CekiSatiri satir) => sevkBilgisi.Sonuc(satir);
         var tamamlamaPlanMap = await GetKalanTamamlamaMapAsync(satirlar, sahaYedekRaporuMu);
 
@@ -618,15 +614,15 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context, I
         var sevkTarihi = proje.GerceklesenSevkTarihi?.ToString("dd.MM.yyyy") ?? proje.PlanlananSevkTarihi?.ToString("dd.MM.yyyy") ?? "-";
         var sevkOzeti = UrunSevkDurumuKurali.OzetMetni(satirlar.Select(GetSevkDurumu));
         var sevkEdilenSandikSayisi = sevkBilgisi.SevkEdilenSandikSayisi(projeSandiklari);
-        var toplamMetni = GetToplamMetni(sevkBilgisi, toplamSatir, toplamAdet, toplamGerceklesen, toplamTrafodaSevk, toplamKalan);
+        var toplamMetni = GetToplamMetni(toplamSatir, toplamAdet, toplamGerceklesen, toplamTrafodaSevk, toplamKalan);
 
         using var workbook = new XLWorkbook();
 
         if (projeSandiklari.Any())
         {
             var sandikSheet = workbook.Worksheets.Add("Sandık Bilgileri");
-            // Normal raporda 12. sütun sandık bazlı sahaya aktarımdır.
-            var sandikLastColumn = sevkBilgisi.SahaAktarimSutunu ? 12 : 11;
+            // Normal raporda 11. sütun sandık bazlı sahaya aktarımdır.
+            var sandikLastColumn = sevkBilgisi.SahaAktarimSutunu ? 11 : 10;
             const int sandikHeaderRow = 6;
 
             sandikSheet.Cell(1, 1).Value = "Koli / Sandık Bilgileri";
@@ -645,13 +641,13 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context, I
             sandikSheet.Cell(3, 9).Value = $"{sevkEdilenSandikSayisi} / {projeSandiklari.Count}";
             if (sevkBilgisi.SahaAktarimSutunu)
             {
-                sandikSheet.Cell(3, 11).Value = "Sahaya Aktarılan Sandık";
-                RaporExcelStilleri.SetDecimalCell(sandikSheet.Cell(3, 12), sevkBilgisi.SahayaAktarilanSandikSayisi(projeSandiklari));
+                sandikSheet.Cell(3, 10).Value = "Sahaya Aktarılan Sandık";
+                RaporExcelStilleri.SetDecimalCell(sandikSheet.Cell(3, 11), sevkBilgisi.SahayaAktarilanSandikSayisi(projeSandiklari));
                 RaporExcelStilleri.SetNotSatiri(sandikSheet, 4, sandikLastColumn, SandikSevkNotu);
             }
             RaporExcelStilleri.StyleExcelInfoRows(sandikSheet, sandikLastColumn);
 
-            var sandikHeaders = new List<string> { "#", "Koli No", "Sandık Adı", "Sandık Adı (EN)", "Net (kg)", "Brüt (kg)", "Boy (mm)", "En (mm)", "Yükseklik (mm)", "Sevk", "Sevk Tarihi" };
+            var sandikHeaders = new List<string> { "#", "Koli No", "Sandık Adı", "Sandık Adı (EN)", "Net (kg)", "Brüt (kg)", "Boy (mm)", "En (mm)", "Yükseklik (mm)", "Sevk" };
             if (sevkBilgisi.SahaAktarimSutunu)
                 sandikHeaders.Add("Sahaya Aktarıldı");
             for (var i = 0; i < sandikHeaders.Count; i++)
@@ -674,9 +670,8 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context, I
                 RaporExcelStilleri.SetDecimalCell(sandikSheet.Cell(row, 9), sandik.Yukseklik ?? 0);
                 var sandikSevk = sevkBilgisi.SandikDurumu(sandik);
                 RaporExcelStilleri.SetSevkCell(sandikSheet.Cell(row, 10), UrunSevkDurumuKurali.Etiket(sandikSevk), sandikSevk);
-                sandikSheet.Cell(row, 11).Value = sevkBilgisi.SandikTarihMetni(sandik);
                 if (sevkBilgisi.SahaAktarimSutunu)
-                    RaporExcelStilleri.SetSahaAktarimCell(sandikSheet.Cell(row, 12), sevkBilgisi.SandikSahaAktarimMetni(sandik));
+                    RaporExcelStilleri.SetSahaAktarimCell(sandikSheet.Cell(row, 11), sevkBilgisi.SandikSahaAktarimMetni(sandik));
 
                 if (sira % 2 == 0)
                     sandikSheet.Range(row, 1, row, sandikLastColumn).Style.Fill.BackgroundColor = XLColor.FromHtml("#F8FAFE");
@@ -689,10 +684,7 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context, I
         }
 
         var worksheet = workbook.Worksheets.Add("Gerçekleşen Çeki");
-        // Normal raporda SEVK'ten sonra "Sahaya Akt." sütunu gelir; açıklama son sütundur.
-        var sahaAktarimSutunu = sevkBilgisi.SahaAktarimSutunu ? 13 : 0;
-        var aciklamaSutunu = sevkBilgisi.SahaAktarimSutunu ? 14 : 13;
-        var lastColumn = aciklamaSutunu;
+        const int lastColumn = 13;
         const int headerRow = 6;
 
         worksheet.Cell(1, 1).Value = "Gerçekleşen Çeki Listesi Raporu";
@@ -712,16 +704,13 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context, I
         RaporExcelStilleri.SetNotSatiri(worksheet, 4, lastColumn, GetUrunSevkNotu(sevkBilgisi));
         RaporExcelStilleri.StyleExcelInfoRows(worksheet, lastColumn);
 
-        var headers = new List<string>
+        var headers = new[]
         {
             "#", "Sandık", "Barkod", "Poz No", "İsim", "Miktar", "Birim",
-            "Gerçekleşen", "Trafoda", "Kalan", "Durum", "Sevk"
+            "Gerçekleşen", "Trafoda", "Kalan", "Durum", "Sevk", "Açıklama"
         };
-        if (sevkBilgisi.SahaAktarimSutunu)
-            headers.Add("Sahaya Akt.");
-        headers.Add("Açıklama");
 
-        for (var i = 0; i < headers.Count; i++)
+        for (var i = 0; i < headers.Length; i++)
             worksheet.Cell(headerRow, i + 1).Value = headers[i];
 
         RaporExcelStilleri.StyleExcelHeader(worksheet, headerRow, lastColumn);
@@ -746,9 +735,7 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context, I
             worksheet.Cell(dataRow, 11).Value = GetGerceklesenRaporDurum(satir);
             var sevk = GetSevkDurumu(satir);
             RaporExcelStilleri.SetSevkCell(worksheet.Cell(dataRow, 12), RaporBicimleri.SevkMetni(sevk), sevk?.Durum);
-            if (sevkBilgisi.SahaAktarimSutunu)
-                RaporExcelStilleri.SetSahaAktarimCell(worksheet.Cell(dataRow, sahaAktarimSutunu), sevkBilgisi.SahayaAktarilan(satir));
-            worksheet.Cell(dataRow, aciklamaSutunu).Value = RaporBicimleri.GetRaporAciklama(satir);
+            worksheet.Cell(dataRow, 13).Value = RaporBicimleri.GetRaporAciklama(satir);
 
             if (dataSira % 2 == 0)
                 worksheet.Range(dataRow, 1, dataRow, lastColumn).Style.Fill.BackgroundColor = XLColor.FromHtml("#F8FAFE");
@@ -758,7 +745,7 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context, I
         }
 
         worksheet.Column(5).Style.Alignment.WrapText = true;
-        worksheet.Column(aciklamaSutunu).Style.Alignment.WrapText = true;
+        worksheet.Column(13).Style.Alignment.WrapText = true;
         RaporExcelStilleri.FinalizeExcelWorksheet(worksheet, headerRow, dataRow - 1, lastColumn);
         // Uzun sevk özeti (3,9) "Trafoda" sayı sütununu genişletmesin; metin boş komşu hücrelere taşar.
         worksheet.Column(9).AdjustToContents(headerRow);
@@ -1022,17 +1009,16 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context, I
         "gitmediği ürün sayfasındadır.";
 
     /// <summary>
-    /// Ürün sayfası notu: Durum/Gerçekleşen iş tamamlanması, SEVK bu projenin kendi sevkiyatıdır; normal raporda
-    /// sahaya aktarılan adet ile KALAN ilişkisi de yazılır.
+    /// Ürün sayfası notu: Durum/Gerçekleşen iş tamamlanması, SEVK bu projenin kendi sevkiyatıdır; normal raporda sahaya
+    /// aktarılan ürünün sevkinin saha raporunda olduğu da yazılır.
     /// </summary>
     private static string GetUrunSevkNotu(SevkBilgisi sevkBilgisi)
     {
         const string genel =
-            "Gerçekleşen ve Durum iş tamamlanmasıdır; Sevk, ürünün bu projenin kendi sevkiyatıyla (3K kaydıyla) gidip " +
-            "gitmediğidir. \"Sevk Edildi (Grid Kapandı)\": Grid tarafında kapatıldı, 3K sevkiyat kaydı değildir.";
+            "Gerçekleşen ve Durum iş tamamlanmasıdır; Sevk, ürünün bu projenin kendi sevkiyatıyla gidip gitmediğidir. " +
+            "Grid Kapandı ve trafodaki ürün satırın sandığıyla gider: sandığı sevk edildiyse sevk edilmiş sayılır.";
         return sevkBilgisi.SahaAktarimSutunu
-            ? genel + " Sahaya aktarılan adet ayrı sütundadır ve KALAN'ın içindedir (ikisi toplanmaz); sahadaki sevki " +
-              "saha projesinin gerçekleşen çeki raporundadır."
+            ? genel + " Sahaya aktarılan ürünün sevki saha projesinin gerçekleşen çeki raporundadır."
             : genel;
     }
 
@@ -1055,35 +1041,28 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context, I
             : sayac;
     }
 
-    private static string GetToplamMetni(SevkBilgisi sevkBilgisi, int toplamSatir, decimal toplamAdet,
-        decimal toplamGerceklesen, decimal toplamTrafodaSevk, decimal toplamKalan)
-    {
-        var metin = $"{toplamSatir} satır / {RaporBicimleri.FormatAdet(toplamAdet)} adet / " +
-                    $"{RaporBicimleri.FormatAdet(toplamGerceklesen)} gerçekleşen / " +
-                    $"{RaporBicimleri.FormatAdet(toplamTrafodaSevk)} trafoda / {RaporBicimleri.FormatAdet(toplamKalan)} kalan";
-        return sevkBilgisi.SahaAktarimSutunu
-            ? $"{metin} / {RaporBicimleri.FormatAdet(sevkBilgisi.ToplamSahayaAktarilan)} sahaya aktarılan"
-            : metin;
-    }
+    private static string GetToplamMetni(int toplamSatir, decimal toplamAdet, decimal toplamGerceklesen,
+        decimal toplamTrafodaSevk, decimal toplamKalan) =>
+        $"{toplamSatir} satır / {RaporBicimleri.FormatAdet(toplamAdet)} adet / " +
+        $"{RaporBicimleri.FormatAdet(toplamGerceklesen)} gerçekleşen / " +
+        $"{RaporBicimleri.FormatAdet(toplamTrafodaSevk)} trafoda / {RaporBicimleri.FormatAdet(toplamKalan)} kalan";
 
     private async Task<SevkBilgisi> GetSevkBilgisiAsync(
         int projeId,
         bool normalRaporMu,
         IReadOnlyCollection<CekiSatiri> satirlar,
-        IReadOnlyCollection<Sandik> projeSandiklari,
-        IReadOnlyDictionary<int, DateTime> sandikSevkTarihleri)
+        IReadOnlyCollection<Sandik> projeSandiklari)
     {
         // Sahaya aktarım yalnız normal projeden yapılır; saha/yedek raporunda aktarım bilgisi ve tahsissiz eski satır yoktur.
         if (!normalRaporMu)
             return new SevkBilgisi(projeId, false, satirlar, new Dictionary<int, Sandik>(), new Dictionary<int, decimal>(),
-                new HashSet<int>(), sandikSevkTarihleri);
+                new HashSet<int>());
 
         var tahsissizSandiklar = await context.GetTahsissizSatirSandiklariAsync(projeId, satirlar);
         var sahayaAktarilanlar = await sahaTamamlama.GetAktifTamamlamaMapAsync(satirlar.Select(s => s.Id));
         var sahayaAktarilanSandiklar = (await sahaTamamlama.GetKaynakSandikSahaAktarimDurumuAsync(
             projeSandiklari.Select(s => s.Id))).AktifAktarimaBagliSandikIds;
-        return new SevkBilgisi(projeId, true, satirlar, tahsissizSandiklar, sahayaAktarilanlar, sahayaAktarilanSandiklar,
-            sandikSevkTarihleri);
+        return new SevkBilgisi(projeId, true, satirlar, tahsissizSandiklar, sahayaAktarilanlar, sahayaAktarilanSandiklar);
     }
 
     /// <summary>
@@ -1098,10 +1077,9 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context, I
         IReadOnlyCollection<CekiSatiri> satirlar,
         IReadOnlyDictionary<int, Sandik> tahsissizSandiklar,
         IReadOnlyDictionary<int, decimal> sahayaAktarilanlar,
-        IReadOnlySet<int> sahayaAktarilanSandiklar,
-        IReadOnlyDictionary<int, DateTime> sandikSevkTarihleri)
+        IReadOnlySet<int> sahayaAktarilanSandiklar)
     {
-        /// <summary>Sahaya aktarılan adet ve sandık sütunları yalnız normal raporda bulunur.</summary>
+        /// <summary>Sandık bazlı sahaya aktarım sütunu yalnız normal raporda bulunur.</summary>
         public bool SahaAktarimSutunu => normalRaporMu;
 
         public UrunSevkSonucu? Sonuc(CekiSatiri satir) =>
@@ -1109,19 +1087,7 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context, I
 
         public decimal SahayaAktarilan(CekiSatiri satir) => sahayaAktarilanlar.GetValueOrDefault(satir.Id);
 
-        public string SahayaAktarilanMetni(CekiSatiri satir)
-        {
-            var adet = SahayaAktarilan(satir);
-            return adet > 0 ? RaporBicimleri.FormatAdet(adet) : "-";
-        }
-
         public UrunSevkDurumu SandikDurumu(Sandik sandik) => UrunSevkDurumuKurali.SandikDurumu(sandik);
-
-        /// <summary>Sandığın kendi son sevkiyat tarihi; kendi sevkiyatıyla gitmemiş sandığa tarih yazılmaz.</summary>
-        public string SandikTarihMetni(Sandik sandik) =>
-            SandikDurumu(sandik) == UrunSevkDurumu.SevkEdildi && sandikSevkTarihleri.TryGetValue(sandik.Id, out var tarih)
-                ? tarih.ToString("dd.MM.yyyy")
-                : "-";
 
         public bool SandikSahayaAktarildiMi(Sandik sandik) => sahayaAktarilanSandiklar.Contains(sandik.Id);
 
@@ -1135,8 +1101,10 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context, I
                 return "-";
 
             var sevkBeklenenler = satirlar
-                .Where(s => s.SandikIcerikleri.Any(si => si.SandikId == sandik.Id) && !UrunSevkDurumuKurali.GridIptalMi(s.GridDurumuId))
-                .Where(s => Sonuc(s) is { Durum: not (UrunSevkDurumu.GridKapandi or UrunSevkDurumu.Trafoyla) })
+                .Where(s => s.SandikIcerikleri.Any(si => si.SandikId == sandik.Id) && s.IstenenAdet > 0)
+                .Where(s => !UrunSevkDurumuKurali.GridIptalMi(s.GridDurumuId) &&
+                    s.GridDurumuId != (int)GridDurum.GridKapandi &&
+                    s.TrafoSevkAdet < s.IstenenAdet)
                 .ToList();
             return UrunSevkDurumuKurali.SandikSahaAktarimMetni(sevkBeklenenler.Count(s => SahayaAktarilan(s) > 0), sevkBeklenenler.Count);
         }
@@ -1145,7 +1113,5 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context, I
             sandiklar.Count(s => SandikDurumu(s) == UrunSevkDurumu.SevkEdildi);
 
         public int SahayaAktarilanSandikSayisi(IEnumerable<Sandik> sandiklar) => sandiklar.Count(SandikSahayaAktarildiMi);
-
-        public decimal ToplamSahayaAktarilan => satirlar.Sum(SahayaAktarilan);
     }
 }

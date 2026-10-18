@@ -23,13 +23,11 @@ internal static class RaporBicimleri
             : $"{RaporMetni(sandik.Ad)} / {RaporMetni(sandik.AdIngilizce)}";
 
     /// <summary>
-    /// SEVK sütununun yazı rengi: sevk edildi yeşil, Grid Kapandı ile sevk edildi koyu turkuaz, eksik sevk turuncu,
-    /// sevk edilmedi kırmızı, trafoyla mavi.
+    /// SEVK sütununun yazı rengi: sevk edildi yeşil, eksik sevk turuncu, sevk edilmedi kırmızı, trafoyla mavi.
     /// </summary>
     internal static string SevkRengi(UrunSevkDurumu? durum) => durum switch
     {
         UrunSevkDurumu.SevkEdildi => "#2E7D32",
-        UrunSevkDurumu.GridKapandi => "#00796B",
         UrunSevkDurumu.EksikSevk => "#F57C00",
         UrunSevkDurumu.SevkEdilmedi => "#D32F2F",
         UrunSevkDurumu.Trafoyla => "#1565C0",

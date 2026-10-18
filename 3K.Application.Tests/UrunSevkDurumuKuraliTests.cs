@@ -5,9 +5,9 @@ using _3K.Core.Models;
 namespace _3K.Application.Tests;
 
 /// <summary>
-/// R-07: satır yalnız kendi projesinin sevkiyatıyla değerlendirilir. Grid İptal ürün sevk edilmez; Grid Kapandı ürün
-/// Grid tarafında sevk edilmiştir; diğerlerinde giden adet projenin sevkli sandığına fiilen konan, 3K'nın teslim
-/// aldığı adettir. Bir kısmı gittiyse Eksik Sevk, hiç gitmediyse Sevk Edilmedi; trafoyla kapanan ayrı gösterilir.
+/// R-07: satır yalnız kendi projesinin sevkiyatıyla değerlendirilir. Grid İptal ürün sevk edilmez; Grid Kapandı ve
+/// trafodaki ürün satırın sandığıyla gider (sandığı sevk edildiyse gitmiştir); diğer adet projenin sevkli sandığına
+/// fiilen konan, 3K'nın teslim aldığı adettir. Bir kısmı gittiyse Eksik Sevk, hiç gitmediyse Sevk Edilmedi.
 /// </summary>
 public sealed class UrunSevkDurumuKuraliTests
 {
@@ -109,38 +109,65 @@ public sealed class UrunSevkDurumuKuraliTests
             Belirle(Satir(0, grid, icerikler: [(Sandik(1, SandikDurum.Sevkedildi), 0)])));
     }
 
-    /// <summary>Grid Kapandı ürün Grid tarafında kapatılıp orada sevk edilmiştir: Sevk Edildi (Grid Kapandı).</summary>
+    /// <summary>
+    /// Grid Kapandı ürün 3K'ya fiziksel gelmez ama satırın sandığıyla gider: sandığı sevk edildiyse Sevk Edildi (ayrı
+    /// etiket yok), sandığı sevk edilmediyse ya da sevkiyatı geri alındıysa (sandık sevk öncesi durumuna döner) Sevk
+    /// Edilmedi; sandığı yoksa gitmemiştir (canlı PA600-36 sandık 1, FCT01120721).
+    /// </summary>
     [Fact]
-    public void GridKapandi_GridTarafindaSevkEdildi()
+    public void GridKapandi_SatirinSandigiSevkEdildiyseSevkEdildi()
     {
-        Assert.Equal(new UrunSevkSonucu(UrunSevkDurumu.GridKapandi, 1, 1),
+        Assert.Equal(new UrunSevkSonucu(UrunSevkDurumu.SevkEdildi, 1, 1),
             Belirle(Satir(1, GridDurum.GridKapandi, icerikler: [(Sandik(1, SandikDurum.Sevkedildi), 0)])));
-        Assert.Equal(new UrunSevkSonucu(UrunSevkDurumu.GridKapandi, 4, 4),
+        Assert.Equal(new UrunSevkSonucu(UrunSevkDurumu.SevkEdilmedi, 0, 4),
             Belirle(Satir(4, GridDurum.GridKapandi, icerikler: [(Sandik(3, SandikDurum.Kapandi), 4)])));
-        Assert.Equal(new UrunSevkSonucu(UrunSevkDurumu.GridKapandi, 0, 0), Belirle(Satir(0, GridDurum.GridKapandi)));
-        Assert.Equal("Sevk Edildi (Grid Kapandı)", UrunSevkDurumuKurali.Etiket(UrunSevkDurumu.GridKapandi));
+        Assert.Equal(new UrunSevkSonucu(UrunSevkDurumu.SevkEdilmedi, 0, 1),
+            Belirle(Satir(1, GridDurum.GridKapandi, icerikler: [(Sandik(4, SandikDurum.Hazirlaniyor), 0)])));
+        Assert.Equal(new UrunSevkSonucu(UrunSevkDurumu.SevkEdilmedi, 0, 1), Belirle(Satir(1, GridDurum.GridKapandi)));
+        // Sevkli ve sevksiz sandığa bölünmüş satır: sevkli sandığın payı kadar gitmiştir.
+        Assert.Equal(new UrunSevkSonucu(UrunSevkDurumu.EksikSevk, 2, 4),
+            Belirle(Satir(4, GridDurum.GridKapandi,
+                icerikler: [(Sandik(1, SandikDurum.Sevkedildi), 2), (Sandik(2, SandikDurum.Kapandi), 2)])));
+        // İstenen adedi 0'a çekilmiş satır da sandığına göre.
+        Assert.Equal(new UrunSevkSonucu(UrunSevkDurumu.SevkEdildi, 0, 0),
+            Belirle(Satir(0, GridDurum.GridKapandi, icerikler: [(Sandik(1, SandikDurum.Sevkedildi), 0)])));
+        Assert.Equal(new UrunSevkSonucu(UrunSevkDurumu.SevkEdilmedi, 0, 0), Belirle(Satir(0, GridDurum.GridKapandi)));
+        // İçeriği olmayan eski satır sandık numarasıyla eşleşen sandıktan.
+        Assert.Equal(UrunSevkDurumu.SevkEdildi, Belirle(Satir(1, GridDurum.GridKapandi), Sandik(1, SandikDurum.Sevkedildi))?.Durum);
         // Grid kararı ve istenen adedi olmayan satırın sevk durumu yoktur.
         Assert.Null(Belirle(Satir(0)));
         Assert.Equal("-", UrunSevkDurumuKurali.Etiket(null));
     }
 
     /// <summary>
-    /// Trafoyla kapanan adet 3K'dan beklenmez ve sevk edilmiş sayılmaz (trafonun sevki 3K'da tutulmaz): tamamı
-    /// trafoyla kapanan satır "Trafoyla", kısmi trafoda kalan kısım kendi sandık sevkine göre değerlendirilir.
+    /// Trafodaki adet de satırın sandığıyla gider: sandığı sevk edildiyse gitmiş, edilmediyse gitmemiştir. Parçalı
+    /// satırda 3K'nın teslim alıp sandığa koyduğu adet ile trafodaki adet toplanır (canlı PA600-36 SMC45152: 1 trafoda,
+    /// 1 sandıkta).
     /// </summary>
     [Fact]
-    public void Trafo_AyriGosterilir_KalanKisimSandiktanDegerlendirilir()
+    public void Trafo_SatirinSandigiylaGider()
     {
-        Assert.Equal(new UrunSevkSonucu(UrunSevkDurumu.Trafoyla, 0, 0),
-            Belirle(Satir(2, GridDurum.TrafoSevk, trafo: 2, icerikler: [(Sandik(1, SandikDurum.Sevkedildi), 0)])));
-        Assert.Equal(new UrunSevkSonucu(UrunSevkDurumu.SevkEdildi, 3, 3),
-            Belirle(Satir(5, GridDurum.TrafoSevk, trafo: 2, icerikler: [(Sandik(1, SandikDurum.Sevkedildi), 3)])));
-        Assert.Equal(new UrunSevkSonucu(UrunSevkDurumu.SevkEdilmedi, 0, 3),
-            Belirle(Satir(5, GridDurum.TrafoSevk, trafo: 2, icerikler: [(Sandik(3, SandikDurum.Kapandi), 3)])));
-        // Kısmi trafo + kısmi sevk: payda trafo düşülmüş beklenen adettir (10 − 4 = 6).
-        Assert.Equal(new UrunSevkSonucu(UrunSevkDurumu.EksikSevk, 3, 6),
-            Belirle(Satir(10, GridDurum.TrafoSevk, trafo: 4,
-                icerikler: [(Sandik(1, SandikDurum.Sevkedildi), 3), (Sandik(2, SandikDurum.Kapandi), 3)])));
+        static CekiSatiri TrafoSatiri(decimal istenen, decimal gelen, decimal trafo, Sandik sandik, decimal konulan)
+        {
+            var satir = Satir(istenen, GridDurum.TrafoSevk, trafo, icerikler: [(sandik, konulan)]);
+            satir.GelenMiktar = gelen;
+            return satir;
+        }
+
+        Assert.Equal(new UrunSevkSonucu(UrunSevkDurumu.Trafoyla, 2, 2),
+            Belirle(TrafoSatiri(2, 0, 2, Sandik(1, SandikDurum.Sevkedildi), 0)));
+        Assert.Equal(new UrunSevkSonucu(UrunSevkDurumu.SevkEdilmedi, 0, 2),
+            Belirle(TrafoSatiri(2, 0, 2, Sandik(4, SandikDurum.Hazirlaniyor), 0)));
+        Assert.Equal(new UrunSevkSonucu(UrunSevkDurumu.SevkEdildi, 2, 2),
+            Belirle(TrafoSatiri(2, 1, 1, Sandik(22, SandikDurum.Sevkedildi), 1)));
+        Assert.Equal(new UrunSevkSonucu(UrunSevkDurumu.SevkEdilmedi, 0, 2),
+            Belirle(TrafoSatiri(2, 1, 1, Sandik(23, SandikDurum.Kapandi), 1)));
+        // 10'un 4'ü trafoda, 3'ü sandıkta gitti, 3'ü hiç gelmedi: Eksik Sevk (7/10).
+        Assert.Equal(new UrunSevkSonucu(UrunSevkDurumu.EksikSevk, 7, 10),
+            Belirle(TrafoSatiri(10, 3, 4, Sandik(1, SandikDurum.Sevkedildi), 3)));
+        // Trafodaki 2 ve sandıktaki 1 gitti, 2 gelmedi: payda istenendir.
+        Assert.Equal(new UrunSevkSonucu(UrunSevkDurumu.EksikSevk, 3, 5),
+            Belirle(TrafoSatiri(5, 1, 2, Sandik(1, SandikDurum.Sevkedildi), 1)));
         Assert.Equal("Trafoyla", UrunSevkDurumuKurali.Etiket(UrunSevkDurumu.Trafoyla));
     }
 
@@ -176,11 +203,11 @@ public sealed class UrunSevkDurumuKuraliTests
         Assert.Equal("Aktarıldı", UrunSevkDurumuKurali.SandikSahaAktarimMetni(7, 7));
         Assert.Equal("Aktarıldı", UrunSevkDurumuKurali.SandikSahaAktarimMetni(0, 0));
         Assert.Equal("Kısmen (1/7 ürün)", UrunSevkDurumuKurali.SandikSahaAktarimMetni(1, 7));
-        Assert.Equal("2 sevk edildi / 1 sevk edildi (Grid Kapandı) / 1 eksik sevk / 1 sevk edilmedi / 1 trafoyla",
+        Assert.Equal("3 sevk edildi / 1 eksik sevk / 1 sevk edilmedi / 1 trafoyla",
             UrunSevkDurumuKurali.OzetMetni(
             [
                 new UrunSevkSonucu(UrunSevkDurumu.SevkEdildi, 1, 1), new UrunSevkSonucu(UrunSevkDurumu.SevkEdildi, 2, 2),
-                new UrunSevkSonucu(UrunSevkDurumu.GridKapandi, 1, 1), new UrunSevkSonucu(UrunSevkDurumu.EksikSevk, 1, 2),
+                new UrunSevkSonucu(UrunSevkDurumu.SevkEdildi, 1, 1), new UrunSevkSonucu(UrunSevkDurumu.EksikSevk, 1, 2),
                 new UrunSevkSonucu(UrunSevkDurumu.SevkEdilmedi, 0, 1), new UrunSevkSonucu(UrunSevkDurumu.Trafoyla, 0, 0), null
             ]));
     }

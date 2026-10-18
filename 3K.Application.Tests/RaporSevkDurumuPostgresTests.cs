@@ -12,14 +12,13 @@ namespace _3K.Application.Tests;
 /// <summary>
 /// R-07: gerçekleşen çeki ve eksik/sevk sonrası eksik raporlarında SEVK ürünün sevkini, Durum ise iş tamamlanmasını
 /// gösterir. Grid İptal sevk edilmez, Grid Kapandı Grid tarafında sevk edilmiştir; diğerlerinde bir adet yalnız raporlanan
-/// projenin kendi sevkli sandığına fiilen konmuş ve 3K'nın teslim aldığı adetse gitmiş sayılır. Sahaya aktarılan kısım
-/// normal SEVK'e karışmaz, ayrı "Sahaya Akt." sütunundadır; bir kısmı gittiyse Eksik Sevk, trafoyla kapanan ayrı
-/// gösterilir. Gerçek PDF ve Excel sentetik izole veritabanından üretilir.
+/// projenin kendi sevkli sandığına fiilen konmuş ve 3K'nın teslim aldığı adetse gitmiş sayılır; Grid Kapandı ve trafodaki
+/// ürün satırın sandığıyla gider. Sahaya aktarılan kısım normal SEVK'e karışmaz; bir kısmı gittiyse Eksik Sevk.
+/// Gerçek PDF ve Excel sentetik izole veritabanından üretilir.
 /// </summary>
 public sealed class RaporSevkDurumuPostgresTests
 {
-    private const string SevkTarihi = "05.10.2026";
-    private const string TamOzet = "2 sevk edildi / 2 sevk edildi (Grid Kapandı) / 2 eksik sevk / 6 sevk edilmedi / 1 trafoyla";
+    private const string TamOzet = "5 sevk edildi / 2 eksik sevk / 9 sevk edilmedi / 1 trafoyla";
 
     [PostgresRaporFact]
     [Trait("Category", "Postgres")]
@@ -63,24 +62,24 @@ public sealed class RaporSevkDurumuPostgresTests
                 {
                     var sandikSayfasi = workbook.Worksheet("Sandık Bilgileri");
                     Assert.Equal("Sevk", sandikSayfasi.Cell(6, 10).GetString());
-                    Assert.Equal("Sevk Tarihi", sandikSayfasi.Cell(6, 11).GetString());
                     Assert.Equal("2 / 4", sandikSayfasi.Cell(3, 9).GetString());
-                    var sandiklar = Satirlar(sandikSayfasi).ToDictionary(r => r.Cell(2).GetString(),
-                        r => (Sevk: r.Cell(10).GetString(), Tarih: r.Cell(11).GetString()));
-                    Assert.Equal(("Sevk Edildi", SevkTarihi), sandiklar["1"]);
-                    Assert.Equal(("Sevk Edildi", SevkTarihi), sandiklar["2"]);
-                    Assert.Equal(("Sevk Edilmedi", "-"), sandiklar["3"]);
-                    Assert.Equal(("Sevk Edilmedi", "-"), sandiklar["4"]);
-                    // Sahaya aktarım yalnız normal projeden yapılır; sütun yalnız normal raporda vardır.
-                    Assert.Equal(tip == ProjeTipi.Normal ? "Sahaya Aktarıldı" : "", sandikSayfasi.Cell(6, 12).GetString());
+                    var sandiklar = Satirlar(sandikSayfasi).ToDictionary(r => r.Cell(2).GetString(), r => r.Cell(10).GetString());
+                    Assert.Equal("Sevk Edildi", sandiklar["1"]);
+                    Assert.Equal("Sevk Edildi", sandiklar["2"]);
+                    Assert.Equal("Sevk Edilmedi", sandiklar["3"]);
+                    Assert.Equal("Sevk Edilmedi", sandiklar["4"]);
+                    // Sevk tarihi sütunu yoktur; sahaya aktarım yalnız normal projeden yapılır, sütunu yalnız normalde vardır.
+                    Assert.Equal(tip == ProjeTipi.Normal ? "Sahaya Aktarıldı" : "", sandikSayfasi.Cell(6, 11).GetString());
+                    Assert.DoesNotContain(sandikSayfasi.Row(6).CellsUsed(), c => c.GetString() == "Sevk Tarihi");
 
                     var detay = workbook.Worksheet("Gerçekleşen Çeki");
                     Assert.Equal("Durum", detay.Cell(6, 11).GetString());
                     Assert.Equal("Sevk", detay.Cell(6, 12).GetString());
-                    Assert.Equal(tip == ProjeTipi.Normal ? "Sahaya Akt." : "Açıklama", detay.Cell(6, 13).GetString());
+                    // Sahaya aktarılan adet sütunu yoktur.
+                    Assert.Equal("Açıklama", detay.Cell(6, 13).GetString());
                     var urunler = Satirlar(detay).ToDictionary(r => r.Cell(3).GetString(),
                         r => (Durum: r.Cell(11).GetString(), Sevk: r.Cell(12).GetString()));
-                    Assert.Equal(13, urunler.Count);
+                    Assert.Equal(17, urunler.Count);
                     Assert.Equal(("Tamamlandı", "Sevk Edildi"), urunler["B-1"]);
                     Assert.Equal(("Tamamlandı", "Sevk Edildi"), urunler["B-2"]);
                     // Tamamlanmış ama elde kalan (kapalı) sandıktaki ürün gitmemiştir.
@@ -92,17 +91,24 @@ public sealed class RaporSevkDurumuPostgresTests
                     Assert.Equal(("İptal", "Sevk Edilmedi"), urunler["B-7"]);
                     Assert.Equal(("Eksik", "Sevk Edilmedi"), urunler["B-8"]);
                     // Grid Kapandı ürün Grid tarafında sevk edilmiştir (3K sandığına konmamış olsa da).
-                    Assert.Equal(("Tamamlandı", "Sevk Edildi (Grid Kapandı)"), urunler["B-9"]);
+                    Assert.Equal(("Tamamlandı", "Sevk Edildi"), urunler["B-9"]);
                     Assert.Equal(("Trafoda Sevk", "Trafoyla"), urunler["B-10"]);
-                    Assert.Equal(("Tamamlandı", "Sevk Edildi (Grid Kapandı)"), urunler["B-11"]);
+                    Assert.Equal(("Tamamlandı", "Sevk Edildi"), urunler["B-11"]);
                     // İptal kararı sandık izinden önce gelir (canlıda 3 satır).
                     Assert.Equal(("İptal", "Sevk Edilmedi"), urunler["B-12"]);
                     // 4'ün 2'si gelip sevk edildi: Eksik Sevk.
                     Assert.Equal(("Eksik", "Eksik Sevk (2/4)"), urunler["B-13"]);
+                    // Grid Kapandı ve trafodaki ürün satırın sandığıyla gider: sandığı (sevkiyatı geri alınmış ya da elde
+                    // kalan) sevk edilmediyse gitmemiştir.
+                    Assert.Equal(("Tamamlandı", "Sevk Edilmedi"), urunler["B-14"]);
+                    Assert.Equal(("Trafoda Sevk", "Sevk Edilmedi"), urunler["B-15"]);
+                    // Parçalı: 1 trafoda, 1 3K'dan sandıkta; sandık gitti (canlı PA600-36 SMC45152).
+                    Assert.Equal(("Trafoda Sevk", "Sevk Edildi"), urunler["B-16"]);
+                    Assert.Equal(("Trafoda Sevk", "Sevk Edilmedi"), urunler["B-17"]);
                     Assert.Equal(TamOzet, detay.Cell(3, 9).GetString());
                     Assert.Equal(XLColor.FromHtml("#D32F2F"), Satirlar(detay).Single(r => r.Cell(3).GetString() == "B-8").Cell(12).Style.Font.FontColor);
                     Assert.Equal(XLColor.FromHtml("#1565C0"), Satirlar(detay).Single(r => r.Cell(3).GetString() == "B-10").Cell(12).Style.Font.FontColor);
-                    Assert.Equal(XLColor.FromHtml("#00796B"), Satirlar(detay).Single(r => r.Cell(3).GetString() == "B-9").Cell(12).Style.Font.FontColor);
+                    Assert.Equal(XLColor.FromHtml("#2E7D32"), Satirlar(detay).Single(r => r.Cell(3).GetString() == "B-9").Cell(12).Style.Font.FontColor);
                     Assert.Equal(XLColor.FromHtml("#F57C00"), Satirlar(detay).Single(r => r.Cell(3).GetString() == "B-13").Cell(12).Style.Font.FontColor);
                 }
 
@@ -121,7 +127,7 @@ public sealed class RaporSevkDurumuPostgresTests
                     Assert.Equal("3K Durum", sayfa.Cell(6, 17).GetString());
                     var urunler = Satirlar(sayfa).ToDictionary(r => r.Cell(3).GetString(), r => r.Cell(16).GetString());
                     // Normal/yedek eksik raporu kalanı olanları, saha sevk sonrası raporu tamamlananları da listeler (R-02).
-                    Assert.Equal(tip == ProjeTipi.Saha ? 13 : 4, urunler.Count);
+                    Assert.Equal(tip == ProjeTipi.Saha ? 17 : 4, urunler.Count);
                     Assert.Equal("Sevk Edilmedi", urunler["B-4"]);
                     Assert.Equal("Sevk Edilmedi", urunler["B-6"]);
                     Assert.Equal("Sevk Edilmedi", urunler["B-8"]);
@@ -132,14 +138,18 @@ public sealed class RaporSevkDurumuPostgresTests
                         Assert.Equal("Sevk Edilmedi", urunler["B-3"]);
                         Assert.Equal("Eksik Sevk (1/2)", urunler["B-5"]);
                         Assert.Equal("Sevk Edilmedi", urunler["B-7"]);
-                        Assert.Equal("Sevk Edildi (Grid Kapandı)", urunler["B-9"]);
+                        Assert.Equal("Sevk Edildi", urunler["B-9"]);
                         Assert.Equal("Trafoyla", urunler["B-10"]);
-                        Assert.Equal("Sevk Edildi (Grid Kapandı)", urunler["B-11"]);
+                        Assert.Equal("Sevk Edildi", urunler["B-11"]);
                         Assert.Equal("Sevk Edilmedi", urunler["B-12"]);
+                        Assert.Equal("Sevk Edilmedi", urunler["B-14"]);
+                        Assert.Equal("Sevk Edilmedi", urunler["B-15"]);
+                        Assert.Equal("Sevk Edildi", urunler["B-16"]);
+                        Assert.Equal("Sevk Edilmedi", urunler["B-17"]);
                         Assert.Equal(TamOzet, sayfa.Cell(3, 15).GetString());
                     }
                     else
-                        Assert.Equal("0 sevk edildi / 0 sevk edildi (Grid Kapandı) / 1 eksik sevk / 3 sevk edilmedi / 0 trafoyla",
+                        Assert.Equal("0 sevk edildi / 1 eksik sevk / 3 sevk edilmedi / 0 trafoyla",
                             sayfa.Cell(3, 15).GetString());
                 }
             }
@@ -148,11 +158,10 @@ public sealed class RaporSevkDurumuPostgresTests
 
     /// <summary>
     /// Normal projenin raporu kendi sevkiyatının anlık görüntüsüdür: sahaya aktarılan kısım saha sandığıyla gitse,
-    /// sahada Grid İptal ya da Grid Kapandı olsa da normal SEVK'e karışmaz; aktarılan adet ayrı "Sahaya Akt."
-    /// sütunundadır (canlı PA600-36 sıra 262–269, PA600-16 sıra 164). Kısmi aktarımda normal kısım Eksik Sevk olur;
+    /// sahada Grid İptal ya da Grid Kapandı olsa da normal SEVK'e karışmaz (canlı PA600-36 sıra 262–269, PA600-16
+    /// sıra 164). Kısmi aktarımda normal kısım Eksik Sevk olur;
     /// geri alınmış ve iptal edilmiş aktarım sayılmaz. Sandık bazlı sahaya aktarılan normal sandık sandık sayfasında
-    /// "Sevk Edilmedi" + "Aktarıldı" görünür (canlı PA704-06); sandığın tarihi kendi son sevkiyatıdır. KALAN normal
-    /// projenin kendi kalanıdır. Grid'in beyan ettiği ama 3K'nın teslim almadığı ürün gitmemiştir (canlı PA675-01
+    /// "Sevk Edilmedi" + "Aktarıldı" görünür (canlı PA704-06). KALAN normal projenin kendi kalanıdır. Grid'in beyan ettiği ama 3K'nın teslim almadığı ürün gitmemiştir (canlı PA675-01
     /// FCT00685015); sandık içeriği olmayan eski satır sandık numarasından okunur (canlı PA600-50 sıra 73/74).
     /// </summary>
     [PostgresRaporFact]
@@ -386,13 +395,6 @@ public sealed class RaporSevkDurumuPostgresTests
                 };
                 sevkiyat.Sandiklar.Add(new SevkiyatSandik { Sevkiyat = sevkiyat, Sandik = sevkli });
                 proje.Sevkiyatlar.Add(sevkiyat);
-                // Sandık 1 sonraki bir sevkiyatta yeniden yer aldı: sandık özeti son sevk tarihini gösterir.
-                var sonrakiSevkiyat = new Sevkiyat
-                {
-                    Proje = proje, SevkiyatNo = 2, SevkTarihi = new DateTime(2026, 10, 6, 9, 0, 0), Kullanici = kullanici, AracPlaka = "34ABC124"
-                };
-                sonrakiSevkiyat.Sandiklar.Add(new SevkiyatSandik { Sevkiyat = sonrakiSevkiyat, Sandik = sevkli });
-                proje.Sevkiyatlar.Add(sonrakiSevkiyat);
                 seed.AddRange(proje, saha, aktarim);
                 await seed.SaveChangesAsync();
                 projeId = proje.Id;
@@ -410,59 +412,56 @@ public sealed class RaporSevkDurumuPostgresTests
                 var sandikSayfasi = workbook.Worksheet("Sandık Bilgileri");
                 // Sahaya aktarılan sandıklar (5, 6) bu projenin sevkiyatıyla gitmedi: 5 sandığın 1'i sevk edildi, 2'si aktarıldı.
                 Assert.Equal("1 / 5", sandikSayfasi.Cell(3, 9).GetString());
-                Assert.Equal("2", sandikSayfasi.Cell(3, 12).GetString());
+                Assert.Equal("2", sandikSayfasi.Cell(3, 11).GetString());
                 var sandiklar = Satirlar(sandikSayfasi).ToDictionary(r => r.Cell(2).GetString(),
-                    r => (Sevk: r.Cell(10).GetString(), Tarih: r.Cell(11).GetString(), Saha: r.Cell(12).GetString()));
-                // İki sevkiyattaki sandık 1: son sevk tarihi.
-                Assert.Equal(("Sevk Edildi", "06.10.2026", "-"), sandiklar["1"]);
-                Assert.Equal(("Sevk Edilmedi", "-", "-"), sandiklar["3"]);
-                // Saha sandığıyla 07.10.2026'da gitmiş olsa da normal sevkiyatla gitmedi; saha tarihi yazılmaz.
-                Assert.Equal(("Sevk Edilmedi", "-", "Aktarıldı"), sandiklar["5"]);
-                Assert.Equal(("Sevk Edilmedi", "-", "Kısmen (1/2 ürün)"), sandiklar["6"]);
+                    r => (Sevk: r.Cell(10).GetString(), Saha: r.Cell(11).GetString()));
+                Assert.Equal(("Sevk Edildi", "-"), sandiklar["1"]);
+                Assert.Equal(("Sevk Edilmedi", "-"), sandiklar["3"]);
+                // Saha sandığıyla gitmiş olsa da normal sevkiyatla gitmedi.
+                Assert.Equal(("Sevk Edilmedi", "Aktarıldı"), sandiklar["5"]);
+                Assert.Equal(("Sevk Edilmedi", "Kısmen (1/2 ürün)"), sandiklar["6"]);
                 // Geri alınmış sandık bazlı aktarım sayılmaz.
-                Assert.Equal(("Sevk Edilmedi", "-", "-"), sandiklar["7"]);
-                Assert.Equal(XLColor.FromHtml("#6A1B9A"), Satirlar(sandikSayfasi).Single(r => r.Cell(2).GetString() == "5").Cell(12).Style.Font.FontColor);
+                Assert.Equal(("Sevk Edilmedi", "-"), sandiklar["7"]);
+                Assert.Equal(XLColor.FromHtml("#6A1B9A"), Satirlar(sandikSayfasi).Single(r => r.Cell(2).GetString() == "5").Cell(11).Style.Font.FontColor);
 
                 var detay = workbook.Worksheet("Gerçekleşen Çeki");
-                Assert.Equal("Sahaya Akt.", detay.Cell(6, 13).GetString());
-                Assert.Equal("Açıklama", detay.Cell(6, 14).GetString());
+                Assert.Equal("Açıklama", detay.Cell(6, 13).GetString());
                 var urunler = Satirlar(detay).ToDictionary(r => r.Cell(3).GetString(),
-                    r => (Kalan: r.Cell(10).GetString(), Durum: r.Cell(11).GetString(), Sevk: r.Cell(12).GetString(), Saha: r.Cell(13).GetString()));
+                    r => (Kalan: r.Cell(10).GetString(), Durum: r.Cell(11).GetString(), Sevk: r.Cell(12).GetString()));
                 // Normal sandık gitti ama ürün içinde değil (sahada, saha sandığı elde).
-                Assert.Equal(("0", "Tamamlandı", "Sevk Edilmedi", "1"), urunler["A-1"]);
+                Assert.Equal(("0", "Tamamlandı", "Sevk Edilmedi"), urunler["A-1"]);
                 // Saha sandığıyla gitti; normal sevkiyatla gitmedi.
-                Assert.Equal(("0", "Tamamlandı", "Sevk Edilmedi", "1"), urunler["A-2"]);
-                Assert.Equal(("0", "Tamamlandı", "Sevk Edilmedi", "1"), urunler["A-3"]);
+                Assert.Equal(("0", "Tamamlandı", "Sevk Edilmedi"), urunler["A-2"]);
+                Assert.Equal(("0", "Tamamlandı", "Sevk Edilmedi"), urunler["A-3"]);
                 // Sahada Grid İptal: saha durumu normal satıra yazılmaz.
-                Assert.Equal(("0", "Tamamlandı", "Sevk Edilmedi", "1"), urunler["A-4"]);
+                Assert.Equal(("0", "Tamamlandı", "Sevk Edilmedi"), urunler["A-4"]);
                 // 3'ün 1'i normal sevkiyatla gitti, 2'si sahaya aktarıldı.
-                Assert.Equal(("0", "Tamamlandı", "Eksik Sevk (1/3)", "2"), urunler["A-5"]);
+                Assert.Equal(("0", "Tamamlandı", "Eksik Sevk (1/3)"), urunler["A-5"]);
                 // Geri alınan aktarım sayılmaz.
-                Assert.Equal(("0", "Tamamlandı", "Sevk Edildi", "-"), urunler["A-6"]);
+                Assert.Equal(("0", "Tamamlandı", "Sevk Edildi"), urunler["A-6"]);
                 // Sahada Grid Kapandı: normal satır yine Sevk Edilmedi.
-                Assert.Equal(("0", "Tamamlandı", "Sevk Edilmedi", "1"), urunler["A-7"]);
+                Assert.Equal(("0", "Tamamlandı", "Sevk Edilmedi"), urunler["A-7"]);
                 // Sandık bazlı aktarım; KALAN normal projenin kendi kalanıdır (sahada tamamlanan düşülmez).
-                Assert.Equal(("2", "Eksik", "Sevk Edilmedi", "2"), urunler["A-8"]);
+                Assert.Equal(("2", "Eksik", "Sevk Edilmedi"), urunler["A-8"]);
                 // İptal edilmiş kalem aktarılan sayılmaz.
-                Assert.Equal(("0", "Tamamlandı", "Sevk Edilmedi", "-"), urunler["A-9"]);
+                Assert.Equal(("0", "Tamamlandı", "Sevk Edilmedi"), urunler["A-9"]);
                 // Grid beyanı 3K teslimi değildir (FCT00685015): sevkli sandıkta görünse de gitmedi.
-                Assert.Equal(("1", "Eksik", "Sevk Edilmedi", "1"), urunler["A-10"]);
+                Assert.Equal(("1", "Eksik", "Sevk Edilmedi"), urunler["A-10"]);
                 // İçeriği olmayan eski satır fiili sandık numarasıyla sevkli sandık 1'den okunur.
-                Assert.Equal(("0", "Tamamlandı", "Sevk Edildi", "-"), urunler["A-11"]);
+                Assert.Equal(("0", "Tamamlandı", "Sevk Edildi"), urunler["A-11"]);
                 // Sahada Grid İptal ve saha trafosu normal satırın kendi sevkini değiştirmez.
-                Assert.Equal(("0", "Tamamlandı", "Eksik Sevk (1/2)", "1"), urunler["A-12"]);
-                Assert.Equal(("0", "Tamamlandı", "Eksik Sevk (1/2)", "1"), urunler["A-13"]);
-                Assert.Equal(("1", "Eksik", "Sevk Edilmedi", "1"), urunler["A-14"]);
-                Assert.Equal(("0", "Tamamlandı", "Sevk Edilmedi", "-"), urunler["A-15"]);
-                Assert.Equal(("0", "Tamamlandı", "Sevk Edildi (Grid Kapandı)", "-"), urunler["A-16"]);
-                Assert.Equal(("0", "İptal", "Sevk Edilmedi", "-"), urunler["A-17"]);
-                Assert.Equal(("0", "Trafoda Sevk", "Trafoyla", "-"), urunler["A-18"]);
-                Assert.Equal(("1", "Eksik", "Sevk Edilmedi", "-"), urunler["A-19"]);
-                Assert.Equal(("1", "Eksik", "Eksik Sevk (1/2)", "-"), urunler["A-20"]);
+                Assert.Equal(("0", "Tamamlandı", "Eksik Sevk (1/2)"), urunler["A-12"]);
+                Assert.Equal(("0", "Tamamlandı", "Eksik Sevk (1/2)"), urunler["A-13"]);
+                Assert.Equal(("1", "Eksik", "Sevk Edilmedi"), urunler["A-14"]);
+                Assert.Equal(("0", "Tamamlandı", "Sevk Edilmedi"), urunler["A-15"]);
+                // Sandık 6 sevk edilmedi: içindeki Grid Kapandı ve trafodaki ürün de gitmedi.
+                Assert.Equal(("0", "Tamamlandı", "Sevk Edilmedi"), urunler["A-16"]);
+                Assert.Equal(("0", "İptal", "Sevk Edilmedi"), urunler["A-17"]);
+                Assert.Equal(("0", "Trafoda Sevk", "Sevk Edilmedi"), urunler["A-18"]);
+                Assert.Equal(("1", "Eksik", "Sevk Edilmedi"), urunler["A-19"]);
+                Assert.Equal(("1", "Eksik", "Eksik Sevk (1/2)"), urunler["A-20"]);
                 Assert.Equal(20, urunler.Count);
-                Assert.EndsWith("/ 6 kalan / 13 sahaya aktarılan", detay.Cell(3, 5).GetString());
-                Assert.Equal(XLColor.FromHtml("#6A1B9A"), Satirlar(detay).Single(r => r.Cell(3).GetString() == "A-5").Cell(13).Style.Font.FontColor);
-                Assert.Equal(XLDataType.Number, Satirlar(detay).Single(r => r.Cell(3).GetString() == "A-5").Cell(13).DataType);
+                Assert.EndsWith("/ 6 kalan", detay.Cell(3, 5).GetString());
             }
 
             var eksik = new EksikUrunlerRaporService(context);
@@ -541,7 +540,8 @@ public sealed class RaporSevkDurumuPostgresTests
     /// Dört sandık: 1 ve 2 sevk edildi, 3 kapandı (elde), 4 hazırlanıyor. B-5 sevkli 2 ile elde kalan 3'e bölünmüştür;
     /// B-6 hiçbir sandıkta değildir; B-7/B-8/B-9/B-10 sevkli sandığa atanmış ama içine konmamıştır; B-11 sevkli
     /// sandığa konmuş, Grid durumu sonradan Kapandı yapılmıştır; B-12 sevkli sandığa konmuş ama Grid İptal'dir;
-    /// B-13 4'ün 2'si gelip sevkli sandığa konmuştur.
+    /// B-13 4'ün 2'si gelip sevkli sandığa konmuştur; B-14/B-15 elde kalan sandıkta Grid Kapandı ve trafoda;
+    /// B-16/B-17 1 trafoda + 1 sandıkta, sırasıyla sevkli ve elde kalan sandıkta.
     /// </summary>
     private static Proje ProjeKur(ProjeTipi tip, int kullaniciId)
     {
@@ -593,6 +593,12 @@ public sealed class RaporSevkDurumuPostgresTests
         Urun(11, 1, 1, GridDurum.GridKapandi, icerikler: [("1", 1)]);
         Urun(12, 1, 1, GridDurum.Iptal, icerikler: [("2", 1)]);
         Urun(13, 4, 2, GridDurum.EksikGeldi, icerikler: [("1", 2)]);
+        // Sandık 3 elde (sevkiyatı geri alınmış sandık gibi sevk öncesi durumda): Grid Kapandı ve trafodaki ürünü gitmedi.
+        Urun(14, 1, 0, GridDurum.GridKapandi, icerikler: [("3", 0)]);
+        Urun(15, 1, 0, GridDurum.TrafoSevk, trafo: 1, icerikler: [("3", 0)]);
+        // Parçalı: 2'nin 1'i trafoda, 1'i 3K'ya gelip sandığa kondu.
+        Urun(16, 2, 1, GridDurum.TrafoSevk, trafo: 1, icerikler: [("2", 1)]);
+        Urun(17, 2, 1, GridDurum.TrafoSevk, trafo: 1, icerikler: [("3", 1)]);
 
         var sevkiyat = new Sevkiyat
         {

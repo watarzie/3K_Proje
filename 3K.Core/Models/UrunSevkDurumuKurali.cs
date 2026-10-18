@@ -4,7 +4,7 @@ using _3K.Core.Enums;
 namespace _3K.Core.Models;
 
 /// <summary>
-/// Satırın sevk sonucu: durum, sevk edilmiş sayılan adet ve sevki beklenen adet (trafoyla kapanan düşülmüş istenen).
+/// Satırın sevk sonucu: durum, sevk edilmiş sayılan adet ve sevki beklenen adet (istenen).
 /// </summary>
 public readonly record struct UrunSevkSonucu(UrunSevkDurumu Durum, decimal SevkEdilen, decimal Beklenen);
 
@@ -14,13 +14,14 @@ public readonly record struct UrunSevkSonucu(UrunSevkDurumu Durum, decimal SevkE
 /// saha sevki, saha Grid kararı ve saha trafosu buraya karışmaz (saha projesinin kendi raporunda okunur). Kurallar:
 /// <list type="bullet">
 /// <item>Grid İptal ürün sevk edilmez: <b>Sevk Edilmedi</b>.</item>
-/// <item>Grid Kapandı ürün Grid tarafında kapatılıp orada sevk edilmiştir: <b>Sevk Edildi (Grid Kapandı)</b>.</item>
-/// <item>Diğerlerinde giden adet, raporlanan projenin sevk edilmiş sandıklarına fiilen konan adettir; 3K'nın teslim
-/// aldığı adetle (Gelen + Stok + Proje + Tedarikçi − Gönderilen) sınırlıdır. Grid'in gelen/sevk beyanı, sandığa
-/// atanmış olmak ve iş tamamlanması sevk değildir.</item>
-/// <item>Beklenen = istenen − satırın trafosu. Tamamı gittiyse <b>Sevk Edildi</b>, bir kısmı gittiyse
-/// <b>Eksik Sevk (giden/beklenen)</b>, hiç gitmediyse <b>Sevk Edilmedi</b>; tamamı trafoyla kapandıysa
-/// <b>Trafoyla</b>.</item>
+/// <item>Grid Kapandı ürün 3K'ya fiziksel gelmez ama satırın sandığıyla gider: sandığı sevk edildiyse
+/// <b>Sevk Edildi</b>, sandığı sevk edilmediyse (sevkiyatı geri alındıysa) <b>Sevk Edilmedi</b>.</item>
+/// <item>Trafodaki adet de satırın sandığıyla gider: sandığı sevk edildiyse gitmiş sayılır.</item>
+/// <item>Diğer adet, raporlanan projenin sevk edilmiş sandıklarına fiilen konan adettir; 3K'nın teslim aldığı adetle
+/// (Gelen + Stok + Proje + Tedarikçi − Gönderilen) sınırlıdır. Grid'in gelen/sevk beyanı, sandığa atanmış olmak ve iş
+/// tamamlanması sevk değildir.</item>
+/// <item>Giden = sandığa konan + trafoda giden. İstenenin tamamı gittiyse <b>Sevk Edildi</b> (yalnız trafoyla gittiyse
+/// <b>Trafoyla</b>), bir kısmı gittiyse <b>Eksik Sevk (giden/istenen)</b>, hiç gitmediyse <b>Sevk Edilmedi</b>.</item>
 /// </list>
 /// </summary>
 public static class UrunSevkDurumuKurali
@@ -33,43 +34,69 @@ public static class UrunSevkDurumuKurali
     /// </param>
     public static UrunSevkSonucu? Belirle(CekiSatiri satir, int projeId, Sandik? tahsissizSandik = null)
     {
-        var istenen = satir.IstenenAdet;
-        // Grid kararı istenen adetten ve sandık izinden önce gelir: iptal edilen ürün sevk edilmez, Grid'in kapattığı
-        // ürün Grid'de gitmiştir (istenen adedi 0'a çekilmiş satırda da).
-        var gridBeklenen = Math.Max(istenen, 0);
+        var istenen = Math.Max(satir.IstenenAdet, 0);
+        // Grid İptal kararı sandık izinden önce gelir: iptal edilen ürün sevk edilmez.
         if (GridIptalMi(satir.GridDurumuId))
-            return new UrunSevkSonucu(UrunSevkDurumu.SevkEdilmedi, 0, gridBeklenen);
-        if (satir.GridDurumuId == (int)GridDurum.GridKapandi)
-            return new UrunSevkSonucu(UrunSevkDurumu.GridKapandi, gridBeklenen, gridBeklenen);
-        if (istenen <= 0)
-            return null;
+            return new UrunSevkSonucu(UrunSevkDurumu.SevkEdilmedi, 0, istenen);
 
-        var beklenen = Math.Max(istenen - Math.Max(satir.TrafoSevkAdet, 0), 0);
-        if (beklenen == 0)
-            return new UrunSevkSonucu(UrunSevkDurumu.Trafoyla, 0, 0);
+        var sandik = SandikSevki(satir, projeId, tahsissizSandik);
+
+        // Grid'in kapattığı ürün 3K'ya gelmez (kalan kendiliğinden 0 olur) ama satırın sandığıyla gider; sevki o
+        // sandığın sevkinden okunur (sistemin sevkiyat raporu da bu ürünü sandık payıyla konmuş sayar).
+        if (satir.GridDurumuId == (int)GridDurum.GridKapandi)
+        {
+            if (sandik.TumuSevkli)
+                return new UrunSevkSonucu(UrunSevkDurumu.SevkEdildi, istenen, istenen);
+            var gridGiden = Math.Min(sandik.SevkliPay, istenen);
+            return gridGiden > 0
+                ? new UrunSevkSonucu(UrunSevkDurumu.EksikSevk, gridGiden, istenen)
+                : new UrunSevkSonucu(UrunSevkDurumu.SevkEdilmedi, 0, istenen);
+        }
+
+        if (istenen == 0)
+            return null;
 
         // Sandıkta görünen adet 3K'nın teslim aldığı adetle sınırlıdır: Grid manuel eklemesinin kendiliğinden yazdığı
         // konan adet, 3K ürünü teslim almadıkça sevk edilmiş sayılmaz.
         var teslimAlinan = Math.Max(satir.KumulatifToplam, 0);
-        var giden = Math.Min(SevkliSandigaKonan(satir, projeId, tahsissizSandik, teslimAlinan), teslimAlinan);
+        var konanGiden = Math.Min(sandik.SevkliKonan(teslimAlinan), teslimAlinan);
+        // Trafodaki adet satırın sandığıyla gider; satır birden çok sandığa bölünmüşse sevkli sandıkların payı kadar.
+        var trafo = Math.Min(Math.Max(satir.TrafoSevkAdet, 0), istenen);
+        var trafoGiden = sandik.TumuSevkli ? trafo : Math.Min(trafo, sandik.SevkliPay);
+        var giden = Math.Min(konanGiden + trafoGiden, istenen);
 
-        if (giden >= beklenen)
-            return new UrunSevkSonucu(UrunSevkDurumu.SevkEdildi, beklenen, beklenen);
+        if (giden >= istenen)
+            return new UrunSevkSonucu(
+                konanGiden == 0 && trafoGiden > 0 ? UrunSevkDurumu.Trafoyla : UrunSevkDurumu.SevkEdildi, istenen, istenen);
         return giden > 0
-            ? new UrunSevkSonucu(UrunSevkDurumu.EksikSevk, giden, beklenen)
-            : new UrunSevkSonucu(UrunSevkDurumu.SevkEdilmedi, 0, beklenen);
+            ? new UrunSevkSonucu(UrunSevkDurumu.EksikSevk, giden, istenen)
+            : new UrunSevkSonucu(UrunSevkDurumu.SevkEdilmedi, 0, istenen);
     }
 
-    private static decimal SevkliSandigaKonan(CekiSatiri satir, int projeId, Sandik? tahsissizSandik, decimal teslimAlinan)
+    /// <summary>
+    /// Satırın bu projedeki sandıklarının sevki. Pay, sandığın satırdan taşıdığı miktardır (SandikTahsisHelper ile
+    /// aynı: tahsis, yoksa konan); yalnız sevkli ve sevksiz sandığa bölünmüş satırda kullanılır.
+    /// </summary>
+    private readonly record struct SatirSandikSevki(bool TumuSevkli, decimal SevkliPay, decimal SevkliKonanToplam, bool Tahsissiz)
     {
-        if (satir.SandikIcerikleri.Count > 0)
-            return satir.SandikIcerikleri
-                .Where(si => si.Sandik != null && si.Sandik.ProjeId == projeId && SevkEdildiMi(si.Sandik))
-                .Sum(si => Math.Max(si.KonulanAdet, 0));
+        public decimal SevkliKonan(decimal teslimAlinan) => Tahsissiz ? (TumuSevkli ? teslimAlinan : 0) : SevkliKonanToplam;
+    }
 
-        return tahsissizSandik != null && tahsissizSandik.ProjeId == projeId && SevkEdildiMi(tahsissizSandik)
-            ? teslimAlinan
-            : 0;
+    private static SatirSandikSevki SandikSevki(CekiSatiri satir, int projeId, Sandik? tahsissizSandik)
+    {
+        if (satir.SandikIcerikleri.Count == 0)
+        {
+            var sevkli = tahsissizSandik != null && tahsissizSandik.ProjeId == projeId && SevkEdildiMi(tahsissizSandik);
+            return new SatirSandikSevki(sevkli, 0, 0, Tahsissiz: true);
+        }
+
+        var icerikler = satir.SandikIcerikleri.Where(si => si.Sandik != null && si.Sandik.ProjeId == projeId).ToList();
+        var sevkliIcerikler = icerikler.Where(si => SevkEdildiMi(si.Sandik)).ToList();
+        return new SatirSandikSevki(
+            TumuSevkli: icerikler.Count > 0 && sevkliIcerikler.Count == icerikler.Count,
+            SevkliPay: sevkliIcerikler.Sum(si => si.TahsisMiktari > 0 ? si.TahsisMiktari : Math.Max(si.KonulanAdet, 0)),
+            SevkliKonanToplam: sevkliIcerikler.Sum(si => Math.Max(si.KonulanAdet, 0)),
+            Tahsissiz: false);
     }
 
     private static bool SevkEdildiMi(Sandik sandik) => sandik.DurumId == (int)SandikDurum.Sevkedildi;
@@ -89,7 +116,6 @@ public static class UrunSevkDurumuKurali
     public static string Etiket(UrunSevkDurumu? durum) => durum switch
     {
         UrunSevkDurumu.SevkEdildi => "Sevk Edildi",
-        UrunSevkDurumu.GridKapandi => "Sevk Edildi (Grid Kapandı)",
         UrunSevkDurumu.EksikSevk => "Eksik Sevk",
         UrunSevkDurumu.SevkEdilmedi => "Sevk Edilmedi",
         UrunSevkDurumu.Trafoyla => "Trafoyla",
@@ -97,14 +123,12 @@ public static class UrunSevkDurumuKurali
     };
 
     /// <summary>
-    /// Rapor özetindeki satır sayıları: "x sevk edildi / g sevk edildi (Grid Kapandı) / y eksik sevk /
-    /// z sevk edilmedi / t trafoyla".
+    /// Rapor özetindeki satır sayıları: "x sevk edildi / y eksik sevk / z sevk edilmedi / t trafoyla".
     /// </summary>
     public static string OzetMetni(IEnumerable<UrunSevkSonucu?> sonuclar)
     {
         var liste = sonuclar.Select(s => s?.Durum).ToList();
         return $"{liste.Count(d => d == UrunSevkDurumu.SevkEdildi)} sevk edildi / " +
-               $"{liste.Count(d => d == UrunSevkDurumu.GridKapandi)} sevk edildi (Grid Kapandı) / " +
                $"{liste.Count(d => d == UrunSevkDurumu.EksikSevk)} eksik sevk / " +
                $"{liste.Count(d => d == UrunSevkDurumu.SevkEdilmedi)} sevk edilmedi / " +
                $"{liste.Count(d => d == UrunSevkDurumu.Trafoyla)} trafoyla";

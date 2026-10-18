@@ -20,21 +20,6 @@ internal static class RaporExcelStilleri
         cell.Style.Font.FontColor = XLColor.FromHtml(RaporBicimleri.SevkRengi(durum));
     }
 
-    /// <summary>
-    /// Sahaya aktarılan adet hücresi: adet sayı olarak (süzülür ve toplanır) kalın ve morla yazılır; aktarım yoksa "-".
-    /// </summary>
-    internal static void SetSahaAktarimCell(IXLCell cell, decimal adet)
-    {
-        if (adet <= 0)
-        {
-            cell.Value = "-";
-            return;
-        }
-
-        SetDecimalCell(cell, adet);
-        SahaAktarimStili(cell);
-    }
-
     /// <summary>Sandığın sahaya aktarım metni; "-" dışındaki değer kalın ve morla yazılır (PDF ile aynı).</summary>
     internal static void SetSahaAktarimCell(IXLCell cell, string metin)
     {

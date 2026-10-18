@@ -14,9 +14,6 @@ namespace _3K.Core.Enums
         SevkEdildi = 3,
 
         /// <summary>Tamamı trafoyla kapatılmış; 3K sandığıyla gitmez, trafonun sevk zamanı 3K'da tutulmaz.</summary>
-        Trafoyla = 4,
-
-        /// <summary>Grid tarafında kapatılıp orada sevk edilmiş: "Sevk Edildi (Grid Kapandı)".</summary>
-        GridKapandi = 5
+        Trafoyla = 4
     }
 }
