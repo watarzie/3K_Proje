@@ -152,6 +152,24 @@ public sealed class IsHatasiLoglamaBehaviorTests
         Assert.DoesNotContain("Parola123", kayit.Mesaj);
     }
 
+    /// <summary>
+    /// 500 yanıtında sunucu kendi takip kodunu üretmez: mesajda kod yoktur (ön yüz X-Correlation-ID'yi "Takip: …" olarak
+    /// ekler) ve Error satırı CorrelationId özelliği taşımaz; böylece LogContext'teki istek kodu ezilmez.
+    /// </summary>
+    [Fact]
+    public async Task BeklenmeyenHata_KendiTakipKodunuUretmez_IstekKodunuEzmez()
+    {
+        var logger = new ToplayanLogger<UnhandledExceptionBehavior<GirisKomutu, Result>>();
+        var behavior = new UnhandledExceptionBehavior<GirisKomutu, Result>(logger);
+
+        var sonuc = await behavior.Handle(new GirisKomutu { Email = "deneme@gmail.com", Sifre = "x" },
+            () => throw new InvalidOperationException("veritabanı bağlantısı koptu"), default);
+
+        Assert.Equal(("Beklenmeyen bir hata oluştu.", 500), (sonuc.Error!.Message, sonuc.StatusCode));
+        Assert.DoesNotContain("CorrelationId", Assert.Single(logger.OzellikAdlari));
+        Assert.StartsWith("Beklenmeyen hata oluştu. İstek: GirisKomutu", Assert.Single(logger.Kayitlar).Mesaj);
+    }
+
     [Fact]
     public async Task IstisnadanCevrilenIsKurali_DisKatmandaLoglanir()
     {
@@ -230,9 +248,14 @@ public sealed class IsHatasiLoglamaBehaviorTests
     private sealed class ToplayanLogger<T> : ILogger<T>
     {
         public List<(LogLevel Seviye, string Mesaj)> Kayitlar { get; } = [];
+        /// <summary>Her kaydın yapılandırılmış özellik adları (şablon yer tutucuları).</summary>
+        public List<List<string>> OzellikAdlari { get; } = [];
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
         public bool IsEnabled(LogLevel logLevel) => true;
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
-            => Kayitlar.Add((logLevel, formatter(state, exception)));
+        {
+            Kayitlar.Add((logLevel, formatter(state, exception)));
+            OzellikAdlari.Add(state is IEnumerable<KeyValuePair<string, object?>> ozellikler ? ozellikler.Select(x => x.Key).ToList() : []);
+        }
     }
 }

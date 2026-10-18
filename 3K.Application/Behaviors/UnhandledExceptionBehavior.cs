@@ -55,13 +55,14 @@ namespace _3K.Application.Behaviors
             }
             catch (Exception ex)
             {
-                var correlationId = Guid.NewGuid().ToString("N")[..8];
-
+                // Ayrı takip kodu üretilmez: satırın CorrelationId'si isteğin X-Correlation-ID'sidir (LogContext) ve ön yüz
+                // aynı kodu hata bildirimine "Takip: …" olarak ekler. Şablonda CorrelationId adlı özellik olmamalı;
+                // olursa istek kodunu ezer ve satır istek koduyla bulunamaz.
                 _logger.LogError(ex,
-                    "[{CorrelationId}] Beklenmeyen hata oluştu. İstek: {RequestName}, Tip: {ExceptionType}, Detay: {Message}, Girdi: {Girdi}",
-                    correlationId, typeof(TRequest).Name, ex.GetType().Name, ex.Message, IstekGirdisi.Yaz(request));
+                    "Beklenmeyen hata oluştu. İstek: {RequestName}, Tip: {ExceptionType}, Detay: {Message}, Girdi: {Girdi}",
+                    typeof(TRequest).Name, ex.GetType().Name, ex.Message, IstekGirdisi.Yaz(request));
 
-                return Failure($"Beklenmeyen bir hata oluştu. Takip kodu: {correlationId}", 500);
+                return Failure("Beklenmeyen bir hata oluştu.", 500);
             }
         }
 

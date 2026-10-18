@@ -63,6 +63,27 @@ public class OrtakOnayYurutmeIsKurallariTests
         Assert.Equal(OnayCalistirmaDurumu.Basarisiz, data.Completed);
     }
 
+    /// <summary>
+    /// Onaylanan komut beklenmeyen hatayla düşerse yanıt mesajı kendi takip kodunu taşımaz (ön yüz isteğin
+    /// X-Correlation-ID'sini ekler); onay kaydında kalan hata metni istek takip kodunu taşır, HTTP dışı çalışmada kodsuzdur.
+    /// </summary>
+    [Theory]
+    [InlineData("abc123def456")][InlineData(null)]
+    public async Task BeklenmeyenHata_YanittaKendiKoduYok_OnayKaydiIstekTakipKodunuTasir(string? takipKodu)
+    {
+        var data = new Fixture { TakipKodu = takipKodu, DownstreamHatasi = new InvalidOperationException("db koptu") };
+        var result = await data.Run();
+        Assert.Equal(("Onay kararı kaydedildi ancak işlem çalıştırılamadı.", 500), (result.Error!.Message, result.StatusCode));
+        Assert.Equal(OnayCalistirmaDurumu.Basarisiz, data.Completed);
+        Assert.Equal(takipKodu is null
+                ? "İşlem çalıştırılırken beklenmeyen bir hata oluştu."
+                : $"İşlem çalıştırılırken beklenmeyen bir hata oluştu. Takip kodu: {takipKodu}",
+            data.KaydedilenHata);
+        Assert.DoesNotContain("db koptu", data.KaydedilenHata);
+    }
+
+    private sealed record SabitTakipKodu(string? TakipKodu) : ITakipKoduSaglayici;
+
     private sealed class Fixture
     {
         public OnayBekleyenIslem Pending { get; }
@@ -70,6 +91,9 @@ public class OrtakOnayYurutmeIsKurallariTests
         public bool YetkiVar { get; set; } = true;
         public bool KararAlinabilir { get; set; } = true;
         public Result Downstream { get; set; } = Result.Success();
+        public Exception? DownstreamHatasi { get; set; }
+        public string? TakipKodu { get; set; }
+        public string? KaydedilenHata { get; private set; }
         public int Executed { get; private set; }
         public int Claimed { get; private set; }
         public bool ExecutionWasApproved { get; private set; }
@@ -97,14 +121,14 @@ public class OrtakOnayYurutmeIsKurallariTests
                     return Task.FromResult(KararAlinabilir);
                 }
                 if (method == nameof(IOnayIslemRepository.CalistirmayiTamamlaAsync))
-                { Completed = (OnayCalistirmaDurumu)args![2]!; return Task.FromResult(true); }
+                { Completed = (OnayCalistirmaDurumu)args![2]!; KaydedilenHata = (string?)args[4]; return Task.FromResult(true); }
                 throw new NotSupportedException(method);
             });
             var mediator = Proxy<IMediator>((method, _) =>
             {
                 if (method != nameof(IMediator.Send)) throw new NotSupportedException(method);
                 Executed++; ExecutionWasApproved = Execution.IsExecutingApprovedCommand;
-                return Task.FromResult<object?>(Downstream);
+                return DownstreamHatasi is null ? Task.FromResult<object?>(Downstream) : Task.FromException<object?>(DownstreamHatasi);
             });
             var yetki = Proxy<IOnayYetkiService>((method, args) =>
             {
@@ -115,7 +139,7 @@ public class OrtakOnayYurutmeIsKurallariTests
             var sse = Proxy<ISseNotifier>((method, _) => method == nameof(ISseNotifier.BroadcastApprovalUpdateAsync)
                 ? Task.CompletedTask : throw new NotSupportedException(method));
             return new IslemOnaylaCommandHandler(repo, mediator, new OrtakUser(), Execution, yetki, sse,
-                NullLogger<IslemOnaylaCommandHandler>.Instance).Handle(new() { OnayBekleyenIslemId = 20 }, default);
+                new SabitTakipKodu(TakipKodu), NullLogger<IslemOnaylaCommandHandler>.Instance).Handle(new() { OnayBekleyenIslemId = 20 }, default);
         }
     }
 

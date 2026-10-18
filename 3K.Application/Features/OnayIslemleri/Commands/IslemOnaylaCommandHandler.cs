@@ -23,6 +23,7 @@ namespace _3K.Application.Features.OnayIslemleri.Commands
         private readonly IApprovalExecutionContext _approvalExecutionContext;
         private readonly IOnayYetkiService _onayYetkiService;
         private readonly ISseNotifier _sseNotifier;
+        private readonly ITakipKoduSaglayici _takipKoduSaglayici;
         private readonly ILogger<IslemOnaylaCommandHandler> _logger;
 
         public IslemOnaylaCommandHandler(
@@ -32,6 +33,7 @@ namespace _3K.Application.Features.OnayIslemleri.Commands
             IApprovalExecutionContext approvalExecutionContext,
             IOnayYetkiService onayYetkiService,
             ISseNotifier sseNotifier,
+            ITakipKoduSaglayici takipKoduSaglayici,
             ILogger<IslemOnaylaCommandHandler> logger)
         {
             _onayRepository = onayRepository;
@@ -40,6 +42,7 @@ namespace _3K.Application.Features.OnayIslemleri.Commands
             _approvalExecutionContext = approvalExecutionContext;
             _onayYetkiService = onayYetkiService;
             _sseNotifier = sseNotifier;
+            _takipKoduSaglayici = takipKoduSaglayici;
             _logger = logger;
         }
 
@@ -195,29 +198,26 @@ namespace _3K.Application.Features.OnayIslemleri.Commands
             }
             catch (Exception exception)
             {
-                var takipKodu = Guid.NewGuid().ToString("N")[..8];
+                // Yanıt mesajına takip kodu yazılmaz: ön yüz isteğin X-Correlation-ID'sini "Takip: …" olarak ekler ve
+                // bu satırın CorrelationId'si de odur. Onay kaydında kalan hata metni aynı kodu taşır.
                 _logger.LogError(
                     exception,
-                    "[{TakipKodu}] Onaylanan komut çalıştırılamadı. OnayId: {OnayId}",
-                    takipKodu,
+                    "Onaylanan komut çalıştırılamadı. OnayId: {OnayId}",
                     islem.Id);
 
                 if (originalKomutBasariylaTamamlandi)
                 {
                     await OnayDegisikliginiYayinlaAsync(islem.Id);
-                    return Result.Failure(
-                        $"İşlem başarıyla çalıştı ancak onay sonucu kaydedilemedi. Takip kodu: {takipKodu}",
-                        500);
+                    return Result.Failure("İşlem başarıyla çalıştı ancak onay sonucu kaydedilemedi.", 500);
                 }
 
-                var guvenliHata = $"İşlem çalıştırılırken beklenmeyen bir hata oluştu. Takip kodu: {takipKodu}";
                 await BasarisizDurumuKaydetAsync(
                     islem.Id,
                     kullaniciId.Value,
-                    guvenliHata,
+                    TakipKoduyla("İşlem çalıştırılırken beklenmeyen bir hata oluştu."),
                     CancellationToken.None);
 
-                return Result.Failure($"Onay kararı kaydedildi ancak işlem çalıştırılamadı. Takip kodu: {takipKodu}", 500);
+                return Result.Failure("Onay kararı kaydedildi ancak işlem çalıştırılamadı.", 500);
             }
         }
 
@@ -272,16 +272,12 @@ namespace _3K.Application.Features.OnayIslemleri.Commands
                 }
                 catch (Exception tekrarHatasi)
                 {
-                    var takipKodu = Guid.NewGuid().ToString("N")[..8];
                     _logger.LogError(
                         tekrarHatasi,
-                        "[{TakipKodu}] Başarılı onay komutunun sonucu kaydedilemedi. OnayId: {OnayId}",
-                        takipKodu,
+                        "Başarılı onay komutunun sonucu kaydedilemedi. OnayId: {OnayId}",
                         onayId);
                     await OnayDegisikliginiYayinlaAsync(onayId);
-                    return Result.Failure(
-                        $"İşlem başarıyla çalıştı ancak onay sonucu kaydedilemedi. Takip kodu: {takipKodu}",
-                        500);
+                    return Result.Failure("İşlem başarıyla çalıştı ancak onay sonucu kaydedilemedi.", 500);
                 }
             }
         }
@@ -410,5 +406,12 @@ namespace _3K.Application.Features.OnayIslemleri.Commands
 
             return tekSatir.Length <= 500 ? tekSatir : tekSatir[..500];
         }
+
+        /// <summary>
+        /// Onay kaydında kalan hata metnine isteğin takip kodunu (X-Correlation-ID) ekler; ekrandaki "Takip: …" ve log
+        /// satırları aynı kodu gösterir. HTTP isteği dışında kod eklenmez.
+        /// </summary>
+        private string TakipKoduyla(string metin) =>
+            _takipKoduSaglayici.TakipKodu is { Length: > 0 } kod ? $"{metin} Takip kodu: {kod}" : metin;
     }
 }

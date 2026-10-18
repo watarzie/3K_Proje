@@ -1,3 +1,5 @@
+using _3K.Core.Entities;
+
 namespace _3K.Application.Features.ProjeIslemleri.DTOs
 {
     public class ProjeDto
@@ -35,17 +37,22 @@ namespace _3K.Application.Features.ProjeIslemleri.DTOs
         public string? SonMontajResmiNo { get; set; }
         public string? ProjeMuduru { get; set; }
 
-        /// <summary>Fotoğraf sayfası bağlantısı; yalnız proje-fotograf-baglantisi R izniyle dolu döner.</summary>
-        public string? FotografBaglantisi { get; set; }
+        /// <summary>Fotoğraf bağlantıları (eklenme sırasıyla); yalnız proje-fotograf-baglantisi R izniyle dolu döner.</summary>
+        public List<ProjeFotografBaglantisiDto> FotografBaglantilari { get; set; } = [];
     }
 
-    /// <summary>
-    /// Fotoğraf bağlantısı kaydının sonucu. Nesne olarak döner: düz string sonuç ASP.NET'te text/plain yazılır ve
-    /// ön yüzün JSON çözümlemesi bozulur.
-    /// </summary>
+    /// <summary>Projenin bir fotoğraf bağlantısı; ekleme/düzenleme/silme sonucu projenin güncel listesidir.</summary>
     public class ProjeFotografBaglantisiDto
     {
-        public string? FotografBaglantisi { get; init; }
+        public int Id { get; init; }
+        public string Adres { get; init; } = string.Empty;
+        public string? Aciklama { get; init; }
+
+        /// <summary>Bağlantılar eklenme sırasıyla (kimlik artan).</summary>
+        public static List<ProjeFotografBaglantisiDto> Liste(IEnumerable<ProjeFotografBaglantisi> baglantilar) =>
+            baglantilar.OrderBy(x => x.Id)
+                .Select(x => new ProjeFotografBaglantisiDto { Id = x.Id, Adres = x.Adres, Aciklama = x.Aciklama })
+                .ToList();
     }
 
     public class ProjeDepoDagilimDto

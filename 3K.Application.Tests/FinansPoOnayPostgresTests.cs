@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using _3K.Application.Behaviors;
@@ -385,6 +386,7 @@ public sealed class FinansPoOnayPostgresTests
         services.AddSingleton<IUnitOfWork, UnitOfWork>();
         services.AddSingleton<ICurrentUserService>(kullanici);
         services.AddSingleton<IApprovalExecutionContext, ApprovalExecutionContext>();
+        services.AddSingleton<ITakipKoduSaglayici>(new TakipKoduSaglayici(new HttpContextAccessor()));
         services.AddSingleton<ISseNotifier, SessizBildirim>();
         services.AddSingleton<IOnayIslemRepository, OnayIslemRepository>();
         services.AddSingleton<IOnayYetkiService, OnayYetkiService>();

@@ -27,13 +27,14 @@ public sealed class ApiYanitSozlesmesiTests
     }
 
     [Fact]
-    public void FotografBaglantisiSonucu_JsonNesnesiOlarakYazilir()
+    public void FotografBaglantilariSonucu_JsonDizisiOlarakYazilir()
     {
-        var yanit = Result<ProjeFotografBaglantisiDto>.Success(new ProjeFotografBaglantisiDto { FotografBaglantisi = "https://foto.ornek.com/pa727" })
+        var yanit = Result<List<ProjeFotografBaglantisiDto>>.Success(
+                [new ProjeFotografBaglantisiDto { Id = 3, Adres = "https://foto.ornek.com/pa727", Aciklama = "Paketleme" }])
             .ToActionResult();
 
         var ok = Assert.IsType<OkObjectResult>(yanit);
-        Assert.IsNotType<string>(ok.Value);
-        Assert.Equal("""{"fotografBaglantisi":"https://foto.ornek.com/pa727"}""", JsonSerializer.Serialize(ok.Value, JsonSerializerOptions.Web));
+        Assert.Equal("""[{"id":3,"adres":"https://foto.ornek.com/pa727","aciklama":"Paketleme"}]""",
+            JsonSerializer.Serialize(ok.Value, JsonSerializerOptions.Web));
     }
 }

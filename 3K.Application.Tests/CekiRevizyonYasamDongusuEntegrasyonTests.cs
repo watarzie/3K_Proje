@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using ClosedXML.Excel;
 using MediatR;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -377,6 +378,7 @@ public sealed class CekiRevizyonYasamDongusuEntegrasyonTests
         services.AddSingleton<IUnitOfWork, UnitOfWork>();
         services.AddSingleton<ICurrentUserService>(currentUser);
         services.AddSingleton<IApprovalExecutionContext, ApprovalExecutionContext>();
+        services.AddSingleton<ITakipKoduSaglayici>(new TakipKoduSaglayici(new HttpContextAccessor()));
         services.AddSingleton<ISseNotifier, NoopNotifier>();
         services.AddSingleton<IHareketService, HareketService>();
         services.AddSingleton<IDurumHesaplaService, DurumHesaplaService>();

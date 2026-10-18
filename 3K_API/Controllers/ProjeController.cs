@@ -161,12 +161,38 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
         /// <summary>
-        /// Projenin fotoğraf sayfası bağlantısını ekler/değiştirir; boş bağlantı kaldırır (proje-fotograf-baglantisi W).
+        /// Projeye fotoğraf bağlantısı ekler (proje-fotograf-baglantisi W); projenin güncel bağlantı listesini döner.
         /// </summary>
-        [HttpPut("{id:int}/fotograf-baglantisi")]
-        public async Task<ActionResult> FotografBaglantisi(int id, [FromBody] FotografBaglantisiRequest request)
+        [HttpPost("{id:int}/fotograf-baglantilari")]
+        public async Task<ActionResult> FotografBaglantisiEkle(int id, [FromBody] FotografBaglantisiRequest request)
         {
-            var result = await _mediator.Send(new ProjeFotografBaglantisiGuncelleCommand { ProjeId = id, Baglanti = request.Baglanti });
+            var result = await _mediator.Send(new ProjeFotografBaglantisiKaydetCommand
+            {
+                ProjeId = id, Adres = request.Adres, Aciklama = request.Aciklama
+            });
+            return result.ToActionResult();
+        }
+
+        /// <summary>
+        /// Projenin bir fotoğraf bağlantısının adresini/açıklamasını değiştirir (proje-fotograf-baglantisi W).
+        /// </summary>
+        [HttpPut("{id:int}/fotograf-baglantilari/{baglantiId:int}")]
+        public async Task<ActionResult> FotografBaglantisiGuncelle(int id, int baglantiId, [FromBody] FotografBaglantisiRequest request)
+        {
+            var result = await _mediator.Send(new ProjeFotografBaglantisiKaydetCommand
+            {
+                ProjeId = id, BaglantiId = baglantiId, Adres = request.Adres, Aciklama = request.Aciklama
+            });
+            return result.ToActionResult();
+        }
+
+        /// <summary>
+        /// Projenin bir fotoğraf bağlantısını siler (proje-fotograf-baglantisi W).
+        /// </summary>
+        [HttpDelete("{id:int}/fotograf-baglantilari/{baglantiId:int}")]
+        public async Task<ActionResult> FotografBaglantisiSil(int id, int baglantiId)
+        {
+            var result = await _mediator.Send(new ProjeFotografBaglantisiSilCommand { ProjeId = id, BaglantiId = baglantiId });
             return result.ToActionResult();
         }
 
@@ -191,7 +217,8 @@ namespace _3K_API.Controllers
 
     public record FotografBaglantisiRequest
     {
-        public string? Baglanti { get; init; }
+        public string? Adres { get; init; }
+        public string? Aciklama { get; init; }
     }
 
     public record KilitAcRequest

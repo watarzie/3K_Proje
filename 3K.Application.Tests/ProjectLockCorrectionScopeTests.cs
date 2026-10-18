@@ -178,37 +178,27 @@ public class ProjectLockCorrectionScopeTests
         await db.Context.SaveChangesAsync();
     }
 
-    [Theory]
-    [InlineData("https://foto.ornek.com/pa-1")]
-    [InlineData(null)]
-    public async Task SevkEdilmisProje_YalnizFotografBaglantisiDegisirseKaydedilir(string? baglanti)
+    [Fact]
+    public async Task SevkEdilmisProjede_FotografBaglantilariEklenirDegisirSilinir()
     {
         using var db = new Fixture();
-        db.Projects[0].FotografBaglantisi = "https://eski.ornek.com/pa-1";
-        var proje = db.Load<Proje>(1);
-        proje.FotografBaglantisi = baglanti;
-        // AuditInterceptor üretimde kilit kontrolünden önce bu iki alanı yazar.
-        proje.UpdatedDate = new DateTime(2026, 10, 15);
-        proje.UpdatedBy = "1";
+        db.Context.Add(new ProjeFotografBaglantisi { ProjeId = 1, Adres = "https://foto.ornek.com/pa-1" });
+        var degisen = new ProjeFotografBaglantisi { Id = 2, ProjeId = 1, Adres = "https://eski.ornek.com/pa-1" };
+        db.Context.Attach(degisen);
+        degisen.Aciklama = "Paketleme";
+        db.Context.Remove(new ProjeFotografBaglantisi { Id = 3, ProjeId = 1, Adres = "https://silinen.ornek.com/pa-1" });
 
         await db.Context.SaveChangesAsync();
 
         Assert.Equal(1, db.Writes.SuppressedSaves);
     }
 
-    [Theory]
-    [InlineData("baska-alan")]
-    [InlineData("detached")]
-    public async Task SevkEdilmisProjede_FotografBaglantisiBaskaDegisikligiKilittenKacirmaz(string tur)
+    [Fact]
+    public async Task SevkEdilmisProjede_FotografBaglantisiProjeDegisikliginiKilittenKacirmaz()
     {
         using var db = new Fixture();
-        if (tur == "baska-alan")
-        {
-            var proje = db.Load<Proje>(1);
-            proje.FotografBaglantisi = "https://foto.ornek.com/pa-1";
-            proje.Musteri = "Yeni";
-        }
-        else db.Context.Update(new Proje { Id = 1, DurumId = (int)ProjeDurum.SevkEdildi, FotografBaglantisi = "https://foto.ornek.com/pa-1" });
+        db.Context.Add(new ProjeFotografBaglantisi { ProjeId = 1, Adres = "https://foto.ornek.com/pa-1" });
+        db.Load<Proje>(1).Musteri = "Yeni";
 
         await Assert.ThrowsAsync<ProjectLockedException>(() => db.Context.SaveChangesAsync());
     }

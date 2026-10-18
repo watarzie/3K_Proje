@@ -54,7 +54,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                 normalKaynakSandikIds,
                 cancellationToken);
             var sahaUzerindenSevkEdilenSandikIds = kaynakSandikSahaDurumu.SahaUzerindenSevkEdilenSandikIds;
-            // Fotoğraf bağlantısı yalnız kendi R izniyle döner; listeyi görebilen ama izni olmayan kullanıcıya boş gelir.
+            // Fotoğraf bağlantıları yalnız kendi R izniyle döner; listeyi görebilen ama izni olmayan kullanıcıya boş gelir.
             var fotografGorunur = _currentUserService.UserId is int kullaniciId &&
                 await _rolService.HasUserPermissionAsync(kullaniciId, YetkiKodlari.Proje.FotografBaglantisi, YetkiTipi.R, cancellationToken);
 
@@ -178,7 +178,9 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                     NakilOlcuResmiNo = p.NakilOlcuResmiNo,
                     SonMontajResmiNo = p.SonMontajResmiNo,
                     ProjeMuduru = p.ProjeMuduru,
-                    FotografBaglantisi = fotografGorunur ? p.FotografBaglantisi : null
+                    FotografBaglantilari = fotografGorunur
+                        ? ProjeFotografBaglantisiDto.Liste(p.FotografBaglantilari ?? [])
+                        : []
                 };
             });
 

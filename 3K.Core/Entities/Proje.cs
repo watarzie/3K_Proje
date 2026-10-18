@@ -21,8 +21,6 @@ namespace _3K.Core.Entities
         public string? NakilOlcuResmiNo { get; set; }
         public string? SonMontajResmiNo { get; set; }
         public string? ProjeMuduru { get; set; }
-        /// <summary>Projenin fotoğraflarının bulunduğu web sayfası (http/https); bkz. <see cref="Models.ProjeFotografBaglantisiKurali"/>.</summary>
-        public string? FotografBaglantisi { get; set; }
 
         // Navigation Properties
         public virtual LookupProjeDurum? DurumLookup { get; set; }
@@ -32,5 +30,6 @@ namespace _3K.Core.Entities
         public virtual ICollection<Sevkiyat> Sevkiyatlar { get; set; } = new List<Sevkiyat>();
         public virtual ICollection<HareketGecmisi> HareketGecmisleri { get; set; } = new List<HareketGecmisi>();
         public virtual ICollection<StokHareketi> StokHareketleri { get; set; } = new List<StokHareketi>();
+        public virtual ICollection<ProjeFotografBaglantisi> FotografBaglantilari { get; set; } = new List<ProjeFotografBaglantisi>();
     }
 }

@@ -26,6 +26,7 @@ public static class DependencyInjection
 
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
+        services.AddSingleton<ITakipKoduSaglayici, TakipKoduSaglayici>();
         services.AddSingleton<ISseNotifier, SseNotifier>();
         services.AddSingleton(TimeProvider.System);
         services.AddMemoryCache();

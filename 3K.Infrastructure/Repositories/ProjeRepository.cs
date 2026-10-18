@@ -104,6 +104,7 @@ namespace _3K.Infrastructure.Repositories
                         .ThenInclude(si => si.CekiSatiri)
                 .Include(p => p.Cekiler)
                     .ThenInclude(c => c.CekiSatirlari)
+                .Include(p => p.FotografBaglantilari)
                 .AsNoTracking()
                 .AsSplitQuery()
                 .ToListAsync(cancellationToken);

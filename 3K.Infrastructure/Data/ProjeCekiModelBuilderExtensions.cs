@@ -29,10 +29,17 @@ internal static class ProjeCekiModelBuilderExtensions
             .HasForeignKey(p => p.ProjeTipiId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // Fotoğraf sayfası bağlantısı (20261014_01_Proje_Fotograf_Baglantisi.sql).
-        modelBuilder.Entity<Proje>()
-            .Property(p => p.FotografBaglantisi)
-            .HasMaxLength(ProjeFotografBaglantisiKurali.EnFazlaUzunluk);
+        // Fotoğraf bağlantıları (20261018_01_Proje_Fotograf_Baglantilari.sql): proje silinince bağlantıları da silinir.
+        modelBuilder.Entity<ProjeFotografBaglantisi>(entity =>
+        {
+            entity.ToTable("ProjeFotografBaglantilari");
+            entity.Property(x => x.Adres).HasMaxLength(ProjeFotografBaglantisiKurali.EnFazlaUzunluk).IsRequired();
+            entity.Property(x => x.Aciklama).HasMaxLength(ProjeFotografBaglantisiKurali.AciklamaEnFazlaUzunluk);
+            entity.HasOne(x => x.Proje)
+                .WithMany(p => p.FotografBaglantilari)
+                .HasForeignKey(x => x.ProjeId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
 
         // Proje listeleri en yeni kayıttan başlar.
         modelBuilder.Entity<Proje>()

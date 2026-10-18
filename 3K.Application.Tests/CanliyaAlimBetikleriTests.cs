@@ -8,7 +8,7 @@ using _3K.Infrastructure.Data;
 namespace _3K.Application.Tests;
 
 /// <summary>
-/// Canlıya alım provası: bu sürümün veritabanı betikleri (README sıra 9–18 ve 20) önceki sürümün şemasında ve eski Finans yetki
+/// Canlıya alım provası: bu sürümün veritabanı betikleri (README sıra 9–18, 20 ve 21) önceki sürümün şemasında ve eski Finans yetki
 /// ağacında ad sırasıyla çalıştırılır. Sonuç şeması EF modeliyle aynıdır, Finans yalnız sekme/alt sekme düğümlerinde
 /// kalır. Betiklerin hepsi (onay ayarı oturumda açık kalsa da) tekrar çalıştırılınca hiçbir şey değişmez: yöneticinin
 /// sonradan kaldırdığı veya düşürdüğü izinler geri verilmez, yeni düğümler silinmez. Salt okunur durum sorgusu
@@ -16,7 +16,7 @@ namespace _3K.Application.Tests;
 /// </summary>
 public sealed class CanliyaAlimBetikleriTests
 {
-    /// <summary>Canlıda çalıştırma sırası (scripts/database/README.md, sıra 9–18 ve 20; 19 veri onarımıdır).</summary>
+    /// <summary>Canlıda çalıştırma sırası (scripts/database/README.md, sıra 9–18, 20 ve 21; 19 veri onarımıdır).</summary>
     private static readonly string[] Betikler =
     [
         "20261008_01_SandikIcerik_UrunBilgisi.sql",
@@ -30,6 +30,7 @@ public sealed class CanliyaAlimBetikleriTests
         "20261014_01_Proje_Fotograf_Baglantisi.sql",
         "20261014_02_Proje_Fotograf_Baglantisi_Projeler_Altina.sql",
         "20261017_01_Finans_Po_Is_Onayi.sql",
+        "20261018_01_Proje_Fotograf_Baglantilari.sql",
     ];
     private const string YetkiGecisi = "20261013_02_Finans_Sekme_Yetkisine_Gecis.sql";
 
@@ -41,7 +42,7 @@ public sealed class CanliyaAlimBetikleriTests
         ALTER TABLE "Sevkiyatlar" DROP COLUMN "SevkSeferiId";
         DROP TABLE "SevkSeferleri";
         ALTER TABLE "SandikIcerikleri" DROP COLUMN "UrunBilgisi";
-        ALTER TABLE "Projeler" DROP COLUMN "FotografBaglantisi";
+        DROP TABLE "ProjeFotografBaglantilari";
         ALTER TABLE "FinansUrunEslesmeleri" DROP COLUMN "Malzeme";
         ALTER TABLE "FinansIsKayitlari" DROP CONSTRAINT "CK_FinansIsKayitlari_AhsapFiyat";
         ALTER TABLE "FinansIsKayitlari" DROP CONSTRAINT "CK_FinansIsKayitlari_Miktarlar";
@@ -88,7 +89,7 @@ public sealed class CanliyaAlimBetikleriTests
             await db.SaveChangesAsync();
             db.ChangeTracker.Clear();
 
-            // Durum sorgusu: klasördeki her betik bir satırdır; önceki sürümde 1–8 uygulanmış (4 iz bırakmaz), 9–18 değil.
+            // Durum sorgusu: klasördeki her betik bir satırdır; önceki sürümde 1–8 uygulanmış (4 iz bırakmaz), 9–18, 20 ve 21 değil.
             var dosyalar = Directory.GetFiles(Path.GetDirectoryName(FinansSekmeAgaci.BetikYolu())!, "*.sql")
                 .Select(Path.GetFileNameWithoutExtension).Order(StringComparer.Ordinal).ToList();
             var durum = await BetikDurumuAsync(db);
