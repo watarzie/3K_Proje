@@ -349,9 +349,9 @@ internal sealed class FinansAylikOzetService(AppDbContext context, FinansPoOnayO
             var satirlar = grup.ToList();
             var tarife = satirlar.OrderBy(x => x.Id).First();
             var projeNo = tarife.ProjeNo;
+            // Miktar, net tutarın fiyatlandığı kayıt m³'lerinin yuvarlanmamış toplamıdır. Net kayıt başına hesaplanır
+            // (PO kalemi de kayıt başınadır); miktarı ayrıca yuvarlamak satırı Ambalaj m³'ünden ve netten ayırır.
             var miktar = Miktar(tarife.FiyatlandirmaBirimiSnapshot, satirlar);
-            if (grup.Key.IsTuru == FinansIsTuru.AnaAmbalaj)
-                miktar = FinansTutarKurallari.Para(miktar);
 
             var siparisler = satirlar.SelectMany(x => x.SiparisKalemleri)
                 .Where(x => !x.FinansSiparis.IptalEdildi)
@@ -361,11 +361,6 @@ internal sealed class FinansAylikOzetService(AppDbContext context, FinansPoOnayO
                 .ToList();
             var siparisMiktari = Math.Min(miktar, siparisler.Sum(SiparisMiktari));
             var faturalananMiktar = Math.Min(siparisMiktari, faturalar.Sum(FaturaMiktari));
-            if (grup.Key.IsTuru == FinansIsTuru.AnaAmbalaj)
-            {
-                siparisMiktari = FinansTutarKurallari.Para(siparisMiktari);
-                faturalananMiktar = FinansTutarKurallari.Para(faturalananMiktar);
-            }
 
             var net = satirlar.Sum(FinansTutarKurallari.IsNet);
             var kdv = satirlar.Sum(x => FinansTutarKurallari.Para(FinansTutarKurallari.IsNet(x) * x.KdvOraniSnapshot / 100m));

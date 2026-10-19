@@ -2,6 +2,7 @@ using System.Text;
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using _3K.Application.Features.AmbalajIslemleri.Commands;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Exceptions;
@@ -156,6 +157,43 @@ public sealed class FinansPostgresTests
                  ("BAĞIMSIZ", "ACME", FinansPanelProjeGrubu.Bagimsiz, 2), ("BAĞIMSIZ", "GE Vernova", FinansPanelProjeGrubu.Bagimsiz, 1)],
                 panel.ProjeOzetleri!.Select(x => (x.ProjeNo, x.Musteri, x.ProjeGrubu, x.IsKaydi)));
             Assert.Equal(75m, panel.ProjeOzetleri!.Single(x => x.Musteri == "ACME").IsBedeli);
+        });
+    }
+
+    /// <summary>
+    /// Ambalaj → Finans → İş Takibi gerçek akışı (canlı PA600-25: Ambalaj 11,068 m³, Finans miktarı 11,07 m³): sandığın
+    /// Ambalaj m³'ü Finans kaydına aynen aktarılır; aylık Ana ambalaj satırının miktarı bu m³'lerin yuvarlanmamış toplamıdır,
+    /// net ve KDV PO kalemleri gibi sandık başına hesaplanıp toplanır.
+    /// </summary>
+    [PostgresRaporFact, Trait("Category", "Postgres")]
+    public async Task AnaAmbalaj_AmbalajM3uAylikMiktaraYuvarlanmadanGelir_NetSandikBasinaHesaplanir()
+    {
+        await InDatabase(async options =>
+        {
+            await using var db = new AppDbContext(options); var finans = Finans(db);
+            await finans.Urun.UrunOlusturAsync(new("ANA-M3", "Ana ambalaj m³", FinansFiyatlandirmaBirimi.Metrekup, true, 0,
+                [new(null, FinansIsTuru.AnaAmbalaj, null, null, null, null)], 561m, "EUR", 20, new DateTime(2026, 1, 1)), Ct);
+            db.ChangeTracker.Clear();
+            var sandiklar = Enumerable.Range(1, 3).Select(no => new AmbalajUretimKaydi
+            {
+                IsAkisKimligi = Guid.NewGuid(), ManuelProjeNo = "PA600-25", ManuelProjeAdi = "SONELGAZ",
+                Tur = AmbalajSandikTuru.Normal, SandikNo = no.ToString(), Ad = "Ana Sandık", Adet = 1,
+                SandikCinsi = AmbalajSandikCinsi.AhsapKapali, Boy = 1400, En = 1000, Yukseklik = 1375,
+                AmbalajaDahil = true, UretimeAlindi = true, UretimDurumu = AmbalajUretimDurumu.Tamamlandi, UretimTarihi = Date,
+                HesaplananBirimM3 = 0.553416m, HesaplananToplamM3 = 0.553416m
+            }).ToArray();
+
+            await finans.UretimAktarim.UretimKayitlariniAktarAsync(
+                sandiklar.Select(x => AmbalajFinansSenkronizasyonu.ModelOlustur(x, null)).ToArray(), Ct);
+            db.ChangeTracker.Clear();
+
+            var kayitlar = await db.Set<FinansIsKaydi>().AsNoTracking().ToListAsync();
+            Assert.Equal(3, kayitlar.Count);
+            Assert.All(kayitlar, x => Assert.Equal((0.553416m, 561m, 310.47m), (x.ToplamM3, x.BirimFiyatSnapshot, FinansTutarKurallari.IsNet(x))));
+            var satir = Assert.Single((await finans.AylikOzet.AylikOzetSayfaliAsync(2026, 9, new(), Ct)).Items);
+            Assert.Equal((FinansIsTuru.AnaAmbalaj, 3m, 1.660248m, 1.660248m), (satir.IsTuru, satir.SandikAdedi, satir.Miktar, satir.AhsapM3));
+            // 3 × Para(561 × 0,553416) = 931,41; yuvarlanmış miktarla 1,66 × 561 = 931,26 olurdu.
+            Assert.Equal((561m, 931.41m, 186.27m), (satir.BirimFiyat, satir.NetTutar, satir.KdvTutari));
         });
     }
 

@@ -890,6 +890,38 @@ public sealed class FinansModuluTests
         Assert.Contains(rows, x => x.ParaBirimi == "USD" && x.Miktar == 3m && x.NetTutar == 90m && x.ToplamTutar == 99m);
     }
 
+    /// <summary>
+    /// Ana ambalaj satırının miktarı sandık m³'lerinin yuvarlanmamış toplamıdır (Ambalaj listesi ve "Ahşap m³" ile aynı);
+    /// net ve KDV, PO kalemleri gibi sandık başına hesaplanıp toplanır. Miktar ikiye yuvarlanınca satır 1,66 m³ gösterip
+    /// 1,660248 m³'ün netini taşıyordu (canlı PA600-25: 11,07 m³ ↔ Ambalaj 11,068 m³).
+    /// </summary>
+    [Fact]
+    public void Aylik_ana_ambalaj_miktari_sandik_m3_toplamidir_yuvarlanmaz_net_sandik_basina_hesaplanir()
+    {
+        var siparis = new FinansSiparis { PoNumarasi = "PO-1" };
+        FinansIsKaydi Sandik(int id) => new()
+        {
+            Id = id, ProjeId = 10, ProjeNo = "PA600-25", Musteri = "SONELGAZ", IsTuru = FinansIsTuru.AnaAmbalaj,
+            KaynakAktif = true, Adet = 1, BirimM3 = 0.553416m, ToplamM3 = 0.553416m, AhsapM3 = 0.553416m,
+            SandikTipi = "Ahşap Kapalı", SandikCinsi = AmbalajSandikCinsi.AhsapKapali,
+            FiyatlandirmaBirimiSnapshot = FinansFiyatlandirmaBirimi.Metrekup, BirimFiyatSnapshot = 561m,
+            ParaBirimiSnapshot = "EUR", KdvOraniSnapshot = 20m
+        };
+        var sandiklar = new[] { Sandik(1), Sandik(2), Sandik(3) };
+        foreach (var sandik in sandiklar.Take(2))
+            sandik.SiparisKalemleri.Add(new FinansSiparisKalemi
+            {
+                FinansSiparis = siparis, FinansIsKaydi = sandik, M3 = sandik.ToplamM3,
+                FiyatlandirmaBirimiSnapshot = FinansFiyatlandirmaBirimi.Metrekup, NetTutarSnapshot = 310.47m
+            });
+
+        var satir = Assert.Single(FinansAylikOzetService.AylikModelleriOlustur(sandiklar, new Dictionary<int, string>()));
+
+        Assert.Equal((1.660248m, 1.660248m, 1.106832m), (satir.Miktar, satir.AhsapM3, satir.SiparisMiktari));
+        // 3 × Para(561 × 0,553416 = 310,466376) = 931,41; yuvarlanmış miktarla 1,66 × 561 = 931,26 olurdu.
+        Assert.Equal((931.41m, 186.27m, 1117.68m), (satir.NetTutar, satir.KdvTutari, satir.ToplamTutar));
+    }
+
     [PostgresRaporFact, Trait("Category", "Postgres")]
     public async Task Aylik_arama_bir_alt_satira_eslesince_ayni_proje_biriminin_tum_satirlarini_toplama_dahil_eder()
     {
