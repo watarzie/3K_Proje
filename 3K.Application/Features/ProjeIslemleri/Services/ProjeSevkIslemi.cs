@@ -43,7 +43,12 @@ internal sealed class ProjeSevkIslemi(
             return ProjeSevkKontrolu.Basarisiz(Result.Failure("Proje bulunamadı."));
 
         var eskiDurum = proje.DurumId;
-        var sandiklar = (await unitOfWork.GetRepository<Sandik>().FindAsync(s => s.ProjeId == projeId)).ToList();
+        // Sandıklar izlenen örnek olarak yüklenir (değiştirilmez); UygulaAsync aynı örneği günceller ve xmin bu
+        // okumadaki değerle denetlenir. Toplu sevkte önceki saha projesinin senkronu aynı kaynak satıra bağlı başka
+        // saha projesinin sandıklarını izlemeye alabilir; izlenmeyen kopyayı Update etmek "already being tracked" verir.
+        var sandiklar = await readQueries.ToListAsync(
+            unitOfWork.GetRepository<Sandik>().Queryable().Where(s => s.ProjeId == projeId),
+            cancellationToken);
 
         var sahaDurumu = proje.ProjeTipiId == (int)ProjeTipi.Normal
             ? await sahaTamamlamaService.GetKaynakSandikSahaAktarimDurumuAsync(sandiklar.Select(s => s.Id), cancellationToken)

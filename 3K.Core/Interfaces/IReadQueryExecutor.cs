@@ -1,8 +1,9 @@
 namespace _3K.Core.Interfaces;
 
 /// <summary>
-/// Uygulama katmanını belirli bir ORM'e bağlamadan salt-okuma sorgularının
-/// izlenmeden ve asenkron çalıştırılmasını sağlar.
+/// Uygulama katmanını belirli bir ORM'e bağlamadan sorguların asenkron çalıştırılmasını sağlar.
+/// <see cref="ToListAsync{T}"/> ve <see cref="CountAsync{T}"/> sorguyu olduğu gibi yürütür: izlenen
+/// <c>Queryable()</c> sorgusu izlenen örnek döndürür; salt-okuma için sorgu önce <see cref="AsNoTracking{TEntity}"/> ile sarılır.
 /// </summary>
 public interface IReadQueryExecutor
 {

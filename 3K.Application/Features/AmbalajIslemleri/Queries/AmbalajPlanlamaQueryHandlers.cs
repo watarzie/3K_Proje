@@ -655,7 +655,7 @@ public sealed class GetAmbalajIlaveSandikAdaylariQueryHandler
             .Select(k => k.KaynakKayitId!.Value)
             .ToHashSet();
         var sonuc = _unitOfWork.GetRepository<Sandik>().Queryable()
-            .Where(s => s.ProjeId == request.ProjeId && haricTutulan.Contains(s.Id) && !kullanilan.Contains(s.Id))
+            .Where(s => s.ProjeId == request.ProjeId && haricTutulan.Contains(s.Id) && !kullanilan.Contains(s.Id)) 
             .OrderBy(s => s.SandikNo)
             .Select(s => new { s.Id, s.SandikNo, s.Ad, s.Boy, s.En, s.Yukseklik, s.TipId })
             .ToList()

@@ -668,13 +668,17 @@ namespace _3K.Application.Features.SandikIslemleri.Services
             IReadOnlyCollection<SandikIcerik> mevcutIcerikler,
             IGenericRepository<SahaAktarimKalemi> sahaAktarimKalemiRepo)
         {
-            var aktifAktarimKalemleri = (await sahaAktarimKalemiRepo.FindAsync(k =>
+            // FindAsync izlenmeyen kopya döndürür; yalnız kimlikleri almak için kullanılır.
+            // Toplu taşımada önceki satırın saha senkronizasyonu aynı sandıktaki kalemleri
+            // DbContext'e yüklemiş olabilir; kopyayı Update etmek "already being tracked" hatası verir.
+            var aktifAktarimKalemiIdleri = (await sahaAktarimKalemiRepo.FindAsync(k =>
                     k.SahaCekiSatiriId == cekiSatiri.Id &&
                     k.DurumId != (int)SahaAktarimDurum.GeriAlindi &&
                     k.DurumId != (int)SahaAktarimDurum.Iptal))
+                .Select(k => k.Id)
                 .ToList();
 
-            if (aktifAktarimKalemleri.Count == 0)
+            if (aktifAktarimKalemiIdleri.Count == 0)
                 return;
 
             var aktifSandikIdleri = new HashSet<int>();
@@ -700,13 +704,15 @@ namespace _3K.Application.Features.SandikIslemleri.Services
                 ? aktifSandikIdleri.Single()
                 : null;
 
-            foreach (var aktarimKalemi in aktifAktarimKalemleri)
+            foreach (var aktarimKalemiId in aktifAktarimKalemiIdleri)
             {
-                if (aktarimKalemi.SahaSandikId == etkinSahaSandikId)
+                // GetByIdAsync zaten izlenen örneği döndürür, yoksa yükleyip izler; değişiklik
+                // SaveChanges'te bu tek örnekten yazılır.
+                var aktarimKalemi = await sahaAktarimKalemiRepo.GetByIdAsync(aktarimKalemiId);
+                if (aktarimKalemi == null || aktarimKalemi.SahaSandikId == etkinSahaSandikId)
                     continue;
 
                 aktarimKalemi.SahaSandikId = etkinSahaSandikId;
-                sahaAktarimKalemiRepo.Update(aktarimKalemi);
             }
         }
 

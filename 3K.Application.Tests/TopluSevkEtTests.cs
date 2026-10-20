@@ -13,6 +13,7 @@ using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
 using _3K.Infrastructure.Data;
+using _3K.Infrastructure.Data.Interceptors;
 using _3K.Infrastructure.Repositories;
 using _3K.Infrastructure.Services;
 
@@ -213,6 +214,80 @@ public sealed class TopluSevkEtTests
         });
     }
 
+    /// <summary>
+    /// Aynı normal kaynak satırı iki saha projesine kısmen aktarılmış, ikisi tek seferde sevk edilir. İlk projenin saha
+    /// senkronu kaynak satırın bütün kalemlerini yükleyip ikinci projenin sandıklarını izlemeye alır; ikinci projenin
+    /// sandıkları izlenmeyen kopya olarak Update edilseydi EF "already being tracked" hatası verirdi. Gerçek saha
+    /// servisi ve tek DbContext ile koşar (sahte saha servisi bu izleme davranışını göstermez).
+    /// </summary>
+    [PostgresRaporFact, Trait("Category", "Postgres")]
+    public async Task Postgres_AyniKaynakSatiriPaylasanIkiSahaProjesi_TekSefereSevkEdilir()
+    {
+        await FinansPostgresTests.InDatabase(async options =>
+        {
+            var k = await OrtakKaynakliSahaKurgusu.KurAsync(options);
+
+            var sonuc = await k.TopluSevkAsync(Istek(Guid.NewGuid(), (k.SahaA, [k.A1]), (k.SahaB, [k.B1])));
+
+            Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+            Assert.Equal((2, 2), (sonuc.Value!.ProjeSayisi, sonuc.Value.SandikSayisi));
+            await using var db = new AppDbContext(options);
+            Assert.All(await db.Sandiklar.Where(s => s.Id == k.A1 || s.Id == k.B1).ToListAsync(),
+                s => Assert.Equal(((int)SandikDurum.Sevkedildi, (int?)SandikDurum.Kapandi), (s.DurumId, s.SevkOncesiDurumId)));
+            Assert.Equal((int)SandikDurum.Hazirlaniyor, (await db.Sandiklar.SingleAsync(s => s.Id == k.B2)).DurumId);
+            Assert.Equal(2, await db.Sevkiyatlar.CountAsync());
+            // Gerçek saha senkronu iki projenin kalemini de sevk kapsamına aldı.
+            var kalemler = await db.SahaAktarimKalemleri.ToListAsync();
+            Assert.Equal(2, kalemler.Count);
+            Assert.All(kalemler,
+                kalem => Assert.Equal(((int)SahaAktarimDurum.SevkEdildi, true), (kalem.DurumId, kalem.SevkiyatKapsamindaMi)));
+        });
+    }
+
+    /// <summary>
+    /// Aynı kurguda bir projede kapanmamış sandık bütün toplu sevki hiçbir şey yazmadan durdurur (doğrulamada yüklenen
+    /// sandıklar değiştirilmez); ardından tekil sevk aynı motorla yalnız kendi projesini sevk eder.
+    /// </summary>
+    [PostgresRaporFact, Trait("Category", "Postgres")]
+    public async Task Postgres_AyniKaynakSatiriPaylasanSahaProjeleri_EngeldeHicbirSeyYazilmaz_TekilSevkAyniKurali()
+    {
+        await FinansPostgresTests.InDatabase(async options =>
+        {
+            var k = await OrtakKaynakliSahaKurgusu.KurAsync(options);
+
+            var engelli = await k.TopluSevkAsync(Istek(Guid.NewGuid(), (k.SahaA, [k.A1]), (k.SahaB, [k.B1, k.B2])));
+
+            Assert.Equal(409, engelli.StatusCode);
+            var sorun = Assert.Single(Assert.IsAssignableFrom<IEnumerable<TopluSevkEtCommandHandler.TopluSevkSorunu>>(engelli.Error!.Issues));
+            Assert.Equal((k.SahaB, "SAHA-B"), (sorun.ProjeId, sorun.ProjeNo));
+            Assert.Equal([k.B2], sorun.SandikIds);
+            await using (var db = new AppDbContext(options))
+            {
+                Assert.Equal(0, await db.SevkSeferleri.CountAsync());
+                Assert.Equal(0, await db.Sevkiyatlar.CountAsync());
+                Assert.Equal(0, await db.HareketGecmisleri.CountAsync());
+                Assert.All(await db.Sandiklar.Where(s => s.Id == k.A1 || s.Id == k.B1).ToListAsync(),
+                    s => Assert.Equal(((int)SandikDurum.Kapandi, (int?)null), (s.DurumId, s.SevkOncesiDurumId)));
+                var kalemler = await db.SahaAktarimKalemleri.ToListAsync();
+                Assert.Equal(2, kalemler.Count);
+                Assert.All(kalemler,
+                    kalem => Assert.Equal(((int)SahaAktarimDurum.Tamamlandi, false), (kalem.DurumId, kalem.SevkiyatKapsamindaMi)));
+            }
+
+            var tekil = await k.TekilSevkAsync(new ProjeSevkEtCommand { ProjeId = k.SahaA, SandikIds = [k.A1], AracPlaka = "34 abc 123" });
+
+            Assert.True(tekil.IsSuccess, tekil.Error?.Message);
+            await using (var db = new AppDbContext(options))
+            {
+                Assert.Equal((int)SandikDurum.Sevkedildi, (await db.Sandiklar.SingleAsync(s => s.Id == k.A1)).DurumId);
+                Assert.Equal((int)SandikDurum.Kapandi, (await db.Sandiklar.SingleAsync(s => s.Id == k.B1)).DurumId);
+                var kalemler = await db.SahaAktarimKalemleri.ToDictionaryAsync(x => x.SahaProjeId, x => x.DurumId);
+                Assert.Equal((int)SahaAktarimDurum.SevkEdildi, kalemler[k.SahaA]);
+                Assert.Equal((int)SahaAktarimDurum.Tamamlandi, kalemler[k.SahaB]);
+            }
+        });
+    }
+
     /// <summary>Şema betiği EF modeliyle aynı tablo/kolon/indeksleri kurar ve tekrar çalıştırılabilir; yetki betiği düğüm ve izinleri ekler.</summary>
     [PostgresRaporFact, Trait("Category", "Postgres")]
     public async Task Postgres_SemaVeYetkiBetikleri_ModelleAyni_TekrarCalisir()
@@ -361,6 +436,85 @@ public sealed class TopluSevkEtTests
         public Task<PaginatedList<_3K.Application.Features.SevkiyatIslemleri.DTOs.SevkSeferiOzetDto>> SorguAsync(SevkSeferleriQuery q) => Sorgu(h => h.Handle(q, default));
         public Task<_3K.Application.Features.SevkiyatIslemleri.DTOs.SevkSeferiDetayDto> DetayAsync(SevkSeferiDetayQuery q) => Sorgu(h => h.Handle(q, default));
         public Task<_3K.Application.Features.SevkiyatIslemleri.DTOs.SevkiyatIstatistikDto> IstatistikAsync(SevkiyatIstatistikQuery q) => Sorgu(h => h.Handle(q, default));
+    }
+
+    /// <summary>
+    /// Bir normal kaynak satırı (2 adet) iki saha projesine birer adet aktarılmıştır. Her saha projesinde ürün kapalı
+    /// "1" no'lu sandıktadır ve kalem tamamlanmıştır; "2" no'lu sandık hazırlanıyor durumundadır (sevke hazır değil).
+    /// Hepsi gerçek saha servisiyle ve uygulamadaki gibi tek DbContext ile çalışır.
+    /// </summary>
+    private sealed class OrtakKaynakliSahaKurgusu(DbContextOptions<AppDbContext> options)
+    {
+        public int SahaA, SahaB, A1, B1, B2;
+
+        public static async Task<OrtakKaynakliSahaKurgusu> KurAsync(DbContextOptions<AppDbContext> options)
+        {
+            var k = new OrtakKaynakliSahaKurgusu(options);
+            await using var db = new AppDbContext(options);
+            var kullanici = new Kullanici { Id = 7, AdSoyad = "Sevk Test", Email = "saha-sevk@example.invalid", RolId = SistemRolleri.AdminId };
+            var normal = new Proje { ProjeNo = "NORMAL-K", ProjeTipiId = (int)ProjeTipi.Normal, DurumId = (int)ProjeDurum.Hazirlaniyor };
+            var kaynakSatir = new CekiSatiri
+            {
+                Ceki = new Ceki { Proje = normal, OrijinalDosyaYolu = "normal.xlsx", YuklemeTarihi = new DateTime(2026, 10, 1, 9, 0, 0) },
+                BarkodNo = "K-1", Aciklama = "Ortak kaynak", IstenenAdet = 2
+            };
+
+            (Proje Proje, Sandik Kapali, Sandik Hazirlaniyor) Saha(string projeNo)
+            {
+                var proje = new Proje { ProjeNo = projeNo, ProjeTipiId = (int)ProjeTipi.Saha, DurumId = (int)ProjeDurum.Hazirlaniyor };
+                var satir = new CekiSatiri
+                {
+                    Ceki = new Ceki { Proje = proje, OrijinalDosyaYolu = "saha.xlsx", YuklemeTarihi = new DateTime(2026, 10, 2, 9, 0, 0) },
+                    BarkodNo = "K-1", Aciklama = "Ortak kaynak", IstenenAdet = 1, KaynakCekiSatiri = kaynakSatir
+                };
+                var kapali = new Sandik { Proje = proje, SandikNo = "1", DurumId = (int)SandikDurum.Kapandi };
+                var hazirlaniyor = new Sandik { Proje = proje, SandikNo = "2", DurumId = (int)SandikDurum.Hazirlaniyor };
+                db.SandikIcerikleri.Add(new SandikIcerik { Sandik = kapali, CekiSatiri = satir, BarkodNo = "K-1", TahsisMiktari = 1, KonulanAdet = 1, Miktar = 1 });
+                db.Sandiklar.Add(hazirlaniyor);
+                db.SahaAktarimKalemleri.Add(new SahaAktarimKalemi
+                {
+                    SahaAktarim = new SahaAktarim { SahaProje = proje, KaynakProje = normal, Kullanici = kullanici, Tarih = new DateTime(2026, 10, 2) },
+                    KaynakProje = normal, SahaProje = proje, KaynakCekiSatiri = kaynakSatir, SahaCekiSatiri = satir,
+                    SahaSandik = kapali, Miktar = 1, DurumId = (int)SahaAktarimDurum.Tamamlandi
+                });
+                return (proje, kapali, hazirlaniyor);
+            }
+
+            var a = Saha("SAHA-A");
+            await db.SaveChangesAsync();
+            var b = Saha("SAHA-B");
+            await db.SaveChangesAsync();
+            (k.SahaA, k.SahaB, k.A1, k.B1, k.B2) = (a.Proje.Id, b.Proje.Id, a.Kapali.Id, b.Kapali.Id, b.Hazirlaniyor.Id);
+            return k;
+        }
+
+        private (AppDbContext Db, UnitOfWork Uow, HareketService Hareket, SahaTamamlamaService Saha) Baglam()
+        {
+            // Üretimdeki kayıt sonrası denetimler (denetim alanları, proje/sevk kilidi) aynı izleyiciyi görür.
+            var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>(options)
+                .AddInterceptors(new AuditInterceptor(new OrtakUser(7)), new ProjectLockInterceptor())
+                .Options);
+            var uow = new UnitOfWork(db, NullLogger<UnitOfWork>.Instance);
+            return (db, uow, new HareketService(uow, db), new SahaTamamlamaService(db));
+        }
+
+        public async Task<Result<_3K.Application.Features.SevkiyatIslemleri.DTOs.TopluSevkSonucDto>> TopluSevkAsync(TopluSevkEtCommand istek)
+        {
+            var (db, uow, hareket, saha) = Baglam();
+            await using (db)
+            using (uow)
+                return await new TopluSevkEtCommandHandler(uow, hareket, new OrtakUser(7), saha, new EntityFrameworkReadQueryExecutor())
+                    .Handle(istek, default);
+        }
+
+        public async Task<Result> TekilSevkAsync(ProjeSevkEtCommand istek)
+        {
+            var (db, uow, hareket, saha) = Baglam();
+            await using (db)
+            using (uow)
+                return await new ProjeSevkEtCommandHandler(uow, hareket, new OrtakUser(7), saha, new EntityFrameworkReadQueryExecutor())
+                    .Handle(istek, default);
+        }
     }
 
     private sealed class BellekOkuyucu : IReadQueryExecutor
