@@ -262,7 +262,8 @@ public sealed class AmbalajUretimAkisRegresyonTests
             proje,
             "Normal",
             [sandik],
-            []);
+            [],
+            new HashSet<string>());
 
         var kalem = Assert.Single(plan.Kalemler);
         Assert.False(kalem.UretimeAlindi);
@@ -817,6 +818,9 @@ public sealed class AmbalajUretimAkisRegresyonTests
             AddRepository<AmbalajUretimFormuSurumu>();
             AddRepository<AmbalajUretimFormuKaydi>();
             AddRepository<AmbalajUretimGerceklesmesi>();
+            // Senkronizasyon ilave sınıflandırması için projenin çeki satırlarını okur.
+            AddRepository<Ceki>();
+            AddRepository<CekiSatiri>();
         }
 
         private bool _transactionIcinde;

@@ -8,11 +8,16 @@ namespace _3K.Application.Features.AmbalajIslemleri;
 
 internal static partial class AmbalajPlanlamaYardimcisi
 {
+    /// <param name="cekiSandikNolari">
+    /// Projenin çeki satırlarındaki sandık numaraları (<see cref="AmbalajCekiSandiklari"/>); kaydı henüz oluşmamış
+    /// sandığın İlave grubu ve varsayılan ambalaj kararı senkronla aynı kuralla buradan okunur.
+    /// </param>
     public static AmbalajPlanlamaPlanDto PlanDtoOlustur(
         Proje proje,
         string projeTipiMetni,
         IReadOnlyList<Sandik> sandiklar,
         IReadOnlyList<AmbalajUretimKaydi> kayitlar,
+        IReadOnlySet<string> cekiSandikNolari,
         int? grup = null,
         int[]? izinliDurumlar = null)
     {
@@ -25,23 +30,30 @@ internal static partial class AmbalajPlanlamaYardimcisi
             .Where(k => !k.BagimsizKayitMi && k.KaynakKayitId.HasValue)
             .GroupBy(k => k.KaynakKayitId!.Value)
             .ToDictionary(g => g.Key, g => g.OrderBy(k => k.IptalMi).ThenByDescending(k => k.Id).First());
-        var planBaslangici = aktifKayitlar
-            .Where(k => k.KaynakKayitId.HasValue)
-            .Select(k => (DateTime?)k.CreatedDate)
-            .Min();
+        var projeGrubu = AmbalajUretimPolitikasi.ProjeGrubu(proje.ProjeTipiId);
+        // Özel Sandıklar'da İlave'ye dönüştürülen kaynak artık o özel kayıtla yönetilir; plan satırı olarak
+        // (kaydı yokmuş gibi) yeniden görünmez.
+        var ozelSandigaBaglananlar = kayitlar
+            .Where(k => k.BagimsizKayitMi && !k.IptalMi && k.KaynakKayitId.HasValue)
+            .Select(k => k.KaynakKayitId!.Value)
+            .ToHashSet();
 
         var kaynaklar = grup == 3
             ? []
             : sandiklar
-                .Where(s => !kaynakMap.TryGetValue(s.Id, out var kayit) || !kayit.IptalMi)
+                .Where(s => (!kaynakMap.TryGetValue(s.Id, out var kayit) || !kayit.IptalMi) &&
+                            !ozelSandigaBaglananlar.Contains(s.Id))
                 .OrderBy(s => SandikSiraAnahtari(s.SandikNo))
                 .ThenBy(s => s.SandikNo, StringComparer.OrdinalIgnoreCase)
                 .Select(s =>
                 {
-                    var dto = KaynakKalemDtoOlustur(s, kaynakMap.GetValueOrDefault(s.Id), planBaslangici);
+                    var dto = KaynakKalemDtoOlustur(s, kaynakMap.GetValueOrDefault(s.Id), projeGrubu, cekiSandikNolari);
                     return genelDurum == AmbalajUretimDurumu.Tamamlandi && !kaynakMap.ContainsKey(s.Id)
                         ? dto with { AmbalajaDahilMi = false, AmbalajKarariOneriliyor = true } : dto;
                 })
+                // Ambalaj dışındaki İlave sandık yalnız Özel Sandıklar'dan yönetilir, plan çekmecesinde listelenmez.
+                .Where(dto => AmbalajUretimPolitikasi.PlandaGosterilirMi(
+                    dto.Tur == 2 ? AmbalajSandikTuru.Ilave : AmbalajSandikTuru.Normal, dto.AmbalajaDahilMi != false))
                 .ToList();
         var manueller = aktifKayitlar
             .Where(k => !k.KaynakKayitId.HasValue)
@@ -51,22 +63,18 @@ internal static partial class AmbalajPlanlamaYardimcisi
             .Select(KalemDtoOlustur)
             .ToList();
         // Tamamlama sayacı: kaydı henüz oluşmamış (senkronize edilmemiş) kaynak sandıklar da gereklidir; "Yapılmaz"
-        // varsayılanı olan ve tamamlanmış projeye sonradan eklenen sandık sayılmaz (plan satırındaki kararla aynı).
-        // Herhangi bir kayda (özel sandık dahil) bağlanmış kaynak zaten kaydıyla sayılır. Grup filtresinden bağımsızdır.
+        // varsayılanı olan (ilave dahil) ve tamamlanmış projeye sonradan eklenen sandık sayılmaz (plan satırındaki
+        // kararla aynı). Herhangi bir kayda (özel sandık dahil) bağlanmış kaynak zaten kaydıyla sayılır. Grup
+        // filtresinden bağımsızdır.
         var kayitliKaynaklar = kayitlar.Where(k => k.KaynakKayitId.HasValue).Select(k => k.KaynakKayitId!.Value).ToHashSet();
-        var projeGrubu = proje.ProjeTipiId switch
-        {
-            (int)ProjeTipi.Saha => AmbalajSandikTuru.Saha,
-            (int)ProjeTipi.Yedek => AmbalajSandikTuru.Yedek,
-            _ => AmbalajSandikTuru.Normal
-        };
         var gerekliSandiklar = gerekenler
             .Select(k => new GerekliSandik(k.BagimsizKayitMi, k.Tur, k.Adet, k.UretimDurumu == AmbalajUretimDurumu.Tamamlandi))
             .Concat(genelDurum == AmbalajUretimDurumu.Tamamlandi ? [] : sandiklar
-                .Where(s => !kayitliKaynaklar.Contains(s.Id) && !AmbalajUretimPolitikasi.VarsayilanYapilmazMi(s.Ad, s.AdIngilizce))
-                .Select(s => new GerekliSandik(false,
-                    AmbalajUretimPolitikasi.KaynakGrubu(projeGrubu, null, planBaslangici, s.CreatedDate),
-                    SandikAdediHesapla(s.SandikNo), false)))
+                .Where(s => !kayitliKaynaklar.Contains(s.Id))
+                .Select(s => (Sandik: s, Karar: AmbalajUretimPolitikasi.YeniKaynakKarari(
+                    projeGrubu, s.SandikNo, s.Ad, s.AdIngilizce, cekiSandikNolari)))
+                .Where(x => x.Karar.AmbalajaDahil)
+                .Select(x => new GerekliSandik(false, x.Karar.Grup, SandikAdediHesapla(x.Sandik.SandikNo), false)))
             .ToList();
         var tumKalemler = kaynaklar.Concat(manueller)
             .Where(k => izinliDurumlar == null || izinliDurumlar.Contains(k.UretimDurumu)).ToList();
@@ -129,9 +137,10 @@ internal static partial class AmbalajPlanlamaYardimcisi
         string projeTipiMetni,
         IReadOnlyList<Sandik> sandiklar,
         IReadOnlyList<AmbalajUretimKaydi> kayitlar,
+        IReadOnlySet<string> cekiSandikNolari,
         int[]? izinliDurumlar = null)
     {
-        var plan = PlanDtoOlustur(proje, projeTipiMetni, sandiklar, kayitlar, izinliDurumlar: izinliDurumlar);
+        var plan = PlanDtoOlustur(proje, projeTipiMetni, sandiklar, kayitlar, cekiSandikNolari, izinliDurumlar: izinliDurumlar);
         var ambalajKaynaklari = plan.Kalemler.Where(k => k.KaynakSandikId.HasValue && k.AmbalajaDahilMi != false).ToList();
         var seciliKaynaklar = ambalajKaynaklari.Where(k => k.UretimeAlindi).ToList();
         var olculu = ambalajKaynaklari.Where(k => k.OlcuHazir).ToList();
@@ -312,13 +321,22 @@ internal static partial class AmbalajPlanlamaYardimcisi
     private static AmbalajPlanlamaKalemDto KaynakKalemDtoOlustur(
         Sandik sandik,
         AmbalajUretimKaydi? kayit,
-        DateTime? planBaslangici)
+        AmbalajSandikTuru projeGrubu,
+        IReadOnlySet<string> cekiSandikNolari)
     {
-        var tur = AmbalajUretimPolitikasi.KaynakGrubu(AmbalajSandikTuru.Normal, kayit?.Tur, planBaslangici, sandik.CreatedDate)
-                  == AmbalajSandikTuru.Ilave
-            ? 2
-            : 1;
-        var dahil = kayit?.AmbalajaDahil ?? !AmbalajUretimPolitikasi.VarsayilanYapilmazMi(sandik.Ad, sandik.AdIngilizce);
+        AmbalajSandikTuru grup;
+        bool dahil;
+        if (kayit != null)
+        {
+            grup = AmbalajUretimPolitikasi.KaynakGrubu(projeGrubu, kayit.Tur);
+            dahil = kayit.AmbalajaDahil;
+        }
+        else
+        {
+            (grup, dahil) = AmbalajUretimPolitikasi.YeniKaynakKarari(
+                projeGrubu, sandik.SandikNo, sandik.Ad, sandik.AdIngilizce, cekiSandikNolari);
+        }
+        var tur = grup == AmbalajSandikTuru.Ilave ? 2 : 1;
         var secili = dahil && (kayit?.UretimeAlindi ?? false);
         var cins = kayit?.SandikCinsi ?? AmbalajUretimPolitikasi.KaynakCinsi(sandik.TipId);
         var hacim = !AmbalajUretimPolitikasi.M3HesaplanabilirMi(cins) ? 0 : kayit != null

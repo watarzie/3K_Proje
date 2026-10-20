@@ -25,7 +25,7 @@ public sealed class AmbalajPlanlamaSayfalamaTests
         var uow = PlanlamaDeposu(proje, kaynaklar, []);
         var sonuc = await new GetAmbalajPlanlamaProjeleriQueryHandler(uow, OrtakRoller.TumIzinler(), new OrtakUser())
             .Handle(new GetAmbalajPlanlamaProjeleriQuery(), CancellationToken.None);
-        var plan = AmbalajPlanlamaYardimcisi.PlanDtoOlustur(proje, "Normal", kaynaklar, []);
+        var plan = AmbalajPlanlamaYardimcisi.PlanDtoOlustur(proje, "Normal", kaynaklar, [], new HashSet<string>());
         var beklenen = plan.Kalemler.Single(k => k.KaynakSandikId == 1).HacimM3;
 
         Assert.True(beklenen > 0);
@@ -63,8 +63,8 @@ public sealed class AmbalajPlanlamaSayfalamaTests
             CreatedDate = new DateTime(2026, 2, 1)
         };
 
-        var bos = AmbalajPlanlamaYardimcisi.PlanDtoOlustur(proje, "Normal", kaynaklar, []);
-        var plan = AmbalajPlanlamaYardimcisi.PlanDtoOlustur(proje, "Normal", kaynaklar, [tamamlanan, ozel]);
+        var bos = AmbalajPlanlamaYardimcisi.PlanDtoOlustur(proje, "Normal", kaynaklar, [], new HashSet<string>());
+        var plan = AmbalajPlanlamaYardimcisi.PlanDtoOlustur(proje, "Normal", kaynaklar, [tamamlanan, ozel], new HashSet<string>());
 
         Assert.Equal((2, 0), (bos.GerekliSandikAdedi, bos.TamamlananSandikAdedi));
         Assert.Equal((4, 1), (plan.GerekliSandikAdedi, plan.TamamlananSandikAdedi));

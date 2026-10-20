@@ -102,19 +102,19 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
 
                 var tamamlanmisProje = AmbalajUretimPolitikasi.ProjeDurumu(
                     kayitRepo.Queryable().Where(k => k.ProjeId == proje.Id).ToList()) == AmbalajUretimDurumu.Tamamlandi;
-                // Plan başlangıcı projenin ilk senkron kaydıdır; bu senkronda eklenen kayıtlar henüz
-                // kaydedilmediği için hesaba katılmaz.
-                var planBaslangici = kayitRepo.Queryable()
-                    .Where(k => k.ProjeId == proje.Id && !k.IptalMi && !k.BagimsizKayitMi && k.KaynakKayitId.HasValue)
-                    .Select(k => (DateTime?)k.CreatedDate)
-                    .Min();
+                // Yeni kaydın grubu sandığın kaynağından gelir: çeki dışından eklenen sandık İlave'dir. Projenin
+                // ambalaj kaydının ilk ne zaman oluştuğu (ör. senkron gecikmesi) sınıflandırmayı etkilemez. Saha ve
+                // yedek projede grup proje türü olduğundan çeki satırı okunmaz.
+                var cekiSandikNolari = tur == AmbalajSandikTuru.Normal
+                    ? AmbalajCekiSandiklari.ProjeIcinGetir(_unitOfWork, proje.Id)
+                    : AmbalajUretimPolitikasi.CekiSandikNolari([]);
                 foreach (var sandik in sandiklar)
                 {
                     transactionToken.ThrowIfCancellationRequested();
                     if (!globalMevcutlar.TryGetValue(sandik.Id, out var kayit))
                     {
-                        kayit = YeniKayitOlustur(proje, sandik, kaynakModul,
-                            AmbalajUretimPolitikasi.KaynakGrubu(tur, null, planBaslangici, sandik.CreatedDate));
+                        kayit = YeniKayitOlustur(proje, sandik, kaynakModul, AmbalajUretimPolitikasi.YeniKaynakKarari(
+                            tur, sandik.SandikNo, sandik.Ad, sandik.AdIngilizce, cekiSandikNolari));
                         if (tamamlanmisProje) kayit.AmbalajKarariniUygula(false);
                         await kayitRepo.AddAsync(kayit);
                         await AmbalajUretimYardimcilari.AlanHareketleriniEkleAsync(
@@ -145,7 +145,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
                     if (sistemIptalindenDonuyor) kayit.SistemIptaliniGeriAl();
 
                     KaynakAlanlariniUygula(kayit, proje, sandik, kaynakModul,
-                        AmbalajUretimPolitikasi.KaynakGrubu(tur, kayit.Tur, planBaslangici, sandik.CreatedDate));
+                        AmbalajUretimPolitikasi.KaynakGrubu(tur, kayit.Tur));
                     var yeni = AmbalajUretimYardimcilari.Snapshot(kayit);
                     var sadeceSenkronizasyonTarihiDegisti = yeni
                         .Where(x => x.Key != nameof(AmbalajUretimKaydi.KaynakSonSenkronizasyonTarihi))
@@ -192,16 +192,16 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
             Proje proje,
             Sandik sandik,
             AmbalajKaynakModulu kaynakModul,
-            AmbalajSandikTuru tur)
+            AmbalajYeniKaynakKarari karar)
         {
             var kayit = new AmbalajUretimKaydi
             {
-                AmbalajaDahil = !AmbalajUretimPolitikasi.VarsayilanYapilmazMi(sandik.Ad, sandik.AdIngilizce),
+                AmbalajaDahil = karar.AmbalajaDahil,
                 UretimeAlindi = false,
                 SarfOrani = AmbalajHesaplayici.VarsayilanSarfOrani,
                 UretimDurumu = AmbalajUretimDurumu.Planlandi
             };
-            KaynakAlanlariniUygula(kayit, proje, sandik, kaynakModul, tur);
+            KaynakAlanlariniUygula(kayit, proje, sandik, kaynakModul, karar.Grup);
             return kayit;
         }
 
@@ -212,7 +212,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
         /// </summary>
         internal static void FormIcinKaynaktanTazele(AmbalajUretimKaydi kayit, Proje proje, Sandik sandik) =>
             KaynakAlanlariniUygula(kayit, proje, sandik, KaynakModulBelirle(proje.ProjeTipiId),
-                AmbalajUretimPolitikasi.KaynakGrubu(TurBelirle(proje.ProjeTipiId), kayit.Tur, null, sandik.CreatedDate));
+                AmbalajUretimPolitikasi.KaynakGrubu(TurBelirle(proje.ProjeTipiId), kayit.Tur));
 
         private static void KaynakAlanlariniUygula(
             AmbalajUretimKaydi kayit,
@@ -251,11 +251,6 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
             _ => AmbalajKaynakModulu.Sandik
         };
 
-        private static AmbalajSandikTuru TurBelirle(int projeTipiId) => projeTipiId switch
-        {
-            (int)ProjeTipi.Saha => AmbalajSandikTuru.Saha,
-            (int)ProjeTipi.Yedek => AmbalajSandikTuru.Yedek,
-            _ => AmbalajSandikTuru.Normal
-        };
+        private static AmbalajSandikTuru TurBelirle(int projeTipiId) => AmbalajUretimPolitikasi.ProjeGrubu(projeTipiId);
     }
 }

@@ -14,6 +14,9 @@ public readonly record struct AmbalajKaynakSandikDegerleri(
     decimal En,
     decimal Yukseklik);
 
+/// <summary>Kaydı henüz olmayan kaynak sandığın ilk ambalaj grubu ve ambalaj kararı.</summary>
+public readonly record struct AmbalajYeniKaynakKarari(AmbalajSandikTuru Grup, bool AmbalajaDahil);
+
 public static class AmbalajUretimPolitikasi
 {
     public static bool M3HesaplanabilirMi(AmbalajSandikCinsi cins) =>
@@ -70,24 +73,87 @@ public static class AmbalajUretimPolitikasi
             @"^(?:(?:TRANSFORMATOR(?: YAGSIZ)?|TRANSFORMER)(?: (?:SANDIGI|SANDIK|CASE|CRATE))?|TRANSFORMER MAIN BODY)$");
 
     /// <summary>
-    /// Kaynak sandığın üretim grubu (RR Q2). Grup tek doğruluk kaynağı olan <c>Tur</c> alanındadır ve kayıt
-    /// ilk senkronda bir kez belirlenir: normal projede plan başladıktan (projenin ilk senkron kaydından)
-    /// sonra oluşturulan sandık İlave'dir. Kayıtlı Normal/İlave sınıflandırması sonraki senkronlarda
-    /// korunur; saha/yedek projelerde grup proje türüdür. Henüz kaydı olmayan sandık aynı kuralla okunur.
+    /// Projenin çeki satırlarında (ilk yükleme ve revizyon) geçen sandık numaraları, <see cref="KoliNoKurali"/>
+    /// biçiminde. Çağıran elle eklenen ürün satırlarını (Grid/sandık elle ürün, eksik tamamlama) vermez; satırın
+    /// sonradan taşındığı fiili sandık değil, çekide geçen sandık sayılır.
+    /// </summary>
+    public static IReadOnlySet<string> CekiSandikNolari(IEnumerable<string?> cekideGecenSandikNolari) =>
+        cekideGecenSandikNolari
+            .Select(KoliNoKurali.Normalize)
+            .Where(no => no.Length > 0)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Sandık çeki dışından mı eklendi (ilave)? Çeki yüklemesi ve revizyonu sandığı çeki satırındaki numarayla
+    /// açar; elle eklenen sandığın (Sandık ekle, Grid elle ürün ekle) numarası hiçbir çeki satırında geçmez.
+    /// Projenin hiç çeki satırı yoksa plan çekiyle başlamamıştır ve sandıklar ilave sayılmaz.
+    /// </summary>
+    public static bool CekiDisiEklenenSandikMi(string? sandikNo, IReadOnlySet<string> cekiSandikNolari) =>
+        cekiSandikNolari.Count > 0 &&
+        !cekiSandikNolari.Contains(KoliNoKurali.Normalize(sandikNo));
+
+    /// <summary>Projenin kaynak sandıklarının ambalaj grubu: saha ve yedek projede proje türü, diğerlerinde Normal.</summary>
+    public static AmbalajSandikTuru ProjeGrubu(int projeTipiId) => projeTipiId switch
+    {
+        (int)ProjeTipi.Saha => AmbalajSandikTuru.Saha,
+        (int)ProjeTipi.Yedek => AmbalajSandikTuru.Yedek,
+        _ => AmbalajSandikTuru.Normal
+    };
+
+    /// <summary>
+    /// Kaydı olan kaynak sandığın üretim grubu (RR Q2). Grup tek doğruluk kaynağı olan <c>Tur</c> alanındadır;
+    /// kayıtlı Normal/İlave sınıflandırması sonraki senkronlarda ve form tazelemesinde korunur, saha/yedek
+    /// projelerde grup proje türüdür.
+    /// </summary>
+    public static AmbalajSandikTuru KaynakGrubu(AmbalajSandikTuru projeGrubu, AmbalajSandikTuru kayitliGrup)
+    {
+        if (projeGrubu != AmbalajSandikTuru.Normal) return projeGrubu;
+        return kayitliGrup == AmbalajSandikTuru.Ilave ? AmbalajSandikTuru.Ilave : AmbalajSandikTuru.Normal;
+    }
+
+    /// <summary>
+    /// Kaynak sandığın üretim grubu. Kayıt ilk senkronda grubunu bir kez alır: normal projede çeki dışından
+    /// eklenen sandık (<see cref="CekiDisiEklenenSandikMi"/>) İlave'dir. Grup, projenin ambalaj kaydının ne zaman
+    /// oluştuğuna bağlı değildir; henüz kaydı olmayan sandık okuma tarafında aynı kuralla okunur.
     /// </summary>
     public static AmbalajSandikTuru KaynakGrubu(
         AmbalajSandikTuru projeGrubu,
         AmbalajSandikTuru? kayitliGrup,
-        DateTime? planBaslangici,
-        DateTime sandikOlusturmaTarihi)
+        bool cekiDisiEklenen)
     {
+        if (kayitliGrup is { } grup) return KaynakGrubu(projeGrubu, grup);
         if (projeGrubu != AmbalajSandikTuru.Normal) return projeGrubu;
-        if (kayitliGrup.HasValue)
-            return kayitliGrup == AmbalajSandikTuru.Ilave ? AmbalajSandikTuru.Ilave : AmbalajSandikTuru.Normal;
-        return planBaslangici.HasValue && sandikOlusturmaTarihi > planBaslangici.Value
-            ? AmbalajSandikTuru.Ilave
-            : AmbalajSandikTuru.Normal;
+        return cekiDisiEklenen ? AmbalajSandikTuru.Ilave : AmbalajSandikTuru.Normal;
     }
+
+    /// <summary>
+    /// Kaynak sandığın ilk ambalaj kararı. İlave sandık ana plana girmez, ambalaj kapsamı dışında başlar ve Özel
+    /// Sandıklar'daki İlave kaydına kaynak olarak seçilir; transformatör/bushing sandığı da varsayılan yapılmaz.
+    /// </summary>
+    public static bool VarsayilanAmbalajaDahilMi(AmbalajSandikTuru grup, string? ad, string? ingilizceAd) =>
+        grup != AmbalajSandikTuru.Ilave && !VarsayilanYapilmazMi(ad, ingilizceAd);
+
+    /// <summary>
+    /// Kaydı henüz olmayan kaynak sandığın ilk grubu ve ambalaj kararı. Senkron yeni kaydı bununla oluşturur;
+    /// plan, proje listesi öngörüsü ve İlave aday listesi kaydı oluşmamış sandığı aynı kuralla okur.
+    /// </summary>
+    public static AmbalajYeniKaynakKarari YeniKaynakKarari(
+        AmbalajSandikTuru projeGrubu,
+        string? sandikNo,
+        string? ad,
+        string? ingilizceAd,
+        IReadOnlySet<string> cekiSandikNolari)
+    {
+        var grup = KaynakGrubu(projeGrubu, null, CekiDisiEklenenSandikMi(sandikNo, cekiSandikNolari));
+        return new AmbalajYeniKaynakKarari(grup, VarsayilanAmbalajaDahilMi(grup, ad, ingilizceAd));
+    }
+
+    /// <summary>
+    /// Kaynak sandık plan çekmecesinde gösterilir mi? Ambalaj dışındaki İlave sandık ana planın parçası değildir;
+    /// yalnız Özel Sandıklar'dan İlave sandık olarak yönetilir. Kullanıcı ambalaja dahil ettiyse gösterilir.
+    /// </summary>
+    public static bool PlandaGosterilirMi(AmbalajSandikTuru grup, bool ambalajaDahil) =>
+        grup != AmbalajSandikTuru.Ilave || ambalajaDahil;
 
     public static AmbalajUretimDurumu ProjeDurumu(IEnumerable<AmbalajUretimKaydi> kayitlar)
     {

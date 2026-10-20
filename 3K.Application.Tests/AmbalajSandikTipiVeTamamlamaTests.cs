@@ -24,23 +24,68 @@ public sealed class AmbalajSandikTipiVeTamamlamaTests
     private static readonly DateTime PlanBaslangici = new(2026, 9, 1, 10, 0, 0);
 
     [Theory]
-    [InlineData(AmbalajSandikTuru.Normal, null, "2026-09-02", AmbalajSandikTuru.Ilave)]
-    [InlineData(AmbalajSandikTuru.Normal, null, "2026-08-31", AmbalajSandikTuru.Normal)]
-    [InlineData(AmbalajSandikTuru.Normal, AmbalajSandikTuru.Normal, "2026-09-02", AmbalajSandikTuru.Normal)]
-    [InlineData(AmbalajSandikTuru.Normal, AmbalajSandikTuru.Ilave, "2026-08-31", AmbalajSandikTuru.Ilave)]
-    [InlineData(AmbalajSandikTuru.Saha, null, "2026-09-02", AmbalajSandikTuru.Saha)]
+    [InlineData(AmbalajSandikTuru.Normal, null, true, AmbalajSandikTuru.Ilave)]
+    [InlineData(AmbalajSandikTuru.Normal, null, false, AmbalajSandikTuru.Normal)]
+    [InlineData(AmbalajSandikTuru.Normal, AmbalajSandikTuru.Normal, true, AmbalajSandikTuru.Normal)]
+    [InlineData(AmbalajSandikTuru.Normal, AmbalajSandikTuru.Ilave, false, AmbalajSandikTuru.Ilave)]
+    [InlineData(AmbalajSandikTuru.Saha, null, true, AmbalajSandikTuru.Saha)]
+    [InlineData(AmbalajSandikTuru.Yedek, AmbalajSandikTuru.Ilave, true, AmbalajSandikTuru.Yedek)]
     public void RRQ2_Grup_kayitta_bir_kez_belirlenir_ve_korunur(
-        AmbalajSandikTuru projeGrubu, AmbalajSandikTuru? kayitli, string olusturma, AmbalajSandikTuru beklenen)
+        AmbalajSandikTuru projeGrubu, AmbalajSandikTuru? kayitli, bool cekiDisi, AmbalajSandikTuru beklenen)
     {
-        Assert.Equal(beklenen, AmbalajUretimPolitikasi.KaynakGrubu(projeGrubu, kayitli, PlanBaslangici, DateTime.Parse(olusturma)));
-        Assert.Equal(AmbalajSandikTuru.Normal, AmbalajUretimPolitikasi.KaynakGrubu(AmbalajSandikTuru.Normal, null, null, DateTime.Parse(olusturma)));
+        Assert.Equal(beklenen, AmbalajUretimPolitikasi.KaynakGrubu(projeGrubu, kayitli, cekiDisi));
+        if (kayitli is { } grup)
+            Assert.Equal(beklenen, AmbalajUretimPolitikasi.KaynakGrubu(projeGrubu, grup));
     }
 
-    /// <summary>RR Q2: plan başladıktan sonra eklenen sandık senkronda İlave olarak kaydedilir; sonraki senkron grubu ezmez.</summary>
+    /// <summary>
+    /// Çeki dışından eklenen sandık: numarası projenin çeki satırlarında geçmez. Elle eklenen ürün satırı çeki verisi
+    /// değildir; projenin hiç çeki satırı yoksa plan çekiyle başlamamıştır ve sandık ilave sayılmaz.
+    /// </summary>
+    [Theory]
+    [InlineData("5", false)]
+    [InlineData(" 2 ", false)]
+    [InlineData("05", false)]
+    [InlineData("1 2", false)]
+    [InlineData("10\u20131", false)]
+    [InlineData("9", true)]
+    [InlineData("ILV-1", true)]
+    [InlineData("12345678901", true)]
+    public void Ceki_disi_eklenen_sandik_ceki_satirlarindaki_numaraya_gore_belirlenir(string sandikNo, bool beklenen)
+    {
+        // Çeki yüklemesi ile aynı koli no biçimi (KoliNoKurali): boşluk/tire farkı ve "1.0" gibi sayı yazımı eşleşir.
+        var cekiNolari = AmbalajUretimPolitikasi.CekiSandikNolari(["1.0", "2 ", "5", "12", "10-1", null, " "]);
+
+        Assert.Equal(beklenen, AmbalajUretimPolitikasi.CekiDisiEklenenSandikMi(sandikNo, cekiNolari));
+        Assert.False(AmbalajUretimPolitikasi.CekiDisiEklenenSandikMi(sandikNo, AmbalajUretimPolitikasi.CekiSandikNolari([])));
+    }
+
+    /// <summary>Koli no çeki yüklemesindeki biçime gelir; int'e sığmayan uzun sayısal numara taşma hatası vermez.</summary>
+    [Theory]
+    [InlineData("05", "5")]
+    [InlineData("1.0", "1")]
+    [InlineData(" 1 2 ", "12")]
+    [InlineData("12345678901", "12345678901")]
+    [InlineData("5010-01", "5010-01")]
+    [InlineData(null, "")]
+    public void Koli_no_ceki_yuklemesindeki_bicime_gelir(string? deger, string beklenen) =>
+        Assert.Equal(beklenen, KoliNoKurali.Normalize(deger));
+
+    /// <summary>İlave sandık ana plana girmez: ilk ambalaj kararı "Yapılmaz"dır; transformatör/bushing kuralı sürer.</summary>
+    [Theory]
+    [InlineData(AmbalajSandikTuru.Ilave, "Radyatör", false)]
+    [InlineData(AmbalajSandikTuru.Normal, "Radyatör", true)]
+    [InlineData(AmbalajSandikTuru.Normal, "Transformatör", false)]
+    [InlineData(AmbalajSandikTuru.Saha, "Radyatör", true)]
+    public void Ilave_sandigin_ilk_ambalaj_karari_yapilmazdir(AmbalajSandikTuru grup, string ad, bool beklenen) =>
+        Assert.Equal(beklenen, AmbalajUretimPolitikasi.VarsayilanAmbalajaDahilMi(grup, ad, null));
+
+    /// <summary>RR Q2: çeki dışından eklenen sandık senkronda İlave olarak kaydedilir; sonraki senkron grubu ezmez.</summary>
     [Fact]
-    public async Task RRQ2_Plan_basladiktan_sonra_eklenen_sandik_senkronda_ilave_olur_ve_oyle_kalir()
+    public async Task RRQ2_Ceki_disindan_eklenen_sandik_senkronda_ilave_olur_ve_oyle_kalir()
     {
         var f = new Fixture(OrtakRoller.TumIzinler());
+        f.CekiSatiri("1");
         f.KaynakSandik(101, "1", SandikTipi.AhsapKapali, PlanBaslangici.AddDays(-1));
         var ilk = f.SenkronKaydi(101, PlanBaslangici);
         f.KaynakSandik(102, "2", SandikTipi.AhsapKapali, PlanBaslangici.AddDays(3));
@@ -49,10 +94,136 @@ public sealed class AmbalajSandikTipiVeTamamlamaTests
         Assert.True((await sync.SenkronizeEtAsync(10, f.User, default)).IsSuccess);
         var yeni = Assert.Single(f.Kayitlar, k => k.KaynakKayitId == 102);
         Assert.Equal(AmbalajSandikTuru.Ilave, yeni.Tur);
+        Assert.False(yeni.AmbalajaDahil);
         Assert.Equal(AmbalajSandikTuru.Normal, ilk.Tur);
 
+        // Çeki satırı sonradan aynı numarayı alsa da kayıtlı grup ve kullanıcının ambalaj kararı korunur.
+        f.CekiSatiri("2");
         Assert.True((await sync.SenkronizeEtAsync(10, f.User, default)).IsSuccess);
         Assert.Equal(AmbalajSandikTuru.Ilave, yeni.Tur);
+        Assert.False(yeni.AmbalajaDahil);
+    }
+
+    /// <summary>
+    /// Canlı bildirim (PA727-03): çekiden 4 sandık oluşmuş, projenin hiç ambalaj kaydı yokken 5. sandık elle eklenmiş.
+    /// İlk senkron hepsini aynı anda kaydeder; eski kural (plan başlangıcı = ilk ambalaj kaydı) elle ekleneni de Normal
+    /// ve ambalaja dahil oluşturuyordu. Grup sandığın kaynağından gelir: elle eklenen İlave ve "Yapılmaz" olur, finansa
+    /// aktarılmaz; çeki ve revizyon sandıkları ile elle eklenen ürün satırı bu kararı değiştirmez.
+    /// </summary>
+    [Fact]
+    public async Task Ceki_sonrasi_elle_eklenen_sandik_ilk_senkronda_ilave_ve_ambalaj_disi_olusur()
+    {
+        var f = new Fixture(OrtakRoller.TumIzinler());
+        foreach (var no in new[] { "1", "2", "3", "4" })
+        {
+            f.CekiSatiri(no);
+            f.KaynakSandik(100 + int.Parse(no), no, SandikTipi.AhsapKapali, PlanBaslangici);
+        }
+        // Revizyon yeni sandığı çeki satırındaki numarayla açar; elle eklenen sandığa elle ürün de eklenmiş olabilir.
+        f.CekiSatiri("6");
+        f.KaynakSandik(106, "6", SandikTipi.AhsapKapali, PlanBaslangici.AddDays(2));
+        f.KaynakSandik(105, "5", SandikTipi.AhsapKapali, PlanBaslangici.AddDays(27));
+        f.CekiSatiri("5", manuelEklenen: true);
+
+        var sonuc = await new AmbalajKaynakSenkronizasyonService(f.Uow, f.Finans).SenkronizeEtAsync(10, f.User, default);
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.Equal(6, sonuc.Value!.Eklenen);
+        var elle = Assert.Single(f.Kayitlar, k => k.KaynakKayitId == 105);
+        Assert.Equal(AmbalajSandikTuru.Ilave, elle.Tur);
+        Assert.False(elle.AmbalajaDahil);
+        Assert.False(elle.UretimeAlindi);
+        Assert.False(elle.BagimsizKayitMi);
+        Assert.All(f.Kayitlar.Where(k => k.KaynakKayitId != 105), k =>
+        {
+            Assert.Equal(AmbalajSandikTuru.Normal, k.Tur);
+            Assert.True(k.AmbalajaDahil);
+        });
+        Assert.Empty(f.Finans.Modeller);
+        var hareket = Assert.Single(f.Uow.Repo<AmbalajUretimHareketi>().Rows,
+            h => h.AmbalajUretimKaydiId == elle.Id && h.AlanAdi == nameof(AmbalajUretimKaydi.AmbalajaDahil));
+        Assert.Equal(bool.FalseString, hareket.YeniDeger);
+    }
+
+    /// <summary>
+    /// Plan ekranı ve Özel Sandıklar aday listesi kaydı henüz oluşmamış sandığı senkronla aynı kuralla okur: elle eklenen
+    /// sandık plan çekmecesinde hiç listelenmez, tamamlama sayacına girmez ve İlave sandık formunda kaynak olarak seçilir.
+    /// </summary>
+    [Fact]
+    public async Task Senkronize_edilmemis_elle_eklenen_sandik_planda_gorunmez_ve_ozel_sandik_adayidir()
+    {
+        var f = new Fixture(OrtakRoller.TumIzinler());
+        f.CekiSatiri("1");
+        f.CekiSatiri("2");
+        f.KaynakSandik(101, "1", SandikTipi.AhsapKapali, PlanBaslangici);
+        f.KaynakSandik(102, "2", SandikTipi.AhsapKapali, PlanBaslangici);
+        f.KaynakSandik(105, "5", SandikTipi.AhsapKapali, PlanBaslangici.AddDays(27));
+
+        var plan = await f.Plan();
+        var adaylar = await f.IlaveAdaylariHandler().Handle(new GetAmbalajIlaveSandikAdaylariQuery { ProjeId = 10 }, default);
+
+        Assert.Equal([101, 102], plan.Kalemler.Select(k => k.KaynakSandikId!.Value));
+        Assert.All(plan.Kalemler, k => Assert.Equal(1, k.Tur));
+        Assert.Equal(2, plan.GerekliSandikAdedi);
+        Assert.True(adaylar.IsSuccess, adaylar.Error?.Message);
+        Assert.Equal(105, Assert.Single(adaylar.Value!).Id);
+        Assert.Empty(f.Kayitlar);
+    }
+
+    /// <summary>
+    /// Senkronlanmış ilave kaynak kaydı da plan çekmecesinde listelenmez; kullanıcı ambalaja dahil ettiyse (eski kayıt
+    /// veya bilinçli karar) tamamlama için gerekli olduğundan İlave rozetiyle görünür.
+    /// </summary>
+    [Fact]
+    public async Task Senkronlanmis_ilave_kaynak_ambalaj_disindayken_planda_gorunmez_dahilse_gorunur()
+    {
+        var f = new Fixture(OrtakRoller.TumIzinler());
+        f.CekiSatiri("1");
+        f.KaynakSandik(101, "1", SandikTipi.AhsapKapali, PlanBaslangici);
+        f.KaynakSandik(105, "5", SandikTipi.AhsapKapali, PlanBaslangici.AddDays(27));
+        Assert.True((await new AmbalajKaynakSenkronizasyonService(f.Uow, f.Finans).SenkronizeEtAsync(10, f.User, default)).IsSuccess);
+        var ilave = Assert.Single(f.Kayitlar, k => k.KaynakKayitId == 105);
+
+        Assert.Equal(101, Assert.Single((await f.Plan()).Kalemler).KaynakSandikId);
+
+        ilave.AmbalajKarariniUygula(true);
+        var dahil = Assert.Single((await f.Plan()).Kalemler, k => k.KaynakSandikId == 105);
+        Assert.Equal((2, true), (dahil.Tur, dahil.AmbalajaDahilMi));
+    }
+
+    /// <summary>
+    /// Elle eklenen sandık Özel Sandıklar'dan İlave'ye dönüştürülür; kaydı henüz yoksa komut önce senkronize eder.
+    /// Çekiden gelen (ambalaja dahil) sandık senkron içinde kaydı oluşsa bile kapsam dışına alınmadan dönüştürülemez.
+    /// Dönüştürülen sandık planda yeniden satır olarak görünmez ve plandan ambalaj kararı değiştirilemez.
+    /// </summary>
+    [Fact]
+    public async Task Elle_eklenen_sandik_ozel_ilave_sandiga_donusur_cekiden_gelen_donusmez()
+    {
+        var f = new Fixture(OrtakRoller.TumIzinler());
+        f.CekiSatiri("1");
+        f.KaynakSandik(101, "1", SandikTipi.AhsapKapali, PlanBaslangici);
+        f.KaynakSandik(105, "5", SandikTipi.AhsapKapali, PlanBaslangici.AddDays(27));
+
+        var cekiSandigi = await f.OzelSandikHandler().Handle(OzelSandik(tur: 2, sandikNo: "", kaynakSandikId: 101), default);
+        var elle = await f.OzelSandikHandler().Handle(OzelSandik(tur: 2, sandikNo: "", kaynakSandikId: 105), default);
+
+        Assert.False(cekiSandigi.IsSuccess);
+        Assert.Equal(400, cekiSandigi.StatusCode);
+        Assert.Contains("kapsamı dışında", cekiSandigi.Error!.Message);
+        // Bellek içi UoW geri alma yapmaz; reddedilen dönüşüm çeki sandığının senkron kaydını özel kayda çevirmemiştir.
+        var cekiKaydi = Assert.Single(f.Kayitlar, k => k.KaynakKayitId == 101);
+        Assert.Equal((false, AmbalajSandikTuru.Normal, true),
+            (cekiKaydi.BagimsizKayitMi, cekiKaydi.Tur, cekiKaydi.AmbalajaDahil));
+        Assert.True(elle.IsSuccess, elle.Error?.Message);
+        var kayit = Assert.Single(f.Kayitlar, k => k.KaynakKayitId == 105);
+        Assert.True(kayit.BagimsizKayitMi);
+        Assert.Equal(AmbalajSandikTuru.Ilave, kayit.Tur);
+        Assert.False(kayit.UretimeAlindi);
+
+        Assert.Equal(101, Assert.Single((await f.Plan()).Kalemler).KaynakSandikId);
+        var karar = await f.KararHandler().Handle(new AmbalajKarariKaydetCommand { SandikId = 105, AmbalajaDahilMi = false }, default);
+        Assert.Equal(409, karar.StatusCode);
+        Assert.Equal((true, true), (kayit.BagimsizKayitMi, kayit.AmbalajaDahil));
     }
 
     /// <summary>A7: projedeki Ahşap Kapalı sandık İlave özel sandığa dönüşürken formdan gelen "Kontrplak" tipi kaynağı ezemez.</summary>
@@ -71,6 +242,44 @@ public sealed class AmbalajSandikTipiVeTamamlamaTests
         Assert.True(kayit.BagimsizKayitMi);
         Assert.Equal(AmbalajSandikCinsi.AhsapKapali, kayit.SandikCinsi);
         Assert.NotEqual("uygulanmaz-v1", kayit.M3HesaplamaVersiyonu);
+        // Özel kayda dönüşen çeki sandığı plan çekmecesine kaydı yokmuş gibi (ambalaja dahil) geri dönmez.
+        Assert.Empty((await f.Plan()).Kalemler);
+    }
+
+    /// <summary>
+    /// İlave aday listesi kaydı oluşmamış sandığı da senkronun ilk kararıyla okur: transformatör sandığı ve tamamlanmış
+    /// projeye sonradan eklenen sandık senkronda "Yapılmaz" başlayacağı için adaydır; çekiden gelen sandık aday değildir.
+    /// </summary>
+    [Fact]
+    public async Task Ilave_aday_listesi_kaydi_olmayan_sandigi_senkronun_ilk_karariyla_okur()
+    {
+        var f = new Fixture(OrtakRoller.TumIzinler());
+        f.CekiSatiri("1");
+        f.CekiSatiri("2");
+        f.KaynakSandik(101, "1", SandikTipi.AhsapKapali, PlanBaslangici).Ad = "Transformatör";
+        f.KaynakSandik(102, "2", SandikTipi.AhsapKapali, PlanBaslangici);
+
+        var adaylar = await f.IlaveAdaylariHandler().Handle(new GetAmbalajIlaveSandikAdaylariQuery { ProjeId = 10 }, default);
+        Assert.Equal(101, Assert.Single(adaylar.Value!).Id);
+
+        f.FormluKayit(1, AmbalajUretimDurumu.Tamamlandi);
+        var tamamlanmis = await f.IlaveAdaylariHandler().Handle(new GetAmbalajIlaveSandikAdaylariQuery { ProjeId = 10 }, default);
+        Assert.Equal([101, 102], tamamlanmis.Value!.Select(a => a.Id));
+    }
+
+    /// <summary>Saha/yedek projesinde grup proje türüdür: çeki dışından eklenen sandık İlave olmaz, ambalaja dahil başlar.</summary>
+    [Fact]
+    public async Task Saha_projesinde_ceki_disindan_eklenen_sandik_saha_grubunda_ve_dahil_olusur()
+    {
+        var f = new Fixture(OrtakRoller.TumIzinler(), ProjeTipi.Saha);
+        f.CekiSatiri("S1");
+        f.KaynakSandik(101, "S1", SandikTipi.AhsapKapali, PlanBaslangici);
+        f.KaynakSandik(105, "S5", SandikTipi.AhsapKapali, PlanBaslangici.AddDays(3));
+
+        Assert.True((await new AmbalajKaynakSenkronizasyonService(f.Uow, f.Finans).SenkronizeEtAsync(10, f.User, default)).IsSuccess);
+
+        Assert.All(f.Kayitlar, k => Assert.Equal((AmbalajSandikTuru.Saha, true), (k.Tur, k.AmbalajaDahil)));
+        Assert.Equal(2, f.Kayitlar.Count);
     }
 
     /// <summary>
@@ -311,19 +520,23 @@ public sealed class AmbalajSandikTipiVeTamamlamaTests
     }
 
     /// <summary>
-    /// 707-02: plan başladıktan sonra projeye eklenen sandık senkronda İlave olur ve formu olmadığı için tamamlamayı
-    /// durdurur. Red sandık numarasını ve grubunu söyler; ekran satırı issues listesinden kaynak sandıkla eşler.
+    /// 707-02: çeki dışından projeye eklenen sandık senkronda İlave ve "Yapılmaz" olur; kullanıcı plan ekranından
+    /// ambalaja dahil ederse formu olmadığı için tamamlamayı durdurur. Red sandık numarasını ve grubunu söyler; ekran
+    /// satırı issues listesinden kaynak sandıkla eşler.
     /// </summary>
     [Fact]
     public async Task A2_Ilave_siniflanan_formsuz_kaynak_kayit_tamamlamayi_sandik_no_ve_grupla_engeller()
     {
         var f = new Fixture(OrtakRoller.TumIzinler());
+        f.CekiSatiri("1");
         f.KaynakSandik(101, "1", SandikTipi.AhsapKapali, PlanBaslangici.AddDays(-1));
         var normal = f.UretimdeFormlu(f.SenkronKaydi(101, PlanBaslangici));
         f.KaynakSandik(102, "12", SandikTipi.AhsapKapali, PlanBaslangici.AddDays(3));
         Assert.True((await new AmbalajKaynakSenkronizasyonService(f.Uow, f.Finans).SenkronizeEtAsync(10, f.User, default)).IsSuccess);
         var ilave = Assert.Single(f.Kayitlar, k => k.KaynakKayitId == 102);
         Assert.Equal(AmbalajSandikTuru.Ilave, ilave.Tur);
+        Assert.False(ilave.AmbalajaDahil);
+        ilave.AmbalajKarariniUygula(true);
         f.Finans.Modeller.Clear();
 
         var sonuc = await f.ProjeHandler().Handle(new() { ProjeId = 10, Tamamla = true }, default);
@@ -526,6 +739,33 @@ public sealed class AmbalajSandikTipiVeTamamlamaTests
         public AmbalajProjeUretimDurumuCommandHandler ProjeHandler() => new(Uow, User, Finans, Roller, Denetim);
 
         public AmbalajOzelSandikFinansCommandHandler OzelFinansHandler() => new(Uow, User, Roller, Finans, Denetim);
+
+        public GetAmbalajIlaveSandikAdaylariQueryHandler IlaveAdaylariHandler() => new(Uow, Roller, User);
+
+        public AmbalajKarariKaydetCommandHandler KararHandler() =>
+            new(Uow, User, Roller, new AmbalajKaynakSenkronizasyonService(Uow, Finans), Finans, Denetim);
+
+        /// <summary>Plan çekmecesinin gördüğü plan (normal proje 10).</summary>
+        public async Task<AmbalajPlanlamaPlanDto> Plan()
+        {
+            var plan = await new GetAmbalajPlanlamaPlanQueryHandler(Uow, Roller, User)
+                .Handle(new GetAmbalajPlanlamaPlanQuery { ProjeId = 10 }, default);
+            Assert.True(plan.IsSuccess, plan.Error?.Message);
+            return plan.Value!;
+        }
+
+        /// <summary>Projenin çekisine satır ekler; çeki yüklemesi ve revizyonu sandığı bu satırdaki numarayla açar.</summary>
+        public void CekiSatiri(string sandikNo, bool manuelEklenen = false)
+        {
+            if (Uow.Repo<Ceki>().Rows.Count == 0)
+                Uow.Repo<Ceki>().Rows.Add(new Ceki { Id = 1, ProjeId = 10, CekiTipiId = (int)CekiTipi.Normal });
+            var satirlar = Uow.Repo<CekiSatiri>().Rows;
+            satirlar.Add(new CekiSatiri
+            {
+                Id = satirlar.Count + 1, CekiId = 1, CekideGecenSandikNo = sandikNo, FiiliSandikNo = sandikNo,
+                IsManuelEklenen = manuelEklenen
+            });
+        }
 
         public Sandik KaynakSandik(int id, string no, SandikTipi tip, DateTime olusturma)
         {

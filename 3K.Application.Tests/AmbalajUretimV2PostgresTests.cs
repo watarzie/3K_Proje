@@ -2,7 +2,9 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
+using _3K.Application.Common;
 using _3K.Application.Features.AmbalajIslemleri;
+using _3K.Application.Features.AmbalajIslemleri.DTOs;
 using _3K.Application.Features.AmbalajIslemleri.Commands;
 using _3K.Application.Features.AmbalajIslemleri.Queries;
 using _3K.Application.Features.SandikIslemleri.Commands;
@@ -215,6 +217,143 @@ public sealed class AmbalajUretimV2PostgresTests
             var formKayitlari = await verify.Set<AmbalajUretimFormuKaydi>().Where(x => x.FormSurumuId == formId)
                 .Select(x => x.AmbalajUretimKaydiId).OrderBy(x => x).ToListAsync();
             Assert.Equal(kayitlar.Select(k => k.Id).Order(), formKayitlari);
+        });
+    }
+
+    /// <summary>
+    /// Canlı bildirim (PA727-03) gerçek SQL ile: hiç ambalaj kaydı olmayan projede çekiden gelen sandıklar ve sonradan
+    /// elle eklenen sandık. Çeki satırı sorgusu (elle eklenen ürün satırı hariç) PostgreSQL'de çevrilir; proje listesi
+    /// öngörüsü ve Özel Sandıklar aday listesi kayıt oluşturmadan elle ekleneni ilave/ambalaj dışı okur, senkron da
+    /// kaydı İlave ve "Yapılmaz" oluşturur.
+    /// </summary>
+    [PostgresRaporFact]
+    [Trait("Category", "Postgres")]
+    public async Task Senkron_CekiDisindanEklenenSandigiIlaveVeAmbalajDisiOlusturur_OkumaTarafiAyniKuraliUygular()
+    {
+        await WithDatabase(async options =>
+        {
+            await using (var seed = new AppDbContext(options))
+            {
+                var proje = new Proje { Id = 40, ProjeNo = "PA-40" };
+                var ceki = new Ceki { Proje = proje, OrijinalDosyaYolu = "sentetik.xlsx", YuklemeTarihi = new DateTime(2026, 9, 23, 12, 0, 0) };
+                foreach (var no in new[] { "1", "2", "2" })
+                    ceki.CekiSatirlari.Add(new CekiSatiri
+                    {
+                        SiraNo = ceki.CekiSatirlari.Count + 1, BarkodNo = $"B-{ceki.CekiSatirlari.Count}", Aciklama = "Çeki ürünü",
+                        CekideGecenSandikNo = no, FiiliSandikNo = no, IstenenAdet = 1
+                    });
+                ceki.CekiSatirlari.Add(new CekiSatiri
+                {
+                    SiraNo = 9999, BarkodNo = "M-5", Aciklama = "Elle eklenen ürün", CekideGecenSandikNo = "5", FiiliSandikNo = "5",
+                    IstenenAdet = 1, IsManuelEklenen = true
+                });
+                proje.Cekiler.Add(ceki);
+                seed.Projeler.Add(proje);
+                seed.Sandiklar.AddRange(
+                    new Sandik { Id = 401, ProjeId = 40, SandikNo = "1", Ad = "Radyatör", Boy = 1800, En = 900, Yukseklik = 800 },
+                    new Sandik { Id = 402, ProjeId = 40, SandikNo = "2", Ad = "Fan", Boy = 1200, En = 800, Yukseklik = 700 },
+                    new Sandik { Id = 405, ProjeId = 40, SandikNo = "5", Ad = "deneme", Boy = 1000, En = 800, Yukseklik = 600 });
+                await seed.SaveChangesAsync();
+                await seed.Database.ExecuteSqlRawAsync(
+                    "SELECT setval(pg_get_serial_sequence('\"AmbalajUretimKayitlari\"', 'Id'), (SELECT MAX(\"Id\") FROM \"AmbalajUretimKayitlari\"))");
+            }
+            await using (var ctx = new AppDbContext(options))
+            {
+                using var uow = new UnitOfWork(ctx, NullLogger<UnitOfWork>.Instance);
+                var liste = await new GetAmbalajPlanlamaProjeleriQueryHandler(uow, OrtakRoller.TumIzinler(), new OrtakUser(),
+                    new EntityFrameworkReadQueryExecutor()).Handle(new(), default);
+                var adaylar = await new GetAmbalajIlaveSandikAdaylariQueryHandler(uow, OrtakRoller.TumIzinler(), new OrtakUser())
+                    .Handle(new() { ProjeId = 40 }, default);
+
+                Assert.True(liste.IsSuccess, liste.Error?.Message);
+                var ozet = Assert.Single(liste.Value!.Items);
+                Assert.Equal((2, 0), (ozet.ToplamSandikAdedi, ozet.IlaveSandikSayisi));
+                Assert.Equal(2, liste.Value.FilteredSummary!.ToplamSandikAdedi);
+                Assert.True(adaylar.IsSuccess, adaylar.Error?.Message);
+                Assert.Equal(405, Assert.Single(adaylar.Value!).Id);
+                Assert.Empty(await ctx.Set<AmbalajUretimKaydi>().Where(k => k.ProjeId == 40).ToListAsync());
+            }
+            await using (var ctx = new AppDbContext(options))
+            {
+                using var uow = new UnitOfWork(ctx, NullLogger<UnitOfWork>.Instance);
+                var sonuc = await new AmbalajKaynakSenkronizasyonService(uow, new Finans(false))
+                    .SenkronizeEtAsync(40, new User(), default);
+                Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+            }
+            await using var verify = new AppDbContext(options);
+            var kayitlar = await verify.Set<AmbalajUretimKaydi>().Where(k => k.ProjeId == 40)
+                .ToDictionaryAsync(k => k.KaynakKayitId!.Value);
+            Assert.Equal((AmbalajSandikTuru.Ilave, false, false),
+                (kayitlar[405].Tur, kayitlar[405].AmbalajaDahil, kayitlar[405].UretimeAlindi));
+            Assert.All([kayitlar[401], kayitlar[402]], k =>
+                Assert.Equal((AmbalajSandikTuru.Normal, true), (k.Tur, k.AmbalajaDahil)));
+        });
+    }
+
+    /// <summary>
+    /// Özel Sandıklar > İlave formu kaydı olmayan kaynakla gerçek transaction'da: çekiden gelen (ambalaja dahil) sandığın
+    /// dönüşümü 400'dür ve komutun içindeki senkronun eklediği kayıtlar dahil hiçbir satır kalmaz; elle eklenen sandık
+    /// senkronlanıp ambalaj dışı İlave kaydı olarak özel sandığa dönüşür ve plan çekmecesinde görünmez.
+    /// </summary>
+    [PostgresRaporFact]
+    [Trait("Category", "Postgres")]
+    public async Task OzelIlave_KayitsizKaynaktan_CekiSandigiReddedilirGeriAlinir_ElleEkleneDonusur()
+    {
+        await WithDatabase(async options =>
+        {
+            await using (var seed = new AppDbContext(options))
+            {
+                var proje = new Proje { Id = 50, ProjeNo = "PA-50" };
+                var ceki = new Ceki { Proje = proje, OrijinalDosyaYolu = "sentetik.xlsx", YuklemeTarihi = new DateTime(2026, 9, 23, 12, 0, 0) };
+                ceki.CekiSatirlari.Add(new CekiSatiri
+                {
+                    SiraNo = 1, BarkodNo = "B-1", Aciklama = "Çeki ürünü", CekideGecenSandikNo = "1", FiiliSandikNo = "1", IstenenAdet = 1
+                });
+                proje.Cekiler.Add(ceki);
+                seed.Projeler.Add(proje);
+                seed.Sandiklar.AddRange(
+                    new Sandik { Id = 501, ProjeId = 50, SandikNo = "1", Ad = "Radyatör", Boy = 1800, En = 900, Yukseklik = 800 },
+                    new Sandik { Id = 505, ProjeId = 50, SandikNo = "5", Ad = "deneme", Boy = 1000, En = 800, Yukseklik = 600 });
+                await seed.SaveChangesAsync();
+                await seed.Database.ExecuteSqlRawAsync(
+                    "SELECT setval(pg_get_serial_sequence('\"AmbalajUretimKayitlari\"', 'Id'), (SELECT MAX(\"Id\") FROM \"AmbalajUretimKayitlari\"))");
+            }
+            AmbalajBagimsizSandikKaydetCommand Istek(int kaynakSandikId) => new()
+            {
+                ProjeId = 50, Tur = 2, SandikNo = "", KaynakSandikId = kaynakSandikId, Ad = "İlave", SandikTipi = "Ahşap Kapalı",
+                Adet = 1, Boy = 1000, En = 800, Yukseklik = 600, TalimatVeren = "Planlama"
+            };
+            async Task<Result<AmbalajBagimsizSandikDto>> Gonder(int kaynakSandikId)
+            {
+                await using var ctx = new AppDbContext(options);
+                using var uow = new UnitOfWork(ctx, NullLogger<UnitOfWork>.Instance);
+                var roller = OrtakRoller.TumIzinler();
+                var finans = new Finans(false);
+                return await new AmbalajBagimsizSandikKaydetCommandHandler(uow, new User(), roller,
+                        new AmbalajKaynakSenkronizasyonService(uow, finans), finans, new AmbalajKritikIslemDenetimi(uow, roller, new User()))
+                    .Handle(Istek(kaynakSandikId), default);
+            }
+
+            var cekiSandigi = await Gonder(501);
+            Assert.Equal(400, cekiSandigi.StatusCode);
+            await using (var verify = new AppDbContext(options))
+                Assert.Empty(await verify.Set<AmbalajUretimKaydi>().Where(k => k.ProjeId == 50).ToListAsync());
+
+            var elle = await Gonder(505);
+            Assert.True(elle.IsSuccess, elle.Error?.Message);
+            await using (var verify = new AppDbContext(options))
+            {
+                var kayitlar = await verify.Set<AmbalajUretimKaydi>().Where(k => k.ProjeId == 50)
+                    .ToDictionaryAsync(k => k.KaynakKayitId!.Value);
+                Assert.Equal((true, AmbalajSandikTuru.Ilave, false),
+                    (kayitlar[505].BagimsizKayitMi, kayitlar[505].Tur, kayitlar[505].UretimeAlindi));
+                Assert.Equal((false, AmbalajSandikTuru.Normal, true),
+                    (kayitlar[501].BagimsizKayitMi, kayitlar[501].Tur, kayitlar[501].AmbalajaDahil));
+                using var uow = new UnitOfWork(verify, NullLogger<UnitOfWork>.Instance);
+                var plan = await new GetAmbalajPlanlamaPlanQueryHandler(uow, OrtakRoller.TumIzinler(), new OrtakUser())
+                    .Handle(new() { ProjeId = 50 }, default);
+                Assert.Equal(501, Assert.Single(plan.Value!.Kalemler).KaynakSandikId);
+            }
         });
     }
 

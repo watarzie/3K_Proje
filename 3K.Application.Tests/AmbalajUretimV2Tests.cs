@@ -80,7 +80,7 @@ public sealed class AmbalajUretimV2Tests
         var row = Assert.Single(uow.Items<AmbalajUretimKaydi>());
         Assert.Equal("18", row.SandikNo);
         Assert.True(row.AmbalajaDahil);
-        var plan = AmbalajPlanlamaYardimcisi.PlanDtoOlustur(proje, "Normal", [source], [row]);
+        var plan = AmbalajPlanlamaYardimcisi.PlanDtoOlustur(proje, "Normal", [source], [row], new HashSet<string>());
         Assert.True(Assert.Single(plan.Kalemler).AmbalajaDahilMi);
     }
 
@@ -102,10 +102,10 @@ public sealed class AmbalajUretimV2Tests
         Assert.True(initial.IsSuccess, initial.Error?.Message);
         var row = Assert.Single(uow.Items<AmbalajUretimKaydi>());
         Assert.False(row.AmbalajaDahil); Assert.False(row.UretimeAlindi);
-        var plan = AmbalajPlanlamaYardimcisi.PlanDtoOlustur(proje, "Normal", [source], [row]);
+        var plan = AmbalajPlanlamaYardimcisi.PlanDtoOlustur(proje, "Normal", [source], [row], new HashSet<string>());
         Assert.False(Assert.Single(plan.Kalemler).AmbalajaDahilMi);
         Assert.Equal(0, plan.GerekliSandikAdedi); Assert.Equal(0, plan.SeciliSandikAdedi);
-        Assert.Equal(0, AmbalajPlanlamaYardimcisi.ProjeOzetDtoOlustur(proje, "Normal", [source], [row]).ToplamSandikAdedi);
+        Assert.Equal(0, AmbalajPlanlamaYardimcisi.ProjeOzetDtoOlustur(proje, "Normal", [source], [row], new HashSet<string>()).ToplamSandikAdedi);
         var form = await FormHandler(uow).Handle(new() { KayitIdleri = [row.Id], IdempotencyAnahtari = Guid.NewGuid() }, default);
         Assert.False(form.IsSuccess); Assert.Empty(uow.Items<AmbalajUretimFormuSurumu>());
         // Dahil etme kararı pipeline'da ambalaj-dahil-et yazma iznini ister.
@@ -118,7 +118,7 @@ public sealed class AmbalajUretimV2Tests
         source.Boy = 2600;
         Assert.True((await sync.SenkronizeEtAsync(20, actor, default)).IsSuccess);
         Assert.True(row.AmbalajaDahil); Assert.Equal(2600, row.Boy);
-        Assert.Equal(1, AmbalajPlanlamaYardimcisi.ProjeOzetDtoOlustur(proje, "Normal", [source], [row]).ToplamSandikAdedi);
+        Assert.Equal(1, AmbalajPlanlamaYardimcisi.ProjeOzetDtoOlustur(proje, "Normal", [source], [row], new HashSet<string>()).ToplamSandikAdedi);
         form = await FormHandler(uow).Handle(new() { KayitIdleri = [row.Id], IdempotencyAnahtari = Guid.NewGuid() }, default);
         Assert.True(form.IsSuccess, form.Error?.Message);
         Assert.Equal(row.Id, Assert.Single(form.Value!.Form.Kalemler).KayitId);

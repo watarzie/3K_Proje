@@ -469,25 +469,7 @@ internal static class CekiExcelOkuyucu
         }
     }
 
-    internal static string NormalizeKoliNo(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return string.Empty;
-
-        var text = value.Trim()
-            .Replace('\u00A0', ' ')
-            .Replace(" ", string.Empty)
-            .Replace('\u2013', '-')
-            .Replace('\u2014', '-');
-
-        if (!text.Contains(',') && decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out var numericValue)
-            && numericValue == decimal.Truncate(numericValue))
-        {
-            return ((int)numericValue).ToString(CultureInfo.InvariantCulture);
-        }
-
-        return text;
-    }
+    internal static string NormalizeKoliNo(string? value) => KoliNoKurali.Normalize(value);
 
     private static decimal? ReadNullableDecimal(IXLCell cell)
     {

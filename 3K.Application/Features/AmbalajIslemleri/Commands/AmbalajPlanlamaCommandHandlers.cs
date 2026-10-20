@@ -164,7 +164,8 @@ public sealed class AmbalajPlanKaydetCommandHandler
             .Where(x => x.Id == proje.ProjeTipiId).Select(x => x.Deger).FirstOrDefault() ?? "-";
         var izin = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(_roller, _currentUser, cancellationToken);
         return Result<AmbalajPlanlamaPlanDto>.Success(AmbalajAlanMaskesi.Maskele(
-            AmbalajPlanlamaYardimcisi.PlanDtoOlustur(proje, tipMetni, sandiklar, tumKayitlar, request.Grup), izin));
+            AmbalajPlanlamaYardimcisi.PlanDtoOlustur(proje, tipMetni, sandiklar, tumKayitlar,
+                AmbalajCekiSandiklari.ProjeIcinGetir(_unitOfWork, proje.Id), request.Grup), izin));
     }
 }
 
@@ -200,6 +201,10 @@ public sealed class AmbalajKarariKaydetCommandHandler
         _unitOfWork.ExecuteAtomicAsync(async token =>
         {
             var kayitlar = _unitOfWork.GetRepository<AmbalajUretimKaydi>().Queryable();
+            // Özel Sandıklar'da İlave'ye dönüştürülen kaynak plan satırı değildir; kararı özel kayıt üzerinden yönetilir.
+            if (kayitlar.Any(k => k.KaynakKayitId == request.SandikId && k.BagimsizKayitMi && !k.IptalMi))
+                return Result<AmbalajPlanlamaPlanDto>.Failure(
+                    "Bu sandık Özel Sandıklar'da özel sandık olarak yönetiliyor; ambalaj kararı plandan değiştirilemez.", 409);
             var hedefler = kayitlar.Where(k => k.KaynakKayitId == request.SandikId).ToList();
             var gereksinim = _denetim.Degerlendir(_denetim.DegisiklikleriHazirla(hedefler, degisiklik => degisiklik with
             {
@@ -243,7 +248,7 @@ public sealed class AmbalajKarariKaydetCommandHandler
 
         var proje = await _unitOfWork.GetRepository<Proje>().GetByIdAsync(sandik.ProjeId);
         var kayitRepo = _unitOfWork.GetRepository<AmbalajUretimKaydi>();
-        var kayit = kayitRepo.Queryable().FirstOrDefault(k => k.KaynakKayitId == sandik.Id && !k.IptalMi);
+        var kayit = kayitRepo.Queryable().FirstOrDefault(k => k.KaynakKayitId == sandik.Id && !k.IptalMi && !k.BagimsizKayitMi);
         if (proje == null || kayit == null)
             return Result<AmbalajPlanlamaPlanDto>.Failure("Ambalaj kaynak kaydı bulunamadı.", 404);
 
@@ -263,7 +268,8 @@ public sealed class AmbalajKarariKaydetCommandHandler
             .Where(x => x.Id == proje.ProjeTipiId).Select(x => x.Deger).FirstOrDefault() ?? "-";
         var izin = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(_roller, _currentUser, cancellationToken);
         return Result<AmbalajPlanlamaPlanDto>.Success(AmbalajAlanMaskesi.Maskele(
-            AmbalajPlanlamaYardimcisi.PlanDtoOlustur(proje, tipMetni, sandiklar, kayitlar), izin));
+            AmbalajPlanlamaYardimcisi.PlanDtoOlustur(proje, tipMetni, sandiklar, kayitlar,
+                AmbalajCekiSandiklari.ProjeIcinGetir(_unitOfWork, proje.Id)), izin));
     }
 }
 
@@ -575,6 +581,9 @@ public sealed class AmbalajIcSandikSablonuSilCommandHandler
 public sealed class AmbalajBagimsizSandikKaydetCommandHandler
     : IRequestHandler<AmbalajBagimsizSandikKaydetCommand, Result<AmbalajBagimsizSandikDto>>
 {
+    private const string KaynakAmbalajaDahilMesaji =
+        "İlave sandığa dönüştürülecek kaynak önce ambalaj kapsamı dışında bırakılmalıdır.";
+
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUser;
     private readonly IRolService _roller;
@@ -658,6 +667,9 @@ public sealed class AmbalajBagimsizSandikKaydetCommandHandler
             kaynakSandik = await _unitOfWork.GetRepository<Sandik>().GetByIdAsync(request.KaynakSandikId.Value);
             var kaynakKaydi = repo.Queryable()
                 .FirstOrDefault(k => k.KaynakKayitId == request.KaynakSandikId.Value && !k.IptalMi);
+            // Doğrulama senkrondan önce çalışır; kaydı bu senkronda oluşan kaynağın ambalaj kararı burada denetlenir.
+            if (kaynakKaydi is { AmbalajaDahil: true, BagimsizKayitMi: false })
+                return Result<AmbalajBagimsizSandikDto>.Failure(KaynakAmbalajaDahilMesaji);
             if (kayit == null) kayit = kaynakKaydi;
             else if (kayit.KaynakKayitId != request.KaynakSandikId.Value)
                 return Result<AmbalajBagimsizSandikDto>.Failure("Kayıtlı ilave sandığın kaynak sandığı değiştirilemez.", 409);
@@ -769,7 +781,7 @@ public sealed class AmbalajBagimsizSandikKaydetCommandHandler
             var kaynakKaydi = _unitOfWork.GetRepository<AmbalajUretimKaydi>().Queryable()
                 .FirstOrDefault(k => k.KaynakKayitId == request.KaynakSandikId.Value && !k.IptalMi);
             if (kaynakKaydi != null && kaynakKaydi.AmbalajaDahil && !kaynakKaydi.BagimsizKayitMi)
-                return "İlave sandığa dönüştürülecek kaynak önce ambalaj kapsamı dışında bırakılmalıdır.";
+                return KaynakAmbalajaDahilMesaji;
             if (kaynakKaydi != null && kaynakKaydi.BagimsizKayitMi && kaynakKaydi.Id != request.SandikId)
                 return "Seçilen sandık daha önce İlave sandık olarak kullanılmıştır.";
         }
