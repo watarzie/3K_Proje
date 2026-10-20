@@ -183,6 +183,23 @@ dotnet test 3K.Application.Tests/3K.Application.Tests.csproj -c Release --filter
 - Sözleşme değişikliğinde (endpoint, DTO, enum, izin kodu, çeviri) ön yüz `3k_onyuz` tarafını da aynı işte güncelle.
 - Commit mesajları Türkçe, conventional biçimde: `refactor(finans): ...`, `fix(rapor): ...`, `feat(db): ...` (yalnız kullanıcı onay verdiğinde).
 
+## Çalıştırma
+
+- API: `dotnet run --project 3K_API` (profil `3K_API`: `http://localhost:50447`, `https://localhost:50446`). Test için canlı ayarlarla başlatılmaz.
+- Ön yüz: `C:\Users\Watarzie\Desktop\3k_onyuz` içinde `npm start` (`ng serve`, port 4200); Claude Code'da `.claude/launch.json` → `onyuz`.
+
+## Dokunulmayacak yerler
+
+- Üretilmiş veya yerel klasörler: `publish/`, `artifacts/`, `.codex-build/`, `.tmp/`, `.vs/`, `bin/`, `obj/`, `.claude/worktrees/` ve git dışı canlıya alım kopyaları (`canliya-alim-*/`; betiğin aslı `scripts/database` altındadır, kopyayı değil aslını düzenle).
+
+## Claude Code araçları
+
+- Ajanlar (`.claude/agents`): `kod-gozden-gecirici` (commit önermeden önce, salt okunur), `sema-betik-denetcisi` (EF modeli/betik/izin kodu değişince ve canlıya alımdan önce), `finans-maske-denetcisi` (Ambalaj DTO'su veya Finans isteği değişince), `is-kurali-dokumantasyon` (iş kuralı değişince doküman hizalama), `canli-hata-teshisci` (canlı hata bildiriminde, düzeltmeden önce teşhis).
+- Beceriler: `postgres-test` (izole PostgreSQL ile test), `yeni-yetki-kodu` (uçtan uca izin kodu).
+- MCP (`.mcp.json`): `context7` (kütüphane dokümanı), `postgres-salt-okunur` (`THREEK_READONLY_PG_URL`, yerel `3K_Db` salt okunur).
+- Yedek `3K_Db`'ye geri yüklenince salt-okunur rolün tablo izinleri silinir: `.claude/mcp-salt-okunur-rol.sql`'i `3K_Db` düğümünden tekrar çalıştır (DBeaver'da otomatik commit açık olmalı).
+- Hook'lar: `.claude/hooks/koruma.js` gizli dosyayı ve gerçek veritabanına yazan SQL'i engeller; `crlf.js` yazılan `.cs/.sql/.md` dosyalarını CRLF'e çevirir.
+
 ## Teslim
 
 Sonunda kısaca: değişen davranış, ilgili dosyalar, koşulan testler (hangi filtreyle), şema betiği ve ön yüz bağımlılığı. Koşmadığın kontrolü geçti diye raporlama.
