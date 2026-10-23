@@ -45,6 +45,11 @@ public static class YetkiKodlari
         public const string CekiVerisiSil = "ceki-verisi-sil";
         public const string UcKIsListesi = "3k-is-listesi";
         public const string GridIsListesi = "grid-is-listesi";
+        /// <summary>
+        /// Grid Sahası ekranı (salt görüntüleme, R): Grid'e gelmiş ürünler ve Grid personelinin mal kabul kayıtları,
+        /// proje tipinden bağımsız tek listede. Satırdan Grid ekranına geçiş tipin Grid modülü iznini ister.
+        /// </summary>
+        public const string GridSahaGorunumu = "grid-saha-gorunumu";
         public const string CekiRevizyonYukle = "ceki-revizyon-yukle";
         public const string UcKSandikDurumRaporu = "3k-sandik-durum-raporu";
         public const string LokasyonAtama = "sandik-lokasyon-atama";

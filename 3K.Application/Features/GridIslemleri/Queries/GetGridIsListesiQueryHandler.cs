@@ -32,25 +32,8 @@ namespace _3K.Application.Features.GridIslemleri.Queries
             var pageSize = Math.Clamp(request.PageSize, 1, 100);
             var isTipi = NormalizeTip(request.IsTipi);
 
-            var query = _unitOfWork.GetRepository<CekiSatiri>()
-                .Queryable()
-                .Where(cs =>
-                    cs.Ceki.Proje.DurumId != (int)ProjeDurum.SevkEdildi ||
-                    cs.SandikIcerikleri.Any(si => si.Sandik.SevkiyatDuzeltmeAcikMi) ||
-                    cs.Ceki.Proje.Sandiklar.Any(s =>
-                        s.SevkiyatDuzeltmeAcikMi &&
-                        s.SandikNo == (string.IsNullOrWhiteSpace(cs.FiiliSandikNo)
-                            ? cs.CekideGecenSandikNo
-                            : cs.FiiliSandikNo)))
-                .Where(cs => !cs.SandikIcerikleri.Any(si =>
-                    si.Sandik.DurumId == (int)SandikDurum.Sevkedildi &&
-                    !si.Sandik.SevkiyatDuzeltmeAcikMi))
-                .Where(cs => !cs.Ceki.Proje.Sandiklar.Any(s =>
-                    s.SandikNo == (string.IsNullOrWhiteSpace(cs.FiiliSandikNo)
-                        ? cs.CekideGecenSandikNo
-                        : cs.FiiliSandikNo) &&
-                    s.DurumId == (int)SandikDurum.Sevkedildi &&
-                    !s.SevkiyatDuzeltmeAcikMi));
+            // Sevk kilidi dışlaması Grid Sahası görünümüyle ortaktır (GridSorgulari).
+            var query = GridSorgulari.SevkKilidiDisinda(_unitOfWork.GetRepository<CekiSatiri>().Queryable());
 
             if (request.ProjeId.HasValue)
             {

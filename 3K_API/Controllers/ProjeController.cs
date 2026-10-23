@@ -103,6 +103,69 @@ namespace _3K_API.Controllers
         }
 
         /// <summary>
+        /// Sevk edilmiş normal projenin kalanlarının otomatik sahaya aktarım önizlemesi (veri değiştirmez).
+        /// </summary>
+        [HttpGet("{id}/otomatik-saha-aktarim/onizle")]
+        public async Task<ActionResult> OtomatikSahaAktarimOnizle(
+            int id,
+            [FromQuery] int? hedefSahaProjeId = null,
+            [FromQuery] bool yeniProje = false,
+            CancellationToken cancellationToken = default)
+        {
+            var result = await _mediator.Send(new OtomatikSahaAktarimOnizleQuery
+            {
+                ProjeId = id,
+                HedefSahaProjeId = hedefSahaProjeId,
+                YeniProje = yeniProje
+            }, cancellationToken);
+            return result.ToActionResult();
+        }
+
+        [HttpPost("{id}/otomatik-saha-aktarim")]
+        public async Task<ActionResult> OtomatikSahayaAktar(
+            int id,
+            [FromBody] OtomatikSahayaAktarCommand command,
+            CancellationToken cancellationToken)
+        {
+            command.ProjeId = id;
+            var result = await _mediator.Send(command, cancellationToken);
+            return result.ToActionResult();
+        }
+
+        /// <summary>
+        /// Sahadan sahaya taşıma önizlemesi: satırlar, hedef sandık numarası ve engeller (veri değiştirmez).
+        /// </summary>
+        [HttpPost("sahadan-sahaya-tasima/onizle")]
+        public async Task<ActionResult> SahadanSahayaTasimaOnizle(
+            [FromBody] SahadanSahayaTasimaOnizleQuery query,
+            CancellationToken cancellationToken)
+        {
+            var result = await _mediator.Send(query, cancellationToken);
+            return result.ToActionResult();
+        }
+
+        [HttpPost("sahadan-sahaya-tasima")]
+        public async Task<ActionResult> SahadanSahayaTasi(
+            [FromBody] SahadanSahayaTasiCommand command,
+            CancellationToken cancellationToken)
+        {
+            var result = await _mediator.Send(command, cancellationToken);
+            return result.ToActionResult();
+        }
+
+        /// <summary>
+        /// Bir saha aktarımının (otomatik ya da elle) bütün satırlarını hepsi-ya-hiçbiri geri alır.
+        /// </summary>
+        [HttpPost("saha-aktarimi-geri-al")]
+        public async Task<ActionResult> SahaAktarimiGeriAl(
+            [FromBody] SahaAktarimiGeriAlCommand command,
+            CancellationToken cancellationToken)
+        {
+            var result = await _mediator.Send(command, cancellationToken);
+            return result.ToActionResult();
+        }
+
+        /// <summary>
         /// Sandık Kapat/Aç
         /// </summary>
         [HttpPut("sandik-kapat")]

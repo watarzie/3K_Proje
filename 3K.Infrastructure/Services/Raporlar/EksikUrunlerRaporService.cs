@@ -92,6 +92,7 @@ internal sealed class EksikUrunlerRaporService(AppDbContext context) : IEksikUru
         UrunSevkSonucu? GetSevkDurumu(CekiSatiri cs) =>
             UrunSevkDurumuKurali.Belirle(cs, proje.Id, tahsissizSandiklar.GetValueOrDefault(cs.Id));
         var sevkOzeti = UrunSevkDurumuKurali.OzetMetni(raporSatirlari.Select(GetSevkDurumu));
+        var sahaIzi = sahaEksikRaporuMu ? await GetSahaIziSatirlariAsync(proje.Id, cancellationToken) : [];
 
         var document = Document.Create(container =>
         {
@@ -277,6 +278,87 @@ internal sealed class EksikUrunlerRaporService(AppDbContext context) : IEksikUru
                     });
                 });
             });
+
+            // Saha izi: kaynak projelerin sahaya giden her ürünü hangi saha ve sandık üzerinden gitti (Excel'de ayrı sayfa).
+            if (sahaIzi.Count > 0)
+            {
+                container.Page(page =>
+                {
+                    page.Size(PageSizes.A4.Landscape());
+                    page.Margin(20);
+                    page.DefaultTextStyle(x => x.FontSize(8));
+
+                    page.Header().Background(headerBg).Padding(10).Row(row =>
+                    {
+                        row.RelativeItem().Column(col =>
+                        {
+                            col.Item().Text("Saha İzi").Bold().FontSize(14).FontColor(headerText);
+                            col.Item().Text("Kaynak proje ürünlerinin gittiği saha, sandık ve sevk durumu").FontSize(7).FontColor(Colors.Grey.Lighten3);
+                        });
+                        row.RelativeItem().AlignRight().Column(col =>
+                        {
+                            col.Item().Text(proje.ProjeNo).Bold().FontSize(11).FontColor(headerText);
+                            col.Item().Text($"{sahaIzi.Count} ürün · sevk edilen {sahaIzi.Count(s => s.SevkEdildi)}").FontSize(7).FontColor(Colors.Grey.Lighten3);
+                        });
+                    });
+
+                    page.Content().PaddingVertical(8).Table(table =>
+                    {
+                        table.ColumnsDefinition(columns =>
+                        {
+                            columns.ConstantColumn(24);
+                            columns.ConstantColumn(60);
+                            columns.ConstantColumn(28);
+                            columns.RelativeColumn(1.1f);
+                            columns.RelativeColumn(2.2f);
+                            columns.ConstantColumn(42);
+                            columns.ConstantColumn(70);
+                            columns.ConstantColumn(44);
+                            columns.RelativeColumn(2.2f);
+                            columns.RelativeColumn(1.1f);
+                        });
+                        table.Header(header =>
+                        {
+                            foreach (var baslik in SahaIziBasliklari)
+                                header.Cell().Border(0.5f).BorderColor(headerBg).Background(headerBg).Padding(3)
+                                    .Text(baslik.ToUpper(new System.Globalization.CultureInfo("tr-TR"))).Bold().FontSize(7).FontColor(headerText);
+                        });
+
+                        var no = 1;
+                        foreach (var s in sahaIzi)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            var bg = no % 2 == 0 ? altRowBg : "#FFFFFF";
+                            void Hucre(string metin, string? renk = null, bool kalin = false)
+                            {
+                                var text = table.Cell().Background(bg).Border(0.5f).BorderColor(tableBorderColor).Padding(2)
+                                    .Text(metin).FontSize(7).FontColor(renk ?? Colors.Black);
+                                if (kalin) text.Bold();
+                            }
+
+                            Hucre(no.ToString());
+                            Hucre(s.KaynakProjeNo, "#1565C0");
+                            Hucre(s.SiraNo.ToString());
+                            Hucre(s.BarkodNo);
+                            Hucre(s.Aciklama);
+                            Hucre(RaporBicimleri.FormatAdet(s.Miktar));
+                            Hucre(s.SahaProjeNo, "#00897B", kalin: true);
+                            Hucre(s.SahaSandikNo);
+                            Hucre(s.Iz);
+                            Hucre(s.Durum, s.SevkEdildi ? "#2E7D32" : warningColor, kalin: true);
+                            no++;
+                        }
+                    });
+
+                    page.Footer().AlignRight().Text(x =>
+                    {
+                        x.Span("Sayfa ").FontSize(7).FontColor(Colors.Grey.Medium);
+                        x.CurrentPageNumber().FontSize(7).FontColor(Colors.Grey.Medium);
+                        x.Span(" / ").FontSize(7).FontColor(Colors.Grey.Medium);
+                        x.TotalPages().FontSize(7).FontColor(Colors.Grey.Medium);
+                    });
+                });
+            }
         });
 
         using var pdfStream = new MemoryStream();
@@ -441,9 +523,143 @@ internal sealed class EksikUrunlerRaporService(AppDbContext context) : IEksikUru
         // Uzun sevk özeti (3,15) "Kalan" sayı sütununu genişletmesin; metin boş komşu hücrelere taşar.
         worksheet.Column(15).AdjustToContents(headerRow);
 
+        // Saha izi: PDF'teki ayrı sayfanın aynısı.
+        var sahaIzi = sahaEksikRaporuMu ? await GetSahaIziSatirlariAsync(proje.Id, cancellationToken) : [];
+        if (sahaIzi.Count > 0)
+        {
+            var izSayfasi = workbook.Worksheets.Add("Saha Izi");
+            var izSonSutun = SahaIziBasliklari.Length;
+            const int izBaslikSatiri = 4;
+            izSayfasi.Cell(1, 1).Value = $"Saha İzi — {proje.ProjeNo}";
+            RaporExcelStilleri.StyleExcelTitle(izSayfasi, izSonSutun);
+            izSayfasi.Cell(2, 1).Value = "Ürün";
+            RaporExcelStilleri.SetDecimalCell(izSayfasi.Cell(2, 2), sahaIzi.Count);
+            izSayfasi.Cell(2, 4).Value = "Sevk edilen";
+            RaporExcelStilleri.SetDecimalCell(izSayfasi.Cell(2, 5), sahaIzi.Count(s => s.SevkEdildi));
+            RaporExcelStilleri.StyleExcelInfoRows(izSayfasi, izSonSutun);
+
+            for (var i = 0; i < SahaIziBasliklari.Length; i++)
+                izSayfasi.Cell(izBaslikSatiri, i + 1).Value = SahaIziBasliklari[i];
+            RaporExcelStilleri.StyleExcelHeader(izSayfasi, izBaslikSatiri, izSonSutun);
+
+            var izSatiri = izBaslikSatiri + 1;
+            var izNo = 1;
+            foreach (var s in sahaIzi)
+            {
+                izSayfasi.Cell(izSatiri, 1).SetValue(izNo);
+                izSayfasi.Cell(izSatiri, 2).Value = s.KaynakProjeNo;
+                izSayfasi.Cell(izSatiri, 3).SetValue(s.SiraNo);
+                izSayfasi.Cell(izSatiri, 4).Value = s.BarkodNo;
+                izSayfasi.Cell(izSatiri, 5).Value = s.Aciklama;
+                RaporExcelStilleri.SetDecimalCell(izSayfasi.Cell(izSatiri, 6), s.Miktar);
+                izSayfasi.Cell(izSatiri, 7).Value = s.SahaProjeNo;
+                izSayfasi.Cell(izSatiri, 8).Value = s.SahaSandikNo;
+                izSayfasi.Cell(izSatiri, 9).Value = s.Iz;
+                izSayfasi.Cell(izSatiri, 10).Value = s.Durum;
+                izSayfasi.Cell(izSatiri, 10).Style.Font.FontColor = XLColor.FromHtml(s.SevkEdildi ? "#2E7D32" : "#F57C00");
+                if (izNo % 2 == 0)
+                    izSayfasi.Range(izSatiri, 1, izSatiri, izSonSutun).Style.Fill.BackgroundColor = XLColor.FromHtml("#F8FAFE");
+                izSatiri++;
+                izNo++;
+            }
+
+            izSayfasi.Column(5).Style.Alignment.WrapText = true;
+            izSayfasi.Column(9).Style.Alignment.WrapText = true;
+            RaporExcelStilleri.FinalizeExcelWorksheet(izSayfasi, izBaslikSatiri, Math.Max(izSatiri - 1, izBaslikSatiri), izSonSutun);
+        }
+
         using var stream = new MemoryStream();
         workbook.SaveAs(stream);
         return stream.ToArray();
+    }
+
+    /// <summary>Saha izi satırı: kaynak normal projenin sahaya gitmiş ürünü, şu anki saha/sandığı, taşıma zinciri ve sevki.</summary>
+    internal sealed record SahaIziSatiri(
+        string KaynakProjeNo,
+        int SiraNo,
+        string BarkodNo,
+        string Aciklama,
+        decimal Miktar,
+        string SahaProjeNo,
+        string SahaSandikNo,
+        string Iz,
+        string Durum,
+        bool SevkEdildi);
+
+    internal static readonly string[] SahaIziBasliklari =
+        ["#", "Kaynak Proje", "Sıra", "Barkod No", "Ürün Açıklaması", "Miktar", "Gittiği Saha", "Sandık", "Saha İzi", "Durum"];
+
+    /// <summary>
+    /// Saha projesinin kaynak normal projelerinde sahaya aktarılmış her ürünün hangi saha ve sandık üzerinden gittiği:
+    /// aktif aktarım kaydının bugünkü sahası ve sahadan sahaya taşıma izleri (<see cref="SahaTasimaKalemi"/>). Bu
+    /// sahadan başka sahaya taşınan ürünler de görünür; kaynaklar bu saha projesine aktarılmış ya da taşınmış
+    /// satırların kök projeleridir.
+    /// </summary>
+    internal async Task<List<SahaIziSatiri>> GetSahaIziSatirlariAsync(int sahaProjeId, CancellationToken cancellationToken)
+    {
+        var kokSatirIds = await context.SahaAktarimKalemleri.AsNoTracking()
+            .Where(k => k.SahaProjeId == sahaProjeId)
+            .Select(k => k.KaynakCekiSatiriId)
+            .Union(context.SahaTasimaKalemleri.AsNoTracking()
+                .Where(t => t.KaynakSahaProjeId == sahaProjeId || t.HedefSahaProjeId == sahaProjeId)
+                .Select(t => t.KaynakCekiSatiriId))
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        if (kokSatirIds.Count == 0)
+            return [];
+
+        var kaynakProjeIds = await context.CekiSatirlari.AsNoTracking()
+            .Where(cs => kokSatirIds.Contains(cs.Id))
+            .Select(cs => cs.Ceki.ProjeId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var kalemler = await context.SahaAktarimKalemleri.AsNoTracking()
+            .Where(k => kaynakProjeIds.Contains(k.KaynakProjeId) &&
+                k.DurumId != (int)SahaAktarimDurum.GeriAlindi &&
+                k.DurumId != (int)SahaAktarimDurum.Iptal)
+            .Select(k => new
+            {
+                k.Id,
+                KaynakProjeNo = k.KaynakProje.ProjeNo,
+                k.KaynakCekiSatiri.SiraNo,
+                k.KaynakCekiSatiri.BarkodNo,
+                k.KaynakCekiSatiri.Aciklama,
+                k.Miktar,
+                SahaProjeNo = k.SahaProje.ProjeNo,
+                SahaSandikNo = k.SahaSandik != null ? k.SahaSandik.SandikNo : null,
+                k.DurumId,
+                k.SevkTarihi
+            })
+            .ToListAsync(cancellationToken);
+
+        var kalemIds = kalemler.Select(k => k.Id).ToList();
+        var izler = (await context.SahaTasimaKalemleri.AsNoTracking()
+                .Where(t => t.SahaAktarimKalemiId.HasValue && kalemIds.Contains(t.SahaAktarimKalemiId.Value))
+                .ToListAsync(cancellationToken))
+            .GroupBy(t => t.SahaAktarimKalemiId!.Value)
+            .ToDictionary(g => g.Key, g => g.OrderBy(t => t.Tarih).ThenBy(t => t.Id).ToList());
+
+        return kalemler
+            .Select(k =>
+            {
+                var sandikNo = RaporBicimleri.RaporMetni(k.SahaSandikNo);
+                var iz = izler.TryGetValue(k.Id, out var tasimalar)
+                    ? string.Join(" → ", tasimalar
+                        .Select(t => $"{t.KaynakSahaProjeNo} ({RaporBicimleri.RaporMetni(t.KaynakSahaSandikNo)})")
+                        .Append($"{k.SahaProjeNo} ({sandikNo})"))
+                    : $"{k.SahaProjeNo} ({sandikNo})";
+                var sevkEdildi = k.DurumId == (int)SahaAktarimDurum.SevkEdildi;
+                var durum = sevkEdildi
+                    ? k.SevkTarihi.HasValue ? $"Sevk edildi {k.SevkTarihi.Value:dd.MM.yyyy}" : "Sevk edildi"
+                    : k.DurumId == (int)SahaAktarimDurum.SevkiyatDuzeltmede ? "Sevkiyat düzeltmede" : "Bekliyor";
+                return new SahaIziSatiri(k.KaynakProjeNo, k.SiraNo, k.BarkodNo, k.Aciklama, k.Miktar,
+                    k.SahaProjeNo, sandikNo, iz, durum, sevkEdildi);
+            })
+            .OrderBy(s => s.KaynakProjeNo, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(s => s.SiraNo)
+            .ThenBy(s => s.SahaProjeNo, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     /// <summary>

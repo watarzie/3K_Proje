@@ -22,6 +22,8 @@ public sealed record class FinansIsKaydiModel
     public string? SandikNo { get; init; }
     public string? SandikAdi { get; init; }
     public string? SandikTipi { get; init; }
+    /// <summary>Ambalaj kaynaklı işin sandık cinsi; raporda <see cref="FinansEtiketleri.SandikCinsi"/> ile yazılır.</summary>
+    public AmbalajSandikCinsi? SandikCinsi { get; init; }
     public decimal? Boy { get; init; }
     public decimal? En { get; init; }
     public decimal? Yukseklik { get; init; }

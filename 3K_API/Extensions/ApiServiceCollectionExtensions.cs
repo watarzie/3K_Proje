@@ -186,8 +186,9 @@ public static class ApiServiceCollectionExtensions
                 .AllowAnyMethod()
                 .AllowAnyHeader()
                 .AllowCredentials()
-                // Hata bildiriminde gösterilen takip kodu; farklı kökenden çalışan ön yüz başlığı okuyabilsin.
-                .WithExposedHeaders("X-Correlation-ID")));
+                // Hata bildiriminde gösterilen takip kodu ve indirilen dosyanın sunucudaki adı; farklı kökenden
+                // çalışan ön yüz bu başlıkları okuyabilsin.
+                .WithExposedHeaders("X-Correlation-ID", "Content-Disposition")));
 
         return services;
     }

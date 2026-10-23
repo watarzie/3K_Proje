@@ -1,6 +1,7 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Application.Features.ProjeIslemleri.DTOs;
+using _3K.Core.Constants;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
@@ -9,7 +10,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
 {
     public class GetSahaAktarimlariQuery : IRequest<Result<List<SahaAktarimDto>>>, ISecuredRequest, IRequiresMenuPermission
     {
-        public string RequiredMenuKod => "saha-aktarim-geri-al";
+        public string RequiredMenuKod => YetkiKodlari.Saha.AktarimGeriAl;
         public YetkiTipi RequiredYetkiTipi => YetkiTipi.R;
         public int ProjeId { get; set; }
     }
@@ -101,6 +102,20 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                 .GroupBy(si => si.CekiSatiriId!.Value)
                 .ToDictionary(g => g.Key, g => g.ToList());
 
+            // Satırın aktif defter kaydı hangi aktarım başlığına aitse "aktarımın tamamını geri al" o başlıkla çalışır.
+            var aktifKalemMap = (await _unitOfWork.GetRepository<SahaAktarimKalemi>().FindAsync(k =>
+                    k.SahaCekiSatiriId.HasValue &&
+                    sahaSatirIds.Contains(k.SahaCekiSatiriId.Value) &&
+                    k.DurumId != (int)SahaAktarimDurum.GeriAlindi &&
+                    k.DurumId != (int)SahaAktarimDurum.Iptal))
+                .GroupBy(k => k.SahaCekiSatiriId!.Value)
+                .ToDictionary(g => g.Key, g => g.OrderByDescending(k => k.Id).First());
+            var aktarimIds = aktifKalemMap.Values.Select(k => k.SahaAktarimId).Distinct().ToList();
+            var aktarimMap = aktarimIds.Count == 0
+                ? new Dictionary<int, SahaAktarim>()
+                : (await _unitOfWork.GetRepository<SahaAktarim>().FindAsync(a => aktarimIds.Contains(a.Id)))
+                    .ToDictionary(a => a.Id);
+
             var result = new List<SahaAktarimDto>();
 
             foreach (var sahaSatir in sahaSatirlar)
@@ -125,6 +140,9 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                     .Any(id => sahaSandiklar.TryGetValue(id, out var sandik) && sandik.DurumId == (int)SandikDurum.Sevkedildi);
                 var islemGormusMu = SahaAktarimGeriAlmaPolicy.IslemGormusMu(sahaSatir, satirIcerikleri);
                 var geriAlinabilirMi = !sevkEdildiMi && !islemGormusMu;
+                SahaAktarim? aktarim = null;
+                if (aktifKalemMap.TryGetValue(sahaSatir.Id, out var aktifKalem))
+                    aktarimMap.TryGetValue(aktifKalem.SahaAktarimId, out aktarim);
 
                 result.Add(new SahaAktarimDto
                 {
@@ -147,6 +165,10 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                     SevkEdildiMi = sevkEdildiMi,
                     IslemGormusMu = islemGormusMu,
                     GeriAlinabilirMi = geriAlinabilirMi,
+                    SahaAktarimId = aktarim?.Id,
+                    SahaAktarimTarihi = aktarim?.Tarih,
+                    SahaAktarimAciklama = aktarim?.Aciklama,
+                    SahaAktarimTasimaMi = aktarim?.KaynakSahaProjeId.HasValue == true,
                     GeriAlinamamaNedeni = geriAlinabilirMi
                         ? null
                         : sevkEdildiMi

@@ -193,6 +193,9 @@ public sealed class GridKomutKatalogKapsamTests
         Assert.Equal((decimal)beklenenGrid, satir.GridGelenAdet);
         Assert.Equal((decimal)beklenenTrafo, satir.TrafoSevkAdet);
         Assert.Equal(77, satir.GridPersonelId);
+        // Mal kabul kaydı (Grid Sahası) Grid'e gelen adedi hareket açıklamasından okur; Trafo Sevk mal kabul değildir.
+        var aciklama = Assert.Single(kurgu.Hareketler).Aciklama;
+        Assert.Equal(hedef == GridDurum.TrafoSevk ? null : (decimal)beklenenGrid, GridMalKabulAciklamaKurali.GelenMiktariniAyristir(aciklama));
     }
 
     [Fact]
@@ -568,7 +571,50 @@ public sealed class GridKomutKatalogKapsamTests
         Assert.Equal(2.3456m, icerik.KonulanAdet);
         Assert.Equal(0, icerik.EksikAdet);
         Assert.Equal(3, kurgu.Uow.SaveCount);
-        Assert.Single(kurgu.Hareketler);
+        var hareket = Assert.Single(kurgu.Hareketler);
+        // Grid Sahası mal kabulü: işlem metni Grid'e özgüdür, gelen adet açıklamanın sonundaki ekten okunur.
+        Assert.Equal(GridHareketSabitleri.ManuelUrunIslemi, hareket.Islem);
+        Assert.Equal(GridHareketSabitleri.CekiSatiriReferansi, hareket.ReferansTipi);
+        Assert.Equal(2.3456m, GridMalKabulAciklamaKurali.GelenMiktariniAyristir(hareket.Aciklama));
+    }
+
+    [Fact]
+    public async Task TopluTamGeldi_HerSatirinHareketineGelenAdetEkiYazilir()
+    {
+        using var kurgu = new Kurgu();
+        var bir = kurgu.SatirEkle(1, 4);
+        var iki = kurgu.SatirEkle(2, 2.5m);
+        kurgu.SandikVeIcerikEkle(bir, tahsis: 4);
+        kurgu.SandikVeIcerikEkle(iki, tahsis: 2.5m);
+
+        var sonuc = await kurgu.TopluTerminalAsync(GridDurum.TamGeldi, bir, iki);
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        var satirHareketleri = kurgu.Hareketler.Where(h => h.ReferansTipi == GridHareketSabitleri.CekiSatiriReferansi).ToList();
+        Assert.Equal(2, satirHareketleri.Count);
+        Assert.All(satirHareketleri, h =>
+        {
+            Assert.Equal(GridHareketSabitleri.CekiSatiriReferansi, h.ReferansTipi);
+            Assert.StartsWith(GridHareketSabitleri.TopluIslemOneki, h.Islem);
+            Assert.Equal(((int)GridDurum.TamGeldi).ToString(), h.YeniDeger);
+        });
+        Assert.Equal(
+            [("1", 4m), ("2", 2.5m)],
+            satirHareketleri.OrderBy(h => h.ReferansId).Select(h => (h.ReferansId!, GridMalKabulAciklamaKurali.GelenMiktariniAyristir(h.Aciklama)!.Value)));
+    }
+
+    [Fact]
+    public async Task TopluGridKapandi_HareketeGelenEkiYazilmaz()
+    {
+        using var kurgu = new Kurgu();
+        var satir = kurgu.SatirEkle(1, 3);
+        kurgu.SandikVeIcerikEkle(satir, tahsis: 3);
+
+        var sonuc = await kurgu.TopluTerminalAsync(GridDurum.GridKapandi, satir);
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        var hareket = Assert.Single(kurgu.Hareketler, h => h.ReferansTipi == GridHareketSabitleri.CekiSatiriReferansi);
+        Assert.Null(GridMalKabulAciklamaKurali.GelenMiktariniAyristir(hareket.Aciklama));
     }
 
     [Fact]

@@ -65,6 +65,7 @@ public static class DependencyInjection
         services.AddScoped<IUrunService, UrunService>();
         services.AddScoped<IStokService, StokService>();
         services.AddScoped<IHareketService, HareketService>();
+        services.AddScoped<IGridHareketOkuyucu, GridHareketOkuyucu>();
         services.AddScoped<IArsivService, ArsivService>();
         services.AddScoped<IMailService, MailService>();
         services.AddScoped<IAuthService, AuthService>();

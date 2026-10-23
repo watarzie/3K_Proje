@@ -1,5 +1,6 @@
 using MediatR;
 using _3K.Application.Common;
+using _3K.Core.Enums;
 using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
@@ -13,10 +14,28 @@ public sealed class FinansRaporQueryHandlers(IFinansRaporService service) :
     IRequestHandler<FinansAylikRaporDosyaQuery, Result<DosyaIcerigi>>,
     IRequestHandler<FinansOzetRaporuDosyaQuery, Result<DosyaIcerigi>>,
     IRequestHandler<FinansAlacakRaporuDosyaQuery, Result<DosyaIcerigi>>,
+    IRequestHandler<FinansFinansalDurumRaporuDosyaQuery, Result<DosyaIcerigi>>,
     IRequestHandler<FinansRaporOnizlemeQuery, Result<FinansRaporOnizlemeModel>>
 {
     public Task<Result<FinansRaporOnizlemeModel>> Handle(FinansRaporOnizlemeQuery request, CancellationToken cancellationToken)
-        => FinansHandlerHelper.ExecuteAsync(() => service.OnizlemeAsync(request.Tur.Trim().ToLowerInvariant(), request.Filtre, cancellationToken));
+    {
+        if (!Enum.IsDefined(request.Kapsam) || !Enum.IsDefined(request.Gruplama))
+            return Task.FromResult(Result<FinansRaporOnizlemeModel>.Failure("Rapor kapsamı veya gruplaması geçersiz.", 400));
+        return FinansHandlerHelper.ExecuteAsync(() => service.OnizlemeAsync(
+            request.Tur.Trim().ToLowerInvariant(),
+            request.Filtre,
+            new FinansRaporSecenekleri(request.Kapsam, request.Gruplama),
+            cancellationToken));
+    }
+
+    public Task<Result<DosyaIcerigi>> Handle(FinansFinansalDurumRaporuDosyaQuery request, CancellationToken cancellationToken)
+    {
+        if (!TryResolveFormat(request.Format, out var excel))
+            return Task.FromResult(InvalidFormat());
+        return FinansHandlerHelper.ExecuteAsync(async () => NewFile(excel
+            ? await service.FinansalDurumExcelAsync(request.Filtre, cancellationToken)
+            : await service.FinansalDurumPdfAsync(request.Filtre, cancellationToken), excel, "finans-finansal-durum"));
+    }
 
     public Task<Result<DosyaIcerigi>> Handle(FinansAlacakRaporuDosyaQuery request, CancellationToken cancellationToken)
     {
@@ -31,18 +50,28 @@ public sealed class FinansRaporQueryHandlers(IFinansRaporService service) :
     {
         if (!TryResolveFormat(request.Format, out var excel))
             return Task.FromResult(InvalidFormat());
+        if (!Enum.IsDefined(request.Kapsam))
+            return Task.FromResult(Result<DosyaIcerigi>.Failure("İşler raporu kapsamı geçersiz.", 400));
+        var onEk = request.Kapsam switch
+        {
+            FinansIsRaporuKapsami.SiparisiAcilan => "finans-isleri-siparisi-acilan",
+            FinansIsRaporuKapsami.SiparisiAcilmayan => "finans-isleri-siparisi-acilmayan",
+            _ => "finans-isleri"
+        };
         return FinansHandlerHelper.ExecuteAsync(async () => NewFile(excel
-            ? await service.IslerExcelAsync(request.Filtre, cancellationToken)
-            : await service.IslerPdfAsync(request.Filtre, cancellationToken), excel, "finans-isleri"));
+            ? await service.IslerExcelAsync(request.Filtre, request.Kapsam, cancellationToken)
+            : await service.IslerPdfAsync(request.Filtre, request.Kapsam, cancellationToken), excel, onEk));
     }
 
     public Task<Result<DosyaIcerigi>> Handle(FinansGiderRaporuDosyaQuery request, CancellationToken cancellationToken)
     {
         if (!TryResolveFormat(request.Format, out var excel))
             return Task.FromResult(InvalidFormat());
+        if (!Enum.IsDefined(request.Gruplama))
+            return Task.FromResult(Result<DosyaIcerigi>.Failure("Gider raporu gruplaması geçersiz.", 400));
         return FinansHandlerHelper.ExecuteAsync(async () => NewFile(excel
-            ? await service.GiderlerExcelAsync(request.Filtre, cancellationToken)
-            : await service.GiderlerPdfAsync(request.Filtre, cancellationToken), excel, "finans-giderleri"));
+            ? await service.GiderlerExcelAsync(request.Filtre, request.Gruplama, cancellationToken)
+            : await service.GiderlerPdfAsync(request.Filtre, request.Gruplama, cancellationToken), excel, "finans-giderleri"));
     }
 
     public Task<Result<DosyaIcerigi>> Handle(FinansAylikRaporDosyaQuery request, CancellationToken cancellationToken)

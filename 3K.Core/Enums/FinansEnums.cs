@@ -129,4 +129,20 @@ namespace _3K.Core.Enums
         Metrekup = 4,
         Bilesenli = 5
     }
+
+    /// <summary>İşler raporunun kapsamı: siparişi açılan (tam ya da kısmi) ve açılmayan işler, birlikte ya da ayrı.</summary>
+    public enum FinansIsRaporuKapsami
+    {
+        Birlesik = 0,
+        SiparisiAcilan = 1,
+        SiparisiAcilmayan = 2
+    }
+
+    /// <summary>Gider raporunun gruplaması: düz liste, gider kategorisine ya da projeye göre ara toplamlı.</summary>
+    public enum FinansGiderRaporuGruplamasi
+    {
+        Duz = 0,
+        Kategori = 1,
+        Proje = 2
+    }
 }

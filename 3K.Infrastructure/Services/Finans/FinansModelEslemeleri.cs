@@ -45,6 +45,7 @@ internal static class FinansModelEslemeleri
             SandikNo = entity.SandikNo,
             SandikAdi = entity.SandikAdi,
             SandikTipi = entity.SandikTipi,
+            SandikCinsi = entity.SandikCinsi,
             Boy = entity.Boy,
             En = entity.En,
             Yukseklik = entity.Yukseklik,

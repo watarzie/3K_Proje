@@ -3,6 +3,7 @@ using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.GridIslemleri.Commands
 {
@@ -93,12 +94,13 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {
                 ProjeId = request.ProjeId,
-                ReferansTipi = "CekiSatiri",
+                ReferansTipi = GridHareketSabitleri.CekiSatiriReferansi,
                 ReferansId = yeniUrun.Id.ToString(),
-                Islem = "Grid Manuel Ürün Eklendi",
+                Islem = GridHareketSabitleri.ManuelUrunIslemi,
                 IslemTipiId = (int)IslemTipi.ManuelUrunEklendi,
                 KullaniciId = _currentUserService.UserId ?? 0,
-                Aciklama = $"Neden: {request.EklemeNedeni}, Miktar: {request.IstenenAdet} {((Birim?)request.BirimId)?.ToString()}, Sandık: {request.SandikNo}"
+                Aciklama = $"Neden: {request.EklemeNedeni}, Miktar: {request.IstenenAdet} {((Birim?)request.BirimId)?.ToString()}, Sandık: {request.SandikNo}" +
+                           GridMalKabulAciklamaKurali.GelenEki(request.IstenenAdet)
             });
 
             return Result.Success();

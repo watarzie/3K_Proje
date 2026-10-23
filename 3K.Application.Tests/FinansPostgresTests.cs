@@ -49,6 +49,14 @@ public sealed class FinansPostgresTests
             var panel = await finans.Panel.PanelAsync(new(2026, 9, 15), new(2026, 9, 30), Ct);
             var euro = Assert.Single(panel.Tutarlar, x => x.ParaBirimi == "EUR");
             Assert.Equal(10000m, euro.Gelir); Assert.Equal(2500m, euro.Gider); Assert.Equal(7500m, euro.TahminiKar);
+            // Finansal durum raporu aynı dönemde Kontrol Paneliyle aynı tutarları verir (ay ortası başlangıç, avans hariç).
+            var durum = await finans.Raporlar.OnizlemeAsync("finansal-durum",
+                new(Baslangic: new(2026, 9, 15), Bitis: new(2026, 9, 30), ParaBirimi: "EUR"), new FinansRaporSecenekleri(), Ct);
+            var eurSutunu = durum.Sutunlar.ToList().IndexOf("EUR");
+            string Kalem(string ad) => durum.Satirlar.Single(x => x[0] == ad)[eurSutunu];
+            Assert.Equal(("10.000,00", "2.500,00", "1.000,00", "7.500,00"), (Kalem("Faturalanan net gelir"),
+                Kalem("Net gider (avans hariç)"), Kalem("Avans (bilgi; maliyete dahil değil)"), Kalem("Tahmini kâr (iş net − gider)")));
+            Assert.Equal(["Özet", "Gelir kırılımı", "Gider kırılımı", "Aylık trend", "Proje bazlı"], durum.Tablolar);
             var listed = await finans.Panel.GenelAramaAsync(new() { PageSize = 1 }, Ct);
             Assert.Equal(10000, Assert.Single(listed.Toplamlar).NetTutar);
             Assert.Equal(10000, Assert.Single((await finans.SiparisFatura.SiparislerAsync(new() { PageSize = 1 }, Ct)).Toplamlar).NetTutar);
@@ -384,26 +392,32 @@ public sealed class FinansPostgresTests
             var b = Work("Montaj B", 2500); b.ProjeNo = "PA-2";
             db.AddRange(a, b); await db.SaveChangesAsync();
 
-            var tumu = await finans.Raporlar.OnizlemeAsync("is", new(), Ct);
-            Assert.Equal("Finans İşleri Raporu", tumu.Baslik);
-            Assert.Equal(25, tumu.Sutunlar.Count);
+            var tumu = await finans.Raporlar.OnizlemeAsync("is", new(), new FinansRaporSecenekleri(), Ct);
+            Assert.Equal("Finans İşleri Raporu — Siparişi açılan ve açılmayan işler", tumu.Baslik);
+            Assert.Equal(29, tumu.Sutunlar.Count);
             Assert.Contains("Ahşap m³", tumu.Sutunlar);
             Assert.Contains("Kontra m³", tumu.Sutunlar);
+            Assert.Contains("Sandık Cinsi", tumu.Sutunlar);
+            // ToplamSatir yalnız iş satırlarını sayar; bölüm ve toplam satırları türleriyle gelir, en sonda genel toplam.
             Assert.Equal(2, tumu.ToplamSatir);
             Assert.All(tumu.Satirlar, satir => Assert.Equal(tumu.Sutunlar.Count, satir.Count));
+            Assert.Equal(tumu.Satirlar.Count, tumu.SatirTurleri!.Count);
+            Assert.Equal(FinansRaporOnizlemeModel.SatirGenelToplam, tumu.SatirTurleri[^1]);
 
-            var filtreli = await finans.Raporlar.OnizlemeAsync("is", new() { ProjeNo = "PA-2" }, Ct);
-            var satir = Assert.Single(filtreli.Satirlar);
+            var filtreli = await finans.Raporlar.OnizlemeAsync("is", new() { ProjeNo = "PA-2" }, new FinansRaporSecenekleri(), Ct);
+            var veriSatirlari = filtreli.Satirlar.Where((_, i) => filtreli.SatirTurleri![i] == FinansRaporOnizlemeModel.SatirVeri).ToList();
+            var satir = Assert.Single(veriSatirlari);
+            var sutunlar = tumu.Sutunlar.ToList();
             Assert.Equal("PA-2", satir[1]);
-            Assert.Equal("2.500,00", satir[tumu.Sutunlar.ToList().IndexOf("Net")]);
+            Assert.Equal("2.500,00", satir[sutunlar.IndexOf("Net")]);
             // Enum değerleri raporda Türkçe adlarıyla yazılır ("OzelIs" değil "Özel İş").
-            Assert.Equal(("Özel İş", "Sipariş Bekliyor", "Sabit Tutar"), (satir[tumu.Sutunlar.ToList().IndexOf("İş Türü")],
-                satir[tumu.Sutunlar.ToList().IndexOf("Durum")], satir[tumu.Sutunlar.ToList().IndexOf("Fiyatlandırma")]));
+            Assert.Equal(("Özel İş", "Sipariş Bekliyor", "Açılmadı"), (satir[sutunlar.IndexOf("İş Türü")],
+                satir[sutunlar.IndexOf("Durum")], satir[sutunlar.IndexOf("Sipariş Durumu")]));
 
-            var genel = await finans.Raporlar.OnizlemeAsync("genel", new(), Ct);
+            var genel = await finans.Raporlar.OnizlemeAsync("genel", new(), new FinansRaporSecenekleri(), Ct);
             Assert.Equal("Genel Finans Özeti", genel.Baslik);
             Assert.Equal("EUR", Assert.Single(genel.Satirlar)[0]);
-            await Assert.ThrowsAsync<IsKuraliException>(() => finans.Raporlar.OnizlemeAsync("yok", new(), Ct));
+            await Assert.ThrowsAsync<IsKuraliException>(() => finans.Raporlar.OnizlemeAsync("yok", new(), new FinansRaporSecenekleri(), Ct));
         });
     }
 

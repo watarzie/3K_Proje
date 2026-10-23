@@ -4,6 +4,7 @@ using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
 using _3K.Core.Helpers;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.GridIslemleri.Commands
 {
@@ -217,9 +218,9 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             {
                 ProjeId = request.ProjeId,
                 KullaniciId = kullaniciId,
-                ReferansTipi = "TopluSevk",
+                ReferansTipi = GridHareketSabitleri.TopluSevkReferansi,
                 ReferansId = string.Join(",", request.CekiSatiriIdler),
-                Islem = "Grid Toplu Sevk",
+                Islem = $"{GridHareketSabitleri.TopluIslemOneki} Sevk",
                 IslemTipiId = (int)IslemTipi.GridTopluSevkEdildi,
                 EskiDeger = ((int)GridDurum.Bekliyor).ToString(),
                 YeniDeger = ((int)GridDurum.TamGeldi).ToString(),

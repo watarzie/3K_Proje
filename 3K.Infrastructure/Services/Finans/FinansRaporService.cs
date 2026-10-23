@@ -31,34 +31,6 @@ namespace _3K.Infrastructure.Services.Finans
             _faturalar = faturalar;
         }
 
-        public async Task<byte[]> IslerExcelAsync(FinansListeFiltre filtre, CancellationToken cancellationToken)
-        {
-            var report = await _raporVerisi.RaporVerisiAsync(filtre, cancellationToken);
-            using var workbook = new XLWorkbook();
-            var sheet = workbook.Worksheets.Add("Finans İşleri");
-            var headers = IsBasliklari;
-            WriteHeaders(sheet, headers);
-            var row = 2;
-            foreach (var item in report.Isler)
-                WriteRow(sheet, row++, IsSatiri(item));
-            FormatSheet(sheet, headers.Length, row - 1);
-            return Save(workbook);
-        }
-
-        public async Task<byte[]> GiderlerExcelAsync(FinansListeFiltre filtre, CancellationToken cancellationToken)
-        {
-            var report = await _raporVerisi.RaporVerisiAsync(filtre, cancellationToken);
-            using var workbook = new XLWorkbook();
-            var sheet = workbook.Worksheets.Add("Giderler");
-            var headers = GiderBasliklari;
-            WriteHeaders(sheet, headers);
-            var row = 2;
-            foreach (var item in report.Giderler)
-                WriteRow(sheet, row++, GiderSatiri(item));
-            FormatSheet(sheet, headers.Length, row - 1);
-            return Save(workbook);
-        }
-
         /// <summary>
         /// Sipariş durum raporu (RR Q5): satırlar seçilen sipariş/fatura karşılanmasındaki iş kalemleridir; kategori,
         /// dönem, proje ve diğer liste filtreleri sunucuda uygulanır.
@@ -185,18 +157,6 @@ namespace _3K.Infrastructure.Services.Finans
             sheet.Columns(13, 18).Style.NumberFormat.Format = "#,##0.00";
             sheet.Columns().AdjustToContents(8, 36);
             return Save(workbook);
-        }
-
-        public async Task<byte[]> IslerPdfAsync(FinansListeFiltre filtre, CancellationToken cancellationToken)
-        {
-            var report = await _raporVerisi.RaporVerisiAsync(filtre, cancellationToken);
-            return GenerateJobsPdf("Finans İşleri Raporu", report.Isler);
-        }
-
-        public async Task<byte[]> GiderlerPdfAsync(FinansListeFiltre filtre, CancellationToken cancellationToken)
-        {
-            var report = await _raporVerisi.RaporVerisiAsync(filtre, cancellationToken);
-            return GenerateExpensePdf("Finans Gider Raporu", report.Giderler);
         }
 
         public async Task<byte[]> SiparisDurumPdfAsync(FinansListeFiltre filtre, CancellationToken cancellationToken)
@@ -388,81 +348,8 @@ namespace _3K.Infrastructure.Services.Finans
 
         private static string OlcuMetni(decimal? boy, decimal? en, decimal? yukseklik) =>
             boy > 0 && en > 0 && yukseklik > 0
-                ? $"{boy:0.##} × {en:0.##} × {yukseklik:0.##}"
+                ? string.Format(TrKultur, "{0:0.##} × {1:0.##} × {2:0.##}", boy, en, yukseklik)
                 : "-";
-
-        private static byte[] GenerateJobsPdf(string title, IReadOnlyList<FinansIsKaydiModel> rows)
-        {
-            QuestPDF.Settings.License = LicenseType.Community;
-            var document = Document.Create(container =>
-            {
-                container.Page(page =>
-                {
-                    ConfigurePage(page);
-                    page.Header().Text(title).FontSize(16).Bold().FontColor(Colors.Blue.Darken2);
-                    page.Content().Table(table =>
-                    {
-                        table.ColumnsDefinition(c =>
-                        {
-                            c.RelativeColumn(1.2f); c.RelativeColumn(1.8f); c.RelativeColumn(1.4f); c.RelativeColumn();
-                            c.RelativeColumn(); c.RelativeColumn(); c.RelativeColumn(); c.RelativeColumn();
-                        });
-                        PdfHeader(table, "Proje", "İş", "Tür", "Adet", "m³", "Birim", "Toplam", "Durum");
-                        foreach (var item in rows)
-                        {
-                            PdfCell(table, item.ProjeNo);
-                            PdfCell(table, item.IsAdi);
-                            PdfCell(table, FinansEtiketleri.IsTuru(item.IsTuru));
-                            PdfCell(table, Format(item.Adet));
-                            PdfCell(table, Format(item.ToplamM3));
-                            PdfCell(table, item.ParaBirimi);
-                            PdfCell(table, Format(item.ToplamTutar));
-                            PdfCell(table, FinansEtiketleri.IsDurumu(item.Durum));
-                        }
-                    });
-                    AddFooter(page);
-                });
-            });
-            using var stream = new MemoryStream();
-            document.GeneratePdf(stream);
-            return stream.ToArray();
-        }
-
-        private static byte[] GenerateExpensePdf(string title, IReadOnlyList<FinansGiderModel> rows)
-        {
-            QuestPDF.Settings.License = LicenseType.Community;
-            var document = Document.Create(container =>
-            {
-                container.Page(page =>
-                {
-                    ConfigurePage(page);
-                    page.Header().Text(title).FontSize(16).Bold().FontColor(Colors.Blue.Darken2);
-                    page.Content().Table(table =>
-                    {
-                        table.ColumnsDefinition(c =>
-                        {
-                            c.RelativeColumn(); c.RelativeColumn(1.3f); c.RelativeColumn(2); c.RelativeColumn(1.2f);
-                            c.RelativeColumn(); c.RelativeColumn(); c.RelativeColumn();
-                        });
-                        PdfHeader(table, "Tarih", "Kategori", "Açıklama", "Proje", "Birim", "Matrah", "Toplam");
-                        foreach (var item in rows)
-                        {
-                            PdfCell(table, item.Tarih.ToString("dd.MM.yyyy"));
-                            PdfCell(table, item.Kategori);
-                            PdfCell(table, item.Aciklama);
-                            PdfCell(table, item.ProjeNo);
-                            PdfCell(table, item.ParaBirimi);
-                            PdfCell(table, Format(item.Matrah));
-                            PdfCell(table, Format(item.ToplamTutar));
-                        }
-                    });
-                    AddFooter(page);
-                });
-            });
-            using var stream = new MemoryStream();
-            document.GeneratePdf(stream);
-            return stream.ToArray();
-        }
 
         private static void WriteHeaders(IXLWorksheet sheet, IReadOnlyList<string> headers)
         {

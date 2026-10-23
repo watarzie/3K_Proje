@@ -4,6 +4,7 @@ using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
 using _3K.Core.Helpers;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.GridIslemleri.Commands
 {
@@ -255,13 +256,18 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             {
                 aciklamaMetni += $" | Not: {request.Aciklama}";
             }
+            // Mal kabul kaydı (Grid Sahası) Grid'e gelen adedi buradan okur; Eksik Geldi'de girilen adet başka yerde saklanmaz.
+            if (GridSahaBekleyenKurali.GridGelmisDurum(uygulananDurumId))
+            {
+                aciklamaMetni += GridMalKabulAciklamaKurali.GelenEki(satir.GridGelenAdet);
+            }
 
             // Hareket kaydı
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {
                 ProjeId = request.ProjeId,
                 KullaniciId = _currentUserService.UserId ?? 0,
-                ReferansTipi = "CekiSatiri",
+                ReferansTipi = GridHareketSabitleri.CekiSatiriReferansi,
                 ReferansId = satir.Id.ToString(),
                 Islem = "Grid Durum Güncellendi",
                 IslemTipiId = (int)IslemTipi.GridDurumGuncellendi,

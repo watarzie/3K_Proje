@@ -8,6 +8,167 @@ koşum sayıları tarihsel kayıttır; depo dışında yönetilen 02–04 SQL'le
 bugünkü halini veya canlıda elle uygulanmasını doğrulamaz. Bu geçiş için
 ayrı staging provası ve DBA doğrulaması gerekir.
 
+## Grid Sahası: Grid'e gelen ürünler ve mal kabul kayıtları (G-111–G-115) — 23 Ekim 2026
+
+Değişiklik henüz commit edilmedi.
+
+**Davranış.** Yeni Grid Sahası ekranı proje tipinden bağımsız ve salt okunurdur; `grid-saha-gorunumu` R ister (G-111). Menü düğümü ve rol izinleri `scripts/database/20261023_01_Grid_Saha_Gorunumu_Yetkisi.sql` ile kurulur (README sıra 23).
+- Ürünler (`GET api/grid/saha/urunler`, G-112, G-113): Grid'e gelmiş (Tam/Eksik Geldi) satırları listeler. Varsayılan kapsam "Grid'de bekleyen"dir, "Tümü" kapsamı da vardır.
+  - Bekleyen miktar `max(GridGelenAdet − GelenMiktar − yolda, 0)` ile hesaplanır. Saf kural `GridSahaBekleyenKurali`'dır, SQL ikizi `GridSorgulari`'dır.
+  - Sevk kilidi Grid iş listesiyle ortaktır (`GridSorgulari.SevkKilidiDisinda`).
+- Mal kabul (`GET api/grid/saha/mal-kabul`, G-114): canlı ve arşiv hareket geçmişindeki Grid teslim alma kayıtlarını `GridHareketOkuyucu` ile okur. Varsayılan aralık son 30 gün, en uzun aralık 366 gündür.
+- Gelen eki (G-115): tekil Tam/Eksik Geldi, toplu Tam Geldi ve Grid manuel ürün hareketinin açıklamasına "Gelen: N" eki yazılır (`GridMalKabulAciklamaKurali`). Şema değişmez.
+
+**Kapsam sınırı.** Tablo/kolon değişikliği yoktur; tek betik menü ve izin betiğidir. Ambalaj ve Finans'ta yeni kural yoktur. Eşleme satırları `coverage/GRID_TAHSIS_TEST_ESLESMESI.md` dosyasındadır: G-112 ve G-114 Birim; G-111, G-113 ve G-115 Kısmi.
+
+- [GridSahaTests](../../3K.Application.Tests/GridSahaTests.cs) (bellek içi, 7 metot / 8 vaka; SQL kanıtı değildir):
+  - İki sorgu `grid-saha-gorunumu` R bildirir, proje bağlamlı izin taşımaz (G-111).
+  - Saf kural: kısmi partide yolda ve bekleyen, erken sonuçlandırılmış parti, sayaçsız eski parti, Grid'e gelmiş sayılmayan durumlar.
+  - SQL ikizleri 3000 rastgele satırda saf kurala eşittir. Npgsql çevirisi bağlantısız üretilir.
+  - "Gelen" eki yazılır ve yalnız açıklamanın sonundan okunur; kullanıcı notundaki aynı kalıp sayılmaz; eki olmayan eski kayıtta gelen adet null döner.
+  - Ürün ve mal kabul doğrulayıcıları geçersiz değeri reddeder: kapsam, durum, sıralama, sayfa boyutu, tür ve tarih aralığı (366 geçer / 367 reddedilir; yalnız başlangıç 2000-01-01 reddedilir; taşan tarih 500 değil doğrulama hatasıdır).
+  - Mal kabul handler'ı varsayılan olarak son 30 günü ve yalnız mal kabul türünü okur; kayıtları ekrana eşler.
+- [GridSahaPostgresTests](../../3K.Application.Tests/GridSahaPostgresTests.cs) (izole PostgreSQL, 2 test, `THREEK_TEST_POSTGRES` ister):
+  - `GridHareketOkuyucu` canlı ve arşiv kayıtlarını birleştirir; yalnız gerçek mal kabulleri seçer.
+  - Tür, personel ve arama süzgeçleri çalışır. Personel özeti personel süzgecinden bağımsızdır.
+  - Okuyucu satırın son mal kabulünü ve günlük mal kabul sayısını verir.
+  - Ürünler handler'ı: bekleyen/tümü kapsamı, sevk kilidi, arama, durum süzgeci, sıralama, sayfalama ve son mal kabul.
+- [GridKomutKatalogKapsamTests](../../3K.Application.Tests/GridKomutKatalogKapsamTests.cs): `TekilTamEksikTrafo_DurumMiktarSozlesmesiniUygular` (3 vaka) hareket açıklamasındaki "Gelen" ekini de doğrular. Tam/Eksik Geldi'de ek Grid'e gelen adettir; Trafo Sevk'te ek yoktur. `TopluTamGeldi_HerSatirinHareketineGelenAdetEkiYazilir` ve `TopluGridKapandi_HareketeGelenEkiYazilmaz` toplu yolu, `ManuelGridUrunu_EnYeniCekiyeYeniSandikVeTamIcerikleOndalikEklenir` manuel ürün hareketinin işlem metnini ve ekini sınar.
+- [CanliyaAlimBetikleriTests](../../3K.Application.Tests/CanliyaAlimBetikleriTests.cs) (izole PostgreSQL, 1 test): `Postgres_Betik_SemayiModeleGetirir_TekrarindaTasimaIziniKorur` 20261023_01 betiğini de çalıştırır.
+  - Betik `grid-saha-gorunumu` düğümünü kurar: Id 5258, `/grid-saha`, üst 5, Sira 10.
+  - İzin yalnız Admin'e (W) ve `grid-is-listesi` R'si olan role (R) verilir.
+  - Betik tekrar çalışınca düğüm çoğalmaz, izinler değişmez.
+- [GridIsListesiTests](../../3K.Application.Tests/GridIsListesiTests.cs): `FiiliSandikNoBosluksa_CekidekiSandikNoIleKilitKontroluYapilir`, ortak sevk kilidinin iş listesi tarafını sınar (G-113).
+- Ön yüz `grid-saha.component.spec.ts` (5 test): varsayılan kapsam, KPI, rozetler, salt okunur rozeti, tip iznine bağlı "Grid'e git"/"Projeye git" bağlantıları, süzgeç/sıralama/sayfa parametreleri ve aramada bekleme. Ayrıca mal kabul sekmesi (gün grupları, arşiv/toplu rozeti, eski kayıtta "6*", personel özeti) ve hata durumu.
+- Ön yüz `grid.service.spec.ts` (4 test): ürün ve mal kabul uçları yalnız dolu süzgeçleri kırpılmış olarak gönderir; varsayılan kapsam ve tür yazılmaz. Sunucu hatası `ApiResult` olarak döner.
+
+**Koşum (Release, 23 Ekim 2026, inceleme düzeltmelerinden sonra, PostgreSQL vakaları izole 127.0.0.1:55439 sunucusunda):**
+- `FullyQualifiedName~GridSaha|FullyQualifiedName~GridKomutKatalogKapsamTests|FullyQualifiedName~GridIsListesi|FullyQualifiedName~GridTopluSevk|FullyQualifiedName~ServerAuthorizationRegressionTests|FullyQualifiedName~CanliyaAlimBetikleriTests`: 158/158 başarılı, 0 atlanan. Son okuyucu düzeltmesinden sonra `FullyQualifiedName~GridSaha` 30/30.
+- Ön yüz: `grid-saha.component.spec.ts`, `grid.service.spec.ts`, `proje-tipi.spec.ts`, `sidebar.component.spec.ts` 26/26; `ng build` geçti.
+
+**Önceki koşum (dokümantasyon oturumu, PostgreSQL'siz):**
+- `FullyQualifiedName~GridSahaTests|FullyQualifiedName~GridSahaPostgresTests|FullyQualifiedName~GridKomutKatalogKapsamTests|FullyQualifiedName~CanliyaAlimBetikleriTests`: toplam 52; 49 başarılı, 0 başarısız, 3 atlanan.
+  - Sınıf bazında `GridSahaTests` 7/7, `GridKomutKatalogKapsamTests` 42/42 başarılı.
+  - Atlananlar `GridSahaPostgresTests`'in 2 testi ve `CanliyaAlimBetikleriTests`'in 1 testidir; oturumda `THREEK_TEST_POSTGRES` tanımlı değildi.
+- `FullyQualifiedName~GridIsListesiTests`: 25/25 başarılı.
+- Ön yüz `ng test --watch=false --browsers=ChromeHeadless`, yalnız `grid-saha.component.spec.ts` ve `grid.service.spec.ts` dahil: 9/9 başarılı.
+- Kural–test eşleme doğrulayıcısı (`scripts/test/Test-IsKuraliEslemesi.ps1`): ilk çalıştırmada S-16 satırındaki yeniden adlandırılmış `OtomatikSahaAktarimPlanlayiciTests` metotları yüzünden durdu; S-16 eşlemesi güncellendikten sonra 536 kural doğrulandı (önceki 531 + G-111–G-115).
+
+**Koşulmayanlar:**
+- İzole PostgreSQL testleri dokümantasyon oturumunda atlandı; yukarıdaki inceleme sonrası koşumda koşuldu (atlanan 0).
+- Tam paketler (.NET ve ön yüz) koşulmadı.
+- HTTP ve tarayıcı akışı denenmedi. Canlı veride (`3K_Db`) denenmedi; betiğin canlı veritabanı kopyasında provası yok.
+
+**Açık kalanlar:**
+- İki sorgunun yetki bildirimi bellek içinde sınanır; HTTP 403 akışı ayrıca denenmedi.
+- Karar bekliyor: toplu sevkin örtük Tam Geldi'sinin mal kabul sayılması; gelen adedin kümülatif yerine artış olarak yazılması ve durumu değişmeyen artışın (Eksik → Eksik) mal kabul sayılması (G-114, G-115).
+- Ürün listesinde proje tipi süzgeci; proje no, sandık no, barkod ve poz no araması.
+- Özetteki "Bugünkü mal kabul" alanı ve "Sahaya aktarıldı" bayrağının sunucuda hesaplanması (testte saha servisi boştur).
+- Sayaçsız partide 3K Fazla Geldi dalı yalnız rastgele eşdeğerlik testinde geçer.
+- `grid-is-listesi` W'si olan rolün betikten R alması.
+
+## Sahadan sahaya taşıma, Kapandı sandığın yeniden açılması ve saha izi raporu (S-21–S-26, R-08) — 22 Ekim 2026
+
+Değişiklik henüz commit edilmedi. Aynı günün otomatik aktarım bölümünün (aşağıda) devamıdır.
+
+**Sahadan sahaya taşıma (S-21–S-23).** Saha projesine aktarılmış ürünler başka bir saha projesine taşınır. Önizleme `POST api/proje/sahadan-sahaya-tasima/onizle` (sahaya-aktar R, veri değiştirmez), uygulama `POST api/proje/sahadan-sahaya-tasima` (sahaya-aktar W) ile yapılır; yeni izin kodu yoktur.
+- Satır kopyalanmaz: aynı saha satırı sayaçları ve kalitesiyle hedef sahanın Eksik Tamamlama çekisine, içerik hedef sandığa, aktif defter kaydı hedef sahaya geçer. `KaynakCekiSatiriId` kök normal satırı göstermeye devam eder; kök satırın aktif aktarım toplamı değişmez. Satır bütün olarak taşınır.
+- Her taşınan satır için `SahaTasimaKalemi` izi yazılır. Proje, sandık, başlık ya da saha satırı silinirse bağ boşalır, iz kalır; yalnız kök satır silinirse iz de silinir.
+- Engellerde (sevk edilmiş kaynak/hedef saha ya da sandık, sevkiyat düzeltmesi, bölünmüş satır, sevkiyat kapsamı, açık projeden karşılama, eksik/tutarsız defter) 409 ve engel maddeleri döner, hiçbir kayıt değişmez. Kök bağı olmayan saha satırı 400 alır.
+- `IslemAnahtari` başlıkta benzersizdir: aynı anahtarla aynı istek ilk sonucu döner, farklı istek 409 alır.
+
+**Geri alma (S-20 istisnası).** Taşıma başlığı "aktarımın tamamını geri al" ile geri alınmaz (409); geri dönüş ters yönde yeni taşımadır. Taşınmış satır, satır ya da sandık bazlı geri almayla doğrudan ana projeye dönebilir. `GET api/proje/{id}/saha-aktarimlari` satırları `SahaAktarimTasimaMi` alanını da taşır.
+
+**Sandık durumu, kutu bilgisi ve numara (S-24–S-26).**
+- İçeriği değişen Kapandı sandık (taşımada hedef ya da içinde ürün kalan kaynak; otomatik ve elle aktarımda yeniden kullanılan hedef) Hazırlanıyor'a döner ve "Sandık Geri Açıldı" hareketi yazılır; boşalan kaynak sandık silinmez, Bos olur.
+- Taşımada yeni hedef sandığa ad, tip, ölçü, ağırlık ve lokasyon yalnız tek kaynak sandık taşımayla boşalıyorsa kopyalanır.
+- Saha sandık numarası çakışması bütün yollarda `KoliNoKurali.Normalize` ile aranır ("05" = "5"); çakışmada "-2", "-3"… eklenir. Elle yollar önceden yalnız tam eşitliğe bakıyordu.
+
+**Otomatik aktarım düzeltmeleri (S-18, S-19).** Önizleme özeti plan parçasına ek olarak hedef saha projesini ve hedef sandık eşleşmelerini içerir; önizlemeden sonra hedefteki eşleşen sandık değişirse uygulama 409 (`PLAN_DEGISTI`) alır. Ortak motor, sandık bazlı kalemdeki ürünü bildirilen kaynak sandıkta bulamazsa 409 döner.
+
+**Rapor (R-08).** Saha projesinin sevk sonrası eksik raporunda ayrı "Saha izi" bölümü vardır: PDF'te ürün sayfalarından sonra ayrı yatay sayfa, Excel'de "Saha Izi" sayfası (aynı satır kaynağı). Bölüm, kök projelerin sahalardaki bütün aktif ürünlerini, gittiği saha ve sandığı, "A (1) → B (3)" izini ve sevk durumunu listeler.
+
+**Şema ve kapsam sınırı.** Şema betiği `scripts/database/20261021_02_Sahadan_Sahaya_Tasima.sql`'dir (README sıra 22): `SahaAktarimlari.KaynakSahaProjeId`, `SahaAktarimlari.IslemAnahtari` (boş olmayan değer için benzersiz indeks) ve `SahaTasimaKalemleri`. README'ye göre yeni API'den önce uygulanır. Ambalaj ve Finans'ta yeni kural yoktur. Ön yüz akışı bu bölümde doğrulanmadı.
+
+- [SahadanSahayaTasimaTests](../../3K.Application.Tests/SahadanSahayaTasimaTests.cs) (bellek içi, 16 metot / 18 vaka; SQL/transaction kanıtı değildir):
+  - Satır taşımada sayaçlar, kök bağ, defter kaydı ve iz hedefe geçer; kök toplamı değişmez.
+  - Sandık taşımada manuel içerik dahil bütün içerik geçer ve kaynak Bos olur.
+  - Kutu bilgisi yalnız kaynak boşalınca kopyalanır; Kapandı hedef ve kaynak yeniden açılır.
+  - Kaynak/hedef saha sevkli (2'şer vaka), sevkli kaynak sandık, bölünmüş satır, sevkiyat kapsamı ve açık karşılama engeli 409 alır; hiçbir kayıt değişmez.
+  - Hedefte dolu numara "2-2" olur. Aynı anahtarla tekrar ilk sonucu döner, farklı taşıma 409 alır.
+  - Taşıma başlığı toplu geri alınmaz ve ters yönde taşıma çalışır; önizleme veri değiştirmez.
+- [SahadanSahayaTasimaPostgresTests](../../3K.Application.Tests/SahadanSahayaTasimaPostgresTests.cs) (izole PostgreSQL, 4 test, `THREEK_TEST_POSTGRES` ister):
+  - Gerçek EF ile satır hedefe geçer ve saha izi raporu satırı, PDF ve Excel "Saha Izi" sayfası üretilir.
+  - Boşalan kaynak sandık ya da kaynak saha projesi silinince iz kalır.
+  - A→B→C zincirinde yeni çeki ve kutu bilgili sandık açılır, Tamamlandı hedef Hazırlanıyor olur, ara saha silinince ilk adım izde kalır.
+  - Aynı anahtarla eşzamanlı iki taşıma tek başlık ve tek iz yazar.
+- [CanliyaAlimBetikleriTests](../../3K.Application.Tests/CanliyaAlimBetikleriTests.cs) (izole PostgreSQL, 1 test): betik önceki şemada çalışır ve EF modeliyle aynı kolon, kısıt (ON DELETE dahil) ve indeksi kurar. Tekrar çalışma şemayı ve var olan izi değiştirmez; `kontrol/Betik_Durumu.sql` öncesini ve sonrasını doğru gösterir.
+- [OtomatikSahayaAktarCommandTests](../../3K.Application.Tests/OtomatikSahayaAktarCommandTests.cs) (bellek içi; bu değişiklikle 3 yeni test, toplam 11):
+  - `MevcutKapanmisBirNumaraliSandik_EksikleriAlincaYenidenAcilir`: Kapandı "1" sandığı eksikleri alınca açılır.
+  - `AktarimMotoru_SandikBazliUrunBildirilenSandiktaDegilse_409`: bildirilen kaynak sandıkta olmayan ürün reddedilir.
+  - `OnizlemedenSonraHedeftekiBirNumaraliSandikSevkEdilirse_409`: önizlemeden sonra hedef sandık sevk edilirse uygulama reddedilir.
+- [OtomatikSahaAktarimPostgresTests](../../3K.Application.Tests/OtomatikSahaAktarimPostgresTests.cs) (izole PostgreSQL; 1 yeni test, toplam 3): `EsZamanliIkiUygulama_YalnizBirAktarimYazar` aynı önizlemeyle eşzamanlı iki uygulamadan yalnız birinin yazdığını doğrular. Aşağıdaki bölümün "Açık kalanlar" listesindeki eşzamanlı iki uygulama maddesi bununla kapandı.
+
+**Koşum (Release, 22 Ekim 2026, kod incelemesi düzeltmelerinden sonra):**
+- Bellek içi, filtre `(FullyQualifiedName~Finans|FullyQualifiedName~OtomatikSaha|FullyQualifiedName~SahadanSahayaTasima|FullyQualifiedName~SahaAkisiGuvenlikKurallariTests|FullyQualifiedName~EksiklerdenSaha|FullyQualifiedName~SandiklardanSaha|FullyQualifiedName~EksikUrun|FullyQualifiedName~Rapor|FullyQualifiedName~ServerAuthorizationRegressionTests|FullyQualifiedName~YetkiModeliTests)&Category!=Postgres`: 583/585. İki başarısız test (`FinansSekmeYetkileriTests.TestFiksturu_GocBetigindekiSekmeAltlariylaAyni`, `TestFiksturu_AltSekmeBetigiVeYetkiKodlariylaAyni`) depodan 18 Ekim'de kaldırılan 13 Ekim betiklerini arar; HEAD'de de başarısızdır, bu işten gelmez.
+- İzole PostgreSQL, `OtomatikSahaAktarimPostgresTests|SahadanSahayaTasimaPostgresTests|CanliyaAlimBetikleriTests|SandikTopluTasimaSahaPostgresTests|FinansPostgresTests|FinansPoAkisPostgresTests` sınıfları: 41/41 başarılı, 0 atlanan.
+- Kural–test eşleme doğrulayıcısı (`scripts/test/Test-IsKuraliEslemesi.ps1`, bu oturumda çalıştırıldı): 531 kural doğrulandı (önceki 524 + S-21–S-26 ve R-08).
+
+**Koşulmayanlar:**
+- Tam paketler koşulmadı.
+- HTTP/ön yüz akışı tarayıcıda denenmedi; canlı veride (`3K_Db`) denenmedi.
+- Betiğin canlı veritabanı kopyasında provası bu bölümde kayıtlı değil. `CanliyaAlimBetikleriTests` önceki şemayı izole veritabanında kurar.
+
+**Açık kalanlar:**
+- Taşımanın seçim retleri (400/404) ve kök bağı olmayan satırın 400 alması.
+- Sevkiyat düzeltmesindeki kaynak sandık; sevk edilmiş ya da düzeltmedeki hedef sandık.
+- Sevk Edildi / Sevkiyat Düzeltmede durumlu kalem, transferin kaynak ucu, içeriksiz satır ve eksik/tutarsız defter engeli.
+- "05" = "5" numara eşleşmesi, elle yollarda normal biçimli çakışma ve "-3" sonrası.
+- Elle aktarımda Bos/Kapandı hedef sandığın açılması ve `xmin` yarışı.
+- Taşınmış satırın satır ya da sandık bazlı geri almayla ana projeye dönmesi.
+- Kök satır silinince izin silinmesi (davranış testi; şema kuralı betik testinde).
+- Saha izi PDF içeriği/yerleşimi (görsel kontrol), "Sevk edildi"/"Sevkiyat düzeltmede" durum metinleri, normal/yedek raporunda bölümün olmaması ve toplu eksik raporu.
+- Önizlemenin R, uygulamanın W istemesi için ayrı yetki testi.
+
+## Otomatik sahaya aktarım, 1 numaralı sandık kuralı ve aktarımın tamamını geri alma (S-16–S-20) — 22 Ekim 2026
+
+Değişiklik henüz commit edilmedi.
+
+**Otomatik aktarım (S-16–S-18).** Sevk görmüş normal projenin kalanları tek işlemle saha projesine aktarılır. Önizleme `GET api/proje/{id}/otomatik-saha-aktarim/onizle` ile alınır (sahaya-aktar R, veri değiştirmez); uygulama `POST api/proje/{id}/otomatik-saha-aktarim` ile yapılır (sahaya-aktar W).
+- Sevk edilmemiş sandık, elle sandık aktarımının güvenlik kuralını geçiyorsa aynı numarayla sandık bazlı aktarılır; geçmiyorsa gerekçesiyle ana projede kalır.
+- Sevk edilmiş sandıklardaki ürünlerin planlanabilir kalanı ("Eksiklerden oluştur" ile aynı hesap) saha projesinin "1" numaralı eksikler sandığına gider. Satır bölünmüşse yalnız sevkli payın eksiği aktarılır.
+- Hatalı/uyumsuz ürün otomatik aktarılmaz; Grid İptal ve Grid Kapandı satırları plana girmez.
+- Hedef saha projesi defterle ya da `<ProjeNo>-SAHA` adıyla bulunur. Birden çok aday varsa kullanıcı seçer; aday yoksa yeni proje açılır. Çakışan numaralara -2 eklenir; geri alınmış aktarımın bıraktığı boş sandık yeniden kullanılır.
+- Uygulama planı Serializable transaction içinde yeniden kurar. Plan özeti (SHA-256) önizlemeyle farklıysa ya da plan boşsa 409 (`PLAN_DEGISTI`) döner ve hiçbir kayıt yazılmaz; ikinci basış kayıt üretmez.
+- `EksiklerdenSahaProjesiOlusturCommandHandler` gövdesi davranış değiştirmeden ortak motora (`SahaAktarimIslemi`) taşındı; elle ürün bazlı, elle sandık bazlı ve otomatik yol bu motoru kullanır.
+
+**1 numaralı sandık (S-19).** Ana projenin 1 numaralı sandığı ("01" dahil) hiçbir yoldan sandık olarak sahaya aktarılmaz: otomatik plan onu bırakır, elle sandık aktarımı ve motor 409 döner.
+
+**Aktarımın tamamını geri alma (S-20).** `POST api/proje/saha-aktarimi-geri-al` (saha-aktarim-geri-al W) bir aktarım başlığını hepsi-ya-hiçbiri geri alır. İşlem görmüş satır, sevk edilmiş ya da düzeltmedeki sandık veya sevkiyat kapsamındaki kalem varsa 409 döner ve engeller listelenir. Başarılı geri almada saha satırları silinir, boşalan saha sandığı Bos olur. `GET api/proje/{id}/saha-aktarimlari` satırları artık aktarım başlığını taşır.
+
+**Kapsam sınırı.** Yeni izin kodu ve şema betiği yoktur (mevcut `YetkiKodlari.Saha` kodları kullanılır); Ambalaj ve Finans'ta yeni kural yoktur. Ön yüz 3K Sandıklar ekranında 1 numaralı sandığı seçimden çıkarır; bu davranış ve ön yüz testleri bu bölümde doğrulanmadı.
+
+- [OtomatikSahaAktarimPlanlayiciTests](../../3K.Application.Tests/OtomatikSahaAktarimPlanlayiciTests.cs) (veritabanısız, 13 metot / 16 vaka): sevkli sandığın kalanı eksiklere gider; temiz sevksiz sandık sandık bazlı aktarılır; işlenmiş sevksiz sandık atlanır ve ürünü eksiklere girmez; "1", "01" ve " 1 " numaralı sevksiz sandık ana projede kalır; sevkli 1 numaralı sandığın eksikleri aktarılır. Ayrıca: zaten sahadaki sandık atlanır, hatalı ürün gerekçeyle listelenir, planlanmış miktar düşülür, bölünmüş satırda yalnız sevkli pay aktarılır, Grid İptal/Grid Kapandı plana girmez. Normal olmayan proje ve hiç sevk görmemiş proje (409) reddedilir; plan özeti sıradan bağımsızdır.
+- [OtomatikSahayaAktarCommandTests](../../3K.Application.Tests/OtomatikSahayaAktarCommandTests.cs) (bellek içi, 8 test; SQL/transaction kanıtı değildir): önizle → uygula akışında yeni `-SAHA` projesi, "1" eksikler sandığı ve sandık 3 oluşur. İkinci basış kayıt üretmez; farklı plan özeti 409 alır ve hiçbir sayı değişmez. Mevcut saha projesinin "1" sandığına ekleme yapılır. Geri alma sonrası yeniden önizleme aynı özeti üretir ve Bos sandıklar Hazırlanıyor olarak yeniden kullanılır. İşlem görmüş satırda geri alma 409 alır ve hiçbir kayıt değişmez. Elle sandık aktarımında ve motorda 1 numaralı sandık reddedilir.
+- [OtomatikSahaAktarimPostgresTests](../../3K.Application.Tests/OtomatikSahaAktarimPostgresTests.cs) (izole PostgreSQL, 2 test, `THREEK_TEST_POSTGRES` ister): uygula → geri al → yeniden uygula zinciri gerçek EF, saha servisi ve FK sırasıyla koşar; plan değişince transaction hiçbir kayıt (hareket dahil) bırakmaz.
+
+**Koşum (Release, bu dokümantasyon oturumunda):**
+- `(FullyQualifiedName~OtomatikSaha|FullyQualifiedName~SahaAkisiGuvenlikKurallariTests|FullyQualifiedName~ServerAuthorizationRegressionTests)&Category!=Postgres`: 106/106 başarılı, 0 atlanan.
+- `FullyQualifiedName~OtomatikSaha`: 24 başarılı, 2 atlanan. Atlanan iki vaka `OtomatikSahaAktarimPostgresTests`'tir; oturumda `THREEK_TEST_POSTGRES` tanımlı değildi.
+- Kural–test eşleme doğrulayıcısı (`scripts/test/Test-IsKuraliEslemesi.ps1`): 524 kural doğrulandı (önceki 519 + S-16–S-20).
+
+**Koşulmayanlar:**
+- İzole PostgreSQL testlerinin geliştirme oturumunda geçtiği bildirildi, ancak sayısı aktarılmadı; bu oturumda koşulmadı.
+- Tam paketler koşulmadı.
+- HTTP/ön yüz akışı tarayıcıda denenmedi; canlı veride (`3K_Db`) denenmedi.
+
+**Açık kalanlar:**
+- Seçimsiz çoklu hedefte 400.
+- Proje ve sandık numarası çakışmasında -2 eki.
+- Sevk edilmiş ya da düzeltmedeki sandık ve `SevkiyatKapsamindaMi` engeliyle geri alma.
+- Eşzamanlı iki uygulama.
+- `GetSahaAktarimlariQuery`'nin yeni alanları.
+
 ## Ambalaj: çeki dışından eklenen sandık İlave ve "Yapılmaz" başlar, plan çekmecesinde görünmez — 21 Ekim 2026
 
 Hata (canlı, PA727-03): çekiden 4 sandık oluşmuş projeye sonradan elle eklenen sandığın ambalaj kaydı Normal ve ambalaja dahil oluştu; Özel Sandıklar > İlave formunun kaynak listesi yalnız ambalaj dışı kaynakları gösterdiği için sandık oradan yönetilemiyordu. İki neden vardı: (1) ilk ambalaj kararı yalnız ada bakıyordu (transformatör/bushing dışında hep dahil); (2) İlave grubu "plan başlangıcı = projenin ilk ambalaj kaydı" zamanına göre seçiliyordu ve proje hiç senkronlanmamışsa (yerel yedekte 197 sandıklı normal projenin 182'si) her sandık Normal sayılıyordu. Artık grup sandığın kaynağından gelir (`AmbalajUretimPolitikasi.CekiDisiEklenenSandikMi`): numarası projenin çeki satırlarında (ilk yükleme ve revizyon; elle eklenen ürün ve eksik tamamlama satırları `IsManuelEklenen` olduğu için hariç; `CekideGecenSandikNo`, çeki yüklemesiyle aynı `KoliNoKurali` biçiminde) geçmeyen sandık İlave'dir. Sandık ekle ve Grid elle ürün ekle ile açılan sandık bu yüzden İlave'dir; çeki revizyonuyla gelen sandık normal planda kalır; projenin hiç çeki satırı yoksa sandık ilave sayılmaz. İlave kaydın ilk ambalaj kararı "Yapılmaz"dır (`YeniKaynakKarari`): ana plana ve tamamlama sayacına girmez, finansa aktarılmaz, plan çekmecesinde hiç listelenmez (`PlandaGosterilirMi`; kullanıcı daha önce dahil ettiyse İlave rozetiyle görünür) ve yalnız Özel Sandıklar'da İlave sandığa kaynak olarak seçilip yönetilir. Özel sandığa dönüştürülen kaynak planda kaydı yokmuş gibi yeniden görünmez, proje öngörüsüne girmez ve plandan ambalaj kararı değiştirilemez (409; önceden dönüştürülen çeki sandığı planda "dahil" hayalet satır olarak kalıyordu). Kayıtlı grup ve karar sonraki senkronlarda korunur (mevcut kayıtlar için betik yok, kullanıcı kararı). Kaydı henüz oluşmamış sandık plan, proje listesi/öngörü ve İlave aday listesinde aynı kuralla okunur; dönüştürme komutu kaynağı senkronladıktan sonra ambalaja dahil kaynağı 400 ile reddeder ve senkronun eklediği satırlar geri alınır. Koli no biçimi `CekiExcelOkuyucu`'dan Core'a (`KoliNoKurali`) taşındı, çeki yüklemesi aynı fonksiyonu kullanır; int'e sığmayan uzun sayısal numara artık taşma hatası vermez (elle girilen numara liste/plan uçlarını 500'e düşürmesin diye). Şema, DTO, izin kodu ve ön yüz değişikliği yoktur; Ambalaj katalog kapsamı dışında olduğundan kural kodu yoktur. 14 Ekim bölümündeki "plan başlangıcına göre gruplama" bununla değişti.

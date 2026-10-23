@@ -3,6 +3,7 @@ using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.GridIslemleri.Commands
 {
@@ -149,13 +150,17 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                 {
                     ProjeId = request.ProjeId,
                     KullaniciId = kullaniciId,
-                    ReferansTipi = "CekiSatiri",
+                    ReferansTipi = GridHareketSabitleri.CekiSatiriReferansi,
                     ReferansId = satir.Id.ToString(),
-                    Islem = $"Grid Toplu {durumAdi}",
+                    Islem = $"{GridHareketSabitleri.TopluIslemOneki} {durumAdi}",
                     IslemTipiId = (int)IslemTipi.GridDurumGuncellendi,
                     EskiDeger = eskiDurum.ToString(),
                     YeniDeger = request.HedefDurumId.ToString(),
-                    Aciklama = $"Toplu {durumAdi} — {(string.IsNullOrWhiteSpace(request.Aciklama) ? "Açıklama yok" : request.Aciklama)}"
+                    // Tam Geldi'de Grid'e gelen adet mal kabul kaydına yazılır (Grid Sahası).
+                    Aciklama = $"Toplu {durumAdi} — {(string.IsNullOrWhiteSpace(request.Aciklama) ? "Açıklama yok" : request.Aciklama)}" +
+                               (GridSahaBekleyenKurali.GridGelmisDurum(request.HedefDurumId)
+                                   ? GridMalKabulAciklamaKurali.GelenEki(satir.GridGelenAdet)
+                                   : string.Empty)
                 });
             }
 

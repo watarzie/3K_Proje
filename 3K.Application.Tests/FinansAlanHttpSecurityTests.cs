@@ -137,6 +137,9 @@ public sealed class FinansAlanHttpSecurityTests
     [Theory]
     [InlineData("api/finans/raporlar/isler/pdf", YetkiKodlari.Finans.SekmeRaporlar)]
     [InlineData("api/finans/raporlar/isler/xlsx", YetkiKodlari.Finans.SekmeRaporlar)]
+    [InlineData("api/finans/raporlar/isler/excel?kapsam=2", YetkiKodlari.Finans.SekmeRaporlar)]
+    [InlineData("api/finans/raporlar/finansal-durum/pdf", YetkiKodlari.Finans.SekmeRaporlar)]
+    [InlineData("api/finans/raporlar/finansal-durum/excel", YetkiKodlari.Finans.SekmeRaporlar)]
     [InlineData("api/finans/belgeler/1/indir", YetkiKodlari.Finans.SekmeGiderler)]
     public async Task Http_DosyaYalnizSekmeOkumasiylaUretilir(string path, string sekme)
     {
@@ -152,6 +155,29 @@ public sealed class FinansAlanHttpSecurityTests
         Assert.True(response.StatusCode == HttpStatusCode.OK, $"{path}: {(int)response.StatusCode} {await response.Content.ReadAsStringAsync()}");
         Assert.NotEmpty(await response.Content.ReadAsByteArrayAsync());
         Assert.Equal(1, host.Data.Calls);
+    }
+
+    /// <summary>
+    /// Finansal durum raporu Kontrol Paneli tutarlarını Raporlar sekmesinin okumasıyla verir: Panel izni bu raporu açmaz,
+    /// Raporlar izni de paneli açmaz. Geçersiz işler raporu kapsamı 400 döner ve servis çağrılmaz.
+    /// </summary>
+    [Fact]
+    public async Task Http_FinansalDurumRaporuYalnizRaporlarIzniyle_PaneliAcmaz_GecersizKapsam400()
+    {
+        await using var host = await Host.StartAsync();
+        host.Authenticate();
+        host.Roles.Grant(YetkiKodlari.Finans.Modul);
+        host.Roles.Grant(YetkiKodlari.Finans.SekmePanel, YetkiTipi.W);
+        Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync("api/finans/raporlar/finansal-durum/pdf")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync("api/finans/raporlar/onizleme/finansal-durum")).StatusCode);
+        Assert.Equal(0, host.Data.Calls);
+
+        host.Roles.Revoke(YetkiKodlari.Finans.SekmePanel);
+        host.Roles.Grant(YetkiKodlari.Finans.SekmeRaporlar);
+        Assert.Equal(HttpStatusCode.Forbidden, (await host.Client.GetAsync("api/finans/panel?baslangic=2026-01-01&bitis=2026-12-31")).StatusCode);
+        using (var gecersiz = await host.Client.GetAsync("api/finans/raporlar/isler/pdf?kapsam=9"))
+            Assert.Equal(HttpStatusCode.BadRequest, gecersiz.StatusCode);
+        Assert.Equal(0, host.Data.Calls);
     }
 
     /// <summary>
@@ -433,7 +459,7 @@ public sealed class FinansAlanHttpSecurityTests
                     Kalemler = [new FinansSiparisKalemiModel { Id = 1, IsKaydiId = 1, BirimFiyat = 777.25m, ParaBirimi = "EUR", NetTutar = 777.25m, KdvTutari = 155.45m, ToplamTutar = 932.70m }]
                 },
                 "BelgeIndirAsync" => new DosyaIcerigi(Encoding.ASCII.GetBytes("%PDF-SENTETIK"), "application/pdf", "test.pdf"),
-                "IslerPdfAsync" or "IslerExcelAsync" => Encoding.ASCII.GetBytes("SENTETIK-RAPOR"),
+                "IslerPdfAsync" or "IslerExcelAsync" or "FinansalDurumPdfAsync" or "FinansalDurumExcelAsync" => Encoding.ASCII.GetBytes("SENTETIK-RAPOR"),
                 _ => throw new NotSupportedException("Beklenmeyen sentetik servis çağrısı: " + method.Name)
             };
             return typeof(Task).GetMethod(nameof(Task.FromResult))!.MakeGenericMethod(method.ReturnType.GenericTypeArguments[0]).Invoke(null, [result]);

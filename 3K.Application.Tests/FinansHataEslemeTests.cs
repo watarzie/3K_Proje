@@ -4,6 +4,7 @@ using _3K.Application.Common;
 using _3K.Application.Features.FinansIslemleri.Commands;
 using _3K.Application.Features.FinansIslemleri.Queries;
 using _3K.Application.Features.FinansIslemleri.Validators;
+using _3K.Core.Enums;
 using _3K.Core.Exceptions;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
@@ -136,12 +137,14 @@ public sealed class FinansHataEslemeTests
         private static Task<byte[]> Sinir() =>
             throw IsKuraliException.Cakisma("Rapor en fazla 20.000 iş içerebilir; filtreyi daraltın.");
         public Task<byte[]> OzetRaporAsync(string tur, bool excel, FinansListeFiltre filtre, CancellationToken ct) => Sinir();
-        public Task<FinansRaporOnizlemeModel> OnizlemeAsync(string tur, FinansListeFiltre filtre, CancellationToken ct) =>
+        public Task<FinansRaporOnizlemeModel> OnizlemeAsync(string tur, FinansListeFiltre filtre, FinansRaporSecenekleri secenekler, CancellationToken ct) =>
             throw IsKuraliException.Cakisma("Rapor en fazla 20.000 iş içerebilir; filtreyi daraltın.");
-        public Task<byte[]> IslerExcelAsync(FinansListeFiltre filtre, CancellationToken ct) => Sinir();
-        public Task<byte[]> IslerPdfAsync(FinansListeFiltre filtre, CancellationToken ct) => Sinir();
-        public Task<byte[]> GiderlerExcelAsync(FinansListeFiltre filtre, CancellationToken ct) => Sinir();
-        public Task<byte[]> GiderlerPdfAsync(FinansListeFiltre filtre, CancellationToken ct) => Sinir();
+        public Task<byte[]> IslerExcelAsync(FinansListeFiltre filtre, FinansIsRaporuKapsami kapsam, CancellationToken ct) => Sinir();
+        public Task<byte[]> IslerPdfAsync(FinansListeFiltre filtre, FinansIsRaporuKapsami kapsam, CancellationToken ct) => Sinir();
+        public Task<byte[]> GiderlerExcelAsync(FinansListeFiltre filtre, FinansGiderRaporuGruplamasi gruplama, CancellationToken ct) => Sinir();
+        public Task<byte[]> GiderlerPdfAsync(FinansListeFiltre filtre, FinansGiderRaporuGruplamasi gruplama, CancellationToken ct) => Sinir();
+        public Task<byte[]> FinansalDurumExcelAsync(FinansListeFiltre filtre, CancellationToken ct) => Sinir();
+        public Task<byte[]> FinansalDurumPdfAsync(FinansListeFiltre filtre, CancellationToken ct) => Sinir();
         public Task<byte[]> SiparisDurumExcelAsync(FinansListeFiltre filtre, CancellationToken ct) => Sinir();
         public Task<byte[]> SiparisDurumPdfAsync(FinansListeFiltre filtre, CancellationToken ct) => Sinir();
         public Task<byte[]> AlacakExcelAsync(FinansListeFiltre filtre, CancellationToken ct) => Sinir();

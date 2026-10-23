@@ -5,12 +5,13 @@ using _3K.Core.Constants;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.ProjeIslemleri.Commands
 {
     public class SandiklardanSahaProjesiOlusturCommand : IRequest<Result<ProjeDto>>, ISecuredRequest, IRequiresMenuPermission
     {
-        public string RequiredMenuKod => "sahaya-aktar";
+        public string RequiredMenuKod => YetkiKodlari.Saha.SahayaAktar;
         public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
 
         public int KaynakProjeId { get; set; }
@@ -79,6 +80,10 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
 
             if (sandiklar.Any(s => s.DurumId == (int)SandikDurum.Sevkedildi))
                 return Result<ProjeDto>.Failure("Sevk edilmiş sandıklar sahaya aktarılamaz.");
+
+            // Ana projenin 1 numaralı sandığı (transformatör) ana projede kalır; motor da aynı kuralı ayrıca denetler.
+            if (sandiklar.Any(s => SahaAktarimSandikKurali.BirNumaraliSandikMi(s.SandikNo)))
+                return Result<ProjeDto>.Failure("Ana projenin 1 numaralı sandığı sahaya aktarılamaz.", 409);
 
             var etkinIcerikMap = await _sandikService.GetEtkinSandikIcerikleriAsync(
                 sandikIds,
@@ -182,6 +187,9 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             if (sandikTaslaklari.Count == 0)
                 return Result<ProjeDto>.Failure("Seçilen sandıklarda sahaya aktarılabilecek kalan ürün bulunamadı.");
 
+            if (request.HedefSahaProjeId.HasValue)
+                await BosAyniNumaraliSandiklariEsleAsync(request.HedefSahaProjeId.Value, sandikTaslaklari);
+
             var sandikNolari = sandikTaslaklari.Select(s => s.SandikNo).ToList();
             var aciklama = string.IsNullOrWhiteSpace(request.Aciklama)
                 ? $"Kaynak proje {kaynakProje.ProjeNo} sandıkları sahaya aktarıldı: {string.Join(", ", sandikNolari)}"
@@ -195,6 +203,41 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 Aciklama = aciklama,
                 Sandiklar = sandikTaslaklari
             }, cancellationToken);
+        }
+
+        /// <summary>
+        /// Hedef sahada aynı numaralı, sevk edilmemiş ve içi boş sandık varsa (geri alınmış aktarımın bıraktığı) taslak ona
+        /// bağlanır; yoksa motor yeni sandık açar ("-2" ile). Otomatik aktarımla aynı kural.
+        /// </summary>
+        private async Task BosAyniNumaraliSandiklariEsleAsync(int hedefSahaProjeId, List<EksikSahaSandikDto> taslaklar)
+        {
+            var hedefSandiklar = (await _unitOfWork.GetRepository<Sandik>().FindAsync(s =>
+                    s.ProjeId == hedefSahaProjeId &&
+                    s.DurumId != (int)SandikDurum.Sevkedildi &&
+                    !s.SevkiyatDuzeltmeAcikMi))
+                .OrderBy(s => s.Id)
+                .ToList();
+            if (hedefSandiklar.Count == 0)
+                return;
+
+            var hedefSandikIds = hedefSandiklar.Select(s => s.Id).ToList();
+            var doluSandikIds = (await _unitOfWork.GetRepository<SandikIcerik>().FindAsync(i => hedefSandikIds.Contains(i.SandikId)))
+                .Select(i => i.SandikId)
+                .ToHashSet();
+            var kullanilan = new HashSet<int>();
+            foreach (var taslak in taslaklar)
+            {
+                var bos = hedefSandiklar.FirstOrDefault(s =>
+                    !doluSandikIds.Contains(s.Id) &&
+                    !kullanilan.Contains(s.Id) &&
+                    KoliNoKurali.Normalize(s.SandikNo) == KoliNoKurali.Normalize(taslak.SandikNo));
+                if (bos == null)
+                    continue;
+
+                kullanilan.Add(bos.Id);
+                taslak.HedefSandikId = bos.Id;
+                taslak.SandikNo = bos.SandikNo;
+            }
         }
 
         private static int ExtractNumber(string value)

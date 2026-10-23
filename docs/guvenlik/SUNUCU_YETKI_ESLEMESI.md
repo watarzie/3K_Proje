@@ -13,6 +13,7 @@
 | Rol seçim listesi | rol-yonetimi **veya** kullanicilar **veya** onay-kurallari-yonet R |
 | Dashboard sorguları | dashboard R |
 | Grid / 3K iş listeleri | grid-is-listesi / 3k-is-listesi R |
+| Grid Sahası: Grid'e gelen ürünler ve mal kabul kayıtları (`GET api/grid/saha/urunler`, `GET api/grid/saha/mal-kabul`) | grid-saha-gorunumu R (proje tipinden bağımsız, salt okuma; ekrandaki "Grid'e git" satırın tipinin Grid modülü R iznini ayrıca ister) |
 | Çeki ana veri düzenle / satır sil | ceki-verisi-duzenle / ceki-verisi-sil W |
 | Kalite / süreç değişikliği | kalite-modulu / surec-modulu W |
 | Stok listesi ve PDF / stok yazma / stok silme | stok R / stok W / stok-sil W |
@@ -42,13 +43,19 @@
 | Finans para birimi ve vade parametresi kaydetme | finans-sekme-tanimlar-para-birimi W |
 | Finans parametreleri (vade günleri) okuma | tanimlar-para-birimi **veya** po-fatura-fatura R (fatura girişinde vade önerisi) |
 | Finans münferit iş listesi / oluşturma (tarifeden fiyatlanır), tarife seçenekleri | finans-sekme-munferit-isler R / W |
-| Finans iş / gider / özet / alacak raporu ve önizleme | finans-sekme-raporlar R |
+| Finans iş (siparişi açılan / açılmayan / birleşik), özet, alacak ve finansal durum raporu (`GET api/finans/raporlar/finansal-durum/{format}`; Kontrol Paneliyle aynı tutarlar, Raporlar'ın başka raporlarla zaten verdiği alanlardan oluşur) ve önizleme | finans-sekme-raporlar R (panel izni bu raporu açmaz, Raporlar izni de paneli açmaz) |
+| Finans gider raporu (düz / kategoriye / projeye göre) | giderler veya raporlar R |
 | Finans aylık / sipariş durumu raporu | is-takibi-aylik veya raporlar R |
 | Finans bekleyen işler (yaşlandırma) | panel, is-takibi-bekleyen veya raporlar R |
 | Finans belge listeleme/indirme, değişiklik geçmişi | Kayıt sekmelerinden biri veya giderler R |
 | Finans belge yükleme, kalıcı silme (önizleme dahil) | Hedef kaydın sekmesi W: iş kaydı → is-takibi/munferit-isler, PO → po-fatura-po, fatura → po-fatura-fatura, gider → giderler |
 | Finans "Tüm dönemlerde ara" alt sekmesi | finans-sekme-is-takibi-arama yalnız ekranı açar (ön yüz); arama sorgusu kayıt sekmelerinden biriyle açılır |
 | Finans proje seçenekleri, para birimleri | finans-yonetimi R |
+| Otomatik sahaya aktarım önizlemesi (`GET api/proje/{id}/otomatik-saha-aktarim/onizle`; veri değiştirmez) | sahaya-aktar R |
+| Otomatik sahaya aktarım uygulaması (`POST api/proje/{id}/otomatik-saha-aktarim`; plan özeti önizlemeyle aynı değilse 409); elle eksiklerden / sandıklardan saha oluşturma | sahaya-aktar W (onay merkezine düşmez; elle yolla aynı) |
+| Bir saha aktarımının tamamını geri alma (`POST api/proje/saha-aktarimi-geri-al`; sahadan sahaya taşıma başlığı toplu geri alınmaz, 409); satır ve saha sandığı geri alma | saha-aktarim-geri-al W |
+| Sahadan sahaya taşıma önizlemesi (`POST api/proje/sahadan-sahaya-tasima/onizle`; veri değiştirmez) | sahaya-aktar R |
+| Sahadan sahaya taşıma (`POST api/proje/sahadan-sahaya-tasima`; satır ya da saha sandığının bütün içeriği; işlem anahtarıyla tekrar koruması) | sahaya-aktar W (ayrı kod yok; onay merkezine düşmez) |
 | Özel sandık listesi (finansa aktarılmayı bekleyen / aktarılan süzgeci, ekleyen ve aktaran bilgisi) | ambalaj-uretim-listesi R (mevcut liste izni) |
 | Ambalaj kaydı değişiklik geçmişi (`GET api/ambalaj/kayitlar/{id}/gecmis`) | ambalaj-uretim-listesi R; kayda erişim yoksa 404. Ölçü, m³, sarf ve kaynak alanları ilgili görüntüleme izni yoksa gösterilmez |
 
