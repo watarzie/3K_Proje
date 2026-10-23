@@ -1,5 +1,6 @@
 using MediatR;
 using _3K.Application.Common;
+using _3K.Application.Features.SandikIslemleri.Services;
 using _3K.Core.Constants;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
@@ -106,6 +107,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             var kilitAcmaTipi = (SevkiyatKilitAcmaTipi)request.KilitAcmaTipiId;
             var eskiSandikDurum = sandik.DurumId;
+            var duzeltmeZatenAcik = sandik.SevkiyatDuzeltmeAcikMi;
             var eskiProjeDurum = proje.DurumId;
             var eskiGerceklesenSevkTarihi = proje.GerceklesenSevkTarihi;
             var yeniSandikDurum = kilitAcmaTipi == SevkiyatKilitAcmaTipi.SevkiyatKaydiKorunarakAc
@@ -178,6 +180,13 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             // Sevkiyat korunurken değişmeyen projeyi Modified işaretlemek proje kilidine takılır.
             if (proje.DurumId != eskiProjeDurum || proje.GerceklesenSevkTarihi != eskiGerceklesenSevkTarihi)
                 projeRepo.Update(proje);
+
+            // Sevk sonrası düzeltme: açılış anındaki sandık içeriği, tamamlanınca fark çıkarmak için saklanır.
+            if (kilitAcmaTipi == SevkiyatKilitAcmaTipi.SevkiyatKaydiKorunarakAc && !duzeltmeZatenAcik)
+            {
+                await new SandikDuzeltmeKayitIslemi(_unitOfWork).AcAsync(
+                    sandik, request.Aciklama, _currentUserService.UserId ?? 0, cancellationToken);
+            }
 
             await _unitOfWork.SaveChangesAsync();
 

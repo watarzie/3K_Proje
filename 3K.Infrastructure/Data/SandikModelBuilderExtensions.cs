@@ -220,6 +220,30 @@ internal static class SandikModelBuilderExtensions
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<SandikDuzeltmeKaydi>(e =>
+        {
+            e.ToTable("SandikDuzeltmeKayitlari");
+            e.Property(p => p.SandikNo).IsRequired();
+            e.Property(p => p.Gerekce).IsRequired();
+            e.Property(p => p.AcilisGoruntusu).IsRequired();
+            e.HasIndex(p => p.ProjeId);
+            // Bir sandıkta aynı anda tek açık düzeltme olur; eşzamanlı ikinci açılış benzersiz indekse takılır.
+            e.HasIndex(p => p.SandikId)
+                .IsUnique()
+                .HasFilter("\"TamamlanmaTarihi\" IS NULL")
+                .HasDatabaseName("IX_SandikDuzeltmeKayitlari_SandikId_Acik");
+
+            e.HasOne(p => p.Proje)
+                .WithMany()
+                .HasForeignKey(p => p.ProjeId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(p => p.Sandik)
+                .WithMany()
+                .HasForeignKey(p => p.SandikId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
         // Sandik (1) - SandikIcerik (1..*)
         modelBuilder.Entity<Sandik>()
             .HasMany(s => s.SandikIcerikleri)

@@ -157,7 +157,7 @@ Kaynak: [AuthorizationBehavior.cs:25](C:/Users/Watarzie/source/repos/3K_Proje/3K
 
 ### 3.2 Hangi durumda onaya düşer?
 
-**Y-07.** Proje/sandık sevkiyat kilidini açma komutları her zaman onay ister. Kilit açma modu, hedef ve açıklama talebin parçasıdır.
+**Y-07.** Proje/sandık sevkiyat kilidini açma komutları her zaman onay ister. Kilit açma modu, hedef ve açıklama talebin parçasıdır. Sevkiyat kaydı korunarak açmada açıklama zorunludur ve ayrı düzeltme izni aranır (L-12).
 
 **Y-08.** Çeki revizyonu uygulama ve sandık lokasyon atama gibi yapılandırılabilir işlemler `OnayOperasyonKurallari` tablosunu okur. Bu tür bir işlem için kayıt yoksa varsayılan **onay gerekli**dir.
 
@@ -226,18 +226,18 @@ Yerelde ilgili Grid/3K işlem kodlarına atanmış onay rolleri **Admin** ve **S
 
 **L-02.** Ürünün kilidi ilgili sandık içerik bağlarından bulunur. Tekil kontrolde gerektiğinde fiili/orijinal sandık numarası da değerlendirilir. Çok sandıklı satırda yalnız ekrandaki numaraya bakarak diğer sandığın kilidi yok sayılamaz.
 
-**L-03.** Tam sevk edilmiş projeye bağlı kayıtlar veri kaydetme aşamasında da korunur. Onaylı sandık düzeltmesi yalnız ilgili kapsamı açar; bütün projeyi sınırsız düzenlemeye açmaz. Hareket geçmişi ve onay kayıtlarının yazılması bu kilitten ayrı tutulur.
+**L-03.** Tam sevk edilmiş projeye bağlı kayıtlar veri kaydetme aşamasında da korunur. Onaylı sandık düzeltmesi yalnız ilgili kapsamı açar (L-14); bütün projeyi sınırsız düzenlemeye açmaz. Hareket geçmişi ve onay kayıtlarının yazılması bu kilitten ayrı tutulur.
 
 **L-04.** Kilit açmada iki mod farklıdır:
 
 | Mod | Korunan/değişen veri |
 |---|---|
-| Sevkiyat kaydı korunsun | Sandık sevk edilmiş kalır; düzeltme bayrağı açılır. Sevkiyat ilişkileri/tarihleri otomatik silinmez. |
+| Sevkiyat kaydı korunsun | Sandık sevk edilmiş kalır; düzeltme bayrağı açılır. Sevkiyat ilişkileri/tarihleri otomatik silinmez. 23.10.2026'dan beri gerekçe ve ayrı `sevk-sonrasi-duzeltme` W izni ister (L-12); açılıştaki içerik düzeltme kaydına yazılır (L-13). |
 | Sevkiyat geri alınsın | İlgili sevkiyat-sandık ilişkileri kaldırılır; sandık sevk öncesi durumuna, bilgi yoksa Kapandı durumuna döner. Düzeltme bayrağı ve sevk öncesi durum bilgisi temizlenir. |
 
 **L-05.** Son etkin sevkiyat da geri alınmışsa projenin gerçekleşen sevk tarihi temizlenebilir. Başka normal/saha sevki sürüyorsa tarih ve proje durumu buna göre korunur/yeniden hesaplanır.
 
-**L-06.** Kaydı korunarak açılan sandığa yeniden “Sevk Et” yapılmaz; “Düzeltmeyi Tamamla” kullanılır. Bu işlem düzeltme bayrağını kapatır ve sandığı yeniden kilitler, ikinci sevkiyat üretmez.
+**L-06.** Kaydı korunarak açılan sandığa yeniden “Sevk Et” yapılmaz; “Düzeltmeyi Tamamla” kullanılır. Bu işlem düzeltme bayrağını kapatır ve sandığı yeniden kilitler, ikinci sevkiyat üretmez. Açık düzeltme kaydı varsa "önce → sonra" farkı kayda ve tamamlama hareketine yazılır (L-13). Projede düzeltmeye açık bütün sandıklar tek işlemde de tamamlanabilir (`SandikSevkiyatDuzeltmeTopluTamamlaCommand`, `POST api/sandik/sevkiyat-duzeltme-toplu-tamamla`, proje sandık yazma izni): her sandığın kaydı ve hareketi ayrı yazılır, proje durumu bir kez hesaplanır, açık düzeltme yoksa 409 döner. Ön yüz: 3K sandık listesinde "Düzeltmeyi Tamamla (N sandık)".
 
 **L-07.** Normal proje yalnız saha üzerinden sevk edilmişse ve açılacak fiziksel normal sandık sevki yoksa, normal proje kilit açma işlemiyle saha sevki iptal edilmez. İlgili saha sevki/aktarımı kendi akışından ele alınır.
 
@@ -250,6 +250,47 @@ Yerelde ilgili Grid/3K işlem kodlarına atanmış onay rolleri **Admin** ve **S
 **L-11.** Yerel kalite seçenekleri Onaylandı/Tadilatta; süreç seçenekleri Ambar, İmalat, Tedarik, Tedarik 3K Teslim, Siparişte, Tamamlandı'dır. Görünen metinler lookup kaynaklıdır; süreç alanı yalnız serbest açıklama değildir.
 
 Kaynak: [SandikSevkKilidiHelper.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Common/SandikSevkKilidiHelper.cs), [ProjectLockInterceptor.cs:34](C:/Users/Watarzie/source/repos/3K_Proje/3K.Infrastructure/Data/Interceptors/ProjectLockInterceptor.cs:34), [ProjeKilidiAcCommand.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/ProjeIslemleri/Commands/ProjeKilidiAcCommand.cs), [SandikKilidiAcCommand.cs:87](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Commands/SandikKilidiAcCommand.cs:87), [SandikSevkiyatDuzeltmeTamamlaCommand.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Commands/SandikSevkiyatDuzeltmeTamamlaCommand.cs), Grid kalite/süreç komutları.
+
+### 4.1 Sevk sonrası düzeltme (23.10.2026)
+
+Sevk edilmiş sandık "Sevkiyat kaydı korunsun" moduyla (L-04) açıldığında sevk sonrası düzeltmeye girer: gerçekte gitmiş ama kaydedilmemiş ürün eklenir, yanlış kaydedilen ürün silinir ya da düzeltmedeki sandıklar arasında taşınır. Düzeltme sandık eklemeyi ve silmeyi açmaz (L-16). Sevkiyat kaydı, sevk durumu ve proje sevk tarihi korunur; "Düzeltmeyi Tamamla" (L-06) sandığı yeniden kilitler. "Sevkiyat geri alınsın" modu bu bölümün kapsamında değildir ve değişmedi. Şema ve izin `scripts/database/20261023_02_Sevk_Sonrasi_Duzeltme.sql` ile kurulur (README sıra 24).
+
+**L-12 — Korunarak açma gerekçe ve ayrı düzeltme izni ister.** Sandık (`SandikKilidiAcCommand`) ve proje (`ProjeKilidiAcCommand`) kilidini sevkiyat kaydı korunarak açma isteğinde açıklama zorunludur: boş ya da yalnız boşluk 400, en fazla 1000 karakter (`SevkSonrasiDuzeltmeValidators`). Açıklama düzeltme kaydının gerekçesidir (L-13).
+- **İzin:** Bu istek proje tipinin mevcut izniyle (sandık için sandık yazma, proje için kilit açma izni) **birlikte** ayrı `sevk-sonrasi-duzeltme` W iznini ister (`RequestMenuPermissionResolver`, AND grubu). Biri eksikse 403 döner. Düğüm Sandık Yönetimi altındaki işlem iznidir (Id 5259, ekran değildir); betik yalnız Admin'e W verir, başka rollere rol yönetiminden verilir.
+- **Değişmeyenler:** Sevkiyat geri alınarak açma gerekçe de düzeltme izni de istemez. Kilit açma her iki modda onaya düşer (Y-07). Düzeltmedeki işlemler (ürün ekleme, silme, taşıma, tamamlama) mevcut sandık izinleriyle yapılır; düzeltme izni bunlar için ayrıca aranmaz. Sandık ekleme (`SandikEkleCommand`) düzeltme iznini istemez.
+
+**L-13 — Düzeltme kaydı: açılış görüntüsü ve "önce → sonra" farkı.** Korunarak açılan her sevkli sandık için `SandikDuzeltmeKayitlari`'na bir kayıt yazılır. Kayıtta gerekçe, açan kullanıcı ve tarih ile açılış görüntüsü bulunur (`SandikDuzeltmeGoruntusu`, JSON): sandık adı, tipi, ölçüleri, net/brüt kg; her içerik için barkod, ürün, sandık miktarı, konulan, Grid/3K durumu ve ürün bilgisi.
+- **Tek açık kayıt:** Sandıkta aynı anda tek açık kayıt olur (kısmi benzersiz indeks). Düzeltmesi zaten açık sandık için tekrar açma isteği yeni kayıt açmaz ve gereksiz güncelleme üretmez. Proje kilidi açmada yalnız yeni açılan sandıklar için kayıt yazılır.
+- **Tamamlama:** "Düzeltmeyi Tamamla" kilidi kapatmadan önceki son içerikle farkı çıkarır (`SandikDuzeltmeFarkKurali`). Fark kayda yazılır (tamamlayan, tarih, `FarkOzeti`) ve hareket geçmişindeki tamamlama satırına "Değişiklikler: …" olarak eklenir. Fark satırları: sandık adı/cinsi/ölçü/kg değişimi; "Eklendi"; "Çıkarıldı" (başka sandığa taşınan ürün de bu sandıkta çıkarılmış görünür); ürün bazında konulan, sandık miktarı, Grid/3K durumu, ürün bilgisi ve açıklama/barkod değişimi. Hiç değişiklik yoksa tek satır "Değişiklik yok." yazılır.
+- **Eşleme ve eski kayıtlar:** Ürün çeki satırıyla, satırı yoksa sandık içeriğiyle eşlenir. Aynı satırın sandıktaki bölünmüş içerikleri tek ürün olarak toplanır. Bu özellikten önce açılmış düzeltmenin kaydı yoktur; tamamlanınca fark yazılmaz.
+- **Okuma:** `GET api/sandik/{sandikId}/sevk-sonrasi-duzeltme` (`GetSandikDuzeltmeDurumuQuery`, sandık okuma izni) açık düzeltmenin gerekçesini, açanı, açılıştan bu yana değişiklikleri ve tamamlanmış düzeltmelerin geçmişini döner. Veri değiştirmez.
+- **Kalıcılık:** Sevkiyat raporu güncel veriden üretilir; düzeltmenin neyi değiştirdiği yalnız bu kayıttan okunur. Sandık sonradan (sevkiyatı geri alınıp) silinirse bağ boşalır, sandık numarası kopyası ile kayıt kalır. Proje silinirse kayıt da silinir.
+
+**L-14 — Proje kilidinin düzeltmede açtığı kapsam.** Sevk edilmiş projede proje kilidi (`ProjectLockInterceptor`, L-03) yalnız düzeltmeye açık sevkli sandıklara bağlı şu yazımlara ek olarak izin verir:
+- **Unutulan ürün:** Yeni kök çeki satırı (kaynak satır bağı yok) ve aynı kayıtta düzeltmedeki sandığa tahsisi. Satırın çekisi sandıkla aynı projede olmalıdır. Satır ve tahsis tek `SaveChanges` ile yazılır (`ManuelUrunEkleCommandHandler`); tahsissiz ya da yarım kalan satır kabul edilmez.
+- **Ürün silme:** Kök satır silinebilir; satırın bütün tahsisleri düzeltmedeki sandıklarda olmalıdır.
+- **Taşıma:** İçerik düzeltmedeki iki sandık arasında taşınabilir; kaynak ve hedef sandığın ikisi de düzeltmede ve aynı projede olmalıdır.
+- **Tek proje:** Yazımın dokunduğu sandıklar ve bağlandığı çeki satırları aynı projeye ait olmalıdır. Düzeltmedeki sandığa başka projenin mevcut satırı da tahsis edilemez.
+- **Kapalı kalanlar:** Yeni ve silinen sandık düzeltmede de açılmaz (L-16). Proje ve çeki ana verisi, düzeltmeye açık olmayan (kilitli) sevkli sandık, başka projenin sandığı, çekisi ya da satırı ve aktif saha kaynağı (satır ya da sandık) bu kapsamla açılmaz. Düzeltme kapalıyken aynı doğrudan yazım `ProjectLockedException` ile reddedilir ve veri değişmez.
+
+**L-15 — Düzeltmedeki sevkli sandık işlemlerle "Sevk Edildi" durumundan çıkmaz.** Sevkiyat kaydı korunduğu için sandığın durumu düzeltme boyunca Sevk Edildi kalır:
+- **Taşıma:** Tekil ve toplu taşıma düzeltmeye açık sevkli kaynak ya da hedefi kabul eder (K-034). Boşalan sevkli kaynak Boş'a çekilmez, durumu taşımayla yeniden hesaplanmaz.
+- **Ürün güncelleme:** `UrunGuncelleCommandHandler` sevkli sandığın durumunu ve depo lokasyonunu ürün değişikliğiyle yeniden hesaplamaz.
+- **Depo lokasyonu:** Sevkli sandığın lokasyonu ürün ve işlemlerle otomatik değişmez. Belirsiz lokasyondaki sevkli sandığa unutulan ürün eklenince de Belirsiz kalır (`SandikLokasyonHelper`). 3K durum güncellemesi (`UcKDurumGuncelleCommandHandler`) ve toplu Grid durum güncellemesi (`GridTopluDurumGuncelleCommandHandler`) sevkli sandığı 3K ya da Grid lokasyonuna çekmez.
+- **Çeki satırı silme:** `CekiSatirlariSilCommand` boşalan sevkli sandığı silmez ve durumunu değiştirmez (D-06'nın istisnası).
+- **Grid Trafo Sevk:** `GridDurumGuncelleCommandHandler` sevkli sandığı Kapandı'ya çekmez (G-030'un istisnası).
+- **Grid manuel ürün:** Grid manuel ürün ekleme sevkli sandığa yapılmaz: kilitli sandık eskisi gibi reddedilir, düzeltmeye açık sevkli sandık 409 alır (G-070). Unutulan ürün Sandık Yönetimi'nden manuel ürün olarak eklenir: projenin son çekisine Grid ve 3K Tam Geldi, konulan = istenen olarak (L-14).
+
+**L-16 — Sevk sonrası düzeltme sandık eklemeyi ve silmeyi açmaz (kullanıcı kararı, 23.10.2026).** Düzeltme yalnız düzeltmedeki sandıkların içeriğini açar (L-14). Bu yetenek önce tasarlanmış, sonra kaldırılmıştır.
+- **Proje kilidi:** Kilitli projede yeni sandık eklemek ya da sandık silmek, düzeltme açık olsa da `ProjectLockedException` ile reddedilir. Yeni sandığın sevkli, düzeltmeye açık doğması ve bir sevkiyata bağlanması da bunu değiştirmez.
+- **Sandık ekleme:** Tamamen sevk edilmiş projeye sandık ekleme eskisi gibi 409 döner ("Önce sevkiyatı geri alın."). Sonradan sandık gerekiyorsa projeye normal yolla eklenir.
+- **Sandık silme:** Sevkli sandık düzeltmede de silinmez (`SandikSilCommandHandler`, sevk kilidi mesajı).
+
+**L-17 — Sahaya aktarılmış ürün düzeltmede de ana projeden değiştirilemez.** Aktif saha aktarımı (geri alınmamış, iptal edilmemiş `SahaAktarimKalemi`) olan ürün ana projede sevk sonrası düzeltmede de taşınamaz, silinemez ve değiştirilemez (L-08, S-13). Aynı miktar iki projede sayılmaz.
+- **Gösterim:** Sandık içeriği (`GetSandikIcerikQuery`) bu ürün için hedef saha projelerini `AktifSahaProjeleri` (proje kimliği ve numarası) olarak döner. Ekran düzeltmeyi bu saha projelerine yönlendirir.
+- **Kapsam:** Alan salt okumadır, yeni yetki istemez.
+
+Kaynak: [SevkSonrasiDuzeltmeValidators.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Validators/SevkSonrasiDuzeltmeValidators.cs), [RequestMenuPermissionResolver.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Common/RequestMenuPermissionResolver.cs), [SandikDuzeltmeKayitIslemi.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Services/SandikDuzeltmeKayitIslemi.cs), [SandikDuzeltmeGoruntusu.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Core/Models/SandikDuzeltmeGoruntusu.cs), [SandikDuzeltmeKaydi.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Core/Entities/SandikDuzeltmeKaydi.cs), [GetSandikDuzeltmeDurumuQuery.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Queries/GetSandikDuzeltmeDurumuQuery.cs), [ProjectLockInterceptor.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Infrastructure/Data/Interceptors/ProjectLockInterceptor.cs), [SandikEkleCommandHandler.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Commands/SandikEkleCommandHandler.cs), [SandikSilCommandHandler.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Commands/SandikSilCommandHandler.cs), [SandikUrunTasimaIslemi.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Services/SandikUrunTasimaIslemi.cs), [UrunGuncelleCommandHandler.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Commands/UrunGuncelleCommandHandler.cs), [SandikLokasyonHelper.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Common/SandikLokasyonHelper.cs), [UcKDurumGuncelleCommandHandler.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/UcKIslemleri/Commands/UcKDurumGuncelleCommandHandler.cs), [GridTopluDurumGuncelleCommandHandler.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/GridIslemleri/Commands/GridTopluDurumGuncelleCommandHandler.cs), [CekiSatirlariSilCommand.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/CekiIslemleri/Commands/CekiSatirlariSilCommand.cs), [GridDurumGuncelleCommandHandler.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/GridIslemleri/Commands/GridDurumGuncelleCommandHandler.cs), [GridManuelUrunEkleCommandHandler.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/GridIslemleri/Commands/GridManuelUrunEkleCommandHandler.cs), [GetSandikIcerikQueryHandler.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Queries/GetSandikIcerikQueryHandler.cs), [20261023_02_Sevk_Sonrasi_Duzeltme.sql](C:/Users/Watarzie/source/repos/3K_Proje/scripts/database/20261023_02_Sevk_Sonrasi_Duzeltme.sql). Ön yüz: `sandik-detay` (düzeltme paneli, saha bağlantısı), `uck-sandiklar` ve `proje-listesi` kilit açma pencereleri (korunarak seçeneği izne bağlı).
 
 <a id="saha"></a>
 
@@ -415,7 +456,7 @@ Kaynak: [SandikKapatCommandHandler.cs:30](C:/Users/Watarzie/source/repos/3K_Proj
 
 **D-05.** Silinen hedefe dışarıdan yapılmış transfer geri alınır, kaynak `ProjeGonderilen` miktarı düşürülür ve kaynak durum/kalanı yeniden hesaplanır. İlgili stok hareketleri stok geri alma yordamıyla çözülür; sadece miktar kolonları silinmez.
 
-**D-06.** İlgili içerikler ve boş kalan sandık/çeki kayıtları temizlenebilir; kalan sandık durumları ve hareket geçmişi güncellenir. Bu nedenle kullanıcı satır iptal etmek istiyorsa silme aynı işlem değildir.
+**D-06.** İlgili içerikler ve boş kalan sandık/çeki kayıtları temizlenebilir; kalan sandık durumları ve hareket geçmişi güncellenir. Bu nedenle kullanıcı satır iptal etmek istiyorsa silme aynı işlem değildir. İstisna (23.10.2026): sevk edilmiş sandık (sevk sonrası düzeltmedeki dahil) boşalsa da silinmez ve durumu yeniden hesaplanmaz (L-15).
 
 **D-07.** Proje silme (normal, saha, yedek) ambalaj üretim kayıtlarını da değerlendirir. Proje yüklenince her sandık için oluşan dokunulmamış otomatik ambalaj kaydı (planlı, üretime alınmamış) ve kullanıcının iptal ettiği kayıt, hareket geçmişiyle birlikte proje ile aynı işlemde silinir. Üretime alınmış/ilerlemiş ambalaj kaydı, elle eklenmiş aktif bağımsız sandık, ambalaj üretim formu, üretim gerçekleşmesi, başka projedeki iç sandık bağı veya projeye/ambalaj akışına bağlı finans kaydı (iş kaydı, düzenli iş, gider) varsa proje silinmez; mesaj engelleri sayar ve hiçbir kayıt silinmez. Üretim ve finans geçmişi sessizce kaybolmaz.
 
@@ -528,7 +569,7 @@ Gelecek tasarım önerisi değildir; mevcut uygulamanın denetlenebilir bir foto
 
 **G-029 `[KOD]` — Başarılı güncelleme çapraz durumları da senkronlar.** Genel ürün durumu yeniden hesaplanır; süreç otomatik tamamlanma kuralı çalışır; kaynak saha satırıysa kaynak proje senkronu tetiklenir. Kaynak: [GridDurumGuncelleCommandHandler.cs:228](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/GridIslemleri/Commands/GridDurumGuncelleCommandHandler.cs:228).
 
-**G-030 `[KOD]` — Trafo Sevk sandığı otomatik kapatabilir.** Devam sevki olmayan Trafo işleminden sonra aynı sandıktaki her ürün 3K tamamlanmış tiplerden birinde veya Trafo Sevk ise sandık Kapandı yapılır. Kaynak: [GridDurumGuncelleCommandHandler.cs:238](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/GridIslemleri/Commands/GridDurumGuncelleCommandHandler.cs:238).
+**G-030 `[KOD]` — Trafo Sevk sandığı otomatik kapatabilir.** Devam sevki olmayan Trafo işleminden sonra aynı sandıktaki her ürün 3K tamamlanmış tiplerden birinde veya Trafo Sevk ise sandık Kapandı yapılır. Sevk edilmiş (sevk sonrası düzeltmedeki) sandık Kapandı'ya çekilmez (23.10.2026, L-15). Kaynak: [GridDurumGuncelleCommandHandler.cs:238](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/GridIslemleri/Commands/GridDurumGuncelleCommandHandler.cs:238).
 
 ### 7.5. Sevk miktarını 3K işlemi başlamadan değiştirme
 
@@ -620,7 +661,7 @@ Gelecek tasarım önerisi değildir; mevcut uygulamanın denetlenebilir bir foto
 
 **G-069 `[KOD]` — Manuel ürün son yüklenen çekiye eklenir.** Projenin `YuklemeTarihi` en yeni çekisi seçilir; çeki yoksa 404, sandık numarası boşsa 400 döner. Kaynak: [GridManuelUrunEkleCommandHandler.cs:22](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/GridIslemleri/Commands/GridManuelUrunEkleCommandHandler.cs:22).
 
-**G-070 `[KOD]` — Sandık bulunamazsa oluşturulur.** Yeni sandık TipId=1, Hazırlanıyor ve Belirsiz lokasyonla açılır; mevcut sevk edilmiş sandığa ürün eklenemez. Kaynak: [GridManuelUrunEkleCommandHandler.cs:38](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/GridIslemleri/Commands/GridManuelUrunEkleCommandHandler.cs:38).
+**G-070 `[KOD]` — Sandık bulunamazsa oluşturulur.** Yeni sandık TipId=1, Hazırlanıyor ve Belirsiz lokasyonla açılır; mevcut sevk edilmiş sandığa ürün eklenemez. 23.10.2026'dan beri sevk sonrası düzeltmeye açık sevkli sandık da 409 alır; unutulan ürün Sandık Yönetimi'nden eklenir (L-15). Kaynak: [GridManuelUrunEkleCommandHandler.cs:38](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/GridIslemleri/Commands/GridManuelUrunEkleCommandHandler.cs:38).
 
 **G-071 `[KOD]` — Manuel satır başlangıç durumu hazır kabul edilir.** Sıra 9999, manuel bayrağı true, Grid Tam Geldi/Grid gelen istenen, sevk Sevk Edilmedi, 3K Bekliyor ve süreç Tamamlandı kaydedilir. Kaynak: [GridManuelUrunEkleCommandHandler.cs:58](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/GridIslemleri/Commands/GridManuelUrunEkleCommandHandler.cs:58).
 
@@ -1256,7 +1297,7 @@ Tamamlanma, liste görünürlüğü, genel yetki/onay ve sandık sevkiyat duruml
   Pozitif, en çok 14 tam/4 ondalık basamaklı miktar ve boş olmayan işlem anahtarı gerekir; istenen taşıma kaynak etkin tahsisinden büyük olamaz. Bu işlem başka projeden karşılama yerine kullanılamaz.
   Kaynak: [SandikUrunTasiCommandHandler.cs:30](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Commands/SandikUrunTasiCommandHandler.cs:30); [SandikUrunTasiCommandHandler.cs:122](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Commands/SandikUrunTasiCommandHandler.cs:122); [SandikUrunTasiCommandHandler.cs:426](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Commands/SandikUrunTasiCommandHandler.cs:426).
 
-- **K-034 — Miktarlı taşıma sevkiyat kaydı olan sandığı düzeltme kilidiyle aşmaz.** Kaynak veya hedef `Sevkedildi` ise `SevkiyatDuzeltmeAcikMi` açık olsa bile resmi sevkiyat geri alma istenir.
+- **K-034 — Miktarlı taşıma sevkli sandığı yalnız sevk sonrası düzeltmeye açıkken kabul eder (23.10.2026).** Kaynak veya hedef `Sevkedildi` ve `SevkiyatDuzeltmeAcikMi` kapalıysa (sandık kilitli) tekil ve toplu taşıma 409 ile reddedilir, hiçbir kayıt değişmez; mesaj sandığı sevk sonrası düzeltmeye açmayı önerir. Düzeltme açıksa sevkli kaynak/hedef taşımaya katılır; iki sandık aynı projede olmalıdır (L-14). Sandıklar Sevk Edildi kalır; boşalan sevkli kaynak Boş'a çekilmez (L-15). Önceki davranış: düzeltme açık olsa da resmi sevkiyat geri alma isteniyordu.
   Aktif saha aktarımı olan normal kaynak satır, negatif içerik miktarları ve tutarsız aktif sevk sayaçları ayrıca engeldir. Salt sayısal taşıma isteği tarihsel sevkiyat içeriğini değiştirme yetkisi vermez.
   Kaynak: [SandikUrunTasiCommandHandler.cs:87](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Commands/SandikUrunTasiCommandHandler.cs:87); [SandikUrunTasiCommandHandler.cs:133](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Commands/SandikUrunTasiCommandHandler.cs:133); [SandikUrunTasiCommandHandler.cs:181](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Commands/SandikUrunTasiCommandHandler.cs:181).
 
@@ -1433,7 +1474,7 @@ Bu örnekler diğer engellerin olmadığı varsayımıyla okunmalıdır. Onay, k
 | Ürün “iptal”, kalan 0 | İş talebi kapatılmıştır; fiziksel 3K teslimi/stok kendiliğinden artmış değildir. |
 | Hatalı ürün var, sayısal ihtiyaç karşılanmış | Açık hata nedeniyle kalan 1 işareti görülebilir. Bu tek başına 1 yeni adet sevk kapasitesi anlamına gelmez. |
 | Saha son eksik ürünü iptal ediyor, diğerleri tamam | Saha iş tamamlanmasına ve bağlantılı normal iş ilerlemesine yansıyabilir; yeni fiziksel sevkiyat sayılmaz. |
-| Sevk kaydı korunsun ile kilit açılıyor | Sevkiyat geçmişi ve sevk durumu korunarak kapsamlı olmayan düzeltme açılır; iş bittiğinde Düzeltmeyi Tamamla ile yeniden kilitlenir. |
+| Sevk kaydı korunsun ile kilit açılıyor | Sevkiyat geçmişi ve sevk durumu korunarak kapsamlı olmayan düzeltme açılır; iş bittiğinde Düzeltmeyi Tamamla ile yeniden kilitlenir. Gerekçe ve düzeltme izni gerekir; neyin değiştiği düzeltme kaydındaki "önce → sonra" farkından okunur, sevkiyat raporundan değil (L-12, L-13). |
 | Onay verildi, o sırada kaynak tüketildi veya kilit değişti | Talep onaylı olsa da çalıştırma mevcut iş kurallarında reddedilebilir. |
 | Tamamlanma %99, proje Kısmi Sevk | Tek başına tutarsızlık kanıtı değildir; ürün işi, sandık sevki ve kayıtlı proje durumu birlikte incelenir. |
 | Aynı barkod farklı miktarlarla birden fazla satırda | Bir satırın teslimi diğer satırı otomatik kapatmaz; satır ve sandık kimliği kontrol edilmelidir. |
@@ -1492,6 +1533,7 @@ Aşağıdaki test dosyaları kuralların bakımında kullanılabilecek mevcut re
 | Sahadan sahaya taşıma ve saha izi (S-21–S-26, R-08) | [SahadanSahayaTasimaTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/SahadanSahayaTasimaTests.cs), [SahadanSahayaTasimaPostgresTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/SahadanSahayaTasimaPostgresTests.cs), [CanliyaAlimBetikleriTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/CanliyaAlimBetikleriTests.cs) |
 | Saha kaynak revizyonu | [CekiRevizyonAktifSahaKaynakKorumaTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/CekiRevizyonAktifSahaKaynakKorumaTests.cs), [SahaKaynakAnaVeriKorumaTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/SahaKaynakAnaVeriKorumaTests.cs) |
 | Fiziksel sevk ve düzeltme | [NormalProjeSevkDurumHelperTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/NormalProjeSevkDurumHelperTests.cs), [NormalProjeSevkDurumHesaplayiciTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/NormalProjeSevkDurumHesaplayiciTests.cs), [NormalProjeSevkKomutlariTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/NormalProjeSevkKomutlariTests.cs), [SevkiyatKilidiAcRegresyonTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/SevkiyatKilidiAcRegresyonTests.cs), [ProjectLockCorrectionScopeTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/ProjectLockCorrectionScopeTests.cs) |
+| Sevk sonrası düzeltme (L-12–L-17) | [SevkSonrasiDuzeltmeTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/SevkSonrasiDuzeltmeTests.cs), [SevkSonrasiDuzeltmePostgresTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/SevkSonrasiDuzeltmePostgresTests.cs), [ProjectLockCorrectionScopeTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/ProjectLockCorrectionScopeTests.cs), [ServerAuthorizationRegressionTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/ServerAuthorizationRegressionTests.cs), [SandikTasimaKatalogKurallariTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/SandikTasimaKatalogKurallariTests.cs), [SandikTopluTasimaTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/SandikTopluTasimaTests.cs) |
 
 ### 12.3 Belgenin güncel tutulması
 

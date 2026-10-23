@@ -1,5 +1,6 @@
 using MediatR;
 using _3K.Application.Common;
+using _3K.Application.Features.SandikIslemleri.Services;
 using _3K.Core.Constants;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
@@ -126,6 +127,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
 
             int geriDondurulenSandik = 0;
             var kilidiAcilanSandikIds = new List<int>();
+            var duzeltmeKayitIslemi = new SandikDuzeltmeKayitIslemi(_unitOfWork);
             foreach (var sandik in sandiklar)
             {
                 if (sandik.DurumId == (int)SandikDurum.Sevkedildi)
@@ -140,6 +142,12 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
 
                     if (kilitAcmaTipi == SevkiyatKilitAcmaTipi.SevkiyatKaydiKorunarakAc)
                     {
+                        // Sevk sonrası düzeltme kaydı: açılış görüntüsü her yeni açılan sandık için ayrı saklanır.
+                        if (!sandik.SevkiyatDuzeltmeAcikMi)
+                        {
+                            await duzeltmeKayitIslemi.AcAsync(
+                                sandik, request.Aciklama, _currentUserService.UserId ?? 0, cancellationToken);
+                        }
                         sandik.SevkiyatDuzeltmeAcikMi = true;
                     }
                     else

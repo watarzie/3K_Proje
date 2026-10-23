@@ -189,7 +189,9 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             var sandikNoListesi = sandikNolari.ToList();
             var sandiklar = await sandikRepo.FindAsync(s => s.ProjeId == projeId && sandikNoListesi.Contains(s.SandikNo));
 
-            foreach (var sandik in sandiklar.Where(s => s.DepoLokasyonId != (int)DepoLokasyon.Grid))
+            // Sevkli (düzeltmedeki) sandığın lokasyonu Grid işlemiyle değişmez.
+            foreach (var sandik in sandiklar.Where(s =>
+                s.DepoLokasyonId != (int)DepoLokasyon.Grid && s.DurumId != (int)SandikDurum.Sevkedildi))
             {
                 sandik.DepoLokasyonId = (int)DepoLokasyon.Grid;
                 sandikRepo.Update(sandik);

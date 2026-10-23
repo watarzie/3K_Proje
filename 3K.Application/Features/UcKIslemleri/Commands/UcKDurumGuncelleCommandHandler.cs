@@ -708,9 +708,11 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 .ToList();
 
             var sandikRepo = _unitOfWork.GetRepository<Sandik>();
+            // Sevkli (düzeltmedeki) sandığın lokasyonu 3K işlemiyle değişmez.
             var sandiklar = await sandikRepo.FindAsync(s =>
                 sandikIdleri.Contains(s.Id) &&
-                s.DepoLokasyonId == (int)DepoLokasyon.Belirsiz);
+                s.DepoLokasyonId == (int)DepoLokasyon.Belirsiz &&
+                s.DurumId != (int)SandikDurum.Sevkedildi);
 
             foreach (var sandik in sandiklar)
             {

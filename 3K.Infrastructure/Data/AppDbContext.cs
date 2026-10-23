@@ -29,6 +29,7 @@ namespace _3K.Infrastructure.Data
         public DbSet<SahaTasimaKalemi> SahaTasimaKalemleri { get; set; } = null!;
         public DbSet<Sevkiyat> Sevkiyatlar { get; set; } = null!;
         public DbSet<SevkiyatSandik> SevkiyatSandiklari { get; set; } = null!;
+        public DbSet<SandikDuzeltmeKaydi> SandikDuzeltmeKayitlari { get; set; } = null!;
         public DbSet<SevkSeferi> SevkSeferleri { get; set; } = null!;
         public DbSet<OnayBekleyenIslem> OnayBekleyenIslemler { get; set; } = null!;
         public DbSet<OnayIslemYetki> OnayIslemYetkileri { get; set; } = null!;

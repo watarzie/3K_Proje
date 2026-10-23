@@ -170,21 +170,38 @@ public sealed class SandikTopluTasimaPostgresTests
         Assert.Equal(2, await db.SandikUrunTransferleri.CountAsync());
     }
 
+    /// <summary>
+    /// Sevkli hedef sandığa toplu taşıma yalnız sevk sonrası düzeltme açıkken yapılır; kapalıyken hiçbir şey değişmez,
+    /// açıkken taşınır ve hedef sevkli kalır.
+    /// </summary>
     [SandikPostgresFact]
-    public async Task SevkKilidi_DuzeltmeAcikOlsaDaTopluTasimaYapilmaz()
+    public async Task SevkKilidi_DuzeltmeKapaliykenTopluTasimaYapilmaz_AcikkenSevkliHedefeTasinir()
     {
         await using var kurgu = await PostgresKurgu.CreateAsync();
         await using (var db = kurgu.Db())
         {
             var hedef = await db.Sandiklar.SingleAsync(x => x.Id == kurgu.HedefId);
             hedef.DurumId = (int)SandikDurum.Sevkedildi;
-            hedef.SevkiyatDuzeltmeAcikMi = true;
             await db.SaveChangesAsync();
         }
-        var sonuc = await kurgu.TasiAsync(kurgu.Istek(1, 1));
-        Assert.False(sonuc.IsSuccess);
-        Assert.Contains("sevkiyatı", sonuc.Error!.Message);
+        var kilitli = await kurgu.TasiAsync(kurgu.Istek(1, 1));
+        Assert.False(kilitli.IsSuccess);
+        Assert.Contains("düzeltmeye", kilitli.Error!.Message);
         await kurgu.BaslangicKorunurAsync();
+
+        await using (var db = kurgu.Db())
+        {
+            (await db.Sandiklar.SingleAsync(x => x.Id == kurgu.HedefId)).SevkiyatDuzeltmeAcikMi = true;
+            await db.SaveChangesAsync();
+        }
+        var acik = await kurgu.TasiAsync(kurgu.Istek(1, 1));
+        Assert.True(acik.IsSuccess, acik.Error?.Message);
+        await using (var db = kurgu.Db())
+        {
+            var hedef = await db.Sandiklar.SingleAsync(x => x.Id == kurgu.HedefId);
+            Assert.Equal(((int)SandikDurum.Sevkedildi, true), (hedef.DurumId, hedef.SevkiyatDuzeltmeAcikMi));
+            Assert.Equal(2, await db.SandikUrunTransferleri.CountAsync());
+        }
     }
 
     [SandikPostgresFact]

@@ -1,5 +1,8 @@
 namespace _3K.Application.Features.SandikIslemleri.DTOs
 {
+    /// <summary>Ürünün aktif saha aktarımının hedef saha projesi.</summary>
+    public sealed record SahaProjeBagDto(int ProjeId, string ProjeNo);
+
     public class SandikIcerikDto
     {
         public int Id { get; set; }
@@ -42,6 +45,12 @@ namespace _3K.Application.Features.SandikIslemleri.DTOs
 
         /// <summary>Kalıcı ürün bilgisi (seri no, SKT, lot); işlem açıklamasından bağımsızdır.</summary>
         public string? UrunBilgisi { get; set; }
+
+        /// <summary>
+        /// Ürün aktif olarak sahaya aktarıldıysa takibinin yapıldığı saha projeleri. Bu ürün ana projede (sevk sonrası
+        /// düzeltme dahil) değiştirilemez; ekran düzeltmeyi bu projelere yönlendirir.
+        /// </summary>
+        public IReadOnlyList<SahaProjeBagDto> AktifSahaProjeleri { get; set; } = [];
 
         // Sandıklar arası yapılandırılmış transfer özeti
         public decimal SandikAktarilanGiris { get; set; }

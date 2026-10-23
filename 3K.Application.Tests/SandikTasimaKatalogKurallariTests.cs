@@ -59,23 +59,45 @@ public sealed class SandikTasimaKatalogKurallariTests
     [Theory]
     [InlineData("kaynak")]
     [InlineData("hedef")]
-    public async Task SandikUrunTasi_SevkedilmisKaynakVeyaHedefDuzeltmeAcikOlsaDaMutasyonsuzReddedilir(
+    public async Task SandikUrunTasi_SevkedilmisKaynakVeyaHedefDuzeltmeKapaliykenMutasyonsuzReddedilir(
         string sevkedilmisSandik)
     {
         using var kurgu = new Kurgu();
         var sandik = sevkedilmisSandik == "kaynak" ? kurgu.KaynakSandik : kurgu.HedefSandik;
         sandik.DurumId = (int)SandikDurum.Sevkedildi;
-        sandik.SevkiyatDuzeltmeAcikMi = true;
         var once = kurgu.AnlikDurum();
 
         var sonuc = await kurgu.TasiAsync(miktar: 1, islemAnahtari: Guid.NewGuid());
 
         Assert.False(sonuc.IsSuccess);
         Assert.Equal(409, sonuc.StatusCode);
+        Assert.Contains("sevk sonrası düzeltmeye", sonuc.Error?.Message);
         Assert.Equal(once, kurgu.AnlikDurum());
         Assert.Equal(0, kurgu.Uow.SaveCount);
         Assert.Empty(kurgu.Uow.Repo<SandikUrunTransferi>().Rows);
         Assert.Empty(kurgu.Uow.Repo<HareketGecmisi>().Rows);
+    }
+
+    /// <summary>
+    /// Sevk sonrası düzeltme: düzeltmeye açık sevkli sandık taşımaya katılır, sevkiyat kaydı ve "sevk edildi" durumu
+    /// korunur (boşalan kaynak Boş'a, dolan hedef Hazırlanıyor'a çekilmez).
+    /// </summary>
+    [Theory]
+    [InlineData("kaynak")]
+    [InlineData("hedef")]
+    public async Task SandikUrunTasi_DuzeltmeAcikSevkliSandikTasimayaKatilir_SevkDurumuKorunur(string sevkedilmisSandik)
+    {
+        using var kurgu = new Kurgu(tahsis: 5, konulan: 5);
+        var sandik = sevkedilmisSandik == "kaynak" ? kurgu.KaynakSandik : kurgu.HedefSandik;
+        sandik.DurumId = (int)SandikDurum.Sevkedildi;
+        sandik.SevkiyatDuzeltmeAcikMi = true;
+
+        var sonuc = await kurgu.TasiAsync(miktar: 5, islemAnahtari: Guid.NewGuid());
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.Equal((int)SandikDurum.Sevkedildi, sandik.DurumId);
+        Assert.True(sandik.SevkiyatDuzeltmeAcikMi);
+        Assert.Single(kurgu.Uow.Repo<SandikUrunTransferi>().Rows);
     }
 
     [Fact]

@@ -698,6 +698,97 @@ public sealed class AmbalajSandikTipiVeTamamlamaTests
         Assert.Equal(new DateTime(2026, 9, 1), AmbalajFinansSenkronizasyonu.ModelOlustur(kayit, null).FinansDonemi);
     }
 
+    /// <summary>
+    /// İlave/Saha/Yedek özel sandığın ölçüsü sandık modülündeki gibi dış ölçüdür: aynı dış ölçülü ahşap sandık özel
+    /// sandıkta da normal ambalajdaki m³'ü bulur (92/255 düşülür) ve finansa aynı m³ ile aktarılır.
+    /// 1400×1200×1375 dış ölçü = 1308×1108×1120 iç ölçü → 0,323177 m³ (dış ölçü iç sayılsaydı 0,388478).
+    /// </summary>
+    [Theory]
+    [InlineData(2, ProjeTipi.Normal)]
+    [InlineData(4, ProjeTipi.Saha)]
+    [InlineData(5, ProjeTipi.Yedek)]
+    public async Task Ozel_sandik_dis_olcuyle_normal_ambalajla_ayni_m3u_bulur_ve_finansa_ayni_aktarilir(int tur, ProjeTipi projeTipi)
+    {
+        var f = new Fixture(OrtakRoller.TumIzinler(), projeTipi);
+        var komut = OzelSandik(tur, sandikTipi: "Ahşap Kapalı", boy: 1400, en: 1200, yukseklik: 1375);
+
+        var sonuc = await f.OzelSandikHandler().Handle(komut, default);
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        var kayit = Assert.Single(f.Kayitlar);
+        var normalAmbalaj = AmbalajPlanlamaYardimcisi.KaynakSandikToplamHacmiHesapla("Sandık", null, "1", 1400, 1200, 1375);
+        Assert.Equal(0.323177m, normalAmbalaj);
+        Assert.Equal(normalAmbalaj, kayit.HesaplananToplamM3);
+        Assert.Equal(normalAmbalaj, sonuc.Value!.HacimM3);
+        f.Finans.Modeller.Clear();
+
+        Assert.True((await f.OzelFinansHandler().Handle(new() { SandikId = kayit.Id }, default)).IsSuccess);
+
+        var model = Assert.Single(f.Finans.Modeller);
+        Assert.Equal((1m, normalAmbalaj, kayit.SarfM3), (model.Adet, model.BirimM3, model.SarfM3));
+    }
+
+    /// <summary>Kaynak sandıktan dönüştürülen İlave özel sandık, kaynağın dış ölçüsüyle kaynak kaydındaki m³'ü korur.</summary>
+    [Fact]
+    public async Task Kaynaktan_ilaveye_donusen_sandik_ayni_dis_olcuyle_ayni_m3u_korur()
+    {
+        var f = new Fixture(OrtakRoller.TumIzinler());
+        var sandik = f.KaynakSandik(101, "6", SandikTipi.AhsapKapali, PlanBaslangici.AddDays(-1));
+        var kaynakKaydi = f.SenkronKaydi(101, PlanBaslangici);
+        kaynakKaydi.AmbalajKarariniUygula(false);
+        var kaynakM3 = kaynakKaydi.HesaplananToplamM3;
+
+        // Ön yüz kaynak sandık seçilince kaynağın dış ölçüsünü forma kopyalar.
+        var sonuc = await f.OzelSandikHandler().Handle(OzelSandik(tur: 2, sandikNo: "", kaynakSandikId: 101,
+            boy: sandik.Boy!.Value, en: sandik.En!.Value, yukseklik: sandik.Yukseklik!.Value), default);
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.True(kaynakKaydi.BagimsizKayitMi);
+        Assert.True(kaynakM3 > 0);
+        Assert.Equal(kaynakM3, kaynakKaydi.HesaplananToplamM3);
+    }
+
+    /// <summary>
+    /// Ahşap/kafes İlave/Saha/Yedek özel sandıkta iç ölçüye düşülemeyen dış ölçü kayıtta reddedilir ve kayıt oluşmaz;
+    /// m³ hesaplanmayan cins ile iç ölçüyle girilen İç sandık bu sınırı almaz.
+    /// </summary>
+    [Fact]
+    public async Task Ozel_sandikta_ic_olcuye_dusulemeyen_dis_olcu_reddedilir()
+    {
+        var f = new Fixture(OrtakRoller.TumIzinler(), ProjeTipi.Saha);
+
+        var ahsap = await f.OzelSandikHandler().Handle(
+            OzelSandik(tur: 4, sandikTipi: "Ahşap Kapalı", boy: 1400, en: 1200, yukseklik: 255), default);
+        var kontrplak = await f.OzelSandikHandler().Handle(
+            OzelSandik(tur: 4, sandikNo: "2", boy: 90, en: 90, yukseklik: 90), default);
+
+        Assert.Equal(400, ahsap.StatusCode);
+        Assert.Contains("dış ölçü", ahsap.Error!.Message);
+        Assert.True(kontrplak.IsSuccess, kontrplak.Error?.Message);
+        Assert.Equal("2", Assert.Single(f.Kayitlar).SandikNo);
+    }
+
+    [Theory]
+    [InlineData(true, AmbalajSandikTuru.Ilave, AmbalajKaynakModulu.Manuel, false, true)]
+    [InlineData(true, AmbalajSandikTuru.Ilave, AmbalajKaynakModulu.Sandik, true, true)]
+    [InlineData(true, AmbalajSandikTuru.Saha, AmbalajKaynakModulu.Saha, false, true)]
+    [InlineData(true, AmbalajSandikTuru.Yedek, AmbalajKaynakModulu.Yedek, false, true)]
+    [InlineData(true, AmbalajSandikTuru.Ic, AmbalajKaynakModulu.Manuel, false, false)]
+    [InlineData(false, AmbalajSandikTuru.Normal, AmbalajKaynakModulu.Sandik, true, true)]
+    [InlineData(false, AmbalajSandikTuru.Saha, AmbalajKaynakModulu.Saha, true, true)]
+    [InlineData(false, AmbalajSandikTuru.Ilave, AmbalajKaynakModulu.Manuel, false, false)]
+    [InlineData(false, AmbalajSandikTuru.Normal, AmbalajKaynakModulu.Manuel, false, false)]
+    public void Dis_olcu_kurali_kaynak_ve_ilave_saha_yedek_ozel_sandikta_uygulanir(
+        bool bagimsiz, AmbalajSandikTuru tur, AmbalajKaynakModulu modul, bool kaynakli, bool beklenen)
+    {
+        var kayit = new AmbalajUretimKaydi
+        {
+            BagimsizKayitMi = bagimsiz, Tur = tur, KaynakModul = modul, KaynakKayitId = kaynakli ? 101 : null
+        };
+
+        Assert.Equal(beklenen, AmbalajUretimPolitikasi.DisOlcuKullanirMi(kayit));
+    }
+
     [Theory]
     [InlineData(null, false)]
     [InlineData(0, false)]
@@ -711,10 +802,17 @@ public sealed class AmbalajSandikTipiVeTamamlamaTests
         Assert.Equal(gecerli, new SandikOzellikGuncelleCommandValidator().Validate(new SandikOzellikGuncelleCommand { SandikId = 1, TipId = tipId }).IsValid);
     }
 
-    private static AmbalajBagimsizSandikKaydetCommand OzelSandik(int tur, string sandikNo = "1", int? kaynakSandikId = null) => new()
+    private static AmbalajBagimsizSandikKaydetCommand OzelSandik(
+        int tur,
+        string sandikNo = "1",
+        int? kaynakSandikId = null,
+        string sandikTipi = "Kontrplak Sandık",
+        decimal boy = 1200,
+        decimal en = 1000,
+        decimal yukseklik = 900) => new()
     {
-        ProjeId = 10, Tur = tur, SandikNo = sandikNo, KaynakSandikId = kaynakSandikId, Ad = "Saha sandığı", SandikTipi = "Kontrplak Sandık",
-        Adet = 1, Boy = 1200, En = 1000, Yukseklik = 900, TalimatVeren = "Planlama"
+        ProjeId = 10, Tur = tur, SandikNo = sandikNo, KaynakSandikId = kaynakSandikId, Ad = "Saha sandığı", SandikTipi = sandikTipi,
+        Adet = 1, Boy = boy, En = en, Yukseklik = yukseklik, TalimatVeren = "Planlama"
     };
 
     private sealed class Fixture

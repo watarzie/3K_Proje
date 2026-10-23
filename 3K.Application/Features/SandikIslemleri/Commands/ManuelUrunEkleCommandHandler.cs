@@ -59,13 +59,14 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 TeslimTarihi = TurkeyTime.Now
             };
 
+            // Satır ve tahsisi tek kayıtta yazılır: sevk sonrası düzeltmedeki sandıkta proje kilidi yeni satırı
+            // ancak düzeltmedeki sandığa bağlı haliyle kabul eder (yarım kalan sahipsiz satır da oluşmaz).
             await cekiSatiriRepo.AddAsync(yeniUrun);
-            await _unitOfWork.SaveChangesAsync();
 
             var yeniIcerik = new SandikIcerik
             {
                 SandikId = sandik.Id,
-                CekiSatiriId = yeniUrun.Id,
+                CekiSatiri = yeniUrun,
                 TahsisMiktari = request.IstenenAdet,
                 KonulanAdet = request.IstenenAdet,
                 EksikAdet = 0
@@ -73,6 +74,9 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             await sandikIcerikRepo.AddAsync(yeniIcerik);
             await SandikLokasyonHelper.VarsayilanUcKDepoLokasyonuAtaAsync(_unitOfWork, new[] { yeniIcerik });
+            // Düzeltmedeki sandık UPDATE edilir (xmin): aynı anda tamamlanan düzeltme kapanmış sandığa ürün eklenmesini önler.
+            if (sandik.DurumId == (int)SandikDurum.Sevkedildi)
+                sandikRepo.Update(sandik);
             await _unitOfWork.SaveChangesAsync();
 
             await _hareketService.HareketKaydetAsync(new HareketGecmisi

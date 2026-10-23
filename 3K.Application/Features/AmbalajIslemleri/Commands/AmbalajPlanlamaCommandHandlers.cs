@@ -800,11 +800,25 @@ public sealed class AmbalajBagimsizSandikKaydetCommandHandler
         if (request.Adet <= 0) return "Adet sıfırdan büyük olmalıdır.";
         if (!olcuKorunur && (request.Boy <= 0 || request.En <= 0 || request.Yukseklik <= 0))
             return "Boy, en ve yükseklik zorunludur.";
+        // İlave/Saha/Yedek ahşap/kafes özel sandığın ölçüsü dış ölçüdür; iç ölçüye düşülemeyen ölçüyle m³ hesaplanamaz.
+        if (!olcuKorunur &&
+            AmbalajUretimPolitikasi.OzelSandikDisOlcuKullanirMi(AmbalajPlanlamaYardimcisi.OzelTurCoz(request.Tur)) &&
+            AmbalajUretimPolitikasi.M3HesaplanabilirMi(OzelSandikCinsi(request)) &&
+            !AmbalajHesaplayici.KaynakDisOlculeriGecerli(request.Boy, request.En, request.Yukseklik))
+            return $"Ahşap ve kafes özel sandıkta ölçüler dış ölçüdür; boy ve en {AmbalajHesaplayici.KaynakDisOlcuBoyEnFarki:0} mm'den, " +
+                   $"yükseklik {AmbalajHesaplayici.KaynakDisOlcuYukseklikFarki:0} mm'den büyük olmalıdır.";
         if (string.IsNullOrWhiteSpace(request.TalimatVeren)) return "Talimat veren kişi zorunludur.";
         if (request.TalimatVeren.Trim().Length > 200)
             return "Talimat veren kişi en fazla 200 karakter olabilir.";
         return null;
     }
+
+    /// <summary>Kaydedilecek cins: kaynaktan dönüştürülen kayıtta kaynak sandığın tipi, diğerlerinde formdaki tip (A7).</summary>
+    private AmbalajSandikCinsi OzelSandikCinsi(AmbalajBagimsizSandikKaydetCommand request) =>
+        request.KaynakSandikId is { } kaynakSandikId
+            ? AmbalajUretimPolitikasi.KaynakCinsi(_unitOfWork.GetRepository<Sandik>().Queryable()
+                .Where(s => s.Id == kaynakSandikId).Select(s => s.TipId).FirstOrDefault())
+            : AmbalajPlanlamaYardimcisi.SandikCinsiCoz(request.SandikTipi);
 
     private static string SandikNoBelirle(
         AmbalajUretimKaydi kayit,

@@ -486,9 +486,9 @@ public sealed class AmbalajUretimAkisRegresyonTests
             Ad = "Saha özel sandığı",
             SandikTipi = "Ahşap Kapalı",
             Adet = 1,
-            Boy = 150,
-            En = 150,
-            Yukseklik = 150,
+            Boy = 1400,
+            En = 1200,
+            Yukseklik = 1375,
             TalimatVeren = "Sinan"
         }, CancellationToken.None);
 

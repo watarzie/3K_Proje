@@ -5,7 +5,7 @@
 Mevcut K-033–K-039 tekil taşıma kuralları `SandikUrunTasimaIslemi` içinde ortak yürütülür. Tekil handler da aynı motoru çağırır; miktar dağılımı ve iş kuralları değiştirilmedi. Özellikle:
 
 - Pozitif, 14 tam/4 ondalık basamağı aşmayan miktar; gerçek proje/çeki ilişkisi ve kaynak tahsis sınırı zorunludur.
-- Kaynak veya hedef sevk edilmişse düzeltme kilidi açık olsa da taşıma yapılamaz; resmi sevkiyat geri alma gerekir. Aktif normal→saha kaynak blokajı korunur.
+- Kaynak veya hedef sevk edilmiş ve sevk sonrası düzeltmesi kapalıysa (sandık kilitli) taşıma 409 ile reddedilir. 23 Ekim 2026'dan beri düzeltmeye açık sevkli sandık taşımaya katılır ve Sevk Edildi kalır (K-034, L-15); önceden düzeltme açık olsa da resmi sevkiyat geri alma gerekiyordu. Aktif normal→saha kaynak blokajı korunur.
 - Tahsis istenen miktar kadar, fiziksel miktar yalnız `min(taşınan tahsis, mevcut konulan)` kadar taşınır. Planlanan fakat gelmemiş miktar fiziksel teslim üretmez.
 - Stok/proje/tedarikçi kırılımları, eksik payı ve aktif Grid teslim sayacı mevcut oran/4 basamak kurallarıyla bölünür. Ana kümülatif miktarlar ve kalite durumu değiştirilmez. Mevcut miktarlı taşımada olmayan yeni bir kalite red kuralı eklenmedi.
 - Hedefte aynı gerçek çeki satırına ait mevcut tahsis tekil akıştaki gibi kullanılır. Çeki bağı olmayan aynı barkodlu manuel kayıtlar ayrı kalır.

@@ -409,7 +409,8 @@ namespace _3K.Infrastructure.Services
                     IstenenAdet = k.Miktar,
                     KonulanAdet = k.SahaCekiSatiri == null
                         ? 0
-                        : (k.SahaCekiSatiri.SandikIcerikleri.Sum(si => (decimal?)si.KonulanAdet) ?? 0)
+                        : (k.SahaCekiSatiri.SandikIcerikleri.Sum(si => (decimal?)si.KonulanAdet) ?? 0),
+                    TrafoSevkAdet = k.SahaCekiSatiri == null ? 0 : k.SahaCekiSatiri.TrafoSevkAdet
                 })
                 .ToListAsync(cancellationToken);
 
@@ -441,7 +442,8 @@ namespace _3K.Infrastructure.Services
                         ? (cs.SandikIcerikleri
                             .Where(si => si.Sandik.DurumId == (int)SandikDurum.Sevkedildi)
                             .Sum(si => (decimal?)si.KonulanAdet) ?? 0)
-                        : (cs.SandikIcerikleri.Sum(si => (decimal?)si.KonulanAdet) ?? 0)
+                        : (cs.SandikIcerikleri.Sum(si => (decimal?)si.KonulanAdet) ?? 0),
+                    TrafoSevkAdet = cs.TrafoSevkAdet
                 })
                 .ToListAsync(cancellationToken);
 
@@ -801,7 +803,10 @@ namespace _3K.Infrastructure.Services
             if (satir.IstenenAdet <= 0)
                 return 0;
 
-            return Math.Min(Math.Max(satir.KonulanAdet, 0), satir.IstenenAdet);
+            // Trafoyla giden adet sandığa konmaz ama saha sevkiyle fiziksel olarak teslim edilmiştir;
+            // normal satırın KalanMiktar kuralında olduğu gibi tamamlanmış sayılır.
+            var teslimEdilen = Math.Max(satir.KonulanAdet, 0) + Math.Max(satir.TrafoSevkAdet, 0);
+            return Math.Min(teslimEdilen, satir.IstenenAdet);
         }
 
         private static decimal HesaplaIsTamamlama(SahaIsTamamlamaSatirRow satir)
@@ -939,6 +944,7 @@ namespace _3K.Infrastructure.Services
             public int KaynakCekiSatiriId { get; set; }
             public decimal IstenenAdet { get; set; }
             public decimal KonulanAdet { get; set; }
+            public decimal TrafoSevkAdet { get; set; }
         }
 
         private sealed class SahaIsTamamlamaSatirRow

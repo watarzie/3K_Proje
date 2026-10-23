@@ -9,20 +9,23 @@ namespace _3K.Application.Tests;
 
 /// <summary>
 /// Canlıya alım provası: bu sürümün veritabanı betikleri (README sıra 22 <c>20261021_02_Sahadan_Sahaya_Tasima.sql</c>,
-/// 23 <c>20261023_01_Grid_Saha_Gorunumu_Yetkisi.sql</c>) önceki sürümün şemasında çalıştırılır. Sonuç şeması EF modeliyle
+/// 23 <c>20261023_01_Grid_Saha_Gorunumu_Yetkisi.sql</c>, 24 <c>20261023_02_Sevk_Sonrasi_Duzeltme.sql</c>) önceki sürümün
+/// şemasında çalıştırılır. Sonuç şeması EF modeliyle
 /// aynıdır (kolon, kısıt, ON DELETE kuralı, indeks). Betiklerin tekrarı hiçbir şeyi değiştirmez: var olan taşıma izi ve
 /// verilmiş izinler korunur. Salt okunur durum sorgusu (<c>kontrol/Betik_Durumu.sql</c>) klasördeki her betiği listeler
 /// ve öncesini/sonrasını doğru gösterir. 1–20 numaralı betikler canlıya uygulanıp depodan kaldırıldığı için burada yoktur.
 /// </summary>
 public sealed class CanliyaAlimBetikleriTests
 {
-    /// <summary>Canlıda çalıştırma sırası (scripts/database/README.md, sıra 22–23).</summary>
+    /// <summary>Canlıda çalıştırma sırası (scripts/database/README.md, sıra 22–24).</summary>
     private static readonly string[] Betikler =
-        ["20261021_02_Sahadan_Sahaya_Tasima.sql", "20261023_01_Grid_Saha_Gorunumu_Yetkisi.sql"];
+        ["20261021_02_Sahadan_Sahaya_Tasima.sql", "20261023_01_Grid_Saha_Gorunumu_Yetkisi.sql",
+            "20261023_02_Sevk_Sonrasi_Duzeltme.sql"];
 
     /// <summary>Önceki sürümün (master) şeması: bu sürümün eklediği tablo, kolon, kısıt ve indeksler yoktur.</summary>
     private const string OncekiSema = """
         DROP TABLE "SahaTasimaKalemleri";
+        DROP TABLE "SandikDuzeltmeKayitlari";
         ALTER TABLE "SahaAktarimlari" DROP CONSTRAINT "FK_SahaAktarimlari_Projeler_KaynakSahaProjeId";
         DROP INDEX "IX_SahaAktarimlari_KaynakSahaProjeId";
         DROP INDEX "IX_SahaAktarimlari_IslemAnahtari";
@@ -69,6 +72,11 @@ public sealed class CanliyaAlimBetikleriTests
             var izinler = await GridSahaIzinleriAsync(db);
             // Admin W; Grid iş listesini gören PersonelGrid R; Grid iş listesi izni olmayan Personel3K izin almaz.
             Assert.Equal([(SistemRolleri.AdminId, (int)YetkiTipi.W), (3, (int)YetkiTipi.R)], izinler);
+            var duzeltme = await db.MenuTanimlari.AsNoTracking().SingleAsync(m => m.Kod == YetkiKodlari.Sandik.SevkSonrasiDuzeltme);
+            Assert.Equal((5259, (string?)null, "MENU.SEVK_SONRASI_DUZELTME", 5), (duzeltme.Id, duzeltme.Route, duzeltme.LabelKey, duzeltme.ParentId!.Value));
+            var duzeltmeIzinleri = await IzinlerAsync(db, YetkiKodlari.Sandik.SevkSonrasiDuzeltme);
+            // Yalnız Admin W; Grid iş listesini gören PersonelGrid dahil başka rol almaz.
+            Assert.Equal([(SistemRolleri.AdminId, (int)YetkiTipi.W)], duzeltmeIzinleri);
             var sema = await SemaAsync(db);
             var fark = modelSemasi.Except(sema).Select(x => "eksik: " + x).Concat(sema.Except(modelSemasi).Select(x => "fazla: " + x)).ToList();
             Assert.True(fark.Count == 0, string.Join(Environment.NewLine, fark));
@@ -81,6 +89,8 @@ public sealed class CanliyaAlimBetikleriTests
             Assert.Equal(sema, await SemaAsync(db));
             Assert.Equal(izinler, await GridSahaIzinleriAsync(db));
             Assert.Equal(1, await db.MenuTanimlari.CountAsync(m => m.Kod == YetkiKodlari.Sandik.GridSahaGorunumu));
+            Assert.Equal(duzeltmeIzinleri, await IzinlerAsync(db, YetkiKodlari.Sandik.SevkSonrasiDuzeltme));
+            Assert.Equal(1, await db.MenuTanimlari.CountAsync(m => m.Kod == YetkiKodlari.Sandik.SevkSonrasiDuzeltme));
             var iz = await db.SahaTasimaKalemleri.AsNoTracking().SingleAsync();
             Assert.Equal((izId, "PA-SAHA-A", "PA-SAHA-B", 3m), (iz.Id, iz.KaynakSahaProjeNo, iz.HedefSahaProjeNo, iz.Miktar));
             Assert.NotNull((await db.SahaAktarimlari.AsNoTracking().SingleAsync(a => a.Id == iz.SahaAktarimId)).IslemAnahtari);
@@ -103,9 +113,12 @@ public sealed class CanliyaAlimBetikleriTests
         db.ChangeTracker.Clear();
     }
 
-    private static async Task<List<(int RolId, int YetkiTipiId)>> GridSahaIzinleriAsync(AppDbContext db) =>
+    private static Task<List<(int RolId, int YetkiTipiId)>> GridSahaIzinleriAsync(AppDbContext db) =>
+        IzinlerAsync(db, YetkiKodlari.Sandik.GridSahaGorunumu);
+
+    private static async Task<List<(int RolId, int YetkiTipiId)>> IzinlerAsync(AppDbContext db, string kod) =>
         (await db.RolYetkileri.AsNoTracking()
-            .Where(ry => ry.MenuTanimi.Kod == YetkiKodlari.Sandik.GridSahaGorunumu)
+            .Where(ry => ry.MenuTanimi.Kod == kod)
             .OrderBy(ry => ry.RolId)
             .Select(ry => new { ry.RolId, ry.YetkiTipiId })
             .ToListAsync())

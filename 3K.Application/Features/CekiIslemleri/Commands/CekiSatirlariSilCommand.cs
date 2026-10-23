@@ -193,7 +193,7 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
             });
         }
 
-        private static async Task<List<int>> GetSilinecekSandikIdsAsync(
+        private async Task<List<int>> GetSilinecekSandikIdsAsync(
             List<int> etkilenenSandikIds,
             HashSet<int> silinenIcerikIds,
             IGenericRepository<SandikIcerik> icerikRepo)
@@ -202,8 +202,14 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
                 return new List<int>();
 
             var tumIcerikler = await icerikRepo.FindAsync(i => etkilenenSandikIds.Contains(i.SandikId));
+            // Sevk sonrası düzeltmede boşalan sevkli sandık silinmez: sevkiyat kaydı ve sandık izi korunur.
+            var sevkliSandikIds = (await _unitOfWork.GetRepository<Sandik>().FindAsync(s =>
+                    etkilenenSandikIds.Contains(s.Id) && s.DurumId == (int)SandikDurum.Sevkedildi))
+                .Select(s => s.Id)
+                .ToHashSet();
 
             return etkilenenSandikIds
+                .Where(sandikId => !sevkliSandikIds.Contains(sandikId))
                 .Where(sandikId => tumIcerikler
                     .Where(i => i.SandikId == sandikId)
                     .All(i => silinenIcerikIds.Contains(i.Id)))
@@ -258,7 +264,8 @@ namespace _3K.Application.Features.CekiIslemleri.Commands
 
             foreach (var sandik in sandiklar)
             {
-                if (SandikSevkKilidiHelper.SandikKilitliMi(sandik))
+                // Düzeltmedeki sevkli sandık da sevkli kalır; durumu satır silmeyle yeniden hesaplanmaz.
+                if (sandik.DurumId == (int)SandikDurum.Sevkedildi)
                     continue;
 
                 var sandikIcerikleri = kalanIcerikler

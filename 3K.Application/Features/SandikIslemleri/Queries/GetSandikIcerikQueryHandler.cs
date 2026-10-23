@@ -43,6 +43,7 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 .ToList();
             var aktifAktarimBagliSatirIds = await _sahaAktarimSilmeKorumaService
                 .GetAktifAktarimBagliCekiSatiriIdsAsync(cekiSatiriIdleri, cancellationToken);
+            var aktifSahaProjeleri = await AktifSahaProjeleriniBulAsync(cekiSatiriIdleri);
             var proje = await _unitOfWork.GetRepository<Proje>().GetByIdAsync(sandik.ProjeId);
             var isSahaYedek = proje?.ProjeTipiId is (int)ProjeTipi.Saha or (int)ProjeTipi.Yedek;
             var sandikManuelIslemeAcik = !SandikSevkKilidiHelper.SandikKilitliMi(sandik);
@@ -168,6 +169,9 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                         TedarikciKarsilanan = i.TedarikciKarsilanan,
                         KaynakProjeNo = i.KaynakProjeNo,
                         UrunBilgisi = i.UrunBilgisi,
+                        AktifSahaProjeleri = i.CekiSatiriId is int satirId
+                            ? aktifSahaProjeleri.GetValueOrDefault(satirId, [])
+                            : [],
                         SandikAktarilanGiris = transferOzeti.Giris,
                         SandikAktarilanCikis = transferOzeti.Cikis,
                         SandikTransferOzeti = string.IsNullOrWhiteSpace(transferOzeti.Metin) ? null : transferOzeti.Metin,
@@ -182,6 +186,34 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
             };
 
             return Result<SandikDetayDto>.Success(dto);
+        }
+
+        /// <summary>Kaynak satır → aktif (geri alınmamış, iptal edilmemiş) saha aktarımlarının hedef saha projeleri.</summary>
+        private async Task<Dictionary<int, IReadOnlyList<SahaProjeBagDto>>> AktifSahaProjeleriniBulAsync(List<int> cekiSatiriIdleri)
+        {
+            if (cekiSatiriIdleri.Count == 0)
+                return new Dictionary<int, IReadOnlyList<SahaProjeBagDto>>();
+
+            var kalemler = (await _unitOfWork.GetRepository<SahaAktarimKalemi>().FindAsync(k =>
+                    cekiSatiriIdleri.Contains(k.KaynakCekiSatiriId) &&
+                    k.DurumId != (int)SahaAktarimDurum.GeriAlindi &&
+                    k.DurumId != (int)SahaAktarimDurum.Iptal))
+                .ToList();
+            if (kalemler.Count == 0)
+                return new Dictionary<int, IReadOnlyList<SahaProjeBagDto>>();
+
+            var sahaProjeIds = kalemler.Select(k => k.SahaProjeId).Distinct().ToList();
+            var projeNolari = (await _unitOfWork.GetRepository<Proje>().FindAsync(p => sahaProjeIds.Contains(p.Id)))
+                .ToDictionary(p => p.Id, p => p.ProjeNo);
+            return kalemler
+                .GroupBy(k => k.KaynakCekiSatiriId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => (IReadOnlyList<SahaProjeBagDto>)g.Select(k => k.SahaProjeId).Distinct()
+                        .Where(projeNolari.ContainsKey)
+                        .Select(id => new SahaProjeBagDto(id, projeNolari[id]))
+                        .OrderBy(x => x.ProjeNo, StringComparer.Ordinal)
+                        .ToList());
         }
 
         private static bool ManuelSilinebilirMi(

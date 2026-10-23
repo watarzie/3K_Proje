@@ -8,6 +8,50 @@ koşum sayıları tarihsel kayıttır; depo dışında yönetilen 02–04 SQL'le
 bugünkü halini veya canlıda elle uygulanmasını doğrulamaz. Bu geçiş için
 ayrı staging provası ve DBA doğrulaması gerekir.
 
+## Sevk sonrası düzeltme (L-12–L-17, K-034) — 23 Ekim 2026
+
+Değişiklik henüz commit edilmedi.
+
+**Davranış.** Sevkli sandık "Sevkiyat kaydı korunsun" ile düzeltmeye açılınca gerçekte gitmiş ama kaydedilmemiş ürün eklenir, yanlış ürün silinir ya da düzeltmedeki sandıklar arasında taşınır. Sevkiyat kaydı korunur.
+- Korunarak açma (sandık ve proje) gerekçe ister. Proje tipinin izniyle birlikte ayrı `sevk-sonrasi-duzeltme` W iznini ister (L-12). Geri alınarak açma ve sandık ekleme bu izni istemez.
+- Açılıştaki içerik `SandikDuzeltmeKayitlari`'na yazılır; tamamlanınca "önce → sonra" farkı kayda ve hareket geçmişine eklenir. `GET api/sandik/{sandikId}/sevk-sonrasi-duzeltme` durumu ve geçmişi döner (L-13).
+- Proje kilidi düzeltmedeki sandıklar için unutulan ürünü, ürün silmeyi ve düzeltmedeki iki sandık arası taşımayı açar. Ana veri, kilitli sandık, başka projenin sandığı/çekisi/satırı ve aktif saha kaynağı kapalı kalır (L-14).
+- Düzeltmedeki sevkli sandık taşıma, ürün güncelleme, çeki satırı silme ve Grid Trafo Sevk ile "Sevk Edildi"den çıkmaz. Lokasyonu ürün ve 3K/Grid işlemleriyle otomatik değişmez. Grid manuel ürün sevkli sandığa eklenmez (L-15). Taşıma kuralı K-034 bu yüzden değişti: düzeltme açıksa sevkli sandık taşımaya katılır.
+- Düzeltme sandık eklemeyi ve silmeyi açmaz (L-16, kullanıcı kararı). Bu yetenek bir ara sürümde vardı, aynı gün kaldırıldı. Yeni ve silinen sandık kilitli projede düzeltme açıkken de reddedilir; sonradan sandık gerekiyorsa projeye normal yolla eklenir.
+- Sahaya aktarılmış ürün düzeltmede de değişmez; sandık içeriği hedef saha projelerini döner (L-17).
+
+**Kapsam sınırı.** Şema ve izin `scripts/database/20261023_02_Sevk_Sonrasi_Duzeltme.sql` ile kurulur (README sıra 24). Betik tabloyu kurar ve izin düğümünü ekler (Id 5259); izni yalnız Admin W alır. Ambalaj ve Finans'ta yeni kural yoktur. Eşleme satırları `coverage/ORTAK_SAHA_YETKI_TEST_ESLESMESI.md` (L-12, L-14, L-16 Birim; L-13, L-15 Kısmi; L-17 Entegrasyon) ve `coverage/GRID_TAHSIS_TEST_ESLESMESI.md` (K-034) dosyalarındadır. Ön yüz: `sandik-detay` (düzeltme paneli, saha bağlantısı; `sandik-detay-duzeltme.spec.ts`), `uck-sandiklar` ve `proje-listesi` kilit açma pencereleri.
+
+- [SevkSonrasiDuzeltmeTests](../../3K.Application.Tests/SevkSonrasiDuzeltmeTests.cs) (bellek içi, 4 metot / 7 vaka): saf fark kuralı (değişiklik yok, eklendi/çıkarıldı/değişti ve sandık bilgisi, bölünmüş tahsis tek ürün). Gerekçe doğrulayıcısı iki komutta korunarak açmada boş/boşluk gerekçeyi reddeder, geri alınarak açmada istemez.
+- [SevkSonrasiDuzeltmePostgresTests](../../3K.Application.Tests/SevkSonrasiDuzeltmePostgresTests.cs) (izole PostgreSQL, 4 test, `THREEK_TEST_POSTGRES` ister):
+  - Kilit aç, ürün ekle, taşı ve tamamla akışında sevkiyat korunur, iki sandığın kaydına fark yazılır (2 kayıt).
+  - Düzeltmede ürün güncelleme, çeki satırı silme ve Belirsiz lokasyonlu sandık 1'e unutulan ürün sandıkları Sevk Edildi bırakır. Lokasyon ve sevkiyat bağı değişmez. Grid manuel ürün 409 alır.
+  - Sahaya aktarılmış ürün düzeltmede değişmez ve saha projesi gösterilir.
+  - Düzeltme açık değilken doğrudan yazım proje kilidine takılır.
+- [ProjectLockCorrectionScopeTests](../../3K.Application.Tests/ProjectLockCorrectionScopeTests.cs): 8 yeni `Duzeltme*` metodu interceptor kapsamını sınar: unutulan ürün, başka projenin satırına tahsis, ürün silme, taşıma, başka proje ve aktif saha kaynağı. `Duzeltme_SandikEklemeVeSilmeyiAcmaz` (ekle / boş sandık sil) düzeltmede de `ProjectLockedException` bekler.
+- [ServerAuthorizationRegressionTests](../../3K.Application.Tests/ServerAuthorizationRegressionTests.cs): `SevkSonrasiDuzeltme_AyriDuzeltmeIzniIster` (sandık ve proje, 4 vaka) ve `SevkiyatGeriAlinarakAcma_DuzeltmeIzniIstemez`.
+- [SandikTasimaKatalogKurallariTests](../../3K.Application.Tests/SandikTasimaKatalogKurallariTests.cs) ve [SandikTopluTasimaTests](../../3K.Application.Tests/SandikTopluTasimaTests.cs): taşıma testleri yeni davranışa göre yeniden adlandırıldı. Düzeltme kapalıyken 409, açıkken sevkli sandık taşımaya katılır ve sevk durumu korunur (K-034).
+- [SevkiyatKilidiAcRegresyonTests](../../3K.Application.Tests/SevkiyatKilidiAcRegresyonTests.cs): `ZatenAcikDuzeltme_TekrarTalepteGereksizGuncellemeOlusturmaz` düzeltme kaydı sorgusuyla birlikte geçer.
+- [CanliyaAlimBetikleriTests](../../3K.Application.Tests/CanliyaAlimBetikleriTests.cs) (izole PostgreSQL, 1 test): betik 24'ü de çalıştırır. Düğüm (Id 5259, üst 5, `MENU.SEVK_SONRASI_DUZELTME`) ve yalnız Admin W izni kurulur; tekrarında değişmez.
+
+**Koşum (Release, 23 Ekim 2026, dokümantasyon oturumu, PostgreSQL'siz, sandık ekleme/silme kaldırıldıktan sonra):**
+- Komut `--no-build` ile koşuldu. Kullanılan Release çıktısı (14:01:41) değişen kaynak dosyaların en yenisinden (14:01:30) sonra derlenmişti; bu oturumda yeniden derleme yapılmadı.
+- Filtre `FullyQualifiedName~SevkSonrasiDuzeltme|FullyQualifiedName~ProjectLockCorrectionScopeTests|FullyQualifiedName~SevkiyatKilidiAcRegresyonTests|FullyQualifiedName~ServerAuthorizationRegressionTests|FullyQualifiedName~SandikTasimaKatalogKurallariTests|FullyQualifiedName~SandikTopluTasimaTests|FullyQualifiedName~CanliyaAlimBetikleriTests`: toplam 166; 161 başarılı, 0 başarısız, 5 atlanan.
+  - Sınıf bazında başarılı: `ProjectLockCorrectionScopeTests` 41, `ServerAuthorizationRegressionTests` 63, `SevkiyatKilidiAcRegresyonTests` 28, `SandikTasimaKatalogKurallariTests` 14, `SandikTopluTasimaTests` 8, `SevkSonrasiDuzeltmeTests` 7.
+  - Atlananlar `SevkSonrasiDuzeltmePostgresTests`'in 4 testi ve `CanliyaAlimBetikleriTests`'in 1 testidir; oturumda `THREEK_TEST_POSTGRES` tanımlı değildi.
+- Kural–test eşleme doğrulayıcısı (`scripts/test/Test-IsKuraliEslemesi.ps1`): 542 kural doğrulandı (önceki 536 + L-12–L-17). `-TrxPath` kipi bu alt küme TRX'iyle kullanılamaz: kip, bütün eşlenen testlerin raporda bulunmasını ister ve ilk eksik testte (U-098) durur.
+- Önceki koşum aynı filtreyle, sandık ekleme/silme yeteneği varken yapıldı (Release 13:06:49): 170 test; 166 başarılı, 4 atlanan. O yetenek kaldırıldığı için yalnız tarihsel kayıttır.
+
+**Koşulmayanlar:**
+- İzole PostgreSQL testleri (`SevkSonrasiDuzeltmePostgresTests`, `CanliyaAlimBetikleriTests`) bu oturumda atlandı. L-13, L-15'in ürün güncelleme/satır silme/lokasyon/Grid manuel kısmı ve L-17'nin veritabanı kanıtı bunlara bağlıdır.
+- Tam paketler (.NET ve ön yüz) koşulmadı. Ön yüz testleri (`sandik-detay-duzeltme.spec.ts` dahil) bu oturumda koşulmadı.
+- HTTP ve tarayıcı akışı denenmedi. Canlı veride (`3K_Db`) denenmedi; betiğin canlı veritabanı kopyasında provası yok.
+
+**Açık kalanlar:**
+- Testsiz kod yolları (L-15): Grid Trafo Sevk sevkli sandığı Kapandı'ya çekmez (G-030 istisnası); `UcKDurumGuncelleCommandHandler` ve `GridTopluDurumGuncelleCommandHandler` sevkli sandığın lokasyonunu değiştirmez.
+- `SandikEkleCommandHandler`'ın sevk edilmiş projede 409'u ve `SandikSilCommandHandler`'ın sevkli sandık reddi (L-16) handler düzeyinde sınanmadı; yalnız proje kilidi testi var.
+- Aynı sandıkta eşzamanlı ikinci düzeltme açılışının kısmi benzersiz indekse takılması sınanmadı. HTTP 403 akışı ve gerekçe 1000 karakter sınırı ayrıca denenmedi.
+
 ## Grid Sahası: Grid'e gelen ürünler ve mal kabul kayıtları (G-111–G-115) — 23 Ekim 2026
 
 Değişiklik henüz commit edilmedi.
@@ -350,6 +394,10 @@ Koşum (Release, PostgreSQL vakaları izole sunucuda, port 55439): `FullyQualifi
 **Özel sandığın finansa aktarılması.** Özel (bağımsız) sandığın üretim formu yoktur; "Finansa aktar" (`AmbalajOzelSandikFinansCommand`) sandığı üretime alınmış (Planlandı ise Üretimde) sayar, isteğe bağlı finans tarihini yazar ve Finans iş kaydını açar. "Finanstan geri al" yalnız iş kaydı PO'ya bağlı değilse ve sandık proje tamamlamasıyla tamamlanmamışsa yapılır. Özel sandık için form oluşturma 409'dur; ölçüsü eksik veya "yapılmaz" işaretli özel sandık aktarılamaz. Ambalaj proje tamamlamasında özel sandığın tek engeli "finansa aktarılmamış"tır (`FinansaAktarilmadi`). 10 Ekim kaydındaki "üretim formu oluşunca üretime alınır ve finansa aktarılır" davranışı bununla değişti.
 
 - [AmbalajSandikTipiVeTamamlamaTests](../../3K.Application.Tests/AmbalajSandikTipiVeTamamlamaTests.cs): `Ozel_sandik_kaydedilince_uretime_alinmaz_finans_kaydi_finansa_aktarilinca_acilir`, `Ozel_sandik_finansa_aktarilir_ve_po_yoksa_finanstan_geri_alinir`, `Ozel_sandik_olculeri_eksikse_veya_yapilmayacaksa_finansa_aktarilamaz_form_olusturulamaz`, `A2_Finansa_aktarilmamis_ozel_sandik_tamamlamayi_ozel_sandik_olarak_engeller`.
+
+**Özel sandığın dış ölçüsü (2026-10-24).** İlave/Saha/Yedek özel sandığın boy/en/yüksekliği sandık modülündeki gibi dış ölçüdür (`AmbalajUretimPolitikasi.DisOlcuKullanirMi`): ahşap/kafes sandıkta m³ normal ambalajdaki gibi iç ölçüye düşülerek (boy/en −92, yükseklik −255 mm) ve ayak kuralı dış boydan hesaplanır; aynı ölçülü sandık özel sandıkta, normal ambalajda ve Finans aktarımında aynı m³'ü verir. Kaynak sandıktan dönüştürülen İlave kaynağın m³'ünü korur. İç ölçüye düşülemeyen ölçü kayıtta 400 ile reddedilir. İç sandık ve plandaki manuel kalem girilen ölçüyü iç ölçü olarak kullanır. Ön yüz özel sandık formunda İç sandık dışındaki türlerde ölçüleri "Dış" diye etiketler.
+
+- [AmbalajSandikTipiVeTamamlamaTests](../../3K.Application.Tests/AmbalajSandikTipiVeTamamlamaTests.cs): `Ozel_sandik_dis_olcuyle_normal_ambalajla_ayni_m3u_bulur_ve_finansa_ayni_aktarilir`, `Kaynaktan_ilaveye_donusen_sandik_ayni_dis_olcuyle_ayni_m3u_korur`, `Ozel_sandikta_ic_olcuye_dusulemeyen_dis_olcu_reddedilir`, `Dis_olcu_kurali_kaynak_ve_ilave_saha_yedek_ozel_sandikta_uygulanir`.
 
 **Münferit iş modeli.** Münferit iş = tarife + proje (sistem projesi ya da serbest proje adı; biri zorunlu) + tarih + adet/m³. İş adı tarifenin adıdır; serbest proje adı proje no ve müşteri olarak yazılır; tarife seçenekleri iş tarihindeki fiyatı taşır; ana panel dönemin münferit işlerini (en yeni 20) ve sayısını gösterir. 8 Ekim iskeletindeki "fiyat değiştirme izni istenmez / liste maskesi" ifadeleri sekme yetkisine geçişle anlamını yitirdi.
 

@@ -53,6 +53,11 @@ public static class YetkiKodlari
         public const string CekiRevizyonYukle = "ceki-revizyon-yukle";
         public const string UcKSandikDurumRaporu = "3k-sandik-durum-raporu";
         public const string LokasyonAtama = "sandik-lokasyon-atama";
+        /// <summary>
+        /// Sevk sonrası düzeltme (W): sevkli sandığı sevkiyat kaydı korunarak düzeltmeye açma. Proje tipinin
+        /// sandık/proje izniyle birlikte istenir; düzeltmedeki işlemler mevcut izinlerle yapılır.
+        /// </summary>
+        public const string SevkSonrasiDuzeltme = "sevk-sonrasi-duzeltme";
     }
 
     public static class Stok

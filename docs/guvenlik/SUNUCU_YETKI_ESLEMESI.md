@@ -69,6 +69,7 @@ Normal / Saha / Yedek türü, mevcut kaydın proje FK'si üzerinden okunur. Göv
 | 3K okuma/yazma | 3k-modulu | saha-3k-modulu | yedek-3k-modulu |
 | Projeden karşılama kaynak listesi (`GET api/uck/{hedefProjeId}/projeden-karsilama-kaynaklari`); tür **hedef** projeden okunur | 3k-modulu W | saha-3k-modulu W | yedek-3k-modulu W |
 | Sandık yazma / tekil-toplu taşıma / sandık sevk-düzeltme | sandik-yonetimi **veya** 3k-modulu W | saha-sandiklar **veya** saha-3k-modulu W | yedek-sandiklar **veya** yedek-3k-modulu W |
+| Sevk sonrası düzeltme: sevkiyat kaydı korunarak kilit açma (sandık `SandikKilidiAcCommand`, proje `ProjeKilidiAcCommand`); geri alınarak açma bu izni istemez | tipin mevcut izni (sandık: sandik-yonetimi **veya** 3k-modulu W; proje kilidi: yönetim **veya** sevk-edilen W) **ve** sevk-sonrasi-duzeltme W | saha izni **ve** sevk-sonrasi-duzeltme W | yedek izni **ve** sevk-sonrasi-duzeltme W |
 | Sandık satırının ürün bilgisi (seri no, SKT, lot; `PUT api/sandik/icerik-bilgisi-guncelle`, Grid ve 3K ekranları); Grid W yalnız bu işlemi açar | sandik-yonetimi **veya** 3k-modulu **veya** grid-modulu W | saha-sandiklar **veya** saha-3k-modulu **veya** saha-grid-modulu W | yedek-sandiklar **veya** yedek-3k-modulu **veya** yedek-grid-modulu W |
 | Proje sevki; toplu sevkte (tır seferi) her sandığın projesinin gerçek türüne göre, bütün projeler için birlikte | proje-sevk-et W | saha-sevk-et W | yedek-sevk-et W |
 | Yeni proje | aktif-projeler **veya** sandik-yonetimi W | saha-yonetimi W | yedek-yonetimi W |
@@ -78,6 +79,8 @@ Normal / Saha / Yedek türü, mevcut kaydın proje FK'si üzerinden okunur. Göv
 | 3K sandık durum raporu | 3k-sandik-durum-raporu R | saha-3k-sandik-durum-raporu R | yedek-3k-sandik-durum-raporu R |
 | Genel sandık raporu | sandik-yonetimi **veya** aktif-projeler R | saha-raporu R | yedek-raporu R |
 | Tekil / toplu eksik raporu | eksik-raporu R | saha-sevk-sonrasi-eksik-raporu R | yedek-eksik-raporu R |
+
+`sevk-sonrasi-duzeltme` (Id 5259, Sandık Yönetimi altında işlem izni, ekran değil) proje tipinden bağımsız tek koddur ve tipin iznine AND grubu olarak eklenir (`RequestMenuPermissionResolver`, `ProjectAccess.SevkSonrasiDuzeltme`). Betik yalnız Admin'e W verir. Düzeltme durumu okuması (`GET api/sandik/{id}/sevk-sonrasi-duzeltme`) sandık okuma iznidir; projedeki bütün açık düzeltmeleri tamamlama (`POST api/sandik/sevkiyat-duzeltme-toplu-tamamla`) tekil tamamlama gibi tipin sandık yazma iznidir (`ServerAuthorizationRegressionTests.TopluDuzeltmeTamamlama_ProjeninSandikYazmaIzniniIster`). Düzeltmedeki işlemler (ürün ekleme/silme, taşıma, Grid/3K sıfırlama) kendi mevcut izinleriyle yapılır; düzeltme sandık eklemeyi/silmeyi açmaz. Testler: `ServerAuthorizationRegressionTests.SevkSonrasiDuzeltme_AyriDuzeltmeIzniIster`, `SevkiyatGeriAlinarakAcma_DuzeltmeIzniIstemez`.
 
 Ortak proje/sandık okumaları ilgili türün yönetim, Grid, 3K ekranlarından kullanılabilir. Depo görünümü, genel sevk listesi ve kaynak/hedef seçen sahaya aktar ekranı kendi okuma izinleriyle ortak okumaları kullanır. Proje dropdown'u yalnız seçim bilgisi veren ortak lookup'tır; erişimi çağıran kullanım senaryolarının açık OR listesine bağlıdır, yazma izni kazandırmaz. Normal eksik kaynak seçimi, saha/yedek sandık ve sahaya aktar ekranlarının ortak okumasıdır.
 

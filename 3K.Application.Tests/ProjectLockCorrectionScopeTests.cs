@@ -120,6 +120,125 @@ public class ProjectLockCorrectionScopeTests
         await Assert.ThrowsAsync<ProjectLockedException>(() => db.Context.SaveChangesAsync());
     }
 
+    // ===== Sevk sonrası düzeltme: unutulan ürün, ürün silme, taşıma, düzeltmeye sandık ekleme/silme =====
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task DuzeltmedeUnutulanUrun_SatirVeTahsisBirlikteYalnizAcikSandigaEklenir(bool acik)
+    {
+        using var db = new Fixture();
+        db.Crates[0].SevkiyatDuzeltmeAcikMi = acik;
+        var satir = new CekiSatiri { CekiId = 10, IstenenAdet = 1, IsManuelEklenen = true };
+        db.Context.Add(satir);
+        db.Context.Add(new SandikIcerik { SandikId = 20, CekiSatiri = satir, TahsisMiktari = 1, KonulanAdet = 1 });
+
+        if (acik) await db.Context.SaveChangesAsync();
+        else await Assert.ThrowsAsync<ProjectLockedException>(() => db.Context.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task DuzeltmedeUnutulanUrun_BaskaProjeninCekisineBaglanamaz()
+    {
+        using var db = new Fixture();
+        db.Crates[0].SevkiyatDuzeltmeAcikMi = true;
+        db.Projects.Add(new Proje { Id = 2, DurumId = 1 });
+        db.PackingLists.Add(new Ceki { Id = 11, ProjeId = 2 });
+        var satir = new CekiSatiri { CekiId = 11, IstenenAdet = 1 };
+        db.Context.Add(satir);
+        db.Context.Add(new SandikIcerik { SandikId = 20, CekiSatiri = satir, TahsisMiktari = 1 });
+
+        await Assert.ThrowsAsync<ProjectLockedException>(() => db.Context.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task DuzeltmedeTahsis_BaskaProjeninSatirinaBaglanamaz()
+    {
+        using var db = new Fixture();
+        db.Crates[0].SevkiyatDuzeltmeAcikMi = true;
+        db.Projects.Add(new Proje { Id = 2, DurumId = 5 });
+        db.PackingLists.Add(new Ceki { Id = 11, ProjeId = 2 });
+        db.Rows.Add(new CekiSatiri { Id = 41, CekiId = 11, IstenenAdet = 1 });
+        db.Context.Add(new SandikIcerik { SandikId = 20, CekiSatiriId = 41, TahsisMiktari = 1 });
+
+        await Assert.ThrowsAsync<ProjectLockedException>(() => db.Context.SaveChangesAsync());
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task DuzeltmedeUrunSilme_SatirinTumTahsisleriAcikSandiktaOlmalidir(bool acik)
+    {
+        using var db = new Fixture();
+        db.Crates[0].SevkiyatDuzeltmeAcikMi = acik;
+        db.Context.Remove(db.Load<SandikIcerik>(30));
+        db.Context.Remove(db.Load<CekiSatiri>(40));
+
+        if (acik) await db.Context.SaveChangesAsync();
+        else await Assert.ThrowsAsync<ProjectLockedException>(() => db.Context.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task DuzeltmedeUrunSilme_AktifSahaKaynagiKorunur()
+    {
+        using var db = new Fixture();
+        db.Crates[0].SevkiyatDuzeltmeAcikMi = true;
+        db.Transfers.Add(new SahaAktarimKalemi { Id = 50, KaynakCekiSatiriId = 40, DurumId = (int)SahaAktarimDurum.SevkEdildi });
+        db.Context.Remove(db.Load<SandikIcerik>(30));
+        db.Context.Remove(db.Load<CekiSatiri>(40));
+
+        await Assert.ThrowsAsync<ProjectLockedException>(() => db.Context.SaveChangesAsync());
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task DuzeltmedeSandiklarArasiTasima_KaynakVeHedefAcikOlmalidir(bool hedefAcik)
+    {
+        using var db = new Fixture();
+        db.Crates[0].SevkiyatDuzeltmeAcikMi = true;
+        db.Crates.Add(new Sandik { Id = 21, ProjeId = 1, DurumId = 4, SevkiyatDuzeltmeAcikMi = hedefAcik });
+        db.Load<SandikIcerik>(30).SandikId = 21;
+
+        if (hedefAcik) await db.Context.SaveChangesAsync();
+        else await Assert.ThrowsAsync<ProjectLockedException>(() => db.Context.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task DuzeltmedeTasima_BaskaProjeninAcikSandiginaAcilmaz()
+    {
+        using var db = new Fixture();
+        db.Crates[0].SevkiyatDuzeltmeAcikMi = true;
+        db.Projects.Add(new Proje { Id = 2, DurumId = 5 });
+        db.Crates.Add(new Sandik { Id = 22, ProjeId = 2, DurumId = 4, SevkiyatDuzeltmeAcikMi = true });
+        db.Load<SandikIcerik>(30).SandikId = 22;
+
+        await Assert.ThrowsAsync<ProjectLockedException>(() => db.Context.SaveChangesAsync());
+    }
+
+    /// <summary>Düzeltme sandık eklemeyi/silmeyi açmaz: sevkli, düzeltmeye açık ve sevkiyata bağlı doğsa da reddedilir.</summary>
+    [Theory]
+    [InlineData("ekle")]
+    [InlineData("bos-sil")]
+    public async Task Duzeltme_SandikEklemeVeSilmeyiAcmaz(string tur)
+    {
+        using var db = new Fixture();
+        db.Crates[0].SevkiyatDuzeltmeAcikMi = true;
+        if (tur == "ekle")
+        {
+            var yeni = new Sandik { ProjeId = 1, SandikNo = "9", DurumId = 4, SevkiyatDuzeltmeAcikMi = true };
+            db.Context.Add(yeni);
+            db.Context.Add(new SevkiyatSandik { SevkiyatId = 70, Sandik = yeni });
+        }
+        else
+        {
+            db.Crates.Add(new Sandik { Id = 21, ProjeId = 1, DurumId = 4, SevkiyatDuzeltmeAcikMi = true });
+            db.Context.Remove(db.Load<Sandik>(21));
+        }
+
+        await Assert.ThrowsAsync<ProjectLockedException>(() => db.Context.SaveChangesAsync());
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

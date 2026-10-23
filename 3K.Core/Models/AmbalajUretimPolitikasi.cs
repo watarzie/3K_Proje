@@ -22,6 +22,22 @@ public static class AmbalajUretimPolitikasi
     public static bool M3HesaplanabilirMi(AmbalajSandikCinsi cins) =>
         cins is AmbalajSandikCinsi.AhsapKapali or AmbalajSandikCinsi.Kafes;
 
+    /// <summary>
+    /// Kayıttaki ölçü sandığın dış ölçüsü mü? Kaynak sandıktan gelen kayıt ve İlave/Saha/Yedek özel sandık, sandık
+    /// modülündeki gibi dış ölçü taşır; aynı ölçülü sandık her iki yolda aynı m³'ü bulsun diye formül bunlarda iç
+    /// ölçüye düşer ve ayak kuralını dış boydan uygular. İç sandık ile plandaki manuel kalem girilen ölçüyü iç ölçü
+    /// olarak kullanır.
+    /// </summary>
+    public static bool DisOlcuKullanirMi(AmbalajUretimKaydi kayit) =>
+        kayit.BagimsizKayitMi
+            ? OzelSandikDisOlcuKullanirMi(kayit.Tur)
+            : kayit.KaynakKayitId.HasValue &&
+              kayit.KaynakModul is AmbalajKaynakModulu.Sandik or AmbalajKaynakModulu.Saha or AmbalajKaynakModulu.Yedek;
+
+    /// <summary>Özel sandık türünün ölçüsü dış ölçü mü (İlave, Saha, Yedek); İç sandık iç ölçüyle girilir.</summary>
+    public static bool OzelSandikDisOlcuKullanirMi(AmbalajSandikTuru tur) =>
+        tur is AmbalajSandikTuru.Ilave or AmbalajSandikTuru.Saha or AmbalajSandikTuru.Yedek;
+
     public static AmbalajSandikCinsi KaynakCinsi(int tipId) => tipId switch
     {
         (int)SandikTipi.AhsapKapali => AmbalajSandikCinsi.AhsapKapali,
