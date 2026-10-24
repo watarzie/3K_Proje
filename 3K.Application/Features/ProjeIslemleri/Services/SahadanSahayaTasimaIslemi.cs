@@ -94,10 +94,12 @@ internal sealed class SahadanSahayaTasimaIslemi(
             return Result<SahadanSahayaTasimaHazirligi>.Failure("Taşıma yalnız iki saha projesi arasında yapılabilir.");
 
         var engeller = new List<string>();
-        if (kaynakProje.DurumId is (int)ProjeDurum.SevkEdildi or (int)ProjeDurum.EksikSevkEdildi)
-            engeller.Add($"Kaynak saha projesi {kaynakProje.ProjeNo} sevk edilmiş; sevk edilmiş projeden ürün taşınamaz.");
-        if (hedefProje.DurumId is (int)ProjeDurum.SevkEdildi or (int)ProjeDurum.EksikSevkEdildi)
-            engeller.Add($"Hedef saha projesi {hedefProje.ProjeNo} sevk edilmiş; sevk edilmiş projeye ürün taşınamaz.");
+        // Engel proje değil sandık düzeyindedir (24.10.2026): Eksik Sevk Edildi sahanın sevk edilmemiş sandığındaki ürünler
+        // taşınır ve Eksik Sevk Edildi saha da hedef olur; ürün yalnız sevk edilmemiş ya da yeni açılan sandığa gider. Sevk
+        // edilmiş ya da sevkiyat düzeltmesindeki kaynak/hedef sandık ve sevkiyat kapsamındaki satır aşağıda engellenir.
+        // Tamamen sevk edilmiş (Sevk Edildi) saha hedef olamaz: sevkli projeye yeni sevk edilmemiş sandık açılmaz.
+        if (hedefProje.DurumId == (int)ProjeDurum.SevkEdildi)
+            engeller.Add($"Hedef saha projesi {hedefProje.ProjeNo} tamamen sevk edilmiş; sevk edilmiş projeye ürün taşınamaz.");
 
         var cekiRepo = unitOfWork.GetRepository<Ceki>();
         var kaynakCekiIds = (await cekiRepo.FindAsync(c => c.ProjeId == kaynakProje.Id)).Select(c => c.Id).ToList();

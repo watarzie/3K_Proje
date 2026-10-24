@@ -256,11 +256,9 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             {
                 aciklamaMetni += $" | Not: {request.Aciklama}";
             }
-            // Mal kabul kaydı (Grid Sahası) Grid'e gelen adedi buradan okur; Eksik Geldi'de girilen adet başka yerde saklanmaz.
-            if (GridSahaBekleyenKurali.GridGelmisDurum(uygulananDurumId))
-            {
-                aciklamaMetni += GridMalKabulAciklamaKurali.GelenEki(satir.GridGelenAdet);
-            }
+            // Mal kabul kaydı (Grid Sahası) Grid'e gelen (Trafo Sevk'te trafoya giden) adedi buradan okur; Eksik Geldi'de
+            // girilen adet başka yerde saklanmaz. Grid Kapandı miktar değiştirmez, ek yazılmaz.
+            aciklamaMetni += GridMalKabulAciklamaKurali.MalKabulEki(uygulananDurumId, satir.GridGelenAdet, satir.TrafoSevkAdet);
 
             // Hareket kaydı
             await _hareketService.HareketKaydetAsync(new HareketGecmisi

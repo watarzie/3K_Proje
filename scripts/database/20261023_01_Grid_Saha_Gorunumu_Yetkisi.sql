@@ -3,13 +3,15 @@
 -- (varsayılan Grid'de bekleyenler) ve Grid personelinin mal kabul kayıtları, proje tipinden bağımsız tek ekranda;
 -- salt görüntüleme (R).
 --
--- Sandık Yönetimi (sandik-yonetimi) altına Route'lu ekran olarak eklenir (Id 5258, Route /grid-saha, Sira Grid iş
--- listesinin bir sonrası). Admin W; Grid iş listesinde (grid-is-listesi) R veya W olan roller R alır.
+-- Sandık Yönetimi (sandik-yonetimi) altına Grid iş listesi gibi rotasız izin düğümü olarak eklenir (Id 5258, Route
+-- NULL, Sira Grid iş listesinin bir sonrası): kenar menüde görünmez, ekran (/grid-saha) Sandık Yönetimi ve Projeler
+-- listesindeki düğmeyle açılır (24.10.2026). Admin W; Grid iş listesinde (grid-is-listesi) R veya W olan roller R alır.
 -- Şema değişikliği yoktur: Grid'e geliş tarihi ayrıca saklanmaz, mal kabul tarihi ve personeli hareket geçmişinden
 -- okunur.
 --
--- Tekrar çalıştırılabilir: düğüm varsa eklenmez, verilmiş izin değiştirilmez. Id veya kod başka bir menü
--- tanımına aitse hiçbir şey değiştirmeden durur. Yeni API'den önce uygulanır (yoksa ekran menüde görünmez, uçlar 403).
+-- Tekrar çalıştırılabilir: düğüm varsa eklenmez, verilmiş izin değiştirilmez. Betiğin ilk sürümü düğümü
+-- Route /grid-saha ile kurduysa yalnız bu rota boşaltılır (başka alan ve izin değişmez). Id veya kod başka bir menü
+-- tanımına aitse hiçbir şey değiştirmeden durur. Yeni API'den önce uygulanır (yoksa ekran düğmesi görünmez, uçlar 403).
 -- =====================================================================================
 BEGIN;
 
@@ -28,9 +30,15 @@ BEGIN
     SELECT COALESCE((SELECT "Sira" FROM "MenuTanimlari" WHERE "Kod" = 'grid-is-listesi'), 9) + 1 INTO sira;
     IF NOT EXISTS (SELECT 1 FROM "MenuTanimlari" WHERE "Kod" = 'grid-saha-gorunumu') THEN
         INSERT INTO "MenuTanimlari" ("Id", "Kod", "LabelKey", "Icon", "Route", "Sira", "ParentId", "CreatedDate", "CreatedBy")
-        VALUES (5258, 'grid-saha-gorunumu', 'MENU.GRID_SAHA_GORUNUMU', 'ri-inbox-archive-line', '/grid-saha', sira, ust_id,
+        VALUES (5258, 'grid-saha-gorunumu', 'MENU.GRID_SAHA_GORUNUMU', 'ri-inbox-archive-line', NULL, sira, ust_id,
                 now() AT TIME ZONE 'Europe/Istanbul', '20261023_01_Grid_Saha_Gorunumu_Yetkisi.sql');
     END IF;
+    -- İlk sürümün kurduğu kenar menü rotası boşaltılır (ekran menüde değil, sayfa içi düğmede).
+    UPDATE "MenuTanimlari"
+    SET "Route" = NULL,
+        "UpdatedDate" = now() AT TIME ZONE 'Europe/Istanbul',
+        "UpdatedBy" = '20261023_01_Grid_Saha_Gorunumu_Yetkisi.sql'
+    WHERE "Kod" = 'grid-saha-gorunumu' AND "Route" = '/grid-saha';
     PERFORM setval(pg_get_serial_sequence('"MenuTanimlari"', 'Id'), (SELECT max("Id") FROM "MenuTanimlari"));
 END $$;
 

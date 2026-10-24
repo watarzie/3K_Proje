@@ -10,7 +10,7 @@ using _3K.Core.Models;
 namespace _3K.Application.Features.GridIslemleri.Queries
 {
     /// <summary>
-    /// Grid'e gelmiş ürünleri veritabanında süzer, sıralar ve sayfalar (Grid'de bekleyen miktar
+    /// Grid sahasına gelmiş ve sahada sonuçlanmış (Trafo Sevk, Grid Kapandı) ürünleri veritabanında süzer, sıralar ve sayfalar (Grid'de bekleyen miktar
     /// <see cref="GridSorgulari.GriddeBekleyenIfadesi"/> ile SQL'de hesaplanır). Sevk kilidi dışlaması Grid iş
     /// listesiyle ortaktır; aktif saha aktarımlı normal kök satır düşmez, rozetle işaretlenir. Son mal kabulün tarihi ve
     /// personeli yalnız sayfadaki satırlar için hareket geçmişinden okunur (Grid'e geliş tarihi saklanmaz). Özet,
@@ -32,7 +32,7 @@ namespace _3K.Application.Features.GridIslemleri.Queries
 
             var gelmis = queryExecutor.AsNoTracking(
                 GridSorgulari.SevkKilidiDisinda(unitOfWork.GetRepository<CekiSatiri>().Queryable())
-                    .Where(GridSorgulari.GridGelmisDurumIfadesi));
+                    .Where(GridSorgulari.GridSahaDurumIfadesi));
             var bekleyenler = gelmis.Where(GridSorgulari.BekleyenPozitifIfadesi);
 
             var ozetSatirlari = await queryExecutor.ToListAsync(
@@ -67,6 +67,7 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                         BirimId = cs.BirimId,
                         IstenenAdet = cs.IstenenAdet,
                         GridGelenAdet = cs.GridGelenAdet,
+                        TrafoSevkAdet = cs.TrafoSevkAdet,
                         GelenMiktar = cs.GelenMiktar,
                         GridDurumuId = cs.GridDurumuId,
                         GridSevkDurumuId = cs.GridSevkDurumuId,
@@ -194,6 +195,7 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                 Birim = lookupCache.GetDeger<LookupBirim>(x.BirimId),
                 IstenenAdet = x.IstenenAdet,
                 GridGelenAdet = x.GridGelenAdet,
+                TrafoSevkAdet = x.TrafoSevkAdet,
                 UcKGelenMiktar = x.GelenMiktar,
                 YoldakiMiktar = yolda,
                 GriddeBekleyenMiktar = x.Bekleyen,
@@ -231,6 +233,7 @@ namespace _3K.Application.Features.GridIslemleri.Queries
             public int BirimId { get; init; }
             public decimal IstenenAdet { get; init; }
             public decimal GridGelenAdet { get; init; }
+            public decimal TrafoSevkAdet { get; init; }
             public decimal GelenMiktar { get; init; }
             public int GridDurumuId { get; init; }
             public int GridSevkDurumuId { get; init; }

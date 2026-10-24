@@ -79,7 +79,7 @@ Değişiklik henüz commit edilmedi.
   - Ürünler handler'ı: bekleyen/tümü kapsamı, sevk kilidi, arama, durum süzgeci, sıralama, sayfalama ve son mal kabul.
 - [GridKomutKatalogKapsamTests](../../3K.Application.Tests/GridKomutKatalogKapsamTests.cs): `TekilTamEksikTrafo_DurumMiktarSozlesmesiniUygular` (3 vaka) hareket açıklamasındaki "Gelen" ekini de doğrular. Tam/Eksik Geldi'de ek Grid'e gelen adettir; Trafo Sevk'te ek yoktur. `TopluTamGeldi_HerSatirinHareketineGelenAdetEkiYazilir` ve `TopluGridKapandi_HareketeGelenEkiYazilmaz` toplu yolu, `ManuelGridUrunu_EnYeniCekiyeYeniSandikVeTamIcerikleOndalikEklenir` manuel ürün hareketinin işlem metnini ve ekini sınar.
 - [CanliyaAlimBetikleriTests](../../3K.Application.Tests/CanliyaAlimBetikleriTests.cs) (izole PostgreSQL, 1 test): `Postgres_Betik_SemayiModeleGetirir_TekrarindaTasimaIziniKorur` 20261023_01 betiğini de çalıştırır.
-  - Betik `grid-saha-gorunumu` düğümünü kurar: Id 5258, `/grid-saha`, üst 5, Sira 10.
+  - Betik `grid-saha-gorunumu` düğümünü rotasız kurar: Id 5258, Route NULL, üst 5, Sira 10 (24.10.2026). İlk sürümün `/grid-saha` rotası tekrar çalıştırmada boşaltılır ve durum sorgusu o hâli "UYGULANMAMIŞ" gösterir.
   - İzin yalnız Admin'e (W) ve `grid-is-listesi` R'si olan role (R) verilir.
   - Betik tekrar çalışınca düğüm çoğalmaz, izinler değişmez.
 - [GridIsListesiTests](../../3K.Application.Tests/GridIsListesiTests.cs): `FiiliSandikNoBosluksa_CekidekiSandikNoIleKilitKontroluYapilir`, ortak sevk kilidinin iş listesi tarafını sınar (G-113).

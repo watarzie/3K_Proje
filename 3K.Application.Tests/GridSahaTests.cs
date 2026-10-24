@@ -57,10 +57,20 @@ public sealed class GridSahaTests
         Assert.Equal(4m, GridSahaBekleyenKurali.BekleyenMiktar(Satir(10, 6, GridSevkDurum.SevkEdildi, 6, null, null, ucK: UcKDurum.TamGeldi)));
         Assert.Equal(0m, GridSahaBekleyenKurali.BekleyenMiktar(Satir(10, 4, GridSevkDurum.SevkEdildi, 6, null, null, ucK: UcKDurum.EksikGeldi)));
 
-        // Eksik Geldi: gelen kadar bekler; gelmemiş/terminal durumlar Grid'de sayılmaz.
+        // Eksik Geldi: gelen kadar bekler. Trafo Sevk: trafo payı Grid gelen adede girmez, Grid'e gelen pay 3K'ya ulaşana
+        // kadar bekler. Grid Kapandı terminaldir, gelmemiş/iptal durumlar Grid'de sayılmaz.
         Assert.True(GridSahaBekleyenKurali.GriddeBekliyorMu(Satir(3, 0, durum: GridDurum.EksikGeldi)));
-        foreach (var durum in new[] { GridDurum.GridKapandi, GridDurum.Iptal, GridDurum.TrafoSevk, GridDurum.Gelmedi })
-            Assert.False(GridSahaBekleyenKurali.GriddeBekliyorMu(Satir(3, 0, durum: durum)));
+        var trafo = Satir(2, 0, durum: GridDurum.TrafoSevk);
+        trafo.TrafoSevkAdet = 5;
+        Assert.Equal((2m, true), (GridSahaBekleyenKurali.BekleyenMiktar(trafo), GridSahaBekleyenKurali.GriddeBekliyorMu(trafo)));
+        Assert.False(GridSahaBekleyenKurali.GriddeBekliyorMu(Satir(0, 0, durum: GridDurum.TrafoSevk)));
+        foreach (var durum in new[] { GridDurum.GridKapandi, GridDurum.Iptal, GridDurum.Gelmedi, GridDurum.Bekliyor })
+            Assert.Equal(0m, GridSahaBekleyenKurali.BekleyenMiktar(Satir(3, 0, durum: durum)));
+
+        // "Tümü" kapsamı ve mal kabul: Grid'e gelen ve sahada sonuçlanan dört durum.
+        Assert.Equal(
+            [GridDurum.TamGeldi, GridDurum.EksikGeldi, GridDurum.TrafoSevk, GridDurum.GridKapandi],
+            Enum.GetValues<GridDurum>().Where(x => GridSahaBekleyenKurali.SahaDurumu((int)x)));
     }
 
     [Fact]
@@ -69,9 +79,9 @@ public sealed class GridSahaTests
         var bekleyen = GridSorgulari.GriddeBekleyenIfadesi.Compile();
         var yolda = GridSorgulari.YoldakiMiktarIfadesi.Compile();
         var pozitif = GridSorgulari.BekleyenPozitifIfadesi.Compile();
-        var gelmis = GridSorgulari.GridGelmisDurumIfadesi.Compile();
+        var sahaDurumu = GridSorgulari.GridSahaDurumIfadesi.Compile();
         var rastgele = new Random(20261023);
-        var durumlar = new[] { GridDurum.Bekliyor, GridDurum.TamGeldi, GridDurum.EksikGeldi, GridDurum.GridKapandi, GridDurum.Iptal, GridDurum.TrafoSevk, GridDurum.Gelmedi };
+        var durumlar = Enum.GetValues<GridDurum>();
         var sevkler = new[] { GridSevkDurum.SevkEdildi, GridSevkDurum.Bekliyor, GridSevkDurum.SevkEdilmedi, GridSevkDurum.YenidenSevkGerekli };
         var ucKlar = new[] { UcKDurum.Bekliyor, UcKDurum.TamGeldi, UcKDurum.EksikGeldi, UcKDurum.Gelmedi, UcKDurum.FazlaGeldi };
         var bayraklar = new bool?[] { null, false, true };
@@ -94,7 +104,7 @@ public sealed class GridSahaTests
             Assert.True(GridSahaBekleyenKurali.YoldakiMiktar(satir) == yolda(satir), "yolda: " + aciklama);
             Assert.True(GridSahaBekleyenKurali.BekleyenMiktar(satir) == bekleyen(satir), "bekleyen: " + aciklama);
             Assert.True((GridSahaBekleyenKurali.BekleyenMiktar(satir) > 0) == pozitif(satir), "pozitif: " + aciklama);
-            Assert.True(GridSahaBekleyenKurali.GridGelmisDurum(satir.GridDurumuId) == gelmis(satir), "gelmiş: " + aciklama);
+            Assert.True(GridSahaBekleyenKurali.SahaDurumu(satir.GridDurumuId) == sahaDurumu(satir), "saha durumu: " + aciklama);
         }
     }
 
@@ -111,7 +121,7 @@ public sealed class GridSahaTests
             .Options;
         using var db = new AppDbContext(options);
         var sql = GridSorgulari.SevkKilidiDisinda(db.CekiSatirlari.AsNoTracking())
-            .Where(GridSorgulari.GridGelmisDurumIfadesi)
+            .Where(GridSorgulari.GridSahaDurumIfadesi)
             .Where(GridSorgulari.BekleyenPozitifIfadesi)
             .OrderBy(GridSorgulari.GriddeBekleyenIfadesi)
             .Select(GridSorgulari.BekleyenIle((cs, bekleyen) => new { cs.Id, Bekleyen = bekleyen }))
@@ -134,6 +144,15 @@ public sealed class GridSahaTests
         Assert.Equal(3.5m, GridMalKabulAciklamaKurali.GelenMiktariniAyristir("x | Gelen: 3,5"));
         Assert.Null(GridMalKabulAciklamaKurali.GelenMiktariniAyristir("Durum: TamGeldi | Sevk Durumu: SevkEdildi (4 Adet)"));
         Assert.Null(GridMalKabulAciklamaKurali.GelenMiktariniAyristir(null));
+        // Trafo Sevk'te trafo eki gelenden önce yazılır; Grid Kapandı ve diğer durumlarda ek yoktur.
+        var trafoEki = GridMalKabulAciklamaKurali.MalKabulEki((int)GridDurum.TrafoSevk, 1.5m, 4m);
+        Assert.Equal(" | Trafo: 4 | Gelen: 1.5", trafoEki);
+        Assert.Equal((1.5m, 4m), (GridMalKabulAciklamaKurali.GelenMiktariniAyristir("Durum: TrafoSevk" + trafoEki)!.Value,
+            GridMalKabulAciklamaKurali.TrafoMiktariniAyristir("Durum: TrafoSevk" + trafoEki)!.Value));
+        Assert.Equal(GridMalKabulAciklamaKurali.GelenEki(gelen), GridMalKabulAciklamaKurali.MalKabulEki((int)GridDurum.EksikGeldi, gelen, 9m));
+        Assert.Equal(string.Empty, GridMalKabulAciklamaKurali.MalKabulEki((int)GridDurum.GridKapandi, gelen, 0m));
+        Assert.Null(GridMalKabulAciklamaKurali.TrafoMiktariniAyristir(beklenen));
+        Assert.Null(GridMalKabulAciklamaKurali.TrafoMiktariniAyristir("Not: | Trafo: 7 yazıldı" + GridMalKabulAciklamaKurali.GelenEki(gelen)));
         // Ek her zaman sondadır: kullanıcının notundaki aynı kalıp miktar sanılmaz.
         Assert.Equal(gelen, GridMalKabulAciklamaKurali.GelenMiktariniAyristir("Durum: EksikGeldi | Not: | Gelen: 999 yazıldı" + GridMalKabulAciklamaKurali.GelenEki(gelen)));
         Assert.Null(GridMalKabulAciklamaKurali.GelenMiktariniAyristir("Durum: EksikGeldi | Not: | Gelen: 999 yazıldı"));
@@ -160,7 +179,9 @@ public sealed class GridSahaTests
         var urunler = new GetGridSahaUrunleriQueryValidator();
         Assert.True(urunler.Validate(new GetGridSahaUrunleriQuery { Kapsam = GridSahaKapsami.Tumu, GridDurumuId = (int)GridDurum.EksikGeldi }).IsValid);
         Assert.False(urunler.Validate(new GetGridSahaUrunleriQuery { Kapsam = "hepsi" }).IsValid);
-        Assert.False(urunler.Validate(new GetGridSahaUrunleriQuery { GridDurumuId = (int)GridDurum.GridKapandi }).IsValid);
+        Assert.True(urunler.Validate(new GetGridSahaUrunleriQuery { GridDurumuId = (int)GridDurum.GridKapandi }).IsValid);
+        Assert.True(urunler.Validate(new GetGridSahaUrunleriQuery { GridDurumuId = (int)GridDurum.TrafoSevk }).IsValid);
+        Assert.False(urunler.Validate(new GetGridSahaUrunleriQuery { GridDurumuId = (int)GridDurum.Iptal }).IsValid);
         Assert.False(urunler.Validate(new GetGridSahaUrunleriQuery { Siralama = "gelis" }).IsValid);
         Assert.False(urunler.Validate(new GetGridSahaUrunleriQuery { PageSize = 101 }).IsValid);
 
@@ -198,7 +219,9 @@ public sealed class GridSahaTests
             Kayit(1, "CekiSatiri", "1001", "Grid Durum Güncellendi", "10", "9", "Durum: EksikGeldi | Gelen: 3"),
             Kayit(2, "CekiSatiri", "1001", "Grid Toplu TamGeldi", "9", "8", "Toplu TamGeldi — x"),
             Kayit(3, "TopluSevk", "1001,1002", "Grid Toplu Sevk", "1", "8", "sevk", arsiv: true),
-            Kayit(4, "CekiSatiri", "9999", GridHareketSabitleri.ManuelUrunIslemi, null, null, "Neden: x | Gelen: 2")
+            Kayit(4, "CekiSatiri", "9999", GridHareketSabitleri.ManuelUrunIslemi, null, null, "Neden: x | Gelen: 2"),
+            Kayit(5, "CekiSatiri", "1001", "Grid Durum Güncellendi", "10", "11", "Durum: TrafoSevk | Trafo: 4 | Gelen: 1"),
+            Kayit(6, "CekiSatiri", "1001", "Grid Toplu GridKapandi", "8", "14", "Toplu GridKapandi — Açıklama yok")
         ]);
         var lookup = new Lookup();
         var handler = new GetGridMalKabulGecmisiQueryHandler(okuyucu, uow, SynchronousReadQueryExecutor.Instance, lookup);
@@ -214,6 +237,13 @@ public sealed class GridSahaTests
         Assert.Equal(("Tam Geldi", true, (decimal?)null), (satirlar[1].IslemMetni, satirlar[1].TopluMu, satirlar[1].GelenAdet));
         Assert.Equal(("Toplu sevk", "Toplu sevk (2 ürün)", (int?)2, (int?)null, "A-3"), (satirlar[2].IslemMetni, satirlar[2].UrunMetni, satirlar[2].TopluUrunSayisi, satirlar[2].CekiSatiriId, satirlar[2].Anahtar));
         Assert.Equal(("Manuel ürün", (string?)null, 2m, "Silinmiş ürün"), (satirlar[3].IslemMetni, satirlar[3].OncekiDurumMetni, satirlar[3].GelenAdet, satirlar[3].UrunMetni));
+        Assert.Equal(((int?)(int)GridDurum.EksikGeldi, (int?)(int)GridDurum.TamGeldi, (int?)null, (int?)null),
+            (satirlar[0].GridDurumuId, satirlar[1].GridDurumuId, satirlar[2].GridDurumuId, satirlar[3].GridDurumuId));
+        // Trafo Sevk: gelen ve trafo adedi ekten; Grid Kapandı: miktar değiştirmediği için güncel Grid gelen de gösterilmez.
+        Assert.Equal(("Trafo Sevk", (int?)(int)GridDurum.TrafoSevk, (decimal?)1m, (decimal?)4m, (decimal?)7m),
+            (satirlar[4].IslemMetni, satirlar[4].GridDurumuId, satirlar[4].GelenAdet, satirlar[4].TrafoAdet, satirlar[4].GuncelGridGelenAdet));
+        Assert.Equal(("Grid Kapandı", (int?)(int)GridDurum.GridKapandi, true, (decimal?)null, (decimal?)null, (decimal?)null),
+            (satirlar[5].IslemMetni, satirlar[5].GridDurumuId, satirlar[5].TopluMu, satirlar[5].GelenAdet, satirlar[5].TrafoAdet, satirlar[5].GuncelGridGelenAdet));
 
         await handler.Handle(new GetGridMalKabulGecmisiQuery { Tur = GridMalKabulTuru.TopluSevk }, CancellationToken.None);
         Assert.Equal(GridHareketTuru.TopluSevk, okuyucu.SonFiltre!.Turler);
@@ -251,7 +281,7 @@ public sealed class GridSahaTests
     private sealed class Lookup : ILookupCacheService
     {
         public string GetDeger<TLookup>(int id) where TLookup : LookupBase => typeof(TLookup) == typeof(LookupGridDurum)
-            ? id switch { 8 => "Tam Geldi", 9 => "Eksik Geldi", 10 => "Gelmedi", 1 => "Bekliyor", _ => "?" }
+            ? id switch { 8 => "Tam Geldi", 9 => "Eksik Geldi", 10 => "Gelmedi", 11 => "Trafo Sevk", 14 => "Grid Kapandı", 1 => "Bekliyor", _ => "?" }
             : "?";
         public Task WarmupAsync(CancellationToken ct = default) => Task.CompletedTask;
         public Task RefreshAsync<TLookup>(CancellationToken ct = default) where TLookup : LookupBase => Task.CompletedTask;

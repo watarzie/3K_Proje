@@ -11,26 +11,29 @@ namespace _3K.Infrastructure.Services;
 
 /// <summary>
 /// Grid Sahası hareket okumaları: canlı ve arşiv tabloları aynı süzgeçle okunur, iki projeksiyon UNION ALL ile
-/// birleştirilir. Mal kabul tanımı (<see cref="GridHareketTuru.MalKabul"/>): Grid durumu Tam/Eksik Geldi'ye geçen
-/// çeki satırı hareketi (eski değer yeni değerden farklı; aynı durumdaki sevk güncellemesi sayılmaz) ve Grid manuel ürün
-/// eklemesi. Durum değiştirmez.
+/// birleştirilir. Mal kabul tanımı (<see cref="GridHareketTuru.MalKabul"/>): Grid durumu Tam Geldi, Eksik Geldi, Trafo
+/// Sevk ya da Grid Kapandı'ya geçen (<see cref="GridSahaBekleyenKurali.SahaDurumlari"/>; 24.10.2026) çeki satırı hareketi
+/// (eski değer yeni değerden farklı; aynı durumdaki sevk güncellemesi sayılmaz) ve Grid manuel ürün eklemesi. Durum
+/// değiştirmez.
 /// </summary>
 internal sealed class GridHareketOkuyucu(AppDbContext context) : IGridHareketOkuyucu
 {
     private const string TamGeldi = "8";
     private const string EksikGeldi = "9";
+    private const string TrafoSevk = "11";
+    private const string GridKapandi = "14";
 
     private static readonly Expression<Func<HareketGecmisi, bool>> CanliMalKabul = h =>
         (h.IslemTipiId == (int)IslemTipi.GridDurumGuncellendi &&
          h.ReferansTipi == GridHareketSabitleri.CekiSatiriReferansi &&
-         (h.YeniDeger == TamGeldi || h.YeniDeger == EksikGeldi) &&
+         (h.YeniDeger == TamGeldi || h.YeniDeger == EksikGeldi || h.YeniDeger == TrafoSevk || h.YeniDeger == GridKapandi) &&
          (h.EskiDeger == null || h.EskiDeger != h.YeniDeger)) ||
         (h.IslemTipiId == (int)IslemTipi.ManuelUrunEklendi && h.Islem == GridHareketSabitleri.ManuelUrunIslemi);
 
     private static readonly Expression<Func<HareketGecmisiArsiv, bool>> ArsivMalKabul = h =>
         (h.IslemTipiId == (int)IslemTipi.GridDurumGuncellendi &&
          h.ReferansTipi == GridHareketSabitleri.CekiSatiriReferansi &&
-         (h.YeniDeger == TamGeldi || h.YeniDeger == EksikGeldi) &&
+         (h.YeniDeger == TamGeldi || h.YeniDeger == EksikGeldi || h.YeniDeger == TrafoSevk || h.YeniDeger == GridKapandi) &&
          (h.EskiDeger == null || h.EskiDeger != h.YeniDeger)) ||
         (h.IslemTipiId == (int)IslemTipi.ManuelUrunEklendi && h.Islem == GridHareketSabitleri.ManuelUrunIslemi);
 

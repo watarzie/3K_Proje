@@ -4,18 +4,32 @@ using _3K.Core.Enums;
 namespace _3K.Core.Models;
 
 /// <summary>
-/// "Grid'de bekleyen" tanımının tek kaynağı: Grid'e fiziksel gelmiş (Tam Geldi / Eksik Geldi) ve henüz 3K'ya
-/// ulaşmamış miktar. Aktif sevk partisinin yoldaki (3K'nın henüz karşılamadığı) bölümü Grid'de bekleyen sayılmaz;
+/// "Grid'de bekleyen" tanımının tek kaynağı: Grid'e fiziksel gelmiş (Tam Geldi / Eksik Geldi; Trafo Sevk'in Grid'e gelen
+/// payı) ve henüz 3K'ya ulaşmamış miktar. Aktif sevk partisinin yoldaki (3K'nın henüz karşılamadığı) bölümü Grid'de bekleyen sayılmaz;
 /// erken sonuçlandırılmış parti yolda değildir. Saf kuraldır, veritabanı okumaz; SQL ikizi Application katmanındaki
 /// <c>GridSorgulari.GriddeBekleyenIfadesi</c>'dir ve eşdeğerliği <c>GridSahaTests.SqlIfadeleri_RastgeleSatirlardaSafKuralaEsittir</c> ile sabitlenir.
 /// </summary>
 public static class GridSahaBekleyenKurali
 {
-    /// <summary>Grid'e fiziksel gelmiş sayılan Grid durumları (Tam Geldi, Eksik Geldi).</summary>
-    public static readonly IReadOnlyList<int> GelenDurumlar = [(int)GridDurum.TamGeldi, (int)GridDurum.EksikGeldi];
+    /// <summary>
+    /// Grid Sahası listesindeki ("Tümü" kapsamı) durumlar: Grid sahasına gelmiş ürünler ve orada sonuçlananlar — Tam
+    /// Geldi, Eksik Geldi, Trafo Sevk (sahadan trafoya giden) ve Grid Kapandı (24.10.2026).
+    /// </summary>
+    public static readonly IReadOnlyList<int> SahaDurumlari =
+        [(int)GridDurum.TamGeldi, (int)GridDurum.EksikGeldi, (int)GridDurum.TrafoSevk, (int)GridDurum.GridKapandi];
 
-    /// <summary>Ürün Grid'e fiziksel gelmiş mi (Tam Geldi veya Eksik Geldi)?</summary>
-    public static bool GridGelmisDurum(int gridDurumuId) => GelenDurumlar.Contains(gridDurumuId);
+    /// <summary>
+    /// Grid'de bekleyen miktarı olabilen durumlar: Tam Geldi, Eksik Geldi ve Trafo Sevk. Trafo Sevk'te trafoya giden pay
+    /// <c>GridGelenAdet</c>'e girmez; Grid'e gelen pay 3K'ya ulaşana kadar sahada bekler. Grid Kapandı terminal iştir,
+    /// bekleyeni yoktur.
+    /// </summary>
+    public static readonly IReadOnlyList<int> BekleyebilenDurumlar = [(int)GridDurum.TamGeldi, (int)GridDurum.EksikGeldi, (int)GridDurum.TrafoSevk];
+
+    /// <summary>
+    /// Durum Grid Sahası listesinde ("Tümü") görünür mü? Aynı dört duruma geçiş mal kabul kaydı sayılır (Grid personelinin
+    /// sahada teslim alıp sonuçlandırdığı ürün; 24.10.2026).
+    /// </summary>
+    public static bool SahaDurumu(int gridDurumuId) => SahaDurumlari.Contains(gridDurumuId);
 
     /// <summary>
     /// Aktif partiden 3K'nın karşıladığı miktar. Sayaçsız (legacy) partide yalnız 3K'da Tam/Fazla Geldi ile parti
@@ -42,17 +56,22 @@ public static class GridSahaBekleyenKurali
         return Math.Max((satir.GridSevkMiktari ?? 0m) - AktifPartidenKarsilananMiktar(satir), 0m);
     }
 
-    /// <summary>Grid'de fiziksel bekleyen miktar: Grid gelen − 3K'ya ulaşan − yolda, en az 0.</summary>
+    /// <summary>
+    /// Grid'de fiziksel bekleyen miktar: <see cref="BekleyebilenDurumlar"/> için Grid gelen − 3K'ya ulaşan − yolda, en az
+    /// 0; diğer durumlarda (Grid Kapandı dahil) 0.
+    /// </summary>
     public static decimal BekleyenMiktar(CekiSatiri satir)
     {
         ArgumentNullException.ThrowIfNull(satir);
+        if (!BekleyebilenDurumlar.Contains(satir.GridDurumuId))
+            return 0m;
         return Math.Max(satir.GridGelenAdet - satir.GelenMiktar - YoldakiMiktar(satir), 0m);
     }
 
-    /// <summary>Satır "Grid'de bekleyen" kapsamına girer mi: Tam/Eksik Geldi ve bekleyen miktar pozitif.</summary>
+    /// <summary>Satır "Grid'de bekleyen" kapsamına girer mi: Tam/Eksik Geldi ya da Trafo Sevk ve bekleyen miktar pozitif.</summary>
     public static bool GriddeBekliyorMu(CekiSatiri satir)
     {
         ArgumentNullException.ThrowIfNull(satir);
-        return GridGelmisDurum(satir.GridDurumuId) && BekleyenMiktar(satir) > 0m;
+        return BekleyenMiktar(satir) > 0m;
     }
 }

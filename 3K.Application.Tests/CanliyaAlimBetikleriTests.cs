@@ -68,7 +68,8 @@ public sealed class CanliyaAlimBetikleriTests
 
             Assert.All(await BetikDurumuAsync(db), x => Assert.Equal("uygulanmış", x.Value));
             var gridSaha = await db.MenuTanimlari.AsNoTracking().SingleAsync(m => m.Kod == YetkiKodlari.Sandik.GridSahaGorunumu);
-            Assert.Equal((5258, "/grid-saha", "MENU.GRID_SAHA_GORUNUMU", 5, 10), (gridSaha.Id, gridSaha.Route, gridSaha.LabelKey, gridSaha.ParentId!.Value, gridSaha.Sira));
+            // Rotasız izin düğümü: kenar menüde görünmez, ekran proje listesindeki düğmeyle açılır.
+            Assert.Equal((5258, (string?)null, "MENU.GRID_SAHA_GORUNUMU", 5, 10), (gridSaha.Id, gridSaha.Route, gridSaha.LabelKey, gridSaha.ParentId!.Value, gridSaha.Sira));
             var izinler = await GridSahaIzinleriAsync(db);
             // Admin W; Grid iş listesini gören PersonelGrid R; Grid iş listesi izni olmayan Personel3K izin almaz.
             Assert.Equal([(SistemRolleri.AdminId, (int)YetkiTipi.W), (3, (int)YetkiTipi.R)], izinler);
@@ -83,8 +84,12 @@ public sealed class CanliyaAlimBetikleriTests
 
             // Betik sonrası taşıma izi yazılır; tekrar çalıştırma şemayı ve izi değiştirmez.
             var izId = await TasimaIziYazAsync(db);
+            // Betiğin ilk sürümü düğümü kenar menü rotasıyla kurmuştu: tekrar çalıştırma yalnız rotayı boşaltır.
+            await db.Database.ExecuteSqlRawAsync("""UPDATE "MenuTanimlari" SET "Route" = '/grid-saha' WHERE "Kod" = 'grid-saha-gorunumu'""");
+            Assert.Equal("UYGULANMAMIŞ", (await BetikDurumuAsync(db))["20261023_01_Grid_Saha_Gorunumu_Yetkisi"]);
             foreach (var betik in Betikler)
                 await CalistirAsync(db, betik);
+            Assert.Null((await db.MenuTanimlari.AsNoTracking().SingleAsync(m => m.Kod == YetkiKodlari.Sandik.GridSahaGorunumu)).Route);
 
             Assert.Equal(sema, await SemaAsync(db));
             Assert.Equal(izinler, await GridSahaIzinleriAsync(db));

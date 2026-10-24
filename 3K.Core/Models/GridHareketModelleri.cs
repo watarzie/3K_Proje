@@ -5,8 +5,8 @@ namespace _3K.Core.Models;
 public enum GridHareketTuru
 {
     /// <summary>
-    /// Mal kabul: çeki satırının Grid durumu Tam Geldi ya da Eksik Geldi'ye geçti (tekil veya toplu; aynı durumun
-    /// sevk güncellemesi sayılmaz) ya da Grid'e manuel ürün eklendi.
+    /// Mal kabul: çeki satırının Grid durumu Tam Geldi, Eksik Geldi, Trafo Sevk ya da Grid Kapandı'ya geçti (tekil veya
+    /// toplu; aynı durumun sevk güncellemesi sayılmaz) ya da Grid'e manuel ürün eklendi.
     /// </summary>
     MalKabul = 1,
     /// <summary>Grid'den 3K'ya toplu sevk (seçimdeki gelmemiş satırlar örtük Tam Geldi olur; tek kayıt, çok ürün).</summary>

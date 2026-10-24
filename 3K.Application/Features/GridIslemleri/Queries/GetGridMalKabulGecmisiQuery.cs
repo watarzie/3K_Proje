@@ -9,8 +9,8 @@ namespace _3K.Application.Features.GridIslemleri.Queries
     /// <summary>
     /// Grid Sahası görünümü, mal kabul kayıtları: Grid personelinin yaptığı mal kabuller (kim, ne zaman, hangi ürün,
     /// kaç adet) canlı ve arşiv hareket tablolarından birlikte okunur. Varsayılan aralık son 30 gün, varsayılan tür
-    /// yalnız mal kabul (Tam/Eksik Geldi geçişi ve Grid manuel ürün); toplu sevk istenirse eklenir. Salt okunurdur;
-    /// ekran kodu <c>grid-saha-gorunumu</c> R.
+    /// yalnız mal kabul (Tam Geldi, Eksik Geldi, Trafo Sevk ya da Grid Kapandı geçişi ve Grid manuel ürün); toplu sevk
+    /// istenirse eklenir. Salt okunurdur; ekran kodu <c>grid-saha-gorunumu</c> R.
     /// </summary>
     public sealed class GetGridMalKabulGecmisiQuery
         : PaginatedQuery<Result<GridMalKabulGecmisiDto>>, ISecuredRequest, IRequiresMenuPermission

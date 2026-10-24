@@ -121,16 +121,37 @@ public class SahadanSahayaTasimaTests
     [Theory]
     [InlineData(ProjeDurum.SevkEdildi)]
     [InlineData(ProjeDurum.EksikSevkEdildi)]
-    public async Task Engel_KaynakSahaSevkEdilmis_409VeHicbirKayitDegismez(ProjeDurum durum)
+    public async Task KaynakSahaSevkEdilmis_SevkEdilmemisSandiktakiSatirTasinir_ProjeDurumuDegismez(ProjeDurum durum)
     {
         var k = new Kurgu();
         k.Uow.Repo<Proje>().Rows.Single(p => p.Id == KaynakSaha).DurumId = (int)durum;
+
+        var onizleme = await k.OnizleAsync(satirlar: [Kurgu.S1]);
+        var sonuc = await k.TasiAsync(satirlar: [Kurgu.S1]);
+
+        // Engel proje değil sandık düzeyindedir: sandık 21 sevk edilmemiştir (PA600-42-SAHA, Sandık 2 vakası).
+        Assert.True(onizleme.TasinabilirMi);
+        Assert.Empty(onizleme.Engeller);
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.Equal(HedefSaha, k.Uow.Repo<SahaAktarimKalemi>().Rows.Single(x => x.Id == 401).SahaProjeId);
+        Assert.Equal((int)durum, k.Uow.Repo<Proje>().Rows.Single(p => p.Id == KaynakSaha).DurumId);
+    }
+
+    [Theory]
+    [InlineData(ProjeDurum.SevkEdildi)]
+    [InlineData(ProjeDurum.EksikSevkEdildi)]
+    public async Task Engel_KaynakSahaSevkEdilmis_SevkEdilmisSandiktakiSatir_409VeHicbirKayitDegismez(ProjeDurum durum)
+    {
+        var k = new Kurgu();
+        k.Uow.Repo<Proje>().Rows.Single(p => p.Id == KaynakSaha).DurumId = (int)durum;
+        k.Uow.Repo<Sandik>().Rows.Single(s => s.Id == 21).DurumId = (int)SandikDurum.Sevkedildi;
         var once = k.Durum();
 
         var onizleme = await k.OnizleAsync(satirlar: [Kurgu.S1]);
         var sonuc = await k.TasiAsync(satirlar: [Kurgu.S1]);
 
-        Assert.Contains(onizleme.Engeller, e => e.StartsWith("Kaynak saha projesi"));
+        Assert.Contains(onizleme.Engeller, e => e.StartsWith("Kaynak sandık"));
+        Assert.DoesNotContain(onizleme.Engeller, e => e.StartsWith("Kaynak saha projesi"));
         Assert.Equal(409, sonuc.StatusCode);
         Assert.Equal(once, k.Durum());
     }
@@ -195,17 +216,56 @@ public class SahadanSahayaTasimaTests
         Assert.Equal(once, k.Durum());
     }
 
-    [Theory]
-    [InlineData(ProjeDurum.SevkEdildi)]
-    [InlineData(ProjeDurum.EksikSevkEdildi)]
-    public async Task Engel_HedefSahaSevkEdilmis_409VeHicbirKayitDegismez(ProjeDurum durum)
+    [Fact]
+    public async Task Engel_HedefSahaTamamenSevkEdilmis_409VeHicbirKayitDegismez()
     {
         var k = new Kurgu();
-        k.Uow.Repo<Proje>().Rows.Single(p => p.Id == HedefSaha).DurumId = (int)durum;
+        k.Uow.Repo<Proje>().Rows.Single(p => p.Id == HedefSaha).DurumId = (int)ProjeDurum.SevkEdildi;
         var once = k.Durum();
 
+        var onizleme = await k.OnizleAsync(satirlar: [Kurgu.S1]);
         var sonuc = await k.TasiAsync(satirlar: [Kurgu.S1]);
 
+        Assert.Contains(onizleme.Engeller, e => e.StartsWith("Hedef saha projesi"));
+        Assert.Equal(409, sonuc.StatusCode);
+        Assert.Equal(once, k.Durum());
+    }
+
+    [Theory]
+    [InlineData(31, "3")]
+    [InlineData(null, "1")]
+    public async Task HedefSahaEksikSevkEdilmis_SevkEdilmemisYaDaYeniSandigaTasinir_ProjeDurumuDegismez(int? hedefSandik, string beklenenNo)
+    {
+        // Kullanıcı kararı (24.10.2026): Eksik Sevk Edildi saha da hedeftir; ürün sevk edilmemiş ya da yeni sandığa gider.
+        var k = new Kurgu();
+        k.Uow.Repo<Proje>().Rows.Single(p => p.Id == HedefSaha).DurumId = (int)ProjeDurum.EksikSevkEdildi;
+        k.Uow.Repo<Sandik>().Rows.Add(new Sandik { Id = 33, ProjeId = HedefSaha, SandikNo = "9", DurumId = (int)SandikDurum.Sevkedildi });
+
+        var onizleme = await k.OnizleAsync(satirlar: [Kurgu.S1], hedefSandik: hedefSandik);
+        var sonuc = await k.TasiAsync(satirlar: [Kurgu.S1], hedefSandik: hedefSandik);
+
+        Assert.Empty(onizleme.Engeller);
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.Equal(beklenenNo, sonuc.Value!.HedefSandikNo);
+        var hedefSandikKaydi = k.Uow.Repo<Sandik>().Rows.Single(s => s.Id == sonuc.Value.HedefSandikId);
+        Assert.Equal((HedefSaha, (int)SandikDurum.Hazirlaniyor), (hedefSandikKaydi.ProjeId, hedefSandikKaydi.DurumId));
+        Assert.Equal(HedefSaha, k.Uow.Repo<SahaAktarimKalemi>().Rows.Single(x => x.Id == 401).SahaProjeId);
+        Assert.Equal((int)ProjeDurum.EksikSevkEdildi, k.Uow.Repo<Proje>().Rows.Single(p => p.Id == HedefSaha).DurumId);
+    }
+
+    [Fact]
+    public async Task Engel_HedefSahaEksikSevkEdilmis_SevkEdilmisHedefSandik_409VeHicbirKayitDegismez()
+    {
+        var k = new Kurgu();
+        k.Uow.Repo<Proje>().Rows.Single(p => p.Id == HedefSaha).DurumId = (int)ProjeDurum.EksikSevkEdildi;
+        k.Uow.Repo<Sandik>().Rows.Add(new Sandik { Id = 33, ProjeId = HedefSaha, SandikNo = "9", DurumId = (int)SandikDurum.Sevkedildi });
+        var once = k.Durum();
+
+        var onizleme = await k.OnizleAsync(satirlar: [Kurgu.S1], hedefSandik: 33);
+        var sonuc = await k.TasiAsync(satirlar: [Kurgu.S1], hedefSandik: 33);
+
+        Assert.Contains(onizleme.Engeller, e => e.StartsWith("Hedef sandık 9"));
+        Assert.DoesNotContain(onizleme.Engeller, e => e.StartsWith("Hedef saha projesi"));
         Assert.Equal(409, sonuc.StatusCode);
         Assert.Equal(once, k.Durum());
     }
@@ -352,14 +412,15 @@ public class SahadanSahayaTasimaTests
                 HedefSandikId = hedefSandik
             }, CancellationToken.None);
 
-        public async Task<SahadanSahayaTasimaOnizlemeDto> OnizleAsync(int[]? satirlar = null, int? sandik = null)
+        public async Task<SahadanSahayaTasimaOnizlemeDto> OnizleAsync(int[]? satirlar = null, int? sandik = null, int? hedefSandik = null)
         {
             var sonuc = await new SahadanSahayaTasimaOnizleQueryHandler(Uow, new LookupStub()).Handle(new SahadanSahayaTasimaOnizleQuery
             {
                 KaynakSahaProjeId = KaynakSaha,
                 SahaCekiSatiriIds = satirlar?.ToList() ?? [],
                 KaynakSandikId = sandik,
-                HedefSahaProjeId = HedefSaha
+                HedefSahaProjeId = HedefSaha,
+                HedefSandikId = hedefSandik
             }, CancellationToken.None);
             Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
             return sonuc.Value!;

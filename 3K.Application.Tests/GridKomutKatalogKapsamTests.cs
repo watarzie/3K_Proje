@@ -193,9 +193,10 @@ public sealed class GridKomutKatalogKapsamTests
         Assert.Equal((decimal)beklenenGrid, satir.GridGelenAdet);
         Assert.Equal((decimal)beklenenTrafo, satir.TrafoSevkAdet);
         Assert.Equal(77, satir.GridPersonelId);
-        // Mal kabul kaydı (Grid Sahası) Grid'e gelen adedi hareket açıklamasından okur; Trafo Sevk mal kabul değildir.
+        // Mal kabul kaydı (Grid Sahası) Grid'e gelen adedi, Trafo Sevk'te trafoya gideni de hareket açıklamasından okur.
         var aciklama = Assert.Single(kurgu.Hareketler).Aciklama;
-        Assert.Equal(hedef == GridDurum.TrafoSevk ? null : (decimal)beklenenGrid, GridMalKabulAciklamaKurali.GelenMiktariniAyristir(aciklama));
+        Assert.Equal((decimal)beklenenGrid, GridMalKabulAciklamaKurali.GelenMiktariniAyristir(aciklama));
+        Assert.Equal(hedef == GridDurum.TrafoSevk ? (decimal)beklenenTrafo : null, GridMalKabulAciklamaKurali.TrafoMiktariniAyristir(aciklama));
     }
 
     [Fact]

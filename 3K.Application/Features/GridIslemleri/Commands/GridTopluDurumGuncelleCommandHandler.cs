@@ -158,9 +158,7 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                     YeniDeger = request.HedefDurumId.ToString(),
                     // Tam Geldi'de Grid'e gelen adet mal kabul kaydına yazılır (Grid Sahası).
                     Aciklama = $"Toplu {durumAdi} — {(string.IsNullOrWhiteSpace(request.Aciklama) ? "Açıklama yok" : request.Aciklama)}" +
-                               (GridSahaBekleyenKurali.GridGelmisDurum(request.HedefDurumId)
-                                   ? GridMalKabulAciklamaKurali.GelenEki(satir.GridGelenAdet)
-                                   : string.Empty)
+                               GridMalKabulAciklamaKurali.MalKabulEki(request.HedefDurumId, satir.GridGelenAdet, satir.TrafoSevkAdet)
                 });
             }
 

@@ -6,8 +6,9 @@ using _3K.Core.Enums;
 namespace _3K.Application.Features.GridIslemleri.Queries
 {
     /// <summary>
-    /// Grid Sahası görünümü, ürünler: Grid'e fiziksel gelmiş (Tam/Eksik Geldi) ürünler, proje tipinden bağımsız tek
-    /// listede. Varsayılan kapsam Grid'de bekleyenler (3K'ya ulaşmamış miktarı olanlar); "tümü" gelmiş her ürünü
+    /// Grid Sahası görünümü, ürünler: Grid sahasına gelmiş ürünler (Tam/Eksik Geldi) ve sahada sonuçlananlar (Trafo
+    /// Sevk, Grid Kapandı), proje tipinden bağımsız tek listede. Varsayılan kapsam Grid'de bekleyenler (3K'ya ulaşmamış
+    /// miktarı olanlar; Trafo Sevk'in Grid'e gelen payı dahil, Grid Kapandı hariç); "tümü" dört durumdaki her ürünü
     /// gösterir. Sevk edilmiş sandık ya da proje satırları iki kapsamda da Grid iş listesindeki gibi dışarıdadır.
     /// Salt okunurdur; ekran kodu <c>grid-saha-gorunumu</c> R.
     /// </summary>
@@ -23,7 +24,7 @@ namespace _3K.Application.Features.GridIslemleri.Queries
         public string? Arama { get; set; }
         public int? ProjeTipiId { get; set; }
         public int? ProjeId { get; set; }
-        /// <summary>Tam Geldi (8) veya Eksik Geldi (9).</summary>
+        /// <summary>Tam Geldi (8), Eksik Geldi (9), Trafo Sevk (11) veya Grid Kapandı (14).</summary>
         public int? GridDurumuId { get; set; }
         /// <summary><see cref="GridSahaSiralama"/> değerlerinden biri; boşsa proje.</summary>
         public string? Siralama { get; set; }
@@ -35,7 +36,7 @@ namespace _3K.Application.Features.GridIslemleri.Queries
     {
         /// <summary>Gelmiş ve 3K'ya ulaşmamış miktarı olan (Grid'de bekleyen) ürünler.</summary>
         public const string Bekleyen = "bekleyen";
-        /// <summary>Grid'e gelmiş bütün ürünler (3K'ya gönderilmiş olanlar dahil).</summary>
+        /// <summary>Grid'e gelmiş ve sahada sonuçlanmış bütün ürünler (3K'ya gönderilmiş, trafoya giden ve Grid'de kapanan dahil).</summary>
         public const string Tumu = "tumu";
 
         public static bool Gecerli(string? deger) =>

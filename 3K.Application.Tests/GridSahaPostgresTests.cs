@@ -46,6 +46,10 @@ public sealed class GridSahaPostgresTests
                 Canli(500, IslemTipi.ManuelUrunEklendi, 70, Gun.AddHours(5), "CekiSatiri", "1005", null, null, "Manuel Ürün Eklendi", "3K"),
                 // Toplu sevk: yalnız istenince.
                 Canli(500, IslemTipi.GridTopluSevkEdildi, 71, Gun.AddHours(6), "TopluSevk", "1001,1002", "1", "8", "Grid Toplu Sevk", "sevk"),
+                // Trafo Sevk ve toplu Grid Kapandı: sahada sonuçlanan ürün, mal kabul (24.10.2026); aynı durumda güncelleme değil.
+                Canli(500, IslemTipi.GridDurumGuncellendi, 70, Gun.AddHours(7), "CekiSatiri", "1006", "10", "11", "Grid Durum Güncellendi", "Durum: TrafoSevk | Trafo: 3 | Gelen: 0"),
+                Canli(500, IslemTipi.GridDurumGuncellendi, 71, Gun.AddHours(8), "CekiSatiri", "1003", "12", "14", "Grid Toplu GridKapandi", "Toplu GridKapandi — Açıklama yok"),
+                Canli(500, IslemTipi.GridDurumGuncellendi, 70, Gun.AddHours(9), "CekiSatiri", "1006", "11", "11", "Grid Durum Güncellendi", "trafo düzeltme"),
                 // Aralık dışı mal kabul.
                 Canli(500, IslemTipi.GridDurumGuncellendi, 70, new DateTime(2026, 9, 1), "CekiSatiri", "1001", "10", "8", "Grid Durum Güncellendi", "eski"));
             db.HareketGecmisleriArsiv.Add(new HareketGecmisiArsiv
@@ -62,31 +66,34 @@ public sealed class GridSahaPostgresTests
                 new(new DateTime(2026, 10, 15), new DateTime(2026, 10, 22), tur, kullanici, null, arama, 1, boyut);
 
             var malKabul = await okuyucu.GridHareketleriAsync(Filtre());
-            Assert.Equal(4, malKabul.ToplamKayit);
-            Assert.Equal([(false, "1004"), (false, "1002"), (false, "1001"), (true, "1001")],
+            Assert.Equal(6, malKabul.ToplamKayit);
+            Assert.Equal([(false, "1003"), (false, "1006"), (false, "1004"), (false, "1002"), (false, "1001"), (true, "1001")],
                 malKabul.Kayitlar.Select(k => (k.ArsivdenMi, k.ReferansId!)));
-            Assert.Equal(("PA-501", "Mehmet Grid"), (malKabul.Kayitlar[3].ProjeNo, malKabul.Kayitlar[3].KullaniciAdi));
-            Assert.Equal([(70, "Ayşe Grid", 2), (71, "Mehmet Grid", 2)],
+            Assert.Equal(("PA-501", "Mehmet Grid"), (malKabul.Kayitlar[5].ProjeNo, malKabul.Kayitlar[5].KullaniciAdi));
+            Assert.Equal([(70, "Ayşe Grid", 3), (71, "Mehmet Grid", 3)],
                 malKabul.PersonelOzeti.OrderBy(p => p.KullaniciId).Select(p => (p.KullaniciId, p.KullaniciAdi, p.IslemSayisi)));
 
             var sayfa2 = await okuyucu.GridHareketleriAsync(Filtre(boyut: 3) with { SayfaNo = 2 });
-            Assert.Equal([(true, "1001")], sayfa2.Kayitlar.Select(k => (k.ArsivdenMi, k.ReferansId!)));
+            Assert.Equal([(false, "1002"), (false, "1001"), (true, "1001")], sayfa2.Kayitlar.Select(k => (k.ArsivdenMi, k.ReferansId!)));
 
             Assert.Equal(["TopluSevk"], (await okuyucu.GridHareketleriAsync(Filtre(GridHareketTuru.TopluSevk))).Kayitlar.Select(k => k.ReferansTipi));
-            Assert.Equal(5, (await okuyucu.GridHareketleriAsync(Filtre(GridHareketTuru.MalKabul | GridHareketTuru.TopluSevk))).ToplamKayit);
+            Assert.Equal(7, (await okuyucu.GridHareketleriAsync(Filtre(GridHareketTuru.MalKabul | GridHareketTuru.TopluSevk))).ToplamKayit);
             var personelSuzulu = await okuyucu.GridHareketleriAsync(Filtre(kullanici: 71));
-            Assert.Equal(2, personelSuzulu.ToplamKayit);
+            Assert.Equal(3, personelSuzulu.ToplamKayit);
             Assert.All(personelSuzulu.Kayitlar, k => Assert.Equal(71, k.KullaniciId));
             // Personel süzgeci özeti daraltmaz: seçim listesi ve özet öteki personeli de göstermeye devam eder.
             Assert.Equal([70, 71], personelSuzulu.PersonelOzeti.Select(p => p.KullaniciId).Order());
             Assert.Equal(1, (await okuyucu.GridHareketleriAsync(Filtre(arama: "pa-501"))).ToplamKayit);
-            Assert.Equal(2, (await okuyucu.GridHareketleriAsync(Filtre(arama: "ayşe"))).ToplamKayit);
+            Assert.Equal(3, (await okuyucu.GridHareketleriAsync(Filtre(arama: "ayşe"))).ToplamKayit);
 
             // Satırın son mal kabulü (canlı ve arşiv; sevk güncellemesi ve aralık sayılmaz) ve günlük sayı.
-            var son = await okuyucu.SonMalKabulleriAsync([1001, 1002, 1003, 9999]);
-            Assert.Equal([1001, 1002], son.Keys.Order());
+            var son = await okuyucu.SonMalKabulleriAsync([1001, 1002, 1003, 1006, 9999]);
+            Assert.Equal([1001, 1002, 1003, 1006], son.Keys.Order());
             Assert.Equal((Gun, "Ayşe Grid"), (son[1001].Tarih, son[1001].KullaniciAdi));
-            Assert.Equal(4, await okuyucu.MalKabulSayisiAsync(Gun.Date, Gun.Date.AddDays(1)));
+            // Grid Kapandı ve Trafo Sevk de satırın son mal kabulüdür; aynı durumdaki trafo düzeltmesi sayılmaz.
+            Assert.Equal((Gun.AddHours(8), "Mehmet Grid"), (son[1003].Tarih, son[1003].KullaniciAdi));
+            Assert.Equal(Gun.AddHours(7), son[1006].Tarih);
+            Assert.Equal(6, await okuyucu.MalKabulSayisiAsync(Gun.Date, Gun.Date.AddDays(1)));
         });
     }
 
@@ -114,8 +121,10 @@ public sealed class GridSahaPostgresTests
                 // Sevk edilmiş sandıkta ve sevk edilmiş projede: hiçbir kapsamda yok.
                 Satir(1004, "2", "Sevkli sandık", gridGelen: 5, gelen: 0),
                 Satir(1005, "1", "Sevkli proje", gridGelen: 5, gelen: 0, cekiId: 601),
-                // Grid Kapandı: gelmiş sayılmaz.
-                Satir(1006, "1", "Kapandı", gridGelen: 5, gelen: 0, durum: GridDurum.GridKapandi));
+                // Grid Kapandı: sahada sonuçlanmış; yalnız "tümü" kapsamında, bekleyeni 0 (terminal).
+                Satir(1006, "1", "Kapandı", gridGelen: 5, gelen: 0, durum: GridDurum.GridKapandi),
+                // Trafo Sevk: 3 adet trafoya gitti (Grid gelene girmez), Grid'e gelen 2 adet 3K'ya ulaşmadı: Grid'de 2.
+                TrafoSatiri(Satir(1007, "1", "Nem alıcı röle", gridGelen: 2, gelen: 0, durum: GridDurum.TrafoSevk), trafo: 3));
             db.SandikIcerikleri.Add(new SandikIcerik { SandikId = 701, CekiSatiriId = 1004, TahsisMiktari = 5 });
             db.HareketGecmisleri.Add(Canli(500, IslemTipi.GridDurumGuncellendi, 70, Gun, "CekiSatiri", "1001", "10", "8", "Grid Durum Güncellendi", "x | Gelen: 10"));
             await db.SaveChangesAsync();
@@ -131,25 +140,30 @@ public sealed class GridSahaPostgresTests
                 (await handler.Handle(q, CancellationToken.None)).Value!;
 
             var bekleyen = await Getir(new GetGridSahaUrunleriQuery { PageSize = 50 });
-            Assert.Equal([1002, 1001], bekleyen.Liste.Items.Select(x => x.CekiSatiriId)); // proje, sandık ("1" < "3")
-            Assert.Equal([3m, 4m], bekleyen.Liste.Items.Select(x => x.GriddeBekleyenMiktar));
-            Assert.Equal([0m, 4m], bekleyen.Liste.Items.Select(x => x.YoldakiMiktar));
-            Assert.Equal((2, 7m, 1, 1), (bekleyen.Ozet.BekleyenSatir, bekleyen.Ozet.BekleyenAdet, bekleyen.Ozet.ProjeSayisi, bekleyen.Ozet.EksikGelenSatir));
-            var plaka = bekleyen.Liste.Items[1];
+            Assert.Equal([1002, 1007, 1001], bekleyen.Liste.Items.Select(x => x.CekiSatiriId)); // proje, sandık ("1" < "3"), sıra
+            Assert.Equal([3m, 2m, 4m], bekleyen.Liste.Items.Select(x => x.GriddeBekleyenMiktar));
+            Assert.Equal([0m, 0m, 4m], bekleyen.Liste.Items.Select(x => x.YoldakiMiktar));
+            Assert.Equal([0m, 3m, 0m], bekleyen.Liste.Items.Select(x => x.TrafoSevkAdet));
+            Assert.Equal((3, 9m, 1, 1), (bekleyen.Ozet.BekleyenSatir, bekleyen.Ozet.BekleyenAdet, bekleyen.Ozet.ProjeSayisi, bekleyen.Ozet.EksikGelenSatir));
+            var plaka = bekleyen.Liste.Items[2];
             Assert.Equal((Gun, "Ayşe Grid", "Tam Geldi", "Adet"), (plaka.SonMalKabulTarihi!.Value, plaka.SonMalKabulPersoneli, plaka.GridDurumuMetni, plaka.Birim));
             Assert.Null(bekleyen.Liste.Items[0].SonMalKabulTarihi);
 
             var tumu = await Getir(new GetGridSahaUrunleriQuery { Kapsam = GridSahaKapsami.Tumu, PageSize = 50 });
-            Assert.Equal([1002, 1003, 1001], tumu.Liste.Items.Select(x => x.CekiSatiriId));
-            Assert.Equal(2, tumu.Ozet.BekleyenSatir); // özet kapsamdan bağımsız
+            Assert.Equal([1002, 1003, 1006, 1007, 1001], tumu.Liste.Items.Select(x => x.CekiSatiriId));
+            Assert.Equal(0m, tumu.Liste.Items.Single(x => x.CekiSatiriId == 1006).GriddeBekleyenMiktar); // Grid Kapandı terminal
+            Assert.Equal(3, tumu.Ozet.BekleyenSatir); // özet kapsamdan bağımsız
+            Assert.Equal([1006], (await Getir(new GetGridSahaUrunleriQuery { Kapsam = GridSahaKapsami.Tumu, GridDurumuId = (int)GridDurum.GridKapandi })).Liste.Items.Select(x => x.CekiSatiriId));
+            Assert.Equal([1007], (await Getir(new GetGridSahaUrunleriQuery { GridDurumuId = (int)GridDurum.TrafoSevk })).Liste.Items.Select(x => x.CekiSatiriId));
+            Assert.Empty((await Getir(new GetGridSahaUrunleriQuery { GridDurumuId = (int)GridDurum.GridKapandi })).Liste.Items);
 
             Assert.Equal([1001], (await Getir(new GetGridSahaUrunleriQuery { Arama = "bağlantı" })).Liste.Items.Select(x => x.CekiSatiriId));
-            Assert.Equal(2, (await Getir(new GetGridSahaUrunleriQuery { Arama = "güney" })).Liste.TotalCount);
+            Assert.Equal(3, (await Getir(new GetGridSahaUrunleriQuery { Arama = "güney" })).Liste.TotalCount);
             Assert.Equal([1002], (await Getir(new GetGridSahaUrunleriQuery { GridDurumuId = (int)GridDurum.EksikGeldi })).Liste.Items.Select(x => x.CekiSatiriId));
 
             var bekleyeneGore = await Getir(new GetGridSahaUrunleriQuery { Siralama = GridSahaSiralama.Bekleyen, Azalan = true, PageSize = 1 });
             Assert.Equal([1001], bekleyeneGore.Liste.Items.Select(x => x.CekiSatiriId));
-            Assert.Equal((2, 2, true), (bekleyeneGore.Liste.TotalCount, bekleyeneGore.Liste.TotalPages, bekleyeneGore.Liste.HasNextPage));
+            Assert.Equal((3, 3, true), (bekleyeneGore.Liste.TotalCount, bekleyeneGore.Liste.TotalPages, bekleyeneGore.Liste.HasNextPage));
         });
     }
 
@@ -174,6 +188,12 @@ public sealed class GridSahaPostgresTests
         GridSevkMiktari = sevk, AktifGridSevkKarsilananMiktari = karsilanan, AktifGridSevkPartisiErkenSonuclandirildiMi = erken,
         UcKDurumuId = (int)UcKDurum.Bekliyor, UcKKarsilamaTipiId = (int)UcKDurum.Bekliyor
     };
+
+    private static CekiSatiri TrafoSatiri(CekiSatiri satir, decimal trafo)
+    {
+        satir.TrafoSevkAdet = trafo;
+        return satir;
+    }
 
     private sealed class Lookup : ILookupCacheService
     {

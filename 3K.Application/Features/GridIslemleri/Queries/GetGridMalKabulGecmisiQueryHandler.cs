@@ -121,6 +121,9 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                 : manuel
                     ? "Manuel ürün"
                     : DurumMetni(k.YeniDeger) ?? k.Islem;
+            int? yeniDurum = topluSevk || manuel ? null : DurumKimligi(k.YeniDeger);
+            // Grid Kapandı miktar değiştirmez: güncel Grid gelen adedi mal kabul miktarı gibi gösterilmez.
+            var guncelGelenGosterilir = yeniDurum != (int)GridDurum.GridKapandi;
 
             return new GridMalKabulHareketDto
             {
@@ -132,22 +135,30 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                 ProjeNo = k.ProjeNo,
                 ProjeTipiId = projeTipleri.TryGetValue(k.ProjeId, out var tip) ? tip : null,
                 IslemMetni = islemMetni,
+                GridDurumuId = yeniDurum,
                 TopluMu = topluSevk || k.Islem.StartsWith(GridHareketSabitleri.TopluIslemOneki, StringComparison.Ordinal),
                 CekiSatiriId = topluSevk ? null : cekiSatiriId,
                 UrunMetni = urunMetni,
                 SandikNo = satir == null ? null : string.IsNullOrWhiteSpace(satir.FiiliSandikNo) ? satir.CekideGecenSandikNo : satir.FiiliSandikNo,
                 OncekiDurumMetni = topluSevk || manuel ? null : DurumMetni(k.EskiDeger),
                 GelenAdet = GridMalKabulAciklamaKurali.GelenMiktariniAyristir(k.Aciklama),
-                GuncelGridGelenAdet = satir?.GridGelenAdet,
+                TrafoAdet = GridMalKabulAciklamaKurali.TrafoMiktariniAyristir(k.Aciklama),
+                GuncelGridGelenAdet = guncelGelenGosterilir ? satir?.GridGelenAdet : null,
                 TopluUrunSayisi = topluUrunSayisi,
                 Aciklama = k.Aciklama
             };
         }
 
+        /// <summary>Hareketteki Grid durum kimliği ("8" → 8); sayı ya da tanımlı durum değilse null.</summary>
+        private static int? DurumKimligi(string? deger) =>
+            int.TryParse(deger, NumberStyles.Integer, CultureInfo.InvariantCulture, out var durum) && Enum.IsDefined(typeof(GridDurum), durum)
+                ? durum
+                : null;
+
         /// <summary>Hareketteki Grid durum kimliğini lookup metnine çevirir ("8" → "Tam Geldi"); sayı değilse null.</summary>
         private string? DurumMetni(string? deger)
         {
-            if (!int.TryParse(deger, NumberStyles.Integer, CultureInfo.InvariantCulture, out var durum) || !Enum.IsDefined(typeof(GridDurum), durum))
+            if (DurumKimligi(deger) is not { } durum)
                 return null;
             var metin = lookupCache.GetDeger<LookupGridDurum>(durum);
             return string.IsNullOrWhiteSpace(metin) || metin == "?" ? null : metin;

@@ -39,6 +39,8 @@ namespace _3K.Application.Features.GridIslemleri.DTOs
         public string Birim { get; init; } = string.Empty;
         public decimal IstenenAdet { get; init; }
         public decimal GridGelenAdet { get; init; }
+        /// <summary>Sahadan doğrudan trafoya sevk edilen miktar (Trafo Sevk); Grid'e gelen adede girmez.</summary>
+        public decimal TrafoSevkAdet { get; init; }
         /// <summary>3K'nın bütün partilerden teslim aldığı kümülatif miktar.</summary>
         public decimal UcKGelenMiktar { get; init; }
         /// <summary>Aktif sevk partisinin 3K tarafından henüz karşılanmamış bölümü.</summary>
@@ -85,8 +87,10 @@ namespace _3K.Application.Features.GridIslemleri.DTOs
         public string ProjeNo { get; init; } = string.Empty;
         /// <summary>Proje silinmişse boş.</summary>
         public int? ProjeTipiId { get; init; }
-        /// <summary>İşlemin kısa adı: Tam Geldi, Eksik Geldi, Manuel ürün, Toplu sevk.</summary>
+        /// <summary>İşlemin kısa adı: Tam Geldi, Eksik Geldi, Trafo Sevk, Grid Kapandı, Manuel ürün, Toplu sevk.</summary>
         public string IslemMetni { get; init; } = string.Empty;
+        /// <summary>Kaydın yeni Grid durumu (8, 9, 11, 14); manuel ürün ve toplu sevk kaydında boş.</summary>
+        public int? GridDurumuId { get; init; }
         /// <summary>Tekil ya da toplu (aynı anda birden çok ürün işaretlendi) kayıt.</summary>
         public bool TopluMu { get; init; }
         /// <summary>Hareketin çeki satırı; satır silinmişse veya toplu sevk kaydıysa boş.</summary>
@@ -100,6 +104,9 @@ namespace _3K.Application.Features.GridIslemleri.DTOs
         /// satırın bugünkü değeridir.
         /// </summary>
         public decimal? GelenAdet { get; init; }
+        /// <summary>Trafo Sevk kaydında trafoya giden adet ("Trafo:" eki); eski kayıtta ve diğer işlemlerde boş.</summary>
+        public decimal? TrafoAdet { get; init; }
+        /// <summary>Satırın bugünkü Grid gelen adedi; Grid Kapandı kaydında boş (kapanış miktar değiştirmez).</summary>
         public decimal? GuncelGridGelenAdet { get; init; }
         /// <summary>Toplu sevk kaydındaki ürün sayısı; tekil kayıtta boş.</summary>
         public int? TopluUrunSayisi { get; init; }

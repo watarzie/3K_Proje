@@ -32,15 +32,27 @@ public static class GridSorgulari
                 : 0m)
             : 0m;
 
-    /// <summary><see cref="GridSahaBekleyenKurali.BekleyenMiktar"/> SQL karşılığı: Grid gelen − 3K'ya ulaşan − yolda, en az 0.</summary>
+    /// <summary><see cref="GridSahaBekleyenKurali.BekleyebilenDurumlar"/> SQL karşılığı: Tam Geldi, Eksik Geldi, Trafo Sevk.</summary>
+    public static readonly Expression<Func<CekiSatiri, bool>> BekleyebilenDurumIfadesi = cs =>
+        cs.GridDurumuId == (int)GridDurum.TamGeldi || cs.GridDurumuId == (int)GridDurum.EksikGeldi ||
+        cs.GridDurumuId == (int)GridDurum.TrafoSevk;
+
+    /// <summary>
+    /// <see cref="GridSahaBekleyenKurali.BekleyenMiktar"/> SQL karşılığı: bekleyebilen durumda Grid gelen − 3K'ya ulaşan −
+    /// yolda, en az 0; diğer durumlarda 0.
+    /// </summary>
     public static readonly Expression<Func<CekiSatiri, decimal>> GriddeBekleyenIfadesi = BekleyenIfadesiniKur();
 
     /// <summary>Bekleyen miktarı pozitif satırlar (<see cref="GriddeBekleyenIfadesi"/> &gt; 0).</summary>
     public static readonly Expression<Func<CekiSatiri, bool>> BekleyenPozitifIfadesi = PozitifIfadesiniKur();
 
-    /// <summary>Grid'e fiziksel gelmiş durumlar (<see cref="GridSahaBekleyenKurali.GelenDurumlar"/>: Tam Geldi, Eksik Geldi).</summary>
-    public static readonly Expression<Func<CekiSatiri, bool>> GridGelmisDurumIfadesi = cs =>
-        cs.GridDurumuId == (int)GridDurum.TamGeldi || cs.GridDurumuId == (int)GridDurum.EksikGeldi;
+    /// <summary>
+    /// Grid Sahası "Tümü" kapsamının durumları (<see cref="GridSahaBekleyenKurali.SahaDurumlari"/>: Tam Geldi, Eksik
+    /// Geldi, Trafo Sevk, Grid Kapandı).
+    /// </summary>
+    public static readonly Expression<Func<CekiSatiri, bool>> GridSahaDurumIfadesi = cs =>
+        cs.GridDurumuId == (int)GridDurum.TamGeldi || cs.GridDurumuId == (int)GridDurum.EksikGeldi ||
+        cs.GridDurumuId == (int)GridDurum.TrafoSevk || cs.GridDurumuId == (int)GridDurum.GridKapandi;
 
     /// <summary>
     /// Sevk kilidi dışlaması (Grid iş listesi ile ortak): tamamen sevk edilmiş projenin satırları yalnız açık
@@ -85,8 +97,9 @@ public static class GridSorgulari
                 Expression.Property(satir, nameof(CekiSatiri.GelenMiktar))),
             yolda);
         var sifir = Expression.Constant(0m);
+        var bekleyebilir = new ParametreDegistirici(BekleyebilenDurumIfadesi.Parameters[0], satir).Visit(BekleyebilenDurumIfadesi.Body);
         return Expression.Lambda<Func<CekiSatiri, decimal>>(
-            Expression.Condition(Expression.GreaterThan(fark, sifir), fark, sifir), satir);
+            Expression.Condition(Expression.AndAlso(bekleyebilir, Expression.GreaterThan(fark, sifir)), fark, sifir), satir);
     }
 
     private static Expression<Func<CekiSatiri, bool>> PozitifIfadesiniKur()

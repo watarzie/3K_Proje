@@ -18,8 +18,8 @@ namespace _3K.Application.Features.GridIslemleri.Validators
                 .Must(tip => !tip.HasValue || Enum.IsDefined(typeof(ProjeTipi), tip.Value))
                 .WithMessage("Geçersiz proje tipi.");
             RuleFor(x => x.GridDurumuId)
-                .Must(durum => !durum.HasValue || GridSahaBekleyenKurali.GridGelmisDurum(durum.Value))
-                .WithMessage("Grid Sahası yalnız Tam Geldi ve Eksik Geldi durumlarını listeler.");
+                .Must(durum => !durum.HasValue || GridSahaBekleyenKurali.SahaDurumu(durum.Value))
+                .WithMessage("Grid Sahası yalnız Tam Geldi, Eksik Geldi, Trafo Sevk ve Grid Kapandı durumlarını listeler.");
             RuleFor(x => x.Siralama)
                 .Must(siralama => string.IsNullOrWhiteSpace(siralama) || GridSahaSiralama.Gecerli(siralama))
                 .WithMessage("Geçersiz sıralama alanı.");
