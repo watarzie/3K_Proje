@@ -9,7 +9,8 @@ namespace _3K.Application.Tests;
 
 /// <summary>
 /// Canlıya alım provası: bu sürümün veritabanı betikleri (README sıra 22 <c>20261021_02_Sahadan_Sahaya_Tasima.sql</c>,
-/// 23 <c>20261023_01_Grid_Saha_Gorunumu_Yetkisi.sql</c>, 24 <c>20261023_02_Sevk_Sonrasi_Duzeltme.sql</c>) önceki sürümün
+/// 23 <c>20261023_01_Grid_Saha_Gorunumu_Yetkisi.sql</c>, 24 <c>20261023_02_Sevk_Sonrasi_Duzeltme.sql</c>,
+/// 25 <c>20261024_01_Proje_Baglanti_Turu.sql</c>, 26 <c>20261024_02_Barkod_Urun_Arama_Yetkisi.sql</c>) önceki sürümün
 /// şemasında çalıştırılır. Sonuç şeması EF modeliyle
 /// aynıdır (kolon, kısıt, ON DELETE kuralı, indeks). Betiklerin tekrarı hiçbir şeyi değiştirmez: var olan taşıma izi ve
 /// verilmiş izinler korunur. Salt okunur durum sorgusu (<c>kontrol/Betik_Durumu.sql</c>) klasördeki her betiği listeler
@@ -17,10 +18,11 @@ namespace _3K.Application.Tests;
 /// </summary>
 public sealed class CanliyaAlimBetikleriTests
 {
-    /// <summary>Canlıda çalıştırma sırası (scripts/database/README.md, sıra 22–24).</summary>
+    /// <summary>Canlıda çalıştırma sırası (scripts/database/README.md, sıra 22–26).</summary>
     private static readonly string[] Betikler =
         ["20261021_02_Sahadan_Sahaya_Tasima.sql", "20261023_01_Grid_Saha_Gorunumu_Yetkisi.sql",
-            "20261023_02_Sevk_Sonrasi_Duzeltme.sql"];
+            "20261023_02_Sevk_Sonrasi_Duzeltme.sql", "20261024_01_Proje_Baglanti_Turu.sql",
+            "20261024_02_Barkod_Urun_Arama_Yetkisi.sql"];
 
     /// <summary>Önceki sürümün (master) şeması: bu sürümün eklediği tablo, kolon, kısıt ve indeksler yoktur.</summary>
     private const string OncekiSema = """
@@ -30,6 +32,7 @@ public sealed class CanliyaAlimBetikleriTests
         DROP INDEX "IX_SahaAktarimlari_KaynakSahaProjeId";
         DROP INDEX "IX_SahaAktarimlari_IslemAnahtari";
         ALTER TABLE "SahaAktarimlari" DROP COLUMN "KaynakSahaProjeId", DROP COLUMN "IslemAnahtari";
+        ALTER TABLE "ProjeFotografBaglantilari" DROP COLUMN "Tur";
         """;
 
     /// <summary>Kolon (tip, uzunluk, hassasiyet, boşluk, kimlik), kısıt ve indeks tanımları.</summary>
@@ -55,6 +58,8 @@ public sealed class CanliyaAlimBetikleriTests
             var modelSemasi = await SemaAsync(db);
             await db.Database.ExecuteSqlRawAsync(OncekiSema);
             await GridIsListesiRolleriniKurAsync(db);
+            // Önceki sürümde türü olmayan bağlantı: betik sonrası fotoğraf (1) sayılır.
+            var projeId = await ProjeVeTursuzBaglantiYazAsync(db);
 
             // Durum sorgusu: klasördeki her betik bir satırdır; önceki sürümde uygulanmamıştır.
             var dosyalar = Directory.GetFiles(Path.GetDirectoryName(Betik(Betikler[0]))!, "*.sql")
@@ -78,6 +83,14 @@ public sealed class CanliyaAlimBetikleriTests
             var duzeltmeIzinleri = await IzinlerAsync(db, YetkiKodlari.Sandik.SevkSonrasiDuzeltme);
             // Yalnız Admin W; Grid iş listesini gören PersonelGrid dahil başka rol almaz.
             Assert.Equal([(SistemRolleri.AdminId, (int)YetkiTipi.W)], duzeltmeIzinleri);
+            var barkod = await db.MenuTanimlari.AsNoTracking().SingleAsync(m => m.Kod == YetkiKodlari.Sandik.BarkodUrunArama);
+            Assert.Equal((5260, (string?)"/barkod-arama", "MENU.BARKOD_URUN_ARAMA", 5), (barkod.Id, barkod.Route, barkod.LabelKey, barkod.ParentId!.Value));
+            Assert.True(barkod.Sira > (await db.MenuTanimlari.AsNoTracking().Where(m => m.ParentId == 5 && m.Id != 5260).MaxAsync(m => m.Sira)));
+            var barkodIzinleri = await IzinlerAsync(db, YetkiKodlari.Sandik.BarkodUrunArama);
+            // Admin W; Sandık Yönetimi'ni gören roller R (tohumdaki rollerin sandik-yonetimi izni).
+            Assert.Equal(await SandikYonetimiRolleriAsync(db), barkodIzinleri);
+            var baglanti = await db.Set<ProjeFotografBaglantisi>().AsNoTracking().SingleAsync(b => b.ProjeId == projeId);
+            Assert.Equal(ProjeBaglantiTuru.Fotograf, baglanti.Tur);
             var sema = await SemaAsync(db);
             var fark = modelSemasi.Except(sema).Select(x => "eksik: " + x).Concat(sema.Except(modelSemasi).Select(x => "fazla: " + x)).ToList();
             Assert.True(fark.Count == 0, string.Join(Environment.NewLine, fark));
@@ -96,6 +109,9 @@ public sealed class CanliyaAlimBetikleriTests
             Assert.Equal(1, await db.MenuTanimlari.CountAsync(m => m.Kod == YetkiKodlari.Sandik.GridSahaGorunumu));
             Assert.Equal(duzeltmeIzinleri, await IzinlerAsync(db, YetkiKodlari.Sandik.SevkSonrasiDuzeltme));
             Assert.Equal(1, await db.MenuTanimlari.CountAsync(m => m.Kod == YetkiKodlari.Sandik.SevkSonrasiDuzeltme));
+            Assert.Equal(barkodIzinleri, await IzinlerAsync(db, YetkiKodlari.Sandik.BarkodUrunArama));
+            Assert.Equal(1, await db.MenuTanimlari.CountAsync(m => m.Kod == YetkiKodlari.Sandik.BarkodUrunArama));
+            Assert.Equal(ProjeBaglantiTuru.Fotograf, (await db.Set<ProjeFotografBaglantisi>().AsNoTracking().SingleAsync(b => b.ProjeId == projeId)).Tur);
             var iz = await db.SahaTasimaKalemleri.AsNoTracking().SingleAsync();
             Assert.Equal((izId, "PA-SAHA-A", "PA-SAHA-B", 3m), (iz.Id, iz.KaynakSahaProjeNo, iz.HedefSahaProjeNo, iz.Miktar));
             Assert.NotNull((await db.SahaAktarimlari.AsNoTracking().SingleAsync(a => a.Id == iz.SahaAktarimId)).IslemAnahtari);
@@ -117,6 +133,29 @@ public sealed class CanliyaAlimBetikleriTests
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
     }
+
+    /// <summary>
+    /// Türü olmayan (önceki sürüm) bağlantı ham SQL ile yazılır; EF modeli Tur kolonunu beklediği için kullanılamaz.
+    /// </summary>
+    private static async Task<int> ProjeVeTursuzBaglantiYazAsync(AppDbContext db)
+    {
+        var proje = new Proje { ProjeNo = "PA-FOTO", Musteri = "M", ProjeTipiId = (int)ProjeTipi.Normal };
+        db.Projeler.Add(proje);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        await db.Database.ExecuteSqlAsync(
+            $"INSERT INTO \"ProjeFotografBaglantilari\" (\"ProjeId\", \"Adres\", \"CreatedDate\") VALUES ({proje.Id}, 'https://foto.ornek.com/pa', now())");
+        return proje.Id;
+    }
+
+    /// <summary>Beklenen barkod arama izinleri: Admin W, sandik-yonetimi'nde R/W olan diğer roller R.</summary>
+    private static async Task<List<(int RolId, int YetkiTipiId)>> SandikYonetimiRolleriAsync(AppDbContext db) =>
+        (await IzinlerAsync(db, YetkiKodlari.Sandik.Yonetimi))
+        .Where(x => x.YetkiTipiId is (int)YetkiTipi.R or (int)YetkiTipi.W)
+        .Select(x => (x.RolId, x.RolId == SistemRolleri.AdminId ? (int)YetkiTipi.W : (int)YetkiTipi.R))
+        .Union([(SistemRolleri.AdminId, (int)YetkiTipi.W)])
+        .OrderBy(x => x.Item1)
+        .ToList();
 
     private static Task<List<(int RolId, int YetkiTipiId)>> GridSahaIzinleriAsync(AppDbContext db) =>
         IzinlerAsync(db, YetkiKodlari.Sandik.GridSahaGorunumu);

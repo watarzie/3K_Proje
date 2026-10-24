@@ -59,6 +59,14 @@ namespace _3K_API.Controllers
         public async Task<IActionResult> GerceklesenCekiListesiExcelIndir(int projeId, CancellationToken cancellationToken) =>
             (await _mediator.Send(new GetGerceklesenCekiListesiExcelQuery { ProjeId = projeId }, cancellationToken)).ToFileResult();
 
+        /// <summary>
+        /// Müşteri gerçekleşen çeki listesi (TR/EN, yalnız sevk edilen sandık ve ürünler); format "pdf" veya "excel".
+        /// İzin projenin gerçek tipinin gerçekleşen çeki raporu okumasıdır.
+        /// </summary>
+        [HttpGet("gerceklesen-ceki-listesi/{projeId}/musteri/{format}")]
+        public async Task<IActionResult> MusteriCekiListesiIndir(int projeId, string format, CancellationToken cancellationToken) =>
+            (await _mediator.Send(new GetMusteriCekiListesiQuery { ProjeId = projeId, Format = format }, cancellationToken)).ToFileResult();
+
         [HttpGet("saha-gerceklesen-ceki-listesi/{projeId}")]
         public async Task<IActionResult> SahaGerceklesenCekiListesiPdfIndir(int projeId, CancellationToken cancellationToken) =>
             (await _mediator.Send(new GetSahaGerceklesenCekiListesiPdfQuery { ProjeId = projeId }, cancellationToken)).ToFileResult();

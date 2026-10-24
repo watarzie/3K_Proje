@@ -17,7 +17,8 @@ namespace _3K.Application.Tests;
 /// <summary>
 /// Proje fotoğraf bağlantıları (projede birden çok): yalnız http/https adres kuralı, isteğe bağlı açıklama, tek izin kodu
 /// (R görür/açar, W ekler/düzenler/siler), ekleme/düzenleme/silme ile değişiklik geçmişi, aynı adres ve üst sınır
-/// retleri, proje listesinde izne bağlı görünürlük ve eski tekil kolonun yeni tabloya taşınması.
+/// retleri, proje listesinde izne bağlı görünürlük, bağlantı türü (fotoğraf / gerçekleşen çeki) ve gerçek şemada tür
+/// varsayılanı.
 /// </summary>
 public sealed class ProjeFotografBaglantisiTests
 {
@@ -206,64 +207,80 @@ public sealed class ProjeFotografBaglantisiTests
     }
 
     /// <summary>
-    /// Önceki sürümde 01 betiği tekil kolonu ekler, düğümü (5256) ve yalnız Admin W iznini yazar; 02 düğümü Projeler altına
-    /// taşır. 20261018_01 dolu tekil değerleri (kırpılmış, açıklamasız) yeni tabloya taşır, boşları atlar ve kolonu kaldırır.
-    /// Üç betik ikinci kez çalıştırılınca hiçbir şey değişmez (01 tablo varken kolonu geri eklemez). EF eşlemesi tabloyla
-    /// çalışır; proje silinince bağlantıları da silinir.
+    /// Bağlantı türü (25 numaralı betik): eklemede verilen tür saklanır, boşsa fotoğraf; sınır her tür için ayrıdır; aynı
+    /// adres türden bağımsız çakışmadır; düzenleme türü değiştirmez; geçmiş kaydı türün adını yazar; liste türü döndürür.
+    /// </summary>
+    [Fact]
+    public async Task Tur_GerceklesenCekiAyriSinirlaEklenir_DuzenlemedeDegismez_GecmisTurAdiniYazar()
+    {
+        var uow = new OrtakMemoryUow();
+        uow.Repo<Proje>().Rows.Add(new Proje { Id = 10, ProjeNo = "PA727-03" });
+        var baglantilar = uow.Repo<ProjeFotografBaglantisi>().Rows;
+        for (var i = 0; i < ProjeFotografBaglantisiKurali.EnFazlaBaglanti; i++)
+            baglantilar.Add(new ProjeFotografBaglantisi { Id = i + 1, ProjeId = 10, Adres = $"https://foto.ornek.com/{i}" });
+        var hareket = new OrtakHareket();
+        var kaydet = new ProjeFotografBaglantisiKaydetCommandHandler(uow, hareket, new OrtakUser());
+        var sil = new ProjeFotografBaglantisiSilCommandHandler(uow, hareket, new OrtakUser());
+
+        // Fotoğraf sınırı dolu; gerçekleşen çeki ayrı sınırla eklenir. Aynı adres türden bağımsız çakışmadır.
+        Assert.Equal(400, (await kaydet.Handle(new() { ProjeId = 10, Adres = "https://foto.ornek.com/yeni" }, default)).StatusCode);
+        Assert.Equal(409, (await kaydet.Handle(new() { ProjeId = 10, Tur = ProjeBaglantiTuru.GerceklesenCeki, Adres = "https://foto.ornek.com/0" }, default)).StatusCode);
+        var ceki = await kaydet.Handle(new() { ProjeId = 10, Tur = ProjeBaglantiTuru.GerceklesenCeki, Adres = "drive.ornek.com/ceki", Aciklama = "Final" }, default);
+        Assert.True(ceki.IsSuccess);
+        var cekiDto = Assert.Single(ceki.Value!, x => x.Tur == (int)ProjeBaglantiTuru.GerceklesenCeki);
+        Assert.Equal(("https://drive.ornek.com/ceki", "Final"), (cekiDto.Adres, cekiDto.Aciklama));
+        Assert.Equal(ProjeFotografBaglantisiKurali.EnFazlaBaglanti, ceki.Value!.Count(x => x.Tur == (int)ProjeBaglantiTuru.Fotograf));
+        Assert.Equal(("Gerçekleşen Çeki Bağlantısı Eklendi", "Final · https://drive.ornek.com/ceki"), (hareket.Rows[^1].Islem, hareket.Rows[^1].YeniDeger));
+
+        // Düzenleme türü değiştirmez (istekteki tür yok sayılır).
+        var duzenlendi = await kaydet.Handle(new() { ProjeId = 10, BaglantiId = cekiDto.Id, Tur = ProjeBaglantiTuru.Fotograf, Adres = "https://drive.ornek.com/ceki-2" }, default);
+        Assert.True(duzenlendi.IsSuccess);
+        Assert.Equal(ProjeBaglantiTuru.GerceklesenCeki, baglantilar.Single(x => x.Id == cekiDto.Id).Tur);
+        Assert.Equal("Gerçekleşen Çeki Bağlantısı Güncellendi", hareket.Rows[^1].Islem);
+
+        Assert.True((await sil.Handle(new() { ProjeId = 10, BaglantiId = cekiDto.Id }, default)).IsSuccess);
+        Assert.Equal("Gerçekleşen Çeki Bağlantısı Kaldırıldı", hareket.Rows[^1].Islem);
+        Assert.All(baglantilar, x => Assert.Equal(ProjeBaglantiTuru.Fotograf, x.Tur));
+    }
+
+    [Fact]
+    public void Tur_DogrulayiciTanimsizTuruReddeder()
+    {
+        var kaydet = new ProjeFotografBaglantisiKaydetCommandValidator();
+        Assert.True(kaydet.Validate(new ProjeFotografBaglantisiKaydetCommand { ProjeId = 1, Tur = ProjeBaglantiTuru.GerceklesenCeki, Adres = "https://a.com" }).IsValid);
+        Assert.Contains("türü", Assert.Single(kaydet.Validate(new ProjeFotografBaglantisiKaydetCommand
+        {
+            ProjeId = 1, Tur = (ProjeBaglantiTuru)7, Adres = "https://a.com"
+        }).Errors).ErrorMessage);
+    }
+
+    /// <summary>
+    /// Gerçek şema: türü verilmeden yazılan (önceki sürüm) bağlantı fotoğraf olur, EF gerçekleşen çeki türünü yazar ve
+    /// okur; proje silinince bütün türlerdeki bağlantılar silinir.
     /// </summary>
     [PostgresRaporFact, Trait("Category", "Postgres")]
-    public async Task Postgres_Betikler_TekilBaglantiyiTasiyipKolonuKaldirir_TekrarCalisir_ProjeSilinceBaglantilarSilinir()
+    public async Task Postgres_TurVarsayilaniFotograftir_GerceklesenCekiOkunur_ProjeSilinceBaglantilarSilinir()
     {
         await FinansPostgresTests.InDatabase(async options =>
         {
             await using var db = new AppDbContext(options);
-            db.Projeler.AddRange(
-                new Proje { ProjeNo = "PA-FOTO", Musteri = "Müşteri" },
-                new Proje { ProjeNo = "PA-BOS", Musteri = "Müşteri" },
-                new Proje { ProjeNo = "PA-YOK", Musteri = "Müşteri" });
+            var proje = new Proje { ProjeNo = "PA-FOTO", Musteri = "Müşteri" };
+            db.Projeler.Add(proje);
             await db.SaveChangesAsync();
-            db.ChangeTracker.Clear();
-            int Id(string projeNo) => db.Projeler.AsNoTracking().Single(x => x.ProjeNo == projeNo).Id;
-
-            // Önceki sürüm: çoklu tablo yok; EnsureCreated tabloyu modelden kurduğu için kaldırılır.
-            await db.Database.ExecuteSqlRawAsync("DROP TABLE \"ProjeFotografBaglantilari\"");
-            var betikler = await Task.WhenAll(new[]
-            {
-                "20261014_01_Proje_Fotograf_Baglantisi.sql",
-                "20261014_02_Proje_Fotograf_Baglantisi_Projeler_Altina.sql",
-                "20261018_01_Proje_Fotograf_Baglantilari.sql",
-            }.Select(x => File.ReadAllTextAsync(FinansSekmeAgaci.BetikYolu(x))));
-            await db.Database.ExecuteSqlRawAsync(betikler[0]);
-            await db.Database.ExecuteSqlRawAsync(betikler[1]);
-            await db.Database.ExecuteSqlRawAsync(
-                "UPDATE \"Projeler\" SET \"FotografBaglantisi\" = CASE \"ProjeNo\" WHEN 'PA-FOTO' THEN ' https://foto.ornek.com/pa-foto ' " +
-                "WHEN 'PA-BOS' THEN '  ' END");
-
-            await db.Database.ExecuteSqlRawAsync(betikler[2]);
-            var ilkSatirlar = await db.RolYetkileri.AsNoTracking().CountAsync();
-            foreach (var betik in betikler)
-                await db.Database.ExecuteSqlRawAsync(betik);
-            db.ChangeTracker.Clear();
-
-            Assert.Equal(0, await db.Database.SqlQueryRaw<int>(
-                "SELECT count(*)::int AS \"Value\" FROM information_schema.columns " +
-                "WHERE table_name = 'Projeler' AND column_name = 'FotografBaglantisi'").SingleAsync());
-            var tasinan = Assert.Single(await db.Set<ProjeFotografBaglantisi>().AsNoTracking().ToListAsync());
-            Assert.Equal((Id("PA-FOTO"), "https://foto.ornek.com/pa-foto", (string?)null), (tasinan.ProjeId, tasinan.Adres, tasinan.Aciklama));
-            Assert.Equal(ilkSatirlar, await db.RolYetkileri.AsNoTracking().CountAsync());
-            var izin = Assert.Single(await db.RolYetkileri.AsNoTracking().Where(x => x.MenuTanimiId == 5256).ToListAsync());
-            Assert.Equal((SistemRolleri.AdminId, (int)YetkiTipi.W), (izin.RolId, izin.YetkiTipiId));
-
+            await db.Database.ExecuteSqlAsync(
+                $"INSERT INTO \"ProjeFotografBaglantilari\" (\"ProjeId\", \"Adres\", \"CreatedDate\") VALUES ({proje.Id}, 'https://foto.ornek.com/eski', now())");
             db.Set<ProjeFotografBaglantisi>().Add(new ProjeFotografBaglantisi
             {
-                ProjeId = Id("PA-FOTO"), Adres = "https://drive.ornek.com/sevk", Aciklama = "Sevk günü"
+                ProjeId = proje.Id, Tur = ProjeBaglantiTuru.GerceklesenCeki, Adres = "https://drive.ornek.com/ceki", Aciklama = "Final"
             });
             await db.SaveChangesAsync();
             db.ChangeTracker.Clear();
-            Assert.Equal(2, (await db.Projeler.AsNoTracking().Include(x => x.FotografBaglantilari)
-                .SingleAsync(x => x.ProjeNo == "PA-FOTO")).FotografBaglantilari.Count);
 
-            await db.Projeler.Where(x => x.ProjeNo == "PA-FOTO").ExecuteDeleteAsync();
+            var okunan = await db.Set<ProjeFotografBaglantisi>().AsNoTracking().OrderBy(x => x.Id).ToListAsync();
+            Assert.Equal([(ProjeBaglantiTuru.Fotograf, "https://foto.ornek.com/eski"), (ProjeBaglantiTuru.GerceklesenCeki, "https://drive.ornek.com/ceki")],
+                okunan.Select(x => (x.Tur, x.Adres)));
+
+            await db.Projeler.Where(x => x.Id == proje.Id).ExecuteDeleteAsync();
             Assert.Empty(await db.Set<ProjeFotografBaglantisi>().AsNoTracking().ToListAsync());
         });
     }

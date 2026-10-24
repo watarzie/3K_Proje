@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using _3K.Application.Features.ProjeIslemleri.Commands;
 using _3K.Application.Features.ProjeIslemleri.Queries;
+using _3K.Core.Enums;
 using _3K_API.Extensions;
 
 namespace _3K_API.Controllers
@@ -224,20 +225,21 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
         /// <summary>
-        /// Projeye fotoğraf bağlantısı ekler (proje-fotograf-baglantisi W); projenin güncel bağlantı listesini döner.
+        /// Projeye fotoğraf veya gerçekleşen çeki bağlantısı ekler (Tur boşsa fotoğraf; proje-fotograf-baglantisi W);
+        /// projenin güncel bağlantı listesini döner.
         /// </summary>
         [HttpPost("{id:int}/fotograf-baglantilari")]
         public async Task<ActionResult> FotografBaglantisiEkle(int id, [FromBody] FotografBaglantisiRequest request)
         {
             var result = await _mediator.Send(new ProjeFotografBaglantisiKaydetCommand
             {
-                ProjeId = id, Adres = request.Adres, Aciklama = request.Aciklama
+                ProjeId = id, Tur = request.Tur, Adres = request.Adres, Aciklama = request.Aciklama
             });
             return result.ToActionResult();
         }
 
         /// <summary>
-        /// Projenin bir fotoğraf bağlantısının adresini/açıklamasını değiştirir (proje-fotograf-baglantisi W).
+        /// Projenin bir bağlantısının adresini/açıklamasını değiştirir; tür değişmez (proje-fotograf-baglantisi W).
         /// </summary>
         [HttpPut("{id:int}/fotograf-baglantilari/{baglantiId:int}")]
         public async Task<ActionResult> FotografBaglantisiGuncelle(int id, int baglantiId, [FromBody] FotografBaglantisiRequest request)
@@ -280,6 +282,8 @@ namespace _3K_API.Controllers
 
     public record FotografBaglantisiRequest
     {
+        /// <summary>Yalnız eklemede: 1 fotoğraf (varsayılan), 2 gerçekleşen çeki.</summary>
+        public ProjeBaglantiTuru? Tur { get; init; }
         public string? Adres { get; init; }
         public string? Aciklama { get; init; }
     }

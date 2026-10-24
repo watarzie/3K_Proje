@@ -13,7 +13,7 @@ namespace _3K.Infrastructure.Services.Raporlar;
 /// döküm (Seferler, Araçlar, Projeler, Sandıklar, Ürünler), sefer PDF'i tek seferin yazdırılabilir belgesidir.
 /// Sayı ve tarihler tr-TR biçimindedir; ağırlığı girilmemiş sandık "-" yazılır ve toplamlara katılmaz.
 /// </summary>
-public sealed class SevkiyatRaporDosyaService : ISevkiyatRaporDosyaService
+public sealed partial class SevkiyatRaporDosyaService : ISevkiyatRaporDosyaService
 {
     private static readonly CultureInfo Tr = CultureInfo.GetCultureInfo("tr-TR");
     private const string Mavi = "#1565C0";
@@ -273,22 +273,8 @@ public sealed class SevkiyatRaporDosyaService : ISevkiyatRaporDosyaService
                     });
                 }
 
+                // İmza alanı yok: sevk eden / teslim alan imzası istenmiyor (24.10.2026).
                 col.Item().Element(c => Notlar(c, sefer.DuzeltmeAcikSandikVar));
-
-                // Teslim belgesi olarak yazdırıldığında imza alanı.
-                col.Item().PaddingTop(16).ShowEntire().Row(row =>
-                {
-                    row.Spacing(40);
-                    foreach (var etiket in new[] { "Sevk eden", "Teslim alan (şoför)" })
-                    {
-                        row.RelativeItem().Column(c =>
-                        {
-                            c.Item().Text(etiket).SemiBold().FontColor(Mavi);
-                            c.Item().PaddingTop(34).LineHorizontal(0.6f).LineColor(Colors.Grey.Medium);
-                            c.Item().PaddingTop(3).Text("Ad soyad / imza / tarih").FontSize(7).FontColor(Gri);
-                        });
-                    }
-                });
             });
 
             page.Footer().Element(c => Altbilgi(c, $"3K – Sefer Raporu | {SeferEtiketi(sefer)} | {AracDorse(sefer)}"));
@@ -352,15 +338,21 @@ public sealed class SevkiyatRaporDosyaService : ISevkiyatRaporDosyaService
     }
 
     /// <summary>Başlık (1), süzgeç ve rapor tarihi (2–3), tablo başlığı (5), veri (6+); otomatik süzgeç ve dondurma.</summary>
-    private static void Sayfa(XLWorkbook wb, string ad, SevkiyatRaporu rapor, string[] basliklar, IEnumerable<object?[]> satirlar)
+    private static void Sayfa(XLWorkbook wb, string ad, SevkiyatRaporu rapor, string[] basliklar, IEnumerable<object?[]> satirlar) =>
+        Sayfa(wb, ad, $"{rapor.Baslik} – {ad}", $"Süzgeç: {rapor.SuzgecAciklamasi}",
+            $"Rapor tarihi: {Tarih(rapor.OlusturmaTarihi, true)} · {AnlikNotu}", basliklar, satirlar);
+
+    /// <summary>Başlık (1), iki bilgi satırı (2–3), tablo başlığı (5), veri (6+); otomatik süzgeç ve dondurma.</summary>
+    private static void Sayfa(XLWorkbook wb, string ad, string baslik, string bilgi1, string bilgi2, string[] basliklar,
+        IEnumerable<object?[]> satirlar)
     {
         const int baslikSatiri = 5;
         var ws = wb.Worksheets.Add(ad);
         var sonSutun = basliklar.Length;
-        ws.Cell(1, 1).Value = $"{rapor.Baslik} – {ad}";
+        ws.Cell(1, 1).Value = baslik;
         RaporExcelStilleri.StyleExcelTitle(ws, sonSutun);
-        ws.Cell(2, 1).Value = $"Süzgeç: {rapor.SuzgecAciklamasi}";
-        ws.Cell(3, 1).Value = $"Rapor tarihi: {Tarih(rapor.OlusturmaTarihi, true)} · {AnlikNotu}";
+        ws.Cell(2, 1).Value = bilgi1;
+        ws.Cell(3, 1).Value = bilgi2;
         RaporExcelStilleri.StyleExcelInfoRows(ws, sonSutun);
         for (var i = 0; i < basliklar.Length; i++)
             ws.Cell(baslikSatiri, i + 1).Value = basliklar[i];

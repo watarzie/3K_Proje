@@ -14,6 +14,7 @@
 | Dashboard sorguları | dashboard R |
 | Grid / 3K iş listeleri | grid-is-listesi / 3k-is-listesi R |
 | Grid Sahası: Grid'e gelen ürünler ve mal kabul kayıtları (`GET api/grid/saha/urunler`, `GET api/grid/saha/mal-kabul`) | grid-saha-gorunumu R (proje tipinden bağımsız, salt okuma; ekrandaki "Grid'e git" satırın tipinin Grid modülü R iznini ayrıca ister) |
+| Barkodla ürün arama ve raporu (`GET api/barkod-arama`, `GET api/barkod-arama/rapor/{format}`) | barkod-urun-arama R (Id 5260, proje tipinden bağımsız, salt okuma; satırdaki proje no bağlantısı satırın tipinin Grid modülü R iznini ayrıca ister) |
 | Çeki ana veri düzenle / satır sil | ceki-verisi-duzenle / ceki-verisi-sil W |
 | Kalite / süreç değişikliği | kalite-modulu / surec-modulu W |
 | Stok listesi ve PDF / stok yazma / stok silme | stok R / stok W / stok-sil W |
@@ -21,7 +22,7 @@
 | Depo raporları | depo-durumu R |
 | Depo lokasyon tanımı | depo-durumu W (sandığa lokasyon atama ayrı işlemdir) |
 | Hareket geçmişi | hareket-gecmisi R |
-| Proje fotoğraf bağlantısı ekle / değiştir / sil (`POST api/proje/{id}/fotograf-baglantilari`, `PUT`/`DELETE api/proje/{id}/fotograf-baglantilari/{baglantiId}`) | proje-fotograf-baglantisi W (proje tipinden ve sevk durumundan bağımsız tek kod; Projeler altında, Projeler tavanıdır) |
+| Proje fotoğraf / gerçekleşen çeki bağlantısı ekle / değiştir / sil (`POST api/proje/{id}/fotograf-baglantilari`, `PUT`/`DELETE api/proje/{id}/fotograf-baglantilari/{baglantiId}`) | proje-fotograf-baglantisi W (proje tipinden ve sevk durumundan bağımsız tek kod; Projeler altında, Projeler tavanıdır) |
 | Proje listesinde fotoğraf bağlantılarının dönmesi | proje-fotograf-baglantisi R; izin yoksa liste satırında bağlantı listesi boş döner |
 | Kullanıcı, onay, bildirim aboneliği, ambalaj, finans | Request üzerindeki mevcut sabit veya çoklu işlem izinleri; artık header fallback yok |
 | **Finans (13 Ekim 2026'dan itibaren yalnız sekme / alt sekme izni)** | Her istek `Sekmeler` listesini bildirir (`FinansCommand`/`FinansQuery`); sorgu listelenen sekmelerden **herhangi birinin** R'sini, işlem W'sini ister. Alan maskelemesi yoktur: sekme R'si tutar, fiyat, gelir, gider, kârlılık, ölçü ve m³ dahil bütün alanları gösterir. İş Takibi, Tanımlar ve PO/Fatura işlemleri **alt sekmeye** bağlıdır (`20261013_03_Finans_Alt_Sekme_Yetkileri.sql`); sekme alt sekmenin tavanıdır, sekme W'si alt sekme W'sini kendiliğinden vermez. Kümeler: `3K.Core/Constants/FinansSekmeleri.cs` |
@@ -76,6 +77,7 @@ Normal / Saha / Yedek türü, mevcut kaydın proje FK'si üzerinden okunur. Göv
 | Proje silme | proje-sil W | saha-proje-sil W | yedek-proje-sil W |
 | Planlanan tarih | planlanan-sevk-tarihi W | planlanan-sevk-tarihi W | yedek-planlanan-sevk-tarihi W |
 | Gerçekleşen çeki raporu | gerceklesen-ceki-raporu R | saha-gerceklesen-ceki-raporu R | yedek-gerceklesen-ceki-raporu R |
+| Müşteri gerçekleşen çeki listesi (`GET api/pdf/gerceklesen-ceki-listesi/{projeId}/musteri/{format}`) | gerceklesen-ceki-raporu R | saha-gerceklesen-ceki-raporu R | yedek-gerceklesen-ceki-raporu R |
 | 3K sandık durum raporu | 3k-sandik-durum-raporu R | saha-3k-sandik-durum-raporu R | yedek-3k-sandik-durum-raporu R |
 | Genel sandık raporu | sandik-yonetimi **veya** aktif-projeler R | saha-raporu R | yedek-raporu R |
 | Tekil / toplu eksik raporu | eksik-raporu R | saha-sevk-sonrasi-eksik-raporu R | yedek-eksik-raporu R |

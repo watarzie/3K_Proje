@@ -132,6 +132,7 @@ public static class DependencyInjection
     /// <summary>Operasyon raporları; her rapor ailesi kendi arayüzünün arkasındadır.</summary>
     private static void AddRaporServices(this IServiceCollection services)
     {
+        services.AddScoped<IBarkodUrunAramaService, BarkodUrunAramaService>();
         services.AddScoped<IDepoSandikRaporService, DepoSandikRaporService>();
         services.AddScoped<IEksikUrunlerRaporService, EksikUrunlerRaporService>();
         services.AddScoped<IGerceklesenCekiListesiRaporService, GerceklesenCekiListesiRaporService>();

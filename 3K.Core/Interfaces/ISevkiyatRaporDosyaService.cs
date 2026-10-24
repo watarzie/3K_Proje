@@ -14,6 +14,15 @@ public interface ISevkiyatRaporDosyaService
     /// <summary>Dönem dökümü Excel: Seferler, Araçlar, Projeler, Sandıklar ve Ürünler sayfaları.</summary>
     byte[] DonemExcelOlustur(SevkiyatRaporu rapor);
 
-    /// <summary>Tek seferin yazdırılabilir raporu: araç/şoför bilgisi, proje proje sandık listesi ve imza alanı.</summary>
+    /// <summary>Tek seferin yazdırılabilir raporu: araç/şoför bilgisi, proje proje sandık listesi (imza alanı yok).</summary>
     byte[] SeferPdfOlustur(SevkiyatRaporSeferi sefer, DateTime olusturmaTarihi);
+
+    /// <summary>
+    /// Müşteri gerçekleşen çeki listesi PDF ("Gerçekleşen Çeki Listesi / Actual Packing List"): sevk edilen sandıklar ve
+    /// sandık sandık ürünleri, TR/EN başlıklarla; sevk tarihi yazılmaz.
+    /// </summary>
+    byte[] MusteriCekiPdfOlustur(MusteriCekiListesi liste);
+
+    /// <summary>Müşteri gerçekleşen çeki listesi Excel: PDF ile aynı içerik ("Sandıklar - Cases", "Ürünler - Items").</summary>
+    byte[] MusteriCekiExcelOlustur(MusteriCekiListesi liste);
 }

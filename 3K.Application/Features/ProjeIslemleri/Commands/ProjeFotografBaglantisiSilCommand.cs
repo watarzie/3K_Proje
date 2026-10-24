@@ -9,7 +9,7 @@ using _3K.Core.Interfaces;
 namespace _3K.Application.Features.ProjeIslemleri.Commands
 {
     /// <summary>
-    /// Projenin bir fotoğraf bağlantısını siler (fotoğraflar sitede kalır, yalnız bağlantı kaldırılır). İzin:
+    /// Projenin bir fotoğraf veya gerçekleşen çeki bağlantısını siler (içerik sitede kalır, yalnız bağlantı kaldırılır). İzin:
     /// <see cref="YetkiKodlari.Proje.FotografBaglantisi"/> W. Sonuç projenin güncel bağlantı listesidir.
     /// </summary>
     public class ProjeFotografBaglantisiSilCommand : IRequest<Result<List<ProjeFotografBaglantisiDto>>>, ISecuredRequest, IRequiresMenuPermission
@@ -39,7 +39,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 repo.Remove(baglanti);
                 await unitOfWork.SaveChangesAsync(token);
                 await hareketService.HareketKaydetAsync(ProjeFotografBaglantisiGecmisi.Kayit(
-                    request.ProjeId, currentUserService.UserId, "Fotoğraf Bağlantısı Kaldırıldı", eski, null));
+                    request.ProjeId, currentUserService.UserId, ProjeFotografBaglantisiGecmisi.Islem(baglanti.Tur, "Kaldırıldı"), eski, null));
 
                 return Result<List<ProjeFotografBaglantisiDto>>.Success(
                     ProjeFotografBaglantisiDto.Liste(await repo.FindAsync(x => x.ProjeId == request.ProjeId)));

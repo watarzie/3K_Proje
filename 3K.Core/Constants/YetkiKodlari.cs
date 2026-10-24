@@ -50,6 +50,11 @@ public static class YetkiKodlari
         /// proje tipinden bağımsız tek listede. Satırdan Grid ekranına geçiş tipin Grid modülü iznini ister.
         /// </summary>
         public const string GridSahaGorunumu = "grid-saha-gorunumu";
+        /// <summary>
+        /// Barkodla ürün arama ekranı (salt görüntüleme, R): bir barkodun Normal/Saha/Yedek bütün projelerdeki satırları,
+        /// eksik miktarıyla; PDF/Excel raporu dahil. Satırdan Grid ekranına geçiş tipin Grid modülü iznini ister.
+        /// </summary>
+        public const string BarkodUrunArama = "barkod-urun-arama";
         public const string CekiRevizyonYukle = "ceki-revizyon-yukle";
         public const string UcKSandikDurumRaporu = "3k-sandik-durum-raporu";
         public const string LokasyonAtama = "sandik-lokasyon-atama";

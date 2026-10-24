@@ -179,8 +179,7 @@ internal static class SevkiyatRaporOlusturucu
                     }
                     else
                     {
-                        miktar = i.TahsisMiktari > 0 ? i.TahsisMiktari : i.Miktar;
-                        konulan = i.KonulanAdet > 0 ? i.KonulanAdet : miktar;
+                        (miktar, konulan) = ElleEklenenMalzemeKurali.Miktarlar(i.TahsisMiktari, i.Miktar, i.KonulanAdet);
                     }
                     var birimId = i.SatirBirimId ?? i.BirimId;
                     return new SevkiyatRaporUrunu(
