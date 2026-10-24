@@ -18,6 +18,11 @@ namespace _3K.Core.Entities
         /// </summary>
         public int? SevkOncesiDurumId { get; set; }
         public bool SevkiyatDuzeltmeAcikMi { get; set; }
+        /// <summary>
+        /// Son kapanma zamanı (<c>SandikDurumOlayKurali.KapanmaTarihi</c>): sandık Kapandı'ya girince yazılır, sevkte
+        /// korunur, Hazırlanıyor/Boş'a dönünce boşalır. Kaydetme anında <c>SandikDurumOlayInterceptor</c> günceller.
+        /// </summary>
+        public DateTime? KapanmaTarihi { get; set; }
         public int DepoLokasyonId { get; set; } = (int)DepoLokasyon.Belirsiz;
 
         /// <summary>

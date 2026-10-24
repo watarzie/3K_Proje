@@ -3,6 +3,7 @@ using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Interfaces;
 using _3K.Core.Entities;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.ProjeIslemleri.Commands
 {
@@ -36,8 +37,22 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             
             if (sandik.DurumId != yeniDurumId)
             {
+                // Kapalı sandığı geri almak sebep ister; reddedilen istekte sandık değişmez.
+                LookupSandikAcilmaSebebi? sebep = null;
+                if (SandikDurumOlayKurali.OlayTuru(eskiDurumId, yeniDurumId) == SandikDurumOlayTuru.Acildi)
+                {
+                    var hata = SandikDurumOlayKurali.GeriAcmaHatasi(request.AcilmaSebebiId, request.Not);
+                    if (hata != null)
+                        return Result<bool>.Failure(hata);
+                    sebep = await _unitOfWork.GetRepository<LookupSandikAcilmaSebebi>().GetByIdAsync(request.AcilmaSebebiId!.Value);
+                    if (sebep == null)
+                        return Result<bool>.Failure("Seçilen geri açma sebebi bulunamadı.");
+                }
+
                 sandik.DurumId = yeniDurumId;
                 repo.Update(sandik);
+                await SandikDurumOlayYazici.EkleAsync(_unitOfWork, sandik, eskiDurumId, SandikDurumOlayKaynagi.Elle,
+                    _currentUserService.UserId, sebep?.Id, request.Not);
                 await _unitOfWork.SaveChangesAsync();
 
                 var eskiDurumMetni = Enum.GetName(typeof(SandikDurum), eskiDurumId) ?? eskiDurumId.ToString();
@@ -54,11 +69,22 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                     IslemTipiId = request.Kapali ? (int)IslemTipi.SandikKapatildi : null,
                     EskiDeger = eskiDurumMetni,
                     YeniDeger = yeniDurumMetni,
-                    Aciklama = request.Kapali ? $"Sandık yetkili tarafından manuel olarak kapatıldı." : $"Sandık yetkili tarafından tekrar hazırlanıyor konumuna getirildi."
+                    Aciklama = request.Kapali
+                        ? $"Sandık yetkili tarafından manuel olarak kapatıldı."
+                        : GeriAcmaAciklamasi(sebep, request.Not)
                 });
             }
 
             return Result<bool>.Success(true);
+        }
+
+        private static string GeriAcmaAciklamasi(LookupSandikAcilmaSebebi? sebep, string? not)
+        {
+            var metin = "Sandık yetkili tarafından tekrar hazırlanıyor konumuna getirildi.";
+            if (sebep != null)
+                metin += $" Sebep: {sebep.Deger}.";
+            var temizNot = SandikDurumOlayKurali.NotNormalize(not);
+            return temizNot == null ? metin : $"{metin} Not: {temizNot}";
         }
     }
 }

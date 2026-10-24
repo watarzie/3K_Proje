@@ -1,4 +1,5 @@
 using _3K.Core.Entities;
+using _3K.Core.Enums;
 
 namespace _3K.Application.Common
 {
@@ -27,6 +28,21 @@ namespace _3K.Application.Common
             return tahsisSayisi <= 1
                 ? Math.Max(satir.IstenenAdet, 0)
                 : Math.Max(icerik.KonulanAdet, 0);
+        }
+
+        /// <summary>
+        /// Sandık detayındaki satır miktarları: sandık miktarı, konulan ve eksik. Grid'de kapanan satır tamam sayılır
+        /// (eksik 0). Sandık listesindeki eksik uyarısı da bu hesabı toplar; ikisi ayrışmaz.
+        /// </summary>
+        public static SandikIcerikMiktari HesaplaIcerikMiktari(SandikIcerik icerik, int tahsisSayisi)
+        {
+            var sandikMiktari = icerik.CekiSatiri != null
+                ? HesaplaSandikMiktari(icerik.CekiSatiri, icerik, tahsisSayisi)
+                : (icerik.TahsisMiktari > 0 ? icerik.TahsisMiktari : icerik.Miktar);
+            var gridKapandi = icerik.CekiSatiri?.GridDurumuId == (int)GridDurum.GridKapandi;
+            var konulan = gridKapandi ? sandikMiktari : icerik.KonulanAdet;
+            var eksik = gridKapandi ? 0 : Math.Max(sandikMiktari - konulan, 0);
+            return new SandikIcerikMiktari(sandikMiktari, konulan, eksik);
         }
 
         public static decimal ToplamdanTahsisPayi(
@@ -167,4 +183,7 @@ namespace _3K.Application.Common
             return 0;
         }
     }
+
+    /// <summary>Sandıktaki bir satırın sandık miktarı, konulan ve eksik miktarı (<see cref="SandikTahsisHelper.HesaplaIcerikMiktari"/>).</summary>
+    public readonly record struct SandikIcerikMiktari(decimal SandikMiktari, decimal Konulan, decimal Eksik);
 }

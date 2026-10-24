@@ -37,12 +37,15 @@ public static class DependencyInjection
 
     private static void AddPersistence(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddScoped<SandikDurumOlayInterceptor>();
         services.AddScoped<AuditInterceptor>();
         services.AddScoped<ProjectLockInterceptor>();
         services.AddDbContext<AppDbContext>((sp, options) =>
             // Şema EF migration ile değil, scripts/database altındaki PostgreSQL betikleriyle yönetilir.
             options.UseNpgsql(configuration.GetConnectionString("DefaultConnection"))
                    .AddInterceptors(
+                       // Olay interceptor'ı önce çalışır: eklediği olay kaydı denetim alanlarını da alır.
+                       sp.GetRequiredService<SandikDurumOlayInterceptor>(),
                        sp.GetRequiredService<AuditInterceptor>(),
                        sp.GetRequiredService<ProjectLockInterceptor>()));
 
@@ -133,6 +136,7 @@ public static class DependencyInjection
     private static void AddRaporServices(this IServiceCollection services)
     {
         services.AddScoped<IBarkodUrunAramaService, BarkodUrunAramaService>();
+        services.AddScoped<ISandikDurumIstatistikService, SandikDurumIstatistikService>();
         services.AddScoped<IDepoSandikRaporService, DepoSandikRaporService>();
         services.AddScoped<IEksikUrunlerRaporService, EksikUrunlerRaporService>();
         services.AddScoped<IGerceklesenCekiListesiRaporService, GerceklesenCekiListesiRaporService>();

@@ -16,6 +16,8 @@ namespace _3K.Application.Features.SandikIslemleri.DTOs
         public bool SahayaAktarildiMi { get; set; }
         public bool SahaUzerindenSevkEdildiMi { get; set; }
         public decimal SahayaAktarilanMiktar { get; set; }
+        /// <summary>Son kapanma zamanı; yalnız kapalı ve sevkli sandıkta doludur.</summary>
+        public DateTime? KapanmaTarihi { get; set; }
         
         // Fiziksel Özellikler
         public decimal? En { get; set; }

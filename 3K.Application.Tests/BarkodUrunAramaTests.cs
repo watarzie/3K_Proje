@@ -104,6 +104,38 @@ public sealed class BarkodUrunAramaTests
         Assert.EndsWith(".xlsx", excel.Value!.DosyaAdi);
         Assert.Equal((false, (int?)2), (servis.SonYalnizEksik, servis.SonTip));
         Assert.Equal(400, (await handler.Handle(new BarkodUrunAramaRaporuQuery { Barkod = "FC1", Format = "doc" }, default)).StatusCode);
+        // Rapor proje süzgecini de servise iletir ve sayfalamaz.
+        await handler.Handle(new BarkodUrunAramaRaporuQuery { Barkod = "FC1", ProjeArama = "PA-7", Format = "pdf" }, default);
+        Assert.Equal("PA-7", servis.SonProjeArama);
+    }
+
+    [Fact]
+    public async Task Ekran_SunucudaSayfalanir_OzetBututSonucundur_SinirDisiSayfaSonSayfaya()
+    {
+        BarkodUrunSatiri S(int i) => new(i, $"PA-{i:00}", 1, "Normal", "-", "-", "1", i, null, "Ürün", "Adet", 1, 0, 0, 1, "-", "-", "-", false);
+        var servis = new SahteServis
+        {
+            Sonuc = new BarkodUrunAramaSonucu
+            {
+                Barkod = "FC1", Satirlar = Enumerable.Range(1, 7).Select(S).ToList(), FiltreliSatir = 7, ToplamSatir = 9, ProjeSayisi = 9,
+                EksikSatir = 7, EksikProjeSayisi = 7, ToplamEksik = 7
+            }
+        };
+        var handler = new BarkodUrunAramaQueryHandlers(servis);
+
+        var sayfa = (await handler.Handle(new BarkodUrunAraQuery { Barkod = "FC1", Sayfa = 2, Boyut = 3, ProjeArama = "PA" }, default)).Value!;
+        Assert.Equal(["PA-04", "PA-05", "PA-06"], sayfa.Satirlar.Select(x => x.ProjeNo));
+        Assert.Equal((2, 3, 3, 7, 9, 7m), (sayfa.Sayfa, sayfa.SayfaBoyutu, sayfa.ToplamSayfa, sayfa.FiltreliSatir, sayfa.ToplamSatir, sayfa.ToplamEksik));
+        Assert.Equal("PA", servis.SonProjeArama);
+        var son = (await handler.Handle(new BarkodUrunAraQuery { Barkod = "FC1", Sayfa = 99, Boyut = 3 }, default)).Value!;
+        Assert.Equal(3, son.Sayfa);
+        Assert.Equal(["PA-07"], son.Satirlar.Select(x => x.ProjeNo));
+
+        var dogrulayici = new BarkodUrunAraQueryValidator();
+        Assert.False(dogrulayici.Validate(new BarkodUrunAraQuery { Barkod = "FC1", Sayfa = 0 }).IsValid);
+        Assert.False(dogrulayici.Validate(new BarkodUrunAraQuery { Barkod = "FC1", Boyut = 101 }).IsValid);
+        Assert.False(dogrulayici.Validate(new BarkodUrunAraQuery { Barkod = "FC1", ProjeArama = new string('A', 101) }).IsValid);
+        Assert.True(dogrulayici.Validate(new BarkodUrunAraQuery { Barkod = "FC1", ProjeArama = "PA727", Sayfa = 3, Boyut = 50 }).IsValid);
     }
 
     /// <summary>
@@ -151,7 +183,7 @@ public sealed class BarkodUrunAramaTests
             await using var okuma = new AppDbContext(options);
             IBarkodUrunAramaService servis = new BarkodUrunAramaService(okuma);
 
-            var eksikler = await servis.AraAsync("  fc1", yalnizEksikler: true, projeTipiId: null, default);
+            var eksikler = await servis.AraAsync(new("  fc1", YalnizEksikler: true, ProjeTipiId: null), default);
             Assert.Equal("FC1", eksikler.Barkod);
             Assert.Equal([("PA-A", "3, 10", 2, 6m, 4m), ("PA-A", "-", 1, 3m, 0m), ("PA-Y", "Y-1", (int?)null, 2m, 1m)],
                 eksikler.Satirlar.Select(s => (s.ProjeNo, s.SandikNo, s.SiraNo, s.Eksik, s.UcKGelen)));
@@ -162,16 +194,36 @@ public sealed class BarkodUrunAramaTests
                 eksikler.EksikProjeSayisi, eksikler.ToplamEksik, eksikler.Sinirli));
             Assert.StartsWith("Kablo Bağı", eksikler.Aciklama);
 
-            var tumu = await servis.AraAsync("FC1", yalnizEksikler: false, projeTipiId: null, default);
+            var tumu = await servis.AraAsync(new("FC1", YalnizEksikler: false, ProjeTipiId: null), default);
             Assert.Equal(["PA-A", "PA-A", "PA-Y", "PA-A-SAHA", "PA-B"], tumu.Satirlar.Select(s => s.ProjeNo));
             Assert.Equal(("7", 0m, "Sevk Edildi"), (tumu.Satirlar[4].SandikNo, tumu.Satirlar[4].Eksik, tumu.Satirlar[4].SevkDurumu));
             Assert.Equal("Sevk Edilmedi", tumu.Satirlar[0].SevkDurumu);
             // Proje tipi veritabanında süzülür; özet o tipin satırlarıdır.
-            var sahaSonucu = await servis.AraAsync("FC1", false, (int)ProjeTipi.Saha, default);
+            var sahaSonucu = await servis.AraAsync(new("FC1", false, (int)ProjeTipi.Saha), default);
             Assert.Equal(["PA-A-SAHA"], sahaSonucu.Satirlar.Select(s => s.ProjeNo));
             Assert.Equal((1, 1), (sahaSonucu.ToplamSatir, sahaSonucu.ProjeSayisi));
-            Assert.Empty((await servis.AraAsync("YOK-1", false, null, default)).Satirlar);
+            Assert.Empty((await servis.AraAsync(new("YOK-1", false, null), default)).Satirlar);
 
+            // Proje no / müşteri süzgeci veritabanında; özet de süzülen projelerindir. Müşteri adında da aranır.
+            var projeSuzgeci = await servis.AraAsync(new("FC1", false, null, " pa-a "), default);
+            Assert.Equal(["PA-A", "PA-A", "PA-A-SAHA"], projeSuzgeci.Satirlar.Select(s => s.ProjeNo));
+            Assert.Equal((3, 2, " pa-a ".Trim()), (projeSuzgeci.ToplamSatir, projeSuzgeci.ProjeSayisi, projeSuzgeci.ProjeArama));
+            Assert.Equal(["PA-B", "PA-Y"], (await servis.AraAsync(new("FC1", false, null, "ge"), default)).Satirlar
+                .Select(s => s.ProjeNo).Order());
+            var projeVeEksik = await servis.AraAsync(new("FC1", true, null, "PA-A"), default);
+            Assert.Equal((2, 3), (projeVeEksik.FiltreliSatir, projeVeEksik.ToplamSatir));
+
+            // Ekran sayfası: satırlar kesilir, özet ve süzülen satır sayısı bütün sonucundur.
+            var ikinciSayfa = BarkodUrunAramaKurali.Sayfala(tumu, sayfa: 2, boyut: 2);
+            Assert.Equal(["PA-Y", "PA-A-SAHA"], ikinciSayfa.Satirlar.Select(s => s.ProjeNo));
+            Assert.Equal((2, 2, 3, 5, 5), (ikinciSayfa.Sayfa, ikinciSayfa.SayfaBoyutu, ikinciSayfa.ToplamSayfa, ikinciSayfa.FiltreliSatir, ikinciSayfa.ToplamSatir));
+
+            // Rapor süzgeçle bütün sonucu yazar; süzgeç başlıkta görünür.
+            using (var suzulmus = new XLWorkbook(new MemoryStream(servis.ExcelOlustur(projeSuzgeci))))
+            {
+                Assert.Contains("Proje/müşteri: pa-a", suzulmus.Worksheet("Barkod Arama").Cell(2, 1).GetString());
+                Assert.Equal(8, suzulmus.Worksheet("Barkod Arama").LastRowUsed()!.RowNumber());
+            }
             var pdf = servis.PdfOlustur(tumu);
             Assert.Equal("%PDF", System.Text.Encoding.ASCII.GetString(pdf, 0, 4));
             using var wb = new XLWorkbook(new MemoryStream(servis.ExcelOlustur(tumu)));
@@ -188,11 +240,13 @@ public sealed class BarkodUrunAramaTests
         public string? SonBarkod { get; private set; }
         public bool SonYalnizEksik { get; private set; }
         public int? SonTip { get; private set; }
+        public string? SonProjeArama { get; private set; }
+        public BarkodUrunAramaSonucu? Sonuc { get; init; }
 
-        public Task<BarkodUrunAramaSonucu> AraAsync(string barkod, bool yalnizEksikler, int? projeTipiId, CancellationToken cancellationToken)
+        public Task<BarkodUrunAramaSonucu> AraAsync(BarkodUrunAramaKriteri kriter, CancellationToken cancellationToken)
         {
-            (SonBarkod, SonYalnizEksik, SonTip) = (barkod, yalnizEksikler, projeTipiId);
-            return Task.FromResult(new BarkodUrunAramaSonucu { Barkod = BarkodUrunAramaKurali.Normalize(barkod)! });
+            (SonBarkod, SonYalnizEksik, SonTip, SonProjeArama) = (kriter.Barkod, kriter.YalnizEksikler, kriter.ProjeTipiId, kriter.ProjeArama);
+            return Task.FromResult(Sonuc ?? new BarkodUrunAramaSonucu { Barkod = BarkodUrunAramaKurali.Normalize(kriter.Barkod)! });
         }
 
         public byte[] PdfOlustur(BarkodUrunAramaSonucu sonuc) => [1];

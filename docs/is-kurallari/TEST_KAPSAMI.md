@@ -8,6 +8,61 @@ koşum sayıları tarihsel kayıttır; depo dışında yönetilen 02–04 SQL'le
 bugünkü halini veya canlıda elle uygulanmasını doğrulamaz. Bu geçiş için
 ayrı staging provası ve DBA doğrulaması gerekir.
 
+## Sandık açılış/kapanış geçmişi (C-11–C-15) — 24 Ekim 2026
+
+Değişiklik henüz commit edilmedi.
+
+**Davranış.**
+- **Kapanma tarihi (C-11):** `Sandik.KapanmaTarihi` sandık Kapandı'ya girince `TurkeyTime.Now` ile yazılır. Kapandı → Sevk Edildi geçişinde korunur. Sevkli sandığın kilidi açılıp sevk öncesi Kapandı'ya dönmesi yeni kapanma sayılmaz, tarih değişmez. Hazırlanıyor'a ya da Boş'a dönünce tarih boşalır. Tarih 3K sandık kartında, Sandık Yönetimi tablosunda ve sandık detayında gösterilir.
+- **Eksik uyarısı (C-12):** Sandık listesi `EksikUrunSayisi` ve `EksikAdet` döner. Hesap, sandık detayındaki satır eksiğiyle aynı fonksiyondur (`SandikTahsisHelper.HesaplaIcerikMiktari`): Grid Kapandı satır eksik sayılmaz; eksik = max(sandık miktarı − konulan, 0).
+- **Geri açma sebebi (C-13):** Kapalı sandığı elle Hazırlanıyor'a almak (`ProjeIslemleri.SandikKapatCommand`, `Kapali=false`) sebep ister. Sebepler `LookupSandikAcilmaSebepleri` kayıtlarıdır: "Trafo kurulum", "Tadilat". Not isteğe bağlıdır, en fazla 500 karakterdir. Sebep yoksa ya da bulunamazsa istek 400 alır ve sandık değişmez.
+- **Açılış/kapanış olayları (C-14):** Her kapanma ve geri açılma `SandikDurumOlaylari`'na yazılır. Tek yazım noktası `SandikDurumOlayInterceptor`'dır. Elle ve toplu handler'lar olayı kaynak ve sebeple kendisi ekler. Diğer yollar "Otomatik" kaynaklıdır. Kapandı → Sevk Edildi geri açılma sayılmaz. Sandık silinince iz kalır. Betik 27 eski hareket geçmişini "Geçmişten aktarılan" kaynağıyla bir kez aktarır.
+- **İstatistik (C-15):** Ekran `sandik-acilis-istatistigi` R ister. Tarih aralığı, proje ve müşteri süzgeci vardır. Ekranda özet, sebep dağılımı ve en çok açılan 20 sandık; proje, müşteri, kişi ve olay tabloları sunucuda sayfalıdır (25/50/100); Excel çıktısı alınır. Sandığın zaman çizelgesi `GET api/sandik/{sandikId}/durum-gecmisi` ucundadır.
+
+**Kapsam sınırı.** Şema, tohum, geçmiş aktarımı ve izin `scripts/database/20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql` ile kurulur (README sıra 27, izin düğümü Id 5261). Eşleme satırları `coverage/ORTAK_SAHA_YETKI_TEST_ESLESMESI.md` dosyasındadır: C-11 ve C-13 Birim, C-12 Kısmi, C-14 ve C-15 Entegrasyon. Ambalaj ve Finans'ta yeni kural yoktur.
+
+- [SandikAcilisKapanisTests](../../3K.Application.Tests/SandikAcilisKapanisTests.cs) (bellek içi, 14 metot / 31 vaka):
+  - Olay türü matrisi ve yeni Kapandı sandık.
+  - Kapanma tarihi kuralı.
+  - Geri açma hatası (sebep, not sınırı) ve Türkçe harf duyarsız arama.
+  - Komut ve istatistik doğrulayıcıları.
+  - Sebepsiz ya da bulunamayan sebeple geri almada sandık, olay ve hareketin değişmemesi.
+  - Sebepli geri açmanın olay ve hareketi; kapatmada sebebin yok sayılması; durum değişmezse olay yazılmaması.
+  - Tekil kapatmanın Elle, toplu kapatmanın Toplu kaynağı.
+  - Liste ve detayın ortak eksik hesabı.
+- [SandikAcilisKapanisPostgresTests](../../3K.Application.Tests/SandikAcilisKapanisPostgresTests.cs) (izole PostgreSQL, 2 test, `THREEK_TEST_POSTGRES` ister; üretimdeki interceptor zinciriyle: olay → denetim → proje kilidi):
+  - Interceptor'ın izlenmeyen `Update`'te Otomatik olay ve kapanma tarihi yazması.
+  - Sevkte ve kilit açmada olay yazılmaması, tarihin korunması.
+  - Sebepli elle geri açmada tek olay.
+  - Zaman çizelgesi, istatistik kırılımları ve süzgeçler, Excel'in 7 sayfası.
+  - Sandık silinince izin kalması.
+  - Zorla toplu kapatmanın izlenen sandıklarla çalışması (Toplu kaynaklı olay ve kapanma tarihi) ve yeni projeyle kapalı eklenen sandığın tek Otomatik olayı.
+- [CanliyaAlimBetikleriTests](../../3K.Application.Tests/CanliyaAlimBetikleriTests.cs) (izole PostgreSQL, 1 test): betik 27'yi de çalıştırır.
+  - Şemanın EF modeliyle aynı olması.
+  - Tohum sebepler, izin düğümü (5261) ve rol izinleri.
+  - Eski hareketlerin (arşiv dahil, kullanıcısı 0 olan dahil) bir kez aktarılması; silinmiş sandık ve sayısal olmayan referansın atlanması; kapalı ve sevkli sandığın kapanma tarihinin doldurulması.
+  - Tekrar çalıştırmada değişmezlik: dolu kapanma tarihi korunur, Hazırlanıyor sandıktaki bayat tarih boşaltılır, olay tablosu doluyken aktarım yapılmaz.
+
+**Koşum (Release, 24 Ekim 2026, dokümantasyon oturumu, PostgreSQL'siz):**
+- Komut `dotnet test 3K.Application.Tests/3K.Application.Tests.csproj -c Release` ile derleme dahil koşuldu (test DLL'i 22:49:42; değişen kaynakların en yenisi 22:47:09).
+- Filtre `FullyQualifiedName~SandikAcilisKapanis|FullyQualifiedName~CanliyaAlimBetikleriTests|FullyQualifiedName~OrtakSandikRaporIsKurallariTests` ile 54 test seçildi: 52 başarılı, 0 başarısız, 2 atlanan.
+  - Başarılı: `SandikAcilisKapanisTests` 31 ve `OrtakSandikRaporIsKurallariTests` 21. İkincisi C-01–C-04 kapatma ve eksik raporu testleridir; kapatma handler'ları değiştiği için koşuldu.
+  - Atlananlar: `SandikAcilisKapanisPostgresTests`'in 1 testi ve `CanliyaAlimBetikleriTests`'in 1 testi. Oturumda `THREEK_TEST_POSTGRES` tanımlı değildi.
+- Kural–test eşleme doğrulayıcısı (`scripts/test/Test-IsKuraliEslemesi.ps1`): 547 kural doğrulandı (önceki 542 + C-11–C-15). `-TrxPath` kipi kullanılmadı; bu kip bütün eşlenen testlerin raporda bulunmasını ister, alt küme TRX'iyle geçmez.
+
+**Koşum (Release, 24 Ekim 2026, inceleme sonrası, izole PostgreSQL 55439):**
+- `postgres-test` ile filtre `FullyQualifiedName~SandikAcilisKapanis|FullyQualifiedName~CanliyaAlimBetikleriTests|FullyQualifiedName~OrtakSandikRaporIsKurallariTests|FullyQualifiedName~LookupOnbellekPostgresTests|FullyQualifiedName~SevkSonrasiDuzeltmePostgresTests|FullyQualifiedName~SahadanSahayaTasimaPostgresTests|FullyQualifiedName~ServerAuthorizationRegressionTests|FullyQualifiedName~ApiYanitSozlesmesiTests`: 133 başarılı, 0 başarısız, 0 atlanan.
+- Ön yüz: `ng test --include` (sandık durum modeli, geri açma penceresi, istatistik ekranı, sandık detayı, proje listesi) 38/38; `ng build` başarılı.
+
+**Koşulmayanlar:**
+- Tam paketler (.NET ve ön yüz) koşulmadı; 3K sandık kartının (`uck-sandiklar`) spec'i yoktur, kart yalnız derlemeyle doğrulandı.
+- HTTP ve tarayıcı akışı denenmedi. Canlı veride (`3K_Db`) denenmedi; betiğin canlı veritabanı kopyasında provası yok.
+
+**Açık kalanlar:**
+- `GetProjeSandiklariQueryHandler`'ın `EksikUrunSayisi`/`EksikAdet` toplaması handler düzeyinde testsiz (C-12).
+- Otomatik olay üreten yollar (ürün güncelleme, taşıma, saha aktarımı, Grid'de otomatik kapanma G-030) tek tek sınanmadı. Proje silinince olayların silinmesi ve kullanılan sebebin silinememesi de testsiz (C-14).
+- `sandik-acilis-istatistigi` R'nin pipeline'da 403 üretmesi, `durum-gecmisi` ucunun sandık okuma izni ve 20/50.000 sınırları testsiz (C-15). Sayfalama (sayfa/boyut sınırı, son sayfaya çekme, sayfaların sırayla bütün olayları vermesi) `SandikAcilisKapanisPostgresTests` ve `SandikAcilisKapanisTests.SayfaKurali_*` ile sınanır.
+
 ## Sevk sonrası düzeltme (L-12–L-17, K-034) — 23 Ekim 2026
 
 Değişiklik henüz commit edilmedi.

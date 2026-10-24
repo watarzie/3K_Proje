@@ -48,6 +48,7 @@ namespace _3K.Infrastructure.Services
             // Önbellekte olmayan lookup "?" döner; birim ve proje tipi metinleri ekranlarda "?" görünüyordu.
             await LoadLookup<LookupBirim>(ct);
             await LoadLookup<LookupProjeTipi>(ct);
+            await LoadLookup<LookupSandikAcilmaSebebi>(ct);
         }
 
         public Task RefreshAsync<TLookup>(CancellationToken ct = default) where TLookup : LookupBase

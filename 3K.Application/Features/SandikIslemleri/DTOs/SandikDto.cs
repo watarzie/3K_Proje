@@ -19,6 +19,12 @@ namespace _3K.Application.Features.SandikIslemleri.DTOs
         public bool SahayaAktarildiMi { get; set; }
         public bool SahaUzerindenSevkEdildiMi { get; set; }
         public decimal SahayaAktarilanMiktar { get; set; }
+        /// <summary>Son kapanma zamanı; yalnız kapalı ve sevkli sandıkta doludur (eski kayıtlarda bilinmeyebilir).</summary>
+        public DateTime? KapanmaTarihi { get; set; }
+        /// <summary>Eksiği olan satır sayısı; sandık detayındaki satır eksiğiyle aynı hesaptır.</summary>
+        public int EksikUrunSayisi { get; set; }
+        /// <summary>Satır eksiklerinin toplamı (adet).</summary>
+        public decimal EksikAdet { get; set; }
         
         // Fiziksel Özellikler
         public decimal? En { get; set; }

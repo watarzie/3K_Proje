@@ -121,6 +121,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             // Kapat (Eksik yok, ya da ForceClose = true)
             sandik.DurumId = (int)SandikDurum.Kapandi;
             sandikRepo.Update(sandik);
+            await SandikDurumOlayYazici.EkleAsync(_unitOfWork, sandik, eskiDurumId, SandikDurumOlayKaynagi.Elle,
+                _currentUserService.UserId);
             await _unitOfWork.SaveChangesAsync();
 
             var yeniDurumMetni = Enum.GetName(typeof(SandikDurum), SandikDurum.Kapandi) ?? "Hazir";

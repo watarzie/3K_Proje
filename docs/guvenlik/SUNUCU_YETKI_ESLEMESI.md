@@ -14,7 +14,9 @@
 | Dashboard sorguları | dashboard R |
 | Grid / 3K iş listeleri | grid-is-listesi / 3k-is-listesi R |
 | Grid Sahası: Grid'e gelen ürünler ve mal kabul kayıtları (`GET api/grid/saha/urunler`, `GET api/grid/saha/mal-kabul`) | grid-saha-gorunumu R (proje tipinden bağımsız, salt okuma; ekrandaki "Grid'e git" satırın tipinin Grid modülü R iznini ayrıca ister) |
-| Barkodla ürün arama ve raporu (`GET api/barkod-arama`, `GET api/barkod-arama/rapor/{format}`) | barkod-urun-arama R (Id 5260, proje tipinden bağımsız, salt okuma; satırdaki proje no bağlantısı satırın tipinin Grid modülü R iznini ayrıca ister) |
+| Barkodla ürün arama ve raporu (`GET api/barkod-arama`, `GET api/barkod-arama/rapor/{format}`) | barkod-urun-arama R (Id 5260, proje tipinden bağımsız, salt okuma, kenar menüde yok: ekran genel aramadan açılır; satırdaki proje no bağlantısı satırın tipinin Grid modülü R iznini ayrıca ister) |
+| Üst çubuktaki genel arama (`GET api/arama?q=`) | Gruplardan birinin okuma izni (Any). Her grup ayrıca kendi izniyle süzülür: Projeler tipin ProjectRead, Sandıklar tipin CrateRead politikası (`RequestMenuPermissionResolver.ProjectPolicy`, proje tipi veritabanından), Ürünler barkod-urun-arama R. İzni olmayan grup boş ve `…Aranabilir = false` döner |
+| Sandık açılış/kapanış istatistiği ve Excel'i (`GET api/sandik-istatistik`, `GET api/sandik-istatistik/excel`) | sandik-acilis-istatistigi R (Id 5261, proje tipinden bağımsız, salt okuma, kenar menüde yok: ekran Projeler ve 3K sandık listesinin "Diğer" menüsünden açılır). Sandığın kendi zaman çizelgesi (`GET api/sandik/{id}/durum-gecmisi`) sandık okuma iznidir (CrateRead, sandık detayıyla aynı). Kapalı sandığı geri alma (`PUT api/proje/sandik-kapat`, `Kapali=false`) mevcut CrateWrite iznidir; sebep zorunludur, yeni izin istemez |
 | Çeki ana veri düzenle / satır sil | ceki-verisi-duzenle / ceki-verisi-sil W |
 | Kalite / süreç değişikliği | kalite-modulu / surec-modulu W |
 | Stok listesi ve PDF / stok yazma / stok silme | stok R / stok W / stok-sil W |

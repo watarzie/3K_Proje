@@ -176,6 +176,14 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
 
+        /// <summary>Sandığın açılış/kapanış zaman çizelgesi (en yeniden eskiye).</summary>
+        [HttpGet("{sandikId}/durum-gecmisi")]
+        public async Task<ActionResult> GetDurumGecmisi(int sandikId, CancellationToken cancellationToken)
+        {
+            var result = await _mediator.Send(new GetSandikDurumGecmisiQuery { SandikId = sandikId }, cancellationToken);
+            return result.ToActionResult();
+        }
+
         [HttpGet("{sandikId}/sevk-sonrasi-duzeltme")]
         public async Task<ActionResult> GetSevkSonrasiDuzeltme(int sandikId)
         {

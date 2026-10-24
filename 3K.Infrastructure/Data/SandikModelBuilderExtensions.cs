@@ -244,6 +244,35 @@ internal static class SandikModelBuilderExtensions
                 .OnDelete(DeleteBehavior.SetNull);
         });
 
+        modelBuilder.Entity<SandikDurumOlayi>(e =>
+        {
+            e.ToTable("SandikDurumOlaylari");
+            e.Property(p => p.SandikNo).IsRequired();
+            e.Property(p => p.Tur).HasConversion<short>();
+            e.Property(p => p.Kaynak).HasConversion<short>();
+            e.Property(p => p.Not).HasMaxLength(SandikDurumOlayKurali.NotEnFazlaUzunluk);
+            // Sandık zaman çizelgesi ve istatistiğin tarih aralığı süzgeci bu indeksleri kullanır.
+            e.HasIndex(p => new { p.SandikId, p.Tarih });
+            e.HasIndex(p => new { p.ProjeId, p.Tarih });
+            e.HasIndex(p => p.Tarih);
+            e.HasIndex(p => p.SebepId);
+
+            e.HasOne(p => p.Proje)
+                .WithMany()
+                .HasForeignKey(p => p.ProjeId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(p => p.Sandik)
+                .WithMany()
+                .HasForeignKey(p => p.SandikId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            e.HasOne(p => p.Sebep)
+                .WithMany()
+                .HasForeignKey(p => p.SebepId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
         // Sandik (1) - SandikIcerik (1..*)
         modelBuilder.Entity<Sandik>()
             .HasMany(s => s.SandikIcerikleri)

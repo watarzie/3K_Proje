@@ -8,7 +8,8 @@ namespace _3K.Core.Interfaces;
 /// </summary>
 public interface IBarkodUrunAramaService
 {
-    Task<BarkodUrunAramaSonucu> AraAsync(string barkod, bool yalnizEksikler, int? projeTipiId, CancellationToken cancellationToken);
+    /// <summary>Süzülmüş ve sıralanmış bütün satırlar (sayfalanmamış); ekran <see cref="BarkodUrunAramaKurali.Sayfala"/> kullanır.</summary>
+    Task<BarkodUrunAramaSonucu> AraAsync(BarkodUrunAramaKriteri kriter, CancellationToken cancellationToken);
 
     /// <summary>Her satırda proje no; başlıkta barkod, açıklama, süzgeç ve özet.</summary>
     byte[] PdfOlustur(BarkodUrunAramaSonucu sonuc);

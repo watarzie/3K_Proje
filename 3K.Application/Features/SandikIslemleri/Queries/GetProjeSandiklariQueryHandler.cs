@@ -51,14 +51,20 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 .Select(i => i.CekiSatiriId!.Value)
                 .Distinct()
                 .ToList();
-            var birdenFazlaSandigaTahsisliSatirIds = tumCekiSatiriIds.Count == 0
-                ? new HashSet<int>()
+            var satirTahsisleri = tumCekiSatiriIds.Count == 0
+                ? new List<SandikIcerik>()
                 : (await _unitOfWork.GetRepository<SandikIcerik>().FindAsync(i =>
                         i.CekiSatiriId.HasValue && tumCekiSatiriIds.Contains(i.CekiSatiriId.Value)))
-                    .GroupBy(i => i.CekiSatiriId!.Value)
-                    .Where(g => g.Select(i => i.SandikId).Distinct().Count() > 1)
-                    .Select(g => g.Key)
-                    .ToHashSet();
+                    .ToList();
+            var birdenFazlaSandigaTahsisliSatirIds = satirTahsisleri
+                .GroupBy(i => i.CekiSatiriId!.Value)
+                .Where(g => g.Select(i => i.SandikId).Distinct().Count() > 1)
+                .Select(g => g.Key)
+                .ToHashSet();
+            // Sandık detayıyla aynı tahsis sayısı: satırın bütün sandıklardaki tahsis kaydı.
+            var tahsisSayilari = satirTahsisleri
+                .GroupBy(i => i.CekiSatiriId!.Value)
+                .ToDictionary(g => g.Key, g => g.Count());
 
             var result = sandiklar.Select(s =>
             {
@@ -78,6 +84,12 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 var sandikSahaAktariminda = !fizikselSevkEdildi &&
                     !sahaUzerindenSevkEdildi &&
                     kaynakSandikSahaDurumu.AktifAktarimaBagliSandikIds.Contains(s.Id);
+                var satirEksikleri = icerikler
+                    .Select(i => SandikTahsisHelper.HesaplaIcerikMiktari(i, i.CekiSatiriId.HasValue
+                        ? tahsisSayilari.GetValueOrDefault(i.CekiSatiriId.Value, 1)
+                        : 1).Eksik)
+                    .Where(eksik => eksik > 0)
+                    .ToList();
 
                 return new SandikDto
                 {
@@ -106,6 +118,9 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                     SahayaAktarildiMi = sandikSahaAktariminda,
                     SahaUzerindenSevkEdildiMi = sahaUzerindenSevkEdildi,
                     SahayaAktarilanMiktar = sahayaAktarilanMiktar,
+                    KapanmaTarihi = s.KapanmaTarihi,
+                    EksikUrunSayisi = satirEksikleri.Count,
+                    EksikAdet = satirEksikleri.Sum(),
                     En = s.En,
                     Boy = s.Boy,
                     Yukseklik = s.Yukseklik,

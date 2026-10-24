@@ -63,6 +63,11 @@ public static class YetkiKodlari
         /// sandık/proje izniyle birlikte istenir; düzeltmedeki işlemler mevcut izinlerle yapılır.
         /// </summary>
         public const string SevkSonrasiDuzeltme = "sevk-sonrasi-duzeltme";
+        /// <summary>
+        /// Sandık açılış/kapanış istatistiği ekranı (salt görüntüleme, R): sandık, proje, müşteri, kişi ve sebep
+        /// bazında kaç kez kapanıp geri açıldığı; Excel çıktısı dahil. Proje tipinden bağımsız tek izin.
+        /// </summary>
+        public const string SandikAcilisIstatistigi = "sandik-acilis-istatistigi";
     }
 
     public static class Stok

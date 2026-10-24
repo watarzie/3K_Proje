@@ -101,6 +101,7 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 SahayaAktarildiMi = sandikSahaAktariminda,
                 SahaUzerindenSevkEdildiMi = sahaUzerindenSevkEdildi,
                 SahayaAktarilanMiktar = sahayaAktarilanMiktar,
+                KapanmaTarihi = sandik.KapanmaTarihi,
                 En = sandik.En,
                 Boy = sandik.Boy,
                 Yukseklik = sandik.Yukseklik,
@@ -112,12 +113,7 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                     var tahsisSayisi = i.CekiSatiriId.HasValue
                         ? tahsisSayilari.GetValueOrDefault(i.CekiSatiriId.Value, 1)
                         : 1;
-                    var sandikMiktari = i.CekiSatiri != null
-                        ? SandikTahsisHelper.HesaplaSandikMiktari(i.CekiSatiri, i, tahsisSayisi)
-                        : (i.TahsisMiktari > 0 ? i.TahsisMiktari : i.Miktar);
-                    var gridKapandi = i.CekiSatiri?.GridDurumuId == (int)GridDurum.GridKapandi;
-                    var konulan = gridKapandi ? sandikMiktari : i.KonulanAdet;
-                    var eksik = gridKapandi ? 0 : Math.Max(sandikMiktari - konulan, 0);
+                    var (sandikMiktari, konulan, eksik) = SandikTahsisHelper.HesaplaIcerikMiktari(i, tahsisSayisi);
                     var ilgiliTransferler = i.CekiSatiriId.HasValue
                         ? sandikTransferleri.Where(t => t.CekiSatiriId == i.CekiSatiriId)
                         : sandikTransferleri.Where(t => t.KaynakSandikIcerikId == i.Id);

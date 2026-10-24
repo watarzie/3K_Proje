@@ -10,19 +10,19 @@ namespace _3K.Application.Tests;
 /// <summary>
 /// Canlıya alım provası: bu sürümün veritabanı betikleri (README sıra 22 <c>20261021_02_Sahadan_Sahaya_Tasima.sql</c>,
 /// 23 <c>20261023_01_Grid_Saha_Gorunumu_Yetkisi.sql</c>, 24 <c>20261023_02_Sevk_Sonrasi_Duzeltme.sql</c>,
-/// 25 <c>20261024_01_Proje_Baglanti_Turu.sql</c>, 26 <c>20261024_02_Barkod_Urun_Arama_Yetkisi.sql</c>) önceki sürümün
-/// şemasında çalıştırılır. Sonuç şeması EF modeliyle
+/// 25 <c>20261024_01_Proje_Baglanti_Turu.sql</c>, 26 <c>20261024_02_Barkod_Urun_Arama_Yetkisi.sql</c>,
+/// 27 <c>20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql</c>) önceki sürümün şemasında çalıştırılır. Sonuç şeması EF modeliyle
 /// aynıdır (kolon, kısıt, ON DELETE kuralı, indeks). Betiklerin tekrarı hiçbir şeyi değiştirmez: var olan taşıma izi ve
 /// verilmiş izinler korunur. Salt okunur durum sorgusu (<c>kontrol/Betik_Durumu.sql</c>) klasördeki her betiği listeler
 /// ve öncesini/sonrasını doğru gösterir. 1–20 numaralı betikler canlıya uygulanıp depodan kaldırıldığı için burada yoktur.
 /// </summary>
 public sealed class CanliyaAlimBetikleriTests
 {
-    /// <summary>Canlıda çalıştırma sırası (scripts/database/README.md, sıra 22–26).</summary>
+    /// <summary>Canlıda çalıştırma sırası (scripts/database/README.md, sıra 22–27).</summary>
     private static readonly string[] Betikler =
         ["20261021_02_Sahadan_Sahaya_Tasima.sql", "20261023_01_Grid_Saha_Gorunumu_Yetkisi.sql",
             "20261023_02_Sevk_Sonrasi_Duzeltme.sql", "20261024_01_Proje_Baglanti_Turu.sql",
-            "20261024_02_Barkod_Urun_Arama_Yetkisi.sql"];
+            "20261024_02_Barkod_Urun_Arama_Yetkisi.sql", "20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql"];
 
     /// <summary>Önceki sürümün (master) şeması: bu sürümün eklediği tablo, kolon, kısıt ve indeksler yoktur.</summary>
     private const string OncekiSema = """
@@ -33,6 +33,9 @@ public sealed class CanliyaAlimBetikleriTests
         DROP INDEX "IX_SahaAktarimlari_IslemAnahtari";
         ALTER TABLE "SahaAktarimlari" DROP COLUMN "KaynakSahaProjeId", DROP COLUMN "IslemAnahtari";
         ALTER TABLE "ProjeFotografBaglantilari" DROP COLUMN "Tur";
+        DROP TABLE "SandikDurumOlaylari";
+        DROP TABLE "LookupSandikAcilmaSebepleri";
+        ALTER TABLE "Sandiklar" DROP COLUMN "KapanmaTarihi";
         """;
 
     /// <summary>Kolon (tip, uzunluk, hassasiyet, boşluk, kimlik), kısıt ve indeks tanımları.</summary>
@@ -60,6 +63,8 @@ public sealed class CanliyaAlimBetikleriTests
             await GridIsListesiRolleriniKurAsync(db);
             // Önceki sürümde türü olmayan bağlantı: betik sonrası fotoğraf (1) sayılır.
             var projeId = await ProjeVeTursuzBaglantiYazAsync(db);
+            // Önceki sürümde sandık olayları yalnız hareket geçmişindedir (biri arşivde): betik bir kez aktarır.
+            var gecmis = await SandikHareketGecmisiYazAsync(db);
 
             // Durum sorgusu: klasördeki her betik bir satırdır; önceki sürümde uygulanmamıştır.
             var dosyalar = Directory.GetFiles(Path.GetDirectoryName(Betik(Betikler[0]))!, "*.sql")
@@ -84,13 +89,24 @@ public sealed class CanliyaAlimBetikleriTests
             // Yalnız Admin W; Grid iş listesini gören PersonelGrid dahil başka rol almaz.
             Assert.Equal([(SistemRolleri.AdminId, (int)YetkiTipi.W)], duzeltmeIzinleri);
             var barkod = await db.MenuTanimlari.AsNoTracking().SingleAsync(m => m.Kod == YetkiKodlari.Sandik.BarkodUrunArama);
-            Assert.Equal((5260, (string?)"/barkod-arama", "MENU.BARKOD_URUN_ARAMA", 5), (barkod.Id, barkod.Route, barkod.LabelKey, barkod.ParentId!.Value));
-            Assert.True(barkod.Sira > (await db.MenuTanimlari.AsNoTracking().Where(m => m.ParentId == 5 && m.Id != 5260).MaxAsync(m => m.Sira)));
+            // Rotasız izin düğümü: kenar menüde görünmez, ekran üst çubuktaki genel aramadan açılır.
+            Assert.Equal((5260, (string?)null, "MENU.BARKOD_URUN_ARAMA", 5), (barkod.Id, barkod.Route, barkod.LabelKey, barkod.ParentId!.Value));
+            // 27 numaralı betiğin düğümü (5261) barkod aramadan sonra eklenir.
+            Assert.True(barkod.Sira > (await db.MenuTanimlari.AsNoTracking().Where(m => m.ParentId == 5 && m.Id != 5260 && m.Id != 5261).MaxAsync(m => m.Sira)));
             var barkodIzinleri = await IzinlerAsync(db, YetkiKodlari.Sandik.BarkodUrunArama);
             // Admin W; Sandık Yönetimi'ni gören roller R (tohumdaki rollerin sandik-yonetimi izni).
             Assert.Equal(await SandikYonetimiRolleriAsync(db), barkodIzinleri);
             var baglanti = await db.Set<ProjeFotografBaglantisi>().AsNoTracking().SingleAsync(b => b.ProjeId == projeId);
             Assert.Equal(ProjeBaglantiTuru.Fotograf, baglanti.Tur);
+            var istatistik = await db.MenuTanimlari.AsNoTracking().SingleAsync(m => m.Kod == YetkiKodlari.Sandik.SandikAcilisIstatistigi);
+            // Rotasız izin düğümü: ekran Projeler ve 3K sandık listesinin "Diğer" menüsünden açılır.
+            Assert.Equal((5261, (string?)null, "MENU.SANDIK_ACILIS_ISTATISTIGI", 5), (istatistik.Id, istatistik.Route, istatistik.LabelKey, istatistik.ParentId!.Value));
+            Assert.True(istatistik.Sira > (await db.MenuTanimlari.AsNoTracking().Where(m => m.ParentId == 5 && m.Id != 5261).MaxAsync(m => m.Sira)));
+            var istatistikIzinleri = await IzinlerAsync(db, YetkiKodlari.Sandik.SandikAcilisIstatistigi);
+            Assert.Equal(await SandikYonetimiRolleriAsync(db), istatistikIzinleri);
+            Assert.Equal(["Trafo kurulum", "Tadilat"],
+                await db.LookupSandikAcilmaSebepleri.AsNoTracking().OrderBy(s => s.Id).Select(s => s.Deger).ToListAsync());
+            await GecmisAktarildiAsync(db, gecmis, gecmis.SonKapanma);
             var sema = await SemaAsync(db);
             var fark = modelSemasi.Except(sema).Select(x => "eksik: " + x).Concat(sema.Except(modelSemasi).Select(x => "fazla: " + x)).ToList();
             Assert.True(fark.Count == 0, string.Join(Environment.NewLine, fark));
@@ -100,9 +116,17 @@ public sealed class CanliyaAlimBetikleriTests
             // Betiğin ilk sürümü düğümü kenar menü rotasıyla kurmuştu: tekrar çalıştırma yalnız rotayı boşaltır.
             await db.Database.ExecuteSqlRawAsync("""UPDATE "MenuTanimlari" SET "Route" = '/grid-saha' WHERE "Kod" = 'grid-saha-gorunumu'""");
             Assert.Equal("UYGULANMAMIŞ", (await BetikDurumuAsync(db))["20261023_01_Grid_Saha_Gorunumu_Yetkisi"]);
+            // 26'nın ilk sürümü de kenar menü rotasıyla kurmuştu: tekrar çalıştırma yalnız rotayı boşaltır.
+            await db.Database.ExecuteSqlRawAsync("""UPDATE "MenuTanimlari" SET "Route" = '/barkod-arama' WHERE "Kod" = 'barkod-urun-arama'""");
+            Assert.Equal("UYGULANMAMIŞ", (await BetikDurumuAsync(db))["20261024_02_Barkod_Urun_Arama_Yetkisi"]);
+            // 27: dolu kapanma tarihi tekrarda değişmez; Hazırlanıyor sandıkta kalmış (bayat) tarih boşaltılır.
+            var elleTarih = new DateTime(2026, 9, 30, 12, 0, 0);
+            await db.Database.ExecuteSqlAsync(
+                $"""UPDATE "Sandiklar" SET "KapanmaTarihi" = {elleTarih} WHERE "Id" IN ({gecmis.KapaliSandikId}, {gecmis.AcikSandikId})""");
             foreach (var betik in Betikler)
                 await CalistirAsync(db, betik);
             Assert.Null((await db.MenuTanimlari.AsNoTracking().SingleAsync(m => m.Kod == YetkiKodlari.Sandik.GridSahaGorunumu)).Route);
+            Assert.Null((await db.MenuTanimlari.AsNoTracking().SingleAsync(m => m.Kod == YetkiKodlari.Sandik.BarkodUrunArama)).Route);
 
             Assert.Equal(sema, await SemaAsync(db));
             Assert.Equal(izinler, await GridSahaIzinleriAsync(db));
@@ -112,6 +136,11 @@ public sealed class CanliyaAlimBetikleriTests
             Assert.Equal(barkodIzinleri, await IzinlerAsync(db, YetkiKodlari.Sandik.BarkodUrunArama));
             Assert.Equal(1, await db.MenuTanimlari.CountAsync(m => m.Kod == YetkiKodlari.Sandik.BarkodUrunArama));
             Assert.Equal(ProjeBaglantiTuru.Fotograf, (await db.Set<ProjeFotografBaglantisi>().AsNoTracking().SingleAsync(b => b.ProjeId == projeId)).Tur);
+            Assert.Equal(istatistikIzinleri, await IzinlerAsync(db, YetkiKodlari.Sandik.SandikAcilisIstatistigi));
+            Assert.Equal(1, await db.MenuTanimlari.CountAsync(m => m.Kod == YetkiKodlari.Sandik.SandikAcilisIstatistigi));
+            Assert.Equal(2, await db.LookupSandikAcilmaSebepleri.CountAsync());
+            // Geçmiş ikinci kez aktarılmaz; dolu kapanma tarihi korunur, açık sandığınki boşalır.
+            await GecmisAktarildiAsync(db, gecmis, elleTarih);
             var iz = await db.SahaTasimaKalemleri.AsNoTracking().SingleAsync();
             Assert.Equal((izId, "PA-SAHA-A", "PA-SAHA-B", 3m), (iz.Id, iz.KaynakSahaProjeNo, iz.HedefSahaProjeNo, iz.Miktar));
             Assert.NotNull((await db.SahaAktarimlari.AsNoTracking().SingleAsync(a => a.Id == iz.SahaAktarimId)).IslemAnahtari);
@@ -146,6 +175,84 @@ public sealed class CanliyaAlimBetikleriTests
         await db.Database.ExecuteSqlAsync(
             $"INSERT INTO \"ProjeFotografBaglantilari\" (\"ProjeId\", \"Adres\", \"CreatedDate\") VALUES ({proje.Id}, 'https://foto.ornek.com/pa', now())");
         return proje.Id;
+    }
+
+    private sealed record SandikGecmisi(
+        int KapaliSandikId, int AcikSandikId, int SevkliSandikId, int KullaniciId, DateTime SonKapanma, DateTime SevkliKapanma);
+
+    /// <summary>
+    /// Önceki sürümün sandık hareketleri: kapalı sandıkta kapatma → geri açma (arşivde) → toplu kapatma; açık sandıkta
+    /// kapatma → geri açma ve başka bir işlem; sevkli sandıkta arşivde kullanıcısız (0) otomatik kapanma; silinmiş
+    /// sandığın ve sayısal olmayan referansın kapatması. Sandık ham SQL ile yazılır (KapanmaTarihi kolonu henüz yok).
+    /// </summary>
+    private static async Task<SandikGecmisi> SandikHareketGecmisiYazAsync(AppDbContext db)
+    {
+        var kullanici = new Kullanici { AdSoyad = "Geçmiş Kullanıcı", BasHarf = "GK", Email = "gecmis@ornek.com", RolId = SistemRolleri.AdminId };
+        var proje = new Proje { ProjeNo = "PA-GECMIS", Musteri = "M", ProjeTipiId = (int)ProjeTipi.Normal };
+        db.Kullanicilar.Add(kullanici);
+        db.Projeler.Add(proje);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        async Task<int> SandikAsync(string no, int durumId) =>
+            (await db.Database.SqlQueryRaw<int>(
+                "INSERT INTO \"Sandiklar\" (\"ProjeId\", \"SandikNo\", \"TipId\", \"DurumId\", \"DepoLokasyonId\", \"SevkiyatDuzeltmeAcikMi\", \"CreatedDate\") " +
+                "VALUES ({0}, {1}, 1, {2}, 1, false, now()) RETURNING \"Id\" AS \"Value\"",
+                proje.Id, no, durumId).ToListAsync()).Single();
+        var kapali = await SandikAsync("1", (int)SandikDurum.Kapandi);
+        var acik = await SandikAsync("2", (int)SandikDurum.Hazirlaniyor);
+        var sevkli = await SandikAsync("3", (int)SandikDurum.Sevkedildi);
+        var t1 = new DateTime(2026, 9, 1, 8, 0, 0);
+        var t2 = new DateTime(2026, 9, 2, 9, 0, 0);
+        var t3 = new DateTime(2026, 9, 3, 10, 0, 0);
+        async Task HareketAsync(bool arsiv, string referansId, string islem, int tip, DateTime tarih, int? kullaniciId = null)
+        {
+            var kim = kullaniciId ?? kullanici.Id;
+            await (arsiv
+                ? db.Database.ExecuteSqlAsync($"""
+                    INSERT INTO "HareketGecmisleriArsiv" ("ProjeId", "ReferansTipi", "ReferansId", "Islem", "IslemTipiId", "KullaniciId", "Tarih", "Aciklama", "CreatedDate")
+                    VALUES ({proje.Id}, 'Sandik', {referansId}, {islem}, NULLIF({tip}, 0), {kim}, {tarih}, 'eski açıklama', now())
+                    """)
+                : db.Database.ExecuteSqlAsync($"""
+                    INSERT INTO "HareketGecmisleri" ("ProjeId", "ReferansTipi", "ReferansId", "Islem", "IslemTipiId", "KullaniciId", "Tarih", "Aciklama", "CreatedDate")
+                    VALUES ({proje.Id}, 'Sandik', {referansId}, {islem}, NULLIF({tip}, 0), {kim}, {tarih}, 'eski açıklama', now())
+                    """));
+        }
+        await HareketAsync(false, kapali.ToString(), "Sandık Manuel Kapatma", (int)IslemTipi.SandikKapatildi, t1);
+        await HareketAsync(true, kapali.ToString(), "Sandık Geri Açıldı", 0, t2);
+        await HareketAsync(false, kapali.ToString(), "Toplu Sandık Kapatma", (int)IslemTipi.TopluSandikKapatildi, t3);
+        await HareketAsync(false, acik.ToString(), "Sandık Manuel Kapatma", (int)IslemTipi.SandikKapatildi, t1);
+        await HareketAsync(false, acik.ToString(), "Sandık Geri Açıldı", 0, t2);
+        await HareketAsync(false, acik.ToString(), "Sandık Lokasyon Güncellendi", (int)IslemTipi.SandikLokasyonGuncellendi, t3);
+        // Arşivde kullanıcısı bilinmeyen (0) otomatik kapanma: olayın kullanıcısı boş kalır.
+        await HareketAsync(true, sevkli.ToString(), "Sandık Otomatik Hazır", (int)IslemTipi.SandikOtomatikHazirlandi, t2, kullaniciId: 0);
+        // Silinmiş sandığın ve sayısal olmayan referansın hareketi aktarılmaz.
+        await HareketAsync(false, "999999", "Sandık Manuel Kapatma", (int)IslemTipi.SandikKapatildi, t1);
+        await HareketAsync(false, "S-1", "Sandık Manuel Kapatma", (int)IslemTipi.SandikKapatildi, t1);
+        return new SandikGecmisi(kapali, acik, sevkli, kullanici.Id, t3, t2);
+    }
+
+    private static async Task GecmisAktarildiAsync(AppDbContext db, SandikGecmisi gecmis, DateTime kapaliKapanma)
+    {
+        var olaylar = await db.SandikDurumOlaylari.AsNoTracking().OrderBy(o => o.SandikId).ThenBy(o => o.Tarih).ToListAsync();
+        Assert.Equal(
+            [(gecmis.KapaliSandikId, SandikDurumOlayTuru.Kapandi), (gecmis.KapaliSandikId, SandikDurumOlayTuru.Acildi),
+             (gecmis.KapaliSandikId, SandikDurumOlayTuru.Kapandi), (gecmis.AcikSandikId, SandikDurumOlayTuru.Kapandi),
+             (gecmis.AcikSandikId, SandikDurumOlayTuru.Acildi), (gecmis.SevkliSandikId, SandikDurumOlayTuru.Kapandi)],
+            olaylar.Select(o => (o.SandikId!.Value, o.Tur)));
+        Assert.All(olaylar, o =>
+        {
+            Assert.Equal(SandikDurumOlayKaynagi.GecmistenAktarildi, o.Kaynak);
+            Assert.Equal(o.SandikId == gecmis.SevkliSandikId ? null : gecmis.KullaniciId, o.KullaniciId);
+            Assert.Null(o.SebepId);
+            Assert.StartsWith("Geçmiş kayıt: ", o.Not);
+        });
+        var sandiklar = await db.Sandiklar.AsNoTracking()
+            .Where(s => s.Id == gecmis.KapaliSandikId || s.Id == gecmis.AcikSandikId || s.Id == gecmis.SevkliSandikId)
+            .ToDictionaryAsync(s => s.Id, s => s.KapanmaTarihi);
+        // Kapalı ve sevkli sandık son kapanmayı alır; açık sandığın kapanma tarihi yoktur.
+        Assert.Equal(kapaliKapanma, sandiklar[gecmis.KapaliSandikId]);
+        Assert.Equal(gecmis.SevkliKapanma, sandiklar[gecmis.SevkliSandikId]);
+        Assert.Null(sandiklar[gecmis.AcikSandikId]);
     }
 
     /// <summary>Beklenen barkod arama izinleri: Admin W, sandik-yonetimi'nde R/W olan diğer roller R.</summary>

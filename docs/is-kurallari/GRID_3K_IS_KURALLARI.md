@@ -444,6 +444,56 @@ Kaynak: [SahadanSahayaTasimaIslemi.cs](C:/Users/Watarzie/source/repos/3K_Proje/3
 
 Kaynak: [SandikKapatCommandHandler.cs:30](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Commands/SandikKapatCommandHandler.cs:30), [TopluSandikKapatCommandHandler.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Commands/TopluSandikKapatCommandHandler.cs), [SandikSevkEtCommand.cs:48](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Commands/SandikSevkEtCommand.cs:48).
 
+#### 6.1.1 Kapanma tarihi, eksik uyarısı, geri açma sebebi ve açılış/kapanış olayları (24.10.2026)
+
+**C-11 — Kapanma tarihi son kapanma zamanıdır (24.10.2026).** `Sandik.KapanmaTarihi`, sandık Kapandı'ya girdiği kaydetmede `TurkeyTime.Now` ile yazılır. Bu yol elle, toplu ya da otomatik kapatma veya sandığın Kapandı olarak eklenmesi olabilir. Olayı handler kendisi eklediyse olayın zamanı kullanılır (C-14). Tarih şu durumlarda değişmez:
+- Kapandı → Sevk Edildi geçişi.
+- Sevkli sandığın kilidi açılıp (sevkiyat geri alınarak) sevk öncesi Kapandı durumuna dönmesi. Bu yeni kapanma sayılmaz.
+
+Sandık Hazırlanıyor'a ya da Boş'a dönünce tarih boşalır; Sevk Edildi'den doğrudan dönüş de buna dahildir. Bu yüzden tarih yalnız kapalı ve sevkli sandıkta doludur. 27 numaralı betikten önce kapanmış sandıkların tarihi eski hareket geçmişindeki (arşiv dahil) son kapanma olayından bir kez doldurulur. Son olay geri açılmaysa ya da kayıt yoksa tarih boş kalır. Kural `SandikDurumOlayKurali.KapanmaTarihi`'ndedir ve kaydetme anında `SandikDurumOlayInterceptor` ile uygulanır. Tarih 3K sandık kartında, Sandık Yönetimi tablosunda ve sandık detayında gösterilir (`SandikDto`/`SandikDetayDto.KapanmaTarihi`); sorgular tarihi değiştirmez.
+
+**C-12 — Sandık listesindeki eksik uyarısı sandık detayıyla aynı hesaptır (24.10.2026).** Sandık listesi (`GetProjeSandiklariQuery`: Sandık Yönetimi tablosu, 3K sandık kartları) her sandık için iki değer döner:
+- `EksikUrunSayisi`: eksiği >0 olan satır sayısı.
+- `EksikAdet`: satır eksiklerinin toplamı.
+
+Satır eksiği sandık detayındaki hesapla aynıdır (`SandikTahsisHelper.HesaplaIcerikMiktari`):
+- Sandık miktarı, çeki satırlı içerikte satırın bu sandığa düşen payıdır (satırın bütün sandıklardaki tahsis kaydı sayısıyla).
+- Çeki satırı olmayan içerikte sandık miktarı tahsis miktarıdır, o yoksa içerik miktarıdır.
+- Grid Kapandı satır tamam sayılır, eksik üretmez.
+- Diğer satırlarda eksik = max(sandık miktarı − konulan, 0); fazla konulan adet eksik üretmez.
+
+Liste değeri bilgidir ve kapatma kararını değiştirmez. Kapatmadaki eksik/hatalı uyarısı C-03'tür ve bağlı çeki satırının kalanına bakar. Liste eksiği, satırın genel kalanı, Grid eksiği ve rapor eksiği (R-02, R-06) birbirinin yerine kullanılmaz.
+
+**C-13 — Kapalı sandığı elle geri açmak sebep ister (24.10.2026).** Sandık Yönetimi'nden kapalı sandığı Hazırlanıyor'a almak (`ProjeIslemleri.SandikKapatCommand`, `Kapali=false`) bir geri açma sebebi ister.
+- **Sebep ve not:** Sebepler `LookupSandikAcilmaSebepleri` kayıtlarıdır (tohum: "Trafo kurulum", "Tadilat"). Yeni sebep veritabanından eklenir; ekranı yoktur. Not isteğe bağlıdır: boşlukları kırpılır, boşsa kaydedilmez, en fazla 500 karakterdir.
+- **Ret:** Doğrulayıcı `Kapali=false` isteğinde sebebi her zaman ister, sandık zaten Hazırlanıyor olsa da. Şu durumlarda istek 400 alır ve sandık, olay ve hareket değişmez: sebep yok ya da 0, not sınırı aşılmış, sebep kaydı bulunamadı.
+- **Başarı:** Sandık Hazırlanıyor olur ve kapanma tarihi boşalır (C-11). Olay sebep ve notla "Elle" kaynağıyla yazılır (C-14). Hareket açıklamasına "Sebep: …" ve varsa "Not: …" eklenir.
+- **Diğer durumlar:** Kapatmada (`Kapali=true`) sebep ve not yok sayılır. Sevk edilmiş sandık bu komutla değiştirilemez (mevcut sevk kilidi). Diğer geri açılma yolları sebep istemez; bunlar ürün güncelleme, taşıma ve saha aktarımıyla otomatik açılmadır.
+
+**C-14 — Her kapanma ve geri açılma olay olarak kalır (24.10.2026).** Her kapanma ve geri açılma `SandikDurumOlaylari`'na yazılır. Kapanma, sandığın Kapandı'ya girmesidir; geri açılma, Kapandı'dan Hazırlanıyor'a ya da Boş'a dönmesidir.
+- **Kayıt içeriği:** Proje, sandık, sandık numarasının kopyası, tür, kaynak, eski/yeni durum, kullanıcı ve tarih. Elle geri açmada sebep ve not da yazılır.
+- **Olay sayılmayan geçişler:** Kapandı → Sevk Edildi (sevkiyat), Sevk Edildi → Kapandı (kilit açma, sevkiyat geri alma), Sevk Edildi → Hazırlanıyor, Hazırlanıyor ↔ Boş ve durumun değişmediği kayıt.
+- **Tek kural, tek yazım noktası:** Kural `SandikDurumOlayKurali.OlayTuru`'ndadır. Kaydetme anında `SandikDurumOlayInterceptor` uygular. İzlenmeyen nesneyle `Update`'te eski durum veritabanından okunur.
+- **Elle ve toplu olay:** Tekil kapatma (`SandikIslemleri.SandikKapatCommand`), Sandık Yönetimi'nden kapat/geri al (`ProjeIslemleri.SandikKapatCommand`) ve toplu kapatma handler'ları olayı aynı kaydetmede kendisi ekler. Kaynak "Elle" ya da "Toplu"dur, varsa sebep de eklenir. Interceptor o sandık için ikinci olay yazmaz.
+- **Otomatik olay:** Diğer bütün yollar "Otomatik" kaynaklı, sebepsiz olay üretir: ürün güncelleme, taşıma ya da saha aktarımıyla geri açılma; Grid'de otomatik kapanma (G-030); sandığın Kapandı olarak eklenmesi. Kullanıcı, işlemi yapan kullanıcıdır; arka plan işlerinde boştur.
+- **Kalıcılık:** Kayıt değişmez. Sandık silinince bağ boşalır ve iz sandık numarası kopyasıyla kalır. Proje silinince kayıtları da silinir. Kullanılan sebep silinemez.
+- **Geçmişten aktarım:** 27 numaralı betik eski hareket geçmişindeki (arşiv dahil) kapatma kayıtlarını ("Sandık Manuel Kapatma", "Toplu Sandık Kapatma", "Sandık Otomatik Hazır") ve "Sandık Geri Açıldı" kayıtlarını bir kez aktarır. Kaynak "Geçmişten aktarılan"dır; olay sebepsizdir ve notta eski işlem yazar. Silinmiş sandığın kaydı aktarılmaz; aktarım yalnız olay tablosu boşken yapılır, tekrar çalışınca yinelenmez. Hazırlanıyor/Boş sandıkta kalmış kapanma tarihi boşaltılır.
+
+**C-15 — Açılış/kapanış istatistiği ve sandık zaman çizelgesi salt okunurdur (24.10.2026; sayfalama 25.10.2026).** Özet `GET api/sandik-istatistik`, sayfalı tablolar `GET api/sandik-istatistik/{projeler|musteriler|kisiler|olaylar}?sayfa=&boyut=`, Excel `GET api/sandik-istatistik/excel` ile açılır.
+- **Yetki:** `sandik-acilis-istatistigi` R ister; proje tipinden bağımsız tek izindir. Düğüm Sandık Yönetimi altında rotasızdır (Id 5261). Ekran `/sandik-acilis-istatistigi` kenar menüde değil, Projeler ve 3K sandık listesinin "Diğer" menüsündedir. Betik Admin'e W, Sandık Yönetimi'nde R ya da W olan rollere R verir.
+- **Süzgeç:** Tarih aralığı (başlangıç bitişten sonraysa 400), proje araması ve müşteri. Arama metinleri kırpılır, en fazla 100 karakterdir ve Türkçe büyük/küçük harf duyarsız eşlenir.
+- **Özet:** Kapanma (toplu ve otomatik ayrıca), geri açılma (elle, otomatik ve geçmişten aktarılan ayrıca), geri açılan sandık sayısı (proje + sandık numarası) ve proje, müşteri, kişi, olay sayıları (sekme başlıkları).
+- **Kırılımlar:**
+  - Sebep dağılımı. Sebepsiz açılmalar kaynağa göre ayrı satırdır: "Sebepsiz – Otomatik", "Sebepsiz – Geçmişten aktarıldı".
+  - En çok geri açılan 20 sandık (özette).
+  - **Sayfalı tablolar (sunucuda, `SayfaliSonuc<T>`; varsayılan 25, en fazla 100 satır, sınır dışı sayfa son sayfaya çekilir):** proje (geri açılması çok olan önce), müşteri (kırpılmış müşteri adıyla gruplanır), kişi (kullanıcısız olaylar "Bilinmiyor / sistem" satırıdır; otomatik olay tetikleyen kullanıcıya yazılır) ve olaylar (en yeniden eskiye). Satırlar DB'de gruplanır, sıralanır ve yalnız istenen sayfa okunur; sekme açılınca yüklenir, süzgeç değişince ilk sayfaya döner.
+- **Excel:** Aynı süzgeçle 7 sayfa üretir: Özet, Sebepler, Kişiler, Projeler, Müşteriler, En Çok Açılanlar, Olaylar. Olaylar sayfası en fazla 50.000 satırdır.
+- **Zaman çizelgesi:** Sandığın kendi çizelgesi (`GET api/sandik/{sandikId}/durum-gecmisi`, en yeniden eskiye) sandık detayıyla aynı okuma iznini ister (proje tipinin sandık R'si).
+
+Bu ekranların hiçbiri olay, durum ya da kapanma tarihi değiştirmez.
+
+Kaynak: [SandikDurumOlayKurali.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Core/Models/SandikDurumOlayKurali.cs), [SandikDurumOlayInterceptor.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Infrastructure/Data/Interceptors/SandikDurumOlayInterceptor.cs), [SandikDurumOlayYazici.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Common/SandikDurumOlayYazici.cs), [ProjeIslemleri/SandikKapatCommandHandler.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/ProjeIslemleri/Commands/SandikKapatCommandHandler.cs), [SandikKapatCommandValidator.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/ProjeIslemleri/Validators/SandikKapatCommandValidator.cs), [SandikTahsisHelper.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Common/SandikTahsisHelper.cs) (`HesaplaIcerikMiktari`), [GetProjeSandiklariQueryHandler.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Queries/GetProjeSandiklariQueryHandler.cs), [SandikDurumIstatistikQueries.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Queries/SandikDurumIstatistikQueries.cs), [SandikDurumIstatistikService.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Infrastructure/Services/Raporlar/SandikDurumIstatistikService.cs), [20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql](C:/Users/Watarzie/source/repos/3K_Proje/scripts/database/20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql).
+
 ### 6.2 Silme türlerinin ayrımı
 
 **D-01.** Manuel ürün silme ile “Çeki satırlarını sil” ayrı işlemlerdir. Birindeki korumalar diğerinin aynısı değildir.
@@ -1534,6 +1584,7 @@ Aşağıdaki test dosyaları kuralların bakımında kullanılabilecek mevcut re
 | Saha kaynak revizyonu | [CekiRevizyonAktifSahaKaynakKorumaTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/CekiRevizyonAktifSahaKaynakKorumaTests.cs), [SahaKaynakAnaVeriKorumaTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/SahaKaynakAnaVeriKorumaTests.cs) |
 | Fiziksel sevk ve düzeltme | [NormalProjeSevkDurumHelperTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/NormalProjeSevkDurumHelperTests.cs), [NormalProjeSevkDurumHesaplayiciTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/NormalProjeSevkDurumHesaplayiciTests.cs), [NormalProjeSevkKomutlariTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/NormalProjeSevkKomutlariTests.cs), [SevkiyatKilidiAcRegresyonTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/SevkiyatKilidiAcRegresyonTests.cs), [ProjectLockCorrectionScopeTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/ProjectLockCorrectionScopeTests.cs) |
 | Sevk sonrası düzeltme (L-12–L-17) | [SevkSonrasiDuzeltmeTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/SevkSonrasiDuzeltmeTests.cs), [SevkSonrasiDuzeltmePostgresTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/SevkSonrasiDuzeltmePostgresTests.cs), [ProjectLockCorrectionScopeTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/ProjectLockCorrectionScopeTests.cs), [ServerAuthorizationRegressionTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/ServerAuthorizationRegressionTests.cs), [SandikTasimaKatalogKurallariTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/SandikTasimaKatalogKurallariTests.cs), [SandikTopluTasimaTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/SandikTopluTasimaTests.cs) |
+| Sandık açılış/kapanış (C-11–C-15) | [SandikAcilisKapanisTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/SandikAcilisKapanisTests.cs), [SandikAcilisKapanisPostgresTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/SandikAcilisKapanisPostgresTests.cs), [CanliyaAlimBetikleriTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/CanliyaAlimBetikleriTests.cs) |
 
 ### 12.3 Belgenin güncel tutulması
 

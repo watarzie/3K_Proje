@@ -31,11 +31,14 @@ internal sealed class BarkodUrunAramaService(AppDbContext context) : IBarkodUrun
     private const string Kirmizi = "#D32F2F";
     private const string ElleEklenenDurum = "Elle eklenen";
 
-    public async Task<BarkodUrunAramaSonucu> AraAsync(string barkod, bool yalnizEksikler, int? projeTipiId, CancellationToken cancellationToken)
+    public async Task<BarkodUrunAramaSonucu> AraAsync(BarkodUrunAramaKriteri kriter, CancellationToken cancellationToken)
     {
-        var aranan = BarkodUrunAramaKurali.Normalize(barkod) ?? throw new IsKuraliException("Aranacak barkodu girin.");
+        var aranan = BarkodUrunAramaKurali.Normalize(kriter.Barkod) ?? throw new IsKuraliException("Aranacak barkodu girin.");
         var sinir = BarkodUrunAramaKurali.EnFazlaSatir;
-        var tip = projeTipiId is > 0 ? projeTipiId : null;
+        var tip = kriter.ProjeTipiId is > 0 ? kriter.ProjeTipiId : null;
+        var yalnizEksikler = kriter.YalnizEksikler;
+        // Proje no / müşteri süzgeci veritabanında; boşsa uygulanmaz.
+        var proje = BarkodUrunAramaKurali.ProjeAramaNormalize(kriter.ProjeArama);
 
         // Barkod tam eşleşir; büyük/küçük harf ve kenar boşluğu sorguda yok sayılır.
         var cekiSatirlari = await context.CekiSatirlari
@@ -49,6 +52,7 @@ internal sealed class BarkodUrunAramaService(AppDbContext context) : IBarkodUrun
             .Include(cs => cs.SandikIcerikleri).ThenInclude(si => si.Sandik)
             .Where(cs => cs.BarkodNo.Trim().ToUpper() == aranan)
             .Where(cs => tip == null || cs.Ceki.Proje.ProjeTipiId == tip)
+            .Where(cs => proje == null || cs.Ceki.Proje.ProjeNo.ToUpper().Contains(proje) || cs.Ceki.Proje.Musteri.ToUpper().Contains(proje))
             .OrderBy(cs => cs.Id)
             .Take(sinir + 1)
             .ToListAsync(cancellationToken);
@@ -62,6 +66,7 @@ internal sealed class BarkodUrunAramaService(AppDbContext context) : IBarkodUrun
             .Include(si => si.BirimLookup)
             .Where(si => si.CekiSatiriId == null && si.BarkodNo != null && si.BarkodNo.Trim().ToUpper() == aranan)
             .Where(si => tip == null || si.Sandik.Proje.ProjeTipiId == tip)
+            .Where(si => proje == null || si.Sandik.Proje.ProjeNo.ToUpper().Contains(proje) || si.Sandik.Proje.Musteri.ToUpper().Contains(proje))
             .OrderBy(si => si.Id)
             .Take(sinir + 1)
             .ToListAsync(cancellationToken);
@@ -81,8 +86,11 @@ internal sealed class BarkodUrunAramaService(AppDbContext context) : IBarkodUrun
                 .FirstOrDefault(a => !string.IsNullOrWhiteSpace(a))?.Trim(),
             YalnizEksikler = yalnizEksikler,
             ProjeTipiId = tip,
+            ProjeArama = string.IsNullOrWhiteSpace(kriter.ProjeArama) ? null : kriter.ProjeArama.Trim(),
             OlusturmaTarihi = TurkeyTime.Now,
             Satirlar = satirlar.Take(sinir).ToList(),
+            FiltreliSatir = Math.Min(satirlar.Count, sinir),
+            SayfaBoyutu = Math.Max(Math.Min(satirlar.Count, sinir), 1),
             ToplamSatir = tumu.Count,
             ProjeSayisi = tumu.Select(s => s.ProjeId).Distinct().Count(),
             EksikSatir = eksikler.Count,
@@ -375,7 +383,8 @@ internal sealed class BarkodUrunAramaService(AppDbContext context) : IBarkodUrun
             (int)ProjeTipi.Yedek => "Yedek projeleri",
             _ => "Tüm projeler"
         };
-        return $"Süzgeç: {tip} · {(sonuc.YalnizEksikler ? "Yalnız eksikler" : "Bütün satırlar")}";
+        var proje = sonuc.ProjeArama is null ? string.Empty : $" · Proje/müşteri: {sonuc.ProjeArama}";
+        return $"Süzgeç: {tip} · {(sonuc.YalnizEksikler ? "Yalnız eksikler" : "Bütün satırlar")}{proje}";
     }
 
     private static string OzetMetni(BarkodUrunAramaSonucu sonuc) =>
