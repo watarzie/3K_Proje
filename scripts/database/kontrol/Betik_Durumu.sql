@@ -12,6 +12,8 @@
 -- arar; ilk sürümün rotalı düğümü uygulanmamış sayılır.
 -- 27 numaralı betik Sandiklar.KapanmaTarihi kolonunu, SandikDurumOlaylari ve LookupSandikAcilmaSebepleri tablolarını ve
 -- menü düğümünü (sandik-acilis-istatistigi) birlikte arar.
+-- 28 numara feature/giris-guvenligi dalındadır (bu dalda dosyası yok). 29 numaralı betik menü düğümünü (barkod-etiket)
+-- arar.
 -- Yeni betik eklenince buraya satır eklenir (CanliyaAlimBetikleriTests dosya listesiyle karşılaştırır).
 -- =====================================================================================
 WITH kolon(tablo, ad) AS (SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public')
@@ -27,6 +29,7 @@ FROM (VALUES
     (27, '20261024_03_Sandik_Acilis_Kapanis_Gecmisi', EXISTS (SELECT 1 FROM kolon WHERE tablo = 'Sandiklar' AND ad = 'KapanmaTarihi')
                                                     AND EXISTS (SELECT 1 FROM kolon WHERE tablo = 'SandikDurumOlaylari' AND ad = 'Kaynak')
                                                     AND EXISTS (SELECT 1 FROM kolon WHERE tablo = 'LookupSandikAcilmaSebepleri' AND ad = 'Deger')
-                                                    AND EXISTS (SELECT 1 FROM "MenuTanimlari" WHERE "Kod" = 'sandik-acilis-istatistigi'))
+                                                    AND EXISTS (SELECT 1 FROM "MenuTanimlari" WHERE "Kod" = 'sandik-acilis-istatistigi')),
+    (29, '20261026_01_Barkod_Etiket_Yetkisi',       EXISTS (SELECT 1 FROM "MenuTanimlari" WHERE "Kod" = 'barkod-etiket'))
 ) AS t(sira, betik, uygulandi)
 ORDER BY sira;

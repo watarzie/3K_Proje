@@ -494,6 +494,47 @@ Bu ekranların hiçbiri olay, durum ya da kapanma tarihi değiştirmez.
 
 Kaynak: [SandikDurumOlayKurali.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Core/Models/SandikDurumOlayKurali.cs), [SandikDurumOlayInterceptor.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Infrastructure/Data/Interceptors/SandikDurumOlayInterceptor.cs), [SandikDurumOlayYazici.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Common/SandikDurumOlayYazici.cs), [ProjeIslemleri/SandikKapatCommandHandler.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/ProjeIslemleri/Commands/SandikKapatCommandHandler.cs), [SandikKapatCommandValidator.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/ProjeIslemleri/Validators/SandikKapatCommandValidator.cs), [SandikTahsisHelper.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Common/SandikTahsisHelper.cs) (`HesaplaIcerikMiktari`), [GetProjeSandiklariQueryHandler.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Queries/GetProjeSandiklariQueryHandler.cs), [SandikDurumIstatistikQueries.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Queries/SandikDurumIstatistikQueries.cs), [SandikDurumIstatistikService.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Infrastructure/Services/Raporlar/SandikDurumIstatistikService.cs), [20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql](C:/Users/Watarzie/source/repos/3K_Proje/scripts/database/20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql).
 
+#### 6.1.2 Barkod etiketi (26.10.2026)
+
+**C-16 — Barkod etiketi seçilen sandık ve ürünler için Grid etiketi üretir, veri değiştirmez (26.10.2026).** Bir projenin seçilen sandıkları ve ürünleri için Godex şablonlarıyla Grid etiketi basılır. Uçlar `api/barkod-etiket` altındadır: `GET projeler`, `GET projeler/{projeId}`, `GET projeler/{projeId}/sandiklar`, `GET projeler/{projeId}/urunler?sandikId=`, `POST projeler/{projeId}/sandik-etiketleri`, `POST projeler/{projeId}/urun-etiketleri`.
+- **Yetki:** Bütün istekler, dosya üretenler dahil, `barkod-etiket` R ister. Proje tipinden bağımsız tek izindir; Sandık Yönetimi ya da barkod arama izni yetmez. Düğüm Sandık Yönetimi altında rotasızdır (Id 5262, `MENU.BARKOD_ETIKET`). Ekran `/barkod-etiket` kenar menüde değil, Projeler ve 3K sandık listesinin "Diğer" menüsündedir. 3K listesinden açılınca proje seçili gelir. Betik (29) Admin'e W, Sandık Yönetimi'nde R ya da W olan rollere R verir.
+- **Sandık etiketi (100×75 mm):**
+  - Barkod: `Sandik.Id`, 12 haneye soldan sıfırla doldurulmuş Code 128'dir (2060008 → `000002060008`).
+  - FB NO: `Proje.FBNo`, boşsa `ProjeNo`.
+  - CASE NO: `SandikNo`.
+  - CLIENT NAME: `Musteri`.
+  - DISPATCH DESTINATION: `Lokasyon`.
+  - Tarih: ekranda seçilen ay, AA/YY biçiminde (Eylül 2026 → "09/26"). Varsayılan baskı ayıdır. Yıl 2000–2099, ay 1–12 dışındaysa 400.
+- **Ürün etiketi (60×40 mm):**
+  - Başlık "Grid Solutions ATT / Gebze"dir. Şablondaki "ALSTOM GRID / ATT / GEBZE" basılmaz.
+  - Barkod: `BarkodNo` kırpılır, büyük harfe çevrilir ve 16 haneye soldan sıfırla doldurulur (FCT00967433 → `00000FCT00967433`).
+  - Basılamayan barkod: boş, 16 karakterden uzun, yazdırılabilir ASCII dışı karakter (Türkçe harf dahil) ya da `^`/`~` içeren barkod basılamaz. Listede etiket barkodu boş gelir ve satır seçilemez; istekte gelirse 400 döner.
+  - TANIM/DESCRIPTION: çeki açıklamasının "TR\n\EN" ayrımıdır. İlk satır TANIM'dır. Sonraki satırlar, baştaki ters bölü atılarak, DESCRIPTION olur. Tek satırlı açıklamada DESCRIPTION boştur.
+  - REMARKS: ekranda düzenlenir. Çeki satırında çeki `Remarks`'ı ile dolu gelir. En fazla 60 karakterdir; boşsa "-" basılır.
+  - FB NO, CLIENT ve DESTINATION sandık etiketiyle aynı proje alanlarıdır.
+- **Ürün kaynağı ve seçim:** Ürünler iki kaynaktan gelir:
+  - Projenin çeki satırları.
+  - Çeki satırı olmayan sandık içerikleri (`CekiSatiriId` boş): saha/yedek sandıklarına elle eklenen malzemeler. Bunların TANIM'ı malzeme adıdır.
+  - Seçim (kaynak, kimlik) çiftiyle yapılır, barkodla yapılmaz: barkod satır kimliği değildir. Aynı kimlik farklı kaynakta başka üründür. Çeki satırına bağlı tahsis elle eklenen malzeme olarak seçilemez.
+  - Miktar: çeki satırında istenen adet (bütün sandıklar), elle eklenen malzemede kendi miktarıdır. Liste sandıkla süzülünce satır o sandığa tahsis edilen miktarı (`TahsisMiktari`) ayrıca taşır; ekrandaki "= miktar" kısayolu bu değeri kullanır, böylece bölünmüş satırda bütün sandıklar için etiket basılmaz. Etiket adedi kullanıcının seçimidir, miktar alanlarını değiştirmez.
+- **Metin:** Yazıcının iç fontu Türkçe harf basamadığı için etiket metni ASCII'ye çevrilir (Ç→C, İ→I, ğ→g…). Aksanlı harf temel harfine iner, karşılığı olmayan karakter "?" olur. Satır sonları boşluk olur, `^`/`~` atılır, art arda boşluklar teke iner. Büyük/küçük harf korunur. PDF ve EZPL aynı değerleri basar.
+- **Uzun metin (26.10.2026):** Şablon kısa müşteri adına göre çizilmiştir; veride 44 karaktere kadar ad vardır. Genişlik Godex fontunun basılı ölçüsüyle (Helvetica × 0,93) hesaplanır. Sandıkta "CLIENT NAME: ad" sağ sütuna sığmazsa "CLIENT NAME:" kendi satırına iner, ad kelime sınırından en fazla iki satıra kayar ve DISPATCH DESTINATION altına kayar. Üründe ad varış yerine kadar sığmazsa küçük fontla (A) en fazla iki satıra kayar. Varış yeri tek satırdır. Satırlar yetmezse kalan metin atılır; sığmayan tek kelime harf harf bölünür. Kısa adda şablon birebir kalır. PDF ve EZPL aynı düzeni basar (`GodexYaziOlcusu`, `GodexEtiketSablonu`).
+- **Listeler sunucuda sayfalıdır** (`SayfaliSonuc<T>`; varsayılan 25, en fazla 100, sınır dışı sayfa son sayfaya çekilir):
+  - Proje: bütün proje tipleri, en yeni önce. Arama proje no, FB no ve müşteride yapılır.
+  - Sandık: doğal numara sırasındadır (2 < 10). Arama sandık no ve adında yapılır.
+  - Ürün: önce çeki satırları (çeki ve sıra no ile), sonra elle eklenenler. İsteğe bağlı tek sandıkla süzülür. Arama barkod ve açıklamada (elle eklenende ad) yapılır.
+  - Arama metni en fazla 100 karakterdir.
+- **Sınırlar ve retler:**
+  - Tek istekte en az 1, en fazla 200 seçim yapılır. Her seçimde adet 1–100, toplamda en fazla 1000 etiket olur. Aynı sandık ya da ürün iki kez seçilemez (adet artırılır). Bu kurallara uymayan istek 400 alır.
+  - Proje bulunamazsa ya da seçilen sandık/ürün, süzgeçteki sandık dahil, projeye ait değilse 404 döner ve dosya üretilmez.
+- **Çıktı:**
+  - PDF: her etiket bir sayfadır, adedi kadar tekrarlanır. Sayfa etiket boyundadır.
+  - EZPL `.prn`: kullanıcının Godex şablonudur (`Label_Sandik` / `Label_Urun`) ve koordinat, font, barkod ve çizgileri birebir korunur. Yalnız ürün başlığı değişir. Adet `^P` ile yazılır. Dosya ASCII ve CRLF'tir.
+  - Dosya adı `Sandik_Etiketleri_` / `Urun_Etiketleri_` + proje no + `TurkeyTime` damgasıdır.
+- **Salt okunur:** Hiçbir istek kayıt, durum ya da hareket yazmaz.
+
+Kaynak: [BarkodEtiketKurali.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Core/Models/BarkodEtiketKurali.cs), [Code128.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Core/Helpers/Code128.cs), [BarkodEtiketService.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Infrastructure/Services/Etiketler/BarkodEtiketService.cs), [GodexEtiketSablonu.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Infrastructure/Services/Etiketler/GodexEtiketSablonu.cs), [BarkodEtiketPdf.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Infrastructure/Services/Etiketler/BarkodEtiketPdf.cs), [BarkodEtiketQueries.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Queries/BarkodEtiketQueries.cs), [BarkodEtiketValidators.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Validators/BarkodEtiketValidators.cs), [BarkodEtiketController.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K_API/Controllers/BarkodEtiketController.cs), [20261026_01_Barkod_Etiket_Yetkisi.sql](C:/Users/Watarzie/source/repos/3K_Proje/scripts/database/20261026_01_Barkod_Etiket_Yetkisi.sql).
+
 ### 6.2 Silme türlerinin ayrımı
 
 **D-01.** Manuel ürün silme ile “Çeki satırlarını sil” ayrı işlemlerdir. Birindeki korumalar diğerinin aynısı değildir.

@@ -8,6 +8,43 @@ koşum sayıları tarihsel kayıttır; depo dışında yönetilen 02–04 SQL'le
 bugünkü halini veya canlıda elle uygulanmasını doğrulamaz. Bu geçiş için
 ayrı staging provası ve DBA doğrulaması gerekir.
 
+## Barkod etiketi (C-16) — 26 Ekim 2026
+
+Değişiklik henüz commit edilmedi.
+
+**Davranış.**
+- Yeni ekran `/barkod-etiket`, `barkod-etiket` R ister (Id 5262, rotasız, Sandık Yönetimi altında). Ekran Projeler ve 3K sandık listesinin "Diğer" menüsünden açılır. Bir projenin seçilen sandıkları (100×75 mm) ve ürünleri (60×40 mm) için Grid etiketi PDF ya da Godex EZPL (`.prn`) olarak üretilir; hiçbir kayıt değişmez.
+- Barkodlar: sandık barkodu `Sandik.Id`'nin 12 haneli sıfır dolgusudur. Ürün barkodu `BarkodNo`'nun kırpılmış, büyük harfli, 16 haneye soldan sıfır dolgusudur. Basılamayan ürün barkodu (boş, 16'dan uzun, ASCII dışı, `^`/`~`) listede seçilemez, istekte 400 alır.
+- Alanlar: FB NO (boşsa proje no), CASE NO, CLIENT, DESTINATION, AA/YY tarih ve çeki açıklamasının TANIM/DESCRIPTION ayrımı. REMARKS ekranda düzenlenir, boşsa "-". Etiket metni ASCII'ye çevrilir.
+- Listeler sunucuda sayfalıdır. Sınırlar: 200 seçim, adet 1–100, toplam 1000 etiket, REMARKS 60. Projeye ait olmayan seçim 404 alır.
+- Ürünler çeki satırları ile çeki satırı olmayan sandık içerikleridir (elle eklenen malzemeler). Seçim (kaynak, kimlik) ile yapılır.
+
+**Kapsam sınırı.** İzin `scripts/database/20261026_01_Barkod_Etiket_Yetkisi.sql` ile kurulur (README sıra 29; şema değişikliği yok). Eşleme satırı `coverage/ORTAK_SAHA_YETKI_TEST_ESLESMESI.md` dosyasındadır: C-16 Birim. Ambalaj ve Finans'ta yeni kural yoktur.
+
+- [BarkodEtiketTests](../../3K.Application.Tests/BarkodEtiketTests.cs) (10 metot; 9'u bellek içi, 1'i izole PostgreSQL):
+  - Code 128 kodlaması (alt küme seçimi, kontrol sembolü, desen tablosu).
+  - Ürün barkodu kuralı (Theory, 9 vaka) ve sandık barkodu, ASCII çevirisi, REMARKS, açıklama ayrımı, FB NO, tarih, adet sınırları.
+  - EZPL sandık etiketinin şablonla satır satır aynı olması; ürün etiketinin şablon öğeleri ve yeni başlığı.
+  - PDF'in adet kadar sayfa üretmesi.
+  - Doğrulayıcılar ve altı isteğin `barkod-etiket` R yetkisi (gerçek `AuthorizationBehavior` ile 403).
+  - `Postgres_ListelerSayfaliSecimProjeyeAitDosyaUretilir` (`THREEK_TEST_POSTGRES` ister): sayfalı listeler, sıra ve süzgeçler, dosya içeriği, başka projeye ait seçimde 404, basılamayan barkodda 400.
+- [CanliyaAlimBetikleriTests](../../3K.Application.Tests/CanliyaAlimBetikleriTests.cs) (izole PostgreSQL, 1 test): betik 29'u da çalıştırır. İzin düğümünü (5262, rotasız, son sıra) ve rol izinlerini doğrular; tekrarda değişmezliği sınar.
+
+**Koşum (Release, 26 Ekim 2026, dokümantasyon oturumu, PostgreSQL'siz):**
+- Filtre `FullyQualifiedName~BarkodEtiketTests|FullyQualifiedName~CanliyaAlimBetikleriTests` (`dotnet test ... -c Release`, derleme dahil) ile 20 test seçildi: 18 başarılı, 0 başarısız, 2 atlanan.
+  - Başarılı: `BarkodEtiketTests`'in bellek içi 9 metodu (18 vaka; Theory 9 vaka).
+  - Atlananlar: `BarkodEtiketTests.Postgres_ListelerSayfaliSecimProjeyeAitDosyaUretilir` ve `CanliyaAlimBetikleriTests.Postgres_Betik_SemayiModeleGetirir_TekrarindaTasimaIziniKorur`. Oturumda `THREEK_TEST_POSTGRES` tanımlı değildi.
+- Kural–test eşleme doğrulayıcısı (`scripts/test/Test-IsKuraliEslemesi.ps1`): 548 kural doğrulandı (önceki 547 + C-16). `-TrxPath` kipi kullanılmadı.
+
+**Koşulmayanlar:**
+- İki PostgreSQL testi bu oturumda koşulmadı (atlandı). Liste, sayfa, 404/400 ve betik davranışı bu oturumda gerçek veritabanında doğrulanmadı.
+- Tam paketler (.NET ve ön yüz) koşulmadı. Ön yüz spec'i (`barkod-etiket.component.spec.ts`) bu oturumda koşulmadı.
+- HTTP ve tarayıcı akışı, gerçek Godex yazıcıda baskı ve canlı veri (`3K_Db`) denenmedi.
+
+**Açık kalanlar (C-16):**
+- Salt okunurluk test edilmiyor: servis yazma yapmıyor ama hiçbir testte kaydın değişmediği ölçülmüyor.
+- 1000 etiketlik toplam sınırının tam sınırda kabulü testsiz. Proje listesinin sırası (en yeni önce) testsiz. Aramanın Türkçe İ/ı ile büyük/küçük harf duyarsızlığı (SQL `upper`) testsiz.
+
 ## Finans: katlanır sandık elle fiyatlanır — 26 Ekim 2026
 
 Katlanır sandığın kontrplak mantığıyla (ahşap/kontra m³ × tarife) fiyatlanması kaldırıldı; sistem katlanırda tarife, m³ veya ölçüden hesap yapmaz (`FinansKatlanirKurali`). Diğer sandık tipleri değişmedi. Aşağıdaki maddeler 13 Ekim "Malzemeli tarife" ve 10 Ekim "Kontrplak hacmi" bölümlerindeki katlanır ifadelerinin yerine geçer.

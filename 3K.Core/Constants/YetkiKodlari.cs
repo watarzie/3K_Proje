@@ -68,6 +68,11 @@ public static class YetkiKodlari
         /// bazında kaç kez kapanıp geri açıldığı; Excel çıktısı dahil. Proje tipinden bağımsız tek izin.
         /// </summary>
         public const string SandikAcilisIstatistigi = "sandik-acilis-istatistigi";
+        /// <summary>
+        /// Barkod etiketi ekranı (R): seçilen sandıkların ve ürünlerin Grid etiketlerini PDF veya Godex EZPL olarak
+        /// üretir; veri değiştirmez. Proje tipinden bağımsız tek izin.
+        /// </summary>
+        public const string BarkodEtiket = "barkod-etiket";
     }
 
     public static class Stok
