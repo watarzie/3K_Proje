@@ -71,7 +71,7 @@ public sealed class FinansTutarKurallariTests
     }
 
     /// <summary>
-    /// Malzemeli fiyat (kontrplak/katlanır): kontra m³ kontra, ahşap m³ ahşap tarifesiyle fiyatlanır. Hacim henüz elle
+    /// Malzemeli fiyat (kontrplak): kontra m³ kontra, ahşap m³ ahşap tarifesiyle fiyatlanır. Hacim henüz elle
     /// girilmediyse kayıt m³'ünün tamamı kontra sayılır. SQL ifadesi aynı sonucu verir.
     /// </summary>
     [Fact]

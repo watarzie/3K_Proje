@@ -336,7 +336,7 @@ internal sealed class FinansAylikOzetService(AppDbContext context, FinansPoOnayO
                      Musteri = x.ProjeId.HasValue ? null : x.Musteri,
                      x.IsTuru,
                      SandikTipi = OzelSandikTuru(x.IsTuru) ? x.SandikTipi : null,
-                     // Katlanır sandık boyutla değil, kontrplak gibi ahşap/kontra m³ ile fiyatlanır; satır boyuta bölünmez.
+                     // Katlanır sandık boyutla fiyatlanmaz (elle fiyatlanır); satır boyuta bölünmez, farklı fiyat ayrı satırdır.
                      IcSandikSablonId = x.IsTuru == FinansIsTuru.IcSandik ? x.IcSandikSablonId : null,
                      x.FinansUrunId,
                      x.FiyatlandirmaBirimiSnapshot,

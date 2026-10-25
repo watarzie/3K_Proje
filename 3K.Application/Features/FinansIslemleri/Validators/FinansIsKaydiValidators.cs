@@ -109,6 +109,8 @@ public sealed class FinansFiyatlandirCommandValidator : AbstractValidator<Finans
     public FinansFiyatlandirCommandValidator()
     {
         RuleFor(x => x.Id).GreaterThan(0);
-        RuleFor(x => x.Model).NotNull().DependentRules(() => RuleFor(x => x.Model.Aciklama).Must(FinansGerekceKurali.Gecerli).WithMessage(FinansGerekceKurali.Mesaj));
+        // Gerekçe katlanır sandıkta isteğe bağlı, diğer işlerde zorunludur; sandık tipi kayıttan okunduğu için
+        // zorunluluk serviste denetlenir (FinansKatlanirKurali), burada yalnız uzunluk sınırı.
+        RuleFor(x => x.Model).NotNull().DependentRules(() => RuleFor(x => x.Model.Aciklama).Must(FinansGerekceKurali.IstegeBagliGecerli).WithMessage(FinansGerekceKurali.IstegeBagliMesaj));
     }
 }

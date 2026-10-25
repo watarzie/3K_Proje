@@ -11,20 +11,22 @@ public enum FinansSandikMalzemesi
 }
 
 /// <summary>
-/// Ahşap ve kontra/katlanır m³ ayrımı (F11) için tek kaynak. Ahşap kapalı ve kafes sandıkların hacmi
-/// üretim m³'üdür; kontra/katlanır sandıklar Ambalaj'da m³ hesaplanmadığı için Finans'ta girilen m³
+/// Ahşap ve kontra m³ ayrımı (F11) için tek kaynak. Ahşap kapalı ve kafes sandıkların hacmi
+/// üretim m³'üdür; kontrplak sandık Ambalaj'da m³ hesaplanmadığı için Finans'ta girilen m³
 /// fiyat satırlarından (bileşenler) okunur. Eski kayıtlarda sandık cinsi boşsa sandık tipi metni kullanılır.
+/// Katlanır sandığın malzemesi yoktur: m³ tutulmaz, elle fiyatlanır (<see cref="FinansKatlanirKurali"/>).
 /// </summary>
 public static class FinansHacimKurallari
 {
     public static FinansSandikMalzemesi Malzeme(AmbalajSandikCinsi? cinsi, string? sandikTipi) => cinsi switch
     {
         AmbalajSandikCinsi.AhsapKapali or AmbalajSandikCinsi.Kafes => FinansSandikMalzemesi.Ahsap,
-        AmbalajSandikCinsi.Kontrplak or AmbalajSandikCinsi.Katlanir => FinansSandikMalzemesi.Kontra,
+        AmbalajSandikCinsi.Kontrplak => FinansSandikMalzemesi.Kontra,
+        AmbalajSandikCinsi.Katlanir => FinansSandikMalzemesi.Bilinmiyor,
         _ => sandikTipi?.Trim() switch
         {
             "Ahşap Kapalı" or "Kafes Sandık" => FinansSandikMalzemesi.Ahsap,
-            "Kontrplak Sandık" or "Katlanır Sandık" => FinansSandikMalzemesi.Kontra,
+            "Kontrplak Sandık" => FinansSandikMalzemesi.Kontra,
             _ => FinansSandikMalzemesi.Bilinmiyor
         }
     };
@@ -45,11 +47,13 @@ public static class FinansHacimKurallari
             : Hacim(cinsi, sandikTipi, toplamM3, bilesenler);
 
     /// <summary>
-    /// Ahşap/kontra m³ elle girilebilir mi: Ambalaj'ın m³ hesaplamadığı kontrplak ve katlanır sandıkta; ahşap kapalı
-    /// ve kafes sandığın m³'ü üretimden gelir. Daha önce elle girilmiş hacim (ör. özel iş) düzeltilebilir kalır.
+    /// Ahşap/kontra m³ elle girilebilir mi: Ambalaj'ın m³ hesaplamadığı kontrplak sandıkta; ahşap kapalı ve kafes
+    /// sandığın m³'ü üretimden gelir. Daha önce elle girilmiş hacim (ör. özel iş) düzeltilebilir kalır. Katlanır
+    /// sandıkta hiçbir zaman girilmez (eski kayıtta elle girilmiş olsa da); fiyatı elle verilir.
     /// </summary>
     public static bool ElleGirilebilir(AmbalajSandikCinsi? cinsi, string? sandikTipi, bool hacimManuel) =>
-        hacimManuel || Malzeme(cinsi, sandikTipi) == FinansSandikMalzemesi.Kontra;
+        !FinansKatlanirKurali.Katlanir(cinsi, sandikTipi) &&
+        (hacimManuel || Malzeme(cinsi, sandikTipi) == FinansSandikMalzemesi.Kontra);
 
     /// <summary>Bileşik toplam = ahşap m³ + kontra m³ (altı ondalık).</summary>
     public static decimal Bilesik(decimal? ahsap, decimal? kontra) =>
@@ -75,9 +79,11 @@ public static class FinansHacimKurallari
     }
 
     /// <summary>
-    /// Kaydın ahşap ve kontra m³ payı. Ahşap sandığın ahşabı üretim m³'üdür; kontra/katlanır sandığın hacmi m³ fiyat
+    /// Kaydın ahşap ve kontra m³ payı. Ahşap sandığın ahşabı üretim m³'üdür; kontrplak sandığın hacmi m³ fiyat
     /// satırlarından okunur (satır yoksa kayıt m³'ü). Malzemesi açıkça yazılmış m³ satırı kendi malzemesine eklenir;
     /// malzemesi boş satır sandığın malzemesini alır (ahşap sandıkta üretim m³'ü zaten sayıldığı için eklenmez).
+    /// Eski katlanır kayıtları (kontrplak gibi fiyatlanmış) aynı kontra payıyla gösterilir; yeni katlanır işte m³
+    /// tutulmadığı için pay (0, 0)'dır.
     /// </summary>
     public static (decimal Ahsap, decimal Kontra) Hacim(
         AmbalajSandikCinsi? cinsi,
@@ -89,7 +95,8 @@ public static class FinansHacimKurallari
         var acikAhsap = m3Satirlari.Where(x => x.Malzeme == FinansSandikMalzemesi.Ahsap).Sum(x => x.Miktar);
         var acikKontra = m3Satirlari.Where(x => x.Malzeme == FinansSandikMalzemesi.Kontra).Sum(x => x.Miktar);
         var malzemesiz = m3Satirlari.Where(x => x.Malzeme is null or FinansSandikMalzemesi.Bilinmiyor).Sum(x => x.Miktar);
-        switch (Malzeme(cinsi, sandikTipi))
+        var malzeme = FinansKatlanirKurali.Katlanir(cinsi, sandikTipi) ? FinansSandikMalzemesi.Kontra : Malzeme(cinsi, sandikTipi);
+        switch (malzeme)
         {
             case FinansSandikMalzemesi.Ahsap:
                 return (toplamM3, acikKontra);

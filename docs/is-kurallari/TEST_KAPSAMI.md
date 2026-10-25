@@ -8,6 +8,25 @@ koşum sayıları tarihsel kayıttır; depo dışında yönetilen 02–04 SQL'le
 bugünkü halini veya canlıda elle uygulanmasını doğrulamaz. Bu geçiş için
 ayrı staging provası ve DBA doğrulaması gerekir.
 
+## Finans: katlanır sandık elle fiyatlanır — 26 Ekim 2026
+
+Katlanır sandığın kontrplak mantığıyla (ahşap/kontra m³ × tarife) fiyatlanması kaldırıldı; sistem katlanırda tarife, m³ veya ölçüden hesap yapmaz (`FinansKatlanirKurali`). Diğer sandık tipleri değişmedi. Aşağıdaki maddeler 13 Ekim "Malzemeli tarife" ve 10 Ekim "Kontrplak hacmi" bölümlerindeki katlanır ifadelerinin yerine geçer.
+
+- Ambalaj aktarımında katlanır iş fiyatsız açılır (adet yöntemi, birim fiyat 0, ürünsüz); katlanıra özel eski eşleşme dahil hiçbir tarife kullanılmaz (`FinansFiyatBelirleyici.OtomatikFiyatUygulaAsync`). Bedel 0 olduğu için fiyat girilmeden PO açılamaz.
+- Fiyat işin Fiyatlandırma sekmesinden girilir: adet × birim fiyat veya net toplam (bileşenler m³ satırı içeremez); m³ ve sabit tutar yöntemi 409'dur. Para birimi tablodan seçilir, KDV elle girilir. Girilen tutar `FinansTutarKurallari.IsNet` ile olduğu gibi kullanılır; PO, fatura, panel ve raporlar bu tutarla çalışır. Kayıtta m³ tutulmaz (birim/toplam m³ ve elle ahşap/kontra payı temizlenir).
+- Gerekçe katlanırda isteğe bağlıdır (yazılırsa değişiklik geçmişine "Gerekçe" satırı eklenir); diğer işlerde zorunluluk sürer ve boş gerekçe artık doğrulayıcı yerine serviste 400 ile reddedilir. Alan değişiklikleri her durumda denetim kaydına yazılır.
+- Katlanırda elle hacim girişi 409'dur (eski kayıtta elle hacim girilmiş olsa da); malzemesi "bilinmiyor"dur ve yeni katlanır işin m³ payı (0, 0)'dır. Kontrplak gibi m³ ile fiyatlanmış eski katlanır kaydın m³'ü gösterimde (iş detayı, aylık/proje kırılımı, PO) eskisi gibi kontra payı olarak kalır (`FinansHacimKurallari.Hacim`).
+- Tarifeyle fiyatlanmış eski katlanır kayıtların fiyatı korunur (veri taşınmadı, betik yok); yeniden fiyatlama, geriye dönük doldurma (sorguda `SandikCinsi` ile, cinsi boş eski kayıtta tip metniyle elenir) ve tarife düzeltme ("Katlanır sandık" koruma nedeni) onları değiştirmez. Saha/yedek katlanır sandık da bu kurala dahildir (kural iş türünden bağımsız).
+- Yeni aktif "Katlanır Sandık" tarife eşleşmesi tanımlanamaz (doğrulayıcı 400). Önceden kaydedilmiş eşleşme ürünün diğer güncellemelerini kilitlemesin diye reddedilmez; fiyatlamada yok sayılır. Ön yüz tarife formunda katlanır seçeneği yoktur.
+- Ön yüz: `FinansIsKaydi.elleFiyatlanir`; iş detayında fiyatsız katlanır için "Fiyatı gir" uyarısı, Fiyatlandırma'da yalnız Adet/Manuel net toplam, m³ bileşeni ve hacim kartı yok, gerekçe isteğe bağlı; Ambalaj yaşam döngüsünde katlanır için "fiyat Finans'ta elle girilir" notu.
+
+- [FinansKatlanirFiyatTests](../../3K.Application.Tests/FinansKatlanirFiyatTests.cs): katlanır tanıma (cins/tip metni), yöntem ve bileşen kuralı, malzeme/m³ payı, hacim temizliği ve net, tarife düzeltme koruması, eşleşme doğrulayıcısı, fiyatlandırma gerekçesinin doğrulayıcıda isteğe bağlı olması.
+- [FinansPostgresTests](../../3K.Application.Tests/FinansPostgresTests.cs) `KatlanirSandik_TarifeVeM3Hesaplanmaz_ElleFiyatPoVeFaturadaAynenKullanilir` (PostgreSQL): eski katlanır eşleşmesi ve genel tarifeler varken fiyatsız aktarım, aktarımdan sonra tanımlanan tarifenin (geriye dönük doldurma) fiyatsız katlanırı fiyatlamaması, fiyatsız PO reddi, hacim/m³/m³ bileşeni reddi ve kaydın değişmemesi, gerekçesiz adet × birim fiyat (m³ 0), net toplam düzeltmesi ve gerekçe geçmişi, eski tarifeli kaydın yeniden fiyatlamada korunması, PO + fatura ve SQL tutar ifadesinin aynı bedeli vermesi, kontrplakta boş gerekçenin 400 olması.
+- Güncellenen: `FinansPoFaturaKurallariTests.Elle_hacim_yalniz_kontrplak_sandikta_girilir_katlanirda_girilmez`, `FinansUrunTarifeTests` (malzemeli eşleşme örneği kontrplak), `FinansPostgresTests.MalzemeliTarife_AhsapVeKontraM3KendiTarifesiyle_KismiPoOranli` (katlanırsız; kısmi PO kontrplakla).
+- Ön yüz spec'leri: `finans-kayit-detay` ("Katlanır sandık (elle fiyat)"), `finans-urun-kaydet`.
+
+Koşum (Release, izole 127.0.0.1:55439 sunucusunda): `FinansKatlanirFiyatTests|FinansPoFaturaKurallariTests|FinansUrunTarifeTests|FinansTarifeDuzeltmeTests|FinansTutarKurallariTests|FinansMunferitIsTests|FinansModuluTests|FinansPostgresTests|FinansPoOnayPostgresTests` → 183 başarılı, 0 atlanan, 1 başarısız: `FinansPoOnayPostgresTests.GecisBetigi_…` bu dalda bulunmayan `scripts/database/20261017_01_Finans_Po_Is_Onayi.sql` betiğini aradığı için (klasör 18 Ekim'de bilerek silindi; bu değişiklikten bağımsız). Ön yüz: finans + ambalaj yaşam döngüsü + finans servis spec'leri 241/241, development derlemesi temiz. Ekran canlı veriyle görsel olarak denenmedi. Tam paketler koşulmadı.
+
 ## Sandık açılış/kapanış geçmişi (C-11–C-15) — 24 Ekim 2026
 
 Değişiklik henüz commit edilmedi.
