@@ -118,10 +118,11 @@ public sealed class IkiFaktorLoginAkisiTests
 
         public bool AccessTokenUretildi { get; private set; }
 
-        public Task<Kullanici?> ValidateCredentialsAsync(
+        public Task<GirisDogrulamaSonucu> ValidateCredentialsAsync(
             string email,
             string sifre,
-            CancellationToken cancellationToken = default) => Task.FromResult(_kullanici);
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(_kullanici == null ? GirisDogrulamaSonucu.Gecersiz : GirisDogrulamaSonucu.Basarili(_kullanici));
 
         public Task<Kullanici?> GetKullaniciByIdAsync(
             int kullaniciId,

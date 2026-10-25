@@ -11,18 +11,19 @@ namespace _3K.Application.Tests;
 /// Canlıya alım provası: bu sürümün veritabanı betikleri (README sıra 22 <c>20261021_02_Sahadan_Sahaya_Tasima.sql</c>,
 /// 23 <c>20261023_01_Grid_Saha_Gorunumu_Yetkisi.sql</c>, 24 <c>20261023_02_Sevk_Sonrasi_Duzeltme.sql</c>,
 /// 25 <c>20261024_01_Proje_Baglanti_Turu.sql</c>, 26 <c>20261024_02_Barkod_Urun_Arama_Yetkisi.sql</c>,
-/// 27 <c>20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql</c>) önceki sürümün şemasında çalıştırılır. Sonuç şeması EF modeliyle
+/// 27 <c>20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql</c>, 28 <c>20261025_01_Giris_Kilidi.sql</c>) önceki sürümün şemasında çalıştırılır. Sonuç şeması EF modeliyle
 /// aynıdır (kolon, kısıt, ON DELETE kuralı, indeks). Betiklerin tekrarı hiçbir şeyi değiştirmez: var olan taşıma izi ve
 /// verilmiş izinler korunur. Salt okunur durum sorgusu (<c>kontrol/Betik_Durumu.sql</c>) klasördeki her betiği listeler
 /// ve öncesini/sonrasını doğru gösterir. 1–20 numaralı betikler canlıya uygulanıp depodan kaldırıldığı için burada yoktur.
 /// </summary>
 public sealed class CanliyaAlimBetikleriTests
 {
-    /// <summary>Canlıda çalıştırma sırası (scripts/database/README.md, sıra 22–27).</summary>
+    /// <summary>Canlıda çalıştırma sırası (scripts/database/README.md, sıra 22–28).</summary>
     private static readonly string[] Betikler =
         ["20261021_02_Sahadan_Sahaya_Tasima.sql", "20261023_01_Grid_Saha_Gorunumu_Yetkisi.sql",
             "20261023_02_Sevk_Sonrasi_Duzeltme.sql", "20261024_01_Proje_Baglanti_Turu.sql",
-            "20261024_02_Barkod_Urun_Arama_Yetkisi.sql", "20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql"];
+            "20261024_02_Barkod_Urun_Arama_Yetkisi.sql", "20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql",
+            "20261025_01_Giris_Kilidi.sql"];
 
     /// <summary>Önceki sürümün (master) şeması: bu sürümün eklediği tablo, kolon, kısıt ve indeksler yoktur.</summary>
     private const string OncekiSema = """
@@ -36,6 +37,15 @@ public sealed class CanliyaAlimBetikleriTests
         DROP TABLE "SandikDurumOlaylari";
         DROP TABLE "LookupSandikAcilmaSebepleri";
         ALTER TABLE "Sandiklar" DROP COLUMN "KapanmaTarihi";
+        """;
+
+    /// <summary>
+    /// Önceki sürümün kullanıcı tablosu (28 numaralı betikten önce). Hazırlık verisi EF ile kullanıcı yazdığı için
+    /// veriden sonra uygulanır.
+    /// </summary>
+    private const string OncekiKullaniciSemasi = """
+        ALTER TABLE "Kullanicilar" DROP CONSTRAINT "CK_Kullanicilar_BasarisizGirisSayisi";
+        ALTER TABLE "Kullanicilar" DROP COLUMN "BasarisizGirisSayisi", DROP COLUMN "GirisKilitBitisTarihi";
         """;
 
     /// <summary>Kolon (tip, uzunluk, hassasiyet, boşluk, kimlik), kısıt ve indeks tanımları.</summary>
@@ -65,6 +75,7 @@ public sealed class CanliyaAlimBetikleriTests
             var projeId = await ProjeVeTursuzBaglantiYazAsync(db);
             // Önceki sürümde sandık olayları yalnız hareket geçmişindedir (biri arşivde): betik bir kez aktarır.
             var gecmis = await SandikHareketGecmisiYazAsync(db);
+            await db.Database.ExecuteSqlRawAsync(OncekiKullaniciSemasi);
 
             // Durum sorgusu: klasördeki her betik bir satırdır; önceki sürümde uygulanmamıştır.
             var dosyalar = Directory.GetFiles(Path.GetDirectoryName(Betik(Betikler[0]))!, "*.sql")
@@ -107,6 +118,8 @@ public sealed class CanliyaAlimBetikleriTests
             Assert.Equal(["Trafo kurulum", "Tadilat"],
                 await db.LookupSandikAcilmaSebepleri.AsNoTracking().OrderBy(s => s.Id).Select(s => s.Deger).ToListAsync());
             await GecmisAktarildiAsync(db, gecmis, gecmis.SonKapanma);
+            // 28: var olan kullanıcı sayaç 0, kilitsiz başlar.
+            Assert.Equal((0, (DateTime?)null), await GirisKilidiAsync(db, gecmis.KullaniciId));
             var sema = await SemaAsync(db);
             var fark = modelSemasi.Except(sema).Select(x => "eksik: " + x).Concat(sema.Except(modelSemasi).Select(x => "fazla: " + x)).ToList();
             Assert.True(fark.Count == 0, string.Join(Environment.NewLine, fark));
@@ -123,8 +136,13 @@ public sealed class CanliyaAlimBetikleriTests
             var elleTarih = new DateTime(2026, 9, 30, 12, 0, 0);
             await db.Database.ExecuteSqlAsync(
                 $"""UPDATE "Sandiklar" SET "KapanmaTarihi" = {elleTarih} WHERE "Id" IN ({gecmis.KapaliSandikId}, {gecmis.AcikSandikId})""");
+            // 28: tekrar çalıştırma var olan sayaç ve kilide dokunmaz.
+            var kilit = new DateTime(2026, 10, 25, 9, 30, 0);
+            await db.Database.ExecuteSqlAsync(
+                $"""UPDATE "Kullanicilar" SET "BasarisizGirisSayisi" = 3, "GirisKilitBitisTarihi" = {kilit} WHERE "Id" = {gecmis.KullaniciId}""");
             foreach (var betik in Betikler)
                 await CalistirAsync(db, betik);
+            Assert.Equal((3, (DateTime?)kilit), await GirisKilidiAsync(db, gecmis.KullaniciId));
             Assert.Null((await db.MenuTanimlari.AsNoTracking().SingleAsync(m => m.Kod == YetkiKodlari.Sandik.GridSahaGorunumu)).Route);
             Assert.Null((await db.MenuTanimlari.AsNoTracking().SingleAsync(m => m.Kod == YetkiKodlari.Sandik.BarkodUrunArama)).Route);
 
@@ -335,6 +353,12 @@ public sealed class CanliyaAlimBetikleriTests
         while (await okuyucu.ReadAsync())
             sonuc.Add(okuyucu.GetString(1), okuyucu.GetString(2));
         return sonuc;
+    }
+
+    private static async Task<(int Sayac, DateTime? Kilit)> GirisKilidiAsync(AppDbContext db, int kullaniciId)
+    {
+        var kullanici = await db.Kullanicilar.AsNoTracking().SingleAsync(k => k.Id == kullaniciId);
+        return (kullanici.BasarisizGirisSayisi, kullanici.GirisKilitBitisTarihi);
     }
 
     private static async Task<List<string>> SemaAsync(AppDbContext db) =>

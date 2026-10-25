@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using _3K.Application.Features.SandikIslemleri.Queries;
 using _3K_API.Extensions;
 
@@ -36,6 +37,7 @@ namespace _3K_API.Controllers
             (await mediator.Send(query, cancellationToken)).ToActionResult();
 
         /// <summary>Aynı süzgecin Excel çıktısı.</summary>
+        [EnableRateLimiting(ApiServiceCollectionExtensions.DisaAktarimRateLimitPolicy)]
         [HttpGet("excel")]
         public async Task<IActionResult> Excel([FromQuery] SandikDurumIstatistigiExcelQuery query, CancellationToken cancellationToken) =>
             (await mediator.Send(query, cancellationToken)).ToFileResult();

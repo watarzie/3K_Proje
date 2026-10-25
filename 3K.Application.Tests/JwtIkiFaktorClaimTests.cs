@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using _3K.Core.Entities;
 using _3K.Infrastructure.Services;
 
@@ -22,7 +23,7 @@ public sealed class JwtIkiFaktorClaimTests
                 ["JwtSettings:ExpirationHours"] = "1"
             })
             .Build();
-        var service = new AuthService(null!, null!, configuration);
+        var service = new AuthService(null!, null!, configuration, NullLogger<AuthService>.Instance);
         var rol = new Rol { Id = 1, Ad = "Admin" };
         var kullanici = new Kullanici
         {

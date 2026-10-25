@@ -29,6 +29,9 @@ namespace _3K.Application.Features.KullaniciIslemleri.Commands
                 return Result<bool>.Failure("Kullanıcı bulunamadı.", 404);
 
             kullanici.SifreHash = _authService.HashPassword(request.YeniSifre);
+            // Yönetici parolayı yenileyince geçici giriş kilidi de kalkar; kullanıcı 15 dakika beklemez.
+            kullanici.BasarisizGirisSayisi = 0;
+            kullanici.GirisKilitBitisTarihi = null;
             // GetByIdAsync tracked entity döndürür; yalnız şifre kolonunun
             // güncellenmesi eşzamanlı 2FA zorunluluk değişikliğini ezmez.
             await _unitOfWork.SaveChangesAsync(cancellationToken);

@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using _3K.Application.Features.SevkiyatIslemleri.Commands;
 using _3K.Application.Features.SevkiyatIslemleri.Queries;
 using _3K_API.Extensions;
@@ -49,6 +50,7 @@ public sealed class SevkiyatController(IMediator mediator) : ControllerBase
         => (await mediator.Send(new SevkSeferiDetayQuery { EskiPlaka = plaka, EskiTarih = tarih }, cancellationToken)).ToActionResult();
 
     /// <summary>Dönem raporu: sefer listesinin süzgeçleriyle; format "pdf" (özet) veya "excel" (bütün döküm).</summary>
+    [EnableRateLimiting(ApiServiceCollectionExtensions.DisaAktarimRateLimitPolicy)]
     [HttpGet("rapor/{format}")]
     public async Task<ActionResult> DonemRaporu(
         string format,
@@ -69,11 +71,13 @@ public sealed class SevkiyatController(IMediator mediator) : ControllerBase
         }, cancellationToken)).ToFileResult();
 
     /// <summary>Tek seferin yazdırılabilir PDF raporu.</summary>
+    [EnableRateLimiting(ApiServiceCollectionExtensions.DisaAktarimRateLimitPolicy)]
     [HttpGet("seferler/{id:int}/rapor")]
     public async Task<ActionResult> SeferRaporu(int id, CancellationToken cancellationToken)
         => (await mediator.Send(new SevkSeferiRaporuQuery { SeferId = id }, cancellationToken)).ToFileResult();
 
     /// <summary>Sefere bağlı olmayan eski sevkiyatların (plaka + sevk günü) PDF raporu.</summary>
+    [EnableRateLimiting(ApiServiceCollectionExtensions.DisaAktarimRateLimitPolicy)]
     [HttpGet("seferler/eski-rapor")]
     public async Task<ActionResult> EskiSeferRaporu([FromQuery] string? plaka, [FromQuery] DateTime tarih, CancellationToken cancellationToken)
         => (await mediator.Send(new SevkSeferiRaporuQuery { EskiPlaka = plaka, EskiTarih = tarih }, cancellationToken)).ToFileResult();

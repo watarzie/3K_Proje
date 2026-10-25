@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using _3K.Application.Features.FinansIslemleri.Commands;
 using _3K.Application.Features.FinansIslemleri.Queries;
 using _3K.Core.Models;
@@ -24,6 +25,7 @@ public sealed class FinansBelgeController(IMediator mediator) : FinansController
         return (await Mediator.Send(new FinansBelgeYukleCommand { Model = new(hedefTuru, hedefId, dosya.FileName, buffer.ToArray()) }, ct)).ToActionResult();
     }
 
+    [EnableRateLimiting(ApiServiceCollectionExtensions.DisaAktarimRateLimitPolicy)]
     [HttpGet("belgeler/{id:int}/indir")]
     public async Task<ActionResult> BelgeIndir(int id, CancellationToken ct)
     {
