@@ -187,7 +187,8 @@ internal sealed class OtomatikSahaAktarimHazirlayici(
 
     /// <summary>
     /// Eksikler, hedefteki sevk edilmemiş "1" sandığına eklenir (yoksa "1" açılır). Sevk edilmemiş sandık, hedefte aynı
-    /// numaralı boş sandık varsa ona (geri alınmış aktarımın bıraktığı), yoksa yeni numarayla açılır; numara doluysa "-2".
+    /// numaralı boş sandık varsa ona (geri alınmış aktarımın bıraktığı), yoksa kaynak numarasıyla açılır; numara doluysa
+    /// sıradaki numarayla (en büyük + 1; 28.10.2026, eskiden "-2" eki).
     /// Sıra, uygulamanın sandık taslaklarını gönderdiği sırayla aynıdır.
     /// </summary>
     private async Task<(Dictionary<int, OtomatikSahaHedefSandigi> SandikHedefleri, OtomatikSahaHedefSandigi? EksiklerHedefi)>
@@ -247,7 +248,7 @@ internal sealed class OtomatikSahaAktarimHazirlayici(
     private static OtomatikSahaHedefSandigi YeniNumara(string istenenNo, HashSet<string> kullanilanNolar)
     {
         var istenen = KoliNoKurali.Normalize(istenenNo);
-        var no = SahaAktarimIslemi.GenerateUniqueSandikNo(istenen, kullanilanNolar);
+        var no = KoliNoKurali.BosNumaraYaDaSiradaki(istenen, kullanilanNolar);
         return new OtomatikSahaHedefSandigi(null, no, !string.Equals(no, istenen, StringComparison.OrdinalIgnoreCase));
     }
 

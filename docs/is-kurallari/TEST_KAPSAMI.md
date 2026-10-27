@@ -237,7 +237,7 @@ Değişiklik henüz commit edilmedi. Aynı günün otomatik aktarım bölümün�
 **Sandık durumu, kutu bilgisi ve numara (S-24–S-26).**
 - İçeriği değişen Kapandı sandık (taşımada hedef ya da içinde ürün kalan kaynak; otomatik ve elle aktarımda yeniden kullanılan hedef) Hazırlanıyor'a döner ve "Sandık Geri Açıldı" hareketi yazılır; boşalan kaynak sandık silinmez, Bos olur.
 - Taşımada yeni hedef sandığa ad, tip, ölçü, ağırlık ve lokasyon yalnız tek kaynak sandık taşımayla boşalıyorsa kopyalanır.
-- Saha sandık numarası çakışması bütün yollarda `KoliNoKurali.Normalize` ile aranır ("05" = "5"); çakışmada "-2", "-3"… eklenir. Elle yollar önceden yalnız tam eşitliğe bakıyordu.
+- Saha sandık numarası çakışması bütün yollarda `KoliNoKurali.Normalize` ile aranır ("05" = "5"). 28.10.2026'dan beri çakışmada "-2" eki yerine sıradaki numara verilir ya da verilen numara 409 ile reddedilir (S-26). Elle yollar önceden yalnız tam eşitliğe bakıyordu.
 
 **Otomatik aktarım düzeltmeleri (S-18, S-19).** Önizleme özeti plan parçasına ek olarak hedef saha projesini ve hedef sandık eşleşmelerini içerir; önizlemeden sonra hedefteki eşleşen sandık değişirse uygulama 409 (`PLAN_DEGISTI`) alır. Ortak motor, sandık bazlı kalemdeki ürünü bildirilen kaynak sandıkta bulamazsa 409 döner.
 
@@ -250,7 +250,7 @@ Değişiklik henüz commit edilmedi. Aynı günün otomatik aktarım bölümün�
   - Sandık taşımada manuel içerik dahil bütün içerik geçer ve kaynak Bos olur.
   - Kutu bilgisi yalnız kaynak boşalınca kopyalanır; Kapandı hedef ve kaynak yeniden açılır.
   - Kaynak/hedef saha sevkli (2'şer vaka), sevkli kaynak sandık, bölünmüş satır, sevkiyat kapsamı ve açık karşılama engeli 409 alır; hiçbir kayıt değişmez.
-  - Hedefte dolu numara "2-2" olur. Aynı anahtarla tekrar ilk sonucu döner, farklı taşıma 409 alır.
+  - Hedefte dolu numara eskiden "2-2" olurdu; 28.10.2026'dan beri numarasız taşıma sıradaki numarayı alır, verilen dolu numara 409'dur (S-26). Aynı anahtarla tekrar ilk sonucu döner, farklı taşıma 409 alır.
   - Taşıma başlığı toplu geri alınmaz ve ters yönde taşıma çalışır; önizleme veri değiştirmez.
 - [SahadanSahayaTasimaPostgresTests](../../3K.Application.Tests/SahadanSahayaTasimaPostgresTests.cs) (izole PostgreSQL, 4 test, `THREEK_TEST_POSTGRES` ister):
   - Gerçek EF ile satır hedefe geçer ve saha izi raporu satırı, PDF ve Excel "Saha Izi" sayfası üretilir.

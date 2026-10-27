@@ -290,6 +290,61 @@ public class OtomatikSahayaAktarCommandTests
     }
 
     [Fact]
+    public async Task HedefteKaynakNumarasiSevkliSandiktaysa_SiradakiNumaraVerilir_EkliNumaraAcilmaz()
+    {
+        // 28.10.2026: eskiden "3-2" açılır, 3K sandık kartında ikinci bir "3" gibi görünürdü.
+        var k = new Kurgu();
+        k.Uow.Repo<Proje>().Rows.Add(new Proje { Id = 2, ProjeNo = "PA723-01-SAHA", ProjeTipiId = (int)ProjeTipi.Saha, DurumId = (int)ProjeDurum.Hazirlaniyor });
+        k.Uow.Repo<Sandik>().Rows.AddRange(
+        [
+            new Sandik { Id = 21, ProjeId = 2, SandikNo = "1", DurumId = (int)SandikDurum.Hazirlaniyor },
+            new Sandik { Id = 22, ProjeId = 2, SandikNo = "3", DurumId = (int)SandikDurum.Sevkedildi },
+            new Sandik { Id = 23, ProjeId = 2, SandikNo = "07", DurumId = (int)SandikDurum.Sevkedildi }
+        ]);
+
+        var onizleme = await k.OnizleAsync();
+        var sonuc = await k.UygulaAsync(onizleme.PlanOzeti);
+
+        var sandik = Assert.Single(onizleme.Sandiklar);
+        Assert.Equal(("8", true), (sandik.HedefSandikNo, sandik.NumaraDegisti));
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.Single(k.Uow.Repo<Sandik>().Rows, s => s.ProjeId == 2 && s.SandikNo == "8");
+        Assert.DoesNotContain(k.Uow.Repo<Sandik>().Rows, s => s.ProjeId == 2 && s.SandikNo.Contains('-'));
+    }
+
+    [Theory]
+    [InlineData("5")]
+    [InlineData("05")]
+    public async Task AktarimMotoru_VerilenNumaraHedefteVarsa_409_SandikAcilmaz(string verilen)
+    {
+        var k = new Kurgu();
+        k.Uow.Repo<Proje>().Rows.Add(new Proje { Id = 2, ProjeNo = "PA723-01-SAHA", ProjeTipiId = (int)ProjeTipi.Saha, DurumId = (int)ProjeDurum.Hazirlaniyor });
+        k.Uow.Repo<Sandik>().Rows.Add(new Sandik { Id = 21, ProjeId = 2, SandikNo = "5", DurumId = (int)SandikDurum.Hazirlaniyor });
+        var once = k.Sayilar();
+        var handler = new EksiklerdenSahaProjesiOlusturCommandHandler(k.Uow, k.Hareket, new LookupStub(), new OrtakUser(), k.Saha);
+
+        // Elle aktarımda yeni sandığın numarası kullanıcınındır: dolu numara sessizce "5-2" olmaz, açık 409 döner.
+        var sonuc = await handler.Handle(new EksiklerdenSahaProjesiOlusturCommand
+        {
+            KaynakProjeId = AnaProjeId,
+            HedefSahaProjeId = 2,
+            Sandiklar =
+            [
+                new EksikSahaSandikDto
+                {
+                    SandikNo = verilen,
+                    Urunler = [new EksikSahaUrunDto { CekiSatiriId = Kurgu.R2, KaynakSandikId = Sevkli2, Miktar = 1 }]
+                }
+            ]
+        }, CancellationToken.None);
+
+        Assert.Equal(409, sonuc.StatusCode);
+        Assert.Contains("numaralı sandık zaten var", sonuc.Error!.Message);
+        Assert.Equal(once.Sandik, k.Sayilar().Sandik);
+        Assert.Equal(once.Kalem, k.Sayilar().Kalem);
+    }
+
+    [Fact]
     public async Task OnizlemedenSonraHedeftekiBirNumaraliSandikSevkEdilirse_409()
     {
         var k = new Kurgu();

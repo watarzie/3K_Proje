@@ -315,6 +315,22 @@ internal sealed class SahaAktarimIslemi(
         if (hedefSandikMap.Values.Any(s => s.DurumId == (int)SandikDurum.Sevkedildi || s.SevkiyatDuzeltmeAcikMi))
             return Result<SahaAktarimUygulamaSonucu>.Failure("Sevk edilmiş ya da sevkiyat düzeltmesindeki saha sandığına yeni ürün eklenemez.");
 
+        // Yeni sandığın numarası sessizce değiştirilmez (28.10.2026; eskiden "2-2" eki açılır, ekranda ikinci "2" görünürdü):
+        // hedefte ya da aynı aktarımda aynı numara (çeki biçiminde) varsa 409 döner, numara verilmemişse sıradaki numara
+        // (en büyük sayısal + 1) atanır. Numarayı kaynak sandıktan türeten akışlar (sandık bazlı ve otomatik aktarım)
+        // dolu numarayı buraya göndermeden önce KoliNoKurali.BosNumaraYaDaSiradaki ile çözer. Yazmadan önce denetlenir.
+        foreach (var taslak in sandikTaslaklari.Where(s => !s.HedefSandikId.HasValue))
+        {
+            if (string.IsNullOrWhiteSpace(taslak.SandikNo))
+            {
+                taslak.SandikNo = KoliNoKurali.BosNumaraYaDaSiradaki(null, mevcutSandikNolari);
+                continue;
+            }
+            if (!mevcutSandikNolari.Add(KoliNoKurali.Normalize(taslak.SandikNo)))
+                return Result<SahaAktarimUygulamaSonucu>.Failure(
+                    $"Hedef saha projesinde {taslak.SandikNo} numaralı sandık zaten var; o sandığı seçin ya da başka bir numara verin.", 409);
+        }
+
         var toplamSatir = 0;
         var toplamAdet = 0m;
         var sahaAktarim = new SahaAktarim
@@ -348,7 +364,7 @@ internal sealed class SahaAktarimIslemi(
             }
             else
             {
-                var sandikNo = GenerateUniqueSandikNo(sandikTaslak.SandikNo, mevcutSandikNolari);
+                var sandikNo = sandikTaslak.SandikNo;
                 sandik = new Sandik
                 {
                     ProjeId = yeniProje.Id,
@@ -489,28 +505,6 @@ internal sealed class SahaAktarimIslemi(
             candidate = $"{baseNo}-{index}";
             index++;
         }
-
-        return candidate;
-    }
-
-    /// <summary>
-    /// Hedef projede aynı numara kullanılıyorsa "-2", "-3"… ekler. Küme <see cref="KoliNoKurali.Normalize"/> biçimli
-    /// numaralardır ("05" ile "5" çakışır); seçilen numaranın normal biçimi kümeye yazılır.
-    /// </summary>
-    public static string GenerateUniqueSandikNo(string baseNo, HashSet<string> usedSandikNos)
-    {
-        var normalized = NormalizeSandikNo(baseNo);
-        if (usedSandikNos.Add(KoliNoKurali.Normalize(normalized)))
-            return normalized;
-
-        var index = 2;
-        string candidate;
-        do
-        {
-            candidate = $"{normalized}-{index}";
-            index++;
-        }
-        while (!usedSandikNos.Add(KoliNoKurali.Normalize(candidate)));
 
         return candidate;
     }
