@@ -336,7 +336,11 @@ internal sealed class FinansAylikOzetService(AppDbContext context, FinansPoOnayO
                      Musteri = x.ProjeId.HasValue ? null : x.Musteri,
                      x.IsTuru,
                      SandikTipi = OzelSandikTuru(x.IsTuru) ? x.SandikTipi : null,
-                     // Katlanır sandık boyutla fiyatlanmaz (elle fiyatlanır); satır boyuta bölünmez, farklı fiyat ayrı satırdır.
+                     // Tek seferlik sandık (İlave, Saha, Yedek) raporda Özel İş gibi ölçüsüyle görünür: satır ölçüye göre
+                     // ayrılır. Fiyat ölçüden bağımsızdır (katlanır elle fiyatlanır); farklı fiyat ayrıca ayrı satırdır.
+                     Boy = FinansIsRaporAlanlari.OlculuIsTuru(x.IsTuru) ? x.Boy : null,
+                     En = FinansIsRaporAlanlari.OlculuIsTuru(x.IsTuru) ? x.En : null,
+                     Yukseklik = FinansIsRaporAlanlari.OlculuIsTuru(x.IsTuru) ? x.Yukseklik : null,
                      IcSandikSablonId = x.IsTuru == FinansIsTuru.IcSandik ? x.IcSandikSablonId : null,
                      x.FinansUrunId,
                      x.FiyatlandirmaBirimiSnapshot,
@@ -374,8 +378,8 @@ internal sealed class FinansAylikOzetService(AppDbContext context, FinansPoOnayO
                 "Proje", null, grup.Key.ProjeId,
                 ProjectUnitKey(grup.Key.ProjeId, projeNo, tarife.Musteri), tarife.Musteri,
                 grup.Key.IsTuru, IsGrubu(grup.Key.IsTuru),
-                projeNo, isAdi, grup.Key.SandikTipi, null, null,
-                null, satirlar.Min(x => x.UretimTarihi), satirlar.Max(x => x.UretimTarihi),
+                projeNo, isAdi, grup.Key.SandikTipi, grup.Key.Boy, grup.Key.En,
+                grup.Key.Yukseklik, satirlar.Min(x => x.UretimTarihi), satirlar.Max(x => x.UretimTarihi),
                 grup.Key.IsTuru == FinansIsTuru.SarfKereste ? 0m : satirlar.Sum(x => x.Adet),
                 miktar, Birim(tarife.FiyatlandirmaBirimiSnapshot), tarife.BirimFiyatSnapshot,
                 tarife.KdvOraniSnapshot, net, kdv, net + kdv, tarife.ParaBirimiSnapshot,
@@ -389,7 +393,8 @@ internal sealed class FinansAylikOzetService(AppDbContext context, FinansPoOnayO
                 false, false, satirlar.All(x => x.IptalEdildi),
                 satirlar.Select(x => x.IptalAciklamasi).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)),
                 FinansKategoriKurali.Kategori(grup.Key.IsTuru, null), ozet.Durum.Siparis, ozet.Durum.Fatura,
-                ozet.AhsapM3, ozet.KontraM3, ozet.KalanSiparis, ozet.KalanFatura, grup.Key.AhsapBirimFiyatSnapshot));
+                ozet.AhsapM3, ozet.KontraM3, ozet.KalanSiparis, ozet.KalanFatura, grup.Key.AhsapBirimFiyatSnapshot,
+                FinansIsRaporAlanlari.TalepEdenler(satirlar.OrderBy(x => x.Id).Select(x => (x.TalepEdenKisi, x.TalepEdenBolum)))));
         }
 
         foreach (var kayit in kayitlar.Where(x => x.IsTuru == FinansIsTuru.OzelIs))
@@ -427,7 +432,8 @@ internal sealed class FinansAylikOzetService(AppDbContext context, FinansPoOnayO
                 !kayit.IptalEdildi && siparisler.Count == 0 && FinansTutarKurallari.AylikBirimFiyatDuzenlenebilir(kayit),
                 kayit.IptalEdildi, kayit.IptalAciklamasi,
                 FinansKategoriKurali.Kategori(kayit.IsTuru, kayit.DuzenliIsId), ozelOzet.Durum.Siparis, ozelOzet.Durum.Fatura,
-                ozelOzet.AhsapM3, ozelOzet.KontraM3, ozelOzet.KalanSiparis, ozelOzet.KalanFatura, kayit.AhsapBirimFiyatSnapshot));
+                ozelOzet.AhsapM3, ozelOzet.KontraM3, ozelOzet.KalanSiparis, ozelOzet.KalanFatura, kayit.AhsapBirimFiyatSnapshot,
+                FinansIsRaporAlanlari.TalepEden(kayit.TalepEdenKisi, kayit.TalepEdenBolum)));
         }
 
         return sonuc.OrderBy(x => x.IsGrubu).ThenBy(x => x.ProjeNo).ThenBy(x => x.IsAdi).ToArray();

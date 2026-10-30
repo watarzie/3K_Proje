@@ -191,13 +191,44 @@ public sealed class SandikAcilisKapanisTests
     {
         var satir = new CekiSatiri { Id = 10, IstenenAdet = 5m };
         var icerik = new SandikIcerik { SandikId = 1, CekiSatiriId = 10, CekiSatiri = satir, TahsisMiktari = 4m, KonulanAdet = 1.5m };
-        Assert.Equal(new SandikIcerikMiktari(4m, 1.5m, 2.5m), SandikTahsisHelper.HesaplaIcerikMiktari(icerik, 2));
+        var diger = new SandikIcerik { SandikId = 2, CekiSatiriId = 10, TahsisMiktari = 1m, KonulanAdet = 1m };
+        Assert.Equal(new SandikIcerikMiktari(4m, 1.5m, 2.5m), SandikTahsisHelper.HesaplaIcerikMiktari(icerik, [icerik, diger]));
         // Grid'de kapanan satır tamam sayılır.
         satir.GridDurumuId = (int)GridDurum.GridKapandi;
-        Assert.Equal(new SandikIcerikMiktari(4m, 4m, 0m), SandikTahsisHelper.HesaplaIcerikMiktari(icerik, 2));
+        Assert.Equal(new SandikIcerikMiktari(4m, 4m, 0m), SandikTahsisHelper.HesaplaIcerikMiktari(icerik, [icerik, diger]));
         // Fazla konulan eksik üretmez; çeki satırı olmayan (elle eklenen) malzeme kendi miktarıyla hesaplanır.
-        Assert.Equal(0m, SandikTahsisHelper.HesaplaIcerikMiktari(new SandikIcerik { Miktar = 2m, KonulanAdet = 3m }, 1).Eksik);
-        Assert.Equal(1m, SandikTahsisHelper.HesaplaIcerikMiktari(new SandikIcerik { Miktar = 2m, KonulanAdet = 1m }, 1).Eksik);
+        var elle = new SandikIcerik { Miktar = 2m, KonulanAdet = 3m };
+        Assert.Equal(0m, SandikTahsisHelper.HesaplaIcerikMiktari(elle, [elle]).Eksik);
+        elle.KonulanAdet = 1m;
+        Assert.Equal(1m, SandikTahsisHelper.HesaplaIcerikMiktari(elle, [elle]).Eksik);
+    }
+
+    [Fact]
+    public void IcerikMiktari_KalaniSifirlayanDurumlarEksikSayilmaz()
+    {
+        // Ekrandaki durum: 1 adetlik satır trafoyla gitti, sandığa konmadı; kalan 0, eksik de 0 olmalı.
+        var trafo = new CekiSatiri { Id = 20, IstenenAdet = 1m, TrafoSevkAdet = 1m, GridDurumuId = (int)GridDurum.TrafoSevk };
+        var trafoIcerik = new SandikIcerik { SandikId = 1, CekiSatiriId = 20, CekiSatiri = trafo, TahsisMiktari = 1m };
+        Assert.Equal(0m, trafo.KalanMiktar);
+        Assert.Equal(new SandikIcerikMiktari(1m, 0m, 0m), SandikTahsisHelper.HesaplaIcerikMiktari(trafoIcerik, [trafoIcerik]));
+
+        // Kısmi trafo: 5'in 2'si trafoyla, 1'i sandıkta → sandıkta 2 eksik.
+        var kismi = new CekiSatiri { Id = 21, IstenenAdet = 5m, TrafoSevkAdet = 2m };
+        var kismiIcerik = new SandikIcerik { SandikId = 1, CekiSatiriId = 21, CekiSatiri = kismi, TahsisMiktari = 5m, KonulanAdet = 1m };
+        Assert.Equal(2m, SandikTahsisHelper.HesaplaIcerikMiktari(kismiIcerik, [kismiIcerik]).Eksik);
+
+        // Çok sandıklı satırda trafo adedi tahsis oranında paylaşılır (3K ürün listesindeki gibi): 6+4, trafo 5 → 3 ve 2.
+        var bolunmus = new CekiSatiri { Id = 22, IstenenAdet = 10m, TrafoSevkAdet = 5m };
+        var a = new SandikIcerik { SandikId = 1, CekiSatiriId = 22, CekiSatiri = bolunmus, TahsisMiktari = 6m };
+        var b = new SandikIcerik { SandikId = 2, CekiSatiriId = 22, CekiSatiri = bolunmus, TahsisMiktari = 4m };
+        Assert.Equal(3m, SandikTahsisHelper.HesaplaIcerikMiktari(a, [a, b]).Eksik);
+        Assert.Equal(2m, SandikTahsisHelper.HesaplaIcerikMiktari(b, [a, b]).Eksik);
+
+        // Grid İptal: kalan 0, konulan değişmeden eksik 0.
+        var iptal = new CekiSatiri { Id = 23, IstenenAdet = 3m, GridDurumuId = (int)GridDurum.Iptal };
+        var iptalIcerik = new SandikIcerik { SandikId = 1, CekiSatiriId = 23, CekiSatiri = iptal, TahsisMiktari = 3m, KonulanAdet = 1m };
+        Assert.Equal(0m, iptal.KalanMiktar);
+        Assert.Equal(new SandikIcerikMiktari(3m, 1m, 0m), SandikTahsisHelper.HesaplaIcerikMiktari(iptalIcerik, [iptalIcerik]));
     }
 
     private sealed class Kurgu

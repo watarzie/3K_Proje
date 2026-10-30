@@ -13,8 +13,6 @@ public static class BarkodEtiketKurali
 {
     public const int SandikBarkodHanesi = 12;
     public const int UrunBarkodHanesi = 16;
-    /// <summary>Tek istekte seçilebilecek en fazla sandık/ürün.</summary>
-    public const int EnFazlaSecim = 200;
     /// <summary>Bir sandık/ürün için en fazla etiket adedi.</summary>
     public const int EnFazlaAdet = 100;
     /// <summary>Tek dosyadaki en fazla etiket (adetler toplamı).</summary>
@@ -110,9 +108,12 @@ public static class BarkodEtiketKurali
 
     public static bool TarihGecerli(int yil, int ay) => yil is >= 2000 and <= 2099 && ay is >= 1 and <= 12;
 
-    /// <summary>En az bir, en fazla <see cref="EnFazlaSecim"/> seçim; her adet 1–<see cref="EnFazlaAdet"/>; toplam en fazla <see cref="EnFazlaToplamEtiket"/>.</summary>
+    /// <summary>
+    /// En az bir seçim; her adet 1–<see cref="EnFazlaAdet"/>; toplam en fazla <see cref="EnFazlaToplamEtiket"/>. Seçim
+    /// sayısının ayrı sınırı yoktur (30.10.2026): her seçim en az bir etiket olduğundan toplam sınırı onu da kapsar.
+    /// </summary>
     public static bool AdetlerGecerli(IReadOnlyCollection<int>? adetler) =>
-        adetler is { Count: > 0 and <= EnFazlaSecim }
+        adetler is { Count: > 0 }
         && adetler.All(a => a is >= 1 and <= EnFazlaAdet)
         && adetler.Sum() <= EnFazlaToplamEtiket;
 

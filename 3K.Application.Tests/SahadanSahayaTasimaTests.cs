@@ -105,6 +105,48 @@ public class SahadanSahayaTasimaTests
     }
 
     [Fact]
+    public async Task TopluSatirTasima_FarkliSandiklardanSecilenlerTekIslemdeAyniHedefSandigaGecer()
+    {
+        // Aktarımlar penceresindeki toplu seçim: iki ayrı kaynak sandıktan üç satır, tek başlık ve tek hedef sandık.
+        var k = new Kurgu();
+        var anahtar = Guid.NewGuid();
+
+        var onizleme = await k.OnizleAsync(satirlar: [Kurgu.S1, Kurgu.S2, Kurgu.S3], hedefSandik: 31);
+        var sonuc = await k.TasiAsync(satirlar: [Kurgu.S1, Kurgu.S2, Kurgu.S3], hedefSandik: 31, anahtar: anahtar);
+
+        Assert.True(onizleme.TasinabilirMi);
+        Assert.Equal(3, onizleme.Satirlar.Count);
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.Equal((3, 31), (sonuc.Value!.TasinanSatirSayisi, sonuc.Value.HedefSandikId));
+        Assert.All(k.Uow.Repo<SandikIcerik>().Rows.Where(i => i.Id is 301 or 302 or 303), i => Assert.Equal(31, i.SandikId));
+        Assert.Equal(1, k.Uow.Repo<SahaAktarim>().Rows.Count(a => a.KaynakSahaProjeId == KaynakSaha));
+        Assert.Equal(3, k.Uow.Repo<SahaTasimaKalemi>().Rows.Count);
+        // Sandık 2'nin tek satırı gitti, boşaldı; sandık 1'de manuel içerik kaldı.
+        Assert.Equal(["2"], sonuc.Value.BosalanSandikNolari);
+
+        // Aynı anahtarla tekrar ikinci taşıma üretmez.
+        var once = k.Durum();
+        var tekrar = await k.TasiAsync(satirlar: [Kurgu.S3, Kurgu.S2, Kurgu.S1], hedefSandik: 31, anahtar: anahtar);
+        Assert.True(tekrar.IsSuccess, tekrar.Error?.Message);
+        Assert.Equal(once, k.Durum());
+    }
+
+    [Fact]
+    public async Task TopluSatirTasima_TekSatirEngelliyse409VeHicbirSatirTasinmaz()
+    {
+        // Hepsi ya da hiçbiri: sevk edilmiş sandıktaki tek satır bütün seçimi durdurur.
+        var k = new Kurgu();
+        k.Uow.Repo<Sandik>().Rows.Single(s => s.Id == 22).DurumId = (int)SandikDurum.Sevkedildi;
+        var once = k.Durum();
+
+        var sonuc = await k.TasiAsync(satirlar: [Kurgu.S1, Kurgu.S2, Kurgu.S3]);
+
+        Assert.Equal(409, sonuc.StatusCode);
+        Assert.Contains("sevk edilmiş", string.Join(" ", (IEnumerable<string>)sonuc.Error!.Issues!));
+        Assert.Equal(once, k.Durum());
+    }
+
+    [Fact]
     public async Task KapanmisHedefVeKaynakSandik_IcerigiDegisinceYenidenAcilir()
     {
         var k = new Kurgu();

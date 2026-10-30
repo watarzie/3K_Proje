@@ -109,7 +109,10 @@ public sealed class BarkodEtiketTests
         Assert.False(BarkodEtiketKurali.AdetlerGecerli([]));
         Assert.False(BarkodEtiketKurali.AdetlerGecerli([0]));
         Assert.False(BarkodEtiketKurali.AdetlerGecerli([BarkodEtiketKurali.EnFazlaAdet + 1]));
-        Assert.False(BarkodEtiketKurali.AdetlerGecerli(Enumerable.Repeat(1, BarkodEtiketKurali.EnFazlaSecim + 1).ToList()));
+        // Seçim sayısının ayrı sınırı yok: 253 satır birer etiketle geçer; yalnız toplam etiket sınırı aşılamaz.
+        Assert.True(BarkodEtiketKurali.AdetlerGecerli(Enumerable.Repeat(1, 253).ToList()));
+        Assert.True(BarkodEtiketKurali.AdetlerGecerli(Enumerable.Repeat(1, BarkodEtiketKurali.EnFazlaToplamEtiket).ToList()));
+        Assert.False(BarkodEtiketKurali.AdetlerGecerli(Enumerable.Repeat(1, BarkodEtiketKurali.EnFazlaToplamEtiket + 1).ToList()));
         Assert.False(BarkodEtiketKurali.AdetlerGecerli(Enumerable.Repeat(BarkodEtiketKurali.EnFazlaAdet, 11).ToList()));
     }
 

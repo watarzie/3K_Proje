@@ -52,10 +52,10 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 : (await _unitOfWork.GetRepository<SandikIcerik>()
                     .FindAsync(i => i.CekiSatiriId.HasValue && cekiSatiriIdleri.Contains(i.CekiSatiriId.Value)))
                     .ToList();
-            var tahsisSayilari = projeTahsisleri
+            var satirTahsisMap = projeTahsisleri
                 .Where(i => i.CekiSatiriId.HasValue)
                 .GroupBy(i => i.CekiSatiriId!.Value)
-                .ToDictionary(g => g.Key, g => g.Count());
+                .ToDictionary(g => g.Key, g => (IReadOnlyCollection<SandikIcerik>)g.ToList());
             var sandikTransferleri = (await _unitOfWork.GetRepository<SandikUrunTransferi>()
                 .FindAsync(t => t.ProjeId == sandik.ProjeId &&
                     (t.KaynakSandikId == sandik.Id || t.HedefSandikId == sandik.Id)))
@@ -110,21 +110,21 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 Icerikler = icerikler.Select(i =>
                 {
                     var anaIstenen = i.CekiSatiri?.IstenenAdet ?? i.Miktar;
-                    var tahsisSayisi = i.CekiSatiriId.HasValue
-                        ? tahsisSayilari.GetValueOrDefault(i.CekiSatiriId.Value, 1)
-                        : 1;
-                    var (sandikMiktari, konulan, eksik) = SandikTahsisHelper.HesaplaIcerikMiktari(i, tahsisSayisi);
+                    var satirTahsisleri = i.CekiSatiriId.HasValue
+                        ? satirTahsisMap.GetValueOrDefault(i.CekiSatiriId.Value, [i])
+                        : [i];
+                    var (sandikMiktari, konulan, eksik) = SandikTahsisHelper.HesaplaIcerikMiktari(i, satirTahsisleri);
                     var ilgiliTransferler = i.CekiSatiriId.HasValue
                         ? sandikTransferleri.Where(t => t.CekiSatiriId == i.CekiSatiriId)
                         : sandikTransferleri.Where(t => t.KaynakSandikIcerikId == i.Id);
                     var transferOzeti = SandikTransferOzetiHelper.Hesapla(ilgiliTransferler, sandik.Id);
 
-                    // Durum: konulana göre hesapla
+                    // Durum: konulana göre hesapla; eksiği kalmayan satır (Trafo Sevk vb.) tamamdır.
                     string durumMetni;
-                    if (konulan <= 0)
-                        durumMetni = "Gelmedi";
-                    else if (konulan >= sandikMiktari)
+                    if (konulan >= sandikMiktari || eksik <= 0)
                         durumMetni = "Tamamlandı";
+                    else if (konulan <= 0)
+                        durumMetni = "Gelmedi";
                     else
                         durumMetni = "Kısmi Geldi";
 

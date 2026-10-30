@@ -94,6 +94,6 @@ internal static class BarkodEtiketDogrulama
     public static bool BoyutGecerli(int? boyut) => boyut is null || (boyut >= 1 && boyut <= SayfaKurali.EnFazlaBoyut);
 
     public static string SecimMesaji(string tur) =>
-        $"En az bir, en fazla {BarkodEtiketKurali.EnFazlaSecim} {tur} seçin; her biri için 1–{BarkodEtiketKurali.EnFazlaAdet} adet, " +
+        $"En az bir {tur} seçin; her biri için 1–{BarkodEtiketKurali.EnFazlaAdet} adet, " +
         $"toplam en fazla {BarkodEtiketKurali.EnFazlaToplamEtiket} etiket.";
 }

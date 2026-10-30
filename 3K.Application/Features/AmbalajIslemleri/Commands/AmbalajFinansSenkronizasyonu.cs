@@ -53,7 +53,7 @@ namespace _3K.Application.Features.AmbalajIslemleri.Commands
                 // İç sandık fiyatı kayıtlı iç sandık şablonuna göre eşleşir.
                 IcSandikSablonId: kayit.IcSandikSablonId,
                 Aciklama: kayit.Aciklama,
-                TalepEdenKisi: kayit.TalepEdenKisi,
+                TalepEdenKisi: AmbalajFinansAktarimPolitikasi.TalepEdenKisi(kayit),
                 TalepEdenBolum: kayit.TalepEdenBolum,
                 SandikCinsi: kayit.SandikCinsi,
                 SarfM3: hesaplanabilir ? kayit.SarfM3 : 0m,

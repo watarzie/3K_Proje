@@ -10,7 +10,8 @@ namespace _3K.Application.Features.SevkiyatIslemleri.Commands;
 /// edilir. Yetki her sandığın projesinin gerçek tipine göre o tipin sevk etme (W) iznidir; bütün projeler için aranır.
 /// Aynı <see cref="IslemAnahtari"/> ile aynı istek tekrarlanırsa sefer yeniden oluşmaz.
 /// </summary>
-public sealed class TopluSevkEtCommand : IRequest<Result<TopluSevkSonucDto>>, ISecuredRequest, IRequiresSandikMenuPermission
+public sealed class TopluSevkEtCommand : IRequest<Result<TopluSevkSonucDto>>, ISecuredRequest, IRequiresSandikMenuPermission,
+    ISevkSeferiBilgisi
 {
     public Guid IslemAnahtari { get; set; }
     public DateTime SevkTarihi { get; set; }
@@ -19,6 +20,8 @@ public sealed class TopluSevkEtCommand : IRequest<Result<TopluSevkSonucDto>>, IS
     public string? DorsePlaka { get; set; }
     public string? Aciklama { get; set; }
     public List<TopluSevkProjesi> Projeler { get; set; } = new();
+
+    DateTime? ISevkSeferiBilgisi.SeferSevkTarihi => SevkTarihi;
 
     public IReadOnlyCollection<int> PermissionSandikIds => Projeler.SelectMany(p => p.SandikIds).ToArray();
     public ProjectMenuOperation PermissionOperation => ProjectMenuOperation.Shipment;

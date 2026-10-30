@@ -1,4 +1,4 @@
-using ClosedXML.Excel;
+﻿using ClosedXML.Excel;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -21,7 +21,8 @@ public sealed partial class SevkiyatRaporDosyaService
         QuestPDF.Settings.License = LicenseType.Community;
         return Document.Create(container => container.Page(page =>
         {
-            page.Size(PageSizes.A4);
+            // Öteki gerçekleşen çeki raporlarıyla aynı yön: A4 yatay.
+            page.Size(PageSizes.A4.Landscape());
             page.Margin(22);
             page.DefaultTextStyle(x => x.FontSize(8.5f));
 
@@ -35,9 +36,9 @@ public sealed partial class SevkiyatRaporDosyaService
                 {
                     table.ColumnsDefinition(c =>
                     {
-                        c.ConstantColumn(105);
+                        c.ConstantColumn(130);
                         c.RelativeColumn();
-                        c.ConstantColumn(105);
+                        c.ConstantColumn(130);
                         c.RelativeColumn();
                     });
                     // Müşteriye sevk tarihi verilmez (24.10.2026); müşteri adı uzun olabildiği için tam satırdır.
@@ -58,12 +59,12 @@ public sealed partial class SevkiyatRaporDosyaService
                 {
                     table.ColumnsDefinition(c =>
                     {
-                        c.ConstantColumn(22);
-                        c.ConstantColumn(55);
-                        c.RelativeColumn(2.6f);
-                        c.RelativeColumn(1.4f);
-                        c.ConstantColumn(52);
-                        c.ConstantColumn(58);
+                        c.ConstantColumn(24);
+                        c.ConstantColumn(95);
+                        c.RelativeColumn(3f);
+                        c.RelativeColumn(1.3f);
+                        c.ConstantColumn(70);
+                        c.ConstantColumn(80);
                     });
                     table.Header(h =>
                     {
@@ -114,12 +115,12 @@ public sealed partial class SevkiyatRaporDosyaService
                         {
                             table.ColumnsDefinition(c =>
                             {
-                                c.ConstantColumn(22);
-                                c.ConstantColumn(55);
-                                c.ConstantColumn(85);
+                                c.ConstantColumn(24);
+                                c.ConstantColumn(70);
+                                c.ConstantColumn(165);
                                 c.RelativeColumn();
-                                c.ConstantColumn(50);
-                                c.ConstantColumn(45);
+                                c.ConstantColumn(70);
+                                c.ConstantColumn(60);
                             });
                             table.Header(h =>
                             {
@@ -173,6 +174,14 @@ public sealed partial class SevkiyatRaporDosyaService
             {
                 s.SandikNo, MusteriSandikAdi(s), i + 1, u.PozNo, u.MalzemeKodu, u.Aciklama, u.Miktar, u.Birim
             })));
+
+        // Yazdırıldığında da PDF gibi yatay ve sayfa genişliğine sığar.
+        foreach (var ws in wb.Worksheets)
+        {
+            ws.PageSetup.PageOrientation = XLPageOrientation.Landscape;
+            ws.PageSetup.PaperSize = XLPaperSize.A4Paper;
+            ws.PageSetup.FitToPages(1, 0);
+        }
 
         using var stream = new MemoryStream();
         wb.SaveAs(stream);

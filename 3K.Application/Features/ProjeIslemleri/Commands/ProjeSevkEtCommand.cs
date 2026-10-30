@@ -1,12 +1,17 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Application.Features.ProjeIslemleri.Services;
+using _3K.Application.Features.SevkiyatIslemleri.Commands;
 using _3K.Core.Interfaces;
 using _3K.Core.Helpers;
 
 namespace _3K.Application.Features.ProjeIslemleri.Commands
 {
-    public class ProjeSevkEtCommand : IRequest<Result>, ISecuredRequest
+    /// <summary>
+    /// Tek projenin seçilen sandıklarını sevk eder ve tek projelik bir sefer açar. Sefer bilgileri (araç plakası zorunlu,
+    /// şoför, dorse, açıklama, tarih) toplu sevkle aynı alanlar ve aynı kurallardır (<see cref="ISevkSeferiBilgisi"/>).
+    /// </summary>
+    public class ProjeSevkEtCommand : IRequest<Result>, ISecuredRequest, ISevkSeferiBilgisi
     {
         // UI'da W yetkisi olanlar tetikleyebilecek, backend'de yetki yönetimi Pipeline üzerinden de yapılıyor.
 
@@ -15,6 +20,10 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
         public List<int>? SandikIds { get; set; }
         public string? Aciklama { get; set; }
         public string? AracPlaka { get; set; }
+        public string? Sofor { get; set; }
+        public string? DorsePlaka { get; set; }
+
+        DateTime? ISevkSeferiBilgisi.SeferSevkTarihi => SevkTarihi;
     }
 
     public class ProjeSevkEtCommandHandler : IRequestHandler<ProjeSevkEtCommand, Result>
@@ -54,7 +63,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             {
                 // Tekil sevk de tek projelik bir sefer açar; istatistikler tek kaynaktan okunur.
                 await islem.UygulaAsync(kontrol.Hazirlik!, request.SevkTarihi ?? TurkeyTime.Now, request.Aciklama,
-                    request.AracPlaka, null, kullaniciId, null, transactionCancellationToken);
+                    request.AracPlaka, request.Sofor, request.DorsePlaka, null, kullaniciId, null, transactionCancellationToken);
                 return Result.Success();
             }, cancellationToken);
         }

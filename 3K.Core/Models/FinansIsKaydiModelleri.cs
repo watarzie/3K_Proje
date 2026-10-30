@@ -268,7 +268,9 @@ public sealed record FinansAylikIsModel(
     decimal KontraM3 = 0,
     decimal KalanSiparisNetTutar = 0,
     decimal KalanFaturaNetTutar = 0,
-    decimal? AhsapBirimFiyat = null)
+    decimal? AhsapBirimFiyat = null,
+    // Satırın talep edenleri (FinansIsRaporAlanlari.TalepEdenler).
+    string? TalepEden = null)
 {
     /// <summary>Satırın kalemlerinden birleşik PO öncesi onay durumu (<see cref="FinansPoOnayKurali.Birlesik"/>).</summary>
     public FinansPoOnayDurumu PoOnayDurumu { get; init; }

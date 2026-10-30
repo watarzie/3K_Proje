@@ -61,10 +61,10 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 .Where(g => g.Select(i => i.SandikId).Distinct().Count() > 1)
                 .Select(g => g.Key)
                 .ToHashSet();
-            // Sandık detayıyla aynı tahsis sayısı: satırın bütün sandıklardaki tahsis kaydı.
-            var tahsisSayilari = satirTahsisleri
+            // Sandık detayıyla aynı tahsisler: satırın bütün sandıklardaki tahsis kayıtları.
+            var satirTahsisMap = satirTahsisleri
                 .GroupBy(i => i.CekiSatiriId!.Value)
-                .ToDictionary(g => g.Key, g => g.Count());
+                .ToDictionary(g => g.Key, g => (IReadOnlyCollection<SandikIcerik>)g.ToList());
 
             var result = sandiklar.Select(s =>
             {
@@ -86,8 +86,8 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                     kaynakSandikSahaDurumu.AktifAktarimaBagliSandikIds.Contains(s.Id);
                 var satirEksikleri = icerikler
                     .Select(i => SandikTahsisHelper.HesaplaIcerikMiktari(i, i.CekiSatiriId.HasValue
-                        ? tahsisSayilari.GetValueOrDefault(i.CekiSatiriId.Value, 1)
-                        : 1).Eksik)
+                        ? satirTahsisMap.GetValueOrDefault(i.CekiSatiriId.Value, [i])
+                        : [i]).Eksik)
                     .Where(eksik => eksik > 0)
                     .ToList();
 

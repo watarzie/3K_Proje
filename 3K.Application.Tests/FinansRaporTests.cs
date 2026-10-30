@@ -1,10 +1,13 @@
 using System.Reflection;
 using ClosedXML.Excel;
+using _3K.Application.Features.AmbalajIslemleri.Commands;
 using _3K.Application.Features.FinansIslemleri.Queries;
 using _3K.Application.Features.FinansIslemleri.Validators;
+using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
+using _3K.Infrastructure.Data;
 using _3K.Infrastructure.Services.Finans;
 
 namespace _3K.Application.Tests;
@@ -157,6 +160,148 @@ public sealed class FinansRaporTests
         Assert.Equal("Saha Sandığı", satirlar[1][S("İş Türü")]);
         Assert.Equal("Saha", satirlar[1][S("Kategori")]);
     }
+
+    /// <summary>
+    /// Saha/yedek/ilave özel sandığında işi isteyen Ambalaj formunda "Talimat veren" alanına yazılır; eski talep eden alanı
+    /// formdan kalktığı için boştur. Finans iş kaydının talep edeni talimat verendir; dolu eski talep eden önceliklidir.
+    /// </summary>
+    [Fact]
+    public void AmbalajAktarimi_TalepEdenBossaTalimatVerenFinansinTalepEdeniOlur()
+    {
+        var kayit = new AmbalajUretimKaydi
+        {
+            IsAkisKimligi = Guid.NewGuid(), SandikNo = "1", Tur = AmbalajSandikTuru.Yedek, Adet = 1,
+            SandikCinsi = AmbalajSandikCinsi.AhsapKapali, Boy = 1350, En = 800, Yukseklik = 1000,
+            UretimTarihi = Tarih, TalimatVeren = "  Hikmet Gültekin "
+        };
+
+        var model = AmbalajFinansSenkronizasyonu.ModelOlustur(kayit, null);
+        Assert.Equal(("Hikmet Gültekin", (string?)null), (model.TalepEdenKisi, model.TalepEdenBolum));
+        Assert.Equal((1350m, 800m, 1000m), (model.Boy, model.En, model.Yukseklik));
+
+        kayit.TalepEdenKisi = "Eski Talep";
+        kayit.TalepEdenBolum = "Saha";
+        model = AmbalajFinansSenkronizasyonu.ModelOlustur(kayit, null);
+        Assert.Equal(("Eski Talep", "Saha"), (model.TalepEdenKisi, model.TalepEdenBolum));
+
+        kayit.TalepEdenKisi = " ";
+        kayit.TalimatVeren = null;
+        Assert.Null(AmbalajFinansSenkronizasyonu.ModelOlustur(kayit, null).TalepEdenKisi);
+    }
+
+    /// <summary>
+    /// Aylık raporda İlave, Saha ve Yedek proje satırları Özel İş gibi ölçü ve talep edenle yazılır: satır ölçüye göre
+    /// ayrılır (aynı ölçü tek satır), talep edenler birleştirilir. Ana ambalaj proje bazında toplu kalır, ölçüsüzdür.
+    /// Satırlar ayrılınca toplam tutar değişmez; PDF ve Excel aynı satırları taşır.
+    /// </summary>
+    [Fact]
+    public void AylikRapor_IlaveSahaYedekSatiriOlcuyeGoreAyrilir_OlcuVeTalepEdenOzelIsGibiYazilir()
+    {
+        FinansIsKaydi Kayit(int id, FinansIsTuru tur, decimal boy, decimal en, decimal yukseklik, string? talepEden,
+            string? bolum = null) => new()
+        {
+            Id = id, ProjeId = 10, ProjeNo = "PA702-5010", Musteri = "QA", IsTuru = tur, KaynakAktif = true, Adet = 1,
+            Birim = "Adet", SandikTipi = "Ahşap Kapalı", SandikCinsi = AmbalajSandikCinsi.AhsapKapali,
+            Boy = boy, En = en, Yukseklik = yukseklik, TalepEdenKisi = talepEden, TalepEdenBolum = bolum,
+            FiyatlandirmaBirimiSnapshot = FinansFiyatlandirmaBirimi.Adet, BirimFiyatSnapshot = 100m, ParaBirimiSnapshot = "EUR",
+            KdvOraniSnapshot = 20m, UretimTarihi = Tarih, FinansTarihi = Tarih, FinansDonemi = Tarih
+        };
+        var ozelIs = Kayit(8, FinansIsTuru.OzelIs, 1000, 500, 400, "Halit Kaplan");
+        ozelIs.ProjeId = null;
+        ozelIs.ProjeNo = "BAĞIMSIZ";
+        ozelIs.IsAdi = "Özel kasa";
+        var kayitlar = new[]
+        {
+            Kayit(1, FinansIsTuru.YedekSandik, 1800, 800, 800, "Hikmet Gültekin"),
+            Kayit(2, FinansIsTuru.YedekSandik, 1800, 800, 800, "hikmet gültekin"),
+            Kayit(3, FinansIsTuru.YedekSandik, 2200, 1000, 1100, "Hikmet Gültekin", "Saha"),
+            Kayit(4, FinansIsTuru.SahaSandigi, 2000, 800, 800, "Ali Veli"),
+            Kayit(5, FinansIsTuru.IlaveSandik, 1200, 600, 500, null),
+            Kayit(6, FinansIsTuru.AnaAmbalaj, 1400, 1000, 1375, "Ana"),
+            Kayit(7, FinansIsTuru.AnaAmbalaj, 1500, 1000, 1375, null),
+            ozelIs
+        };
+
+        var satirlar = FinansAylikOzetService.AylikModelleriOlustur(kayitlar, new Dictionary<int, string>());
+
+        var yedek = satirlar.Where(x => x.IsTuru == FinansIsTuru.YedekSandik).OrderBy(x => x.Boy).ToList();
+        Assert.Equal(2, yedek.Count);
+        Assert.Equal([1, 2], yedek[0].IsKaydiIds);
+        Assert.Equal((1800m, 800m, 800m, 2m, "Hikmet Gültekin"),
+            (yedek[0].Boy, yedek[0].En, yedek[0].Yukseklik, yedek[0].SandikAdedi, yedek[0].TalepEden));
+        Assert.Equal([3], yedek[1].IsKaydiIds);
+        Assert.Equal((2200m, "Hikmet Gültekin / Saha"), (yedek[1].Boy, yedek[1].TalepEden));
+        var saha = Assert.Single(satirlar, x => x.IsTuru == FinansIsTuru.SahaSandigi);
+        Assert.Equal((2000m, 800m, 800m, "Ali Veli"), (saha.Boy, saha.En, saha.Yukseklik, saha.TalepEden));
+        var ilave = Assert.Single(satirlar, x => x.IsTuru == FinansIsTuru.IlaveSandik);
+        Assert.Equal((1200m, (string?)null), (ilave.Boy, ilave.TalepEden));
+        var ana = Assert.Single(satirlar, x => x.IsTuru == FinansIsTuru.AnaAmbalaj);
+        Assert.Equal(((decimal?)null, (decimal?)null, (decimal?)null, "Ana"), (ana.Boy, ana.En, ana.Yukseklik, ana.TalepEden));
+        var ozel = Assert.Single(satirlar, x => x.IsTuru == FinansIsTuru.OzelIs);
+        Assert.Equal((1000m, "Halit Kaplan"), (ozel.Boy, ozel.TalepEden));
+        Assert.Equal(kayitlar.Sum(FinansTutarKurallari.IsNet), satirlar.Sum(x => x.NetTutar));
+
+        using var workbook = new XLWorkbook(new MemoryStream(FinansRaporService.AylikExcelOlustur(satirlar, 2026, 10)));
+        var sheet = Assert.Single(workbook.Worksheets);
+        int Sutun(string ad) => Array.IndexOf(FinansRaporService.AylikExcelBasliklari, ad) + 1;
+        Assert.Equal(FinansRaporService.AylikExcelBasliklari,
+            Enumerable.Range(1, FinansRaporService.AylikExcelBasliklari.Length).Select(i => sheet.Cell(4, i).GetString()));
+        var excelSatirlari = Enumerable.Range(5, satirlar.Count)
+            .Select(row => (Is: sheet.Cell(row, Sutun("İş")).GetString(), Boy: sheet.Cell(row, Sutun("Boy (mm)")).GetString(),
+                Yukseklik: sheet.Cell(row, Sutun("Yükseklik (mm)")).GetString(), TalepEden: sheet.Cell(row, Sutun("Talep Eden")).GetString()))
+            .ToList();
+        Assert.Contains(("Yedek Sandık · Ahşap Kapalı", "2200", "1100", "Hikmet Gültekin / Saha"), excelSatirlari);
+        Assert.Contains(("Saha Sandığı · Ahşap Kapalı", "2000", "800", "Ali Veli"), excelSatirlari);
+        Assert.Contains(("Özel kasa", "1000", "400", "Halit Kaplan"), excelSatirlari);
+        // Toplam satırı başlıktan bulunan sütunlara yazılır (Talep Eden sütunu eklenince kaymaz).
+        var toplamSatiri = satirlar.Count + 6;
+        Assert.Equal("EUR TOPLAM", sheet.Cell(toplamSatiri, Sutun("Para Birimi")).GetString());
+        Assert.Equal(satirlar.Sum(x => x.NetTutar), sheet.Cell(toplamSatiri, Sutun("Net")).GetValue<decimal>());
+
+        var pdf = FinansRaporService.AylikPdfOlustur(satirlar, 2026, 10);
+        Assert.Equal("%PDF", System.Text.Encoding.ASCII.GetString(pdf, 0, 4));
+    }
+
+    /// <summary>
+    /// Gerçek akış: talimat verenle kaydedilen yedek sandığı Ambalaj aktarımıyla Finans'a girer; İşler raporu satırında ve
+    /// aylık raporda Özel İş gibi ölçü ve talep eden yazılır.
+    /// </summary>
+    [PostgresRaporFact, Trait("Category", "Postgres")]
+    public async Task YedekSandik_AmbalajdanFinansa_IslerVeAylikRapordaOlcuVeTalepEdenYazilir()
+    {
+        await FinansPostgresTests.InDatabase(async options =>
+        {
+            await using var db = new AppDbContext(options);
+            var finans = new FinansTestServisleri(db, new Kullanici());
+            var kayit = new AmbalajUretimKaydi
+            {
+                IsAkisKimligi = Guid.NewGuid(), ManuelProjeNo = "PA702-5010", ManuelProjeAdi = "QA", BagimsizKayitMi = true,
+                Tur = AmbalajSandikTuru.Yedek, KaynakModul = AmbalajKaynakModulu.Yedek, SandikNo = "4", Ad = "Emniyet Direği",
+                Adet = 1, SandikCinsi = AmbalajSandikCinsi.AhsapKapali, Boy = 2200, En = 1000, Yukseklik = 1100,
+                TalimatVeren = "Hikmet Gültekin", AmbalajaDahil = true, UretimeAlindi = true,
+                UretimDurumu = AmbalajUretimDurumu.Tamamlandi, UretimTarihi = Tarih,
+                HesaplananBirimM3 = 2.42m, HesaplananToplamM3 = 2.42m
+            };
+
+            await finans.UretimAktarim.UretimKayitlariniAktarAsync([AmbalajFinansSenkronizasyonu.ModelOlustur(kayit, null)], default);
+            db.ChangeTracker.Clear();
+
+            var rapor = await finans.RaporVerisi.RaporVerisiAsync(new FinansListeFiltre(), default);
+            var satir = FinansRaporService.IsRaporuSatiri(Assert.Single(rapor.Isler, x => x.KaynakBileseni == "NET"));
+            int S(string ad) => Array.IndexOf(FinansRaporService.IsRaporuBasliklari, ad);
+            Assert.Equal(("2200 × 1000 × 1100", "Hikmet Gültekin"), (satir[S("Ölçü (mm)")], satir[S("Talep Eden")]));
+
+            using var workbook = new XLWorkbook(new MemoryStream(await finans.Raporlar.AylikExcelAsync(2026, 10, null, default)));
+            var sheet = Assert.Single(workbook.Worksheets);
+            int Sutun(string ad) => Array.IndexOf(FinansRaporService.AylikExcelBasliklari, ad) + 1;
+            var yedekSatiri = Enumerable.Range(5, 5).Single(row => sheet.Cell(row, Sutun("İş")).GetString().StartsWith("Yedek Sandık"));
+            Assert.Equal(("2200", "1000", "1100", "Hikmet Gültekin"),
+                (sheet.Cell(yedekSatiri, Sutun("Boy (mm)")).GetString(), sheet.Cell(yedekSatiri, Sutun("En (mm)")).GetString(),
+                    sheet.Cell(yedekSatiri, Sutun("Yükseklik (mm)")).GetString(), sheet.Cell(yedekSatiri, Sutun("Talep Eden")).GetString()));
+        });
+    }
+
+    private sealed class Kullanici : ICurrentUserService { public int? UserId => 7; public bool IsAuthenticated => true; }
 
     [Fact]
     public void GiderRaporu_KategoriGruplu_AvansVeIptalMaliyetToplaminaGirmez_AvansAyriToplanir()
