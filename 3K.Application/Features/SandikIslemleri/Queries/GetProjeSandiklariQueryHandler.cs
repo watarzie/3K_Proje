@@ -1,9 +1,11 @@
 using MediatR;
 using _3K.Application.Common;
+using _3K.Application.Features.AmbalajIslemleri;
 using _3K.Application.Features.SandikIslemleri.DTOs;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.SandikIslemleri.Queries
 {
@@ -62,6 +64,13 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 .Select(g => g.Key)
                 .ToHashSet();
             // Sandık detayıyla aynı tahsisler: satırın bütün sandıklardaki tahsis kayıtları.
+            // Numara alanının kilidi Özellikleri Güncelle'deki sunucu denetimiyle aynı kuraldır.
+            var cekiSandikNolari = AmbalajCekiSandiklari.ProjeIcinGetir(_unitOfWork, request.ProjeId);
+            var sandikIdleri = sandiklar.Select(s => s.Id).ToList();
+            var ambalajKayitlari = _unitOfWork.GetRepository<AmbalajUretimKaydi>().Queryable()
+                .Where(k => k.KaynakKayitId.HasValue && sandikIdleri.Contains(k.KaynakKayitId.Value))
+                .ToList()
+                .ToLookup(k => k.KaynakKayitId!.Value);
             var satirTahsisMap = satirTahsisleri
                 .GroupBy(i => i.CekiSatiriId!.Value)
                 .ToDictionary(g => g.Key, g => (IReadOnlyCollection<SandikIcerik>)g.ToList());
@@ -105,6 +114,7 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                     TipMetni = _lookupCache.GetDeger<LookupSandikTipi>(s.TipId),
                     UrunSayisi = icerikler.Count,
                     IsManuelSandik = isManuelSandik,
+                    SandikNoKilitNedeni = SandikNoDegisikligiKurali.KilitNedeni(s, cekiSandikNolari, ambalajKayitlari[s.Id]),
                     SilinebilirMi = s.DurumId != (int)SandikDurum.Sevkedildi &&
                         !aktifAktarimBagliSandikIds.Contains(s.Id) &&
                         icerikler.All(i => i.Id > 0) &&

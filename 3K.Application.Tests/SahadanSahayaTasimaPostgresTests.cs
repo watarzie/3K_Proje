@@ -52,10 +52,14 @@ public sealed class SahadanSahayaTasimaPostgresTests
 
             var excel = await rapor.EksikUrunlerRaporuExcelOlusturAsync(kurgu.KaynakSahaId);
             using var kitap = new XLWorkbook(new MemoryStream(excel));
-            var sayfa = kitap.Worksheet("Saha Izi");
-            Assert.Equal("Gittiği Saha", sayfa.Cell(4, 7).GetString());
-            Assert.Equal("PA573-01-SAHA", sayfa.Cell(5, 7).GetString());
-            Assert.Equal("PA723-01-SAHA (1) → PA573-01-SAHA (3)", sayfa.Cell(5, 9).GetString());
+            // Saha izi ayrı sekmede değil, ana tablonun altında başlıklı bölümdür (PDF ile aynı sütunlar).
+            var sayfa = Assert.Single(kitap.Worksheets);
+            var bolum = sayfa.Column(1).CellsUsed().Single(c => c.GetString().StartsWith("Saha İzi — ", StringComparison.Ordinal)).Address.RowNumber;
+            var gittigiSaha = EksikUrunlerRaporService.SahaIziExcelSutunlari[7].Ilk;
+            var izSutunu = EksikUrunlerRaporService.SahaIziExcelSutunlari[8].Ilk;
+            Assert.Equal("Gittiği Saha", sayfa.Cell(bolum + 2, gittigiSaha).GetString());
+            Assert.Equal("PA573-01-SAHA", sayfa.Cell(bolum + 3, gittigiSaha).GetString());
+            Assert.Equal("PA723-01-SAHA (1) → PA573-01-SAHA (3)", sayfa.Cell(bolum + 3, izSutunu).GetString());
         }
 
         // Boşalan kaynak sandık silinse de iz okunur: bağ boşalır, numara kopyası kalır.

@@ -484,7 +484,8 @@ public sealed class AmbalajUretimV2PostgresTests
         await using (var ctx = new AppDbContext(options))
         {
             using var uow = new UnitOfWork(ctx, NullLogger<UnitOfWork>.Instance);
-            var guncelle = await new SandikOzellikGuncelleCommandHandler(uow).Handle(new()
+            var guncelle = await new SandikOzellikGuncelleCommandHandler(
+                uow, new HareketService(uow, ctx), new AmbalajKaynakSenkronizasyonService(uow, new Finans(false)), new User()).Handle(new()
             {
                 SandikId = 301, SandikIsmi = "Radyatör", TipId = (int)SandikTipi.AhsapKapali,
                 Boy = 1400, En = 1200, Yukseklik = 1375, NetKg = 260, GrossKg = 410

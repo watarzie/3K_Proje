@@ -81,16 +81,53 @@ internal static class RaporExcelStilleri
         headerRange.Style.Alignment.WrapText = true;
     }
 
+    /// <summary>Aynı sayfada ana tablodan sonra gelen bölümün (ör. Saha İzi) başlık bandı: satır boyunca birleşik, mavi.</summary>
+    internal static void StyleExcelBolumBasligi(IXLWorksheet worksheet, int row, int lastColumn)
+    {
+        var range = worksheet.Range(row, 1, row, lastColumn);
+        range.Merge();
+        range.Style.Fill.BackgroundColor = XLColor.FromHtml("#1565C0");
+        range.Style.Font.FontColor = XLColor.White;
+        range.Style.Font.Bold = true;
+        range.Style.Font.FontSize = 13;
+        range.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+        range.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+        worksheet.Row(row).Height = 22;
+    }
+
+    internal static void TabloKenarlari(IXLWorksheet worksheet, int headerRow, int lastRow, int lastColumn)
+    {
+        if (lastRow < headerRow)
+            return;
+
+        var usedRange = worksheet.Range(headerRow, 1, lastRow, lastColumn);
+        usedRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+        usedRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+        usedRange.Style.Border.OutsideBorderColor = XLColor.FromHtml("#D9E2EC");
+        usedRange.Style.Border.InsideBorderColor = XLColor.FromHtml("#D9E2EC");
+    }
+
+    /// <summary>
+    /// Excel birleşik hücrede sarılan metnin satır yüksekliğini kendisi ayarlamaz; satır sayısı sütun genişliklerinden
+    /// tahmin edilir. Sütun genişlikleri kesinleştikten (<see cref="FinalizeExcelWorksheet"/>) sonra çağrılır.
+    /// </summary>
+    internal static void BirlesikSatirYuksekliginiAyarla(IXLWorksheet worksheet, int row, IEnumerable<(int Ilk, int Son)> araliklar)
+    {
+        var satirSayisi = 1;
+        foreach (var (ilk, son) in araliklar)
+        {
+            var genislik = Math.Max(1, Enumerable.Range(ilk, son - ilk + 1).Sum(c => worksheet.Column(c).Width) - 1);
+            var metin = worksheet.Cell(row, ilk).GetString();
+            var gereken = metin.Split('\n').Sum(parca => Math.Max(1, (int)Math.Ceiling(parca.Length / genislik)));
+            satirSayisi = Math.Max(satirSayisi, gereken);
+        }
+
+        worksheet.Row(row).Height = satirSayisi * 15;
+    }
+
     internal static void FinalizeExcelWorksheet(IXLWorksheet worksheet, int headerRow, int lastRow, int lastColumn)
     {
-        if (lastRow >= headerRow)
-        {
-            var usedRange = worksheet.Range(headerRow, 1, lastRow, lastColumn);
-            usedRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
-            usedRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
-            usedRange.Style.Border.OutsideBorderColor = XLColor.FromHtml("#D9E2EC");
-            usedRange.Style.Border.InsideBorderColor = XLColor.FromHtml("#D9E2EC");
-        }
+        TabloKenarlari(worksheet, headerRow, lastRow, lastColumn);
 
         worksheet.SheetView.FreezeRows(headerRow);
         worksheet.Columns().AdjustToContents();

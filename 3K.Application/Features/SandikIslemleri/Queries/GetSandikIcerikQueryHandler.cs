@@ -1,6 +1,7 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Application.Features.SandikIslemleri.DTOs;
+using _3K.Application.Features.SandikIslemleri.Services;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
@@ -98,6 +99,7 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 DepoLokasyonMetni = _lookupCache.GetDeger<LookupDepoLokasyon>(sandik.DepoLokasyonId),
                 TipId = sandik.TipId,
                 TipMetni = _lookupCache.GetDeger<LookupSandikTipi>(sandik.TipId),
+                SandikNoKilitNedeni = SandikNoDegistirmeIslemi.KilitNedeni(_unitOfWork, sandik),
                 SahayaAktarildiMi = sandikSahaAktariminda,
                 SahaUzerindenSevkEdildiMi = sahaUzerindenSevkEdildi,
                 SahayaAktarilanMiktar = sahayaAktarilanMiktar,
