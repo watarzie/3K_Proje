@@ -13,6 +13,7 @@ using Serilog;
 using _3K_API.Logging;
 using _3K_API.Services;
 using _3K.Application;
+using _3K.Core.Interfaces;
 using _3K.Infrastructure;
 
 namespace _3K_API.Extensions;
@@ -22,7 +23,6 @@ public static class ApiServiceCollectionExtensions
 {
     public const string LoginRateLimitPolicy = "auth-login";
     public const string TwoFactorRateLimitPolicy = "two-factor";
-    public const string DisaAktarimRateLimitPolicy = "disa-aktarim";
     public const string ForwardedHeadersSection = "ForwardedHeaders";
     public const string CorsPolicy = "AllowAll";
 
@@ -155,6 +155,8 @@ public static class ApiServiceCollectionExtensions
 
     public static IServiceCollection AddApiRateLimiting(this IServiceCollection services)
     {
+        services.AddSingleton<IDisaAktarimHizSiniri, DisaAktarimHizSiniri>();
+
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -168,13 +170,13 @@ public static class ApiServiceCollectionExtensions
             };
 
             // Bütün API: oturumlu kullanıcı Id'si, oturumsuz istek IP başına (UseRateLimiter, UseAuthentication'dan
-            // sonra çalışır). Uç politikaları bu sınıra ek olarak uygulanır.
+            // sonra çalışır). Uç politikaları bu sınıra ek olarak uygulanır. PDF/Excel ve dosya uçlarının ayrı sınırı
+            // MediatR hattındadır (DisaAktarimHizSiniriBehavior): yanıt tipine göre, attribute gerektirmeden.
             options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(HizSiniriBolumleri.Genel);
             options.AddPolicy(LoginRateLimitPolicy, httpContext =>
                 HizSiniriBolumleri.IstemciIpBasina(httpContext, HizSiniriBolumleri.GirisDakikaLimiti));
             options.AddPolicy(TwoFactorRateLimitPolicy, httpContext =>
                 HizSiniriBolumleri.IstemciIpBasina(httpContext, HizSiniriBolumleri.IkiFaktorDakikaLimiti));
-            options.AddPolicy(DisaAktarimRateLimitPolicy, HizSiniriBolumleri.DisaAktarim);
         });
 
         return services;
@@ -186,8 +188,6 @@ public static class ApiServiceCollectionExtensions
         {
             LoginRateLimitPolicy or TwoFactorRateLimitPolicy =>
                 "Çok fazla doğrulama isteği gönderildi. Lütfen kısa bir süre sonra tekrar deneyin.",
-            DisaAktarimRateLimitPolicy =>
-                "Kısa sürede çok fazla rapor veya dosya istendi. Lütfen bir dakika sonra tekrar deneyin.",
             _ => "Çok fazla istek gönderildi. Lütfen kısa bir süre sonra tekrar deneyin."
         };
 

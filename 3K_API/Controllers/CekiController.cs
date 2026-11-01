@@ -1,7 +1,6 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
 using _3K.Application.Features.CekiIslemleri.Commands;
 using _3K.Application.Features.CekiIslemleri.Queries;
 using _3K_API.Extensions;
@@ -113,7 +112,6 @@ namespace _3K_API.Controllers
         }
 
         [Authorize]
-        [EnableRateLimiting(ApiServiceCollectionExtensions.DisaAktarimRateLimitPolicy)]
         [HttpGet("revizyon-gecmisi/{projeId:int}/{kaynak}/{kayitId:int}/dosya")]
         public async Task<ActionResult> RevizyonDosya(int projeId, string kaynak, int kayitId)
         {

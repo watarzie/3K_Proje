@@ -1,6 +1,5 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
 using _3K.Application.Features.AmbalajIslemleri.Queries;
 using _3K.Application.Features.PdfIslemleri.Queries;
 using _3K.Core.Enums;
@@ -10,7 +9,6 @@ namespace _3K_API.Controllers
 {
     /// <summary>Rapor indirme uçları; dosya içeriği ve adı ilgili kullanım senaryosunda üretilir.</summary>
     [ApiController]
-    [EnableRateLimiting(ApiServiceCollectionExtensions.DisaAktarimRateLimitPolicy)]
     [Route("api/[controller]")]
     public class PdfController : ControllerBase
     {

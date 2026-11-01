@@ -20,13 +20,15 @@ public static class DependencyInjection
         {
             cfg.RegisterServicesFromAssembly(assembly);
 
-            // Sıra (dıştan içe): iş hatası logu → hata yakalama → yetki → doğrulama → onay → handler.
+            // Sıra (dıştan içe): iş hatası logu → hata yakalama → yetki → doğrulama → dışa aktarım sınırı → onay → handler.
             // Log en dıştadır; istisnadan Result'a çevrilen retler de dahil her başarısız sonucu görür.
             // Doğrulama onaydan önce çalışır; geçersiz bir komut onay kuyruğuna alınmaz.
+            // Dışa aktarım sınırı yetki ve doğrulamadan sonradır: reddedilen ya da geçersiz dosya isteği kotadan düşmez.
             cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(IsHatasiLoglamaBehavior<,>));
             cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(UnhandledExceptionBehavior<,>));
             cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(AuthorizationBehavior<,>));
             cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+            cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(DisaAktarimHizSiniriBehavior<,>));
             cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ApprovalBehavior<,>));
         });
 

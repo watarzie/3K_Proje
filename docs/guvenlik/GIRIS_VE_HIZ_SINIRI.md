@@ -22,7 +22,7 @@
 | Kapsam | Bölümleme | Sınır |
 |---|---|---|
 | Bütün API (global) | oturumlu: kullanıcı Id; oturumsuz: IP | 600 / 120 |
-| PDF/Excel üretimi ve dosya indirme (`disa-aktarim`) | kullanıcı Id | 20 |
+| PDF/Excel/etiket üretimi ve dosya indirme (MediatR hattı) | kullanıcı Id | 20 |
 | Giriş (`auth-login`) | IP | 10 |
 | 2FA adımları (`two-factor`) | IP | 20 |
 
@@ -31,8 +31,12 @@
 - IP kovası IPv4'te tam adres, IPv6'da /64 önekidir (istemci kendi bloğunda adres değiştirerek yeni kova açamaz).
 - `UseRateLimiter`, `UseAuthentication`'dan sonra (kullanıcı Id'si okunabilsin), `UseAuthorization`'dan önce çalışır.
 - 429 gövdesi `{ message }` (Türkçe) ve `Retry-After` başlığıdır (CORS'ta okunabilir); ön yüz mesajı olduğu gibi gösterir.
-- Yeni dosya/rapor ucu `[EnableRateLimiting(ApiServiceCollectionExtensions.DisaAktarimRateLimitPolicy)]` alır;
-  `HizSiniriTests` rota adına (`excel`, `{format}`, `/dosya`, `/indir`, `rapor`, `etiketleri`) ve `PdfController`'a göre denetler.
+- Dışa aktarım sınırı attribute değil, MediatR hattındaki `DisaAktarimHizSiniriBehavior`'dır: yanıtı `Result<DosyaIcerigi>` olan
+  her istek (bütün dosya uçları `ToFileResult()` ile bu tipi döndürür) kendiliğinden kapsanır; yeni rapor ucu için iş yoktur.
+  Yetki ve doğrulamadan sonra çalışır (reddedilen istek kotadan düşmez); kullanıcısız sunucu içi çağrıyı sınırlamaz.
+  Sınırlayıcı `IDisaAktarimHizSiniri` (Core) → `DisaAktarimHizSiniri` (API, tek örnek). Bu yoldan dönen 429'da `Retry-After`
+  başlığı yoktur; 429 `IsHatasiLoglamaBehavior` ile loglanır. Testler: `DisaAktarimHizSiniriTests`.
+- Uç politikası (`[EnableRateLimiting]`) yalnız giriş ve 2FA uçlarındadır; `HizSiniriTests` başka politika adı kalmadığını denetler.
 
 ## Proxy arkasında istemci IP'si
 

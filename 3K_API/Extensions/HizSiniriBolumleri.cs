@@ -21,15 +21,14 @@ public static class HizSiniriBolumleri
     /// <summary>Oturumsuz IP başına dakikada genel istek (giriş sayfası ve süresi dolmuş token istekleri).</summary>
     public const int GenelAnonimDakikaLimiti = 120;
 
-    /// <summary>PDF/Excel üretimi ve dosya indirme: sunucuda pahalı; kullanıcı başına dakikada 20.</summary>
+    /// <summary>
+    /// PDF/Excel üretimi ve dosya indirme: sunucuda pahalı; kullanıcı başına dakikada 20. Attribute ile değil, MediatR
+    /// hattında yanıt tipine (<c>Result&lt;DosyaIcerigi&gt;</c>) göre uygulanır (<c>DisaAktarimHizSiniriBehavior</c>).
+    /// </summary>
     public const int DisaAktarimDakikaLimiti = 20;
 
     public const int GirisDakikaLimiti = 10;
     public const int IkiFaktorDakikaLimiti = 20;
-
-    /// <summary>Oturumlu istekte <c>kullanici:{id}</c>, oturumsuzda <c>ip:{adres}</c>.</summary>
-    public static string KullaniciVeyaIpAnahtari(HttpContext httpContext) =>
-        KullaniciId(httpContext) is { } kullaniciId ? "kullanici:" + kullaniciId : IpAnahtari(httpContext);
 
     /// <summary>
     /// IPv4'te tam adres; IPv6'da /64 öneki. Tek bir IPv6 istemcisi kendi /64 bloğunda adres değiştirerek yeni kova
@@ -54,9 +53,6 @@ public static class HizSiniriBolumleri
         KullaniciId(httpContext) is { } kullaniciId
             ? DakikalikPencere("kullanici:" + kullaniciId, GenelKullaniciDakikaLimiti)
             : DakikalikPencere(IpAnahtari(httpContext), GenelAnonimDakikaLimiti);
-
-    public static RateLimitPartition<string> DisaAktarim(HttpContext httpContext) =>
-        DakikalikPencere(KullaniciVeyaIpAnahtari(httpContext), DisaAktarimDakikaLimiti);
 
     /// <summary>Giriş ve 2FA adımları oturumdan önce çalışır; yalnız IP ile bölümlenir.</summary>
     public static RateLimitPartition<string> IstemciIpBasina(HttpContext httpContext, int dakikaLimiti) =>

@@ -1,13 +1,11 @@
 using System.Net;
 using System.Reflection;
 using System.Security.Claims;
-using System.Text.RegularExpressions;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,25 +17,12 @@ using _3K_API.Extensions;
 namespace _3K.Application.Tests;
 
 /// <summary>
-/// API hız sınırları: genel sınır oturumlu kullanıcıyı Id'siyle, oturumsuz isteği IP ile bölümler; dosya üreten uçlar
-/// ayrıca dışa aktarım sınırındadır; proxy arkasında istemci IP'si yalnız güvenilir proxy zincirinden çözülür.
+/// API hız sınırları: genel sınır oturumlu kullanıcıyı Id'siyle, oturumsuz isteği IP ile bölümler; proxy arkasında
+/// istemci IP'si yalnız güvenilir proxy zincirinden çözülür. Dosya uçlarının sınırı MediatR hattındadır
+/// (<see cref="DisaAktarimHizSiniriTests"/>).
 /// </summary>
 public sealed class HizSiniriTests
 {
-    private const string Politika = ApiServiceCollectionExtensions.DisaAktarimRateLimitPolicy;
-
-    [Fact]
-    public void Anahtar_OturumluKullaniciIdIle_OturumsuzIpIleBolumlenir()
-    {
-        Assert.Equal("kullanici:7", HizSiniriBolumleri.KullaniciVeyaIpAnahtari(Istek("10.0.0.1", kullaniciId: 7)));
-        Assert.Equal("kullanici:8", HizSiniriBolumleri.KullaniciVeyaIpAnahtari(Istek("10.0.0.1", kullaniciId: 8)));
-        Assert.Equal("ip:10.0.0.1", HizSiniriBolumleri.KullaniciVeyaIpAnahtari(Istek("10.0.0.1")));
-        // Kimliği doğrulanmamış (ör. süresi dolmuş token) kimlik IP kovasına düşer.
-        var dogrulanmamis = Istek("10.0.0.2");
-        dogrulanmamis.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "7")]));
-        Assert.Equal("ip:10.0.0.2", HizSiniriBolumleri.KullaniciVeyaIpAnahtari(dogrulanmamis));
-    }
-
     [Fact]
     public void Anahtar_Ipv6Istemci64OnekiyleBolumlenir()
     {
@@ -63,14 +48,11 @@ public sealed class HizSiniriTests
         Assert.Equal(HizSiniriBolumleri.GenelAnonimDakikaLimiti, Tuket(genel, anonim));
         Assert.True(genel.AttemptAcquire(Istek("10.0.0.9")).IsAcquired);
         Assert.True(genel.AttemptAcquire(veli).IsAcquired);
-    }
 
-    [Fact]
-    public void DisaAktarim_KullaniciBasina20()
-    {
-        using var disaAktarim = PartitionedRateLimiter.Create<HttpContext, string>(HizSiniriBolumleri.DisaAktarim);
-        Assert.Equal(HizSiniriBolumleri.DisaAktarimDakikaLimiti, Tuket(disaAktarim, Istek("10.0.0.1", kullaniciId: 1)));
-        Assert.True(disaAktarim.AttemptAcquire(Istek("10.0.0.1", kullaniciId: 2)).IsAcquired);
+        // Kimliği doğrulanmamış (ör. süresi dolmuş token) kimlik kullanıcı kovası açamaz; IP kovasına düşer.
+        var dogrulanmamis = Istek("10.0.0.3");
+        dogrulanmamis.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "7")]));
+        Assert.Equal(HizSiniriBolumleri.GenelAnonimDakikaLimiti, Tuket(genel, dogrulanmamis));
     }
 
     [Fact]
@@ -85,7 +67,6 @@ public sealed class HizSiniriTests
     [Theory]
     [InlineData(ApiServiceCollectionExtensions.LoginRateLimitPolicy, "doğrulama")]
     [InlineData(ApiServiceCollectionExtensions.TwoFactorRateLimitPolicy, "doğrulama")]
-    [InlineData(Politika, "rapor veya dosya")]
     [InlineData(null, "Çok fazla istek")]
     public void Ret_MesajiTurkceVePolitikayaGore(string? politika, string beklenen)
     {
@@ -96,29 +77,25 @@ public sealed class HizSiniriTests
     }
 
     /// <summary>
-    /// PDF/Excel üreten ve dosya indiren her uç dışa aktarım sınırındadır (PdfController bütünüyle). Yeni rapor ucu bu
-    /// adlandırmaya uyduğu sürece sınırsız kalamaz.
+    /// Uç politikası yalnız giriş ve 2FA içindir; kaldırılmış ya da tanımsız bir politika adı kalmaz (dosya uçları
+    /// attribute değil, MediatR hattındaki dışa aktarım sınırıyla korunur).
     /// </summary>
     [Fact]
-    public void DosyaUclari_DisaAktarimPolitikasinda_GirisUclariKendiPolitikasinda()
+    public void UcPolitikalari_YalnizGirisVeIkiFaktor()
     {
-        var dosyaRotasi = new Regex(@"(excel|\{format\}|/dosya$|/indir$|rapor$|etiketleri$)", RegexOptions.IgnoreCase);
-        var eylemler = typeof(PdfController).Assembly.GetTypes()
-            .Where(t => typeof(ControllerBase).IsAssignableFrom(t) && !t.IsAbstract)
-            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly), (t, m) => (Tip: t, Metot: m))
-            .Select(x => (x.Tip, x.Metot, Rota: x.Metot.GetCustomAttributes<HttpMethodAttribute>().SingleOrDefault()?.Template))
-            .Where(x => x.Rota != null)
-            .ToList();
+        var politikalar = typeof(AuthController).Assembly.GetTypes()
+            .Where(t => typeof(ControllerBase).IsAssignableFrom(t))
+            .SelectMany(t => t.GetMethods().Cast<MemberInfo>().Append(t))
+            .Select(uye => uye.GetCustomAttribute<EnableRateLimitingAttribute>()?.PolicyName)
+            .OfType<string>()
+            .ToHashSet();
 
-        string? PolitikaAdi((Type Tip, MethodInfo Metot, string? Rota) e) =>
-            (e.Metot.GetCustomAttribute<EnableRateLimitingAttribute>() ?? e.Tip.GetCustomAttribute<EnableRateLimitingAttribute>())?.PolicyName;
-
-        var dosyaUclari = eylemler.Where(e => e.Tip == typeof(PdfController) || dosyaRotasi.IsMatch(e.Rota!)).ToList();
-        Assert.True(dosyaUclari.Count >= 30, $"Beklenenden az dosya ucu bulundu: {dosyaUclari.Count}");
-        Assert.Empty(dosyaUclari.Where(e => PolitikaAdi(e) != Politika).Select(e => $"{e.Tip.Name}.{e.Metot.Name}"));
-
-        var auth = eylemler.Where(e => e.Tip == typeof(AuthController)).ToDictionary(e => e.Metot.Name, PolitikaAdi);
-        Assert.Equal(ApiServiceCollectionExtensions.LoginRateLimitPolicy, auth[nameof(AuthController.Login)]);
+        Assert.Equal(
+            [ApiServiceCollectionExtensions.LoginRateLimitPolicy, ApiServiceCollectionExtensions.TwoFactorRateLimitPolicy],
+            politikalar.Order());
+        Assert.Equal(
+            ApiServiceCollectionExtensions.LoginRateLimitPolicy,
+            typeof(AuthController).GetMethod(nameof(AuthController.Login))!.GetCustomAttribute<EnableRateLimitingAttribute>()!.PolicyName);
     }
 
     [Fact]
