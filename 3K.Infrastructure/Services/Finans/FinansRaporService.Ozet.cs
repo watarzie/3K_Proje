@@ -67,7 +67,7 @@ internal sealed partial class FinansRaporService
                     rows.Add([key.ProjeNo, key.ParaBirimi, work, works.Sum(x => x.FaturalananNetTutar), cost, work - cost]);
                 }
             }
-            else throw IsKuraliException.Cakisma("Rapor türü genel, gider-kategori, proje-maliyet, siparis-bekleyen veya fatura-bekleyen olmalıdır.");
+            else throw IsKuraliException.Cakisma("Rapor türü is, gider, finansal-durum, alacak, genel, gider-kategori, proje-maliyet, siparis-bekleyen veya fatura-bekleyen olmalıdır.");
         }
         return (title, headers, rows);
     }

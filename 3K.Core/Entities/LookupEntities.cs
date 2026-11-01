@@ -26,4 +26,6 @@ namespace _3K.Core.Entities
     public class LookupBirim : LookupBase { }
     public class LookupKaliteDurum : LookupBase { }
     public class LookupSurecDurum : LookupBase { }
+    /// <summary>Kapalı sandığı elle "Hazırlanıyor"a geri almanın sebebi (Trafo kurulum, Tadilat…).</summary>
+    public class LookupSandikAcilmaSebebi : LookupBase { }
 }

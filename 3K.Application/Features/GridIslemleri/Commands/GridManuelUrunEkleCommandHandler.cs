@@ -3,6 +3,7 @@ using _3K.Core.Enums;
 using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.GridIslemleri.Commands
 {
@@ -39,6 +40,11 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             var sandik = (await sandikRepo.FindAsync(s => s.ProjeId == request.ProjeId && s.SandikNo == request.SandikNo)).FirstOrDefault();
             if (sandik != null && SandikSevkKilidiHelper.SandikKilitliMi(sandik))
                 return Result.Failure("Bu sandık sevk edildiği için Grid manuel ürün ekleyemez.");
+            // Grid manuel ürünü 3K'da bekler; sevkli sandığa unutulan ürün 3K'sı tamamlanmış olarak Sandık Yönetimi'nden eklenir.
+            if (sandik?.DurumId == (int)SandikDurum.Sevkedildi)
+                return Result.Failure(
+                    "Sevk sonrası düzeltmedeki sandığa unutulan ürün Sandık Yönetimi'nden eklenir; Grid manuel ürün ekleme sevk öncesi içindir.",
+                    409);
 
             if (sandik == null)
             {
@@ -93,12 +99,13 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {
                 ProjeId = request.ProjeId,
-                ReferansTipi = "CekiSatiri",
+                ReferansTipi = GridHareketSabitleri.CekiSatiriReferansi,
                 ReferansId = yeniUrun.Id.ToString(),
-                Islem = "Grid Manuel Ürün Eklendi",
+                Islem = GridHareketSabitleri.ManuelUrunIslemi,
                 IslemTipiId = (int)IslemTipi.ManuelUrunEklendi,
                 KullaniciId = _currentUserService.UserId ?? 0,
-                Aciklama = $"Neden: {request.EklemeNedeni}, Miktar: {request.IstenenAdet} {((Birim?)request.BirimId)?.ToString()}, Sandık: {request.SandikNo}"
+                Aciklama = $"Neden: {request.EklemeNedeni}, Miktar: {request.IstenenAdet} {((Birim?)request.BirimId)?.ToString()}, Sandık: {request.SandikNo}" +
+                           GridMalKabulAciklamaKurali.GelenEki(request.IstenenAdet)
             });
 
             return Result.Success();

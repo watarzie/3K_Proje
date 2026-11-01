@@ -18,7 +18,9 @@ internal sealed class FinansRaporVerisiService(AppDbContext context) : IFinansRa
             throw IsKuraliException.Cakisma("Rapor en fazla 20.000 iş içerebilir; filtreyi daraltın.");
         var workEntities = await FinansSorgulari.ApplyFilter(context.IsKaydiDetayQuery(), filtre).OrderBy(x => x.FinansDonemi).ThenBy(x => x.Id).ToListAsync(cancellationToken);
         var works = workEntities.Select(FinansModelEslemeleri.MapIsKaydi).ToArray();
-        var expenseQuery = context.Set<FinansGider>().AsNoTracking().Include(x => x.Kategori).Include(x => x.GiderKalemi).Include(x => x.Proje).AsQueryable();
+        // PO numarası gider raporunda yazılır; sorgu izlenmediği için ilişki açıkça yüklenir.
+        var expenseQuery = context.Set<FinansGider>().AsNoTracking().Include(x => x.Kategori).Include(x => x.GiderKalemi).Include(x => x.Proje)
+            .Include(x => x.FinansSiparis).AsQueryable();
         expenseQuery = FinansSorgulari.ExpenseFilter(expenseQuery, filtre);
         var expenseTotals = await FinansSorgulari.BuildExpenseTotalsQuery(expenseQuery)
             .OrderBy(x => x.ParaBirimi)

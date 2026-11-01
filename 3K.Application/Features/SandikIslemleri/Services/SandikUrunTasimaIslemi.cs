@@ -50,27 +50,22 @@ namespace _3K.Application.Features.SandikIslemleri.Services
             if (projeKontrolu != null)
                 return projeKontrolu;
 
-            if (kaynakSandik.DurumId == (int)SandikDurum.Sevkedildi)
-            {
-                return Result.Failure(
-                    "Sevkiyat kaydı bulunan kaynak sandıktan başka sandığa ürün taşınamaz. " +
-                    "Önce sevkiyatı resmi geri alma akışıyla geri alın.",
-                    409);
-            }
-
-            if (hedefSandik.DurumId == (int)SandikDurum.Sevkedildi)
-            {
-                return Result.Failure(
-                    "Sevkiyat kaydı bulunan hedef sandığa ürün taşınamaz. " +
-                    "Önce sevkiyatı resmi geri alma akışıyla geri alın.",
-                    409);
-            }
-
+            // Sevkli sandık yalnız sevk sonrası düzeltmeye açıkken taşımaya katılır; sevkiyat kaydı korunur.
             if (SandikSevkKilidiHelper.SandikKilitliMi(kaynakSandik))
-                return Result.Failure("Kaynak sandık sevk edildiği için içinden ürün taşınamaz.");
+            {
+                return Result.Failure(
+                    "Kaynak sandık sevk edildiği için içinden ürün taşınamaz. " +
+                    "Sandığı sevk sonrası düzeltmeye açın.",
+                    409);
+            }
 
             if (SandikSevkKilidiHelper.SandikKilitliMi(hedefSandik))
-                return Result.Failure("Hedef sandık sevk edildiği için içine ürün taşınamaz.");
+            {
+                return Result.Failure(
+                    "Hedef sandık sevk edildiği için içine ürün taşınamaz. " +
+                    "Sandığı sevk sonrası düzeltmeye açın.",
+                    409);
+            }
 
             var kaynakEskiDurumId = kaynakSandik.DurumId;
 
@@ -217,7 +212,9 @@ namespace _3K.Application.Features.SandikIslemleri.Services
             else
                 icerikRepo.Update(hedefIcerik);
 
-            if (!IcerikAktifMi(kaynakIcerik))
+            // Düzeltmedeki sevkli sandık boşalsa da sevkli kalır; durumu taşımayla değişmez.
+            var kaynakSevkli = kaynakSandik.DurumId == (int)SandikDurum.Sevkedildi;
+            if (!kaynakSevkli && !IcerikAktifMi(kaynakIcerik))
             {
                 var kaynaktaAktifDigerIcerikVar = (await icerikRepo.FindAsync(i =>
                         i.SandikId == kaynakSandik.Id &&

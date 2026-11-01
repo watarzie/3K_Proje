@@ -87,7 +87,11 @@ namespace _3K.Infrastructure.Data.Interceptors
             DbContext context, List<EntityEntry> entries, CancellationToken cancellationToken)
         {
             var snapshot = new LockSnapshot();
-            var rowIds = entries.Select(e => e.Entity).OfType<CekiSatiri>().Select(x => x.Id).Where(x => x > 0).ToList();
+            // İçeriklerin bağlandığı satırlar da okunur: düzeltmede tahsisin satırı sandıkla aynı projede olmalıdır.
+            var rowIds = entries.Select(e => e.Entity).OfType<CekiSatiri>().Select(x => x.Id)
+                .Concat(entries.Select(e => e.Entity).OfType<SandikIcerik>().Where(x => x.CekiSatiriId.HasValue)
+                    .Select(x => x.CekiSatiriId!.Value))
+                .Where(x => x > 0).Distinct().ToList();
             var contentIds = entries.Select(e => e.Entity).OfType<SandikIcerik>().Select(x => x.Id).Where(x => x > 0).ToList();
             var crateIds = entries.Select(e => e.Entity).OfType<Sandik>().Select(x => x.Id).Where(x => x > 0).ToList();
             if (rowIds.Count > 0)
@@ -145,8 +149,10 @@ namespace _3K.Infrastructure.Data.Interceptors
                         foreach (var pending in entries.Select(e => e.Entity).OfType<Ceki>().Where(c => c.Id == id))
                             yield return pending.ProjeId;
                     }
+                    // Yeni satırın geçici anahtarı CLR özelliğine yazılmaz; tahsis navigasyonla da eşlenir.
                     var allocatedCrateIds = snapshot.Contents.Values.Where(x => x.CekiSatiriId == row.Id).Select(x => x.SandikId)
-                        .Concat(entries.Select(e => e.Entity).OfType<SandikIcerik>().Where(x => x.CekiSatiriId == row.Id).Select(x => x.SandikId));
+                        .Concat(entries.Select(e => e.Entity).OfType<SandikIcerik>()
+                            .Where(x => x.CekiSatiriId == row.Id || ReferenceEquals(x.CekiSatiri, row)).Select(x => x.SandikId));
                     foreach (var id in allocatedCrateIds.Distinct())
                     {
                         if (snapshot.Crates.TryGetValue(id, out var allocatedCrate)) yield return allocatedCrate.ProjeId;
@@ -191,6 +197,8 @@ namespace _3K.Infrastructure.Data.Interceptors
         {
             var crateIds = new HashSet<int>();
             var rowIds = new HashSet<int>();
+            // Kalıcı satırların projeleri; düzeltmedeki sandıklarla aynı proje olmalıdır (başka projenin satırı bağlanamaz).
+            var rowProjectIds = new HashSet<int>();
             switch (entry.Entity)
             {
                 case Sandik crate when entry.State == EntityState.Modified:
@@ -203,10 +211,37 @@ namespace _3K.Infrastructure.Data.Interceptors
                         .Select(x => x.CekiSatiriId!.Value));
                     break;
                 case SandikIcerik content:
-                    if (entry.State != EntityState.Added && (!snapshot.Contents.TryGetValue(content.Id, out var originalContent) ||
-                        originalContent.SandikId != content.SandikId || originalContent.CekiSatiriId != content.CekiSatiriId)) return false;
+                    if (entry.State != EntityState.Added)
+                    {
+                        if (!snapshot.Contents.TryGetValue(content.Id, out var originalContent) ||
+                            originalContent.CekiSatiriId != content.CekiSatiriId) return false;
+                        // Düzeltmede sandıklar arası taşıma: kaynak sandık da düzeltmede olmalıdır.
+                        crateIds.Add(originalContent.SandikId);
+                    }
                     crateIds.Add(content.SandikId);
                     if (content.CekiSatiriId.HasValue) rowIds.Add(content.CekiSatiriId.Value);
+                    if (content.CekiSatiriId is > 0) rowProjectIds.Add(RowProjectId(snapshot, content.CekiSatiriId.Value));
+                    break;
+                case CekiSatiri addedRow when entry.State == EntityState.Added:
+                    // Düzeltmede unutulan ürün: kök satırdır ve aynı kayıtta düzeltmedeki sandığa tahsis edilir.
+                    if (addedRow.KaynakCekiSatiriId.HasValue ||
+                        !snapshot.PackingLists.TryGetValue(addedRow.CekiId, out var addedRowList)) return false;
+                    var allocations = entries.Where(e => e.State == EntityState.Added).Select(e => e.Entity)
+                        .OfType<SandikIcerik>()
+                        .Where(x => ReferenceEquals(x.CekiSatiri, addedRow) || x.CekiSatiriId == addedRow.Id)
+                        .ToList();
+                    if (allocations.Count == 0) return false;
+                    crateIds.UnionWith(allocations.Select(x => x.SandikId));
+                    if (crateIds.Any(id => !snapshot.Crates.TryGetValue(id, out var allocated) ||
+                        allocated.ProjeId != addedRowList.ProjeId)) return false;
+                    break;
+                case CekiSatiri deletedRow when entry.State == EntityState.Deleted:
+                    // Düzeltmede ürün silme: satırın bütün tahsisleri düzeltmedeki sandıklarda olmalıdır.
+                    if (!snapshot.Rows.TryGetValue(deletedRow.Id, out var originalDeletedRow) ||
+                        originalDeletedRow.KaynakCekiSatiriId.HasValue) return false;
+                    rowIds.Add(deletedRow.Id);
+                    rowProjectIds.Add(RowProjectId(snapshot, deletedRow.Id));
+                    crateIds.UnionWith(snapshot.Contents.Values.Where(x => x.CekiSatiriId == deletedRow.Id).Select(x => x.SandikId));
                     break;
                 case CekiSatiri row when entry.State == EntityState.Modified:
                     if (!snapshot.Rows.TryGetValue(row.Id, out var originalRow) || originalRow.CekiId != row.CekiId ||
@@ -218,10 +253,14 @@ namespace _3K.Infrastructure.Data.Interceptors
                         .Where(x => x.CekiSatiriId == row.Id).Select(x => x.SandikId));
                     break;
                 default:
-                    return false; // Proje/çeki ana verisi, yeni/silinen sandık ve yeni/silinen çeki satırı açılmaz.
+                    return false; // Proje/çeki ana verisi ve yeni/silinen sandık düzeltmeyle açılmaz.
             }
 
             if (crateIds.Count == 0 || rowIds.Overlaps(snapshot.GuardedSourceRows) || crateIds.Overlaps(snapshot.GuardedSourceCrates))
+                return false;
+            // Düzeltme bir projenin sandıkları ve satırları arasında kalır; başka projenin sandığına ya da satırına açılmaz.
+            if (crateIds.Select(id => snapshot.Crates.TryGetValue(id, out var owner) ? owner.ProjeId : -1)
+                    .Concat(rowProjectIds).Distinct().Count() != 1)
                 return false;
             return crateIds.All(id => snapshot.Crates.TryGetValue(id, out var persisted) &&
                 persisted.DurumId == (int)SandikDurum.Sevkedildi && persisted.SevkiyatDuzeltmeAcikMi &&
@@ -229,6 +268,11 @@ namespace _3K.Infrastructure.Data.Interceptors
                     (e.State == EntityState.Deleted || s.ProjeId != persisted.ProjeId ||
                      s.DurumId != persisted.DurumId || !s.SevkiyatDuzeltmeAcikMi)));
         }
+
+        private static int RowProjectId(LockSnapshot snapshot, int rowId) =>
+            snapshot.Rows.TryGetValue(rowId, out var row) && snapshot.PackingLists.TryGetValue(row.CekiId, out var list)
+                ? list.ProjeId
+                : -1;
 
         private sealed record RowOwner(int Id, int CekiId, int? KaynakCekiSatiriId);
         private sealed record ContentOwner(int Id, int SandikId, int? CekiSatiriId);

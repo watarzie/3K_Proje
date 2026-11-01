@@ -1,6 +1,7 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Application.Features.SandikIslemleri.DTOs;
+using _3K.Application.Features.SandikIslemleri.Services;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
@@ -43,6 +44,7 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 .ToList();
             var aktifAktarimBagliSatirIds = await _sahaAktarimSilmeKorumaService
                 .GetAktifAktarimBagliCekiSatiriIdsAsync(cekiSatiriIdleri, cancellationToken);
+            var aktifSahaProjeleri = await AktifSahaProjeleriniBulAsync(cekiSatiriIdleri);
             var proje = await _unitOfWork.GetRepository<Proje>().GetByIdAsync(sandik.ProjeId);
             var isSahaYedek = proje?.ProjeTipiId is (int)ProjeTipi.Saha or (int)ProjeTipi.Yedek;
             var sandikManuelIslemeAcik = !SandikSevkKilidiHelper.SandikKilitliMi(sandik);
@@ -51,10 +53,10 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 : (await _unitOfWork.GetRepository<SandikIcerik>()
                     .FindAsync(i => i.CekiSatiriId.HasValue && cekiSatiriIdleri.Contains(i.CekiSatiriId.Value)))
                     .ToList();
-            var tahsisSayilari = projeTahsisleri
+            var satirTahsisMap = projeTahsisleri
                 .Where(i => i.CekiSatiriId.HasValue)
                 .GroupBy(i => i.CekiSatiriId!.Value)
-                .ToDictionary(g => g.Key, g => g.Count());
+                .ToDictionary(g => g.Key, g => (IReadOnlyCollection<SandikIcerik>)g.ToList());
             var sandikTransferleri = (await _unitOfWork.GetRepository<SandikUrunTransferi>()
                 .FindAsync(t => t.ProjeId == sandik.ProjeId &&
                     (t.KaynakSandikId == sandik.Id || t.HedefSandikId == sandik.Id)))
@@ -97,9 +99,11 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 DepoLokasyonMetni = _lookupCache.GetDeger<LookupDepoLokasyon>(sandik.DepoLokasyonId),
                 TipId = sandik.TipId,
                 TipMetni = _lookupCache.GetDeger<LookupSandikTipi>(sandik.TipId),
+                SandikNoKilitNedeni = SandikNoDegistirmeIslemi.KilitNedeni(_unitOfWork, sandik),
                 SahayaAktarildiMi = sandikSahaAktariminda,
                 SahaUzerindenSevkEdildiMi = sahaUzerindenSevkEdildi,
                 SahayaAktarilanMiktar = sahayaAktarilanMiktar,
+                KapanmaTarihi = sandik.KapanmaTarihi,
                 En = sandik.En,
                 Boy = sandik.Boy,
                 Yukseklik = sandik.Yukseklik,
@@ -108,26 +112,21 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 Icerikler = icerikler.Select(i =>
                 {
                     var anaIstenen = i.CekiSatiri?.IstenenAdet ?? i.Miktar;
-                    var tahsisSayisi = i.CekiSatiriId.HasValue
-                        ? tahsisSayilari.GetValueOrDefault(i.CekiSatiriId.Value, 1)
-                        : 1;
-                    var sandikMiktari = i.CekiSatiri != null
-                        ? SandikTahsisHelper.HesaplaSandikMiktari(i.CekiSatiri, i, tahsisSayisi)
-                        : (i.TahsisMiktari > 0 ? i.TahsisMiktari : i.Miktar);
-                    var gridKapandi = i.CekiSatiri?.GridDurumuId == (int)GridDurum.GridKapandi;
-                    var konulan = gridKapandi ? sandikMiktari : i.KonulanAdet;
-                    var eksik = gridKapandi ? 0 : Math.Max(sandikMiktari - konulan, 0);
+                    var satirTahsisleri = i.CekiSatiriId.HasValue
+                        ? satirTahsisMap.GetValueOrDefault(i.CekiSatiriId.Value, [i])
+                        : [i];
+                    var (sandikMiktari, konulan, eksik) = SandikTahsisHelper.HesaplaIcerikMiktari(i, satirTahsisleri);
                     var ilgiliTransferler = i.CekiSatiriId.HasValue
                         ? sandikTransferleri.Where(t => t.CekiSatiriId == i.CekiSatiriId)
                         : sandikTransferleri.Where(t => t.KaynakSandikIcerikId == i.Id);
                     var transferOzeti = SandikTransferOzetiHelper.Hesapla(ilgiliTransferler, sandik.Id);
 
-                    // Durum: konulana göre hesapla
+                    // Durum: konulana göre hesapla; eksiği kalmayan satır (Trafo Sevk vb.) tamamdır.
                     string durumMetni;
-                    if (konulan <= 0)
-                        durumMetni = "Gelmedi";
-                    else if (konulan >= sandikMiktari)
+                    if (konulan >= sandikMiktari || eksik <= 0)
                         durumMetni = "Tamamlandı";
+                    else if (konulan <= 0)
+                        durumMetni = "Gelmedi";
                     else
                         durumMetni = "Kısmi Geldi";
 
@@ -168,6 +167,9 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                         TedarikciKarsilanan = i.TedarikciKarsilanan,
                         KaynakProjeNo = i.KaynakProjeNo,
                         UrunBilgisi = i.UrunBilgisi,
+                        AktifSahaProjeleri = i.CekiSatiriId is int satirId
+                            ? aktifSahaProjeleri.GetValueOrDefault(satirId, [])
+                            : [],
                         SandikAktarilanGiris = transferOzeti.Giris,
                         SandikAktarilanCikis = transferOzeti.Cikis,
                         SandikTransferOzeti = string.IsNullOrWhiteSpace(transferOzeti.Metin) ? null : transferOzeti.Metin,
@@ -182,6 +184,34 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
             };
 
             return Result<SandikDetayDto>.Success(dto);
+        }
+
+        /// <summary>Kaynak satır → aktif (geri alınmamış, iptal edilmemiş) saha aktarımlarının hedef saha projeleri.</summary>
+        private async Task<Dictionary<int, IReadOnlyList<SahaProjeBagDto>>> AktifSahaProjeleriniBulAsync(List<int> cekiSatiriIdleri)
+        {
+            if (cekiSatiriIdleri.Count == 0)
+                return new Dictionary<int, IReadOnlyList<SahaProjeBagDto>>();
+
+            var kalemler = (await _unitOfWork.GetRepository<SahaAktarimKalemi>().FindAsync(k =>
+                    cekiSatiriIdleri.Contains(k.KaynakCekiSatiriId) &&
+                    k.DurumId != (int)SahaAktarimDurum.GeriAlindi &&
+                    k.DurumId != (int)SahaAktarimDurum.Iptal))
+                .ToList();
+            if (kalemler.Count == 0)
+                return new Dictionary<int, IReadOnlyList<SahaProjeBagDto>>();
+
+            var sahaProjeIds = kalemler.Select(k => k.SahaProjeId).Distinct().ToList();
+            var projeNolari = (await _unitOfWork.GetRepository<Proje>().FindAsync(p => sahaProjeIds.Contains(p.Id)))
+                .ToDictionary(p => p.Id, p => p.ProjeNo);
+            return kalemler
+                .GroupBy(k => k.KaynakCekiSatiriId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => (IReadOnlyList<SahaProjeBagDto>)g.Select(k => k.SahaProjeId).Distinct()
+                        .Where(projeNolari.ContainsKey)
+                        .Select(id => new SahaProjeBagDto(id, projeNolari[id]))
+                        .OrderBy(x => x.ProjeNo, StringComparer.Ordinal)
+                        .ToList());
         }
 
         private static bool ManuelSilinebilirMi(

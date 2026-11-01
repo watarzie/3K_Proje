@@ -113,19 +113,24 @@ public sealed class RequestMenuPermissionResolver(IUnitOfWork unitOfWork, IReadQ
         GetUcKUrunlerQuery x => new(ProjectMenuOperation.UcK, YetkiTipi.R, x.ProjeId, Optional(x.SandikId)),
         GetProjeSandiklariQuery x => new(ProjectMenuOperation.CrateRead, YetkiTipi.R, x.ProjeId),
         GetSandikIcerikQuery x => new(ProjectMenuOperation.CrateRead, YetkiTipi.R, SandikIds: [x.SandikId]),
+        GetSandikDuzeltmeDurumuQuery x => new(ProjectMenuOperation.CrateRead, YetkiTipi.R, SandikIds: [x.SandikId]),
+        GetSandikDurumGecmisiQuery x => new(ProjectMenuOperation.CrateRead, YetkiTipi.R, SandikIds: [x.SandikId]),
         GetProjeSevkiyatlariQuery x => new(ProjectMenuOperation.ProjectRead, YetkiTipi.R, x.ProjeId),
         GetSahaProjePdfQuery x => new(ProjectMenuOperation.CrateReport, YetkiTipi.R, x.ProjeId),
+        GetSevkeHazirSandikRaporuQuery x => new(ProjectMenuOperation.CrateReport, YetkiTipi.R, x.ProjeId),
         GetGerceklesenCekiListesiPdfQuery x => new(ProjectMenuOperation.ActualPackingReport, YetkiTipi.R, x.ProjeId),
         GetGerceklesenCekiListesiExcelQuery x => new(ProjectMenuOperation.ActualPackingReport, YetkiTipi.R, x.ProjeId),
         GetSahaGerceklesenCekiListesiPdfQuery x => new(ProjectMenuOperation.ActualPackingReport, YetkiTipi.R, x.ProjeId),
         GetSahaGerceklesenCekiListesiExcelQuery x => new(ProjectMenuOperation.ActualPackingReport, YetkiTipi.R, x.ProjeId),
+        GetMusteriCekiListesiQuery x => new(ProjectMenuOperation.ActualPackingReport, YetkiTipi.R, x.ProjeId),
         GetUcKSandikDurumPdfQuery x => new(ProjectMenuOperation.UcKCrateReport, YetkiTipi.R, x.ProjeId),
         GetTopluEksikUrunlerRaporuQuery x => new(ProjectMenuOperation.MissingItemsReport, YetkiTipi.R,
             ProjectIds: x.ProjeIds),
         // G4: talep formu Grid verisidir; her proje kendi gerçek tipinin Grid okuma izniyle açılır.
         GetTopluTalepFormuQuery x => new(ProjectMenuOperation.Grid, YetkiTipi.R, ProjectIds: x.ProjeIds),
         ProjeSevkEtCommand x => new(ProjectMenuOperation.Shipment, YetkiTipi.W, x.ProjeId),
-        ProjeKilidiAcCommand x => new(ProjectMenuOperation.ProjectUnlock, YetkiTipi.W, x.ProjeId),
+        ProjeKilidiAcCommand x => new(ProjectMenuOperation.ProjectUnlock, YetkiTipi.W, x.ProjeId,
+            SevkSonrasiDuzeltme: x.KilitAcmaTipiId == (int)SevkiyatKilitAcmaTipi.SevkiyatKaydiKorunarakAc),
         ProjeSevkTarihiGuncelleCommand x => new(ProjectMenuOperation.PlannedShipmentDate, YetkiTipi.W, x.ProjeId),
         ProjeSilCommand x => new(ProjectMenuOperation.ProjectDelete, YetkiTipi.W, x.ProjeId),
         GridManuelUrunEkleCommand x => new(ProjectMenuOperation.Grid, YetkiTipi.W, x.ProjeId),
@@ -150,8 +155,10 @@ public sealed class RequestMenuPermissionResolver(IUnitOfWork unitOfWork, IReadQ
         EskiSandikKapat x => new(ProjectMenuOperation.CrateWrite, YetkiTipi.W, SandikIds: [x.SandikId]),
         TopluSandikKapatCommand x => new(ProjectMenuOperation.CrateWrite, YetkiTipi.W, SandikIds: x.SandikIds),
         SandikSilCommand x => new(ProjectMenuOperation.CrateWrite, YetkiTipi.W, x.ProjeId, [x.SandikId]),
-        SandikKilidiAcCommand x => new(ProjectMenuOperation.CrateWrite, YetkiTipi.W, x.ProjeId, [x.SandikId]),
+        SandikKilidiAcCommand x => new(ProjectMenuOperation.CrateWrite, YetkiTipi.W, x.ProjeId, [x.SandikId],
+            SevkSonrasiDuzeltme: x.KilitAcmaTipiId == (int)SevkiyatKilitAcmaTipi.SevkiyatKaydiKorunarakAc),
         SandikSevkiyatDuzeltmeTamamlaCommand x => new(ProjectMenuOperation.CrateWrite, YetkiTipi.W, x.ProjeId, [x.SandikId]),
+        SandikSevkiyatDuzeltmeTopluTamamlaCommand x => new(ProjectMenuOperation.CrateWrite, YetkiTipi.W, x.ProjeId),
         SandikUrunTasiCommand x => new(ProjectMenuOperation.CrateWrite, YetkiTipi.W, x.ProjeId,
             [x.HedefSandikId], IcerikIds: [x.KaynakSandikIcerikId]),
         ManuelUrunEkleCommand x => new(ProjectMenuOperation.CrateWrite, YetkiTipi.W, x.ProjeId, [x.SandikId]),
@@ -217,6 +224,10 @@ public sealed class RequestMenuPermissionResolver(IUnitOfWork unitOfWork, IReadQ
             if (policy.Groups.Count == 0) return RequestMenuPermissions.Denied;
             groups.AddRange(policy.Groups);
         }
+        // Sevk sonrası düzeltme (sevkiyat kaydı korunarak açma) proje tipinin izniyle birlikte ayrı, dar düzeltme
+        // iznini de ister.
+        if (spec.SevkSonrasiDuzeltme)
+            groups.AddRange(One(K.Sandik.SevkSonrasiDuzeltme, YetkiTipi.W).Groups);
         return new(groups);
     }
 
@@ -291,5 +302,6 @@ public sealed class RequestMenuPermissionResolver(IUnitOfWork unitOfWork, IReadQ
     }
     private sealed record ProjectAccess(ProjectMenuOperation Operation, YetkiTipi Yetki, int? ProjectId = null,
         IReadOnlyCollection<int>? SandikIds = null, IReadOnlyCollection<int>? CekiSatiriIds = null,
-        IReadOnlyCollection<int>? IcerikIds = null, IReadOnlyCollection<int>? ProjectIds = null);
+        IReadOnlyCollection<int>? IcerikIds = null, IReadOnlyCollection<int>? ProjectIds = null,
+        bool SevkSonrasiDuzeltme = false);
 }

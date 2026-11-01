@@ -270,7 +270,7 @@ public class SevkiyatKilidiAcRegresyonTests
 
         public Task<_3K.Application.Common.Result> DuzeltmeyiTamamlaAsync() =>
             new SandikSevkiyatDuzeltmeTamamlaCommandHandler(UnitOfWork, Hareket, new KullaniciStub(),
-                Saha, new EntityFrameworkReadQueryExecutor()).Handle(
+                Saha, new EntityFrameworkReadQueryExecutor(), new LookupStub()).Handle(
                 new SandikSevkiyatDuzeltmeTamamlaCommand { ProjeId = 10, SandikId = 20 }, default);
 
         public void Dispose() => Context.Dispose();
@@ -313,6 +313,7 @@ public class SevkiyatKilidiAcRegresyonTests
                 "SandikIcerikleri" => [],
                 "SahaAktarimKalemleri" => [],
                 "Cekiler" => [],
+                "SandikDuzeltmeKayitlari" => [],
                 _ => throw new InvalidOperationException($"Beklenmeyen sorgu: {command.CommandText}")
             };
             var projection = command.CommandText[..command.CommandText.IndexOf("FROM", StringComparison.Ordinal)];
@@ -327,6 +328,7 @@ public class SevkiyatKilidiAcRegresyonTests
                 "SandikIcerikleri" => typeof(SandikIcerik),
                 "SahaAktarimKalemleri" => typeof(SahaAktarimKalemi),
                 "Cekiler" => typeof(Ceki),
+                "SandikDuzeltmeKayitlari" => typeof(SandikDuzeltmeKaydi),
                 _ => throw new InvalidOperationException(tableName)
             };
             var properties = columns.Select(column =>
@@ -342,6 +344,13 @@ public class SevkiyatKilidiAcRegresyonTests
             }
             return ValueTask.FromResult(InterceptionResult<DbDataReader>.SuppressWithResult(table.CreateDataReader()));
         }
+    }
+
+    private sealed class LookupStub : ILookupCacheService
+    {
+        public string GetDeger<TLookup>(int id) where TLookup : LookupBase => id.ToString();
+        public Task WarmupAsync(CancellationToken ct = default) => Task.CompletedTask;
+        public Task RefreshAsync<TLookup>(CancellationToken ct = default) where TLookup : LookupBase => Task.CompletedTask;
     }
 
     private sealed class KullaniciStub : ICurrentUserService

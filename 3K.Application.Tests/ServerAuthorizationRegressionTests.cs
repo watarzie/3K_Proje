@@ -16,6 +16,7 @@ using _3K.Application.Features.SandikIslemleri.Commands;
 using _3K.Application.Features.SandikIslemleri.Queries;
 using _3K.Application.Features.UcKIslemleri.Commands;
 using _3K.Application.Features.UcKIslemleri.Queries;
+using _3K.Core.Constants;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
@@ -338,6 +339,56 @@ public class ServerAuthorizationRegressionTests
         { ProjeIds = [], ProjeTipi = ProjeTipi.Saha })).StatusCode);
     }
 
+    /// <summary>
+    /// Sevk sonrası düzeltme: sevkiyat kaydı korunarak kilit açma (sandık/proje), proje tipinin izniyle birlikte ayrı
+    /// sevk-sonrasi-duzeltme W iznini ister. Sevkiyat geri alınarak açma eskisi gibidir.
+    /// </summary>
+    [Theory]
+    [InlineData("sandik", false, 403)]
+    [InlineData("sandik", true, 0)]
+    [InlineData("proje", false, 403)]
+    [InlineData("proje", true, 0)]
+    public async Task SevkSonrasiDuzeltme_AyriDuzeltmeIzniIster(string istek, bool duzeltmeIzni, int beklenen)
+    {
+        var tipIzni = istek == "proje" ? YetkiKodlari.Proje.SevkEdilen : YetkiKodlari.Sandik.Yonetimi;
+        var fixture = new Fixture(tipIzni, YetkiTipi.W,
+            ekMenu: duzeltmeIzni ? YetkiKodlari.Sandik.SevkSonrasiDuzeltme : null);
+        fixture.Seed(ProjeTipi.Normal);
+        var korunarak = (int)SevkiyatKilitAcmaTipi.SevkiyatKaydiKorunarakAc;
+        Result sonuc = istek == "sandik"
+            ? await fixture.Run(new SandikKilidiAcCommand { ProjeId = 10, SandikId = 40, KilitAcmaTipiId = korunarak })
+            : await fixture.Run(new ProjeKilidiAcCommand { ProjeId = 10, KilitAcmaTipiId = korunarak });
+
+        if (beklenen == 0) Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        else Assert.Equal(beklenen, sonuc.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("sandik-yonetimi", true)]
+    [InlineData("3k-modulu", true)]
+    [InlineData("grid-modulu", false)]
+    public async Task TopluDuzeltmeTamamlama_ProjeninSandikYazmaIzniniIster(string menu, bool izinli)
+    {
+        var fixture = new Fixture(menu, YetkiTipi.W);
+        fixture.Seed(ProjeTipi.Normal);
+
+        var sonuc = await fixture.Run(new SandikSevkiyatDuzeltmeTopluTamamlaCommand { ProjeId = 10 });
+
+        if (izinli) Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        else Assert.Equal(403, sonuc.StatusCode);
+    }
+
+    [Fact]
+    public async Task SevkiyatGeriAlinarakAcma_DuzeltmeIzniIstemez()
+    {
+        var fixture = new Fixture(YetkiKodlari.Sandik.Yonetimi, YetkiTipi.W);
+        fixture.Seed(ProjeTipi.Normal);
+
+        Assert.True((await fixture.Run(new SandikKilidiAcCommand { ProjeId = 10, SandikId = 40 })).IsSuccess);
+        Assert.True((await fixture.Run(new SandikEkleCommand { ProjeId = 10 })).IsSuccess);
+        Assert.DoesNotContain(fixture.Roles.Calls, c => c.Menu == YetkiKodlari.Sandik.SevkSonrasiDuzeltme);
+    }
+
     [Fact]
     public async Task OnayBaglami_YalnizOnayOperasyonunuYurutur_RolGuncellemeyiAtlatamaz()
     {
@@ -423,9 +474,10 @@ public class ServerAuthorizationRegressionTests
         public ApprovalExecutionContext Approval { get; } = new();
         private readonly CurrentUserService _user;
         public int Executed { get; private set; }
-        public Fixture(string menu, YetkiTipi permission, string? header = "grid-modulu", bool authenticated = true)
+        public Fixture(string menu, YetkiTipi permission, string? header = "grid-modulu", bool authenticated = true,
+            string? ekMenu = null)
         {
-            Roles = new(menu, permission);
+            Roles = new(menu, permission, ekMenu);
             var context = new DefaultHttpContext();
             context.Request.Headers["X-Menu-Kod"] = header;
             context.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "7")], authenticated ? "test" : null));
@@ -461,12 +513,12 @@ public class ServerAuthorizationRegressionTests
         public IReadOnlyCollection<MenuPermissionRequirement> RequiredMenuPermissions => [new("ilk", YetkiTipi.R), new("ikinci", YetkiTipi.W)];
         public MenuPermissionMatch PermissionMatch => Any ? MenuPermissionMatch.Any : MenuPermissionMatch.All;
     }
-    private sealed class Roles(string grantedMenu, YetkiTipi granted) : IRolService
+    private sealed class Roles(string grantedMenu, YetkiTipi granted, string? ekMenu = null) : IRolService
     {
         public List<(string Menu, YetkiTipi Yetki)> Calls { get; } = [];
         public List<int> OkunanRoller { get; } = [];
         public Task<bool> HasUserPermissionAsync(int user, string menu, YetkiTipi required, CancellationToken ct = default)
-        { Calls.Add((menu, required)); return Task.FromResult(menu == grantedMenu && granted >= required); }
+        { Calls.Add((menu, required)); return Task.FromResult((menu == grantedMenu || menu == ekMenu) && granted >= required); }
         public Task<List<MenuTanimi>> GetMenuAgaciAsync(CancellationToken ct = default) => Task.FromResult(new List<MenuTanimi>());
         public Task<List<RolYetki>> GetRolYetkileriAsync(int rolId, CancellationToken ct = default)
         { OkunanRoller.Add(rolId); return Task.FromResult(new List<RolYetki>()); }

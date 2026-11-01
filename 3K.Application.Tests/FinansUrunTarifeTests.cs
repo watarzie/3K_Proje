@@ -35,7 +35,7 @@ public sealed class FinansUrunTarifeTests
     public void Malzemeli_eslesme_m3_tarifede_ahsap_veya_kontra_olmalidir(FinansFiyatlandirmaBirimi birim, FinansSandikMalzemesi malzeme, bool gecerli)
     {
         var model = new FinansUrunKaydetModel("KON", "Kontra m³", birim, true, 0,
-            [new FinansUrunEslesmesiModel(null, FinansIsTuru.AnaAmbalaj, null, "Katlanır Sandık", null, malzeme)], 300m, "EUR", 20);
+            [new FinansUrunEslesmesiModel(null, FinansIsTuru.AnaAmbalaj, null, "Kontrplak Sandık", null, malzeme)], 300m, "EUR", 20);
 
         Assert.Equal(gecerli, new _3K.Application.Features.FinansIslemleri.Validators.FinansUrunKaydetModelValidator().Validate(model).IsValid);
     }

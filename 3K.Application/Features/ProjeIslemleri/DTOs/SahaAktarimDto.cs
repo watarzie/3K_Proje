@@ -20,5 +20,12 @@ namespace _3K.Application.Features.ProjeIslemleri.DTOs
         public bool IslemGormusMu { get; set; }
         public bool GeriAlinabilirMi { get; set; }
         public string? GeriAlinamamaNedeni { get; set; }
+
+        /// <summary>Satırın bağlı olduğu aktarım başlığı; aktarımın tamamı bu kimlikle geri alınır.</summary>
+        public int? SahaAktarimId { get; set; }
+        public DateTime? SahaAktarimTarihi { get; set; }
+        public string? SahaAktarimAciklama { get; set; }
+        /// <summary>Başlık sahadan sahaya taşımaysa tamamı geri alınmaz; ters yönde yeni taşıma yapılır.</summary>
+        public bool SahaAktarimTasimaMi { get; set; }
     }
 }

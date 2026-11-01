@@ -35,6 +35,29 @@ public sealed class FinansProjeSandikKirilimiQueryValidator : AbstractValidator<
     }
 }
 
+/// <summary>Finansal durum raporu panelle aynı tarih aralığı kuralını uygular (geçersiz aralık 400).</summary>
+public sealed class FinansFinansalDurumRaporuDosyaQueryValidator : AbstractValidator<FinansFinansalDurumRaporuDosyaQuery>
+{
+    public FinansFinansalDurumRaporuDosyaQueryValidator() => RuleFor(x => x.Filtre)
+        .Must(FinansalDurumAraligiGecerli)
+        .WithMessage("Geçerli ve en fazla on yıllık tarih aralığı seçin.");
+
+    internal static bool FinansalDurumAraligiGecerli(FinansListeFiltre filtre)
+    {
+        var (baslangic, bitis) = FinansTarihKurallari.FinansalDurumDonemi(filtre.Baslangic, filtre.Bitis);
+        return FinansTarihKurallari.GecerliAralik(baslangic, bitis);
+    }
+}
+
+/// <summary>Finansal durum önizlemesi dosyayla aynı tarih aralığı kuralını uygular; diğer türler servis kuralıyla denetlenir.</summary>
+public sealed class FinansRaporOnizlemeQueryValidator : AbstractValidator<FinansRaporOnizlemeQuery>
+{
+    public FinansRaporOnizlemeQueryValidator() => RuleFor(x => x.Filtre)
+        .Must(FinansFinansalDurumRaporuDosyaQueryValidator.FinansalDurumAraligiGecerli)
+        .When(x => string.Equals(x.Tur?.Trim(), "finansal-durum", StringComparison.OrdinalIgnoreCase))
+        .WithMessage("Geçerli ve en fazla on yıllık tarih aralığı seçin.");
+}
+
 public sealed class FinansAylikRaporDosyaQueryValidator : AbstractValidator<FinansAylikRaporDosyaQuery>
 {
     public FinansAylikRaporDosyaQueryValidator() => RuleFor(x => x)

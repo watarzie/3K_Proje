@@ -10,9 +10,9 @@ using _3K.Core.Models;
 namespace _3K.Application.Features.ProjeIslemleri.Commands
 {
     /// <summary>
-    /// Projeye fotoğraf bağlantısı ekler (<see cref="BaglantiId"/> boş) veya var olanın adresini/açıklamasını değiştirir.
-    /// Proje tipinden ve sevk durumundan bağımsız tek izin: <see cref="YetkiKodlari.Proje.FotografBaglantisi"/> W.
-    /// Sonuç projenin güncel bağlantı listesidir.
+    /// Projeye fotoğraf veya gerçekleşen çeki bağlantısı ekler (<see cref="BaglantiId"/> boş; tür <see cref="Tur"/>, boşsa
+    /// fotoğraf) ya da var olanın adresini/açıklamasını değiştirir (tür değişmez). Proje tipinden ve sevk durumundan
+    /// bağımsız tek izin: <see cref="YetkiKodlari.Proje.FotografBaglantisi"/> W. Sonuç projenin güncel bağlantı listesidir.
     /// </summary>
     public class ProjeFotografBaglantisiKaydetCommand : IRequest<Result<List<ProjeFotografBaglantisiDto>>>, ISecuredRequest, IRequiresMenuPermission
     {
@@ -20,6 +20,8 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
         public int? BaglantiId { get; set; }
         public string? Adres { get; set; }
         public string? Aciklama { get; set; }
+        /// <summary>Yalnız eklemede okunur; boşsa <see cref="ProjeBaglantiTuru.Fotograf"/>.</summary>
+        public ProjeBaglantiTuru? Tur { get; set; }
 
         public string RequiredMenuKod => YetkiKodlari.Proje.FotografBaglantisi;
         public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
@@ -31,6 +33,8 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
         ICurrentUserService currentUserService)
         : IRequestHandler<ProjeFotografBaglantisiKaydetCommand, Result<List<ProjeFotografBaglantisiDto>>>
     {
+        private static readonly System.Globalization.CultureInfo TurkceKultur = System.Globalization.CultureInfo.GetCultureInfo("tr-TR");
+
         public Task<Result<List<ProjeFotografBaglantisiDto>>> Handle(ProjeFotografBaglantisiKaydetCommand request, CancellationToken cancellationToken) =>
             // Bağlantı ve değişiklik geçmişi birlikte yazılır ya da hiçbiri yazılmaz.
             unitOfWork.ExecuteAtomicAsync(async token =>
@@ -47,15 +51,16 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
 
                 if (request.BaglantiId is not int baglantiId)
                 {
-                    if (mevcutlar.Count >= ProjeFotografBaglantisiKurali.EnFazlaBaglanti)
+                    var tur = request.Tur ?? ProjeBaglantiTuru.Fotograf;
+                    if (mevcutlar.Count(x => x.Tur == tur) >= ProjeFotografBaglantisiKurali.EnFazlaBaglanti)
                         return Result<List<ProjeFotografBaglantisiDto>>.Failure(
-                            $"Bir projeye en fazla {ProjeFotografBaglantisiKurali.EnFazlaBaglanti} fotoğraf bağlantısı eklenebilir.");
+                            $"Bir projeye en fazla {ProjeFotografBaglantisiKurali.EnFazlaBaglanti} {ProjeFotografBaglantisiKurali.TurAdi(tur).ToLower(TurkceKultur)} eklenebilir.");
 
-                    var yeni = new ProjeFotografBaglantisi { ProjeId = request.ProjeId, Adres = adres, Aciklama = aciklama };
+                    var yeni = new ProjeFotografBaglantisi { ProjeId = request.ProjeId, Tur = tur, Adres = adres, Aciklama = aciklama };
                     await repo.AddAsync(yeni);
                     await unitOfWork.SaveChangesAsync(token);
                     await hareketService.HareketKaydetAsync(ProjeFotografBaglantisiGecmisi.Kayit(
-                        request.ProjeId, currentUserService.UserId, "Fotoğraf Bağlantısı Eklendi", null, yeni));
+                        request.ProjeId, currentUserService.UserId, ProjeFotografBaglantisiGecmisi.Islem(tur, "Eklendi"), null, yeni));
                 }
                 else
                 {
@@ -71,7 +76,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                     baglanti.Aciklama = aciklama;
                     await unitOfWork.SaveChangesAsync(token);
                     await hareketService.HareketKaydetAsync(ProjeFotografBaglantisiGecmisi.Kayit(
-                        request.ProjeId, currentUserService.UserId, "Fotoğraf Bağlantısı Güncellendi", eski, baglanti));
+                        request.ProjeId, currentUserService.UserId, ProjeFotografBaglantisiGecmisi.Islem(baglanti.Tur, "Güncellendi"), eski, baglanti));
                 }
 
                 return Result<List<ProjeFotografBaglantisiDto>>.Success(
@@ -79,9 +84,12 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             }, cancellationToken);
     }
 
-    /// <summary>Fotoğraf bağlantısı değişikliklerinin proje hareket geçmişi kaydı.</summary>
+    /// <summary>Fotoğraf ve gerçekleşen çeki bağlantısı değişikliklerinin proje hareket geçmişi kaydı.</summary>
     internal static class ProjeFotografBaglantisiGecmisi
     {
+        /// <summary>İşlem adı: "Fotoğraf Bağlantısı Eklendi", "Gerçekleşen Çeki Bağlantısı Kaldırıldı" gibi.</summary>
+        public static string Islem(ProjeBaglantiTuru tur, string fiil) => $"{ProjeFotografBaglantisiKurali.TurAdi(tur)} {fiil}";
+
         /// <summary>Geçmişte görünen değer: "Açıklama · adres" ya da yalnız adres.</summary>
         public static string Metin(ProjeFotografBaglantisi baglanti) =>
             baglanti.Aciklama is null ? baglanti.Adres : $"{baglanti.Aciklama} · {baglanti.Adres}";
@@ -96,7 +104,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             IslemTipiId = null,
             EskiDeger = eski ?? "Yok",
             YeniDeger = yeni is null ? "Yok" : Metin(yeni),
-            Aciklama = "Projenin fotoğraf bağlantıları değiştirildi."
+            Aciklama = "Projenin bağlantıları değiştirildi."
         };
     }
 }

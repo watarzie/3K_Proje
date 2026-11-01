@@ -232,6 +232,11 @@ public sealed class FinansPoAkisPostgresTests
             Assert.Equal(new FinansPoNetModel("EUR", 1000m, 1000m, 300m, 700m, 700m), detay.Netler.Single(x => x.ParaBirimi == "EUR"));
             Assert.Equal(new FinansPoNetModel("TRY", 0m, 0m, 1000m, -1000m, -1000m), detay.Netler.Single(x => x.ParaBirimi == "TRY"));
             Assert.Single((await finans.Gider.GiderlerAsync(new(PoNumarasi: "po-net", ParaBirimi: "EUR"), Ct)).Items);
+            // Gider raporu (rapor verisi sorgusu) PO numarasını da yazar.
+            var giderRaporu = await finans.Raporlar.OnizlemeAsync("gider", new(ParaBirimi: "EUR"), new FinansRaporSecenekleri(), Ct);
+            var poSutunu = giderRaporu.Sutunlar.ToList().IndexOf("PO No");
+            var giderSatiri = Assert.Single(giderRaporu.Satirlar.Where((_, i) => giderRaporu.SatirTurleri![i] == FinansRaporOnizlemeModel.SatirVeri));
+            Assert.Equal("PO-NET", giderSatiri[poSutunu]);
 
             var onizleme = (await finans.KaliciSilme.KaliciSilOnizlemeAsync("Siparis", po.Id, Ct))!;
             Assert.False(onizleme.Silinebilir);

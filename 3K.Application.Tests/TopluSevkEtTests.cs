@@ -1,8 +1,9 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using _3K.Application.Common;
 using _3K.Application.Features.ProjeIslemleri.Commands;
+using _3K.Application.Features.ProjeIslemleri.Validators;
 using _3K.Application.Features.SevkiyatIslemleri.Commands;
 using _3K.Application.Features.SevkiyatIslemleri.Queries;
 using _3K.Application.Features.SevkiyatIslemleri.Validators;
@@ -64,6 +65,32 @@ public sealed class TopluSevkEtTests
         Assert.False(dogrulayici.Validate(eskiTarih).IsValid);
         var cokProje = Istek(Guid.NewGuid(), Enumerable.Range(1, 26).Select(i => (i, new[] { i })).ToArray());
         Assert.False(dogrulayici.Validate(cokProje).IsValid);
+    }
+
+    [Fact]
+    public void TekilSevkDogrulayici_SeferBilgileriTopluSevkleAyniKurallar()
+    {
+        var dogrulayici = new ProjeSevkEtCommandValidator();
+        ProjeSevkEtCommand Tekil() => new() { ProjeId = 10, SandikIds = [1], AracPlaka = "34 ABC 123", Sofor = "Ahmet", DorsePlaka = "34 XYZ 99" };
+        // Tarih verilmezse işlem anı kullanılır; şoför/dorse/açıklama isteğe bağlıdır.
+        Assert.True(dogrulayici.Validate(Tekil()).IsValid);
+        Assert.True(dogrulayici.Validate(new ProjeSevkEtCommand { ProjeId = 10, AracPlaka = "34ABC123" }).IsValid);
+
+        // Toplu sevkle aynı retler: plakasız, uzun şoför/dorse/açıklama, aralık dışı tarih.
+        var plakasiz = Tekil(); plakasiz.AracPlaka = null;
+        var tirePlaka = Tekil(); tirePlaka.AracPlaka = " - ";
+        var uzunSofor = Tekil(); uzunSofor.Sofor = new string('a', SevkSeferiKurali.SoforEnFazla + 1);
+        var uzunDorse = Tekil(); uzunDorse.DorsePlaka = new string('A', AracPlakaKurali.EnFazlaUzunluk + 1);
+        var uzunAciklama = Tekil(); uzunAciklama.Aciklama = new string('a', SevkSeferiKurali.AciklamaEnFazla + 1);
+        var eskiTarih = Tekil(); eskiTarih.SevkTarihi = TurkeyTime.Now.AddYears(-3);
+        var ileriTarih = Tekil(); ileriTarih.SevkTarihi = TurkeyTime.Now.AddDays(10);
+        foreach (var hatali in new[] { plakasiz, tirePlaka, uzunSofor, uzunDorse, uzunAciklama, eskiTarih, ileriTarih })
+            Assert.False(dogrulayici.Validate(hatali).IsValid);
+
+        // Aynı alanlar toplu sevkte de aynı sonucu verir.
+        var toplu = Istek(Guid.NewGuid(), (10, [1]));
+        toplu.Sofor = uzunSofor.Sofor;
+        Assert.False(new TopluSevkEtCommandValidator().Validate(toplu).IsValid);
     }
 
     [Fact]
@@ -152,13 +179,18 @@ public sealed class TopluSevkEtTests
                 Assert.Equal((int)SandikDurum.Kapandi, (await db.Sandiklar.SingleAsync(s => s.Id == k.S1)).DurumId);
             }
 
-            // Tekil sevk de tek projelik sefer açar (sıradaki numara, plaka normalize).
-            var tekil = await k.TekilSevkAsync(new ProjeSevkEtCommand { ProjeId = k.Normal, SandikIds = [k.N3], AracPlaka = "34-abc-123", SevkTarihi = istek.SevkTarihi });
+            // Tekil sevk de tek projelik sefer açar (sıradaki numara, plaka normalize); şoför ve dorse toplu sevkteki gibi yazılır.
+            var tekil = await k.TekilSevkAsync(new ProjeSevkEtCommand
+            {
+                ProjeId = k.Normal, SandikIds = [k.N3], AracPlaka = "34-abc-123", Sofor = " Mehmet ", DorsePlaka = "34-xyz-1",
+                Aciklama = "Tekil", SevkTarihi = istek.SevkTarihi
+            });
             Assert.True(tekil.IsSuccess, tekil.Error?.Message);
             await using (var db = new AppDbContext(options))
             {
                 var tekilSefer = await db.SevkSeferleri.OrderByDescending(x => x.Id).FirstAsync();
                 Assert.Equal(($"{yil}-000002", "34ABC123", (Guid?)null), (tekilSefer.SeferNo, tekilSefer.AracPlaka, tekilSefer.IslemAnahtari));
+                Assert.Equal(("Mehmet", "34XYZ1", "Tekil"), (tekilSefer.Sofor, tekilSefer.DorsePlaka, tekilSefer.Aciklama));
                 Assert.Equal(2, (await db.Sevkiyatlar.SingleAsync(s => s.SevkSeferiId == tekilSefer.Id)).SevkiyatNo);
 
                 // Eski kayıt: sefere bağlı olmayan, aynı gün aynı plakalı (farklı yazımla) iki sevkiyat tek sanal sefer.
@@ -417,8 +449,12 @@ public sealed class TopluSevkEtTests
             var (db, uow, hareket) = Baglam();
             await using (db)
             using (uow)
+            {
+                var dogrulama = await new ProjeSevkEtCommandValidator().ValidateAsync(istek);
+                Assert.True(dogrulama.IsValid, string.Join(" ", dogrulama.Errors.Select(e => e.ErrorMessage)));
                 return await new ProjeSevkEtCommandHandler(uow, hareket, new OrtakUser(7), new OrtakSaha(), new EntityFrameworkReadQueryExecutor())
                     .Handle(istek, default);
+            }
         }
 
         private async Task<T> Sorgu<T>(Func<SevkiyatQueryHandlers, Task<Result<T>>> calistir)

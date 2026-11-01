@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using _3K.Application.Features.ProjeIslemleri.Commands;
 using _3K.Application.Features.ProjeIslemleri.Queries;
+using _3K.Core.Enums;
 using _3K_API.Extensions;
 
 namespace _3K_API.Controllers
@@ -103,6 +104,69 @@ namespace _3K_API.Controllers
         }
 
         /// <summary>
+        /// Sevk edilmiş normal projenin kalanlarının otomatik sahaya aktarım önizlemesi (veri değiştirmez).
+        /// </summary>
+        [HttpGet("{id}/otomatik-saha-aktarim/onizle")]
+        public async Task<ActionResult> OtomatikSahaAktarimOnizle(
+            int id,
+            [FromQuery] int? hedefSahaProjeId = null,
+            [FromQuery] bool yeniProje = false,
+            CancellationToken cancellationToken = default)
+        {
+            var result = await _mediator.Send(new OtomatikSahaAktarimOnizleQuery
+            {
+                ProjeId = id,
+                HedefSahaProjeId = hedefSahaProjeId,
+                YeniProje = yeniProje
+            }, cancellationToken);
+            return result.ToActionResult();
+        }
+
+        [HttpPost("{id}/otomatik-saha-aktarim")]
+        public async Task<ActionResult> OtomatikSahayaAktar(
+            int id,
+            [FromBody] OtomatikSahayaAktarCommand command,
+            CancellationToken cancellationToken)
+        {
+            command.ProjeId = id;
+            var result = await _mediator.Send(command, cancellationToken);
+            return result.ToActionResult();
+        }
+
+        /// <summary>
+        /// Sahadan sahaya taşıma önizlemesi: satırlar, hedef sandık numarası ve engeller (veri değiştirmez).
+        /// </summary>
+        [HttpPost("sahadan-sahaya-tasima/onizle")]
+        public async Task<ActionResult> SahadanSahayaTasimaOnizle(
+            [FromBody] SahadanSahayaTasimaOnizleQuery query,
+            CancellationToken cancellationToken)
+        {
+            var result = await _mediator.Send(query, cancellationToken);
+            return result.ToActionResult();
+        }
+
+        [HttpPost("sahadan-sahaya-tasima")]
+        public async Task<ActionResult> SahadanSahayaTasi(
+            [FromBody] SahadanSahayaTasiCommand command,
+            CancellationToken cancellationToken)
+        {
+            var result = await _mediator.Send(command, cancellationToken);
+            return result.ToActionResult();
+        }
+
+        /// <summary>
+        /// Bir saha aktarımının (otomatik ya da elle) bütün satırlarını hepsi-ya-hiçbiri geri alır.
+        /// </summary>
+        [HttpPost("saha-aktarimi-geri-al")]
+        public async Task<ActionResult> SahaAktarimiGeriAl(
+            [FromBody] SahaAktarimiGeriAlCommand command,
+            CancellationToken cancellationToken)
+        {
+            var result = await _mediator.Send(command, cancellationToken);
+            return result.ToActionResult();
+        }
+
+        /// <summary>
         /// Sandık Kapat/Aç
         /// </summary>
         [HttpPut("sandik-kapat")]
@@ -123,7 +187,9 @@ namespace _3K_API.Controllers
                 SevkTarihi = request?.SevkTarihi,
                 SandikIds = request?.SandikIds,
                 Aciklama = request?.Aciklama,
-                AracPlaka = request?.AracPlaka
+                AracPlaka = request?.AracPlaka,
+                Sofor = request?.Sofor,
+                DorsePlaka = request?.DorsePlaka
             });
             return result.ToActionResult();
         }
@@ -161,20 +227,21 @@ namespace _3K_API.Controllers
             return result.ToActionResult();
         }
         /// <summary>
-        /// Projeye fotoğraf bağlantısı ekler (proje-fotograf-baglantisi W); projenin güncel bağlantı listesini döner.
+        /// Projeye fotoğraf veya gerçekleşen çeki bağlantısı ekler (Tur boşsa fotoğraf; proje-fotograf-baglantisi W);
+        /// projenin güncel bağlantı listesini döner.
         /// </summary>
         [HttpPost("{id:int}/fotograf-baglantilari")]
         public async Task<ActionResult> FotografBaglantisiEkle(int id, [FromBody] FotografBaglantisiRequest request)
         {
             var result = await _mediator.Send(new ProjeFotografBaglantisiKaydetCommand
             {
-                ProjeId = id, Adres = request.Adres, Aciklama = request.Aciklama
+                ProjeId = id, Tur = request.Tur, Adres = request.Adres, Aciklama = request.Aciklama
             });
             return result.ToActionResult();
         }
 
         /// <summary>
-        /// Projenin bir fotoğraf bağlantısının adresini/açıklamasını değiştirir (proje-fotograf-baglantisi W).
+        /// Projenin bir bağlantısının adresini/açıklamasını değiştirir; tür değişmez (proje-fotograf-baglantisi W).
         /// </summary>
         [HttpPut("{id:int}/fotograf-baglantilari/{baglantiId:int}")]
         public async Task<ActionResult> FotografBaglantisiGuncelle(int id, int baglantiId, [FromBody] FotografBaglantisiRequest request)
@@ -213,10 +280,14 @@ namespace _3K_API.Controllers
         public List<int>? SandikIds { get; init; }
         public string? Aciklama { get; init; }
         public string? AracPlaka { get; init; }
+        public string? Sofor { get; init; }
+        public string? DorsePlaka { get; init; }
     }
 
     public record FotografBaglantisiRequest
     {
+        /// <summary>Yalnız eklemede: 1 fotoğraf (varsayılan), 2 gerçekleşen çeki.</summary>
+        public ProjeBaglantiTuru? Tur { get; init; }
         public string? Adres { get; init; }
         public string? Aciklama { get; init; }
     }

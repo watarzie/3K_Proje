@@ -28,6 +28,26 @@ namespace _3K_API.Controllers
         }
 
         /// <summary>
+        /// Grid Sahası: Grid'e gelmiş ürünler (varsayılan Grid'de bekleyenler), proje tipinden bağımsız, sayfalı.
+        /// </summary>
+        [HttpGet("saha/urunler")]
+        public async Task<ActionResult> GetGridSahaUrunleri([FromQuery] GetGridSahaUrunleriQuery query, CancellationToken cancellationToken)
+        {
+            var result = await _mediator.Send(query, cancellationToken);
+            return result.ToActionResult();
+        }
+
+        /// <summary>
+        /// Grid Sahası: Grid personelinin mal kabul kayıtları (canlı ve arşiv hareketleri), sayfalı.
+        /// </summary>
+        [HttpGet("saha/mal-kabul")]
+        public async Task<ActionResult> GetGridMalKabulGecmisi([FromQuery] GetGridMalKabulGecmisiQuery query, CancellationToken cancellationToken)
+        {
+            var result = await _mediator.Send(query, cancellationToken);
+            return result.ToActionResult();
+        }
+
+        /// <summary>
         /// Grid ürün listesi — proje bazında tüm ürünler ve durumları.
         /// </summary>
         [HttpGet("{projeId}/urunler")]

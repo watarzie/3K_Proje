@@ -193,7 +193,11 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             // Sandık durumu ve lokasyon otomasyonu
             var sandikRepo2 = sandikRepo;
             var sandik2 = hedefSandik;
-            if (sandik2 != null)
+            // Sevk sonrası düzeltmedeki sandık sevkli kalır: durumu ve lokasyonu ürün değişikliğiyle yeniden hesaplanmaz.
+            // Yine de UPDATE edilir: xmin ile, aynı anda tamamlanan düzeltme kapanmış sandığa yazımı sessizce geçirmez.
+            if (sandik2?.DurumId == (int)SandikDurum.Sevkedildi)
+                sandikRepo2.Update(sandik2);
+            if (sandik2 != null && sandik2.DurumId != (int)SandikDurum.Sevkedildi)
             {
                 if (SandikDepoKurali.BelirsizLokasyonMu(sandik2.DepoLokasyonId) &&
                     request.UcKDurumuId.HasValue && request.UcKDurumuId.Value != (int)UcKDurum.Bekliyor)

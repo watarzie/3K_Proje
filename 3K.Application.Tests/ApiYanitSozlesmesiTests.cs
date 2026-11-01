@@ -30,11 +30,11 @@ public sealed class ApiYanitSozlesmesiTests
     public void FotografBaglantilariSonucu_JsonDizisiOlarakYazilir()
     {
         var yanit = Result<List<ProjeFotografBaglantisiDto>>.Success(
-                [new ProjeFotografBaglantisiDto { Id = 3, Adres = "https://foto.ornek.com/pa727", Aciklama = "Paketleme" }])
+                [new ProjeFotografBaglantisiDto { Id = 3, Tur = 2, Adres = "https://foto.ornek.com/pa727", Aciklama = "Paketleme" }])
             .ToActionResult();
 
         var ok = Assert.IsType<OkObjectResult>(yanit);
-        Assert.Equal("""[{"id":3,"adres":"https://foto.ornek.com/pa727","aciklama":"Paketleme"}]""",
+        Assert.Equal("""[{"id":3,"tur":2,"adres":"https://foto.ornek.com/pa727","aciklama":"Paketleme"}]""",
             JsonSerializer.Serialize(ok.Value, JsonSerializerOptions.Web));
     }
 }

@@ -49,6 +49,14 @@ public sealed class FinansPostgresTests
             var panel = await finans.Panel.PanelAsync(new(2026, 9, 15), new(2026, 9, 30), Ct);
             var euro = Assert.Single(panel.Tutarlar, x => x.ParaBirimi == "EUR");
             Assert.Equal(10000m, euro.Gelir); Assert.Equal(2500m, euro.Gider); Assert.Equal(7500m, euro.TahminiKar);
+            // Finansal durum raporu aynı dönemde Kontrol Paneliyle aynı tutarları verir (ay ortası başlangıç, avans hariç).
+            var durum = await finans.Raporlar.OnizlemeAsync("finansal-durum",
+                new(Baslangic: new(2026, 9, 15), Bitis: new(2026, 9, 30), ParaBirimi: "EUR"), new FinansRaporSecenekleri(), Ct);
+            var eurSutunu = durum.Sutunlar.ToList().IndexOf("EUR");
+            string Kalem(string ad) => durum.Satirlar.Single(x => x[0] == ad)[eurSutunu];
+            Assert.Equal(("10.000,00", "2.500,00", "1.000,00", "7.500,00"), (Kalem("Faturalanan net gelir"),
+                Kalem("Net gider (avans hariç)"), Kalem("Avans (bilgi; maliyete dahil değil)"), Kalem("Tahmini kâr (iş net − gider)")));
+            Assert.Equal(["Özet", "Gelir kırılımı", "Gider kırılımı", "Aylık trend", "Proje bazlı"], durum.Tablolar);
             var listed = await finans.Panel.GenelAramaAsync(new() { PageSize = 1 }, Ct);
             Assert.Equal(10000, Assert.Single(listed.Toplamlar).NetTutar);
             Assert.Equal(10000, Assert.Single((await finans.SiparisFatura.SiparislerAsync(new() { PageSize = 1 }, Ct)).Toplamlar).NetTutar);
@@ -247,15 +255,10 @@ public sealed class FinansPostgresTests
                 SandikCinsi: AmbalajSandikCinsi.AhsapKapali)], Ct);
             var ahsap = await db.Set<FinansIsKaydi>().SingleAsync(x => x.KaynakKayitId == "ahsap-1");
             var ahsapHata = await Assert.ThrowsAsync<IsKuraliException>(() => finans.IsKaydi.HacimGirAsync(ahsap.Id, new(0m, 0.5m, "Kontra kapak"), Ct));
-            Assert.Contains("kontrplak veya katlanır", ahsapHata.Message);
+            Assert.Contains("yalnız kontrplak", ahsapHata.Message);
         });
     }
 
-    /// <summary>
-    /// Malzemeli tarife: kontrplak ve katlanır sandıkta (boyutsuz) ahşap m³ ahşap, kontra m³ kontra tarifesiyle fiyatlanır.
-    /// Ahşap tarifesi sonradan tanımlanınca fiyatsız kalan ahşap tarafı tamamlanır; ahşap kapalı sandık ahşap tarifesini
-    /// tek tarife olarak kullanır; m³ ile kısmi PO işin netinden m³ oranıyla pay alır ve kalan m³ kalan neti kapatır.
-    /// </summary>
     /// <summary>
     /// Yalnız ahşap malzemeli tarife tanımlıysa kontrplak sandığın kontra tarafı malzemesiz genel m³ tarifesiyle fiyatlanır;
     /// adetle fiyatlanan genel tarife (sırası önde olsa da) kontra m³'ü fiyatlamak için kullanılmaz.
@@ -285,8 +288,14 @@ public sealed class FinansPostgresTests
         });
     }
 
+    /// <summary>
+    /// Malzemeli tarife: kontrplak sandıkta ahşap m³ ahşap, kontra m³ kontra tarifesiyle fiyatlanır. Ahşap tarifesi
+    /// sonradan tanımlanınca fiyatsız kalan ahşap tarafı tamamlanır; ahşap kapalı sandık ahşap tarifesini tek tarife
+    /// olarak kullanır; m³ ile kısmi PO işin netinden m³ oranıyla pay alır ve kalan m³ kalan neti kapatır. Katlanır
+    /// sandık bu hesaba girmez (<see cref="KatlanirSandik_TarifeVeM3Hesaplanmaz_ElleFiyatPoVeFaturadaAynenKullanilir"/>).
+    /// </summary>
     [PostgresRaporFact, Trait("Category", "Postgres")]
-    public async Task MalzemeliTarife_AhsapVeKontraM3KendiTarifesiyle_KatlanirBoyutsuz_KismiPoOranli()
+    public async Task MalzemeliTarife_AhsapVeKontraM3KendiTarifesiyle_KismiPoOranli()
     {
         await InDatabase(async options =>
         {
@@ -298,7 +307,6 @@ public sealed class FinansPostgresTests
                     SandikTipi: tipi, SandikCinsi: cinsi, UretimM3Hesaplanabilir: birimM3 > 0);
             await finans.UretimAktarim.UretimKayitlariniAktarAsync([
                 Sandik("kontra-m", "Kontrplak Sandık", AmbalajSandikCinsi.Kontrplak, 0m),
-                Sandik("katlanir-m", "Katlanır Sandık", AmbalajSandikCinsi.Katlanir, 0m),
                 Sandik("ahsap-m", "Ahşap Kapalı", AmbalajSandikCinsi.AhsapKapali, 1.5m)], Ct);
             var kayitlar = await db.Set<FinansIsKaydi>().AsNoTracking().ToDictionaryAsync(x => x.KaynakKayitId!, x => x.Id);
             db.ChangeTracker.Clear();
@@ -308,7 +316,6 @@ public sealed class FinansPostgresTests
                 300m, "EUR", 20, baslangic), Ct);
             db.ChangeTracker.Clear();
             await finans.IsKaydi.HacimGirAsync(kayitlar["kontra-m"], new(1.2m, 0.8m), Ct);
-            await finans.IsKaydi.HacimGirAsync(kayitlar["katlanir-m"], new(0.5m, 1m), Ct);
             db.ChangeTracker.Clear();
             var ahsapsiz = (await finans.IsKaydi.IsKaydiGetirAsync(kayitlar["kontra-m"], Ct))!;
             Assert.Equal((300m, 0m, 240m), (ahsapsiz.BirimFiyat, ahsapsiz.AhsapBirimFiyat, ahsapsiz.NetTutar));
@@ -318,23 +325,130 @@ public sealed class FinansPostgresTests
                 150m, "EUR", 20, baslangic), Ct);
             db.ChangeTracker.Clear();
             var kontra = (await finans.IsKaydi.IsKaydiGetirAsync(kayitlar["kontra-m"], Ct))!;
-            var katlanir = (await finans.IsKaydi.IsKaydiGetirAsync(kayitlar["katlanir-m"], Ct))!;
             var ahsap = (await finans.IsKaydi.IsKaydiGetirAsync(kayitlar["ahsap-m"], Ct))!;
             Assert.Equal((300m, 150m, 0.8m * 300m + 1.2m * 150m), (kontra.BirimFiyat, kontra.AhsapBirimFiyat, kontra.NetTutar));
-            Assert.Equal((300m, 150m, 375m), (katlanir.BirimFiyat, katlanir.AhsapBirimFiyat, katlanir.NetTutar));
             Assert.Equal((150m, (decimal?)null, 225m), (ahsap.BirimFiyat, ahsap.AhsapBirimFiyat, ahsap.NetTutar));
 
             // SQL tutar ifadesi (panel/iş takibi) domain kuralıyla aynı neti verir.
             var sqlNetler = await db.Set<FinansIsKaydi>().AsNoTracking().Select(FinansSorgulari.IsNetIfadesi).ToListAsync();
-            Assert.Equal(420m + 375m + 225m, sqlNetler.Sum());
+            Assert.Equal(420m + 225m, sqlNetler.Sum());
 
             db.ChangeTracker.Clear();
-            await finans.SiparisFatura.SiparisOlusturAsync(new("PO-MALZ-1", Date, "QA", [new(katlanir.Id, 0, 0.75m)], "EUR"), Ct);
+            await finans.SiparisFatura.SiparisOlusturAsync(new("PO-MALZ-1", Date, "QA", [new(kontra.Id, 0, 0.5m)], "EUR"), Ct);
             db.ChangeTracker.Clear();
-            Assert.Equal(187.5m, (await finans.IsKaydi.IsKaydiGetirAsync(katlanir.Id, Ct))!.SiparisNetTutar);
-            await finans.SiparisFatura.SiparisOlusturAsync(new("PO-MALZ-2", Date, "QA", [new(katlanir.Id, 0, 0.75m)], "EUR"), Ct);
+            Assert.Equal(105m, (await finans.IsKaydi.IsKaydiGetirAsync(kontra.Id, Ct))!.SiparisNetTutar);
+            await finans.SiparisFatura.SiparisOlusturAsync(new("PO-MALZ-2", Date, "QA", [new(kontra.Id, 0, 1.5m)], "EUR"), Ct);
             db.ChangeTracker.Clear();
-            Assert.Equal(375m, (await finans.IsKaydi.IsKaydiGetirAsync(katlanir.Id, Ct))!.SiparisNetTutar);
+            Assert.Equal(420m, (await finans.IsKaydi.IsKaydiGetirAsync(kontra.Id, Ct))!.SiparisNetTutar);
+        });
+    }
+
+    /// <summary>
+    /// Katlanır sandık (2026-10-26): tarife, m³ veya hacimden fiyat hesaplanmaz. Aktarımda (katlanıra özel eski eşleşme
+    /// ve genel m³/adet tarifeleri olsa da) fiyatsız gelir ve PO açılamaz; hacim ve m³ yöntemi reddedilir. Elle girilen
+    /// adet × birim fiyat (gerekçesiz) işin bedeli olur, m³ tutulmaz, PO/fatura bu tutarla açılır ve SQL tutarı aynıdır.
+    /// Tarifeyle fiyatlanmış eski katlanır kaydın fiyatı yeniden fiyatlamada korunur; diğer işlerde gerekçe zorunlu kalır.
+    /// </summary>
+    [PostgresRaporFact, Trait("Category", "Postgres")]
+    public async Task KatlanirSandik_TarifeVeM3Hesaplanmaz_ElleFiyatPoVeFaturadaAynenKullanilir()
+    {
+        await InDatabase(async options =>
+        {
+            await using var db = new AppDbContext(options); var finans = Finans(db);
+            await PoOnayiniKapatAsync(db);
+            var baslangic = new DateTime(2026, 1, 1);
+            FinansUrunEslesmesiModel Eslesme(FinansSandikMalzemesi? malzeme) => new(null, FinansIsTuru.AnaAmbalaj, null, null, null, malzeme);
+            var adetUrun = await finans.Urun.UrunOlusturAsync(new("ADET", "Adet kasa", FinansFiyatlandirmaBirimi.Adet, true, 0, [Eslesme(null)], 999m, "EUR", 20, baslangic), Ct);
+            await finans.Urun.UrunOlusturAsync(new("KONTRA", "Kontra m³", FinansFiyatlandirmaBirimi.Metrekup, true, 1,
+                [Eslesme(FinansSandikMalzemesi.Kontra)], 300m, "EUR", 20, baslangic), Ct);
+            // Doğrulayıcıdan önce tanımlanmış eski katlanır eşleşmesi: en özgül olsa da artık kullanılmaz.
+            db.Add(new FinansUrunEslesmesi { FinansUrunId = adetUrun.Id, IsTuru = FinansIsTuru.AnaAmbalaj, SandikTipi = FinansKatlanirKurali.SandikTipiAdi, Aktif = true });
+            await db.SaveChangesAsync();
+            db.ChangeTracker.Clear();
+            FinansUretimAktarimModel Sandik(string id, string tipi, AmbalajSandikCinsi cinsi) =>
+                new("AMBALAJURETIM", id, true, null, "QA", "Sentetik", FinansIsTuru.AnaAmbalaj, tipi, 3, 0m, Date, Date,
+                    SandikTipi: tipi, SandikCinsi: cinsi, UretimM3Hesaplanabilir: false);
+            await finans.UretimAktarim.UretimKayitlariniAktarAsync([
+                Sandik("katlanir-1", "Katlanır Sandık", AmbalajSandikCinsi.Katlanir),
+                Sandik("katlanir-eski", "Katlanır Sandık", AmbalajSandikCinsi.Katlanir),
+                Sandik("kontra-1", "Kontrplak Sandık", AmbalajSandikCinsi.Kontrplak)], Ct);
+            var kayitlar = await db.Set<FinansIsKaydi>().AsNoTracking().ToDictionaryAsync(x => x.KaynakKayitId!, x => x.Id);
+            db.ChangeTracker.Clear();
+
+            var fiyatsiz = (await finans.IsKaydi.IsKaydiGetirAsync(kayitlar["katlanir-1"], Ct))!;
+            Assert.Equal((true, FinansSandikMalzemesi.Bilinmiyor, (int?)null, FinansFiyatlandirmaBirimi.Adet, 0m, 0m, 0m),
+                (fiyatsiz.ElleFiyatlanir, fiyatsiz.SandikMalzemesi, fiyatsiz.FinansUrunId, fiyatsiz.FiyatlandirmaBirimi, fiyatsiz.BirimFiyat, fiyatsiz.NetTutar, fiyatsiz.ToplamM3));
+            var kontraKaydi = (await finans.IsKaydi.IsKaydiGetirAsync(kayitlar["kontra-1"], Ct))!;
+            Assert.Equal((false, FinansFiyatlandirmaBirimi.Metrekup, 300m), (kontraKaydi.ElleFiyatlanir, kontraKaydi.FiyatlandirmaBirimi, kontraKaydi.BirimFiyat));
+
+            // Aktarımdan sonra tanımlanan tarife (geriye dönük doldurma) fiyatsız katlanır işi fiyatlamaz.
+            await finans.Urun.UrunOlusturAsync(new("GENEL", "Genel m³", FinansFiyatlandirmaBirimi.Metrekup, true, 2, [Eslesme(null)], 280m, "EUR", 20, baslangic), Ct);
+            db.ChangeTracker.Clear();
+            var doldurmaSonrasi = (await finans.IsKaydi.IsKaydiGetirAsync(kayitlar["katlanir-1"], Ct))!;
+            Assert.Equal(((int?)null, 0m, 0m), (doldurmaSonrasi.FinansUrunId, doldurmaSonrasi.BirimFiyat, doldurmaSonrasi.NetTutar));
+
+            // Fiyat girilmeden PO açılamaz; hacim, m³ yöntemi ve m³ bileşeni reddedilir, kayıt değişmez.
+            db.ChangeTracker.Clear();
+            await Assert.ThrowsAsync<IsKuraliException>(() => finans.SiparisFatura.SiparisOlusturAsync(Po("PO-FIYATSIZ", fiyatsiz.Id, 100m), Ct));
+            db.ChangeTracker.Clear();
+            var hacimHata = await Assert.ThrowsAsync<IsKuraliException>(() => finans.IsKaydi.HacimGirAsync(fiyatsiz.Id, new(0.5m, 1m), Ct));
+            Assert.Equal((409, FinansKatlanirKurali.HacimMesaji), (hacimHata.StatusCode, hacimHata.Message));
+            db.ChangeTracker.Clear();
+            var m3Hata = await Assert.ThrowsAsync<IsKuraliException>(() => finans.IsKaydi.FiyatlandirAsync(fiyatsiz.Id,
+                new(FinansFiyatlandirmaBirimi.Metrekup, 3, 0.4m, 450m, "EUR", 20, ""), Ct));
+            Assert.Equal(FinansKatlanirKurali.YontemMesaji, m3Hata.Message);
+            db.ChangeTracker.Clear();
+            await Assert.ThrowsAsync<IsKuraliException>(() => finans.IsKaydi.FiyatlandirAsync(fiyatsiz.Id,
+                new(FinansFiyatlandirmaBirimi.ManuelToplam, 3, 0, 0, "EUR", 20, "", Bilesenler: [new("Kontra", FinansFiyatlandirmaBirimi.Metrekup, 2m, 300m)]), Ct));
+            db.ChangeTracker.Clear();
+            var reddedilen = (await finans.IsKaydi.IsKaydiGetirAsync(fiyatsiz.Id, Ct))!;
+            Assert.Equal((0m, 0m, 0m), (reddedilen.BirimFiyat, reddedilen.NetTutar, reddedilen.ToplamM3));
+
+            // Elle fiyat (gerekçesiz): girilen adet × birim fiyat bedel olur; gönderilen birim m³ yok sayılır.
+            db.ChangeTracker.Clear();
+            var fiyatli = (await finans.IsKaydi.FiyatlandirAsync(fiyatsiz.Id, new(FinansFiyatlandirmaBirimi.Adet, 3, 0.4m, 450m, "EUR", 20, ""), Ct))!;
+            Assert.Equal((1350m, 270m, 0m, 0m, 0m, 0m, (int?)null),
+                (fiyatli.NetTutar, fiyatli.KdvTutari, fiyatli.ToplamM3, fiyatli.BirimM3, fiyatli.AhsapM3, fiyatli.KontraM3, fiyatli.FinansUrunId));
+            var gecmis = await db.Set<FinansDegisiklikGecmisi>().AsNoTracking()
+                .Where(x => x.VarlikTuru == nameof(FinansIsKaydi) && x.VarlikId == fiyatsiz.Id).ToListAsync();
+            Assert.Contains(gecmis, x => x.AlanAdi == nameof(FinansIsKaydi.BirimFiyatSnapshot));
+            Assert.DoesNotContain(gecmis, x => x.AlanAdi == "Gerekçe");
+
+            // Net toplamla da fiyatlanabilir (PO'dan önce düzeltme); yazılan gerekçe geçmişe eklenir.
+            db.ChangeTracker.Clear();
+            fiyatli = (await finans.IsKaydi.FiyatlandirAsync(fiyatsiz.Id,
+                new(FinansFiyatlandirmaBirimi.ManuelToplam, 3, 0, 0, "EUR", 20, "Toplam fiyat anlaşıldı", ManuelNetTutar: 1500m), Ct))!;
+            Assert.Equal((1500m, (decimal?)1500m), (fiyatli.NetTutar, fiyatli.ManuelNetTutar));
+            Assert.Contains(await db.Set<FinansDegisiklikGecmisi>().AsNoTracking().Where(x => x.VarlikId == fiyatsiz.Id).ToListAsync(),
+                x => x.AlanAdi == "Gerekçe" && x.Aciklama == "Toplam fiyat anlaşıldı");
+
+            // Tarifeyle fiyatlanmış eski katlanır kayıt: yeniden fiyatlama fiyatını değiştirmez.
+            db.ChangeTracker.Clear();
+            var eski = await db.Set<FinansIsKaydi>().SingleAsync(x => x.Id == kayitlar["katlanir-eski"]);
+            var adetTarife = await db.Set<FinansFiyatTarifesi>().AsNoTracking().SingleAsync(x => x.FinansUrunId == adetUrun.Id);
+            eski.FinansUrunId = adetUrun.Id; eski.TarifeIdSnapshot = adetTarife.Id; eski.TarifeYiliSnapshot = adetTarife.Yil;
+            eski.FiyatlandirmaBirimiSnapshot = FinansFiyatlandirmaBirimi.Adet; eski.BirimFiyatSnapshot = 500m; eski.KdvOraniSnapshot = 20;
+            await db.SaveChangesAsync();
+            db.ChangeTracker.Clear();
+            var yeniden = (await finans.Urun.YenidenFiyatlaAsync(adetUrun.Id, "Tarife güncellemesi uygulandı", Ct))!;
+            Assert.Equal((0, 0), (yeniden.IncelenenKalem, yeniden.FiyatlananKalem));
+            db.ChangeTracker.Clear();
+            Assert.Equal(1500m, (await finans.IsKaydi.IsKaydiGetirAsync(kayitlar["katlanir-eski"], Ct))!.NetTutar);
+
+            // PO ve fatura girilen tutarla açılır; SQL tutar ifadesi aynı bedeli verir.
+            db.ChangeTracker.Clear();
+            var po = await finans.SiparisFatura.SiparisOlusturAsync(Po("PO-KAT", fiyatsiz.Id, 1500m), Ct);
+            await finans.SiparisFatura.FaturaOlusturAsync(Invoice("INV-KAT", po.Id, po.Kalemler[0].Id, 1500m), Ct);
+            db.ChangeTracker.Clear();
+            Assert.Equal(FinansIsDurumu.Faturalandi, (await finans.IsKaydi.IsKaydiGetirAsync(fiyatsiz.Id, Ct))!.Durum);
+            Assert.Equal(1500m, await db.Set<FinansIsKaydi>().AsNoTracking().Where(x => x.Id == fiyatsiz.Id)
+                .Select(FinansSorgulari.IsNetIfadesi).SingleAsync());
+
+            // Diğer işlerde fiyatlandırma gerekçesi zorunlu kalır (400).
+            db.ChangeTracker.Clear();
+            var gerekceHata = await Assert.ThrowsAsync<IsKuraliException>(() => finans.IsKaydi.FiyatlandirAsync(kontraKaydi.Id,
+                new(FinansFiyatlandirmaBirimi.Adet, 3, 0, 100m, "EUR", 20, ""), Ct));
+            Assert.Equal((400, FinansGerekceKurali.Mesaj), (gerekceHata.StatusCode, gerekceHata.Message));
         });
     }
 
@@ -384,26 +498,32 @@ public sealed class FinansPostgresTests
             var b = Work("Montaj B", 2500); b.ProjeNo = "PA-2";
             db.AddRange(a, b); await db.SaveChangesAsync();
 
-            var tumu = await finans.Raporlar.OnizlemeAsync("is", new(), Ct);
-            Assert.Equal("Finans İşleri Raporu", tumu.Baslik);
-            Assert.Equal(25, tumu.Sutunlar.Count);
+            var tumu = await finans.Raporlar.OnizlemeAsync("is", new(), new FinansRaporSecenekleri(), Ct);
+            Assert.Equal("Finans İşleri Raporu — Siparişi açılan ve açılmayan işler", tumu.Baslik);
+            Assert.Equal(29, tumu.Sutunlar.Count);
             Assert.Contains("Ahşap m³", tumu.Sutunlar);
             Assert.Contains("Kontra m³", tumu.Sutunlar);
+            Assert.Contains("Sandık Cinsi", tumu.Sutunlar);
+            // ToplamSatir yalnız iş satırlarını sayar; bölüm ve toplam satırları türleriyle gelir, en sonda genel toplam.
             Assert.Equal(2, tumu.ToplamSatir);
             Assert.All(tumu.Satirlar, satir => Assert.Equal(tumu.Sutunlar.Count, satir.Count));
+            Assert.Equal(tumu.Satirlar.Count, tumu.SatirTurleri!.Count);
+            Assert.Equal(FinansRaporOnizlemeModel.SatirGenelToplam, tumu.SatirTurleri[^1]);
 
-            var filtreli = await finans.Raporlar.OnizlemeAsync("is", new() { ProjeNo = "PA-2" }, Ct);
-            var satir = Assert.Single(filtreli.Satirlar);
+            var filtreli = await finans.Raporlar.OnizlemeAsync("is", new() { ProjeNo = "PA-2" }, new FinansRaporSecenekleri(), Ct);
+            var veriSatirlari = filtreli.Satirlar.Where((_, i) => filtreli.SatirTurleri![i] == FinansRaporOnizlemeModel.SatirVeri).ToList();
+            var satir = Assert.Single(veriSatirlari);
+            var sutunlar = tumu.Sutunlar.ToList();
             Assert.Equal("PA-2", satir[1]);
-            Assert.Equal("2.500,00", satir[tumu.Sutunlar.ToList().IndexOf("Net")]);
+            Assert.Equal("2.500,00", satir[sutunlar.IndexOf("Net")]);
             // Enum değerleri raporda Türkçe adlarıyla yazılır ("OzelIs" değil "Özel İş").
-            Assert.Equal(("Özel İş", "Sipariş Bekliyor", "Sabit Tutar"), (satir[tumu.Sutunlar.ToList().IndexOf("İş Türü")],
-                satir[tumu.Sutunlar.ToList().IndexOf("Durum")], satir[tumu.Sutunlar.ToList().IndexOf("Fiyatlandırma")]));
+            Assert.Equal(("Özel İş", "Sipariş Bekliyor", "Açılmadı"), (satir[sutunlar.IndexOf("İş Türü")],
+                satir[sutunlar.IndexOf("Durum")], satir[sutunlar.IndexOf("Sipariş Durumu")]));
 
-            var genel = await finans.Raporlar.OnizlemeAsync("genel", new(), Ct);
+            var genel = await finans.Raporlar.OnizlemeAsync("genel", new(), new FinansRaporSecenekleri(), Ct);
             Assert.Equal("Genel Finans Özeti", genel.Baslik);
             Assert.Equal("EUR", Assert.Single(genel.Satirlar)[0]);
-            await Assert.ThrowsAsync<IsKuraliException>(() => finans.Raporlar.OnizlemeAsync("yok", new(), Ct));
+            await Assert.ThrowsAsync<IsKuraliException>(() => finans.Raporlar.OnizlemeAsync("yok", new(), new FinansRaporSecenekleri(), Ct));
         });
     }
 

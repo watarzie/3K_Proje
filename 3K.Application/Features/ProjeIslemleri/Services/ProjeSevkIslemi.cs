@@ -125,7 +125,8 @@ internal sealed class ProjeSevkIslemi(
 
     /// <summary>
     /// Sandıkları sevk eder, yeni sevk edilen sandıklar için proje sevkiyatı yazar ve proje durumunu günceller.
-    /// <paramref name="sefer"/> verilmezse (tekil sevk) yeni sevkiyat tek projelik bir sefere bağlanır.
+    /// <paramref name="sefer"/> verilmezse (tekil sevk) yeni sevkiyat tek projelik bir sefere bağlanır; sefer başlığı
+    /// tarih, plaka, şoför, dorse ve açıklamadan kurulur (toplu sevkteki alanların aynısı).
     /// <paramref name="hareketEki"/> hareket açıklamasının sonuna eklenir (toplu sevkte sefer no ve plaka).
     /// </summary>
     public async Task<ProjeSevkSonucu> UygulaAsync(
@@ -133,6 +134,8 @@ internal sealed class ProjeSevkIslemi(
         DateTime sevkTarihi,
         string? aciklama,
         string? aracPlaka,
+        string? sofor,
+        string? dorsePlaka,
         SevkSeferi? sefer,
         int kullaniciId,
         string? hareketEki,
@@ -167,7 +170,7 @@ internal sealed class ProjeSevkIslemi(
         {
             if (sefer is null)
             {
-                yeniTekilSefer = YeniSefer(await SeferNoUretAsync(cancellationToken), sevkTarihi, aracPlaka, null, null,
+                yeniTekilSefer = YeniSefer(await SeferNoUretAsync(cancellationToken), sevkTarihi, aracPlaka, sofor, dorsePlaka,
                     aciklama, kullaniciId, null, null);
                 await unitOfWork.GetRepository<SevkSeferi>().AddAsync(yeniTekilSefer);
             }

@@ -77,7 +77,7 @@ public sealed class TopluSevkEtCommandHandler(
                 {
                     ct.ThrowIfCancellationRequested();
                     var sonuc = await islem.UygulaAsync(hazirlik, request.SevkTarihi, request.Aciklama, request.AracPlaka,
-                        sefer, kullaniciId, hareketEki, ct);
+                        request.Sofor, request.DorsePlaka, sefer, kullaniciId, hareketEki, ct);
                     sandikSayisi += sonuc.SandikSayisi;
                 }
 

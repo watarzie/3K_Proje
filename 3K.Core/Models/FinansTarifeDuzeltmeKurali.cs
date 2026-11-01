@@ -17,6 +17,7 @@ public static class FinansTarifeDuzeltmeKurali
     public const string ManuelNet = "Net tutarı elle girilmiş.";
     public const string Bilesenli = "Bileşenli hesapla fiyatlanmış.";
     public const string ElleFiyat = "Birim fiyatı, KDV'si ya da para birimi elle değiştirilmiş.";
+    public const string Katlanir = "Katlanır sandık; fiyatı elle verilir, tarife düzeltmesi uygulanmaz.";
 
     /// <summary>
     /// Kalem düzeltilecekse null, korunacaksa nedenini döndürür. Karşılaştırma sürümün düzeltilmeden önceki
@@ -38,6 +39,7 @@ public static class FinansTarifeDuzeltmeKurali
         if (kalem.IptalEdildi || !kalem.KaynakAktif) return IptalVeyaPasif;
         if (kalem.SiparisKalemleri.Any(x => !x.FinansSiparis.IptalEdildi)) return PoyaBagli;
         if (kalem.ManuelNetTutar.HasValue) return ManuelNet;
+        if (FinansKatlanirKurali.Katlanir(kalem)) return Katlanir;
         if (kalem.HesaplamaYontemi == FinansHesaplamaYontemi.Bilesenli) return Bilesenli;
         var fiyat = ahsapTarafi ? kalem.AhsapBirimFiyatSnapshot!.Value : kalem.BirimFiyatSnapshot;
         if (fiyat != surum.BirimFiyat || (!ahsapTarafi && kalem.KdvOraniSnapshot != surum.KdvOrani) ||

@@ -148,17 +148,22 @@ public sealed class FinansPoFaturaKurallariTests
         Assert.Equal(200m, FinansTutarKurallari.IsNet(kayit));
     }
 
-    /// <summary>Elle hacim yalnız Ambalaj'ın m³ hesaplamadığı kontrplak/katlanır sandıkta; önceden elle girilmiş hacim düzeltilebilir.</summary>
+    /// <summary>
+    /// Elle hacim yalnız Ambalaj'ın m³ hesaplamadığı kontrplak sandıkta; önceden elle girilmiş hacim düzeltilebilir.
+    /// Katlanır sandık elle fiyatlanır, m³ tutmaz: eski kayıtta elle hacim girilmiş olsa da girilmez.
+    /// </summary>
     [Theory]
     [InlineData(AmbalajSandikCinsi.Kontrplak, null, false, true)]
-    [InlineData(AmbalajSandikCinsi.Katlanir, null, false, true)]
-    [InlineData(null, "Katlanır Sandık", false, true)]
+    [InlineData(AmbalajSandikCinsi.Katlanir, null, false, false)]
+    [InlineData(AmbalajSandikCinsi.Katlanir, null, true, false)]
+    [InlineData(null, "Katlanır Sandık", false, false)]
+    [InlineData(null, "Kontrplak Sandık", false, true)]
     [InlineData(AmbalajSandikCinsi.AhsapKapali, null, false, false)]
     [InlineData(AmbalajSandikCinsi.Kafes, null, false, false)]
     [InlineData(null, null, false, false)]
     [InlineData(null, null, true, true)]
     [InlineData(AmbalajSandikCinsi.AhsapKapali, null, true, true)]
-    public void Elle_hacim_yalniz_kontrplak_katlanir_sandikta_girilir(AmbalajSandikCinsi? cinsi, string? tipi, bool hacimManuel, bool beklenen) =>
+    public void Elle_hacim_yalniz_kontrplak_sandikta_girilir_katlanirda_girilmez(AmbalajSandikCinsi? cinsi, string? tipi, bool hacimManuel, bool beklenen) =>
         Assert.Equal(beklenen, FinansHacimKurallari.ElleGirilebilir(cinsi, tipi, hacimManuel));
 
     [Theory]
@@ -174,7 +179,7 @@ public sealed class FinansPoFaturaKurallariTests
     [Fact]
     public void Malzemeli_m3_satirlari_kendi_malzemesine_eklenir()
     {
-        var karma = FinansHacimKurallari.Hacim(AmbalajSandikCinsi.Katlanir, null, 0m,
+        var karma = FinansHacimKurallari.Hacim(AmbalajSandikCinsi.Kontrplak, null, 0m,
             [new("Kontra", FinansFiyatlandirmaBirimi.Metrekup, 10m, 300m, FinansSandikMalzemesi.Kontra),
              new("Ahşap kızak", FinansFiyatlandirmaBirimi.Metrekup, 2m, 200m, FinansSandikMalzemesi.Ahsap),
              new("Malzemesiz", FinansFiyatlandirmaBirimi.Metrekup, 5m, 250m)]);

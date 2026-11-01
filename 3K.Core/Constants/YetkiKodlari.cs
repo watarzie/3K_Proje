@@ -45,9 +45,34 @@ public static class YetkiKodlari
         public const string CekiVerisiSil = "ceki-verisi-sil";
         public const string UcKIsListesi = "3k-is-listesi";
         public const string GridIsListesi = "grid-is-listesi";
+        /// <summary>
+        /// Grid Sahası ekranı (salt görüntüleme, R): Grid'e gelmiş ürünler ve Grid personelinin mal kabul kayıtları,
+        /// proje tipinden bağımsız tek listede. Satırdan Grid ekranına geçiş tipin Grid modülü iznini ister.
+        /// </summary>
+        public const string GridSahaGorunumu = "grid-saha-gorunumu";
+        /// <summary>
+        /// Barkodla ürün arama ekranı (salt görüntüleme, R): bir barkodun Normal/Saha/Yedek bütün projelerdeki satırları,
+        /// eksik miktarıyla; PDF/Excel raporu dahil. Satırdan Grid ekranına geçiş tipin Grid modülü iznini ister.
+        /// </summary>
+        public const string BarkodUrunArama = "barkod-urun-arama";
         public const string CekiRevizyonYukle = "ceki-revizyon-yukle";
         public const string UcKSandikDurumRaporu = "3k-sandik-durum-raporu";
         public const string LokasyonAtama = "sandik-lokasyon-atama";
+        /// <summary>
+        /// Sevk sonrası düzeltme (W): sevkli sandığı sevkiyat kaydı korunarak düzeltmeye açma. Proje tipinin
+        /// sandık/proje izniyle birlikte istenir; düzeltmedeki işlemler mevcut izinlerle yapılır.
+        /// </summary>
+        public const string SevkSonrasiDuzeltme = "sevk-sonrasi-duzeltme";
+        /// <summary>
+        /// Sandık açılış/kapanış istatistiği ekranı (salt görüntüleme, R): sandık, proje, müşteri, kişi ve sebep
+        /// bazında kaç kez kapanıp geri açıldığı; Excel çıktısı dahil. Proje tipinden bağımsız tek izin.
+        /// </summary>
+        public const string SandikAcilisIstatistigi = "sandik-acilis-istatistigi";
+        /// <summary>
+        /// Barkod etiketi ekranı (R): seçilen sandıkların ve ürünlerin Grid etiketlerini PDF veya Godex EZPL olarak
+        /// üretir; veri değiştirmez. Proje tipinden bağımsız tek izin.
+        /// </summary>
+        public const string BarkodEtiket = "barkod-etiket";
     }
 
     public static class Stok

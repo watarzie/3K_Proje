@@ -23,6 +23,14 @@ namespace _3K_API.Controllers
         public async Task<IActionResult> SahaProjePdfIndir(int projeId, CancellationToken cancellationToken) =>
             (await _mediator.Send(new GetSahaProjePdfQuery { ProjeId = projeId }, cancellationToken)).ToFileResult();
 
+        /// <summary>
+        /// Saha/Yedek sevke hazır sandık raporu (yalnız kapalı ve ölçü/ağırlığı girilmiş sandıklar); format "pdf" veya
+        /// "excel". İzin mevcut Saha/Yedek sandık raporuyla aynıdır.
+        /// </summary>
+        [HttpGet("saha-proje/{projeId}/sevke-hazir/{format}")]
+        public async Task<IActionResult> SevkeHazirSandikRaporuIndir(int projeId, string format, CancellationToken cancellationToken) =>
+            (await _mediator.Send(new GetSevkeHazirSandikRaporuQuery { ProjeId = projeId, Format = format }, cancellationToken)).ToFileResult();
+
         [HttpGet("eksik-urunler/{projeId}")]
         public async Task<IActionResult> EksikUrunlerPdfIndir(int projeId, CancellationToken cancellationToken) =>
             (await _mediator.Send(new GetEksikUrunlerPdfQuery { ProjeId = projeId }, cancellationToken)).ToFileResult();
@@ -58,6 +66,14 @@ namespace _3K_API.Controllers
         [HttpGet("gerceklesen-ceki-listesi/{projeId}/excel")]
         public async Task<IActionResult> GerceklesenCekiListesiExcelIndir(int projeId, CancellationToken cancellationToken) =>
             (await _mediator.Send(new GetGerceklesenCekiListesiExcelQuery { ProjeId = projeId }, cancellationToken)).ToFileResult();
+
+        /// <summary>
+        /// Müşteri gerçekleşen çeki listesi (TR/EN, yalnız sevk edilen sandık ve ürünler); format "pdf" veya "excel".
+        /// İzin projenin gerçek tipinin gerçekleşen çeki raporu okumasıdır.
+        /// </summary>
+        [HttpGet("gerceklesen-ceki-listesi/{projeId}/musteri/{format}")]
+        public async Task<IActionResult> MusteriCekiListesiIndir(int projeId, string format, CancellationToken cancellationToken) =>
+            (await _mediator.Send(new GetMusteriCekiListesiQuery { ProjeId = projeId, Format = format }, cancellationToken)).ToFileResult();
 
         [HttpGet("saha-gerceklesen-ceki-listesi/{projeId}")]
         public async Task<IActionResult> SahaGerceklesenCekiListesiPdfIndir(int projeId, CancellationToken cancellationToken) =>

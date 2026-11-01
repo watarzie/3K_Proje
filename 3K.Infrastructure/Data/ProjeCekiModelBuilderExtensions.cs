@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using _3K.Core.Entities;
+using _3K.Core.Enums;
 using _3K.Core.Models;
 
 namespace _3K.Infrastructure.Data;
@@ -35,6 +36,7 @@ internal static class ProjeCekiModelBuilderExtensions
             entity.ToTable("ProjeFotografBaglantilari");
             entity.Property(x => x.Adres).HasMaxLength(ProjeFotografBaglantisiKurali.EnFazlaUzunluk).IsRequired();
             entity.Property(x => x.Aciklama).HasMaxLength(ProjeFotografBaglantisiKurali.AciklamaEnFazlaUzunluk);
+            entity.Property(x => x.Tur).HasConversion<short>().HasDefaultValue(ProjeBaglantiTuru.Fotograf);
             entity.HasOne(x => x.Proje)
                 .WithMany(p => p.FotografBaglantilari)
                 .HasForeignKey(x => x.ProjeId)

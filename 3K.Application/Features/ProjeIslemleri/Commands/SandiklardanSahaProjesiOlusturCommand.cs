@@ -5,12 +5,13 @@ using _3K.Core.Constants;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.ProjeIslemleri.Commands
 {
     public class SandiklardanSahaProjesiOlusturCommand : IRequest<Result<ProjeDto>>, ISecuredRequest, IRequiresMenuPermission
     {
-        public string RequiredMenuKod => "sahaya-aktar";
+        public string RequiredMenuKod => YetkiKodlari.Saha.SahayaAktar;
         public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
 
         public int KaynakProjeId { get; set; }
@@ -79,6 +80,10 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
 
             if (sandiklar.Any(s => s.DurumId == (int)SandikDurum.Sevkedildi))
                 return Result<ProjeDto>.Failure("Sevk edilmiş sandıklar sahaya aktarılamaz.");
+
+            // Ana projenin 1 numaralı sandığı (transformatör) ana projede kalır; motor da aynı kuralı ayrıca denetler.
+            if (sandiklar.Any(s => SahaAktarimSandikKurali.BirNumaraliSandikMi(s.SandikNo)))
+                return Result<ProjeDto>.Failure("Ana projenin 1 numaralı sandığı sahaya aktarılamaz.", 409);
 
             var etkinIcerikMap = await _sandikService.GetEtkinSandikIcerikleriAsync(
                 sandikIds,
@@ -182,6 +187,8 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             if (sandikTaslaklari.Count == 0)
                 return Result<ProjeDto>.Failure("Seçilen sandıklarda sahaya aktarılabilecek kalan ürün bulunamadı.");
 
+            await HedefSandiklariniCozAsync(request.HedefSahaProjeId, sandikTaslaklari);
+
             var sandikNolari = sandikTaslaklari.Select(s => s.SandikNo).ToList();
             var aciklama = string.IsNullOrWhiteSpace(request.Aciklama)
                 ? $"Kaynak proje {kaynakProje.ProjeNo} sandıkları sahaya aktarıldı: {string.Join(", ", sandikNolari)}"
@@ -195,6 +202,51 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
                 Aciklama = aciklama,
                 Sandiklar = sandikTaslaklari
             }, cancellationToken);
+        }
+
+        /// <summary>
+        /// Taslakların hedef sandığını çözer (otomatik aktarımla aynı kural): hedef sahada aynı numaralı, sevk edilmemiş ve
+        /// içi boş sandık varsa (geri alınmış aktarımın bıraktığı) taslak ona bağlanır; yoksa yeni sandık kaynak sandığın
+        /// numarasıyla açılır, bu numara hedefte (ya da aynı aktarımda) doluysa sıradaki numarayla (en büyük + 1; 28.10.2026,
+        /// eskiden "-2" eki). Numara motora çözülmüş gider; motor dolu numarayı reddeder.
+        /// </summary>
+        private async Task HedefSandiklariniCozAsync(int? hedefSahaProjeId, List<EksikSahaSandikDto> taslaklar)
+        {
+            var hedefSandiklar = hedefSahaProjeId.HasValue
+                ? (await _unitOfWork.GetRepository<Sandik>().FindAsync(s => s.ProjeId == hedefSahaProjeId.Value))
+                    .OrderBy(s => s.Id)
+                    .ToList()
+                : [];
+            var eklenebilir = hedefSandiklar
+                .Where(s => s.DurumId != (int)SandikDurum.Sevkedildi && !s.SevkiyatDuzeltmeAcikMi)
+                .ToList();
+            var eklenebilirIds = eklenebilir.Select(s => s.Id).ToList();
+            var doluSandikIds = eklenebilirIds.Count == 0
+                ? new HashSet<int>()
+                : (await _unitOfWork.GetRepository<SandikIcerik>().FindAsync(i => eklenebilirIds.Contains(i.SandikId)))
+                    .Select(i => i.SandikId)
+                    .ToHashSet();
+            // Sevk edilmiş sandıklar da numarayı tutar: yeni sandık onların numarasını almaz.
+            var kullanilanNolar = hedefSandiklar
+                .Select(s => KoliNoKurali.Normalize(s.SandikNo))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var kullanilan = new HashSet<int>();
+            foreach (var taslak in taslaklar)
+            {
+                var bos = eklenebilir.FirstOrDefault(s =>
+                    !doluSandikIds.Contains(s.Id) &&
+                    !kullanilan.Contains(s.Id) &&
+                    KoliNoKurali.Normalize(s.SandikNo) == KoliNoKurali.Normalize(taslak.SandikNo));
+                if (bos != null)
+                {
+                    kullanilan.Add(bos.Id);
+                    taslak.HedefSandikId = bos.Id;
+                    taslak.SandikNo = bos.SandikNo;
+                    continue;
+                }
+
+                taslak.SandikNo = KoliNoKurali.BosNumaraYaDaSiradaki(taslak.SandikNo, kullanilanNolar);
+            }
         }
 
         private static int ExtractNumber(string value)

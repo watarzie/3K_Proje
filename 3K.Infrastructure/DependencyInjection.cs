@@ -7,6 +7,7 @@ using _3K.Infrastructure.Data.Interceptors;
 using _3K.Infrastructure.Repositories;
 using _3K.Infrastructure.Services;
 using _3K.Infrastructure.Services.Cekiler;
+using _3K.Infrastructure.Services.Etiketler;
 using _3K.Infrastructure.Services.Finans;
 using _3K.Infrastructure.Services.Raporlar;
 
@@ -37,12 +38,15 @@ public static class DependencyInjection
 
     private static void AddPersistence(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddScoped<SandikDurumOlayInterceptor>();
         services.AddScoped<AuditInterceptor>();
         services.AddScoped<ProjectLockInterceptor>();
         services.AddDbContext<AppDbContext>((sp, options) =>
             // Şema EF migration ile değil, scripts/database altındaki PostgreSQL betikleriyle yönetilir.
             options.UseNpgsql(configuration.GetConnectionString("DefaultConnection"))
                    .AddInterceptors(
+                       // Olay interceptor'ı önce çalışır: eklediği olay kaydı denetim alanlarını da alır.
+                       sp.GetRequiredService<SandikDurumOlayInterceptor>(),
                        sp.GetRequiredService<AuditInterceptor>(),
                        sp.GetRequiredService<ProjectLockInterceptor>()));
 
@@ -65,6 +69,7 @@ public static class DependencyInjection
         services.AddScoped<IUrunService, UrunService>();
         services.AddScoped<IStokService, StokService>();
         services.AddScoped<IHareketService, HareketService>();
+        services.AddScoped<IGridHareketOkuyucu, GridHareketOkuyucu>();
         services.AddScoped<IArsivService, ArsivService>();
         services.AddScoped<IMailService, MailService>();
         services.AddScoped<IAuthService, AuthService>();
@@ -131,6 +136,9 @@ public static class DependencyInjection
     /// <summary>Operasyon raporları; her rapor ailesi kendi arayüzünün arkasındadır.</summary>
     private static void AddRaporServices(this IServiceCollection services)
     {
+        services.AddScoped<IBarkodUrunAramaService, BarkodUrunAramaService>();
+        services.AddScoped<IBarkodEtiketService, BarkodEtiketService>();
+        services.AddScoped<ISandikDurumIstatistikService, SandikDurumIstatistikService>();
         services.AddScoped<IDepoSandikRaporService, DepoSandikRaporService>();
         services.AddScoped<IEksikUrunlerRaporService, EksikUrunlerRaporService>();
         services.AddScoped<IGerceklesenCekiListesiRaporService, GerceklesenCekiListesiRaporService>();

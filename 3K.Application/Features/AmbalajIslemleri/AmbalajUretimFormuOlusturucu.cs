@@ -164,7 +164,7 @@ internal static class AmbalajUretimFormuOlusturucu
             icOlculer.En,
             icOlculer.Yukseklik,
             ayakProfili,
-            AmbalajUretimYardimcilari.KaynakSandikOlculeriMi(kayit) ? kayit.Boy : null);
+            AmbalajUretimPolitikasi.DisOlcuKullanirMi(kayit) ? kayit.Boy : null);
         return new AmbalajUretimFormuKalemiModel
         {
             Tur = kayit.Tur, BagimsizKayitMi = kayit.BagimsizKayitMi,

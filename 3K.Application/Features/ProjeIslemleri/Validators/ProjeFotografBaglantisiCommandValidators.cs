@@ -10,6 +10,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Validators
         {
             RuleFor(x => x.ProjeId).GreaterThan(0).WithMessage("Proje seçilmelidir.");
             RuleFor(x => x.BaglantiId).GreaterThan(0).When(x => x.BaglantiId.HasValue).WithMessage("Fotoğraf bağlantısı seçilmelidir.");
+            RuleFor(x => x.Tur).IsInEnum().When(x => x.Tur.HasValue).WithMessage("Bağlantı türü geçersiz.");
             RuleFor(x => x.Adres)
                 .Must(ProjeFotografBaglantisiKurali.Gecerli)
                 .WithMessage($"Geçerli bir web adresi girin (ör. https://ornek.com/proje); en fazla {ProjeFotografBaglantisiKurali.EnFazlaUzunluk} karakter.");

@@ -1,13 +1,14 @@
 using MediatR;
 using _3K.Application.Common;
 using _3K.Application.Features.ProjeIslemleri.DTOs;
+using _3K.Core.Constants;
 using _3K.Core.Enums;
 
 namespace _3K.Application.Features.ProjeIslemleri.Commands
 {
     public class EksiklerdenSahaProjesiOlusturCommand : IRequest<Result<ProjeDto>>, ISecuredRequest, IRequiresMenuPermission
     {
-        public string RequiredMenuKod => "sahaya-aktar";
+        public string RequiredMenuKod => YetkiKodlari.Saha.SahayaAktar;
         public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
 
         public int? KaynakProjeId { get; set; }

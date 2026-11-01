@@ -1,4 +1,5 @@
 using _3K.Core.Entities;
+using _3K.Core.Enums;
 
 namespace _3K.Application.Common
 {
@@ -27,6 +28,40 @@ namespace _3K.Application.Common
             return tahsisSayisi <= 1
                 ? Math.Max(satir.IstenenAdet, 0)
                 : Math.Max(icerik.KonulanAdet, 0);
+        }
+
+        /// <summary>
+        /// Sandık detayındaki satır miktarları: sandık miktarı, konulan ve eksik. Sandık listesindeki eksik uyarısı
+        /// da bu hesabı toplar; ikisi ayrışmaz. Satırın kalanını sıfırlayan durumlar eksik üretmez
+        /// (<see cref="_3K.Core.Helpers.CekiSatiriKalanHelper.HesaplaHamKalan"/> ile aynı): Grid Kapandı satır tamam
+        /// sayılır, Grid İptal satırda eksik yoktur, trafoyla giden adet sandığa konmaz ama teslim edilmiş sayılır.
+        /// <paramref name="satirTahsisleri"/> çeki satırının bütün sandıklardaki tahsis kayıtlarıdır (bu kayıt dahil);
+        /// trafo adedi 3K ürün listesindeki gibi tahsis miktarı oranında sandıklara paylaştırılır.
+        /// </summary>
+        public static SandikIcerikMiktari HesaplaIcerikMiktari(
+            SandikIcerik icerik,
+            IReadOnlyCollection<SandikIcerik> satirTahsisleri)
+        {
+            var satir = icerik.CekiSatiri;
+            if (satir == null)
+            {
+                var miktar = icerik.TahsisMiktari > 0 ? icerik.TahsisMiktari : icerik.Miktar;
+                return new SandikIcerikMiktari(miktar, icerik.KonulanAdet, Math.Max(miktar - icerik.KonulanAdet, 0));
+            }
+
+            var tahsisSayisi = Math.Max(satirTahsisleri.Count, 1);
+            var sandikMiktari = HesaplaSandikMiktari(satir, icerik, tahsisSayisi);
+            if (satir.GridDurumuId == (int)GridDurum.GridKapandi)
+                return new SandikIcerikMiktari(sandikMiktari, sandikMiktari, 0);
+            if (satir.GridDurumuId == (int)GridDurum.Iptal)
+                return new SandikIcerikMiktari(sandikMiktari, icerik.KonulanAdet, 0);
+
+            var toplamTahsisMiktari = satirTahsisleri.Count == 0
+                ? sandikMiktari
+                : satirTahsisleri.Sum(t => HesaplaSandikMiktari(satir, t, tahsisSayisi));
+            var trafoPayi = ToplamdanTahsisPayi(satir.TrafoSevkAdet, sandikMiktari, toplamTahsisMiktari);
+            var eksik = Math.Max(sandikMiktari - Math.Max(icerik.KonulanAdet, 0) - trafoPayi, 0);
+            return new SandikIcerikMiktari(sandikMiktari, icerik.KonulanAdet, eksik);
         }
 
         public static decimal ToplamdanTahsisPayi(
@@ -167,4 +202,7 @@ namespace _3K.Application.Common
             return 0;
         }
     }
+
+    /// <summary>Sandıktaki bir satırın sandık miktarı, konulan ve eksik miktarı (<see cref="SandikTahsisHelper.HesaplaIcerikMiktari"/>).</summary>
+    public readonly record struct SandikIcerikMiktari(decimal SandikMiktari, decimal Konulan, decimal Eksik);
 }

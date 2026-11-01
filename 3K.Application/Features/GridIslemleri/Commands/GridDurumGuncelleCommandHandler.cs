@@ -4,6 +4,7 @@ using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
 using _3K.Core.Helpers;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.GridIslemleri.Commands
 {
@@ -255,13 +256,16 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             {
                 aciklamaMetni += $" | Not: {request.Aciklama}";
             }
+            // Mal kabul kaydı (Grid Sahası) Grid'e gelen (Trafo Sevk'te trafoya giden) adedi buradan okur; Eksik Geldi'de
+            // girilen adet başka yerde saklanmaz. Grid Kapandı miktar değiştirmez, ek yazılmaz.
+            aciklamaMetni += GridMalKabulAciklamaKurali.MalKabulEki(uygulananDurumId, satir.GridGelenAdet, satir.TrafoSevkAdet);
 
             // Hareket kaydı
             await _hareketService.HareketKaydetAsync(new HareketGecmisi
             {
                 ProjeId = request.ProjeId,
                 KullaniciId = _currentUserService.UserId ?? 0,
-                ReferansTipi = "CekiSatiri",
+                ReferansTipi = GridHareketSabitleri.CekiSatiriReferansi,
                 ReferansId = satir.Id.ToString(),
                 Islem = "Grid Durum Güncellendi",
                 IslemTipiId = (int)IslemTipi.GridDurumGuncellendi,
@@ -307,7 +311,10 @@ namespace _3K.Application.Features.GridIslemleri.Commands
                     s.ProjeId == ceki.ProjeId && s.SandikNo == sandikNo);
                 var sandik = sandiklar.FirstOrDefault();
 
-                if (sandik != null && sandik.DurumId != (int)SandikDurum.Kapandi)
+                // Sevkli (düzeltmedeki) sandık hazır durumuna geri çekilmez.
+                if (sandik != null &&
+                    sandik.DurumId != (int)SandikDurum.Kapandi &&
+                    sandik.DurumId != (int)SandikDurum.Sevkedildi)
                 {
                     sandik.DurumId = (int)SandikDurum.Kapandi;
                     sandikRepo.Update(sandik);
@@ -338,7 +345,8 @@ namespace _3K.Application.Features.GridIslemleri.Commands
             var sandikRepo = _unitOfWork.GetRepository<Sandik>();
             var sandiklar = await sandikRepo.FindAsync(s => s.ProjeId == projeId && s.SandikNo == sandikNo);
             var sandik = sandiklar.FirstOrDefault();
-            if (sandik == null || sandik.DepoLokasyonId == (int)DepoLokasyon.Grid)
+            // Sevkli (düzeltmedeki) sandığın lokasyonu Grid işlemiyle değişmez.
+            if (sandik == null || sandik.DepoLokasyonId == (int)DepoLokasyon.Grid || sandik.DurumId == (int)SandikDurum.Sevkedildi)
                 return;
 
             sandik.DepoLokasyonId = (int)DepoLokasyon.Grid;

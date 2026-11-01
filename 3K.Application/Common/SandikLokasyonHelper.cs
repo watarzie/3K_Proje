@@ -23,13 +23,17 @@ namespace _3K.Application.Common
             if (!sandikIdleri.Any())
                 return;
 
+            // İzlenen örnek üzerinden güncellenir: çağıran sandığı zaten yüklediyse ayrı bir kopyayı Update etmek
+            // "already being tracked" hatası verir. Sevkli (düzeltmedeki) sandığın lokasyonu değişmez.
             var sandikRepo = unitOfWork.GetRepository<Sandik>();
-            var sandiklar = await sandikRepo.FindAsync(s =>
-                sandikIdleri.Contains(s.Id) &&
-                s.DepoLokasyonId == (int)DepoLokasyon.Belirsiz);
-
-            foreach (var sandik in sandiklar)
+            foreach (var sandikId in sandikIdleri)
             {
+                var sandik = await sandikRepo.GetByIdAsync(sandikId);
+                if (sandik == null ||
+                    sandik.DepoLokasyonId != (int)DepoLokasyon.Belirsiz ||
+                    sandik.DurumId == (int)SandikDurum.Sevkedildi)
+                    continue;
+
                 sandik.DepoLokasyonId = (int)DepoLokasyon.UcK;
                 sandikRepo.Update(sandik);
             }

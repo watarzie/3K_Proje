@@ -43,6 +43,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
             var uyarilar = new List<SandikUyariDetay>();
             var kapatilacakSandiklar = new List<Sandik>();
+            // Zorla kapatmada aynı (izlenen) örnekler kullanılır; ikinci kez okunan kopya "already tracked" hatası verir.
+            var yuklenenSandiklar = new List<Sandik>();
             var sevkEdilmisSandiklar = new List<string>();
             var sahayaAktarilanSandiklar = new List<string>();
 
@@ -50,6 +52,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             {
                 var sandik = await sandikRepo.GetByIdAsync(sandikId);
                 if (sandik == null) continue;
+                yuklenenSandiklar.Add(sandik);
 
                 if (sandik.DurumId == (int)SandikDurum.Sevkedildi)
                 {
@@ -151,7 +154,7 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             }
 
             // Geri kalanları kapat (veya Force ise hepsini kapat)
-            var islenecekler = request.ForceClose ? await sandikRepo.FindAsync(s => request.SandikIds.Contains(s.Id)) : kapatilacakSandiklar;
+            var islenecekler = request.ForceClose ? yuklenenSandiklar : kapatilacakSandiklar;
 
             if (!islenecekler.Any())
             {
@@ -168,6 +171,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
 
                     s.DurumId = (int)SandikDurum.Kapandi;
                     sandikRepo.Update(s);
+                    await SandikDurumOlayYazici.EkleAsync(_unitOfWork, s, eskiDurumId, SandikDurumOlayKaynagi.Toplu,
+                        _currentUserService.UserId);
 
                     await _hareketService.HareketKaydetAsync(new HareketGecmisi
                     {

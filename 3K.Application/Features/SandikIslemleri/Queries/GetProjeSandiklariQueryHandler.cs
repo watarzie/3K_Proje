@@ -1,9 +1,11 @@
 using MediatR;
 using _3K.Application.Common;
+using _3K.Application.Features.AmbalajIslemleri;
 using _3K.Application.Features.SandikIslemleri.DTOs;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.SandikIslemleri.Queries
 {
@@ -51,14 +53,27 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 .Select(i => i.CekiSatiriId!.Value)
                 .Distinct()
                 .ToList();
-            var birdenFazlaSandigaTahsisliSatirIds = tumCekiSatiriIds.Count == 0
-                ? new HashSet<int>()
+            var satirTahsisleri = tumCekiSatiriIds.Count == 0
+                ? new List<SandikIcerik>()
                 : (await _unitOfWork.GetRepository<SandikIcerik>().FindAsync(i =>
                         i.CekiSatiriId.HasValue && tumCekiSatiriIds.Contains(i.CekiSatiriId.Value)))
-                    .GroupBy(i => i.CekiSatiriId!.Value)
-                    .Where(g => g.Select(i => i.SandikId).Distinct().Count() > 1)
-                    .Select(g => g.Key)
-                    .ToHashSet();
+                    .ToList();
+            var birdenFazlaSandigaTahsisliSatirIds = satirTahsisleri
+                .GroupBy(i => i.CekiSatiriId!.Value)
+                .Where(g => g.Select(i => i.SandikId).Distinct().Count() > 1)
+                .Select(g => g.Key)
+                .ToHashSet();
+            // Sandık detayıyla aynı tahsisler: satırın bütün sandıklardaki tahsis kayıtları.
+            // Numara alanının kilidi Özellikleri Güncelle'deki sunucu denetimiyle aynı kuraldır.
+            var cekiSandikNolari = AmbalajCekiSandiklari.ProjeIcinGetir(_unitOfWork, request.ProjeId);
+            var sandikIdleri = sandiklar.Select(s => s.Id).ToList();
+            var ambalajKayitlari = _unitOfWork.GetRepository<AmbalajUretimKaydi>().Queryable()
+                .Where(k => k.KaynakKayitId.HasValue && sandikIdleri.Contains(k.KaynakKayitId.Value))
+                .ToList()
+                .ToLookup(k => k.KaynakKayitId!.Value);
+            var satirTahsisMap = satirTahsisleri
+                .GroupBy(i => i.CekiSatiriId!.Value)
+                .ToDictionary(g => g.Key, g => (IReadOnlyCollection<SandikIcerik>)g.ToList());
 
             var result = sandiklar.Select(s =>
             {
@@ -78,6 +93,12 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                 var sandikSahaAktariminda = !fizikselSevkEdildi &&
                     !sahaUzerindenSevkEdildi &&
                     kaynakSandikSahaDurumu.AktifAktarimaBagliSandikIds.Contains(s.Id);
+                var satirEksikleri = icerikler
+                    .Select(i => SandikTahsisHelper.HesaplaIcerikMiktari(i, i.CekiSatiriId.HasValue
+                        ? satirTahsisMap.GetValueOrDefault(i.CekiSatiriId.Value, [i])
+                        : [i]).Eksik)
+                    .Where(eksik => eksik > 0)
+                    .ToList();
 
                 return new SandikDto
                 {
@@ -93,6 +114,7 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                     TipMetni = _lookupCache.GetDeger<LookupSandikTipi>(s.TipId),
                     UrunSayisi = icerikler.Count,
                     IsManuelSandik = isManuelSandik,
+                    SandikNoKilitNedeni = SandikNoDegisikligiKurali.KilitNedeni(s, cekiSandikNolari, ambalajKayitlari[s.Id]),
                     SilinebilirMi = s.DurumId != (int)SandikDurum.Sevkedildi &&
                         !aktifAktarimBagliSandikIds.Contains(s.Id) &&
                         icerikler.All(i => i.Id > 0) &&
@@ -106,6 +128,9 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                     SahayaAktarildiMi = sandikSahaAktariminda,
                     SahaUzerindenSevkEdildiMi = sahaUzerindenSevkEdildi,
                     SahayaAktarilanMiktar = sahayaAktarilanMiktar,
+                    KapanmaTarihi = s.KapanmaTarihi,
+                    EksikUrunSayisi = satirEksikleri.Count,
+                    EksikAdet = satirEksikleri.Sum(),
                     En = s.En,
                     Boy = s.Boy,
                     Yukseklik = s.Yukseklik,

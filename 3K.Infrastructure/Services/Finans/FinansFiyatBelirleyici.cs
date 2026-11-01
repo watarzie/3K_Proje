@@ -34,12 +34,21 @@ internal sealed class FinansFiyatBelirleyici(AppDbContext context)
     }
 
     /// <summary>
-    /// İşi en özgül aktif ürün eşleşmesine ve finans tarihindeki tarifeye göre fiyatlar. Kontrplak/katlanır sandıkta
+    /// İşi en özgül aktif ürün eşleşmesine ve finans tarihindeki tarifeye göre fiyatlar. Kontrplak sandıkta
     /// malzemeli eşleşme varsa ahşap m³ ahşap tarifesiyle, kontra m³ kontra tarifesiyle fiyatlanır
-    /// (<see cref="FinansTutarKurallari.IsNet"/>); yoksa eski tek tarifeli hesap geçerlidir.
+    /// (<see cref="FinansTutarKurallari.IsNet"/>); yoksa eski tek tarifeli hesap geçerlidir. Katlanır sandık tarifeyle
+    /// fiyatlanmaz: adetle fiyatsız kalır ve elle fiyat bekler (<see cref="FinansKatlanirKurali"/>).
     /// </summary>
     public async Task OtomatikFiyatUygulaAsync(FinansIsKaydi entity, CancellationToken cancellationToken)
     {
+        if (FinansKatlanirKurali.Katlanir(entity))
+        {
+            FiyatsizBirak(entity);
+            entity.FiyatlandirmaBirimiSnapshot = FinansFiyatlandirmaBirimi.Adet;
+            entity.TarifeIdSnapshot = null;
+            return;
+        }
+
         var matchQuery = context.Set<FinansUrunEslesmesi>()
             .AsNoTracking()
             .Include(x => x.FinansUrun)
@@ -86,7 +95,7 @@ internal sealed class FinansFiyatBelirleyici(AppDbContext context)
     }
 
     /// <summary>
-    /// Kontrplak/katlanır sandık: kontra tarafı kontra eşleşmesinin (yoksa malzemesiz genel m³ eşleşmesinin), ahşap tarafı
+    /// Kontrplak sandık: kontra tarafı kontra eşleşmesinin (yoksa malzemesiz genel m³ eşleşmesinin), ahşap tarafı
     /// ahşap eşleşmesinin finans tarihindeki tarifesiyle fiyatlanır (genel eşleşme yalnız m³ tarifesiyse kullanılır). Kontra
     /// tarafı için hiç eşleşme yoksa iş fiyatsız kalır; ahşap tarifesi yoksa (veya para birimi kontrayla
     /// aynı değilse) ahşap fiyatı 0'dır ve ahşap m³ girilirse tutar eksik kalır (ekranda "ahşap tarifesi yok" görünür).

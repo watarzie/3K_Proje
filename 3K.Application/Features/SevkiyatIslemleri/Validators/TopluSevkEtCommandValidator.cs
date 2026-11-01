@@ -1,6 +1,5 @@
 using FluentValidation;
 using _3K.Application.Features.SevkiyatIslemleri.Commands;
-using _3K.Core.Helpers;
 using _3K.Core.Models;
 
 namespace _3K.Application.Features.SevkiyatIslemleri.Validators;
@@ -10,16 +9,7 @@ public sealed class TopluSevkEtCommandValidator : AbstractValidator<TopluSevkEtC
     public TopluSevkEtCommandValidator()
     {
         RuleFor(x => x.IslemAnahtari).NotEmpty().WithMessage("İşlem anahtarı zorunludur.");
-        RuleFor(x => x.AracPlaka)
-            .Must(p => AracPlakaKurali.Normalize(p) is not null).WithMessage("Araç plakası zorunludur.")
-            .Must(p => (p ?? string.Empty).Trim().Length <= AracPlakaKurali.EnFazlaUzunluk)
-            .WithMessage($"Araç plakası en fazla {AracPlakaKurali.EnFazlaUzunluk} karakter olabilir.");
-        RuleFor(x => x.DorsePlaka).MaximumLength(AracPlakaKurali.EnFazlaUzunluk);
-        RuleFor(x => x.Sofor).MaximumLength(SevkSeferiKurali.SoforEnFazla);
-        RuleFor(x => x.Aciklama).MaximumLength(SevkSeferiKurali.AciklamaEnFazla);
-        RuleFor(x => x.SevkTarihi)
-            .Must(t => t >= TurkeyTime.Now.Date.AddYears(-2) && t <= TurkeyTime.Now.Date.AddDays(8))
-            .WithMessage("Sevk tarihi son iki yıl içinde olmalı ve bir haftadan ileri olmamalıdır.");
+        Include(new SevkSeferiBilgisiValidator());
         RuleFor(x => x.Projeler)
             .NotEmpty().WithMessage("En az bir proje seçilmelidir.")
             .Must(p => p.Count <= SevkSeferiKurali.EnFazlaProje)

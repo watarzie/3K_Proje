@@ -24,6 +24,7 @@ internal static class LookupModelBuilderExtensions
         ConfigureLookupTable<LookupBirim>(modelBuilder);
         ConfigureLookupTable<LookupKaliteDurum>(modelBuilder);
         ConfigureLookupTable<LookupSurecDurum>(modelBuilder);
+        ConfigureLookupTable<LookupSandikAcilmaSebebi>(modelBuilder);
     }
 
     /// <summary>
@@ -144,6 +145,12 @@ internal static class LookupModelBuilderExtensions
             new LookupGeriGonderilmeSebebi { CreatedDate = new DateTime(2026, 5, 11), Id = 2, Anahtar = 2, Deger = "Iptal" },
             new LookupGeriGonderilmeSebebi { CreatedDate = new DateTime(2026, 5, 11), Id = 3, Anahtar = 3, Deger = "Projeye Geri Dönüş" },
             new LookupGeriGonderilmeSebebi { CreatedDate = new DateTime(2026, 5, 11), Id = 4, Anahtar = 4, Deger = "Hatalı Ürün" }
+        );
+
+        // SandikAcilmaSebebi (27 numaralı betik aynı kayıtları tohumlar; yeni sebep veritabanından eklenir)
+        modelBuilder.Entity<LookupSandikAcilmaSebebi>().HasData(
+            new LookupSandikAcilmaSebebi { CreatedDate = new DateTime(2026, 10, 24), Id = 1, Anahtar = 1, Deger = "Trafo kurulum" },
+            new LookupSandikAcilmaSebebi { CreatedDate = new DateTime(2026, 10, 24), Id = 2, Anahtar = 2, Deger = "Tadilat" }
         );
 
         // YetkiTipi

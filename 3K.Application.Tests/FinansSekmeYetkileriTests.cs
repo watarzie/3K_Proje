@@ -87,6 +87,7 @@ public sealed class FinansSekmeYetkileriTests
         { typeof(FinansSiparisDurumRaporuDosyaQuery), [IsTakibiAylik, Raporlar], YetkiTipi.R },
         { typeof(FinansOzetRaporuDosyaQuery), [Raporlar], YetkiTipi.R },
         { typeof(FinansAlacakRaporuDosyaQuery), [Raporlar], YetkiTipi.R },
+        { typeof(FinansFinansalDurumRaporuDosyaQuery), [Raporlar], YetkiTipi.R },
         { typeof(FinansRaporOnizlemeQuery), [Raporlar], YetkiTipi.R },
         // PO / Fatura
         { typeof(FinansSiparislerQuery), [PoFaturaPo, PoFaturaFatura], YetkiTipi.R },

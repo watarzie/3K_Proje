@@ -1,4 +1,5 @@
 using _3K.Core.Exceptions;
+using _3K.Core.Helpers;
 
 namespace _3K.Core.Models;
 
@@ -31,6 +32,16 @@ public static class FinansTarihKurallari
     {
         if (!GecerliAralik(baslangic, bitis))
             throw IsKuraliException.Cakisma("Geçerli ve en fazla on yıllık tarih aralığı seçin.");
+    }
+
+    /// <summary>
+    /// Finansal durum raporunun dönemi: filtrenin finans tarihi aralığı; bitiş boşsa bugün, başlangıç boşsa bitişin
+    /// yılbaşı. Rapor servisi ve isteğin doğrulayıcısı aynı dönemi kullanır.
+    /// </summary>
+    public static (DateTime Baslangic, DateTime Bitis) FinansalDurumDonemi(DateTime? baslangic, DateTime? bitis)
+    {
+        var son = (bitis ?? TurkeyTime.Now).Date;
+        return ((baslangic ?? new DateTime(son.Year, 1, 1)).Date, son);
     }
 
     /// <summary>Tarihin ait olduğu finans dönemi: ayın ilk günü.</summary>

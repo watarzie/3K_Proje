@@ -41,4 +41,33 @@ public static class FinansEtiketleri
         FinansFiyatlandirmaBirimi.ManuelToplam => "Manuel Toplam",
         _ => birim.ToString()
     };
+
+    /// <summary>
+    /// Sandık cinsinin adı (Ambalaj ekranlarındaki adlarla aynı). Cins yoksa işin sandık tipi metni, o da yoksa
+    /// boş döner.
+    /// </summary>
+    public static string SandikCinsi(AmbalajSandikCinsi? cins, string? sandikTipi = null) => cins switch
+    {
+        AmbalajSandikCinsi.AhsapKapali => "Ahşap Kapalı",
+        AmbalajSandikCinsi.Kafes => "Kafes Sandık",
+        AmbalajSandikCinsi.Kontrplak => "Kontrplak Sandık",
+        AmbalajSandikCinsi.Katlanir => "Katlanır Sandık",
+        AmbalajSandikCinsi.Diger => string.IsNullOrWhiteSpace(sandikTipi) ? "Diğer" : sandikTipi.Trim(),
+        _ => sandikTipi?.Trim() ?? string.Empty
+    };
+
+    /// <summary>İşler raporu kapsamının ve bölümlerinin adı.</summary>
+    public static string IsRaporuKapsami(FinansIsRaporuKapsami kapsam) => kapsam switch
+    {
+        FinansIsRaporuKapsami.SiparisiAcilan => "Siparişi açılan işler",
+        FinansIsRaporuKapsami.SiparisiAcilmayan => "Siparişi açılmayan işler",
+        _ => "Siparişi açılan ve açılmayan işler"
+    };
+
+    public static string GiderRaporuGruplamasi(FinansGiderRaporuGruplamasi gruplama) => gruplama switch
+    {
+        FinansGiderRaporuGruplamasi.Kategori => "Kategoriye göre",
+        FinansGiderRaporuGruplamasi.Proje => "Projeye göre",
+        _ => "Düz liste"
+    };
 }

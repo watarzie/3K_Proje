@@ -166,6 +166,31 @@ namespace _3K_API.Controllers
         /// Sevkiyat kaydı korunarak açılan sandığın düzeltme modunu kapatır.
         /// Yeni sevkiyat oluşturmaz, mevcut sevkiyat geçmişini değiştirmez.
         /// </summary>
+        /// <summary>
+        /// Projede sevk sonrası düzeltmeye açık bütün sandıkların düzeltmesini tek işlemde tamamlar.
+        /// </summary>
+        [HttpPost("sevkiyat-duzeltme-toplu-tamamla")]
+        public async Task<ActionResult> SandikSevkiyatDuzeltmeTopluTamamla([FromBody] SandikSevkiyatDuzeltmeTopluTamamlaCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return result.ToActionResult();
+        }
+
+        /// <summary>Sandığın açılış/kapanış zaman çizelgesi (en yeniden eskiye).</summary>
+        [HttpGet("{sandikId}/durum-gecmisi")]
+        public async Task<ActionResult> GetDurumGecmisi(int sandikId, CancellationToken cancellationToken)
+        {
+            var result = await _mediator.Send(new GetSandikDurumGecmisiQuery { SandikId = sandikId }, cancellationToken);
+            return result.ToActionResult();
+        }
+
+        [HttpGet("{sandikId}/sevk-sonrasi-duzeltme")]
+        public async Task<ActionResult> GetSevkSonrasiDuzeltme(int sandikId)
+        {
+            var result = await _mediator.Send(new GetSandikDuzeltmeDurumuQuery { SandikId = sandikId });
+            return result.ToActionResult();
+        }
+
         [HttpPost("sevkiyat-duzeltme-tamamla")]
         public async Task<ActionResult> SandikSevkiyatDuzeltmeTamamla([FromBody] SandikSevkiyatDuzeltmeTamamlaCommand command)
         {

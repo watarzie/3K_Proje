@@ -45,6 +45,7 @@ internal static class FinansModelEslemeleri
             SandikNo = entity.SandikNo,
             SandikAdi = entity.SandikAdi,
             SandikTipi = entity.SandikTipi,
+            SandikCinsi = entity.SandikCinsi,
             Boy = entity.Boy,
             En = entity.En,
             Yukseklik = entity.Yukseklik,
@@ -57,6 +58,7 @@ internal static class FinansModelEslemeleri
             KontraM3 = hacim.Kontra,
             HacimManuel = entity.HacimManuel,
             SandikMalzemesi = FinansHacimKurallari.Malzeme(entity.SandikCinsi, entity.SandikTipi),
+            ElleFiyatlanir = FinansKatlanirKurali.Katlanir(entity),
             FinansUrunId = entity.FinansUrunId,
             FiyatlandirmaBirimi = entity.FiyatlandirmaBirimiSnapshot,
             BirimFiyat = entity.BirimFiyatSnapshot,
@@ -110,7 +112,7 @@ internal static class FinansModelEslemeleri
             PoOnayTarihi = poOnay.OnayTarihi
         };
 
-    /// <summary>Kaydın m³ fiyat satırları (kontra/katlanır sandıkta malzeme bazlı satırlar).</summary>
+    /// <summary>Kaydın m³ fiyat satırları (kontrplak sandıkta malzeme bazlı satırlar).</summary>
     internal static IReadOnlyList<FinansFiyatBileseniModel>? Bilesenler(FinansIsKaydi entity)
         => Bilesenler(entity.FiyatBilesenleriJson);
 

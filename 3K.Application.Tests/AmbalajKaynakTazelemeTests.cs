@@ -267,7 +267,7 @@ public sealed class AmbalajKaynakTazelemeTests
             new AmbalajKaynakSenkronizasyonService(Uow, Finans).SenkronizeEtAsync(10, User, default);
 
         public Task<Result> OlcuGuncelleAsync(decimal? en) =>
-            new SandikOzellikGuncelleCommandHandler(Uow).Handle(new SandikOzellikGuncelleCommand
+            new SandikOzellikGuncelleCommandHandler(Uow, new OrtakHareket(), new AmbalajKaynakSenkronizasyonService(Uow, Finans), User).Handle(new SandikOzellikGuncelleCommand
             {
                 SandikId = Sandik.Id, SandikIsmi = Sandik.Ad, TipId = Sandik.TipId, Boy = Sandik.Boy, En = en,
                 Yukseklik = Sandik.Yukseklik, NetKg = Sandik.NetKg, GrossKg = Sandik.GrossKg

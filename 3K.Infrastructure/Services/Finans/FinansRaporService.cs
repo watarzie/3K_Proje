@@ -31,34 +31,6 @@ namespace _3K.Infrastructure.Services.Finans
             _faturalar = faturalar;
         }
 
-        public async Task<byte[]> IslerExcelAsync(FinansListeFiltre filtre, CancellationToken cancellationToken)
-        {
-            var report = await _raporVerisi.RaporVerisiAsync(filtre, cancellationToken);
-            using var workbook = new XLWorkbook();
-            var sheet = workbook.Worksheets.Add("Finans İşleri");
-            var headers = IsBasliklari;
-            WriteHeaders(sheet, headers);
-            var row = 2;
-            foreach (var item in report.Isler)
-                WriteRow(sheet, row++, IsSatiri(item));
-            FormatSheet(sheet, headers.Length, row - 1);
-            return Save(workbook);
-        }
-
-        public async Task<byte[]> GiderlerExcelAsync(FinansListeFiltre filtre, CancellationToken cancellationToken)
-        {
-            var report = await _raporVerisi.RaporVerisiAsync(filtre, cancellationToken);
-            using var workbook = new XLWorkbook();
-            var sheet = workbook.Worksheets.Add("Giderler");
-            var headers = GiderBasliklari;
-            WriteHeaders(sheet, headers);
-            var row = 2;
-            foreach (var item in report.Giderler)
-                WriteRow(sheet, row++, GiderSatiri(item));
-            FormatSheet(sheet, headers.Length, row - 1);
-            return Save(workbook);
-        }
-
         /// <summary>
         /// Sipariş durum raporu (RR Q5): satırlar seçilen sipariş/fatura karşılanmasındaki iş kalemleridir; kategori,
         /// dönem, proje ve diğer liste filtreleri sunucuda uygulanır.
@@ -131,24 +103,29 @@ namespace _3K.Infrastructure.Services.Finans
             return stream.ToArray();
         }
 
-        private static byte[] AylikExcelOlustur(
+        /// <summary>Aylık rapor Excel sütunları; PDF aynı satırları ölçü ve talep edenle birlikte yazar.</summary>
+        internal static readonly string[] AylikExcelBasliklari =
+        [
+            "Grup", "Proje", "İş", "Sandık Tipi", "Boy (mm)", "En (mm)", "Yükseklik (mm)", "Talep Eden",
+            "Başlangıç", "Bitiş", "Sandık", "Miktar", "Birim", "Tarife", "Para Birimi",
+            "KDV %", "Net", "KDV", "Toplam", "PO", "Fatura"
+        ];
+
+        internal static byte[] AylikExcelOlustur(
             IReadOnlyList<FinansAylikIsModel> satirlar,
             int yil,
             int ay)
         {
             using var workbook = new XLWorkbook();
             var sheet = workbook.Worksheets.Add("Aylık Finans");
+            var headers = AylikExcelBasliklari;
+            // Sütun numaraları başlıktan bulunur (1 tabanlı); sütun eklenince toplam ve biçim sütunları kaymaz.
+            int Sutun(string baslik) => Array.IndexOf(headers, baslik) + 1;
             sheet.Cell(1, 1).Value = $"3K AYLIK FİNANS RAPORU - {ay:00}.{yil}";
-            sheet.Range(1, 1, 1, 20).Merge().Style.Font.SetBold().Font.SetFontSize(16)
+            sheet.Range(1, 1, 1, headers.Length).Merge().Style.Font.SetBold().Font.SetFontSize(16)
                 .Font.SetFontColor(XLColor.FromHtml("#3584FC"));
             sheet.Cell(2, 1).Value = $"Oluşturma: {TurkeyTime.Now:dd.MM.yyyy HH:mm}";
-            sheet.Range(2, 1, 2, 20).Merge();
-            var headers = new[]
-            {
-                "Grup", "Proje", "İş", "Sandık Tipi", "Boy (mm)", "En (mm)", "Yükseklik (mm)",
-                "Başlangıç", "Bitiş", "Sandık", "Miktar", "Birim", "Tarife", "Para Birimi",
-                "KDV %", "Net", "KDV", "Toplam", "PO", "Fatura"
-            };
+            sheet.Range(2, 1, 2, headers.Length).Merge();
             for (var column = 0; column < headers.Length; column++)
                 sheet.Cell(4, column + 1).Value = headers[column];
             sheet.Range(4, 1, 4, headers.Length).Style.Fill
@@ -161,7 +138,7 @@ namespace _3K.Infrastructure.Services.Finans
                 WriteRow(sheet, row,
                 [
                     satir.IsGrubu, satir.ProjeNo, satir.IsAdi, satir.SandikTipi,
-                    satir.Boy, satir.En, satir.Yukseklik, satir.UretimBaslangic, satir.UretimBitis,
+                    satir.Boy, satir.En, satir.Yukseklik, satir.TalepEden, satir.UretimBaslangic, satir.UretimBitis,
                     satir.SandikAdedi, satir.Miktar, satir.Birim, satir.BirimFiyat, satir.ParaBirimi,
                     satir.KdvOrani, satir.NetTutar, satir.KdvTutari, satir.ToplamTutar,
                     string.Join(", ", satir.PoNumaralari), string.Join(", ", satir.FaturaNumaralari)
@@ -171,32 +148,20 @@ namespace _3K.Infrastructure.Services.Finans
             var toplamSatiri = satirlar.Count + 6;
             foreach (var toplam in satirlar.GroupBy(x => x.ParaBirimi).OrderBy(x => x.Key))
             {
-                sheet.Cell(toplamSatiri, 14).Value = $"{toplam.Key} TOPLAM";
-                sheet.Cell(toplamSatiri, 14).Style.Font.SetBold();
-                sheet.Cell(toplamSatiri, 16).Value = toplam.Sum(x => x.NetTutar);
-                sheet.Cell(toplamSatiri, 17).Value = toplam.Sum(x => x.KdvTutari);
-                sheet.Cell(toplamSatiri, 18).Value = toplam.Sum(x => x.ToplamTutar);
+                sheet.Cell(toplamSatiri, Sutun("Para Birimi")).Value = $"{toplam.Key} TOPLAM";
+                sheet.Cell(toplamSatiri, Sutun("Para Birimi")).Style.Font.SetBold();
+                sheet.Cell(toplamSatiri, Sutun("Net")).Value = toplam.Sum(x => x.NetTutar);
+                sheet.Cell(toplamSatiri, Sutun("KDV")).Value = toplam.Sum(x => x.KdvTutari);
+                sheet.Cell(toplamSatiri, Sutun("Toplam")).Value = toplam.Sum(x => x.ToplamTutar);
                 toplamSatiri++;
             }
 
             sheet.Range(4, 1, Math.Max(4, satirlar.Count + 4), headers.Length).SetAutoFilter();
             sheet.SheetView.FreezeRows(4);
-            sheet.Columns(8, 9).Style.DateFormat.Format = "dd.MM.yyyy";
-            sheet.Columns(13, 18).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Columns(Sutun("Başlangıç"), Sutun("Bitiş")).Style.DateFormat.Format = "dd.MM.yyyy";
+            sheet.Columns(Sutun("Tarife"), Sutun("Toplam")).Style.NumberFormat.Format = "#,##0.00";
             sheet.Columns().AdjustToContents(8, 36);
             return Save(workbook);
-        }
-
-        public async Task<byte[]> IslerPdfAsync(FinansListeFiltre filtre, CancellationToken cancellationToken)
-        {
-            var report = await _raporVerisi.RaporVerisiAsync(filtre, cancellationToken);
-            return GenerateJobsPdf("Finans İşleri Raporu", report.Isler);
-        }
-
-        public async Task<byte[]> GiderlerPdfAsync(FinansListeFiltre filtre, CancellationToken cancellationToken)
-        {
-            var report = await _raporVerisi.RaporVerisiAsync(filtre, cancellationToken);
-            return GenerateExpensePdf("Finans Gider Raporu", report.Giderler);
         }
 
         public async Task<byte[]> SiparisDurumPdfAsync(FinansListeFiltre filtre, CancellationToken cancellationToken)
@@ -277,7 +242,7 @@ namespace _3K.Infrastructure.Services.Finans
             return AylikPdfOlustur(satirlar, yil, ay);
         }
 
-        private static byte[] AylikPdfOlustur(
+        internal static byte[] AylikPdfOlustur(
             IReadOnlyList<FinansAylikIsModel> satirlar,
             int yil,
             int ay)
@@ -306,17 +271,18 @@ namespace _3K.Infrastructure.Services.Finans
                                 table.ColumnsDefinition(c =>
                                 {
                                     c.RelativeColumn(); c.RelativeColumn(1.5f); c.RelativeColumn();
-                                    c.RelativeColumn(1.2f); c.RelativeColumn(.6f); c.RelativeColumn(.8f);
+                                    c.RelativeColumn(1.2f); c.RelativeColumn(1.2f); c.RelativeColumn(.6f); c.RelativeColumn(.8f);
                                     c.RelativeColumn(.9f); c.RelativeColumn(.9f); c.RelativeColumn(.9f);
                                     c.RelativeColumn(.9f); c.RelativeColumn();
                                 });
-                                PdfHeader(table, "Proje", "İş", "Sandık Tipi", "Ölçü (mm)", "Sandık", "Miktar", "Tarife", "Net", "KDV", "Toplam", "Durum");
+                                PdfHeader(table, "Proje", "İş", "Sandık Tipi", "Ölçü (mm)", "Talep Eden", "Sandık", "Miktar", "Tarife", "Net", "KDV", "Toplam", "Durum");
                                 foreach (var satir in grup)
                                 {
                                     PdfCell(table, satir.ProjeNo);
                                     PdfCell(table, satir.IsAdi);
                                     PdfCell(table, satir.SandikTipi ?? "-");
                                     PdfCell(table, OlcuMetni(satir.Boy, satir.En, satir.Yukseklik));
+                                    PdfCell(table, satir.TalepEden ?? "-");
                                     PdfCell(table, satir.SandikAdedi.ToString("0.##", CultureInfo.GetCultureInfo("tr-TR")));
                                     PdfCell(table, $"{satir.Miktar:0.###} {satir.Birim}");
                                     PdfCell(table, $"{satir.BirimFiyat:0.00} {satir.ParaBirimi}");
@@ -388,81 +354,8 @@ namespace _3K.Infrastructure.Services.Finans
 
         private static string OlcuMetni(decimal? boy, decimal? en, decimal? yukseklik) =>
             boy > 0 && en > 0 && yukseklik > 0
-                ? $"{boy:0.##} × {en:0.##} × {yukseklik:0.##}"
+                ? string.Format(TrKultur, "{0:0.##} × {1:0.##} × {2:0.##}", boy, en, yukseklik)
                 : "-";
-
-        private static byte[] GenerateJobsPdf(string title, IReadOnlyList<FinansIsKaydiModel> rows)
-        {
-            QuestPDF.Settings.License = LicenseType.Community;
-            var document = Document.Create(container =>
-            {
-                container.Page(page =>
-                {
-                    ConfigurePage(page);
-                    page.Header().Text(title).FontSize(16).Bold().FontColor(Colors.Blue.Darken2);
-                    page.Content().Table(table =>
-                    {
-                        table.ColumnsDefinition(c =>
-                        {
-                            c.RelativeColumn(1.2f); c.RelativeColumn(1.8f); c.RelativeColumn(1.4f); c.RelativeColumn();
-                            c.RelativeColumn(); c.RelativeColumn(); c.RelativeColumn(); c.RelativeColumn();
-                        });
-                        PdfHeader(table, "Proje", "İş", "Tür", "Adet", "m³", "Birim", "Toplam", "Durum");
-                        foreach (var item in rows)
-                        {
-                            PdfCell(table, item.ProjeNo);
-                            PdfCell(table, item.IsAdi);
-                            PdfCell(table, FinansEtiketleri.IsTuru(item.IsTuru));
-                            PdfCell(table, Format(item.Adet));
-                            PdfCell(table, Format(item.ToplamM3));
-                            PdfCell(table, item.ParaBirimi);
-                            PdfCell(table, Format(item.ToplamTutar));
-                            PdfCell(table, FinansEtiketleri.IsDurumu(item.Durum));
-                        }
-                    });
-                    AddFooter(page);
-                });
-            });
-            using var stream = new MemoryStream();
-            document.GeneratePdf(stream);
-            return stream.ToArray();
-        }
-
-        private static byte[] GenerateExpensePdf(string title, IReadOnlyList<FinansGiderModel> rows)
-        {
-            QuestPDF.Settings.License = LicenseType.Community;
-            var document = Document.Create(container =>
-            {
-                container.Page(page =>
-                {
-                    ConfigurePage(page);
-                    page.Header().Text(title).FontSize(16).Bold().FontColor(Colors.Blue.Darken2);
-                    page.Content().Table(table =>
-                    {
-                        table.ColumnsDefinition(c =>
-                        {
-                            c.RelativeColumn(); c.RelativeColumn(1.3f); c.RelativeColumn(2); c.RelativeColumn(1.2f);
-                            c.RelativeColumn(); c.RelativeColumn(); c.RelativeColumn();
-                        });
-                        PdfHeader(table, "Tarih", "Kategori", "Açıklama", "Proje", "Birim", "Matrah", "Toplam");
-                        foreach (var item in rows)
-                        {
-                            PdfCell(table, item.Tarih.ToString("dd.MM.yyyy"));
-                            PdfCell(table, item.Kategori);
-                            PdfCell(table, item.Aciklama);
-                            PdfCell(table, item.ProjeNo);
-                            PdfCell(table, item.ParaBirimi);
-                            PdfCell(table, Format(item.Matrah));
-                            PdfCell(table, Format(item.ToplamTutar));
-                        }
-                    });
-                    AddFooter(page);
-                });
-            });
-            using var stream = new MemoryStream();
-            document.GeneratePdf(stream);
-            return stream.ToArray();
-        }
 
         private static void WriteHeaders(IXLWorksheet sheet, IReadOnlyList<string> headers)
         {

@@ -9,27 +9,22 @@ namespace _3K.Application.Features.AmbalajIslemleri
 {
     internal static class AmbalajUretimYardimcilari
     {
-        public static bool KaynakSandikOlculeriMi(AmbalajUretimKaydi kayit) =>
-            !kayit.BagimsizKayitMi &&
-            kayit.KaynakKayitId.HasValue &&
-            kayit.KaynakModul is AmbalajKaynakModulu.Sandik or AmbalajKaynakModulu.Saha or AmbalajKaynakModulu.Yedek;
-
         public static bool OlculerGecerli(AmbalajUretimKaydi kayit) =>
-            OlculerGecerli(KaynakSandikOlculeriMi(kayit), kayit.SandikCinsi, kayit.Adet, kayit.Boy, kayit.En, kayit.Yukseklik);
+            OlculerGecerli(AmbalajUretimPolitikasi.DisOlcuKullanirMi(kayit), kayit.SandikCinsi, kayit.Adet, kayit.Boy, kayit.En, kayit.Yukseklik);
 
         /// <summary>
-        /// Üretim formu ve tamamlamanın kullandığı ölçü kuralı: kaynak sandığın dış ölçüsü taşıdığı ahşap/kafes
-        /// sandıkta iç ölçüye düşülebilecek dış ölçü, diğerlerinde sıfırdan büyük ölçü gerekir. Henüz kaydı
-        /// oluşmamış kaynak sandık ve listelerin ölçü durumu da aynı kuralla okunur.
+        /// Üretim formu ve tamamlamanın kullandığı ölçü kuralı: dış ölçü taşıyan (kaynak sandık ve İlave/Saha/Yedek
+        /// özel sandık) ahşap/kafes sandıkta iç ölçüye düşülebilecek dış ölçü, diğerlerinde sıfırdan büyük ölçü
+        /// gerekir. Henüz kaydı oluşmamış kaynak sandık ve listelerin ölçü durumu da aynı kuralla okunur.
         /// </summary>
         public static bool OlculerGecerli(
-            bool kaynakSandikOlculeri,
+            bool disOlcu,
             AmbalajSandikCinsi cins,
             int adet,
             decimal? boy,
             decimal? en,
             decimal? yukseklik) =>
-            adet > 0 && (kaynakSandikOlculeri && AmbalajUretimPolitikasi.M3HesaplanabilirMi(cins)
+            adet > 0 && (disOlcu && AmbalajUretimPolitikasi.M3HesaplanabilirMi(cins)
                 ? AmbalajHesaplayici.KaynakDisOlculeriGecerli(boy, en, yukseklik)
                 : boy > 0 && en > 0 && yukseklik > 0);
 
@@ -37,7 +32,7 @@ namespace _3K.Application.Features.AmbalajIslemleri
             OlculerGecerli(kayit) || (AmbalajUretimPolitikasi.M3HesaplanabilirMi(kayit.SandikCinsi) && kayit.M3Override.HasValue);
 
         public static AmbalajOlculeri HesaplamaIcOlculeriniGetir(AmbalajUretimKaydi kayit) =>
-            KaynakSandikOlculeriMi(kayit)
+            AmbalajUretimPolitikasi.DisOlcuKullanirMi(kayit)
                 ? AmbalajHesaplayici.KaynakIcOlculeri(kayit.Boy, kayit.En, kayit.Yukseklik)
                 : new AmbalajOlculeri(kayit.Boy, kayit.En, kayit.Yukseklik);
 
@@ -75,7 +70,7 @@ namespace _3K.Application.Features.AmbalajIslemleri
                 kayit.SarfOrani,
                 kayit.M3Override,
                 ayakProfili,
-                KaynakSandikOlculeriMi(kayit) ? kayit.Boy : null);
+                AmbalajUretimPolitikasi.DisOlcuKullanirMi(kayit) ? kayit.Boy : null);
             kayit.HesaplananBirimM3 = ozet.HesaplananBirimM3;
             kayit.HesaplananToplamM3 = ozet.HesaplananToplamM3;
             kayit.SarfM3 = ozet.SarfM3;

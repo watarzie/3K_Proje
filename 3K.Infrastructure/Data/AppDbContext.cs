@@ -26,8 +26,11 @@ namespace _3K.Infrastructure.Data
         public DbSet<ProjeTransfer> ProjeTransferleri { get; set; } = null!;
         public DbSet<SahaAktarim> SahaAktarimlari { get; set; } = null!;
         public DbSet<SahaAktarimKalemi> SahaAktarimKalemleri { get; set; } = null!;
+        public DbSet<SahaTasimaKalemi> SahaTasimaKalemleri { get; set; } = null!;
         public DbSet<Sevkiyat> Sevkiyatlar { get; set; } = null!;
         public DbSet<SevkiyatSandik> SevkiyatSandiklari { get; set; } = null!;
+        public DbSet<SandikDuzeltmeKaydi> SandikDuzeltmeKayitlari { get; set; } = null!;
+        public DbSet<SandikDurumOlayi> SandikDurumOlaylari { get; set; } = null!;
         public DbSet<SevkSeferi> SevkSeferleri { get; set; } = null!;
         public DbSet<OnayBekleyenIslem> OnayBekleyenIslemler { get; set; } = null!;
         public DbSet<OnayIslemYetki> OnayIslemYetkileri { get; set; } = null!;
@@ -89,6 +92,7 @@ namespace _3K.Infrastructure.Data
         public DbSet<LookupBirim> LookupBirimler { get; set; } = null!;
         public DbSet<LookupKaliteDurum> LookupKaliteDurumlari { get; set; } = null!;
         public DbSet<LookupSurecDurum> LookupSurecDurumlari { get; set; } = null!;
+        public DbSet<LookupSandikAcilmaSebebi> LookupSandikAcilmaSebepleri { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

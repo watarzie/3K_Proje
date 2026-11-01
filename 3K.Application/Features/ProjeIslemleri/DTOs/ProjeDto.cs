@@ -37,21 +37,26 @@ namespace _3K.Application.Features.ProjeIslemleri.DTOs
         public string? SonMontajResmiNo { get; set; }
         public string? ProjeMuduru { get; set; }
 
-        /// <summary>Fotoğraf bağlantıları (eklenme sırasıyla); yalnız proje-fotograf-baglantisi R izniyle dolu döner.</summary>
+        /// <summary>
+        /// Fotoğraf ve gerçekleşen çeki bağlantıları (eklenme sırasıyla, <see cref="ProjeFotografBaglantisiDto.Tur"/> ile);
+        /// yalnız proje-fotograf-baglantisi R izniyle dolu döner.
+        /// </summary>
         public List<ProjeFotografBaglantisiDto> FotografBaglantilari { get; set; } = [];
     }
 
-    /// <summary>Projenin bir fotoğraf bağlantısı; ekleme/düzenleme/silme sonucu projenin güncel listesidir.</summary>
+    /// <summary>Projenin bir bağlantısı; ekleme/düzenleme/silme sonucu projenin güncel listesidir (her iki tür).</summary>
     public class ProjeFotografBaglantisiDto
     {
         public int Id { get; init; }
+        /// <summary>1 fotoğraf, 2 gerçekleşen çeki (<see cref="_3K.Core.Enums.ProjeBaglantiTuru"/>).</summary>
+        public int Tur { get; init; }
         public string Adres { get; init; } = string.Empty;
         public string? Aciklama { get; init; }
 
         /// <summary>Bağlantılar eklenme sırasıyla (kimlik artan).</summary>
         public static List<ProjeFotografBaglantisiDto> Liste(IEnumerable<ProjeFotografBaglantisi> baglantilar) =>
             baglantilar.OrderBy(x => x.Id)
-                .Select(x => new ProjeFotografBaglantisiDto { Id = x.Id, Adres = x.Adres, Aciklama = x.Aciklama })
+                .Select(x => new ProjeFotografBaglantisiDto { Id = x.Id, Tur = (int)x.Tur, Adres = x.Adres, Aciklama = x.Aciklama })
                 .ToList();
     }
 
