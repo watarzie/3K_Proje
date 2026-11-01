@@ -1,8 +1,11 @@
 using _3K.Core.Entities;
+using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 using _3K.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -15,15 +18,28 @@ namespace _3K.Infrastructure.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly AppDbContext _context;
         private readonly IConfiguration _configuration;
+        private readonly ILogger<AuthService> _logger;
 
-        public AuthService(IUnitOfWork unitOfWork, AppDbContext context, IConfiguration configuration)
+        /// <summary>
+        /// Bilinmeyen e-postada doğrulanan, hiçbir parolayla eşleşmeyen hash; gerçek hash'lerle aynı
+        /// varsayılan iş faktörüyle üretilir ki yanıt süresi farkı oluşmasın.
+        /// </summary>
+        private static readonly Lazy<string> SahteSifreHash =
+            new(() => BCrypt.Net.BCrypt.HashPassword(Guid.NewGuid().ToString("N")));
+
+        public AuthService(
+            IUnitOfWork unitOfWork,
+            AppDbContext context,
+            IConfiguration configuration,
+            ILogger<AuthService> logger)
         {
             _unitOfWork = unitOfWork;
             _context = context;
             _configuration = configuration;
+            _logger = logger;
         }
 
-        public async Task<Kullanici?> ValidateCredentialsAsync(
+        public async Task<GirisDogrulamaSonucu> ValidateCredentialsAsync(
             string email,
             string sifre,
             CancellationToken cancellationToken = default)
@@ -33,10 +49,78 @@ namespace _3K.Infrastructure.Services
                 .Include(k => k.Rol)
                 .FirstOrDefaultAsync(k => k.Email == email.Trim(), cancellationToken);
 
-            if (kullanici == null || !BCrypt.Net.BCrypt.Verify(sifre, kullanici.SifreHash))
-                return null;
+            // Bilinmeyen e-postada ve kilitli hesapta da BCrypt çalışır: yanıt süresi hesabın var olup
+            // olmadığını ya da kilitli olduğunu ele vermez.
+            var sifreDogru = BCrypt.Net.BCrypt.Verify(sifre, kullanici?.SifreHash ?? SahteSifreHash.Value);
+            if (kullanici == null)
+                return GirisDogrulamaSonucu.Gecersiz;
 
-            return kullanici;
+            var simdi = TurkeyTime.Now;
+            if (GirisKilidiKurali.KilitliMi(kullanici.GirisKilitBitisTarihi, simdi))
+                return KilitliDenemeyiReddet(kullanici.Id);
+
+            // Okuma ile karar arasında başka bir istek kilidi kurmuş olabilir (aynı hesaba paralel denemeler):
+            // sayaç ve kilit yalnız hesap hâlâ kilitsizse değişir, değilse deneme kilitli sayılır. Doğru parola
+            // da bu koşullu UPDATE'ten geçer; az önce kurulan kilidi silemez.
+            var hesap = _context.Kullanicilar.Where(k => k.Id == kullanici.Id
+                && (k.GirisKilitBitisTarihi == null || k.GirisKilitBitisTarihi <= simdi));
+
+            if (!sifreDogru)
+            {
+                return await HataliDenemeyiKaydetAsync(hesap, kullanici.Id, simdi, cancellationToken)
+                    ? GirisDogrulamaSonucu.Gecersiz
+                    : KilitliDenemeyiReddet(kullanici.Id);
+            }
+
+            var sifirlandi = await hesap.ExecuteUpdateAsync(s => s
+                    .SetProperty(k => k.BasarisizGirisSayisi, 0)
+                    .SetProperty(k => k.GirisKilitBitisTarihi, (DateTime?)null),
+                cancellationToken);
+            return sifirlandi == 1 ? GirisDogrulamaSonucu.Basarili(kullanici) : KilitliDenemeyiReddet(kullanici.Id);
+        }
+
+        private GirisDogrulamaSonucu KilitliDenemeyiReddet(int kullaniciId)
+        {
+            _logger.LogInformation("Kilitli hesaba giriş denemesi reddedildi. KullaniciId {KullaniciId}", kullaniciId);
+            return GirisDogrulamaSonucu.Kilitli;
+        }
+
+        /// <summary>
+        /// Hatalı denemeyi kilitsiz hesapta tek UPDATE ile sayar (<see cref="GirisKilidiKurali.HataliDenemeSonrasi"/>
+        /// ile aynı kural): eşzamanlı denemeler birbirinin artışını ezemez, eşiği geçen deneme kilidi uzatmaz.
+        /// Hesap bu arada kilitlendiyse hiçbir şey yazılmaz ve <c>false</c> döner.
+        /// </summary>
+        private async Task<bool> HataliDenemeyiKaydetAsync(
+            IQueryable<Kullanici> kilitsizHesap, int kullaniciId, DateTime simdi, CancellationToken cancellationToken)
+        {
+            var esik = GirisKilidiKurali.EsikDenemeSayisi;
+            DateTime? kilitBitis = simdi + GirisKilidiKurali.KilitSuresi;
+            var guncellenen = await kilitsizHesap.ExecuteUpdateAsync(s => s
+                    .SetProperty(
+                        k => k.BasarisizGirisSayisi,
+                        k => k.GirisKilitBitisTarihi != null ? 1 : k.BasarisizGirisSayisi + 1)
+                    .SetProperty(
+                        k => k.GirisKilitBitisTarihi,
+                        k => k.GirisKilitBitisTarihi == null && k.BasarisizGirisSayisi + 1 >= esik
+                            ? kilitBitis
+                            : null),
+                cancellationToken);
+            if (guncellenen == 0)
+                return false;
+
+            // Artışlar sıralı olduğundan sayaç eşiğe tam bir kez ulaşır; kilit uyarısı bir kez yazılır.
+            var sayac = await _context.Kullanicilar.AsNoTracking()
+                .Where(k => k.Id == kullaniciId)
+                .Select(k => k.BasarisizGirisSayisi)
+                .FirstAsync(cancellationToken);
+            if (sayac == esik)
+            {
+                _logger.LogWarning(
+                    "Art arda hatalı parola denemesi nedeniyle hesap geçici olarak kilitlendi. KullaniciId {KullaniciId}, kilit bitişi {KilitBitis}",
+                    kullaniciId, kilitBitis);
+            }
+
+            return true;
         }
 
         public async Task<Kullanici?> GetKullaniciByIdAsync(

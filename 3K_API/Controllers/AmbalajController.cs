@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using _3K.Application.Features.AmbalajIslemleri.Commands;
 using _3K.Application.Features.AmbalajIslemleri.Queries;
 using _3K_API.Extensions;
@@ -24,6 +25,7 @@ namespace _3K_API.Controllers
         public async Task<ActionResult> FormSurumleri([FromQuery] GetAmbalajFormSurumleriQuery query, CancellationToken ct) =>
             (await _mediator.Send(query, ct)).ToActionResult();
 
+        [EnableRateLimiting(ApiServiceCollectionExtensions.DisaAktarimRateLimitPolicy)]
         [HttpGet("uretim-formlari/{id:int}/dosya")]
         public async Task<ActionResult> FormSurumuDosyasi(int id, [FromQuery] string format = "pdf", CancellationToken ct = default) =>
             (await _mediator.Send(new GetAmbalajFormSurumuDosyasiQuery { Id = id, Format = format }, ct)).ToFileResult();
@@ -32,6 +34,7 @@ namespace _3K_API.Controllers
         public async Task<ActionResult> GerceklesenRapor([FromQuery] GetAmbalajGerceklesenRaporQuery query, CancellationToken ct) =>
             (await _mediator.Send(query, ct)).ToActionResult();
 
+        [EnableRateLimiting(ApiServiceCollectionExtensions.DisaAktarimRateLimitPolicy)]
         [HttpGet("gerceklesen-uretim-raporu/dosya")]
         public async Task<ActionResult> GerceklesenRaporDosyasi([FromQuery] GetAmbalajGerceklesenRaporDosyasiQuery query, CancellationToken ct) =>
             (await _mediator.Send(query, ct)).ToFileResult();

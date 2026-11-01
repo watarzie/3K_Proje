@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using _3K.Application.Features.SandikIslemleri.Queries;
 using _3K_API.Extensions;
 
@@ -16,6 +17,7 @@ namespace _3K_API.Controllers
             (await mediator.Send(query, cancellationToken)).ToActionResult();
 
         /// <summary>Aynı aramanın raporu; format "pdf" veya "excel". Her satırda proje no.</summary>
+        [EnableRateLimiting(ApiServiceCollectionExtensions.DisaAktarimRateLimitPolicy)]
         [HttpGet("rapor/{format}")]
         public async Task<IActionResult> Rapor(string format, [FromQuery] BarkodUrunAramaRaporuQuery query, CancellationToken cancellationToken)
         {

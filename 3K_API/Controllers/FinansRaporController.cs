@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using _3K.Application.Features.FinansIslemleri.Queries;
 using _3K.Core.Enums;
 using _3K.Core.Models;
@@ -19,10 +20,12 @@ public sealed class FinansRaporController(IMediator mediator) : FinansController
         CancellationToken cancellationToken = default)
         => (await Mediator.Send(new FinansRaporOnizlemeQuery { Tur = tur, Kapsam = kapsam, Gruplama = gruplama, Filtre = request.ToModel() }, cancellationToken)).ToActionResult();
 
+    [EnableRateLimiting(ApiServiceCollectionExtensions.DisaAktarimRateLimitPolicy)]
     [HttpGet("raporlar/ozet/{tur}/{format}")]
     public async Task<ActionResult> OzetRapor(string tur, string format, [FromQuery] FinansFilterRequest request, CancellationToken cancellationToken)
         => await FileResultAsync(new FinansOzetRaporuDosyaQuery { Tur = tur, Format = format, Filtre = request.ToModel() }, cancellationToken);
 
+    [EnableRateLimiting(ApiServiceCollectionExtensions.DisaAktarimRateLimitPolicy)]
     [HttpGet("raporlar/isler/{format}")]
     public async Task<ActionResult> IsRaporu(
         string format,
@@ -31,6 +34,7 @@ public sealed class FinansRaporController(IMediator mediator) : FinansController
         CancellationToken cancellationToken = default)
         => await FileResultAsync(new FinansIsRaporuDosyaQuery { Format = format, Kapsam = kapsam, Filtre = request.ToModel() }, cancellationToken);
 
+    [EnableRateLimiting(ApiServiceCollectionExtensions.DisaAktarimRateLimitPolicy)]
     [HttpGet("raporlar/giderler/{format}")]
     public async Task<ActionResult> GiderRaporu(
         string format,
@@ -40,18 +44,22 @@ public sealed class FinansRaporController(IMediator mediator) : FinansController
         => await FileResultAsync(new FinansGiderRaporuDosyaQuery { Format = format, Gruplama = gruplama, Filtre = request.ToModel() }, cancellationToken);
 
     /// <summary>Finansal durum (gelir–gider) raporu: Kontrol Paneliyle aynı tutarlar, kırılımlar ve aylık trend.</summary>
+    [EnableRateLimiting(ApiServiceCollectionExtensions.DisaAktarimRateLimitPolicy)]
     [HttpGet("raporlar/finansal-durum/{format}")]
     public async Task<ActionResult> FinansalDurumRaporu(string format, [FromQuery] FinansFilterRequest request, CancellationToken cancellationToken)
         => await FileResultAsync(new FinansFinansalDurumRaporuDosyaQuery { Format = format, Filtre = request.ToModel() }, cancellationToken);
 
+    [EnableRateLimiting(ApiServiceCollectionExtensions.DisaAktarimRateLimitPolicy)]
     [HttpGet("raporlar/alacaklar/{format}")]
     public async Task<ActionResult> AlacakRaporu(string format, [FromQuery] FinansFilterRequest request, CancellationToken cancellationToken)
         => await FileResultAsync(new FinansAlacakRaporuDosyaQuery { Format = format, Filtre = request.ToModel() }, cancellationToken);
 
+    [EnableRateLimiting(ApiServiceCollectionExtensions.DisaAktarimRateLimitPolicy)]
     [HttpGet("raporlar/siparis-durumu/{format}")]
     public async Task<ActionResult> SiparisDurumRaporu(string format, [FromQuery] FinansFilterRequest request, CancellationToken cancellationToken)
         => await FileResultAsync(new FinansSiparisDurumRaporuDosyaQuery { Format = format, Filtre = request.ToModel() }, cancellationToken);
 
+    [EnableRateLimiting(ApiServiceCollectionExtensions.DisaAktarimRateLimitPolicy)]
     [HttpGet("raporlar/aylik/{format}")]
     public async Task<ActionResult> AylikRapor(
         string format,

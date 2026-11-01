@@ -6,7 +6,7 @@
 -- en büyüğünün bir sonrası): kenar menüde görünmez; ekran (/barkod-etiket) Projeler listesi ve 3K sandık listesinin
 -- "Diğer" menüsünden açılır. Admin W; Sandık Yönetimi'nde R veya W olan roller R alır. Şema değişikliği yoktur.
 --
--- 28 numara feature/giris-guvenligi dalındaki 20261025_01_Giris_Kilidi.sql betiğindedir; bu betik ondan bağımsızdır
+-- 28 numaralı betik (20261025_01_Giris_Kilidi.sql) giriş kilidi kolonlarını ekler; bu betik ondan bağımsızdır
 -- (menü kimliği kullanmaz), sıra yalnız dosya adındaki tarihtir.
 --
 -- Tekrar çalıştırılabilir: düğüm varsa eklenmez, verilmiş izin değiştirilmez. Id veya kod başka bir menü tanımına

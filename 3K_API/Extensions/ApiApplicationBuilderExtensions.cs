@@ -26,8 +26,10 @@ public static class ApiApplicationBuilderExtensions
         }
 
         app.UseCors(ApiServiceCollectionExtensions.CorsPolicy);
-        app.UseRateLimiter();
+        // Hız sınırı kimlik doğrulamadan sonra çalışır: genel sınır oturumlu kullanıcıyı Id'siyle bölümler.
+        // Yetkilendirmeden önce çalışır: oturumsuz istek yükü de IP başına sınırlanır.
         app.UseAuthentication();
+        app.UseRateLimiter();
         app.UseAuthorization();
         app.MapControllers();
 

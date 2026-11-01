@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -5,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Serilog;
@@ -20,6 +22,8 @@ public static class ApiServiceCollectionExtensions
 {
     public const string LoginRateLimitPolicy = "auth-login";
     public const string TwoFactorRateLimitPolicy = "two-factor";
+    public const string DisaAktarimRateLimitPolicy = "disa-aktarim";
+    public const string ForwardedHeadersSection = "ForwardedHeaders";
     public const string CorsPolicy = "AllowAll";
 
     /// <summary>Uygulamanın bütün servis kayıtları; kompozisyon kökü (Program) yalnız bunu çağırır.</summary>
@@ -29,6 +33,7 @@ public static class ApiServiceCollectionExtensions
             .AddApplication()
             .AddInfrastructure(configuration)
             .AddApiAuthentication(configuration)
+            .AddApiForwardedHeaders(configuration)
             .AddApiRateLimiting()
             .AddApiSwagger()
             .AddApiCors(environment)
@@ -115,30 +120,76 @@ public static class ApiServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Proxy arkasında istemci IP'si <c>X-Forwarded-For</c>'dan okunur. Yalnız güvenilir proxy'lerin eklediği
+    /// girdiler dikkate alınır: varsayılan loopback (aynı makinedeki nginx) ve <c>ForwardedHeaders</c> bölümündeki
+    /// <c>KnownProxies</c>/<c>KnownNetworks</c> (ör. Cloudflare aralıkları). Zincirdeki ilk güvenilmeyen adres istemci
+    /// sayılır; doğrudan sunucuya gelen istekte sahte başlık bu yüzden etkisizdir.
+    /// </summary>
+    public static IServiceCollection AddApiForwardedHeaders(this IServiceCollection services, IConfiguration configuration)
+    {
+        var section = configuration.GetSection(ForwardedHeadersSection);
+        // Hatalı adres açılışta durdurur: yanlış yazılmış bir aralık sessizce yok sayılırsa bütün istemciler
+        // proxy IP'sini paylaşır ve hız sınırı herkesi birden keser.
+        var knownProxies = (section.GetSection("KnownProxies").Get<string[]>() ?? [])
+            .Select(deger => IPAddress.TryParse(deger.Trim(), out var adres) ? adres : throw GecersizAdres("KnownProxies", deger))
+            .ToArray();
+        var knownNetworks = (section.GetSection("KnownNetworks").Get<string[]>() ?? [])
+            .Select(deger => System.Net.IPNetwork.TryParse(deger.Trim(), out var ag) ? ag : throw GecersizAdres("KnownNetworks", deger))
+            .ToArray();
+        var forwardLimit = section.GetValue<int?>("ForwardLimit");
+
+        services.Configure<ForwardedHeadersOptions>(options =>
+        {
+            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor;
+            if (forwardLimit is { } limit)
+                options.ForwardLimit = limit;
+            foreach (var proxy in knownProxies)
+                options.KnownProxies.Add(proxy);
+            foreach (var network in knownNetworks)
+                options.KnownIPNetworks.Add(network);
+        });
+
+        return services;
+    }
+
     public static IServiceCollection AddApiRateLimiting(this IServiceCollection services)
     {
-        // Reverse proxy arkasında istemci IP'si X-Forwarded-For'dan okunur; yalnız
-        // varsayılan güvenilir proxy'ler (loopback) dikkate alınır.
-        services.Configure<ForwardedHeadersOptions>(options =>
-            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor);
-
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             options.OnRejected = async (context, cancellationToken) =>
             {
-                context.HttpContext.Response.ContentType = "application/json; charset=utf-8";
-                await context.HttpContext.Response.WriteAsJsonAsync(
-                    new { message = "Çok fazla doğrulama isteği gönderildi. Lütfen kısa bir süre sonra tekrar deneyin." },
-                    cancellationToken);
+                var response = context.HttpContext.Response;
+                if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+                    response.Headers.RetryAfter = ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString();
+                response.ContentType = "application/json; charset=utf-8";
+                await response.WriteAsJsonAsync(new { message = HizSiniriMesaji(context.HttpContext) }, cancellationToken);
             };
 
-            options.AddPolicy(LoginRateLimitPolicy, httpContext => PerClientIp(httpContext, permitLimit: 10));
-            options.AddPolicy(TwoFactorRateLimitPolicy, httpContext => PerClientIp(httpContext, permitLimit: 20));
+            // Bütün API: oturumlu kullanıcı Id'si, oturumsuz istek IP başına (UseRateLimiter, UseAuthentication'dan
+            // sonra çalışır). Uç politikaları bu sınıra ek olarak uygulanır.
+            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(HizSiniriBolumleri.Genel);
+            options.AddPolicy(LoginRateLimitPolicy, httpContext =>
+                HizSiniriBolumleri.IstemciIpBasina(httpContext, HizSiniriBolumleri.GirisDakikaLimiti));
+            options.AddPolicy(TwoFactorRateLimitPolicy, httpContext =>
+                HizSiniriBolumleri.IstemciIpBasina(httpContext, HizSiniriBolumleri.IkiFaktorDakikaLimiti));
+            options.AddPolicy(DisaAktarimRateLimitPolicy, HizSiniriBolumleri.DisaAktarim);
         });
 
         return services;
     }
+
+    /// <summary>Ön yüz hata bildiriminde gösterilen Türkçe 429 mesajı; reddeden ucun politikasına göre seçilir.</summary>
+    public static string HizSiniriMesaji(HttpContext httpContext) =>
+        httpContext.GetEndpoint()?.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName switch
+        {
+            LoginRateLimitPolicy or TwoFactorRateLimitPolicy =>
+                "Çok fazla doğrulama isteği gönderildi. Lütfen kısa bir süre sonra tekrar deneyin.",
+            DisaAktarimRateLimitPolicy =>
+                "Kısa sürede çok fazla rapor veya dosya istendi. Lütfen bir dakika sonra tekrar deneyin.",
+            _ => "Çok fazla istek gönderildi. Lütfen kısa bir süre sonra tekrar deneyin."
+        };
 
     public static IServiceCollection AddApiSwagger(this IServiceCollection services)
     {
@@ -186,9 +237,9 @@ public static class ApiServiceCollectionExtensions
                 .AllowAnyMethod()
                 .AllowAnyHeader()
                 .AllowCredentials()
-                // Hata bildiriminde gösterilen takip kodu ve indirilen dosyanın sunucudaki adı; farklı kökenden
-                // çalışan ön yüz bu başlıkları okuyabilsin.
-                .WithExposedHeaders("X-Correlation-ID", "Content-Disposition")));
+                // Hata bildiriminde gösterilen takip kodu, indirilen dosyanın sunucudaki adı ve 429'da bekleme süresi;
+                // farklı kökenden çalışan ön yüz bu başlıkları okuyabilsin.
+                .WithExposedHeaders("X-Correlation-ID", "Content-Disposition", "Retry-After")));
 
         return services;
     }
@@ -225,14 +276,6 @@ public static class ApiServiceCollectionExtensions
         return services;
     }
 
-    private static RateLimitPartition<string> PerClientIp(HttpContext httpContext, int permitLimit) =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            factory: _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = permitLimit,
-                Window = TimeSpan.FromMinutes(1),
-                QueueLimit = 0,
-                AutoReplenishment = true
-            });
+    private static InvalidOperationException GecersizAdres(string anahtar, string deger) =>
+        new($"{ForwardedHeadersSection}:{anahtar} içinde geçersiz adres: '{deger}'.");
 }

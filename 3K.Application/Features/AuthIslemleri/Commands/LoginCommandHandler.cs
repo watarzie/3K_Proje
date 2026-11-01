@@ -3,6 +3,7 @@ using _3K.Application.Common;
 using _3K.Application.Features.AuthIslemleri.DTOs;
 using _3K.Core.Enums;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.AuthIslemleri.Commands
 {
@@ -21,13 +22,14 @@ namespace _3K.Application.Features.AuthIslemleri.Commands
 
         public async Task<Result<LoginResultDto>> Handle(LoginCommand request, CancellationToken cancellationToken)
         {
-            var kullanici = await _authService.ValidateCredentialsAsync(
+            var dogrulama = await _authService.ValidateCredentialsAsync(
                 request.Email,
                 request.Sifre,
                 cancellationToken);
 
-            if (kullanici == null)
-                return Result<LoginResultDto>.Failure("Geçersiz email veya şifre.", 401);
+            // Hatalı parola, bilinmeyen e-posta ve kilitli hesap aynı yanıtı alır: hesabın varlığı sızmaz.
+            if (dogrulama is not { Durum: GirisDogrulamaDurumu.Basarili, Kullanici: { } kullanici })
+                return Result<LoginResultDto>.Failure(GirisKilidiKurali.GenelHataMesaji, 401);
 
             if (!kullanici.IkiFaktorZorunluMu)
             {

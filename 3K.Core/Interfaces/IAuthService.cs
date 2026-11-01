@@ -8,11 +8,13 @@ namespace _3K.Core.Interfaces
     public interface IAuthService
     {
         /// <summary>
-        /// E-posta/parola çiftini doğrular. Bu metot hiçbir zaman JWT üretmez;
+        /// E-posta/parola çiftini doğrular ve hesap bazlı giriş kilidini
+        /// (<see cref="Models.GirisKilidiKurali"/>) uygular: hatalı parola sayacı artırır, kilitli hesap
+        /// doğru parolayla da reddedilir, başarı sayacı sıfırlar. Bu metot hiçbir zaman JWT üretmez;
         /// tam erişim token'ı yalnızca gerekli tüm giriş adımları tamamlandıktan
         /// sonra <see cref="GenerateAccessToken"/> ile oluşturulur.
         /// </summary>
-        Task<Kullanici?> ValidateCredentialsAsync(
+        Task<Models.GirisDogrulamaSonucu> ValidateCredentialsAsync(
             string email,
             string sifre,
             CancellationToken cancellationToken = default);

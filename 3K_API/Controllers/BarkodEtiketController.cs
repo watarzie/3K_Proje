@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using _3K.Application.Features.SandikIslemleri.Queries;
 using _3K_API.Extensions;
 
@@ -36,6 +37,7 @@ namespace _3K_API.Controllers
         }
 
         /// <summary>Seçilen sandıkların etiketleri; Bicim 1 = PDF, 2 = EZPL (.prn).</summary>
+        [EnableRateLimiting(ApiServiceCollectionExtensions.DisaAktarimRateLimitPolicy)]
         [HttpPost("projeler/{projeId:int}/sandik-etiketleri")]
         public async Task<IActionResult> SandikEtiketleri(int projeId, [FromBody] SandikEtiketiOlusturQuery query, CancellationToken cancellationToken)
         {
@@ -44,6 +46,7 @@ namespace _3K_API.Controllers
         }
 
         /// <summary>Seçilen ürünlerin etiketleri; Bicim 1 = PDF, 2 = EZPL (.prn).</summary>
+        [EnableRateLimiting(ApiServiceCollectionExtensions.DisaAktarimRateLimitPolicy)]
         [HttpPost("projeler/{projeId:int}/urun-etiketleri")]
         public async Task<IActionResult> UrunEtiketleri(int projeId, [FromBody] UrunEtiketiOlusturQuery query, CancellationToken cancellationToken)
         {

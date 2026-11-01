@@ -16,6 +16,16 @@ internal static class KimlikModelBuilderExtensions
             .Property(k => k.IkiFaktorZorunluMu)
             .HasDefaultValue(false);
 
+        // Hesap bazlı giriş kilidi (GirisKilidiKurali); sayaç veritabanında atomik artırılır.
+        modelBuilder.Entity<Kullanici>(e =>
+        {
+            e.ToTable(table => table.HasCheckConstraint(
+                "CK_Kullanicilar_BasarisizGirisSayisi",
+                "\"BasarisizGirisSayisi\" >= 0"));
+            e.Property(k => k.BasarisizGirisSayisi)
+                .HasDefaultValue(0);
+        });
+
         // İki faktörlü doğrulama tabloları BaseEntity'den türemez. Güvenlik
         // kayıtlarının yalnız ihtiyaç duyduğu alanlar ve UTC zamanları tutulur.
         modelBuilder.Entity<KullaniciIkiFaktorAyari>(e =>

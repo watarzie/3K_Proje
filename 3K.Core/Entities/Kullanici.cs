@@ -14,6 +14,18 @@ namespace _3K.Core.Entities
         public bool IkiFaktorZorunluMu { get; set; }
 
         /// <summary>
+        /// Son başarılı girişten bu yana art arda yapılan hatalı parola denemesi sayısı
+        /// (<see cref="Models.GirisKilidiKurali"/>). Başarılı girişte ve yönetici parolayı değiştirince sıfırlanır.
+        /// </summary>
+        public int BasarisizGirisSayisi { get; set; }
+
+        /// <summary>
+        /// Geçici giriş kilidinin bittiği an (<c>TurkeyTime</c>); bu ana kadar doğru parola da reddedilir.
+        /// Boş ise kilit yoktur.
+        /// </summary>
+        public DateTime? GirisKilitBitisTarihi { get; set; }
+
+        /// <summary>
         /// Kullanıcının atandığı rol — Rol tablosuna FK.
         /// </summary>
         public int RolId { get; set; }
