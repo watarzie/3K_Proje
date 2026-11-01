@@ -33,20 +33,25 @@ public sealed record class FinansIsKaydiModel
     public decimal BirimM3 { get; init; }
     public decimal ToplamM3 { get; init; }
     /// <summary>
-    /// Kaydın ahşap ve kontra/katlanır m³ payı: elle girildiyse saklanan değer, değilse türetilen pay (F11;
+    /// Kaydın ahşap ve kontra m³ payı: elle girildiyse saklanan değer, değilse türetilen pay (F11;
     /// <see cref="FinansHacimKurallari"/>). Bileşik toplam (ahşap + kontra) <see cref="ToplamM3"/>'tür.
     /// </summary>
     public decimal AhsapM3 { get; init; }
     public decimal KontraM3 { get; init; }
     /// <summary>Hacim "Hacim" bölümünden elle girildi; üretim aktarımı m³ değerlerini ezmez.</summary>
     public bool HacimManuel { get; init; }
-    /// <summary>Sandığın malzemesi (ahşap / kontra-katlanır); ekran hacim girişini buna göre açar.</summary>
+    /// <summary>Sandığın malzemesi (ahşap / kontra; katlanırda bilinmiyor); ekran hacim girişini buna göre açar.</summary>
     public FinansSandikMalzemesi SandikMalzemesi { get; init; }
+    /// <summary>
+    /// Katlanır sandık: fiyat tarifeden ve m³'ten hesaplanmaz, elle girilir (adet × birim fiyat veya net toplam;
+    /// <see cref="FinansKatlanirKurali"/>). Ekran m³ yöntemini ve hacim girişini kapatır.
+    /// </summary>
+    public bool ElleFiyatlanir { get; init; }
     public int? FinansUrunId { get; init; }
     public FinansFiyatlandirmaBirimi FiyatlandirmaBirimi { get; init; }
     public decimal BirimFiyat { get; init; }
     /// <summary>
-    /// Malzemeli fiyat (kontrplak/katlanır): doluysa <see cref="BirimFiyat"/> kontra m³ fiyatı, bu ahşap m³ fiyatıdır;
+    /// Malzemeli fiyat (kontrplak; eski katlanır kayıtları): doluysa <see cref="BirimFiyat"/> kontra m³ fiyatı, bu ahşap m³ fiyatıdır;
     /// net = kontra m³ × BirimFiyat + ahşap m³ × AhsapBirimFiyat. Boşsa iş tek tarifeyle fiyatlanır.
     /// </summary>
     public decimal? AhsapBirimFiyat { get; init; }
@@ -170,7 +175,7 @@ public sealed record FinansFiyatlandirmaModel(
     IReadOnlyList<FinansFiyatBileseniModel>? Bilesenler = null);
 
 /// <summary>
-/// Fiyat satırı (F11): kontra/katlanır sandıkta birden çok m³ satırı olabilir; her satır m³, birim fiyat ve
+/// Fiyat satırı (F11): kontrplak sandıkta birden çok m³ satırı olabilir; her satır m³, birim fiyat ve
 /// malzemesini taşır. Malzeme boşsa sandığın kendi malzemesi sayılır.
 /// </summary>
 public sealed record FinansFiyatBileseniModel(
@@ -263,7 +268,9 @@ public sealed record FinansAylikIsModel(
     decimal KontraM3 = 0,
     decimal KalanSiparisNetTutar = 0,
     decimal KalanFaturaNetTutar = 0,
-    decimal? AhsapBirimFiyat = null)
+    decimal? AhsapBirimFiyat = null,
+    // Satırın talep edenleri (FinansIsRaporAlanlari.TalepEdenler).
+    string? TalepEden = null)
 {
     /// <summary>Satırın kalemlerinden birleşik PO öncesi onay durumu (<see cref="FinansPoOnayKurali.Birlesik"/>).</summary>
     public FinansPoOnayDurumu PoOnayDurumu { get; init; }

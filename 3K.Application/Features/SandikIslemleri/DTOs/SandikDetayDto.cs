@@ -13,6 +13,11 @@ namespace _3K.Application.Features.SandikIslemleri.DTOs
         /// <summary>Sandık tipi; özellik güncellemesinde zorunlu olduğu için ön yüz mevcut değeri buradan alır (G2).</summary>
         public int TipId { get; set; }
         public string TipMetni { get; set; } = string.Empty;
+        /// <summary>
+        /// Sandık numarası "Özellikleri Güncelle"de değiştirilemiyorsa nedeni (çekiden gelen, sevkli, 1 numara, Ambalaj
+        /// üretimi); <c>null</c> ise numara değiştirilebilir.
+        /// </summary>
+        public string? SandikNoKilitNedeni { get; set; }
         public bool SahayaAktarildiMi { get; set; }
         public bool SahaUzerindenSevkEdildiMi { get; set; }
         public decimal SahayaAktarilanMiktar { get; set; }

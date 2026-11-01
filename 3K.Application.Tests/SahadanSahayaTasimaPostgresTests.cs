@@ -52,10 +52,14 @@ public sealed class SahadanSahayaTasimaPostgresTests
 
             var excel = await rapor.EksikUrunlerRaporuExcelOlusturAsync(kurgu.KaynakSahaId);
             using var kitap = new XLWorkbook(new MemoryStream(excel));
-            var sayfa = kitap.Worksheet("Saha Izi");
-            Assert.Equal("Gittiği Saha", sayfa.Cell(4, 7).GetString());
-            Assert.Equal("PA573-01-SAHA", sayfa.Cell(5, 7).GetString());
-            Assert.Equal("PA723-01-SAHA (1) → PA573-01-SAHA (3)", sayfa.Cell(5, 9).GetString());
+            // Saha izi ayrı sekmede değil, ana tablonun altında başlıklı bölümdür (PDF ile aynı sütunlar).
+            var sayfa = Assert.Single(kitap.Worksheets);
+            var bolum = sayfa.Column(1).CellsUsed().Single(c => c.GetString().StartsWith("Saha İzi — ", StringComparison.Ordinal)).Address.RowNumber;
+            var gittigiSaha = EksikUrunlerRaporService.SahaIziExcelSutunlari[7].Ilk;
+            var izSutunu = EksikUrunlerRaporService.SahaIziExcelSutunlari[8].Ilk;
+            Assert.Equal("Gittiği Saha", sayfa.Cell(bolum + 2, gittigiSaha).GetString());
+            Assert.Equal("PA573-01-SAHA", sayfa.Cell(bolum + 3, gittigiSaha).GetString());
+            Assert.Equal("PA723-01-SAHA (1) → PA573-01-SAHA (3)", sayfa.Cell(bolum + 3, izSutunu).GetString());
         }
 
         // Boşalan kaynak sandık silinse de iz okunur: bağ boşalır, numara kopyası kalır.
@@ -134,7 +138,8 @@ public sealed class SahadanSahayaTasimaPostgresTests
             var ceki = await db.Cekiler.SingleAsync(c => c.ProjeId == kurgu.UcuncuSahaId);
             Assert.Equal((int)CekiTipi.EksikTamamlama, ceki.CekiTipiId);
             var yeniSandik = await db.Sandiklar.SingleAsync(s => s.Id == ikinci.Value!.HedefSandikId);
-            Assert.Equal((kurgu.UcuncuSahaId, "3", 900m), (yeniSandik.ProjeId, yeniSandik.SandikNo, yeniSandik.Boy!.Value));
+            // Numara verilmedi: hedefin sıradaki numarası (hiç sandığı yok → "1"), kaynak sandığın "3"ü değil.
+            Assert.Equal((kurgu.UcuncuSahaId, "1", 900m), (yeniSandik.ProjeId, yeniSandik.SandikNo, yeniSandik.Boy!.Value));
             Assert.Equal((int)SandikDurum.Bos, (await db.Sandiklar.SingleAsync(s => s.Id == kurgu.HedefSandikId)).DurumId);
             Assert.Equal((int)ProjeDurum.Hazirlaniyor, (await db.Projeler.SingleAsync(p => p.Id == kurgu.UcuncuSahaId)).DurumId);
             Assert.Equal(ceki.Id, (await db.CekiSatirlari.SingleAsync(cs => cs.Id == kurgu.SahaSatirId)).CekiId);
@@ -161,7 +166,7 @@ public sealed class SahadanSahayaTasimaPostgresTests
             Assert.Equal((ikinci.Value!.SahaAktarimId, (int?)null), (izler[1].SahaAktarimId!.Value, izler[1].KaynakSahaProjeId));
 
             var iz = Assert.Single(await new EksikUrunlerRaporService(db).GetSahaIziSatirlariAsync(kurgu.UcuncuSahaId, default));
-            Assert.Equal("PA723-01-SAHA (1) → PA573-01-SAHA (3) → PA900-01-SAHA (3)", iz.Iz);
+            Assert.Equal("PA723-01-SAHA (1) → PA573-01-SAHA (3) → PA900-01-SAHA (1)", iz.Iz);
         }
     }
 
@@ -190,6 +195,52 @@ public sealed class SahadanSahayaTasimaPostgresTests
         await using var db = kurgu.Db();
         Assert.Equal(1, await db.SahaTasimaKalemleri.CountAsync());
         Assert.Equal(1, await db.SahaAktarimlari.CountAsync(a => a.IslemAnahtari == anahtar));
+    }
+
+    /// <summary>
+    /// Kullanıcı vakası (28.10.2026): numara verilmeden aynı hedefe yeni sandık açan iki eşzamanlı taşıma aynı numarayı
+    /// alamaz. Serializable transaction ikisinden birini geri çevirir (409); yeniden denenen ikinci taşıma sıradaki
+    /// numarayı alır. Mükerrer sandık numarası oluşmaz.
+    /// </summary>
+    [SandikPostgresFact]
+    [Trait("Category", "Postgres")]
+    public async Task NumarasizEsZamanliIkiTasima_AyniNumarayiAlamaz_SiradakiNumaraVerilir()
+    {
+        await using var kurgu = await Kurgu.CreateAsync();
+        await kurgu.HedefSandigaIkinciSatirEkleAsync();
+
+        async Task<bool> Dene(int kaynak, int kaynakSandik)
+        {
+            try
+            {
+                return (await kurgu.TasiAsync(kaynak: kaynak, hedef: kurgu.UcuncuSahaId, kaynakSandik: kaynakSandik)).IsSuccess;
+            }
+            catch (_3K.Core.Exceptions.ConcurrencyConflictException)
+            {
+                return false;
+            }
+        }
+
+        var sonuclar = await Task.WhenAll(Dene(kurgu.KaynakSahaId, kurgu.KaynakSandikId), Dene(kurgu.HedefSahaId, kurgu.HedefSandikId));
+
+        Assert.Contains(true, sonuclar);
+        await using (var db = kurgu.Db())
+        {
+            var nolar = await db.Sandiklar.Where(s => s.ProjeId == kurgu.UcuncuSahaId).Select(s => s.SandikNo).ToListAsync();
+            Assert.Equal(nolar.Distinct().Count(), nolar.Count);
+            Assert.Equal(sonuclar.Count(x => x), nolar.Count);
+        }
+
+        // Geri çevrilen taşıma yeniden denenince sıradaki numarayı alır.
+        if (!sonuclar[0])
+            Assert.True(await Dene(kurgu.KaynakSahaId, kurgu.KaynakSandikId));
+        if (!sonuclar[1])
+            Assert.True(await Dene(kurgu.HedefSahaId, kurgu.HedefSandikId));
+        await using (var db = kurgu.Db())
+        {
+            var nolar = await db.Sandiklar.Where(s => s.ProjeId == kurgu.UcuncuSahaId).Select(s => s.SandikNo).OrderBy(x => x).ToListAsync();
+            Assert.Equal(["1", "2"], nolar);
+        }
     }
 
     private sealed class SessizBildirim : _3K.Core.Interfaces.ISseNotifier
@@ -286,6 +337,33 @@ public sealed class SahadanSahayaTasimaPostgresTests
         }
 
         public AppDbContext Db() => new(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(_connectionString).Options);
+
+        /// <summary>Hedef sahanın sandık 3'üne normal projeden aktarılmış ikinci bir saha satırı koyar (iki kaynak sandık).</summary>
+        public async Task HedefSandigaIkinciSatirEkleAsync()
+        {
+            await using var db = Db();
+            var normal = await db.Projeler.SingleAsync(p => p.ProjeNo == "PA723-01");
+            var kokCeki = await db.Cekiler.SingleAsync(c => c.ProjeId == normal.Id);
+            var hedefSaha = await db.Projeler.SingleAsync(p => p.Id == HedefSahaId);
+            var hedefSandik = await db.Sandiklar.SingleAsync(s => s.Id == HedefSandikId);
+            var kullanici = await db.Kullanicilar.SingleAsync(k => k.Id == 7);
+            var kok = new CekiSatiri { CekiId = kokCeki.Id, SiraNo = 8, BarkodNo = "B-8", Aciklama = "Conta", IstenenAdet = 4, GelenMiktar = 1 };
+            var sahaCeki = new Ceki { Proje = hedefSaha, OrijinalDosyaYolu = string.Empty, YuklemeTarihi = new DateTime(2026, 10, 2), CekiTipiId = (int)CekiTipi.EksikTamamlama, TamamlamaNo = 1 };
+            var sahaSatir = new CekiSatiri
+            {
+                Ceki = sahaCeki, KaynakCekiSatiri = kok, SiraNo = 1, BarkodNo = "B-8", Aciklama = "Conta", IstenenAdet = 3,
+                GelenMiktar = 0, CekideGecenSandikNo = "3"
+            };
+            var aktarim = new SahaAktarim { SahaProje = hedefSaha, KaynakProje = normal, Kullanici = kullanici, Tarih = new DateTime(2026, 10, 3) };
+            aktarim.Kalemler.Add(new SahaAktarimKalemi
+            {
+                KaynakProje = normal, SahaProje = hedefSaha, KaynakCekiSatiri = kok, SahaCekiSatiri = sahaSatir,
+                SahaSandik = hedefSandik, Miktar = 3, DurumId = (int)SahaAktarimDurum.Planlandi
+            });
+            db.SandikIcerikleri.Add(new SandikIcerik { Sandik = hedefSandik, CekiSatiri = sahaSatir, TahsisMiktari = 3, Miktar = 3 });
+            db.SahaAktarimlari.Add(aktarim);
+            await db.SaveChangesAsync();
+        }
 
         /// <summary>Varsayılan: saha satırı kaynak sahadan hedef sahanın sandık 3'üne; <paramref name="kaynakSandik"/> verilirse bütün sandık yeni sandığa.</summary>
         public async Task<Result<SahadanSahayaTasimaSonucDto>> TasiAsync(Guid? anahtar = null, int? kaynak = null, int? hedef = null, int? kaynakSandik = null)

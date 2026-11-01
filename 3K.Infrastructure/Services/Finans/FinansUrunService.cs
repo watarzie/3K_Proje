@@ -238,9 +238,13 @@ internal sealed class FinansUrunService(
         var works = await context.IsKaydiDetayQuery(true)
             .Where(x => (x.FinansUrunId == id || x.AhsapFinansUrunId == id) && x.KaynakAktif && !x.IptalEdildi && !x.FinansMiktariManuel && !x.ManuelNetTutar.HasValue &&
                         x.KaynakTuru != FinansKaynakTurleri.Manuel && x.KaynakTuru != FinansKaynakTurleri.DuzenliIs &&
+                        x.SandikCinsi != AmbalajSandikCinsi.Katlanir &&
                         !x.SiparisKalemleri.Any())
             .OrderBy(x => x.Id)
             .ToListAsync(cancellationToken);
+        // Katlanır sandık tarifeyle fiyatlanmaz; tarifeyle fiyatlanmış eski kaydın fiyatı da korunur (cinsi boş eski
+        // kayıtta sandık tipi metni bellekte elenir).
+        works.RemoveAll(FinansKatlanirKurali.Katlanir);
         var fiyatlanan = 0;
         foreach (var work in works)
         {
@@ -494,7 +498,7 @@ internal sealed class FinansUrunService(
         entity.IsTuru = model.IsTuru;
         entity.SandikAdi = model.SandikAdi?.Trim();
         entity.SandikTipi = model.SandikTipi?.Trim();
-        // Katlanır sandık boyutla eşleşmez; eski boyut değerleri temizlenir (kontrplak gibi ahşap/kontra m³ ile fiyatlanır).
+        // Eşleşme boyut kullanmaz; eski (katlanır sandık) boyut değerleri temizlenir. Katlanır sandık artık tarifeyle eşleşmez.
         entity.Boy = null;
         entity.En = null;
         entity.Yukseklik = null;
@@ -542,9 +546,13 @@ internal sealed class FinansUrunService(
                         x.KaynakTuru != FinansKaynakTurleri.Manuel && x.KaynakTuru != FinansKaynakTurleri.DuzenliIs &&
                         (x.BirimFiyatSnapshot <= 0 && !x.TarifeYiliSnapshot.HasValue ||
                          x.AhsapBirimFiyatSnapshot.HasValue && !x.AhsapTarifeIdSnapshot.HasValue) &&
+                        x.SandikCinsi != AmbalajSandikCinsi.Katlanir &&
                         !x.SiparisKalemleri.Any())
             .OrderBy(x => x.Id)
             .ToListAsync(cancellationToken);
+        // Katlanır sandık elle fiyatlanır; tarife tanımlanınca fiyatlanmaz (ahşap tarafı da tamamlanmaz). Cinsi boş
+        // eski kayıt sandık tipi metniyle bellekte elenir.
+        works.RemoveAll(FinansKatlanirKurali.Katlanir);
         foreach (var work in works)
         {
             var oldProduct = work.FinansUrunId;

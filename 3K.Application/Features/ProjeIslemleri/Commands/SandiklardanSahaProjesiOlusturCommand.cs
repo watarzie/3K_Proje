@@ -187,8 +187,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
             if (sandikTaslaklari.Count == 0)
                 return Result<ProjeDto>.Failure("Seçilen sandıklarda sahaya aktarılabilecek kalan ürün bulunamadı.");
 
-            if (request.HedefSahaProjeId.HasValue)
-                await BosAyniNumaraliSandiklariEsleAsync(request.HedefSahaProjeId.Value, sandikTaslaklari);
+            await HedefSandiklariniCozAsync(request.HedefSahaProjeId, sandikTaslaklari);
 
             var sandikNolari = sandikTaslaklari.Select(s => s.SandikNo).ToList();
             var aciklama = string.IsNullOrWhiteSpace(request.Aciklama)
@@ -206,37 +205,47 @@ namespace _3K.Application.Features.ProjeIslemleri.Commands
         }
 
         /// <summary>
-        /// Hedef sahada aynı numaralı, sevk edilmemiş ve içi boş sandık varsa (geri alınmış aktarımın bıraktığı) taslak ona
-        /// bağlanır; yoksa motor yeni sandık açar ("-2" ile). Otomatik aktarımla aynı kural.
+        /// Taslakların hedef sandığını çözer (otomatik aktarımla aynı kural): hedef sahada aynı numaralı, sevk edilmemiş ve
+        /// içi boş sandık varsa (geri alınmış aktarımın bıraktığı) taslak ona bağlanır; yoksa yeni sandık kaynak sandığın
+        /// numarasıyla açılır, bu numara hedefte (ya da aynı aktarımda) doluysa sıradaki numarayla (en büyük + 1; 28.10.2026,
+        /// eskiden "-2" eki). Numara motora çözülmüş gider; motor dolu numarayı reddeder.
         /// </summary>
-        private async Task BosAyniNumaraliSandiklariEsleAsync(int hedefSahaProjeId, List<EksikSahaSandikDto> taslaklar)
+        private async Task HedefSandiklariniCozAsync(int? hedefSahaProjeId, List<EksikSahaSandikDto> taslaklar)
         {
-            var hedefSandiklar = (await _unitOfWork.GetRepository<Sandik>().FindAsync(s =>
-                    s.ProjeId == hedefSahaProjeId &&
-                    s.DurumId != (int)SandikDurum.Sevkedildi &&
-                    !s.SevkiyatDuzeltmeAcikMi))
-                .OrderBy(s => s.Id)
+            var hedefSandiklar = hedefSahaProjeId.HasValue
+                ? (await _unitOfWork.GetRepository<Sandik>().FindAsync(s => s.ProjeId == hedefSahaProjeId.Value))
+                    .OrderBy(s => s.Id)
+                    .ToList()
+                : [];
+            var eklenebilir = hedefSandiklar
+                .Where(s => s.DurumId != (int)SandikDurum.Sevkedildi && !s.SevkiyatDuzeltmeAcikMi)
                 .ToList();
-            if (hedefSandiklar.Count == 0)
-                return;
-
-            var hedefSandikIds = hedefSandiklar.Select(s => s.Id).ToList();
-            var doluSandikIds = (await _unitOfWork.GetRepository<SandikIcerik>().FindAsync(i => hedefSandikIds.Contains(i.SandikId)))
-                .Select(i => i.SandikId)
-                .ToHashSet();
+            var eklenebilirIds = eklenebilir.Select(s => s.Id).ToList();
+            var doluSandikIds = eklenebilirIds.Count == 0
+                ? new HashSet<int>()
+                : (await _unitOfWork.GetRepository<SandikIcerik>().FindAsync(i => eklenebilirIds.Contains(i.SandikId)))
+                    .Select(i => i.SandikId)
+                    .ToHashSet();
+            // Sevk edilmiş sandıklar da numarayı tutar: yeni sandık onların numarasını almaz.
+            var kullanilanNolar = hedefSandiklar
+                .Select(s => KoliNoKurali.Normalize(s.SandikNo))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
             var kullanilan = new HashSet<int>();
             foreach (var taslak in taslaklar)
             {
-                var bos = hedefSandiklar.FirstOrDefault(s =>
+                var bos = eklenebilir.FirstOrDefault(s =>
                     !doluSandikIds.Contains(s.Id) &&
                     !kullanilan.Contains(s.Id) &&
                     KoliNoKurali.Normalize(s.SandikNo) == KoliNoKurali.Normalize(taslak.SandikNo));
-                if (bos == null)
+                if (bos != null)
+                {
+                    kullanilan.Add(bos.Id);
+                    taslak.HedefSandikId = bos.Id;
+                    taslak.SandikNo = bos.SandikNo;
                     continue;
+                }
 
-                kullanilan.Add(bos.Id);
-                taslak.HedefSandikId = bos.Id;
-                taslak.SandikNo = bos.SandikNo;
+                taslak.SandikNo = KoliNoKurali.BosNumaraYaDaSiradaki(taslak.SandikNo, kullanilanNolar);
             }
         }
 

@@ -11,19 +11,20 @@ namespace _3K.Application.Tests;
 /// Canlıya alım provası: bu sürümün veritabanı betikleri (README sıra 22 <c>20261021_02_Sahadan_Sahaya_Tasima.sql</c>,
 /// 23 <c>20261023_01_Grid_Saha_Gorunumu_Yetkisi.sql</c>, 24 <c>20261023_02_Sevk_Sonrasi_Duzeltme.sql</c>,
 /// 25 <c>20261024_01_Proje_Baglanti_Turu.sql</c>, 26 <c>20261024_02_Barkod_Urun_Arama_Yetkisi.sql</c>,
-/// 27 <c>20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql</c>, 28 <c>20261025_01_Giris_Kilidi.sql</c>) önceki sürümün şemasında çalıştırılır. Sonuç şeması EF modeliyle
+/// 27 <c>20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql</c>, 28 <c>20261025_01_Giris_Kilidi.sql</c>,
+/// 29 <c>20261026_01_Barkod_Etiket_Yetkisi.sql</c>) önceki sürümün şemasında çalıştırılır. Sonuç şeması EF modeliyle
 /// aynıdır (kolon, kısıt, ON DELETE kuralı, indeks). Betiklerin tekrarı hiçbir şeyi değiştirmez: var olan taşıma izi ve
 /// verilmiş izinler korunur. Salt okunur durum sorgusu (<c>kontrol/Betik_Durumu.sql</c>) klasördeki her betiği listeler
 /// ve öncesini/sonrasını doğru gösterir. 1–20 numaralı betikler canlıya uygulanıp depodan kaldırıldığı için burada yoktur.
 /// </summary>
 public sealed class CanliyaAlimBetikleriTests
 {
-    /// <summary>Canlıda çalıştırma sırası (scripts/database/README.md, sıra 22–28).</summary>
+    /// <summary>Canlıda çalıştırma sırası (scripts/database/README.md, sıra 22–29).</summary>
     private static readonly string[] Betikler =
         ["20261021_02_Sahadan_Sahaya_Tasima.sql", "20261023_01_Grid_Saha_Gorunumu_Yetkisi.sql",
             "20261023_02_Sevk_Sonrasi_Duzeltme.sql", "20261024_01_Proje_Baglanti_Turu.sql",
             "20261024_02_Barkod_Urun_Arama_Yetkisi.sql", "20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql",
-            "20261025_01_Giris_Kilidi.sql"];
+            "20261025_01_Giris_Kilidi.sql", "20261026_01_Barkod_Etiket_Yetkisi.sql"];
 
     /// <summary>Önceki sürümün (master) şeması: bu sürümün eklediği tablo, kolon, kısıt ve indeksler yoktur.</summary>
     private const string OncekiSema = """
@@ -103,7 +104,7 @@ public sealed class CanliyaAlimBetikleriTests
             // Rotasız izin düğümü: kenar menüde görünmez, ekran üst çubuktaki genel aramadan açılır.
             Assert.Equal((5260, (string?)null, "MENU.BARKOD_URUN_ARAMA", 5), (barkod.Id, barkod.Route, barkod.LabelKey, barkod.ParentId!.Value));
             // 27 numaralı betiğin düğümü (5261) barkod aramadan sonra eklenir.
-            Assert.True(barkod.Sira > (await db.MenuTanimlari.AsNoTracking().Where(m => m.ParentId == 5 && m.Id != 5260 && m.Id != 5261).MaxAsync(m => m.Sira)));
+            Assert.True(barkod.Sira > (await db.MenuTanimlari.AsNoTracking().Where(m => m.ParentId == 5 && m.Id != 5260 && m.Id != 5261 && m.Id != 5262).MaxAsync(m => m.Sira)));
             var barkodIzinleri = await IzinlerAsync(db, YetkiKodlari.Sandik.BarkodUrunArama);
             // Admin W; Sandık Yönetimi'ni gören roller R (tohumdaki rollerin sandik-yonetimi izni).
             Assert.Equal(await SandikYonetimiRolleriAsync(db), barkodIzinleri);
@@ -112,9 +113,15 @@ public sealed class CanliyaAlimBetikleriTests
             var istatistik = await db.MenuTanimlari.AsNoTracking().SingleAsync(m => m.Kod == YetkiKodlari.Sandik.SandikAcilisIstatistigi);
             // Rotasız izin düğümü: ekran Projeler ve 3K sandık listesinin "Diğer" menüsünden açılır.
             Assert.Equal((5261, (string?)null, "MENU.SANDIK_ACILIS_ISTATISTIGI", 5), (istatistik.Id, istatistik.Route, istatistik.LabelKey, istatistik.ParentId!.Value));
-            Assert.True(istatistik.Sira > (await db.MenuTanimlari.AsNoTracking().Where(m => m.ParentId == 5 && m.Id != 5261).MaxAsync(m => m.Sira)));
+            Assert.True(istatistik.Sira > (await db.MenuTanimlari.AsNoTracking().Where(m => m.ParentId == 5 && m.Id != 5261 && m.Id != 5262).MaxAsync(m => m.Sira)));
             var istatistikIzinleri = await IzinlerAsync(db, YetkiKodlari.Sandik.SandikAcilisIstatistigi);
             Assert.Equal(await SandikYonetimiRolleriAsync(db), istatistikIzinleri);
+            var etiket = await db.MenuTanimlari.AsNoTracking().SingleAsync(m => m.Kod == YetkiKodlari.Sandik.BarkodEtiket);
+            // Rotasız izin düğümü: ekran Projeler ve 3K sandık listesinin "Diğer" menüsünden açılır; Sandık Yönetimi'nin sonuncusu.
+            Assert.Equal((5262, (string?)null, "MENU.BARKOD_ETIKET", 5), (etiket.Id, etiket.Route, etiket.LabelKey, etiket.ParentId!.Value));
+            Assert.True(etiket.Sira > (await db.MenuTanimlari.AsNoTracking().Where(m => m.ParentId == 5 && m.Id != 5262).MaxAsync(m => m.Sira)));
+            var etiketIzinleri = await IzinlerAsync(db, YetkiKodlari.Sandik.BarkodEtiket);
+            Assert.Equal(await SandikYonetimiRolleriAsync(db), etiketIzinleri);
             Assert.Equal(["Trafo kurulum", "Tadilat"],
                 await db.LookupSandikAcilmaSebepleri.AsNoTracking().OrderBy(s => s.Id).Select(s => s.Deger).ToListAsync());
             await GecmisAktarildiAsync(db, gecmis, gecmis.SonKapanma);
@@ -156,6 +163,8 @@ public sealed class CanliyaAlimBetikleriTests
             Assert.Equal(ProjeBaglantiTuru.Fotograf, (await db.Set<ProjeFotografBaglantisi>().AsNoTracking().SingleAsync(b => b.ProjeId == projeId)).Tur);
             Assert.Equal(istatistikIzinleri, await IzinlerAsync(db, YetkiKodlari.Sandik.SandikAcilisIstatistigi));
             Assert.Equal(1, await db.MenuTanimlari.CountAsync(m => m.Kod == YetkiKodlari.Sandik.SandikAcilisIstatistigi));
+            Assert.Equal(etiketIzinleri, await IzinlerAsync(db, YetkiKodlari.Sandik.BarkodEtiket));
+            Assert.Equal(1, await db.MenuTanimlari.CountAsync(m => m.Kod == YetkiKodlari.Sandik.BarkodEtiket));
             Assert.Equal(2, await db.LookupSandikAcilmaSebepleri.CountAsync());
             // Geçmiş ikinci kez aktarılmaz; dolu kapanma tarihi korunur, açık sandığınki boşalır.
             await GecmisAktarildiAsync(db, gecmis, elleTarih);
@@ -273,7 +282,10 @@ public sealed class CanliyaAlimBetikleriTests
         Assert.Null(sandiklar[gecmis.AcikSandikId]);
     }
 
-    /// <summary>Beklenen barkod arama izinleri: Admin W, sandik-yonetimi'nde R/W olan diğer roller R.</summary>
+    /// <summary>
+    /// Sandık Yönetimi'nden türeyen salt okuma izinlerinin (barkod arama 26, açılış istatistiği 27, barkod etiketi 29)
+    /// beklentisi: Admin W, sandik-yonetimi'nde R/W olan diğer roller R.
+    /// </summary>
     private static async Task<List<(int RolId, int YetkiTipiId)>> SandikYonetimiRolleriAsync(AppDbContext db) =>
         (await IzinlerAsync(db, YetkiKodlari.Sandik.Yonetimi))
         .Where(x => x.YetkiTipiId is (int)YetkiTipi.R or (int)YetkiTipi.W)

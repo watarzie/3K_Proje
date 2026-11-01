@@ -7,6 +7,11 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
     {
 
         public int SandikId { get; set; }
+        /// <summary>
+        /// Yeni sandık numarası; yalnız elle eklenen, sevk edilmemiş sandıkta değişebilir
+        /// (<see cref="_3K.Core.Models.SandikNoDegisikligiKurali"/>). Gönderilmezse (eski istemci) numara değişmez.
+        /// </summary>
+        public string? SandikNo { get; set; }
         public string? SandikIsmi { get; set; }
         /// <summary>Sandık tipi zorunludur (G2); değişiklik Ambalaj senkronuna kaynak tipi olarak akar.</summary>
         public int? TipId { get; set; }

@@ -117,6 +117,7 @@ public sealed class RequestMenuPermissionResolver(IUnitOfWork unitOfWork, IReadQ
         GetSandikDurumGecmisiQuery x => new(ProjectMenuOperation.CrateRead, YetkiTipi.R, SandikIds: [x.SandikId]),
         GetProjeSevkiyatlariQuery x => new(ProjectMenuOperation.ProjectRead, YetkiTipi.R, x.ProjeId),
         GetSahaProjePdfQuery x => new(ProjectMenuOperation.CrateReport, YetkiTipi.R, x.ProjeId),
+        GetSevkeHazirSandikRaporuQuery x => new(ProjectMenuOperation.CrateReport, YetkiTipi.R, x.ProjeId),
         GetGerceklesenCekiListesiPdfQuery x => new(ProjectMenuOperation.ActualPackingReport, YetkiTipi.R, x.ProjeId),
         GetGerceklesenCekiListesiExcelQuery x => new(ProjectMenuOperation.ActualPackingReport, YetkiTipi.R, x.ProjeId),
         GetSahaGerceklesenCekiListesiPdfQuery x => new(ProjectMenuOperation.ActualPackingReport, YetkiTipi.R, x.ProjeId),

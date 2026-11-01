@@ -369,14 +369,25 @@ internal sealed class FinansIsKaydiService(
     public Task<FinansIsKaydiModel?> FiyatlandirAsync(int id, FinansFiyatlandirmaModel model, CancellationToken cancellationToken)
         => islem.AtomikAsync(async () =>
         {
-            FinansGerekceKurali.Dogrula(model.Aciklama);
             if (!Enum.IsDefined(model.FiyatlandirmaBirimi) || model.Adet <= 0 || model.BirimM3 < 0 || model.BirimFiyat < 0 || model.KdvOrani is < 0 or > 100)
                 throw IsKuraliException.Cakisma("Fiyatlandırma yöntemi, miktar ve KDV değerlerini kontrol edin.");
             var work = await context.IsKaydiDetayQuery(true).FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
             if (work is null) return null;
+            // Katlanır sandığın fiyatı her zaman elle girildiği için gerekçe isteğe bağlıdır; diğer işlerde zorunludur.
+            var katlanir = FinansKatlanirKurali.Katlanir(work);
+            if (katlanir)
+            {
+                if (!FinansGerekceKurali.IstegeBagliGecerli(model.Aciklama))
+                    throw IsKuraliException.Cakisma(FinansGerekceKurali.IstegeBagliMesaj);
+            }
+            else if (!FinansGerekceKurali.Gecerli(model.Aciklama))
+            {
+                throw new IsKuraliException(FinansGerekceKurali.Mesaj);
+            }
             if (work.IptalEdildi || !work.KaynakAktif) throw IsKuraliException.Cakisma("Pasif iş fiyatlandırılamaz.");
             if (work.SiparisKalemleri.Count > 0)
                 throw IsKuraliException.Cakisma("PO geçmişi bulunan işin fiyat snapshot'ı değiştirilemez; ek/düzeltme işi oluşturun.");
+            if (katlanir) FinansKatlanirKurali.FiyatDogrula(model.FiyatlandirmaBirimi, model.Bilesenler);
             var currency = await FinansSorgulari.ParaBirimiSecimiAsync(context, model.ParaBirimi, [work.ParaBirimiSnapshot], cancellationToken);
             var componentTotal = ValidatePriceComponents(model.Bilesenler);
             if (model.FiyatlandirmaBirimi == FinansFiyatlandirmaBirimi.ManuelToplam && model.ManuelNetTutar is not > 0 && componentTotal is null)
@@ -388,7 +399,15 @@ internal sealed class FinansIsKaydiService(
             var before = FinansDenetimKaydi.AnlikGoruntu(work);
             work.FiyatlandirmaBirimiSnapshot = model.FiyatlandirmaBirimi;
             work.Adet = model.Adet;
-            if (work.HacimManuel)
+            if (katlanir)
+            {
+                // Katlanır sandıkta m³ tutulmaz; girilen fiyat adet × birim fiyat ya da net toplam olarak kullanılır.
+                FinansKatlanirKurali.HacmiTemizle(work);
+                work.FinansUrunId = null;
+                work.TarifeYiliSnapshot = null;
+                work.TarifeIdSnapshot = null;
+            }
+            else if (work.HacimManuel)
             {
                 // Elle girilen ahşap/kontra hacmi Hacim bölümünden yönetilir; fiyatlandırma yalnız birim m³'ü adede göre türetir.
                 FinansHacimKurallari.ManuelHacmiUygula(work);
@@ -411,7 +430,8 @@ internal sealed class FinansIsKaydiService(
             if (FinansTutarKurallari.IsNet(work) <= 0) throw IsKuraliException.Cakisma("İş net bedeli sıfırdan büyük olmalıdır.");
             work.Durum = FinansTutarKurallari.Durum(work);
             denetim.DegisiklikleriEkle(nameof(FinansIsKaydi), work, before);
-            denetim.Ekle(nameof(FinansIsKaydi), id, "Fiyatlandırma", "Gerekçe", null, null, model.Aciklama);
+            if (!string.IsNullOrWhiteSpace(model.Aciklama))
+                denetim.Ekle(nameof(FinansIsKaydi), id, "Fiyatlandırma", "Gerekçe", null, null, model.Aciklama.Trim());
             await context.SaveChangesAsync(cancellationToken);
             return await ModelAsync(work, cancellationToken);
         }, cancellationToken);
@@ -428,8 +448,10 @@ internal sealed class FinansIsKaydiService(
             if (work.IptalEdildi || !work.KaynakAktif) throw IsKuraliException.Cakisma("Pasif işin hacmi değiştirilemez.");
             if (work.SiparisKalemleri.Count > 0)
                 throw IsKuraliException.Cakisma("PO'ya bağlı kaydın hacmi değiştirilemez; ek/düzeltme işi oluşturun.");
+            if (FinansKatlanirKurali.Katlanir(work))
+                throw IsKuraliException.Cakisma(FinansKatlanirKurali.HacimMesaji);
             if (!FinansHacimKurallari.ElleGirilebilir(work.SandikCinsi, work.SandikTipi, work.HacimManuel))
-                throw IsKuraliException.Cakisma("Ahşap/kontra m³ yalnız kontrplak veya katlanır sandıkta girilir; ahşap sandığın m³'ü üretimden gelir.");
+                throw IsKuraliException.Cakisma("Ahşap/kontra m³ yalnız kontrplak sandıkta girilir; ahşap sandığın m³'ü üretimden gelir.");
             var before = FinansDenetimKaydi.AnlikGoruntu(work);
             work.AhsapM3 = decimal.Round(model.AhsapM3, 6, MidpointRounding.AwayFromZero);
             work.KontraM3 = decimal.Round(model.KontraM3, 6, MidpointRounding.AwayFromZero);

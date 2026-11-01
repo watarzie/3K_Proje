@@ -35,7 +35,6 @@ internal sealed class SahadanSahayaTasimaHazirligi
     public required IReadOnlyDictionary<int, string> KokProjeNolari { get; init; }
     public Sandik? HedefSandik { get; init; }
     public required string HedefSandikNo { get; init; }
-    public bool NumaraDegisti { get; init; }
     public required IReadOnlyList<string> Engeller { get; init; }
     /// <summary>Taşımadan sonra içeriği kalmayan (Boş olacak) kaynak sandık numaraları.</summary>
     public required IReadOnlyList<string> BosalacakSandikNolari { get; init; }
@@ -222,7 +221,6 @@ internal sealed class SahadanSahayaTasimaIslemi(
         var hedefSandiklar = (await sandikRepo.FindAsync(s => s.ProjeId == hedefProje.Id)).ToList();
         Sandik? hedefSandik = null;
         string hedefSandikNo;
-        var numaraDegisti = false;
         if (talep.HedefSandikId.HasValue)
         {
             hedefSandik = hedefSandiklar.SingleOrDefault(s => s.Id == talep.HedefSandikId.Value);
@@ -234,16 +232,21 @@ internal sealed class SahadanSahayaTasimaIslemi(
         }
         else
         {
-            var istenenNo = !string.IsNullOrWhiteSpace(talep.YeniSandikNo)
-                ? talep.YeniSandikNo.Trim()
-                : kaynakSandiklar.Count == 1 ? kaynakSandiklar[0].SandikNo.Trim() : string.Empty;
-            // Engel varsa numara aranmaz; kullanıcıya önce engeller gösterilir.
-            if (string.IsNullOrWhiteSpace(istenenNo) && engeller.Count == 0)
-                return Result<SahadanSahayaTasimaHazirligi>.Failure("Seçilen satırlar farklı sandıklarda; yeni sandığın numarasını girin.");
-            // Çakışma normal biçimle aranır ("05" = "5"); yeni sandık elle aktarımdaki gibi girilen numarayla açılır.
+            // Yeni sandık (28.10.2026): numara verilmezse hedefin sıradaki numarası (en büyük sayısal + 1; sevk edilmiş
+            // sandıklar dahil) atanır, kaynak sandığın numarası kullanılmaz. Verilen numara hedefte (çeki biçiminde; "05" =
+            // "5") varsa engeldir: kullanıcı o sandığı seçer ya da başka numara verir. Eskiden "2-2" ekli ikinci sandık
+            // açılıyor, ekranda iki "2" görünüyordu.
             var kullanilanNolar = hedefSandiklar.Select(s => KoliNoKurali.Normalize(s.SandikNo)).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            hedefSandikNo = string.IsNullOrWhiteSpace(istenenNo) ? string.Empty : SahaAktarimIslemi.GenerateUniqueSandikNo(istenenNo, kullanilanNolar);
-            numaraDegisti = !string.Equals(hedefSandikNo, istenenNo, StringComparison.OrdinalIgnoreCase);
+            if (string.IsNullOrWhiteSpace(talep.YeniSandikNo))
+            {
+                hedefSandikNo = KoliNoKurali.SiradakiNumara(kullanilanNolar);
+            }
+            else
+            {
+                hedefSandikNo = talep.YeniSandikNo.Trim();
+                if (kullanilanNolar.Contains(KoliNoKurali.Normalize(hedefSandikNo)))
+                    engeller.Add($"Hedef saha projesinde {hedefSandikNo} numaralı sandık zaten var; o sandığı seçin ya da başka bir numara verin.");
+            }
         }
 
         var tasinanIcerikIds = tasimaSatirlari.Select(s => s.Icerik.Id).Concat(manuelIcerikler.Select(i => i.Id)).ToHashSet();
@@ -285,7 +288,6 @@ internal sealed class SahadanSahayaTasimaIslemi(
             KokProjeNolari = kokProjeNolari,
             HedefSandik = hedefSandik,
             HedefSandikNo = hedefSandikNo,
-            NumaraDegisti = numaraDegisti,
             Engeller = engeller,
             BosalacakSandikNolari = kaynakSandiklar
                 .Where(s => !kalanIcerikliSandikIds.Contains(s.Id))

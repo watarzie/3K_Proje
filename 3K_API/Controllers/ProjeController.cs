@@ -187,7 +187,9 @@ namespace _3K_API.Controllers
                 SevkTarihi = request?.SevkTarihi,
                 SandikIds = request?.SandikIds,
                 Aciklama = request?.Aciklama,
-                AracPlaka = request?.AracPlaka
+                AracPlaka = request?.AracPlaka,
+                Sofor = request?.Sofor,
+                DorsePlaka = request?.DorsePlaka
             });
             return result.ToActionResult();
         }
@@ -278,6 +280,8 @@ namespace _3K_API.Controllers
         public List<int>? SandikIds { get; init; }
         public string? Aciklama { get; init; }
         public string? AracPlaka { get; init; }
+        public string? Sofor { get; init; }
+        public string? DorsePlaka { get; init; }
     }
 
     public record FotografBaglantisiRequest

@@ -13,10 +13,6 @@ namespace _3K.Infrastructure.Services.Finans;
 /// </summary>
 internal sealed partial class FinansRaporService
 {
-    /// <summary>Ölçüsü rapora yazılan iş türleri (ana ambalaj kalemleri proje bazında toplu olduğu için ölçüsüzdür).</summary>
-    private static readonly FinansIsTuru[] OlculuIsTurleri =
-        [FinansIsTuru.IlaveSandik, FinansIsTuru.SahaSandigi, FinansIsTuru.YedekSandik, FinansIsTuru.OzelIs];
-
     internal static readonly string[] IsRaporuBasliklari =
     [
         "Kayıt No", "Proje", "Müşteri", "Kategori", "İş Türü", "İş Adı", "Sandık No", "Sandık Cinsi", "Ölçü (mm)",
@@ -139,18 +135,12 @@ internal sealed partial class FinansRaporService
 
     /// <summary>İlave, Saha, Yedek ve Özel işte "B × E × Y" (mm); üç ölçü de girilmemişse ya da tür dışındaysa boş.</summary>
     internal static string? IsOlcusu(FinansIsKaydiModel item) =>
-        OlculuIsTurleri.Contains(item.IsTuru) && item.Boy > 0 && item.En > 0 && item.Yukseklik > 0
+        FinansIsRaporAlanlari.OlculuIsTuru(item.IsTuru) && item.Boy > 0 && item.En > 0 && item.Yukseklik > 0
             ? OlcuMetni(item.Boy, item.En, item.Yukseklik)
             : null;
 
-    internal static string? TalepEden(FinansIsKaydiModel item)
-    {
-        var parcalar = new[] { item.TalepEdenKisi, item.TalepEdenBolum }
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Select(x => x!.Trim())
-            .ToArray();
-        return parcalar.Length == 0 ? null : string.Join(" / ", parcalar);
-    }
+    internal static string? TalepEden(FinansIsKaydiModel item) =>
+        FinansIsRaporAlanlari.TalepEden(item.TalepEdenKisi, item.TalepEdenBolum);
 
     private static string? BosIseNull(string? deger) => string.IsNullOrWhiteSpace(deger) ? null : deger;
 

@@ -132,6 +132,12 @@ public sealed class FinansUrunKaydetModelValidator : AbstractValidator<FinansUru
             match.RuleFor(x => x.IsTuru).IsInEnum();
             match.RuleFor(x => x.SandikAdi).MaximumLength(250);
             match.RuleFor(x => x.SandikTipi).MaximumLength(100);
+            // Katlanır sandık elle fiyatlanır; yeni katlanır eşleşmesi tanımlanamaz. Önceden kaydedilmiş eşleşme (Id dolu)
+            // fiyatlamada zaten yok sayılır; ürünün diğer güncellemelerini kilitlememek için reddedilmez.
+            match.RuleFor(x => x.SandikTipi)
+                .Must(x => !FinansKatlanirKurali.SandikTipiMi(x))
+                .When(x => x.Aktif && x.Id is null)
+                .WithMessage(FinansKatlanirKurali.TarifeMesaji);
             match.RuleFor(x => x.Malzeme)
                 .Must(x => x is null or FinansSandikMalzemesi.Ahsap or FinansSandikMalzemesi.Kontra)
                 .WithMessage("Tarife malzemesi Ahşap veya Kontra olmalıdır.");

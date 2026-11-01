@@ -102,7 +102,7 @@ public sealed class HizSiniriTests
     [Fact]
     public void DosyaUclari_DisaAktarimPolitikasinda_GirisUclariKendiPolitikasinda()
     {
-        var dosyaRotasi = new Regex(@"(excel|\{format\}|/dosya$|/indir$|rapor$)", RegexOptions.IgnoreCase);
+        var dosyaRotasi = new Regex(@"(excel|\{format\}|/dosya$|/indir$|rapor$|etiketleri$)", RegexOptions.IgnoreCase);
         var eylemler = typeof(PdfController).Assembly.GetTypes()
             .Where(t => typeof(ControllerBase).IsAssignableFrom(t) && !t.IsAbstract)
             .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly), (t, m) => (Tip: t, Metot: m))

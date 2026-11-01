@@ -51,7 +51,6 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                 HedefSahaProjeNo = h.HedefProje.ProjeNo,
                 HedefSandikNo = h.HedefSandikNo,
                 YeniSandik = h.HedefSandik == null,
-                NumaraDegisti = h.NumaraDegisti,
                 TasinabilirMi = h.Engeller.Count == 0 && (h.Satirlar.Count > 0 || h.ManuelIcerikler.Count > 0),
                 ManuelIcerikSayisi = h.ManuelIcerikler.Count,
                 ToplamMiktar = h.Satirlar.Sum(s => s.Kalem.Miktar),

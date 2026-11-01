@@ -32,7 +32,7 @@
 - `UseRateLimiter`, `UseAuthentication`'dan sonra (kullanıcı Id'si okunabilsin), `UseAuthorization`'dan önce çalışır.
 - 429 gövdesi `{ message }` (Türkçe) ve `Retry-After` başlığıdır (CORS'ta okunabilir); ön yüz mesajı olduğu gibi gösterir.
 - Yeni dosya/rapor ucu `[EnableRateLimiting(ApiServiceCollectionExtensions.DisaAktarimRateLimitPolicy)]` alır;
-  `HizSiniriTests` rota adına (`excel`, `{format}`, `/dosya`, `/indir`, `rapor`) ve `PdfController`'a göre denetler.
+  `HizSiniriTests` rota adına (`excel`, `{format}`, `/dosya`, `/indir`, `rapor`, `etiketleri`) ve `PdfController`'a göre denetler.
 
 ## Proxy arkasında istemci IP'si
 

@@ -7,7 +7,6 @@ namespace _3K.Application.Features.ProjeIslemleri.DTOs
         public string HedefSahaProjeNo { get; init; } = string.Empty;
         public string HedefSandikNo { get; init; } = string.Empty;
         public bool YeniSandik { get; init; }
-        public bool NumaraDegisti { get; init; }
         public bool TasinabilirMi { get; init; }
         public int ManuelIcerikSayisi { get; init; }
         public decimal ToplamMiktar { get; init; }

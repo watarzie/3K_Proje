@@ -7,6 +7,7 @@ using _3K.Infrastructure.Data.Interceptors;
 using _3K.Infrastructure.Repositories;
 using _3K.Infrastructure.Services;
 using _3K.Infrastructure.Services.Cekiler;
+using _3K.Infrastructure.Services.Etiketler;
 using _3K.Infrastructure.Services.Finans;
 using _3K.Infrastructure.Services.Raporlar;
 
@@ -136,6 +137,7 @@ public static class DependencyInjection
     private static void AddRaporServices(this IServiceCollection services)
     {
         services.AddScoped<IBarkodUrunAramaService, BarkodUrunAramaService>();
+        services.AddScoped<IBarkodEtiketService, BarkodEtiketService>();
         services.AddScoped<ISandikDurumIstatistikService, SandikDurumIstatistikService>();
         services.AddScoped<IDepoSandikRaporService, DepoSandikRaporService>();
         services.AddScoped<IEksikUrunlerRaporService, EksikUrunlerRaporService>();

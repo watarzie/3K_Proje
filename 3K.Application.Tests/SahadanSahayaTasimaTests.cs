@@ -4,6 +4,7 @@ using _3K.Application.Features.ProjeIslemleri.DTOs;
 using _3K.Application.Features.ProjeIslemleri.Queries;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
+using _3K.Core.Models;
 using _3K.Core.Interfaces;
 
 namespace _3K.Application.Tests;
@@ -31,7 +32,8 @@ public class SahadanSahayaTasimaTests
         Assert.Equal((101, 4m, 4m), (satir.KaynakCekiSatiriId!.Value, satir.GelenMiktar, satir.IstenenAdet));
 
         var hedefSandik = Assert.Single(k.Uow.Repo<Sandik>().Rows, s => s.ProjeId == HedefSaha && s.Id != 31);
-        Assert.Equal("1", hedefSandik.SandikNo);
+        // Numara verilmedi: hedefin sıradaki numarası (en büyük "3" + 1), kaynak sandığın numarası ("1") değil.
+        Assert.Equal("4", hedefSandik.SandikNo);
         // Kaynak sandıkta ürün kaldığı için kutu taşınmadı: yeni sandığa ölçü/ağırlık kopyalanmaz (aynı kutu iki kez sayılmaz).
         Assert.Equal(((string?)null, (decimal?)null, (decimal?)null, (decimal?)null, (decimal?)null),
             (hedefSandik.Ad, hedefSandik.Boy, hedefSandik.En, hedefSandik.NetKg, hedefSandik.GrossKg));
@@ -45,7 +47,7 @@ public class SahadanSahayaTasimaTests
         Assert.Equal(4m, k.Uow.Repo<SahaAktarimKalemi>().Rows.Where(x => x.KaynakCekiSatiriId == 101 && x.DurumId == (int)SahaAktarimDurum.Planlandi).Sum(x => x.Miktar));
 
         var iz = Assert.Single(k.Uow.Repo<SahaTasimaKalemi>().Rows);
-        Assert.Equal(("PA723-01-SAHA", "1", "PA573-01-SAHA", "1", 4m, 501, 401),
+        Assert.Equal(("PA723-01-SAHA", "1", "PA573-01-SAHA", "4", 4m, 501, 401),
             (iz.KaynakSahaProjeNo, iz.KaynakSahaSandikNo, iz.HedefSahaProjeNo, iz.HedefSahaSandikNo, iz.Miktar, iz.OncekiSahaAktarimId!.Value, iz.SahaAktarimKalemiId!.Value));
         var baslik = k.Uow.Repo<SahaAktarim>().Rows.Single(a => a.Id == sonuc.Value.SahaAktarimId);
         Assert.Equal((HedefSaha, (int?)KaynakSaha), (baslik.SahaProjeId, baslik.KaynakSahaProjeId));
@@ -84,7 +86,8 @@ public class SahadanSahayaTasimaTests
 
         Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
         var yeni = k.Uow.Repo<Sandik>().Rows.Single(s => s.Id == sonuc.Value!.HedefSandikId);
-        Assert.Equal((HedefSaha, "1", "Saha eksikleri", 1200m), (yeni.ProjeId, yeni.SandikNo, yeni.Ad, yeni.Boy!.Value));
+        // Numara verilmedi: hedefin sıradaki numarası (en büyük "3" + 1); kutu bilgileri kaynak sandıktan gelir.
+        Assert.Equal((HedefSaha, "4", "Saha eksikleri", 1200m), (yeni.ProjeId, yeni.SandikNo, yeni.Ad, yeni.Boy!.Value));
     }
 
     [Fact]
@@ -99,6 +102,48 @@ public class SahadanSahayaTasimaTests
         var yeni = k.Uow.Repo<Sandik>().Rows.Single(s => s.Id == sonuc.Value!.HedefSandikId);
         Assert.Equal(("Saha eksikleri", 1200m), (yeni.Ad, yeni.Boy!.Value));
         Assert.Equal((int)SandikDurum.Bos, k.Uow.Repo<Sandik>().Rows.Single(s => s.Id == 21).DurumId);
+    }
+
+    [Fact]
+    public async Task TopluSatirTasima_FarkliSandiklardanSecilenlerTekIslemdeAyniHedefSandigaGecer()
+    {
+        // Aktarımlar penceresindeki toplu seçim: iki ayrı kaynak sandıktan üç satır, tek başlık ve tek hedef sandık.
+        var k = new Kurgu();
+        var anahtar = Guid.NewGuid();
+
+        var onizleme = await k.OnizleAsync(satirlar: [Kurgu.S1, Kurgu.S2, Kurgu.S3], hedefSandik: 31);
+        var sonuc = await k.TasiAsync(satirlar: [Kurgu.S1, Kurgu.S2, Kurgu.S3], hedefSandik: 31, anahtar: anahtar);
+
+        Assert.True(onizleme.TasinabilirMi);
+        Assert.Equal(3, onizleme.Satirlar.Count);
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.Equal((3, 31), (sonuc.Value!.TasinanSatirSayisi, sonuc.Value.HedefSandikId));
+        Assert.All(k.Uow.Repo<SandikIcerik>().Rows.Where(i => i.Id is 301 or 302 or 303), i => Assert.Equal(31, i.SandikId));
+        Assert.Equal(1, k.Uow.Repo<SahaAktarim>().Rows.Count(a => a.KaynakSahaProjeId == KaynakSaha));
+        Assert.Equal(3, k.Uow.Repo<SahaTasimaKalemi>().Rows.Count);
+        // Sandık 2'nin tek satırı gitti, boşaldı; sandık 1'de manuel içerik kaldı.
+        Assert.Equal(["2"], sonuc.Value.BosalanSandikNolari);
+
+        // Aynı anahtarla tekrar ikinci taşıma üretmez.
+        var once = k.Durum();
+        var tekrar = await k.TasiAsync(satirlar: [Kurgu.S3, Kurgu.S2, Kurgu.S1], hedefSandik: 31, anahtar: anahtar);
+        Assert.True(tekrar.IsSuccess, tekrar.Error?.Message);
+        Assert.Equal(once, k.Durum());
+    }
+
+    [Fact]
+    public async Task TopluSatirTasima_TekSatirEngelliyse409VeHicbirSatirTasinmaz()
+    {
+        // Hepsi ya da hiçbiri: sevk edilmiş sandıktaki tek satır bütün seçimi durdurur.
+        var k = new Kurgu();
+        k.Uow.Repo<Sandik>().Rows.Single(s => s.Id == 22).DurumId = (int)SandikDurum.Sevkedildi;
+        var once = k.Durum();
+
+        var sonuc = await k.TasiAsync(satirlar: [Kurgu.S1, Kurgu.S2, Kurgu.S3]);
+
+        Assert.Equal(409, sonuc.StatusCode);
+        Assert.Contains("sevk edilmiş", string.Join(" ", (IEnumerable<string>)sonuc.Error!.Issues!));
+        Assert.Equal(once, k.Durum());
     }
 
     [Fact]
@@ -157,16 +202,72 @@ public class SahadanSahayaTasimaTests
     }
 
     [Fact]
-    public async Task HedefteNumaraDoluysa_YeniNumaraVerilir()
+    public async Task NumaraVerilmezse_HedefinEnBuyukNumarasiArtiBirAtanir_KaynakNumarasiKullanilmaz()
     {
+        // Kullanıcı vakası (28.10.2026): hedefte sevkli "1" ve Hazırlanıyor "2" var, kaynak sandık da "2"; eskiden "2-2"
+        // açılıyor, ekranda ikinci bir "2" görünüyordu. Sayısal olmayan "2-2" sıraya katılmaz; sevkli sandık numarayı tutar.
         var k = new Kurgu();
-        k.Uow.Repo<Sandik>().Rows.Add(new Sandik { Id = 32, ProjeId = HedefSaha, SandikNo = "2", DurumId = (int)SandikDurum.Hazirlaniyor });
+        k.Uow.Repo<Sandik>().Rows.RemoveAll(s => s.Id == 31);
+        k.Uow.Repo<Sandik>().Rows.AddRange(
+        [
+            new Sandik { Id = 32, ProjeId = HedefSaha, SandikNo = "2", DurumId = (int)SandikDurum.Hazirlaniyor },
+            new Sandik { Id = 33, ProjeId = HedefSaha, SandikNo = "01", DurumId = (int)SandikDurum.Sevkedildi },
+            new Sandik { Id = 34, ProjeId = HedefSaha, SandikNo = "2-2", DurumId = (int)SandikDurum.Sevkedildi }
+        ]);
 
         var onizleme = await k.OnizleAsync(satirlar: [Kurgu.S3]);
         var sonuc = await k.TasiAsync(satirlar: [Kurgu.S3]);
 
-        Assert.Equal(("2-2", true), (onizleme.HedefSandikNo, onizleme.NumaraDegisti));
-        Assert.Equal("2-2", sonuc.Value!.HedefSandikNo);
+        Assert.Equal(("3", true), (onizleme.HedefSandikNo, onizleme.YeniSandik));
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.Equal("3", sonuc.Value!.HedefSandikNo);
+        Assert.Single(k.Uow.Repo<Sandik>().Rows, s => s.ProjeId == HedefSaha && s.SandikNo == "3");
+    }
+
+    [Fact]
+    public void SandikNumarasiKurali_SiradakiEnBuyukSayisalArtiBir_DoluIstenendeSiradaki()
+    {
+        // Sayısal olmayan numaralar ("2-2", "1-SH", "M-7") sıraya katılmaz; çeki biçimi "05" = 5.
+        Assert.Equal("6", KoliNoKurali.SiradakiNumara(["1", "01", "2-2", "05", "1-SH", "M-7", null, " "]));
+        Assert.Equal("1", KoliNoKurali.SiradakiNumara([]));
+        Assert.Equal("1", KoliNoKurali.SiradakiNumara(["A", "2-2"]));
+
+        var kullanilan = new HashSet<string>(["1", "2"], StringComparer.OrdinalIgnoreCase);
+        Assert.Equal("4", KoliNoKurali.BosNumaraYaDaSiradaki(" 4 ", kullanilan));
+        Assert.Equal("5", KoliNoKurali.BosNumaraYaDaSiradaki("02", kullanilan)); // dolu → sıradaki (4 alındı)
+        Assert.Equal("6", KoliNoKurali.BosNumaraYaDaSiradaki(null, kullanilan));
+        Assert.Equal("7", KoliNoKurali.BosNumaraYaDaSiradaki("6", kullanilan)); // aynı işlemde alınan numara da dolu
+        Assert.Equal(["1", "2", "4", "5", "6", "7"], kullanilan.Order());
+    }
+
+    [Theory]
+    [InlineData("2")]
+    [InlineData("02")]
+    [InlineData(" 2 ")]
+    public async Task VerilenNumaraHedefteVarsa_Engel409_SandikAcilmaz(string verilen)
+    {
+        var k = new Kurgu();
+        k.Uow.Repo<Sandik>().Rows.Add(new Sandik { Id = 32, ProjeId = HedefSaha, SandikNo = "2", DurumId = (int)SandikDurum.Hazirlaniyor });
+        var once = k.Durum();
+
+        var onizleme = await k.OnizleAsync(satirlar: [Kurgu.S3], yeniNo: verilen);
+        var sonuc = await k.TasiAsync(satirlar: [Kurgu.S3], yeniNo: verilen);
+
+        Assert.False(onizleme.TasinabilirMi);
+        Assert.Contains(onizleme.Engeller, e => e.Contains("numaralı sandık zaten var"));
+        Assert.Equal(409, sonuc.StatusCode);
+        Assert.Equal(once, k.Durum());
+    }
+
+    [Fact]
+    public async Task VerilenNumaraBossa_OAdlaAcilir()
+    {
+        var k = new Kurgu();
+
+        var sonuc = await k.TasiAsync(satirlar: [Kurgu.S3], yeniNo: " 7 ");
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.Equal("7", sonuc.Value!.HedefSandikNo);
     }
 
     [Fact]
@@ -233,7 +334,7 @@ public class SahadanSahayaTasimaTests
 
     [Theory]
     [InlineData(31, "3")]
-    [InlineData(null, "1")]
+    [InlineData(null, "10")] // sıradaki numara: hedefte "3" ve sevkli "9" var
     public async Task HedefSahaEksikSevkEdilmis_SevkEdilmemisYaDaYeniSandigaTasinir_ProjeDurumuDegismez(int? hedefSandik, string beklenenNo)
     {
         // Kullanıcı kararı (24.10.2026): Eksik Sevk Edildi saha da hedeftir; ürün sevk edilmemiş ya da yeni sandığa gider.
@@ -341,7 +442,7 @@ public class SahadanSahayaTasimaTests
         var onizleme = await k.OnizleAsync(sandik: 21);
 
         Assert.True(onizleme.TasinabilirMi);
-        Assert.Equal((2, 1, "1"), (onizleme.Satirlar.Count, onizleme.ManuelIcerikSayisi, onizleme.HedefSandikNo));
+        Assert.Equal((2, 1, "4"), (onizleme.Satirlar.Count, onizleme.ManuelIcerikSayisi, onizleme.HedefSandikNo));
         Assert.Equal(["1"], onizleme.BosalacakSandikNolari);
         Assert.Equal(once, k.Durum());
     }
@@ -401,7 +502,7 @@ public class SahadanSahayaTasimaTests
 
         public Task<Result<SahadanSahayaTasimaSonucDto>> TasiAsync(
             int[]? satirlar = null, int? sandik = null, int? hedefSandik = null, Guid? anahtar = null,
-            int kaynak = KaynakSaha, int hedef = HedefSaha) =>
+            int kaynak = KaynakSaha, int hedef = HedefSaha, string? yeniNo = null) =>
             new SahadanSahayaTasiCommandHandler(Uow, Hareket, new OrtakUser(), Saha).Handle(new SahadanSahayaTasiCommand
             {
                 IslemAnahtari = anahtar ?? Guid.NewGuid(),
@@ -409,10 +510,11 @@ public class SahadanSahayaTasimaTests
                 SahaCekiSatiriIds = satirlar?.ToList() ?? [],
                 KaynakSandikId = sandik,
                 HedefSahaProjeId = hedef,
-                HedefSandikId = hedefSandik
+                HedefSandikId = hedefSandik,
+                YeniSandikNo = yeniNo
             }, CancellationToken.None);
 
-        public async Task<SahadanSahayaTasimaOnizlemeDto> OnizleAsync(int[]? satirlar = null, int? sandik = null, int? hedefSandik = null)
+        public async Task<SahadanSahayaTasimaOnizlemeDto> OnizleAsync(int[]? satirlar = null, int? sandik = null, int? hedefSandik = null, string? yeniNo = null)
         {
             var sonuc = await new SahadanSahayaTasimaOnizleQueryHandler(Uow, new LookupStub()).Handle(new SahadanSahayaTasimaOnizleQuery
             {
@@ -420,7 +522,8 @@ public class SahadanSahayaTasimaTests
                 SahaCekiSatiriIds = satirlar?.ToList() ?? [],
                 KaynakSandikId = sandik,
                 HedefSahaProjeId = HedefSaha,
-                HedefSandikId = hedefSandik
+                HedefSandikId = hedefSandik,
+                YeniSandikNo = yeniNo
             }, CancellationToken.None);
             Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
             return sonuc.Value!;

@@ -14,6 +14,11 @@ namespace _3K.Application.Features.SandikIslemleri.DTOs
         public string TipMetni { get; set; } = string.Empty;
         public int UrunSayisi { get; set; }
         public bool IsManuelSandik { get; set; }
+        /// <summary>
+        /// Sandık numarası "Özellikleri Güncelle"de değiştirilemiyorsa nedeni (çekiden gelen, sevkli, 1 numara, Ambalaj
+        /// üretimi); <c>null</c> ise numara değiştirilebilir.
+        /// </summary>
+        public string? SandikNoKilitNedeni { get; set; }
         public bool SilinebilirMi { get; set; }
         public bool DepodaSayilacakMi { get; set; }
         public bool SahayaAktarildiMi { get; set; }

@@ -8,6 +8,62 @@ koşum sayıları tarihsel kayıttır; depo dışında yönetilen 02–04 SQL'le
 bugünkü halini veya canlıda elle uygulanmasını doğrulamaz. Bu geçiş için
 ayrı staging provası ve DBA doğrulaması gerekir.
 
+## Barkod etiketi (C-16) — 26 Ekim 2026
+
+Değişiklik henüz commit edilmedi.
+
+**Davranış.**
+- Yeni ekran `/barkod-etiket`, `barkod-etiket` R ister (Id 5262, rotasız, Sandık Yönetimi altında). Ekran Projeler ve 3K sandık listesinin "Diğer" menüsünden açılır. Bir projenin seçilen sandıkları (100×75 mm) ve ürünleri (60×40 mm) için Grid etiketi PDF ya da Godex EZPL (`.prn`) olarak üretilir; hiçbir kayıt değişmez.
+- Barkodlar: sandık barkodu `Sandik.Id`'nin 12 haneli sıfır dolgusudur. Ürün barkodu `BarkodNo`'nun kırpılmış, büyük harfli, 16 haneye soldan sıfır dolgusudur. Basılamayan ürün barkodu (boş, 16'dan uzun, ASCII dışı, `^`/`~`) listede seçilemez, istekte 400 alır.
+- Alanlar: FB NO (boşsa proje no), CASE NO, CLIENT, DESTINATION, AA/YY tarih ve çeki açıklamasının TANIM/DESCRIPTION ayrımı. REMARKS ekranda düzenlenir, boşsa "-". Etiket metni ASCII'ye çevrilir.
+- Listeler sunucuda sayfalıdır. Sınırlar: 200 seçim, adet 1–100, toplam 1000 etiket, REMARKS 60. Projeye ait olmayan seçim 404 alır.
+- Ürünler çeki satırları ile çeki satırı olmayan sandık içerikleridir (elle eklenen malzemeler). Seçim (kaynak, kimlik) ile yapılır.
+
+**Kapsam sınırı.** İzin `scripts/database/20261026_01_Barkod_Etiket_Yetkisi.sql` ile kurulur (README sıra 29; şema değişikliği yok). Eşleme satırı `coverage/ORTAK_SAHA_YETKI_TEST_ESLESMESI.md` dosyasındadır: C-16 Birim. Ambalaj ve Finans'ta yeni kural yoktur.
+
+- [BarkodEtiketTests](../../3K.Application.Tests/BarkodEtiketTests.cs) (10 metot; 9'u bellek içi, 1'i izole PostgreSQL):
+  - Code 128 kodlaması (alt küme seçimi, kontrol sembolü, desen tablosu).
+  - Ürün barkodu kuralı (Theory, 9 vaka) ve sandık barkodu, ASCII çevirisi, REMARKS, açıklama ayrımı, FB NO, tarih, adet sınırları.
+  - EZPL sandık etiketinin şablonla satır satır aynı olması; ürün etiketinin şablon öğeleri ve yeni başlığı.
+  - PDF'in adet kadar sayfa üretmesi.
+  - Doğrulayıcılar ve altı isteğin `barkod-etiket` R yetkisi (gerçek `AuthorizationBehavior` ile 403).
+  - `Postgres_ListelerSayfaliSecimProjeyeAitDosyaUretilir` (`THREEK_TEST_POSTGRES` ister): sayfalı listeler, sıra ve süzgeçler, dosya içeriği, başka projeye ait seçimde 404, basılamayan barkodda 400.
+- [CanliyaAlimBetikleriTests](../../3K.Application.Tests/CanliyaAlimBetikleriTests.cs) (izole PostgreSQL, 1 test): betik 29'u da çalıştırır. İzin düğümünü (5262, rotasız, son sıra) ve rol izinlerini doğrular; tekrarda değişmezliği sınar.
+
+**Koşum (Release, 26 Ekim 2026, dokümantasyon oturumu, PostgreSQL'siz):**
+- Filtre `FullyQualifiedName~BarkodEtiketTests|FullyQualifiedName~CanliyaAlimBetikleriTests` (`dotnet test ... -c Release`, derleme dahil) ile 20 test seçildi: 18 başarılı, 0 başarısız, 2 atlanan.
+  - Başarılı: `BarkodEtiketTests`'in bellek içi 9 metodu (18 vaka; Theory 9 vaka).
+  - Atlananlar: `BarkodEtiketTests.Postgres_ListelerSayfaliSecimProjeyeAitDosyaUretilir` ve `CanliyaAlimBetikleriTests.Postgres_Betik_SemayiModeleGetirir_TekrarindaTasimaIziniKorur`. Oturumda `THREEK_TEST_POSTGRES` tanımlı değildi.
+- Kural–test eşleme doğrulayıcısı (`scripts/test/Test-IsKuraliEslemesi.ps1`): 548 kural doğrulandı (önceki 547 + C-16). `-TrxPath` kipi kullanılmadı.
+
+**Koşulmayanlar:**
+- İki PostgreSQL testi bu oturumda koşulmadı (atlandı). Liste, sayfa, 404/400 ve betik davranışı bu oturumda gerçek veritabanında doğrulanmadı.
+- Tam paketler (.NET ve ön yüz) koşulmadı. Ön yüz spec'i (`barkod-etiket.component.spec.ts`) bu oturumda koşulmadı.
+- HTTP ve tarayıcı akışı, gerçek Godex yazıcıda baskı ve canlı veri (`3K_Db`) denenmedi.
+
+**Açık kalanlar (C-16):**
+- Salt okunurluk test edilmiyor: servis yazma yapmıyor ama hiçbir testte kaydın değişmediği ölçülmüyor.
+- 1000 etiketlik toplam sınırının tam sınırda kabulü testsiz. Proje listesinin sırası (en yeni önce) testsiz. Aramanın Türkçe İ/ı ile büyük/küçük harf duyarsızlığı (SQL `upper`) testsiz.
+
+## Finans: katlanır sandık elle fiyatlanır — 26 Ekim 2026
+
+Katlanır sandığın kontrplak mantığıyla (ahşap/kontra m³ × tarife) fiyatlanması kaldırıldı; sistem katlanırda tarife, m³ veya ölçüden hesap yapmaz (`FinansKatlanirKurali`). Diğer sandık tipleri değişmedi. Aşağıdaki maddeler 13 Ekim "Malzemeli tarife" ve 10 Ekim "Kontrplak hacmi" bölümlerindeki katlanır ifadelerinin yerine geçer.
+
+- Ambalaj aktarımında katlanır iş fiyatsız açılır (adet yöntemi, birim fiyat 0, ürünsüz); katlanıra özel eski eşleşme dahil hiçbir tarife kullanılmaz (`FinansFiyatBelirleyici.OtomatikFiyatUygulaAsync`). Bedel 0 olduğu için fiyat girilmeden PO açılamaz.
+- Fiyat işin Fiyatlandırma sekmesinden girilir: adet × birim fiyat veya net toplam (bileşenler m³ satırı içeremez); m³ ve sabit tutar yöntemi 409'dur. Para birimi tablodan seçilir, KDV elle girilir. Girilen tutar `FinansTutarKurallari.IsNet` ile olduğu gibi kullanılır; PO, fatura, panel ve raporlar bu tutarla çalışır. Kayıtta m³ tutulmaz (birim/toplam m³ ve elle ahşap/kontra payı temizlenir).
+- Gerekçe katlanırda isteğe bağlıdır (yazılırsa değişiklik geçmişine "Gerekçe" satırı eklenir); diğer işlerde zorunluluk sürer ve boş gerekçe artık doğrulayıcı yerine serviste 400 ile reddedilir. Alan değişiklikleri her durumda denetim kaydına yazılır.
+- Katlanırda elle hacim girişi 409'dur (eski kayıtta elle hacim girilmiş olsa da); malzemesi "bilinmiyor"dur ve yeni katlanır işin m³ payı (0, 0)'dır. Kontrplak gibi m³ ile fiyatlanmış eski katlanır kaydın m³'ü gösterimde (iş detayı, aylık/proje kırılımı, PO) eskisi gibi kontra payı olarak kalır (`FinansHacimKurallari.Hacim`).
+- Tarifeyle fiyatlanmış eski katlanır kayıtların fiyatı korunur (veri taşınmadı, betik yok); yeniden fiyatlama, geriye dönük doldurma (sorguda `SandikCinsi` ile, cinsi boş eski kayıtta tip metniyle elenir) ve tarife düzeltme ("Katlanır sandık" koruma nedeni) onları değiştirmez. Saha/yedek katlanır sandık da bu kurala dahildir (kural iş türünden bağımsız).
+- Yeni aktif "Katlanır Sandık" tarife eşleşmesi tanımlanamaz (doğrulayıcı 400). Önceden kaydedilmiş eşleşme ürünün diğer güncellemelerini kilitlemesin diye reddedilmez; fiyatlamada yok sayılır. Ön yüz tarife formunda katlanır seçeneği yoktur.
+- Ön yüz: `FinansIsKaydi.elleFiyatlanir`; iş detayında fiyatsız katlanır için "Fiyatı gir" uyarısı, Fiyatlandırma'da yalnız Adet/Manuel net toplam, m³ bileşeni ve hacim kartı yok, gerekçe isteğe bağlı; Ambalaj yaşam döngüsünde katlanır için "fiyat Finans'ta elle girilir" notu.
+
+- [FinansKatlanirFiyatTests](../../3K.Application.Tests/FinansKatlanirFiyatTests.cs): katlanır tanıma (cins/tip metni), yöntem ve bileşen kuralı, malzeme/m³ payı, hacim temizliği ve net, tarife düzeltme koruması, eşleşme doğrulayıcısı, fiyatlandırma gerekçesinin doğrulayıcıda isteğe bağlı olması.
+- [FinansPostgresTests](../../3K.Application.Tests/FinansPostgresTests.cs) `KatlanirSandik_TarifeVeM3Hesaplanmaz_ElleFiyatPoVeFaturadaAynenKullanilir` (PostgreSQL): eski katlanır eşleşmesi ve genel tarifeler varken fiyatsız aktarım, aktarımdan sonra tanımlanan tarifenin (geriye dönük doldurma) fiyatsız katlanırı fiyatlamaması, fiyatsız PO reddi, hacim/m³/m³ bileşeni reddi ve kaydın değişmemesi, gerekçesiz adet × birim fiyat (m³ 0), net toplam düzeltmesi ve gerekçe geçmişi, eski tarifeli kaydın yeniden fiyatlamada korunması, PO + fatura ve SQL tutar ifadesinin aynı bedeli vermesi, kontrplakta boş gerekçenin 400 olması.
+- Güncellenen: `FinansPoFaturaKurallariTests.Elle_hacim_yalniz_kontrplak_sandikta_girilir_katlanirda_girilmez`, `FinansUrunTarifeTests` (malzemeli eşleşme örneği kontrplak), `FinansPostgresTests.MalzemeliTarife_AhsapVeKontraM3KendiTarifesiyle_KismiPoOranli` (katlanırsız; kısmi PO kontrplakla).
+- Ön yüz spec'leri: `finans-kayit-detay` ("Katlanır sandık (elle fiyat)"), `finans-urun-kaydet`.
+
+Koşum (Release, izole 127.0.0.1:55439 sunucusunda): `FinansKatlanirFiyatTests|FinansPoFaturaKurallariTests|FinansUrunTarifeTests|FinansTarifeDuzeltmeTests|FinansTutarKurallariTests|FinansMunferitIsTests|FinansModuluTests|FinansPostgresTests|FinansPoOnayPostgresTests` → 183 başarılı, 0 atlanan, 1 başarısız: `FinansPoOnayPostgresTests.GecisBetigi_…` bu dalda bulunmayan `scripts/database/20261017_01_Finans_Po_Is_Onayi.sql` betiğini aradığı için (klasör 18 Ekim'de bilerek silindi; bu değişiklikten bağımsız). Ön yüz: finans + ambalaj yaşam döngüsü + finans servis spec'leri 241/241, development derlemesi temiz. Ekran canlı veriyle görsel olarak denenmedi. Tam paketler koşulmadı.
+
 ## Sandık açılış/kapanış geçmişi (C-11–C-15) — 24 Ekim 2026
 
 Değişiklik henüz commit edilmedi.
@@ -181,7 +237,7 @@ Değişiklik henüz commit edilmedi. Aynı günün otomatik aktarım bölümün�
 **Sandık durumu, kutu bilgisi ve numara (S-24–S-26).**
 - İçeriği değişen Kapandı sandık (taşımada hedef ya da içinde ürün kalan kaynak; otomatik ve elle aktarımda yeniden kullanılan hedef) Hazırlanıyor'a döner ve "Sandık Geri Açıldı" hareketi yazılır; boşalan kaynak sandık silinmez, Bos olur.
 - Taşımada yeni hedef sandığa ad, tip, ölçü, ağırlık ve lokasyon yalnız tek kaynak sandık taşımayla boşalıyorsa kopyalanır.
-- Saha sandık numarası çakışması bütün yollarda `KoliNoKurali.Normalize` ile aranır ("05" = "5"); çakışmada "-2", "-3"… eklenir. Elle yollar önceden yalnız tam eşitliğe bakıyordu.
+- Saha sandık numarası çakışması bütün yollarda `KoliNoKurali.Normalize` ile aranır ("05" = "5"). 28.10.2026'dan beri çakışmada "-2" eki yerine sıradaki numara verilir ya da verilen numara 409 ile reddedilir (S-26). Elle yollar önceden yalnız tam eşitliğe bakıyordu.
 
 **Otomatik aktarım düzeltmeleri (S-18, S-19).** Önizleme özeti plan parçasına ek olarak hedef saha projesini ve hedef sandık eşleşmelerini içerir; önizlemeden sonra hedefteki eşleşen sandık değişirse uygulama 409 (`PLAN_DEGISTI`) alır. Ortak motor, sandık bazlı kalemdeki ürünü bildirilen kaynak sandıkta bulamazsa 409 döner.
 
@@ -194,7 +250,7 @@ Değişiklik henüz commit edilmedi. Aynı günün otomatik aktarım bölümün�
   - Sandık taşımada manuel içerik dahil bütün içerik geçer ve kaynak Bos olur.
   - Kutu bilgisi yalnız kaynak boşalınca kopyalanır; Kapandı hedef ve kaynak yeniden açılır.
   - Kaynak/hedef saha sevkli (2'şer vaka), sevkli kaynak sandık, bölünmüş satır, sevkiyat kapsamı ve açık karşılama engeli 409 alır; hiçbir kayıt değişmez.
-  - Hedefte dolu numara "2-2" olur. Aynı anahtarla tekrar ilk sonucu döner, farklı taşıma 409 alır.
+  - Hedefte dolu numara eskiden "2-2" olurdu; 28.10.2026'dan beri numarasız taşıma sıradaki numarayı alır, verilen dolu numara 409'dur (S-26). Aynı anahtarla tekrar ilk sonucu döner, farklı taşıma 409 alır.
   - Taşıma başlığı toplu geri alınmaz ve ters yönde taşıma çalışır; önizleme veri değiştirmez.
 - [SahadanSahayaTasimaPostgresTests](../../3K.Application.Tests/SahadanSahayaTasimaPostgresTests.cs) (izole PostgreSQL, 4 test, `THREEK_TEST_POSTGRES` ister):
   - Gerçek EF ile satır hedefe geçer ve saha izi raporu satırı, PDF ve Excel "Saha Izi" sayfası üretilir.

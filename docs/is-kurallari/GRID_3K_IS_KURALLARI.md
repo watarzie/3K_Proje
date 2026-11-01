@@ -339,8 +339,8 @@ Elle ürün bazlı ("Eksiklerden oluştur", `EksiklerdenSahaProjesiOlusturComman
 
 **S-17 — Otomatik aktarımın hedef saha projesi ve sandık numaraları.** Hedef adayları sevk edilmemiş (Sevk Edildi/Eksik Sevk Edildi olmayan) saha projeleridir: ana projeye aktarım defteriyle (kalem ya da başlık) bağlı olanlar ya da `<ProjeNo>-SAHA` / `<ProjeNo>-SAHA-n` adını taşıyanlar.
 - **Hedef seçimi:** Tek aday varsa o kullanılır. Birden çok aday varsa kullanıcı seçer; seçim yapılmadan uygulama 400 alır. Aday yoksa yeni `<ProjeNo>-SAHA` açılır; numara kullanılıyorsa -2, -3… eklenir. Kullanıcı açıkça yeni proje ya da belirli bir saha projesi seçebilir. Seçilen proje yoksa 404 döner; saha projesi değilse ya da sevk edilmişse 400 döner.
-- **Eksikler sandığı:** Eksikler hedefteki sevk edilmemiş, düzeltmesi açık olmayan "1" sandığına eklenir; sandık Kapandı olsa da eklenir ve yeniden açılır (S-24). Böyle sandık yoksa "Sevk sonrası eksikler" adlı "1" açılır; numara hedefte kullanılıyorsa -2 eklenir (çakışma S-26'daki normal biçimle aranır).
-- **Sevk edilmemiş sandıklar:** Hedefte aynı numaralı (normal biçimle; "05" = "5"), içeriği olmayan ve sevk edilmemiş sandık varsa (ör. geri alınmış aktarımın bıraktığı Bos sandık) ona eklenir. Yoksa aynı numarayla yeni sandık açılır; numara doluysa -2 eklenir.
+- **Eksikler sandığı:** Eksikler hedefteki sevk edilmemiş, düzeltmesi açık olmayan "1" sandığına eklenir; sandık Kapandı olsa da eklenir ve yeniden açılır (S-24). Böyle sandık yoksa "Sevk sonrası eksikler" adlı "1" açılır; numara hedefte kullanılıyorsa sıradaki numara (en büyük + 1) verilir (S-26).
+- **Sevk edilmemiş sandıklar:** Hedefte aynı numaralı (normal biçimle; "05" = "5"), içeriği olmayan ve sevk edilmemiş sandık varsa (ör. geri alınmış aktarımın bıraktığı Bos sandık) ona eklenir. Yoksa aynı numarayla yeni sandık açılır; numara doluysa sıradaki numara verilir (S-26).
 - **Durum:** Motor, yeniden kullanılan Bos ya da Kapandı hedef sandığı Hazırlanıyor yapar; Kapandı'dan dönen sandık için "Sandık Geri Açıldı" hareketi yazılır (S-24). Bu kural elle yollarda da geçerlidir.
 
 **S-18 — Otomatik aktarımın uygulanması, tekrar ve plan değişikliği.** Uygulama tek bir Serializable transaction içinde (`ExecuteAtomicAsync`) çalışır ve planı sunucudaki güncel veriden yeniden kurar; istemciden kalem listesi alınmaz.
@@ -384,12 +384,13 @@ Bir saha projesine aktarılmış ürünler başka bir saha projesi üzerinden g�
 **S-22 — Sahadan sahaya taşımanın engelleri.** Aşağıdakilerden biri varsa uygulama 409 ve engel maddeleriyle (`issues`) reddedilir; hiçbir kayıt değişmez. Önizleme aynı maddeleri listeler ve taşımayı yapılamaz gösterir (`TasinabilirMi = false`).
 - Hedef saha projesi tamamen sevk edilmiştir (Sevk Edildi); hedef seçicisi bu sahaları listelemez. Engel proje değil sandık düzeyindedir (24.10.2026, kullanıcı kararı): Eksik Sevk Edildi (ya da Sevk Edildi) kaynak sahanın sevk edilmemiş sandığındaki ürünler taşınır (PA600-42-SAHA, Sandık 2) ve Eksik Sevk Edildi saha da hedeftir; ürün yalnız hedefin sevk edilmemiş bir sandığına ya da yeni açılan sandığa gider. İki projenin de durumu değişmez. Bu gevşetme yalnız sahadan sahaya taşımadadır; normal projeden elle sahaya aktarmada sevk edilmiş ya da eksik sevk edilmiş saha hedef olamaz.
 - Kaynak sandık ya da seçilen hedef sandık sevk edilmiştir ya da sevkiyat düzeltmesindedir.
+- Yeni sandık için verilen numara hedefte zaten vardır (çeki biçiminde; S-26).
 - Satırın sandık içeriği yoktur, satır birden çok sandığa bölünmüştür ("önce tek sandıkta birleştirin") ya da sandığı kaynak sahada değildir.
 - Satırın tek ve kaynak sahaya ait aktif defter kaydı yoktur ya da kayıt tutarsızdır.
 - Satır sevkiyat kapsamındadır: `SevkiyatKapsamindaMi` işaretlidir ya da kalem Sevk Edildi / Sevkiyat Düzeltmede durumundadır.
 - Satırda açık projeden karşılama vardır (satır kaynak ya da hedef ucunda olan aktif `ProjeTransfer`).
 
-Engel listesi dışındaki retler 400 döner. Seçimde normal projeden aktarılmamış (kök bağı olmayan) saha satırı varsa "Yalnız normal projeden aktarılmış saha satırları taşınabilir." mesajı döner. Sandıkta taşınacak ürün yoksa ya da seçilen satırlar farklı sandıklardayken yeni sandık numarası girilmemişse de 400 döner; engel varken numara istenmez, önce engeller gösterilir.
+Engel listesi dışındaki retler 400 döner. Seçimde normal projeden aktarılmamış (kök bağı olmayan) saha satırı varsa "Yalnız normal projeden aktarılmış saha satırları taşınabilir." mesajı döner. Sandıkta taşınacak ürün yoksa da 400 döner. Seçilen satırlar farklı sandıklardayken numara girilmemişse yeni sandık sıradaki numarayı alır (S-26; 28.10.2026'dan önce numara zorunluydu).
 
 **S-23 — Sahadan sahaya taşımanın tekrarı ve işlem anahtarı.** Uygulama boş olmayan bir `IslemAnahtari` (GUID) ister; anahtar boşsa 400 döner. Taşıma tek bir Serializable transaction içinde (`ExecuteAtomicAsync`) çalışır.
 - **Benzersizlik:** Anahtar aktarım başlığında benzersizdir (boş olmayan değer için benzersiz indeks).
@@ -408,11 +409,15 @@ Engel listesi dışındaki retler 400 döner. Seçimde normal projeden aktarılm
 - **Aksi halde:** Kaynakta ürün kalıyorsa ya da satırlar birden çok sandıktan geliyorsa yeni sandık adsız, ölçüsüz ve ağırlıksız açılır; tipi varsayılan (`AhsapKapali`), lokasyonu Belirsiz olur ve ölçüyü kullanıcı girer.
 - **Neden:** Aynı kutu iki sahanın packing list ağırlığında ve m³'ünde sayılmaz.
 
-**S-26 — Saha sandık numarası çakışması normal biçimle aranır.** Saha projesinde yeni sandık açan bütün yollar istenen numarayı hedefteki numaralarla `KoliNoKurali.Normalize` biçiminde karşılaştırır (`SahaAktarimIslemi.GenerateUniqueSandikNo`): sahadan sahaya taşıma, otomatik aktarım ve elle ürün ya da sandık bazlı aktarım. Bu değişiklikten önce elle yollar yalnız büyük/küçük harf duyarsız tam eşitliğe bakıyordu.
+**S-26 — Saha sandık numarası: çakışma normal biçimle aranır, numara sessizce değiştirilmez (28.10.2026).** Saha projesinde yeni sandık açan bütün yollar (sahadan sahaya taşıma, otomatik aktarım, elle ürün ya da sandık bazlı aktarım) istenen numarayı hedefteki numaralarla `KoliNoKurali.Normalize` biçiminde karşılaştırır; sevk edilmiş sandıklar da numarayı tutar.
 - **Eşitlik:** "05" ile "5" aynı sandık numarasıdır.
-- **Çakışma:** Numara doluysa "-2", "-3"… eklenir (ör. hedefte "2" varken "2-2"). Taşıma önizlemesi numaranın değiştiğini bildirir (`NumaraDegisti`).
-- **Taşımada istenen numara:** Kullanıcının girdiği yeni numaradır; girilmemişse tek kaynak sandığın numarasıdır. Satırlar birden çok sandıktan geliyorsa numara girilmelidir (S-22).
-- **Yazılan biçim:** Taşıma ve otomatik aktarım yeni sandığı normal biçimdeki numarayla ("05" → "5") açar. Elle aktarım girilen numarayı kırpılmış haliyle kullanır.
+- **Sıradaki numara:** `KoliNoKurali.SiradakiNumara`: hedefteki sayısal numaraların en büyüğü + 1. Sayısal olmayan numaralar ("2-2", "1-SH", "M-7") sıraya katılmaz; hiç sayısal numara yoksa "1".
+- **Taşıma:** Numara verilmezse sıradaki numara atanır, kaynak sandığın numarası kullanılmaz; önizleme atanacak numarayı gösterir. Verilen numara hedefte varsa engeldir (önizleme taşınamaz, uygulama 409): kullanıcı o sandığı seçer ya da başka numara verir.
+- **Elle aktarım:** Kullanıcının girdiği numara hedefte ya da aynı aktarımda varsa motor 409 döner ve hiçbir sandık açılmaz; numarasız taslak sıradaki numarayı alır. Ekran yeni sandığa sıradaki numarayı önerir ve mükerreri çeki biçimiyle denetler.
+- **Numarayı kaynaktan türeten yollar:** Sandık bazlı ve otomatik aktarımda (eksikler "1" sandığı dahil) kaynak numarası hedefte boşsa o kullanılır, doluysa sıradaki numara verilir (`KoliNoKurali.BosNumaraYaDaSiradaki`); otomatik önizleme numaranın değiştiğini bildirir. Numara motora çözülmüş gider.
+- **Neden:** Eskiden dolu numaraya "-2", "-3"… eklenirdi. 3K sandık kartı yalnız ilk rakam grubunu gösterdiği için "2-2" ikinci bir "2" gibi görünüyordu (PA600-42-SAHA, 27.10.2026). Kart artık numarayı olduğu gibi gösterir.
+- **Eşzamanlılık:** Taşıma ve aktarım Serializable transaction içindedir; aynı hedefe numarasız iki eşzamanlı taşımadan biri 409 alır, yeniden denenince sıradaki numarayı alır. Veritabanında `(ProjeId, SandikNo)` benzersiz indeksi yoktur.
+- **Yazılan biçim:** Verilen numara kırpılmış haliyle, otomatik aktarımın kaynak numarası normal biçimiyle ("05" → "5"), sıradaki numara sade sayı olarak yazılır.
 
 Kaynak: [SahadanSahayaTasimaIslemi.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/ProjeIslemleri/Services/SahadanSahayaTasimaIslemi.cs), [SahadanSahayaTasiCommand.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/ProjeIslemleri/Commands/SahadanSahayaTasiCommand.cs), [SahadanSahayaTasimaOnizleQuery.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/ProjeIslemleri/Queries/SahadanSahayaTasimaOnizleQuery.cs), [OtomatikSahaAktarimValidators.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/ProjeIslemleri/Validators/OtomatikSahaAktarimValidators.cs), [SahaAktarimIslemi.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/ProjeIslemleri/Services/SahaAktarimIslemi.cs), [SahaAktarimiGeriAlCommand.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/ProjeIslemleri/Commands/SahaAktarimiGeriAlCommand.cs), [SahaTasimaKalemi.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Core/Entities/SahaTasimaKalemi.cs), [SahaAktarimModelBuilderExtensions.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Infrastructure/Data/SahaAktarimModelBuilderExtensions.cs), [KoliNoKurali.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Core/Models/KoliNoKurali.cs), [20261021_02_Sahadan_Sahaya_Tasima.sql](C:/Users/Watarzie/source/repos/3K_Proje/scripts/database/20261021_02_Sahadan_Sahaya_Tasima.sql).
 
@@ -493,6 +498,47 @@ Liste değeri bilgidir ve kapatma kararını değiştirmez. Kapatmadaki eksik/ha
 Bu ekranların hiçbiri olay, durum ya da kapanma tarihi değiştirmez.
 
 Kaynak: [SandikDurumOlayKurali.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Core/Models/SandikDurumOlayKurali.cs), [SandikDurumOlayInterceptor.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Infrastructure/Data/Interceptors/SandikDurumOlayInterceptor.cs), [SandikDurumOlayYazici.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Common/SandikDurumOlayYazici.cs), [ProjeIslemleri/SandikKapatCommandHandler.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/ProjeIslemleri/Commands/SandikKapatCommandHandler.cs), [SandikKapatCommandValidator.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/ProjeIslemleri/Validators/SandikKapatCommandValidator.cs), [SandikTahsisHelper.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Common/SandikTahsisHelper.cs) (`HesaplaIcerikMiktari`), [GetProjeSandiklariQueryHandler.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Queries/GetProjeSandiklariQueryHandler.cs), [SandikDurumIstatistikQueries.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Queries/SandikDurumIstatistikQueries.cs), [SandikDurumIstatistikService.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Infrastructure/Services/Raporlar/SandikDurumIstatistikService.cs), [20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql](C:/Users/Watarzie/source/repos/3K_Proje/scripts/database/20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql).
+
+#### 6.1.2 Barkod etiketi (26.10.2026)
+
+**C-16 — Barkod etiketi seçilen sandık ve ürünler için Grid etiketi üretir, veri değiştirmez (26.10.2026).** Bir projenin seçilen sandıkları ve ürünleri için Godex şablonlarıyla Grid etiketi basılır. Uçlar `api/barkod-etiket` altındadır: `GET projeler`, `GET projeler/{projeId}`, `GET projeler/{projeId}/sandiklar`, `GET projeler/{projeId}/urunler?sandikId=`, `POST projeler/{projeId}/sandik-etiketleri`, `POST projeler/{projeId}/urun-etiketleri`.
+- **Yetki:** Bütün istekler, dosya üretenler dahil, `barkod-etiket` R ister. Proje tipinden bağımsız tek izindir; Sandık Yönetimi ya da barkod arama izni yetmez. Düğüm Sandık Yönetimi altında rotasızdır (Id 5262, `MENU.BARKOD_ETIKET`). Ekran `/barkod-etiket` kenar menüde değil, Projeler ve 3K sandık listesinin "Diğer" menüsündedir. 3K listesinden açılınca proje seçili gelir. Betik (29) Admin'e W, Sandık Yönetimi'nde R ya da W olan rollere R verir.
+- **Sandık etiketi (100×75 mm):**
+  - Barkod: `Sandik.Id`, 12 haneye soldan sıfırla doldurulmuş Code 128'dir (2060008 → `000002060008`).
+  - FB NO: `Proje.FBNo`, boşsa `ProjeNo`.
+  - CASE NO: `SandikNo`.
+  - CLIENT NAME: `Musteri`.
+  - DISPATCH DESTINATION: `Lokasyon`.
+  - Tarih: ekranda seçilen ay, AA/YY biçiminde (Eylül 2026 → "09/26"). Varsayılan baskı ayıdır. Yıl 2000–2099, ay 1–12 dışındaysa 400.
+- **Ürün etiketi (60×40 mm):**
+  - Başlık "Grid Solutions ATT / Gebze"dir. Şablondaki "ALSTOM GRID / ATT / GEBZE" basılmaz.
+  - Barkod: `BarkodNo` kırpılır, büyük harfe çevrilir ve 16 haneye soldan sıfırla doldurulur (FCT00967433 → `00000FCT00967433`).
+  - Basılamayan barkod: boş, 16 karakterden uzun, yazdırılabilir ASCII dışı karakter (Türkçe harf dahil) ya da `^`/`~` içeren barkod basılamaz. Listede etiket barkodu boş gelir ve satır seçilemez; istekte gelirse 400 döner.
+  - TANIM/DESCRIPTION: çeki açıklamasının "TR\n\EN" ayrımıdır. İlk satır TANIM'dır. Sonraki satırlar, baştaki ters bölü atılarak, DESCRIPTION olur. Tek satırlı açıklamada DESCRIPTION boştur.
+  - REMARKS: ekranda düzenlenir. Çeki satırında çeki `Remarks`'ı ile dolu gelir. En fazla 60 karakterdir; boşsa "-" basılır.
+  - FB NO, CLIENT ve DESTINATION sandık etiketiyle aynı proje alanlarıdır.
+- **Ürün kaynağı ve seçim:** Ürünler iki kaynaktan gelir:
+  - Projenin çeki satırları.
+  - Çeki satırı olmayan sandık içerikleri (`CekiSatiriId` boş): saha/yedek sandıklarına elle eklenen malzemeler. Bunların TANIM'ı malzeme adıdır.
+  - Seçim (kaynak, kimlik) çiftiyle yapılır, barkodla yapılmaz: barkod satır kimliği değildir. Aynı kimlik farklı kaynakta başka üründür. Çeki satırına bağlı tahsis elle eklenen malzeme olarak seçilemez.
+  - Miktar: çeki satırında istenen adet (bütün sandıklar), elle eklenen malzemede kendi miktarıdır. Liste sandıkla süzülünce satır o sandığa tahsis edilen miktarı (`TahsisMiktari`) ayrıca taşır; ekrandaki "= miktar" kısayolu bu değeri kullanır, böylece bölünmüş satırda bütün sandıklar için etiket basılmaz. Etiket adedi kullanıcının seçimidir, miktar alanlarını değiştirmez.
+- **Metin:** Yazıcının iç fontu Türkçe harf basamadığı için etiket metni ASCII'ye çevrilir (Ç→C, İ→I, ğ→g…). Aksanlı harf temel harfine iner, karşılığı olmayan karakter "?" olur. Satır sonları boşluk olur, `^`/`~` atılır, art arda boşluklar teke iner. Büyük/küçük harf korunur. PDF ve EZPL aynı değerleri basar.
+- **Uzun metin (26.10.2026):** Şablon kısa müşteri adına göre çizilmiştir; veride 44 karaktere kadar ad vardır. Genişlik Godex fontunun basılı ölçüsüyle (Helvetica × 0,93) hesaplanır. Sandıkta "CLIENT NAME: ad" sağ sütuna sığmazsa "CLIENT NAME:" kendi satırına iner, ad kelime sınırından en fazla iki satıra kayar ve DISPATCH DESTINATION altına kayar. Üründe ad varış yerine kadar sığmazsa küçük fontla (A) en fazla iki satıra kayar. Varış yeri tek satırdır. Satırlar yetmezse kalan metin atılır; sığmayan tek kelime harf harf bölünür. Kısa adda şablon birebir kalır. PDF ve EZPL aynı düzeni basar (`GodexYaziOlcusu`, `GodexEtiketSablonu`).
+- **Listeler sunucuda sayfalıdır** (`SayfaliSonuc<T>`; varsayılan 25, en fazla 100, sınır dışı sayfa son sayfaya çekilir):
+  - Proje: bütün proje tipleri, en yeni önce. Arama proje no, FB no ve müşteride yapılır.
+  - Sandık: doğal numara sırasındadır (2 < 10). Arama sandık no ve adında yapılır.
+  - Ürün: önce çeki satırları (çeki ve sıra no ile), sonra elle eklenenler. İsteğe bağlı tek sandıkla süzülür. Arama barkod ve açıklamada (elle eklenende ad) yapılır.
+  - Arama metni en fazla 100 karakterdir.
+- **Sınırlar ve retler:**
+  - Tek istekte en az 1, en fazla 200 seçim yapılır. Her seçimde adet 1–100, toplamda en fazla 1000 etiket olur. Aynı sandık ya da ürün iki kez seçilemez (adet artırılır). Bu kurallara uymayan istek 400 alır.
+  - Proje bulunamazsa ya da seçilen sandık/ürün, süzgeçteki sandık dahil, projeye ait değilse 404 döner ve dosya üretilmez.
+- **Çıktı:**
+  - PDF: her etiket bir sayfadır, adedi kadar tekrarlanır. Sayfa etiket boyundadır.
+  - EZPL `.prn`: kullanıcının Godex şablonudur (`Label_Sandik` / `Label_Urun`) ve koordinat, font, barkod ve çizgileri birebir korunur. Yalnız ürün başlığı değişir. Adet `^P` ile yazılır. Dosya ASCII ve CRLF'tir.
+  - Dosya adı `Sandik_Etiketleri_` / `Urun_Etiketleri_` + proje no + `TurkeyTime` damgasıdır.
+- **Salt okunur:** Hiçbir istek kayıt, durum ya da hareket yazmaz.
+
+Kaynak: [BarkodEtiketKurali.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Core/Models/BarkodEtiketKurali.cs), [Code128.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Core/Helpers/Code128.cs), [BarkodEtiketService.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Infrastructure/Services/Etiketler/BarkodEtiketService.cs), [GodexEtiketSablonu.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Infrastructure/Services/Etiketler/GodexEtiketSablonu.cs), [BarkodEtiketPdf.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Infrastructure/Services/Etiketler/BarkodEtiketPdf.cs), [BarkodEtiketQueries.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Queries/BarkodEtiketQueries.cs), [BarkodEtiketValidators.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application/Features/SandikIslemleri/Validators/BarkodEtiketValidators.cs), [BarkodEtiketController.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K_API/Controllers/BarkodEtiketController.cs), [20261026_01_Barkod_Etiket_Yetkisi.sql](C:/Users/Watarzie/source/repos/3K_Proje/scripts/database/20261026_01_Barkod_Etiket_Yetkisi.sql).
 
 ### 6.2 Silme türlerinin ayrımı
 

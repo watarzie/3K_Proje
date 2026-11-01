@@ -25,6 +25,14 @@ namespace _3K_API.Controllers
         public async Task<IActionResult> SahaProjePdfIndir(int projeId, CancellationToken cancellationToken) =>
             (await _mediator.Send(new GetSahaProjePdfQuery { ProjeId = projeId }, cancellationToken)).ToFileResult();
 
+        /// <summary>
+        /// Saha/Yedek sevke hazır sandık raporu (yalnız kapalı ve ölçü/ağırlığı girilmiş sandıklar); format "pdf" veya
+        /// "excel". İzin mevcut Saha/Yedek sandık raporuyla aynıdır.
+        /// </summary>
+        [HttpGet("saha-proje/{projeId}/sevke-hazir/{format}")]
+        public async Task<IActionResult> SevkeHazirSandikRaporuIndir(int projeId, string format, CancellationToken cancellationToken) =>
+            (await _mediator.Send(new GetSevkeHazirSandikRaporuQuery { ProjeId = projeId, Format = format }, cancellationToken)).ToFileResult();
+
         [HttpGet("eksik-urunler/{projeId}")]
         public async Task<IActionResult> EksikUrunlerPdfIndir(int projeId, CancellationToken cancellationToken) =>
             (await _mediator.Send(new GetEksikUrunlerPdfQuery { ProjeId = projeId }, cancellationToken)).ToFileResult();

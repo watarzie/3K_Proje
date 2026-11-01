@@ -55,8 +55,9 @@ public sealed record FinansDonemOlusturSonucModel(int Taranan, int Olusturulan, 
 }
 
 /// <summary>
-/// Ürünün iş türü eşleşmesi. <see cref="Malzeme"/> doluysa malzemeli tarifedir: kontrplak/katlanır sandıkta ahşap m³
-/// ahşap, kontra m³ kontra eşleşmesinin tarifesiyle fiyatlanır. Katlanır sandık artık boyutla eşleşmez.
+/// Ürünün iş türü eşleşmesi. <see cref="Malzeme"/> doluysa malzemeli tarifedir: kontrplak sandıkta ahşap m³
+/// ahşap, kontra m³ kontra eşleşmesinin tarifesiyle fiyatlanır. Katlanır sandık tarifeyle eşleşmez, elle fiyatlanır
+/// (<see cref="FinansKatlanirKurali"/>).
 /// </summary>
 public sealed record FinansUrunEslesmesiModel(
     int? Id,

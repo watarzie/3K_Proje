@@ -141,9 +141,16 @@ public sealed class SevkiyatRaporTests
         var pdf = servis.MusteriCekiPdfOlustur(liste);
         Assert.True(pdf.Length > 1000);
         Assert.Equal("%PDF", System.Text.Encoding.ASCII.GetString(pdf, 0, 4));
+        // Öteki gerçekleşen çeki raporları gibi A4 yatay (genişlik > yükseklik).
+        var mediaBox = System.Text.RegularExpressions.Regex.Match(
+            System.Text.Encoding.Latin1.GetString(pdf), @"/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)");
+        Assert.True(mediaBox.Success);
+        Assert.True(decimal.Parse(mediaBox.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) >
+                    decimal.Parse(mediaBox.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture));
 
         using var wb = new XLWorkbook(new MemoryStream(servis.MusteriCekiExcelOlustur(liste)));
         Assert.Equal(["Sandıklar - Cases", "Ürünler - Items"], wb.Worksheets.Select(w => w.Name));
+        Assert.All(wb.Worksheets, w => Assert.Equal(XLPageOrientation.Landscape, w.PageSetup.PageOrientation));
         var sandiklar = wb.Worksheet("Sandıklar - Cases");
         Assert.Equal("Gerçekleşen Çeki Listesi / Actual Packing List – PA727-03", sandiklar.Cell(1, 1).GetString());
         Assert.Contains("Müşteri / Customer: GCA", sandiklar.Cell(2, 1).GetString());

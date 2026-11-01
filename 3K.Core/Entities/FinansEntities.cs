@@ -31,7 +31,7 @@ namespace _3K.Core.Entities
         public decimal? Yukseklik { get; set; }
         public int? IcSandikSablonId { get; set; }
         /// <summary>
-        /// Malzemeli tarife: kontrplak/katlanır sandıkta ahşap m³ ahşap tarifesiyle, kontra m³ kontra tarifesiyle fiyatlanır.
+        /// Malzemeli tarife: kontrplak sandıkta ahşap m³ ahşap tarifesiyle, kontra m³ kontra tarifesiyle fiyatlanır.
         /// Boşsa eşleşme malzemeden bağımsızdır (eski tek m³ tarifesi).
         /// </summary>
         public Models.FinansSandikMalzemesi? Malzeme { get; set; }
@@ -96,7 +96,7 @@ namespace _3K.Core.Entities
         public int? TarifeIdSnapshot { get; set; }
         public AmbalajSandikCinsi? SandikCinsi { get; set; }
         /// <summary>
-        /// Elle girilen ahşap ve kontra m³ (kontra/katlanır sandıkta Ambalaj m³ hesaplamaz). Boşsa pay eski kayıtlardaki
+        /// Elle girilen ahşap ve kontra m³ (kontrplak sandıkta Ambalaj m³ hesaplamaz; katlanırda m³ tutulmaz). Boşsa pay eski kayıtlardaki
         /// gibi türetilir; doluysa <see cref="ToplamM3"/> bileşik toplamdır (<see cref="Models.FinansHacimKurallari"/>).
         /// </summary>
         public decimal? AhsapM3 { get; set; }
@@ -104,7 +104,7 @@ namespace _3K.Core.Entities
         /// <summary>Hacim elle girildi; üretim aktarımı m³ alanlarını ezmez, kayıt otomatik tarife fiyatlamasında kalır.</summary>
         public bool HacimManuel { get; set; }
         /// <summary>
-        /// Malzemeli fiyat (kontrplak/katlanır): doluysa <see cref="FinansUrunId"/>/<see cref="BirimFiyatSnapshot"/> kontra
+        /// Malzemeli fiyat (kontrplak; eski katlanır kayıtları): doluysa <see cref="FinansUrunId"/>/<see cref="BirimFiyatSnapshot"/> kontra
         /// tarifesidir ve net = kontra m³ × kontra fiyatı + ahşap m³ × <see cref="AhsapBirimFiyatSnapshot"/>
         /// (<see cref="Models.FinansTutarKurallari.IsNet"/>). Boşsa iş tek tarifeyle fiyatlanır.
         /// </summary>
