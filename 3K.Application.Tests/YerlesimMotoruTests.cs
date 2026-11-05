@@ -305,6 +305,8 @@ public sealed class YerlesimMotoruTests
         var lowbed = sonuc.Araclar.Single(a => a.EkipmanKodu == "LB-3");
         Assert.True(lowbed.AileDisi);
         Assert.Contains("mevcut araç listesindeki LB-3", lowbed.AileDisiGerekce);
+        Assert.True(lowbed.ZorunluOzelEkipman);
+        Assert.False(sonuc.Araclar.Single(a => a.EkipmanKodu == "K40").ZorunluOzelEkipman);
     }
 
     /// <summary>Birden çok dingil grubunda grup yükü tek mesnetle hesaplanmaz; kesin sonuç verilmez.</summary>

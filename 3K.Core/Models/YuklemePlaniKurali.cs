@@ -87,6 +87,12 @@ public static class YuklemePlaniKurali
             ? string.Create(CultureInfo.InvariantCulture, $"s:{sandikId}")
             : string.Create(CultureInfo.InvariantCulture, $"m:{manuelGrupNo}:{birimNo}");
 
+    /// <summary>
+    /// Lokasyonu belirsiz yük (isterler 26): lokasyonu yok ya da depo lokasyonu "Belirsiz". Raporlar, lokasyon tercihi ve
+    /// lokasyona göre ayrı planlama bu tek kuralı kullanır.
+    /// </summary>
+    public static bool LokasyonBelirsizMi(int? lokasyonId) => lokasyonId is null || lokasyonId == (int)DepoLokasyon.Belirsiz;
+
     public static bool MevcutAraclarGecerli(IReadOnlyList<PlanMevcutArac>? araclar) =>
         araclar is null ||
         (araclar.Count <= MevcutAracSatiriEnFazla &&

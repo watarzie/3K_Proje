@@ -142,6 +142,9 @@ public sealed class PlanAraci
     public string AileAdi { get; init; } = string.Empty;
     public string TipAdi { get; init; } = string.Empty;
     public bool AileDisi { get; init; }
+
+    /// <summary>Aile dışı araç zorunlu özel yük (trafo, ailede taşınamayan özel yük) için mi eklendi; kullanıcının mevcut araç listesinden seçtiği aile dışı araç değildir.</summary>
+    public bool ZorunluOzelEkipman { get; init; }
     public string? AileDisiGerekce { get; init; }
     public IReadOnlyList<string> ProjeNolari { get; init; } = [];
     public IReadOnlyList<string> Lokasyonlar { get; init; } = [];

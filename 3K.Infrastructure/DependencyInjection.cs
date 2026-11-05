@@ -157,6 +157,7 @@ public static class DependencyInjection
         services.AddScoped<IYuklemePlaniService, YuklemePlaniService>();
         services.AddScoped<IEkipmanKitapligiService, EkipmanKitapligiService>();
         services.AddScoped<IMevzuatKuralService, MevzuatKuralService>();
+        services.AddSingleton<IYuklemePlaniRaporOlusturucu, YuklemePlaniPdfOlusturucu>();
     }
 
     private static void AddBackgroundJobs(this IServiceCollection services)

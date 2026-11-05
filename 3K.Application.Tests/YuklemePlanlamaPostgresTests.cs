@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using _3K.Application.Features.YuklemePlanlamaIslemleri.Queries;
 using Microsoft.Extensions.Logging.Abstractions;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
@@ -267,6 +268,13 @@ public sealed class YuklemePlanlamaPostgresTests
                     YuklemeProjeKarisimi.Karisik, null, null, [projeId]), kullaniciId: null, Ct);
             Assert.Null(plan.Yerlesim);
             Assert.Equal(1, plan.FarkliLokasyonSayisi);
+            // Yerleşim hesaplanmadan rapor üretilmez (400).
+            await using (var db = new AppDbContext(options))
+            {
+                var rapor = await new YuklemePlaniRaporQueryHandlers(PlanServisi(db), new YuklemePlaniPdfOlusturucu())
+                    .Handle(new YuklemePlaniAracTalepRaporuQuery { PlanId = plan.Id }, Ct);
+                Assert.Equal((false, 400), (rapor.IsSuccess, rapor.StatusCode));
+            }
 
             YuklemePlaniDetayi hesap;
             await using (var db = new AppDbContext(options))
@@ -286,6 +294,19 @@ public sealed class YuklemePlanlamaPostgresTests
             Assert.Equal(PlanYukDurumu.EksikVeri, hesap.Yukler.Single(y => y.Kod == "PA800-01-4").Durum);
             Assert.Equal((3, 0, 3), (hesap.Sayaclar.Yerlesen, hesap.Sayaclar.Yerlesemeyen, hesap.Sayaclar.Hesaplanabilir));
             Assert.Equal("s:" + trafoId, Assert.Single(lowbed.Konumlar).YukAnahtari);
+
+            // Raporlar son revizyonun yerleşimiyle aynı plan ve revizyon numarasını taşır.
+            await using (var db = new AppDbContext(options))
+            {
+                var raporlar = new YuklemePlaniRaporQueryHandlers(PlanServisi(db), new YuklemePlaniPdfOlusturucu());
+                var talep = await raporlar.Handle(new YuklemePlaniAracTalepRaporuQuery { PlanId = plan.Id }, Ct);
+                var yukleme = await raporlar.Handle(new YuklemePlaniYuklemeRaporuQuery { PlanId = plan.Id }, Ct);
+                Assert.True(talep.IsSuccess && yukleme.IsSuccess);
+                Assert.StartsWith($"{plan.PlanNo}_R2_AracTalebi_", talep.Value!.DosyaAdi, StringComparison.Ordinal);
+                Assert.StartsWith($"{plan.PlanNo}_R2_YuklemePlani_", yukleme.Value!.DosyaAdi, StringComparison.Ordinal);
+                Assert.Equal(DosyaIcerigi.PdfTuru, yukleme.Value.IcerikTuru);
+                Assert.Equal(404, (await raporlar.Handle(new YuklemePlaniYuklemeRaporuQuery { PlanId = 999_999 }, Ct)).StatusCode);
+            }
 
             await using (var db = new AppDbContext(options))
             {

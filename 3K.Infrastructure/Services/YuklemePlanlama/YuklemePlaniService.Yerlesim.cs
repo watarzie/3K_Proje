@@ -21,7 +21,6 @@ internal sealed partial class YuklemePlaniService
     private const string HesaplanacakYukYok = "Hesaplanacak yük yok: planlamaya dahil ve ölçü/ağırlığı tam en az bir yük olmalıdır.";
     private const string MevcutAracBulunamadi = "Mevcut araçlardan biri kitaplıkta bulunamadı veya pasif; araç listesini güncelleyin.";
     private const string MevcutAracKullanilamaz = "Mevcut araçlardan biri sandık taşımaya uygun değil ya da teknik verisi okunamıyor; araç listesini güncelleyin.";
-    private const string BelirsizLokasyon = "Lokasyon henüz belirlenmedi";
 
     public async Task<YuklemePlaniDetayi> HesaplaAsync(
         int planId, int beklenenRevizyonNo, YuklemeLokasyonTercihi lokasyonTercihi, int? kullaniciId, CancellationToken cancellationToken)
@@ -90,7 +89,8 @@ internal sealed partial class YuklemePlaniService
         y.BirimSayisi > 1 ? $"{y.Kod} ({y.BirimNo}/{y.BirimSayisi})" : y.Kod,
         y.ProjeId,
         y.ProjeNo,
-        y.LokasyonId,
+        // Belirsiz lokasyonlu yükler lokasyona göre ayrı planda ayrı bir "belirsiz" grubunda toplanır (isterler 26).
+        YuklemePlaniKurali.LokasyonBelirsizMi(y.LokasyonId) ? null : y.LokasyonId,
         (int)Math.Ceiling(y.BoyMm!.Value),
         (int)Math.Ceiling(y.EnMm!.Value),
         (int)Math.Ceiling(y.YukseklikMm!.Value),
@@ -243,9 +243,12 @@ internal sealed partial class YuklemePlaniService
                     AileAdi = a.AileAdi,
                     TipAdi = a.TipAdi,
                     AileDisi = a.AileDisi,
+                    ZorunluOzelEkipman = a.ZorunluOzelEkipman,
                     AileDisiGerekce = a.AileDisiGerekce,
                     ProjeNolari = aracSatirlari.Select(s => s!.ProjeNo ?? "Projesiz").Distinct().Order(StringComparer.Ordinal).ToList(),
-                    Lokasyonlar = aracSatirlari.Select(s => s!.LokasyonAdi ?? BelirsizLokasyon).Distinct().Order(StringComparer.Ordinal).ToList(),
+                    Lokasyonlar = aracSatirlari
+                        .Select(s => YuklemePlaniKurali.LokasyonBelirsizMi(s!.LokasyonId) ? YuklemeEtiketleri.BelirsizLokasyon : s.LokasyonAdi ?? YuklemeEtiketleri.BelirsizLokasyon)
+                        .Distinct().Order(StringComparer.Ordinal).ToList(),
                     Konumlar = a.Konumlar.Select(Konum).ToList(),
                     ToplamKg = a.ToplamKg,
                     KapasiteKg = a.KapasiteKg,

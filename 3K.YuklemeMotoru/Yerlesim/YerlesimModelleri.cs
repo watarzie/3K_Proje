@@ -145,6 +145,7 @@ public sealed record YerlesimAraci(
     string AileAdi,
     string TipAdi,
     bool AileDisi,
+    bool ZorunluOzelEkipman,
     string? AileDisiGerekce,
     IReadOnlyList<int?> ProjeIdleri,
     IReadOnlyList<int?> LokasyonIdleri,

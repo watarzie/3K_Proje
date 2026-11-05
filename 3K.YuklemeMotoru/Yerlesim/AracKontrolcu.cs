@@ -10,7 +10,7 @@ internal static class AracKontrolcu
 {
     private static readonly CultureInfo Tr = CultureInfo.GetCultureInfo("tr-TR");
 
-    public static YerlesimAraci Olustur(int aracNo, AracYerlesimi arac, YerlesimAyarlari ayar, YasalSinirlar? yasal, string? aileDisiGerekce)
+    public static YerlesimAraci Olustur(int aracNo, AracYerlesimi arac, YerlesimAyarlari ayar, YasalSinirlar? yasal, string? aileDisiGerekce, bool zorunluOzelEkipman)
     {
         arac.Ortala();
         var konumlar = arac.Konumlar();
@@ -52,7 +52,7 @@ internal static class AracKontrolcu
         var projeler = konumlar.Select(k => yukler[k.YukAnahtari].ProjeId).Distinct().ToList();
         var lokasyonlar = konumlar.Select(k => yukler[k.YukAnahtari].LokasyonId).Distinct().ToList();
         return new YerlesimAraci(aracNo, arac.Aday.KonfigurasyonId, arac.Aday.RevizyonNo, arac.Aday.Kod, arac.Aday.Ad,
-            arac.Aday.AileAdi, arac.Aday.TipAdi, !arac.Aday.AileIci, aileDisiGerekce, projeler, lokasyonlar, konumlar,
+            arac.Aday.AileAdi, arac.Aday.TipAdi, !arac.Aday.AileIci, zorunluOzelEkipman && !arac.Aday.AileIci, aileDisiGerekce, projeler, lokasyonlar, konumlar,
             toplamKg, veri.TeknikKapasiteKg, doluluk, agirlikMerkezi, olcu.YukseklikMm, olcu.GenislikMm, olcu.UzunlukMm,
             Math.Max(0, olcu.Sol), Math.Max(0, olcu.Sag), Math.Max(0, olcu.On), Math.Max(0, olcu.Arka), kontroller,
             EnKotu(kontroller.Select(k => k.Sonuc)));

@@ -103,8 +103,10 @@ public static class YerlesimMotoru
         }
 
         // Aile araçları önce, zorunlu özel ekipman sonra numaralanır.
-        var araclar = aileAraclari.Concat(ozelAraclar).Where(a => !a.Arac.Bos).ToList();
-        var sonuclar = araclar.Select((a, i) => AracKontrolcu.Olustur(i + 1, a.Arac, girdi.Ayarlar, girdi.Yasal, a.Gerekce)).ToList();
+        var araclar = aileAraclari.Select(a => (a.Arac, a.Gerekce, Zorunlu: false))
+            .Concat(ozelAraclar.Select(a => (a.Arac, a.Gerekce, Zorunlu: true)))
+            .Where(a => !a.Arac.Bos).ToList();
+        var sonuclar = araclar.Select((a, i) => AracKontrolcu.Olustur(i + 1, a.Arac, girdi.Ayarlar, girdi.Yasal, a.Gerekce, a.Zorunlu)).ToList();
         var uyarilar = Uyarilar(girdi, araclar.Select(a => a.Arac).ToList(), sonuclar, havuz);
         // Genel sonuç araçların en kötüsüdür; yerleşemeyen yük varsa plan eksiktir ve uygunluk üretilmez.
         var genel = yerlesemeyenler.Count > 0 ? KontrolSonucu.Uygunsuz : AracKontrolcu.EnKotu(sonuclar.Select(a => a.Sonuc));

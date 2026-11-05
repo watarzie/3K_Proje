@@ -46,6 +46,16 @@ namespace _3K_API.Controllers
             return (await mediator.Send(command, ct)).ToActionResult();
         }
 
+        /// <summary>Araç talep ve planlama raporu (PDF); son revizyonun yerleşimiyle.</summary>
+        [HttpGet("{id:int}/rapor/arac-talebi")]
+        public async Task<ActionResult> AracTalepRaporu(int id, CancellationToken ct) =>
+            (await mediator.Send(new YuklemePlaniAracTalepRaporuQuery { PlanId = id }, ct)).ToFileResult();
+
+        /// <summary>Araç bazlı yükleme planı raporu (PDF); son revizyonun yerleşimiyle.</summary>
+        [HttpGet("{id:int}/rapor/yukleme-plani")]
+        public async Task<ActionResult> YuklemePlaniRaporu(int id, CancellationToken ct) =>
+            (await mediator.Send(new YuklemePlaniYuklemeRaporuQuery { PlanId = id }, ct)).ToFileResult();
+
         /// <summary>Otomatik yerleşim: sonuç yeni revizyon olarak yazılır; arada başka biri kaydettiyse 409.</summary>
         [HttpPost("{id:int}/hesapla")]
         public async Task<ActionResult> Hesapla(int id, [FromBody] YuklemePlaniHesaplaCommand command, CancellationToken ct)

@@ -429,7 +429,8 @@ internal sealed partial class YuklemePlaniService(AppDbContext context, IUnitOfW
             },
             KaynakFarklari = KaynakFarklari(revizyon, guncel, projeIdleri, yukTurleri),
             Yerlesim = await YerlesimAsync(plan, revizyon, sonuc, cancellationToken),
-            FarkliLokasyonSayisi = satirlar.Where(s => s.Dahil && s.VeriSorunlari.Count == 0).Select(s => s.LokasyonId).Distinct().Count()
+            FarkliLokasyonSayisi = satirlar.Where(s => s.Dahil && s.VeriSorunlari.Count == 0)
+                .Select(s => YuklemePlaniKurali.LokasyonBelirsizMi(s.LokasyonId) ? null : s.LokasyonId).Distinct().Count()
         };
     }
 
