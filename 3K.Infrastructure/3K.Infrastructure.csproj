@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\3K.Core\3K.Core.csproj" />
+    <ProjectReference Include="..\3K.YuklemeMotoru\3K.YuklemeMotoru.csproj" />
   </ItemGroup>
 
   <ItemGroup>

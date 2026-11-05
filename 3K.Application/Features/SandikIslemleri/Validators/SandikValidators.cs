@@ -71,6 +71,7 @@ namespace _3K.Application.Features.SandikIslemleri.Validators
         {
             RuleFor(x => x.SandikId).GreaterThan(0).WithMessage("Geçerli bir sandık ID belirtilmeli.");
             RuleFor(x => x.TipId).Must(SandikTipiKurali.Gecerli).WithMessage(SandikTipiKurali.Mesaj);
+            RuleFor(x => x.YukTuruId).Must(YukTuruKurali.Gecerli).When(x => x.YukTuruId.HasValue).WithMessage(YukTuruKurali.Mesaj);
             When(x => x.SandikNo != null, () =>
             {
                 RuleFor(x => x.SandikNo).NotEmpty().WithMessage(SandikNoDegisikligiKurali.BosMesaji);

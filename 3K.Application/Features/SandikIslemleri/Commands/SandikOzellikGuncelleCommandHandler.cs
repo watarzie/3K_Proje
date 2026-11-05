@@ -73,6 +73,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
             sandik.Yukseklik = request.Yukseklik;
             sandik.NetKg = request.NetKg;
             sandik.GrossKg = request.GrossKg;
+            if (request.YukTuruId.HasValue)
+                sandik.YukTuruId = request.YukTuruId.Value;
             repo.Update(sandik);
 
             // Numara öteki alanlardan sonra değişir ki Ambalaj senkronu sandığın son halini görsün.

@@ -12,6 +12,9 @@ namespace _3K.Application.Features.SandikIslemleri.DTOs
         public string DepoLokasyonMetni { get; set; } = string.Empty;
         public int TipId { get; set; }
         public string TipMetni { get; set; } = string.Empty;
+        /// <summary>Yük türü (Sandık, Trafo, Diğer özel yük); yükleme planlaması bu alanı okur.</summary>
+        public int YukTuruId { get; set; }
+        public string YukTuruMetni { get; set; } = string.Empty;
         public int UrunSayisi { get; set; }
         public bool IsManuelSandik { get; set; }
         /// <summary>

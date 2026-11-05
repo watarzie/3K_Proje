@@ -346,6 +346,15 @@ internal sealed class SahaAktarimIslemi(
         await sahaAktarimRepo.AddAsync(sahaAktarim);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
+        // Yeni saha sandığının yük türü: ürünlerinin hepsi aynı yük türündeki kaynak sandıklardan geliyorsa o tür korunur
+        // (trafo sahaya aktarılınca "Sandık" olup yükleme planında üstüne yük konabilir sayılmasın); aksi halde Sandık.
+        var kaynakSandikIdleri = sandikTaslaklari.SelectMany(s => s.Urunler)
+            .Where(u => u.KaynakSandikId.HasValue).Select(u => u.KaynakSandikId!.Value).Distinct().ToList();
+        var kaynakYukTurleri = kaynakSandikIdleri.Count == 0
+            ? new Dictionary<int, int>()
+            : (await unitOfWork.GetRepository<Sandik>().FindAsync(s => kaynakSandikIdleri.Contains(s.Id)))
+                .ToDictionary(s => s.Id, s => s.YukTuruId);
+
         foreach (var sandikTaslak in sandikTaslaklari)
         {
             Sandik sandik;
@@ -376,6 +385,7 @@ internal sealed class SahaAktarimIslemi(
                     NetKg = sandikTaslak.NetKg,
                     GrossKg = sandikTaslak.GrossKg,
                     TipId = (int)SandikTipi.AhsapKapali,
+                    YukTuruId = OrtakYukTuru(sandikTaslak.Urunler, kaynakYukTurleri),
                     DurumId = (int)SandikDurum.Hazirlaniyor,
                     DepoLokasyonId = (int)DepoLokasyon.Belirsiz
                 };
@@ -523,6 +533,23 @@ internal sealed class SahaAktarimIslemi(
             YeniDeger = nameof(SandikDurum.Hazirlaniyor),
             Aciklama = "İçeriği değiştiği için sandık yeniden hazırlanıyor durumuna getirildi."
         });
+
+    /// <summary>
+    /// Ürünlerin hepsi kaynak sandıktan geliyor ve o sandıkların yük türü aynıysa o tür; karışık ya da kaynaksızsa Sandık.
+    /// </summary>
+    internal static int OrtakYukTuru(IEnumerable<EksikSahaUrunDto> urunler, IReadOnlyDictionary<int, int> kaynakYukTurleri)
+    {
+        int? ortak = null;
+        foreach (var urun in urunler)
+        {
+            if (urun.KaynakSandikId is not { } id || !kaynakYukTurleri.TryGetValue(id, out var tur))
+                return (int)YukTuru.Sandik;
+            if (ortak != null && ortak != tur)
+                return (int)YukTuru.Sandik;
+            ortak = tur;
+        }
+        return ortak ?? (int)YukTuru.Sandik;
+    }
 
     private static string NormalizeSandikNo(string? value)
     {

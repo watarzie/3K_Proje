@@ -64,6 +64,20 @@ namespace _3K.Infrastructure.Data
         public DbSet<FinansGider> FinansGiderleri { get; set; } = null!;
         public DbSet<FinansDegisiklikGecmisi> FinansDegisiklikGecmisleri { get; set; } = null!;
 
+        // ======= Yükleme Simülasyonu ve Araç Planlama DbSet'leri =======
+        public DbSet<EkipmanAilesi> EkipmanAileleri { get; set; } = null!;
+        public DbSet<EkipmanTipi> EkipmanTipleri { get; set; } = null!;
+        public DbSet<EkipmanModeli> EkipmanModelleri { get; set; } = null!;
+        public DbSet<EkipmanKonfigurasyonu> EkipmanKonfigurasyonlari { get; set; } = null!;
+        public DbSet<EkipmanKonfigurasyonRevizyonu> EkipmanKonfigurasyonRevizyonlari { get; set; } = null!;
+        public DbSet<MevzuatKaynagi> MevzuatKaynaklari { get; set; } = null!;
+        public DbSet<MevzuatKuralSeti> MevzuatKuralSetleri { get; set; } = null!;
+        public DbSet<MevzuatKurali> MevzuatKurallari { get; set; } = null!;
+        public DbSet<YuklemePlani> YuklemePlanlari { get; set; } = null!;
+        public DbSet<YuklemePlanRevizyonu> YuklemePlanRevizyonlari { get; set; } = null!;
+        public DbSet<YuklemePlanProjesi> YuklemePlanProjeleri { get; set; } = null!;
+        public DbSet<YuklemePlanYuku> YuklemePlanYukleri { get; set; } = null!;
+
         // ======= RBAC (Rol Tabanlı Erişim Kontrolü) DbSet'leri =======
         public DbSet<Rol> Roller { get; set; } = null!;
         public DbSet<MenuTanimi> MenuTanimlari { get; set; } = null!;
@@ -93,6 +107,7 @@ namespace _3K.Infrastructure.Data
         public DbSet<LookupKaliteDurum> LookupKaliteDurumlari { get; set; } = null!;
         public DbSet<LookupSurecDurum> LookupSurecDurumlari { get; set; } = null!;
         public DbSet<LookupSandikAcilmaSebebi> LookupSandikAcilmaSebepleri { get; set; } = null!;
+        public DbSet<LookupYukTuru> LookupYukTurleri { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -113,10 +128,12 @@ namespace _3K.Infrastructure.Data
             modelBuilder.ConfigureOnayModule();
             modelBuilder.ConfigureBildirimModule();
             modelBuilder.ConfigureHareketGecmisiModule();
+            modelBuilder.ConfigureYuklemePlanlamaModule();
 
             modelBuilder.SeedLookupData();
             modelBuilder.SeedApprovalRules();
             modelBuilder.SeedRbacData();
+            modelBuilder.SeedYuklemePlanlamaData();
         }
 
         // Audit alanları (CreatedDate/By, UpdatedDate/By) artık

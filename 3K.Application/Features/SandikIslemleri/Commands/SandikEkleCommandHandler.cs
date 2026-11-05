@@ -79,6 +79,8 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
                 DepoLokasyonMetni = _lookupCache.GetDeger<LookupDepoLokasyon>(sandik.DepoLokasyonId),
                 TipId = sandik.TipId,
                 TipMetni = _lookupCache.GetDeger<LookupSandikTipi>(sandik.TipId),
+                YukTuruId = sandik.YukTuruId,
+                YukTuruMetni = _lookupCache.GetDeger<LookupYukTuru>(sandik.YukTuruId),
                 UrunSayisi = 0
             };
 

@@ -21,5 +21,11 @@ namespace _3K.Application.Features.SandikIslemleri.Commands
         public decimal? NetKg { get; set; }
         public decimal? GrossKg { get; set; }
         public int? DepoLokasyonId { get; set; }
+
+        /// <summary>
+        /// Yük türü (<see cref="_3K.Core.Enums.YukTuru"/>); yükleme planlaması trafoyu bu alandan tanır. Gönderilmezse
+        /// (eski istemci) değişmez.
+        /// </summary>
+        public int? YukTuruId { get; set; }
     }
 }

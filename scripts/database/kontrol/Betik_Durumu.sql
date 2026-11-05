@@ -14,6 +14,9 @@
 -- menü düğümünü (sandik-acilis-istatistigi) birlikte arar.
 -- 28 numaralı betik Kullanicilar.BasarisizGirisSayisi ve GirisKilitBitisTarihi kolonlarını birlikte arar.
 -- 29 numaralı betik menü düğümünü (barkod-etiket) arar.
+-- 30 numaralı betik Sandiklar.YukTuruId kolonunu ve LookupYukTurleri tablosunu birlikte arar.
+-- 31 numaralı betik YuklemePlanYukleri, EkipmanKonfigurasyonRevizyonlari ve MevzuatKurallari tablolarını ve menü
+-- düğümlerini (yukleme-planlama, mevzuat-kurallari) birlikte arar.
 -- Yeni betik eklenince buraya satır eklenir (CanliyaAlimBetikleriTests dosya listesiyle karşılaştırır).
 -- =====================================================================================
 WITH kolon(tablo, ad) AS (SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public')
@@ -32,6 +35,13 @@ FROM (VALUES
                                                     AND EXISTS (SELECT 1 FROM "MenuTanimlari" WHERE "Kod" = 'sandik-acilis-istatistigi')),
     (28, '20261025_01_Giris_Kilidi',                EXISTS (SELECT 1 FROM kolon WHERE tablo = 'Kullanicilar' AND ad = 'BasarisizGirisSayisi')
                                                     AND EXISTS (SELECT 1 FROM kolon WHERE tablo = 'Kullanicilar' AND ad = 'GirisKilitBitisTarihi')),
-    (29, '20261026_01_Barkod_Etiket_Yetkisi',       EXISTS (SELECT 1 FROM "MenuTanimlari" WHERE "Kod" = 'barkod-etiket'))
+    (29, '20261026_01_Barkod_Etiket_Yetkisi',       EXISTS (SELECT 1 FROM "MenuTanimlari" WHERE "Kod" = 'barkod-etiket')),
+    (30, '20261105_01_Yuk_Turu',                    EXISTS (SELECT 1 FROM kolon WHERE tablo = 'Sandiklar' AND ad = 'YukTuruId')
+                                                    AND EXISTS (SELECT 1 FROM kolon WHERE tablo = 'LookupYukTurleri' AND ad = 'Deger')),
+    (31, '20261105_02_Yukleme_Planlama',            EXISTS (SELECT 1 FROM kolon WHERE tablo = 'YuklemePlanYukleri' AND ad = 'ElleDegisenIzinler')
+                                                    AND EXISTS (SELECT 1 FROM kolon WHERE tablo = 'EkipmanKonfigurasyonRevizyonlari' AND ad = 'TeknikVeriJson')
+                                                    AND EXISTS (SELECT 1 FROM kolon WHERE tablo = 'MevzuatKurallari' AND ad = 'ParametrelerJson')
+                                                    AND EXISTS (SELECT 1 FROM "MenuTanimlari" WHERE "Kod" = 'yukleme-planlama')
+                                                    AND EXISTS (SELECT 1 FROM "MenuTanimlari" WHERE "Kod" = 'mevzuat-kurallari'))
 ) AS t(sira, betik, uygulandi)
 ORDER BY sira;

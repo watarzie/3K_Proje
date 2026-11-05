@@ -18,17 +18,18 @@ Kullanıcıyla Türkçe konuşulur. Kod içindeki Türkçe alan adları (`Proje`
 
 ## Çözüm yapısı
 
-`3K_Proje.slnx` (src: 4 proje, tests: 1 proje). Tüm projelerde `Nullable` ve `ImplicitUsings` açık; kök namespace `_3K.*`.
+`3K_Proje.slnx` (src: 5 proje, tests: 1 proje). Tüm projelerde `Nullable` ve `ImplicitUsings` açık; kök namespace `_3K.*`.
 
 | Proje | Sorumluluk | Bağımlılık |
 |---|---|---|
 | `3K.Core` | Entity'ler (`Entities/`), enum'lar, `Models/` (alan modelleri + saf kurallar: `FinansTutarKurallari`, `FinansTarihKurallari`, `FinansParaBirimiKurali`, `AmbalajIslemKurallari`…), `Interfaces/` (`IUnitOfWork`, `IGenericRepository<T>`, `IFinans*Service`…), `Constants/` (`YetkiKodlari`, `ProjeTipiYetkiKodlari`, `SistemRolleri`), `Exceptions/`, `Helpers/TurkeyTime` | Hiçbir projeye ve framework'e bağlı değil |
 | `3K.Application` | MediatR use case'leri: `Features/<Alan>Islemleri/{Commands,Queries,Validators,DTOs}`, `Behaviors/` (pipeline), `Common/` (`Result`, `ISecuredRequest`, `RequestMenuPermissionResolver`, `AtomicTransactionExtensions`, yardımcı politikalar) | Yalnız Core (MediatR 12, FluentValidation 12) |
-| `3K.Infrastructure` | EF Core + Npgsql (`Data/AppDbContext` + `<Alan>ModelBuilderExtensions`), `Repositories/` (`UnitOfWork`, `GenericRepository`), servis implementasyonları (`Services/`, `Services/Finans`, `Services/Raporlar`, `Services/Cekiler`), QuestPDF/ClosedXML raporları, 2FA, arka plan işleri | Yalnız Core |
+| `3K.Infrastructure` | EF Core + Npgsql (`Data/AppDbContext` + `<Alan>ModelBuilderExtensions`), `Repositories/` (`UnitOfWork`, `GenericRepository`), servis implementasyonları (`Services/`, `Services/Finans`, `Services/Raporlar`, `Services/Cekiler`), QuestPDF/ClosedXML raporları, 2FA, arka plan işleri | Yalnız Core (+ `3K.YuklemeMotoru`) |
+| `3K.YuklemeMotoru` | Yükleme simülasyonu motoru: ekipman teknik verisi (`Ekipman/EkipmanTeknikVerisi`, serileştirici, yapısal denetim); ileride yerleşim. Saf C#, hiçbir projeye ve pakete bağlı değil (WASM'a taşınabilir kalsın) | Hiçbir projeye bağlı değil |
 | `3K_API` | Controller'lar, `Extensions/` (`AddApi`, `UseApiPipeline`, `ResultExtensions`, hız sınırları `HizSiniriBolumleri`), middleware, Serilog, Ambalaj kaynak senkronizasyon worker'ı, dışa aktarım sınırlayıcısı (`Services/DisaAktarimHizSiniri`); composition root | Application + Infrastructure + Core |
 | `3K.Application.Tests` | xUnit birim, regresyon ve PostgreSQL entegrasyon testleri (namespace `_3K.Application.Tests`) | Hepsine referans verir |
 
-- Bağımlılık yönü içe doğrudur: API → Application/Infrastructure → Core. Core'a EF/HTTP eklenmez; Application `AppDbContext`'e veya Infrastructure'a referans vermez.
+- Bağımlılık yönü içe doğrudur: API → Application/Infrastructure → Core. `3K.YuklemeMotoru`'nu yalnız Infrastructure ve testler kullanır; motora EF/HTTP/Core bağımlılığı eklenmez. Core'a EF/HTTP eklenmez; Application `AppDbContext`'e veya Infrastructure'a referans vermez.
 - DI kayıtları: `3K.Application/DependencyInjection.cs` (`AddApplication`), `3K.Infrastructure/DependencyInjection.cs` (`AddInfrastructure`, finans için `AddFinansServices`), `3K_API/Extensions/ApiServiceCollectionExtensions.cs` (`AddApi`).
 - MediatR pipeline sırası (dıştan içe): `IsHatasiLoglamaBehavior` → `UnhandledExceptionBehavior` → `AuthorizationBehavior` → `ValidationBehavior` → `DisaAktarimHizSiniriBehavior` → `ApprovalBehavior` → handler.
 - Yanıtı `Result<DosyaIcerigi>` olan her istek (PDF/Excel/etiket, dosya indirme) `DisaAktarimHizSiniriBehavior` ile kullanıcı başına 20/dk sınırlanır (429); yeni dosya ucu için attribute gerekmez. Genel API sınırı ve giriş/2FA sınırları API katmanındadır (`HizSiniriBolumleri`, `docs/guvenlik/GIRIS_VE_HIZ_SINIRI.md`).

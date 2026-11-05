@@ -28,4 +28,6 @@ namespace _3K.Core.Entities
     public class LookupSurecDurum : LookupBase { }
     /// <summary>Kapalı sandığı elle "Hazırlanıyor"a geri almanın sebebi (Trafo kurulum, Tadilat…).</summary>
     public class LookupSandikAcilmaSebebi : LookupBase { }
+    /// <summary>Fiziksel yükün türü (Sandık, Trafo, Diğer özel yük); yükleme planlaması bu alanı okur.</summary>
+    public class LookupYukTuru : LookupBase { }
 }

@@ -26,6 +26,12 @@ namespace _3K.Core.Entities
         public int DepoLokasyonId { get; set; } = (int)DepoLokasyon.Belirsiz;
 
         /// <summary>
+        /// Yük türü (<see cref="Enums.YukTuru"/>, varsayılan Sandık). Yükleme planlaması trafoyu ve diğer özel yükleri
+        /// bu alandan tanır; açıklama metni veya sandık numarası yük türü sayılmaz.
+        /// </summary>
+        public int YukTuruId { get; set; } = (int)YukTuru.Sandik;
+
+        /// <summary>
         /// PostgreSQL xmin sistem kolonu üzerinden iyimser eşzamanlılık kontrolü sağlar.
         /// Taşıma ile sevkiyatın aynı sandık üzerinde eşzamanlı çalışmasını engeller.
         /// </summary>
@@ -43,6 +49,7 @@ namespace _3K.Core.Entities
         public virtual LookupSandikDurum? DurumLookup { get; set; }
         public virtual LookupSandikTipi? TipLookup { get; set; }
         public virtual LookupDepoLokasyon? DepoLokasyonLookup { get; set; }
+        public virtual LookupYukTuru? YukTuruLookup { get; set; }
         public virtual ICollection<SandikIcerik> SandikIcerikleri { get; set; } = new List<SandikIcerik>();
         public virtual ICollection<SevkiyatSandik> SevkiyatSandiklari { get; set; } = new List<SevkiyatSandik>();
     }

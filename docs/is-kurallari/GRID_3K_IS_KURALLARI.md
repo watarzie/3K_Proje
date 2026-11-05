@@ -405,8 +405,8 @@ Engel listesi dışındaki retler 400 döner. Seçimde normal projeden aktarılm
 - **Eşzamanlılık:** Taşıma ve aktarım, içine ürün koyduğu mevcut sandıkları (taşımada kaynak sandıkları da) her durumda günceller. Okumadan sonra başlayan bir sevkiyatla yarışan işlem `xmin` eşzamanlılık çakışmasıyla 409 alır.
 
 **S-25 — Taşımada yeni hedef sandığın kutu bilgisi.** Hedef sandık seçilmediyse taşıma hedef sahada Hazırlanıyor durumunda yeni sandık açar.
-- **Kutu taşınıyorsa:** Taşımada tek kaynak sandık varsa ve bu sandık taşımadan sonra boşalıyorsa kutunun kendisi taşınmış sayılır. Kaynak sandığın adı (TR/EN), tipi, ölçüleri (en, boy, yükseklik), net ve brüt ağırlığı ile depo lokasyonu yeni sandığa kopyalanır.
-- **Aksi halde:** Kaynakta ürün kalıyorsa ya da satırlar birden çok sandıktan geliyorsa yeni sandık adsız, ölçüsüz ve ağırlıksız açılır; tipi varsayılan (`AhsapKapali`), lokasyonu Belirsiz olur ve ölçüyü kullanıcı girer.
+- **Kutu taşınıyorsa:** Taşımada tek kaynak sandık varsa ve bu sandık taşımadan sonra boşalıyorsa kutunun kendisi taşınmış sayılır. Kaynak sandığın adı (TR/EN), tipi, yük türü (5 Kasım 2026), ölçüleri (en, boy, yükseklik), net ve brüt ağırlığı ile depo lokasyonu yeni sandığa kopyalanır.
+- **Aksi halde:** Kaynakta ürün kalıyorsa ya da satırlar birden çok sandıktan geliyorsa yeni sandık adsız, ölçüsüz ve ağırlıksız açılır; tipi varsayılan (`AhsapKapali`), yük türü Sandık, lokasyonu Belirsiz olur ve ölçüyü kullanıcı girer.
 - **Neden:** Aynı kutu iki sahanın packing list ağırlığında ve m³'ünde sayılmaz.
 
 **S-26 — Saha sandık numarası: çakışma normal biçimle aranır, numara sessizce değiştirilmez (28.10.2026).** Saha projesinde yeni sandık açan bütün yollar (sahadan sahaya taşıma, otomatik aktarım, elle ürün ya da sandık bazlı aktarım) istenen numarayı hedefteki numaralarla `KoliNoKurali.Normalize` biçiminde karşılaştırır; sevk edilmiş sandıklar da numarayı tutar.
