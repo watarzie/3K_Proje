@@ -107,6 +107,106 @@ public sealed class YuklemePlaniDetayi
     public IReadOnlyList<PlanYukSatiri> Yukler { get; init; } = [];
     public PlanYukSayaclari Sayaclar { get; init; } = new();
     public IReadOnlyList<PlanKaynakFarki> KaynakFarklari { get; init; } = [];
+
+    /// <summary>
+    /// Bu revizyonun otomatik yerleşimi. Seçimler, ayarlar ya da kaynak değişip yeni revizyon kaydedilince yerleşim
+    /// taşınmaz ve yeniden hesap gerekir (null).
+    /// </summary>
+    public PlanYerlesimi? Yerlesim { get; init; }
+
+    /// <summary>Planlamaya dahil yüklerin farklı lokasyon sayısı (belirsiz lokasyon ayrı sayılır); 1'den fazlaysa lokasyon tercihi sorulur.</summary>
+    public int FarkliLokasyonSayisi { get; init; }
+}
+
+/// <summary>Otomatik yerleşim sonucu (isterler 16–19, 22–23, 27): araçlar, yerleşemeyenler, ek ihtiyaç ve uyarılar.</summary>
+public sealed class PlanYerlesimi
+{
+    public DateTime HesapTarihi { get; init; }
+    public YerlesimKontrolSonucu Sonuc { get; init; }
+    public bool LokasyonaGoreAyri { get; init; }
+    public bool ProjeBazindaAyri { get; init; }
+    public IReadOnlyList<PlanAraci> Araclar { get; init; } = [];
+    public IReadOnlyList<PlanYerlesemeyenYuk> Yerlesemeyenler { get; init; } = [];
+    public IReadOnlyList<PlanEkEkipmanIhtiyaci> EkIhtiyaclar { get; init; } = [];
+    public IReadOnlyList<string> Uyarilar { get; init; } = [];
+}
+
+/// <summary>Plandaki araç: kullanılan ekipman revizyonu ve geometrisi (3B için), yükler, toplamlar, taşmalar, kontroller.</summary>
+public sealed class PlanAraci
+{
+    public int AracNo { get; init; }
+    public int KonfigurasyonId { get; init; }
+    public int RevizyonNo { get; init; }
+    public string EkipmanKodu { get; init; } = string.Empty;
+    public string EkipmanAdi { get; init; } = string.Empty;
+    public string AileAdi { get; init; } = string.Empty;
+    public string TipAdi { get; init; } = string.Empty;
+    public bool AileDisi { get; init; }
+    public string? AileDisiGerekce { get; init; }
+    public IReadOnlyList<string> ProjeNolari { get; init; } = [];
+    public IReadOnlyList<string> Lokasyonlar { get; init; } = [];
+    public IReadOnlyList<PlanYukKonumu> Konumlar { get; init; } = [];
+    public decimal ToplamKg { get; init; }
+    public decimal? KapasiteKg { get; init; }
+    public int TabanDolulukYuzde { get; init; }
+    public int? AgirlikMerkeziXMm { get; init; }
+    public int YukluYukseklikMm { get; init; }
+    public int YukluGenislikMm { get; init; }
+    public int YukluUzunlukMm { get; init; }
+    public int SolTasmaMm { get; init; }
+    public int SagTasmaMm { get; init; }
+    public int OnTasmaMm { get; init; }
+    public int ArkaTasmaMm { get; init; }
+    public IReadOnlyList<PlanAracKontrolu> Kontroller { get; init; } = [];
+    public YerlesimKontrolSonucu Sonuc { get; init; }
+
+    /// <summary>Hesapta kullanılan ekipman revizyonunun teknik verisi (3B görünüm; revizyonlar değişmez).</summary>
+    public string TeknikVeriJson { get; init; } = "{}";
+}
+
+/// <summary>Araçtaki yükün konumu (ekipman koordinatları: X önden arkaya, Y soldan sağa, Z yerden yukarı; mm).</summary>
+public sealed class PlanYukKonumu
+{
+    /// <summary>Yük listesindeki satırın anahtarı: "s:{sandıkId}" ya da "m:{grupNo}:{birimNo}".</summary>
+    public string YukAnahtari { get; init; } = string.Empty;
+    public string Kod { get; init; } = string.Empty;
+    public string? ProjeNo { get; init; }
+    public decimal BrutKg { get; init; }
+    public int XMm { get; init; }
+    public int YMm { get; init; }
+    public int ZMm { get; init; }
+    public int BoyMm { get; init; }
+    public int EnMm { get; init; }
+    public int YukseklikMm { get; init; }
+    public bool Donduruldu { get; init; }
+    public string YuzeyKodu { get; init; } = string.Empty;
+    public int IstifNo { get; init; }
+    public int Kat { get; init; }
+    public int YuklemeSirasi { get; init; }
+    public YerlesimGirisYonu YuklemeYontemi { get; init; }
+}
+
+public sealed class PlanAracKontrolu
+{
+    public YerlesimKontrolTuru Tur { get; init; }
+    public YerlesimKontrolSonucu Sonuc { get; init; }
+    public string Mesaj { get; init; } = string.Empty;
+}
+
+public sealed class PlanYerlesemeyenYuk
+{
+    public string YukAnahtari { get; init; } = string.Empty;
+    public string Kod { get; init; } = string.Empty;
+    public string Neden { get; init; } = string.Empty;
+}
+
+/// <summary>Mevcut araçlara sığmayan yükler için önerilen ek ekipman (plana eklenmez).</summary>
+public sealed class PlanEkEkipmanIhtiyaci
+{
+    public int KonfigurasyonId { get; init; }
+    public string EkipmanKodu { get; init; } = string.Empty;
+    public string EkipmanAdi { get; init; } = string.Empty;
+    public int Adet { get; init; }
 }
 
 /// <summary>Plandaki proje ve plana gelmeyen (sevk edilmiş) sandık sayısı.</summary>
@@ -149,6 +249,12 @@ public sealed class PlanYukSatiri
     public string? OzelTasimaNotu { get; init; }
     public PlanYukDurumu Durum { get; init; }
     public IReadOnlyList<string> VeriSorunlari { get; init; } = [];
+
+    /// <summary>Son hesapta yerleştiği araç (yoksa null).</summary>
+    public int? AracNo { get; init; }
+
+    /// <summary>Son hesapta yerleşemediyse nedeni.</summary>
+    public string? YerlesimNotu { get; init; }
 }
 
 /// <summary>
@@ -163,6 +269,10 @@ public sealed class PlanYukSayaclari
     public int VeriEksik { get; init; }
     public int HaricTutulan { get; init; }
     public int SevkEdilmisSandik { get; init; }
+
+    /// <summary>Son hesapta yerleşen ve yerleşemeyen yükler (hesap yoksa 0).</summary>
+    public int Yerlesen { get; init; }
+    public int Yerlesemeyen { get; init; }
 }
 
 /// <summary>Plandaki kopya ile güncel sandık arasındaki fark (gösterim için önceki/güncel değer metni).</summary>

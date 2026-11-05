@@ -53,7 +53,48 @@ namespace _3K.Core.Enums
     {
         HaricTutuldu = 1,
         EksikVeri = 2,
-        Bekliyor = 3
+        Bekliyor = 3,
+
+        /// <summary>Son hesapta bir araca yerleşti.</summary>
+        Yerlesti = 4,
+
+        /// <summary>Son hesapta yerleşemedi; neden satırda yazılır.</summary>
+        Yerlesemedi = 5
+    }
+
+    /// <summary>Yerleşim kontrolünün sonucu; veri yoksa uygunluk üretilmez ("Teyit edilmedi").</summary>
+    public enum YerlesimKontrolSonucu
+    {
+        Uygun = 1,
+        Uygunsuz = 2,
+        TeyitEdilmedi = 3
+    }
+
+    /// <summary>Araç kontrolünün türü (Simülasyon isterleri 22–23); değerler motorla aynıdır.</summary>
+    public enum YerlesimKontrolTuru
+    {
+        Agirlik = 1,
+        KapidanGecis = 2,
+        IcYukseklik = 3,
+        YasalYukseklik = 4,
+        YasalGenislik = 5,
+        Tasma = 6,
+        Dingil = 7,
+        BaglantiYuku = 8,
+        Destek = 9,
+        EkipmanVerisi = 10,
+        GuvenlikPayi = 11,
+        Mevzuat = 12
+    }
+
+    /// <summary>Yükün (ya da istif grubunun) araca giriş yönü.</summary>
+    [Flags]
+    public enum YerlesimGirisYonu
+    {
+        Yok = 0,
+        Arkadan = 1,
+        Yandan = 2,
+        Ustten = 4
     }
 
     /// <summary>

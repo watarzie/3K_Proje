@@ -14,4 +14,10 @@ public static class YukTuruKurali
 
     /// <summary>Trafo veya diğer özel yük mü.</summary>
     public static bool OzelYukMu(int yukTuruId) => yukTuruId != (int)YukTuru.Sandik;
+
+    /// <summary>
+    /// Yük her zaman özel yük ekipmanıyla (lowbed) mı planlanır: trafonun kendisi (isterler 10.1, işletmenin taşıma
+    /// kuralı). Diğer özel yük ancak seçilen ailede taşınamıyorsa aile dışına çıkar.
+    /// </summary>
+    public static bool OzelEkipmanZorunluMu(int yukTuruId) => yukTuruId == (int)YukTuru.Trafo;
 }

@@ -13,20 +13,20 @@ namespace _3K.Application.Tests;
 /// 25 <c>20261024_01_Proje_Baglanti_Turu.sql</c>, 26 <c>20261024_02_Barkod_Urun_Arama_Yetkisi.sql</c>,
 /// 27 <c>20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql</c>, 28 <c>20261025_01_Giris_Kilidi.sql</c>,
 /// 29 <c>20261026_01_Barkod_Etiket_Yetkisi.sql</c>, 30 <c>20261105_01_Yuk_Turu.sql</c>,
-/// 31 <c>20261105_02_Yukleme_Planlama.sql</c>) önceki sürümün şemasında çalıştırılır. Sonuç şeması EF modeliyle
+/// 31 <c>20261105_02_Yukleme_Planlama.sql</c>, 32 <c>20261105_03_Yukleme_Yerlesim.sql</c>) önceki sürümün şemasında çalıştırılır. Sonuç şeması EF modeliyle
 /// aynıdır (kolon, kısıt, ON DELETE kuralı, indeks). Betiklerin tekrarı hiçbir şeyi değiştirmez: var olan taşıma izi ve
 /// verilmiş izinler korunur. Salt okunur durum sorgusu (<c>kontrol/Betik_Durumu.sql</c>) klasördeki her betiği listeler
 /// ve öncesini/sonrasını doğru gösterir. 1–20 numaralı betikler canlıya uygulanıp depodan kaldırıldığı için burada yoktur.
 /// </summary>
 public sealed class CanliyaAlimBetikleriTests
 {
-    /// <summary>Canlıda çalıştırma sırası (scripts/database/README.md, sıra 22–31).</summary>
+    /// <summary>Canlıda çalıştırma sırası (scripts/database/README.md, sıra 22–32).</summary>
     private static readonly string[] Betikler =
         ["20261021_02_Sahadan_Sahaya_Tasima.sql", "20261023_01_Grid_Saha_Gorunumu_Yetkisi.sql",
             "20261023_02_Sevk_Sonrasi_Duzeltme.sql", "20261024_01_Proje_Baglanti_Turu.sql",
             "20261024_02_Barkod_Urun_Arama_Yetkisi.sql", "20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql",
             "20261025_01_Giris_Kilidi.sql", "20261026_01_Barkod_Etiket_Yetkisi.sql",
-            "20261105_01_Yuk_Turu.sql", "20261105_02_Yukleme_Planlama.sql"];
+            "20261105_01_Yuk_Turu.sql", "20261105_02_Yukleme_Planlama.sql", "20261105_03_Yukleme_Yerlesim.sql"];
 
     /// <summary>31 numaralı betiğin izin düğümleri: kod, Id, rota, üst düğüm.</summary>
     private static readonly (string Kod, int Id, string? Route, int? ParentId)[] YuklemeDugumleri =

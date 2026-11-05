@@ -354,6 +354,17 @@ public sealed class YuklemePlanlamaTests
         Assert.Contains(sonuc.Errors, e => e.ErrorMessage == "Plan ayarları eksik.");
         Assert.Contains(sonuc.Errors, e => e.ErrorMessage == "Sandık yük listesi eksik.");
         Assert.Contains(sonuc.Errors, e => e.ErrorMessage == "Elle eklenen yük listesi eksik.");
+
+        // Mevcut araç listesi: null ve aynı konfigürasyonun iki kez geçmesi reddedilir.
+        var nullAraclar = GecerliKayit();
+        nullAraclar.Ayarlar = new YuklemePlanAyarlari { MevcutAraclar = null! };
+        var yinelenenArac = GecerliKayit();
+        yinelenenArac.Ayarlar = new YuklemePlanAyarlari { MevcutAraclar = [new PlanMevcutArac(5, 1), new PlanMevcutArac(5, 2)] };
+        foreach (var istek2 in new[] { nullAraclar, yinelenenArac })
+            Assert.Contains(dogrulayici.Validate(istek2).Errors, e => e.ErrorMessage == YuklemePlaniKurali.MevcutAraclarMesaji);
+        var gecerliArac = GecerliKayit();
+        gecerliArac.Ayarlar = new YuklemePlanAyarlari { MevcutAraclar = [new PlanMevcutArac(5, 2)] };
+        Assert.True(dogrulayici.Validate(gecerliArac).IsValid);
     }
 
     /// <summary>"Elle değişti" bayrakları yalnız tanımlı izinlerden oluşur; tanımsız bit reddedilir.</summary>
@@ -454,6 +465,7 @@ public sealed class YuklemePlanlamaTests
             (new YuklemePlaniOlusturCommand(), YetkiKodlari.YuklemePlanlama.Planlar, YetkiTipi.W),
             (new YuklemePlaniKaydetCommand(), YetkiKodlari.YuklemePlanlama.Planlar, YetkiTipi.W),
             (new YuklemePlaniKaynaktanGuncelleCommand(), YetkiKodlari.YuklemePlanlama.Planlar, YetkiTipi.W),
+            (new YuklemePlaniHesaplaCommand(), YetkiKodlari.YuklemePlanlama.Planlar, YetkiTipi.W),
             (new EkipmanAileleriQuery(), YetkiKodlari.YuklemePlanlama.EkipmanKitapligi, YetkiTipi.R),
             (new EkipmanKonfigurasyonlariQuery(), YetkiKodlari.YuklemePlanlama.EkipmanKitapligi, YetkiTipi.R),
             (new EkipmanKonfigurasyonGetirQuery(), YetkiKodlari.YuklemePlanlama.EkipmanKitapligi, YetkiTipi.R),

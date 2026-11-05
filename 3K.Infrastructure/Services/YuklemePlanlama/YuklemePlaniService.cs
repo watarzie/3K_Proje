@@ -8,6 +8,7 @@ using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
 using _3K.Core.Models;
 using _3K.Infrastructure.Data;
+using _3K.YuklemeMotoru.Yerlesim;
 
 namespace _3K.Infrastructure.Services.YuklemePlanlama;
 
@@ -16,7 +17,7 @@ namespace _3K.Infrastructure.Services.YuklemePlanlama;
 /// satırları ölçü/ağırlık/lokasyon/yük türünün kopyasını taşır ve kaynak değişince kendiliğinden değişmez, fark
 /// gösterilir. Kaydetmede istemciden yalnız seçimler alınır; kopya önceki revizyondan korunur.
 /// </summary>
-internal sealed class YuklemePlaniService(AppDbContext context, IUnitOfWork unitOfWork) : IYuklemePlaniService
+internal sealed partial class YuklemePlaniService(AppDbContext context, IUnitOfWork unitOfWork) : IYuklemePlaniService
 {
     private static readonly JsonSerializerOptions AyarJsonu = new(JsonSerializerDefaults.Web);
     private static readonly CultureInfo Tr = CultureInfo.GetCultureInfo("tr-TR");
@@ -218,6 +219,7 @@ internal sealed class YuklemePlaniService(AppDbContext context, IUnitOfWork unit
             throw IsKuraliException.Cakisma(EszamanliKayit);
         if (plan.TasimaAilesiId != model.TasimaAilesiId)
             await AileyiDenetleAsync(model.TasimaAilesiId, cancellationToken);
+        await MevcutAraclariDenetleAsync(model.Ayarlar, cancellationToken);
 
         var onceki = await RevizyonAsync(plan.Id, plan.SonRevizyonNo, cancellationToken);
         var projeler = await ProjeleriAsync(model.ProjeIdleri, cancellationToken);
@@ -337,9 +339,23 @@ internal sealed class YuklemePlaniService(AppDbContext context, IUnitOfWork unit
             .GroupBy(s => s.ProjeId)
             .ToDictionary(g => g.Key, g => g.Count());
 
+        // Yerleşim yalnız bu revizyonla hesaplanmışsa vardır; satır durumu ondan okunur (yerleşti / yerleşemedi).
+        var sonuc = YerlesimSerilestirici.Oku(revizyon.YerlesimJson);
+        var aracNolari = sonuc?.Araclar.SelectMany(a => a.Konumlar.Select(k => (k.YukAnahtari, a.AracNo)))
+            .ToDictionary(x => x.YukAnahtari, x => x.AracNo) ?? [];
+        var nedenler = sonuc?.Yerlesemeyenler.ToDictionary(y => y.YukAnahtari, y => y.Neden) ?? [];
+
         var satirlar = revizyon.Yukler.OrderBy(y => y.SiraNo).Select(y =>
         {
             var sorunlar = YukVeriKurali.Sorunlar(y.BoyMm, y.EnMm, y.YukseklikMm, y.BrutKg);
+            var durum = YuklemePlaniKurali.Durum(y.Dahil, sorunlar);
+            var anahtar = YuklemePlaniKurali.YukAnahtari(y.Kaynak, y.SandikId, y.ManuelGrupNo, y.BirimNo);
+            int? aracNo = aracNolari.TryGetValue(anahtar, out var no) ? no : null;
+            var neden = nedenler.GetValueOrDefault(anahtar);
+            if (durum == PlanYukDurumu.Bekliyor && aracNo != null)
+                durum = PlanYukDurumu.Yerlesti;
+            else if (durum == PlanYukDurumu.Bekliyor && neden != null)
+                durum = PlanYukDurumu.Yerlesemedi;
             return new PlanYukSatiri
             {
                 SiraNo = y.SiraNo,
@@ -367,8 +383,10 @@ internal sealed class YuklemePlaniService(AppDbContext context, IUnitOfWork unit
                 UstYukSiniriKg = y.UstYukSiniriKg,
                 ElleDegisenIzinler = y.ElleDegisenIzinler,
                 OzelTasimaNotu = y.OzelTasimaNotu,
-                Durum = YuklemePlaniKurali.Durum(y.Dahil, sorunlar),
-                VeriSorunlari = sorunlar
+                Durum = durum,
+                VeriSorunlari = sorunlar,
+                AracNo = aracNo,
+                YerlesimNotu = neden
             };
         }).ToList();
 
@@ -402,12 +420,16 @@ internal sealed class YuklemePlaniService(AppDbContext context, IUnitOfWork unit
             {
                 Toplam = satirlar.Count,
                 Secilen = satirlar.Count(s => s.Dahil),
-                Hesaplanabilir = satirlar.Count(s => s.Durum == PlanYukDurumu.Bekliyor),
+                Hesaplanabilir = satirlar.Count(s => s.Durum is PlanYukDurumu.Bekliyor or PlanYukDurumu.Yerlesti or PlanYukDurumu.Yerlesemedi),
                 VeriEksik = satirlar.Count(s => s.Durum == PlanYukDurumu.EksikVeri),
                 HaricTutulan = satirlar.Count(s => s.Durum == PlanYukDurumu.HaricTutuldu),
-                SevkEdilmisSandik = sevkliSayilari.Values.Sum()
+                SevkEdilmisSandik = sevkliSayilari.Values.Sum(),
+                Yerlesen = satirlar.Count(s => s.Durum == PlanYukDurumu.Yerlesti),
+                Yerlesemeyen = satirlar.Count(s => s.Durum == PlanYukDurumu.Yerlesemedi)
             },
-            KaynakFarklari = KaynakFarklari(revizyon, guncel, projeIdleri, yukTurleri)
+            KaynakFarklari = KaynakFarklari(revizyon, guncel, projeIdleri, yukTurleri),
+            Yerlesim = await YerlesimAsync(plan, revizyon, sonuc, cancellationToken),
+            FarkliLokasyonSayisi = satirlar.Where(s => s.Dahil && s.VeriSorunlari.Count == 0).Select(s => s.LokasyonId).Distinct().Count()
         };
     }
 
@@ -527,7 +549,7 @@ internal sealed class YuklemePlaniService(AppDbContext context, IUnitOfWork unit
 
     private void YeniRevizyonEkle(
         YuklemePlani plan, int? kullaniciId, string? aciklama, YuklemePlanAyarlari ayarlar,
-        List<YuklemePlanProjesi> projeler, List<YuklemePlanYuku> yukler)
+        List<YuklemePlanProjesi> projeler, List<YuklemePlanYuku> yukler, string? yerlesimJson = null)
     {
         plan.SonRevizyonNo++;
         context.YuklemePlanRevizyonlari.Add(new YuklemePlanRevizyonu
@@ -537,6 +559,7 @@ internal sealed class YuklemePlaniService(AppDbContext context, IUnitOfWork unit
             KaydedenKullaniciId = kullaniciId,
             Aciklama = aciklama,
             AyarlarJson = JsonSerializer.Serialize(ayarlar, AyarJsonu),
+            YerlesimJson = yerlesimJson,
             Projeler = projeler,
             Yukler = yukler
         });
@@ -653,8 +676,12 @@ internal sealed class YuklemePlaniService(AppDbContext context, IUnitOfWork unit
         satir.ElleDegisenIzinler = elleDegisen;
     }
 
-    private static YuklemePlanAyarlari Ayarlar(YuklemePlanRevizyonu revizyon) =>
-        JsonSerializer.Deserialize<YuklemePlanAyarlari>(revizyon.AyarlarJson, AyarJsonu) ?? new YuklemePlanAyarlari();
+    private static YuklemePlanAyarlari Ayarlar(YuklemePlanRevizyonu revizyon)
+    {
+        var ayarlar = JsonSerializer.Deserialize<YuklemePlanAyarlari>(revizyon.AyarlarJson, AyarJsonu) ?? new YuklemePlanAyarlari();
+        // JSON'da açık null gelen liste boş sayılır (alan Faz 2'de eklendi).
+        return ayarlar.MevcutAraclar is null ? ayarlar with { MevcutAraclar = [] } : ayarlar;
+    }
 
     private static string OlcuMetni(decimal? boy, decimal? en, decimal? yukseklik) =>
         $"{Sayi(boy)} × {Sayi(en)} × {Sayi(yukseklik)} mm";

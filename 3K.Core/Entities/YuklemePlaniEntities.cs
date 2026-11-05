@@ -40,6 +40,12 @@ public class YuklemePlanRevizyonu : BaseEntity
     public string? Aciklama { get; set; }
     public string AyarlarJson { get; set; } = "{}";
 
+    /// <summary>
+    /// Bu revizyonla hesaplanan otomatik yerleşim (motor çıktısı, jsonb). Yalnız "Hesapla" ile yazılır; kaydetme ve
+    /// kaynaktan güncelleme yeni revizyonu yerleşimsiz açar (yeniden hesap gerekir).
+    /// </summary>
+    public string? YerlesimJson { get; set; }
+
     public virtual YuklemePlani Plan { get; set; } = null!;
     public virtual ICollection<YuklemePlanProjesi> Projeler { get; set; } = new List<YuklemePlanProjesi>();
     public virtual ICollection<YuklemePlanYuku> Yukler { get; set; } = new List<YuklemePlanYuku>();

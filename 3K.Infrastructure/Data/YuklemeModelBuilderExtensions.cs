@@ -152,9 +152,12 @@ internal static class YuklemeModelBuilderExtensions
                 table.HasCheckConstraint(
                     "CK_YuklemePlanRevizyonlari_AyarlarJson_Nesne", "jsonb_typeof(\"AyarlarJson\") = 'object'");
                 table.HasCheckConstraint("CK_YuklemePlanRevizyonlari_RevizyonNo_Pozitif", "\"RevizyonNo\" > 0");
+                table.HasCheckConstraint(
+                    "CK_YuklemePlanRevizyonlari_YerlesimJson_Nesne", "\"YerlesimJson\" IS NULL OR jsonb_typeof(\"YerlesimJson\") = 'object'");
             });
             e.Property(p => p.Aciklama).HasMaxLength(YuklemePlaniKurali.AciklamaEnFazla);
             e.Property(p => p.AyarlarJson).HasColumnType("jsonb").IsRequired();
+            e.Property(p => p.YerlesimJson).HasColumnType("jsonb");
             e.HasIndex(p => new { p.PlanId, p.RevizyonNo }).IsUnique();
             e.HasOne(p => p.Plan)
                 .WithMany(p => p.Revizyonlar)

@@ -215,6 +215,100 @@ public sealed class YuklemePlanlamaPostgresTests
         });
     }
 
+    /// <summary>
+    /// Faz 2: "Hesapla" yerleşimi yeni revizyona yazar; sandıklar konteynere, trafo gerekçeli lowbed'e gider (kabul 604),
+    /// satır durumları yerleşti/eksik veri olur, onaylı kural setinin genişlik sınırı uygulanır. Sonra kaydetme yeni
+    /// revizyonu yerleşimsiz açar; eski revizyonla hesap 409; mevcut araç listesi boş "mevcut araçlara yerleştirme" reddedilir.
+    /// </summary>
+    [PostgresRaporFact, Trait("Category", "Postgres")]
+    public async Task Postgres_Hesapla_YerlesimRevizyondaVeDurumlar()
+    {
+        await FinansPostgresTests.InDatabase(async options =>
+        {
+            int projeId, trafoId;
+            await using (var db = new AppDbContext(options))
+            {
+                EkipmanKonfigurasyonu Konfigurasyon(int tipId, string kod, _3K.YuklemeMotoru.Ekipman.EkipmanTeknikVerisi veri) => new()
+                {
+                    Model = new EkipmanModeli { TipId = tipId, Uretici = "Test", ModelAdi = kod },
+                    Kod = kod, Ad = kod, SonRevizyonNo = 1,
+                    Revizyonlar =
+                    [
+                        new EkipmanKonfigurasyonRevizyonu
+                        {
+                            RevizyonNo = 1, KaynakTuru = EkipmanKaynakTuru.Diger, DogrulamaDurumu = EkipmanDogrulamaDurumu.Dogrulandi,
+                            TeknikVeriJson = _3K.YuklemeMotoru.Ekipman.EkipmanTeknikVeriSerilestirici.Yaz(veri)
+                        }
+                    ]
+                };
+                db.EkipmanKonfigurasyonlari.AddRange(
+                    Konfigurasyon(2, "K40", YerlesimMotoruTests.K40.TeknikVeri),
+                    Konfigurasyon(21, "LB-3", YerlesimMotoruTests.Lowbed.TeknikVeri));
+                var proje = new Proje { ProjeNo = "PA800-01", Musteri = "M", ProjeTipiId = (int)ProjeTipi.Normal };
+                var trafo = new Sandik
+                {
+                    Proje = proje, SandikNo = "1", Boy = 6000, En = 3000, Yukseklik = 3800, GrossKg = 45_000, YukTuruId = (int)YukTuru.Trafo,
+                    DurumId = (int)SandikDurum.Hazirlaniyor, TipId = (int)SandikTipi.AhsapKapali, DepoLokasyonId = (int)DepoLokasyon.UcK
+                };
+                db.Sandiklar.AddRange(trafo, Sandik(proje, "2", 1400, 500), Sandik(proje, "3", 1400, 400), Sandik(proje, "4", null, 300));
+                db.MevzuatKuralSetleri.Add(new MevzuatKuralSeti
+                {
+                    YetkiAlani = MevzuatKuralSetiKurali.TurkiyeYetkiAlani, Ad = "Onaylı TR", SurumNo = 1, GecerlilikBaslangici = new DateTime(2026, 1, 1),
+                    Durum = MevzuatKuralSetiDurumu.Onayli,
+                    Kurallar = [new MevzuatKurali { Kod = "G", Tip = MevzuatKuralTipi.AzamiGenislik, ParametrelerJson = "{\"genelMm\":2550}", Aciklama = "g", Sira = 1 }]
+                });
+                await db.SaveChangesAsync();
+                (projeId, trafoId) = (proje.Id, trafo.Id);
+            }
+
+            YuklemePlaniDetayi plan;
+            await using (var db = new AppDbContext(options))
+                plan = await PlanServisi(db).OlusturAsync(new YuklemePlaniOlusturModel("Konteyner + trafo", YuklemeCalismaBicimi.IhtiyacaGoreArac, 1,
+                    YuklemeProjeKarisimi.Karisik, null, null, [projeId]), kullaniciId: null, Ct);
+            Assert.Null(plan.Yerlesim);
+            Assert.Equal(1, plan.FarkliLokasyonSayisi);
+
+            YuklemePlaniDetayi hesap;
+            await using (var db = new AppDbContext(options))
+                hesap = await PlanServisi(db).HesaplaAsync(plan.Id, 1, YuklemeLokasyonTercihi.Karisik, kullaniciId: null, Ct);
+
+            Assert.Equal((2, YuklemeLokasyonTercihi.Karisik), (hesap.RevizyonNo, hesap.LokasyonTercihi));
+            var yerlesim = Assert.IsType<PlanYerlesimi>(hesap.Yerlesim);
+            Assert.Equal(["K40", "LB-3"], yerlesim.Araclar.Select(a => a.EkipmanKodu).Order());
+            var lowbed = yerlesim.Araclar.Single(a => a.EkipmanKodu == "LB-3");
+            Assert.True(lowbed.AileDisi);
+            Assert.Contains("PA800-01-1 trafo için Lowbed gereklidir", lowbed.AileDisiGerekce);
+            Assert.Contains("\"yuzeyler\"", lowbed.TeknikVeriJson);
+            // Onaylı kural seti: 3.000 mm trafo genişliği 2.550 mm sınırı aşar.
+            Assert.Equal(YerlesimKontrolSonucu.Uygunsuz, lowbed.Kontroller.Single(k => k.Tur == YerlesimKontrolTuru.YasalGenislik).Sonuc);
+            var trafoSatiri = hesap.Yukler.Single(y => y.SandikId == trafoId);
+            Assert.Equal((PlanYukDurumu.Yerlesti, lowbed.AracNo), (trafoSatiri.Durum, trafoSatiri.AracNo!.Value));
+            Assert.Equal(PlanYukDurumu.EksikVeri, hesap.Yukler.Single(y => y.Kod == "PA800-01-4").Durum);
+            Assert.Equal((3, 0, 3), (hesap.Sayaclar.Yerlesen, hesap.Sayaclar.Yerlesemeyen, hesap.Sayaclar.Hesaplanabilir));
+            Assert.Equal("s:" + trafoId, Assert.Single(lowbed.Konumlar).YukAnahtari);
+
+            await using (var db = new AppDbContext(options))
+            {
+                // Eski revizyonla hesap 409, yeni revizyon yazılmaz.
+                Assert.Equal(409, (await Assert.ThrowsAsync<IsKuraliException>(() =>
+                    PlanServisi(db).HesaplaAsync(plan.Id, 1, YuklemeLokasyonTercihi.Karisik, null, Ct))).StatusCode);
+                Assert.Equal(2, await db.YuklemePlanRevizyonlari.CountAsync(r => r.PlanId == plan.Id));
+
+                // Kaydetme yeni revizyonu yerleşimsiz açar (yeniden hesap gerekir). Mevcut araçlara yerleştirmede araç listesi zorunludur.
+                var secimler = hesap.Yukler.Select(y => new PlanSandikYukuKaydi(y.SandikId!.Value, y.Dahil, y.DondurulebilirMi,
+                    y.UsteKonabilirMi, y.AltaKalabilirMi, y.UstYukSiniriKg, y.ElleDegisenIzinler)).ToList();
+                var kayit = await PlanServisi(db).KaydetAsync(new YuklemePlaniKaydetModel(plan.Id, 2, "Konteyner + trafo",
+                    YuklemeCalismaBicimi.MevcutAraclaraYerlestirme, 1, YuklemeProjeKarisimi.Karisik, null, null, null,
+                    new YuklemePlanAyarlari(), [projeId], secimler, []), null, Ct);
+                Assert.Equal(3, kayit.RevizyonNo);
+                Assert.Null(kayit.Yerlesim);
+                Assert.All(kayit.Yukler.Where(y => y.Kod != "PA800-01-4"), y => Assert.Equal(PlanYukDurumu.Bekliyor, y.Durum));
+                var bos = await Assert.ThrowsAsync<IsKuraliException>(() => PlanServisi(db).HesaplaAsync(plan.Id, 3, YuklemeLokasyonTercihi.Karisik, null, Ct));
+                Assert.Equal(YuklemePlaniKurali.MevcutAracGerekliMesaji, bos.Message);
+            }
+        });
+    }
+
     [PostgresRaporFact, Trait("Category", "Postgres")]
     public async Task Postgres_MevzuatKuralSeti_KurallarSiraylaVeKaynaklariyla()
     {

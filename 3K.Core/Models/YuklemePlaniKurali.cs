@@ -72,6 +72,27 @@ public static class YuklemePlaniKurali
         PayGecerli(ayarlar.YuklemeHareketiPayiMm, GuvenlikPayiEnFazlaMm) &&
         PayGecerli(ayarlar.AgirlikPayiKg, AgirlikPayiEnFazlaKg);
 
+    /// <summary>Mevcut araçlara yerleştirmede en fazla araç satırı ve satır başına adet.</summary>
+    public const int MevcutAracSatiriEnFazla = 20;
+    public const int MevcutAracAdetEnFazla = 50;
+    public const string MevcutAraclarMesaji = "Mevcut araçlar listesi geçersiz: her konfigürasyon bir kez, adet 1–50, en fazla 20 satır.";
+    public const string MevcutAracGerekliMesaji = "Mevcut araçlara yerleştirmede en az bir araç seçilmelidir.";
+
+    /// <summary>
+    /// Yük listesindeki satırın anahtarı (yerleşim sonucu ile satırı eşler; ön yüz aynı biçimi kullanır): sandıkta
+    /// "s:{sandıkId}", elle eklenen yükte "m:{grupNo}:{birimNo}".
+    /// </summary>
+    public static string YukAnahtari(PlanYukKaynagi kaynak, int? sandikId, int? manuelGrupNo, int birimNo) =>
+        kaynak == PlanYukKaynagi.Sandik
+            ? string.Create(CultureInfo.InvariantCulture, $"s:{sandikId}")
+            : string.Create(CultureInfo.InvariantCulture, $"m:{manuelGrupNo}:{birimNo}");
+
+    public static bool MevcutAraclarGecerli(IReadOnlyList<PlanMevcutArac>? araclar) =>
+        araclar is null ||
+        (araclar.Count <= MevcutAracSatiriEnFazla &&
+         araclar.All(a => a.KonfigurasyonId > 0 && a.Adet is >= 1 and <= MevcutAracAdetEnFazla) &&
+         araclar.Select(a => a.KonfigurasyonId).Distinct().Count() == araclar.Count);
+
     private static bool PayGecerli(int? pay, int enFazla) => pay is null || (pay >= 0 && pay <= enFazla);
 }
 
@@ -87,4 +108,10 @@ public sealed record YuklemePlanAyarlari
     public int? UzunlukPayiMm { get; init; }
     public int? AgirlikPayiKg { get; init; }
     public int? YuklemeHareketiPayiMm { get; init; }
+
+    /// <summary>Mevcut araçlara yerleştirmede kullanıcının verdiği araçlar (konfigürasyon ve adet); diğer biçimde boştur.</summary>
+    public IReadOnlyList<PlanMevcutArac> MevcutAraclar { get; init; } = [];
 }
+
+/// <summary>Mevcut araçlara yerleştirmede bir araç tipi: ekipman konfigürasyonu ve adet.</summary>
+public sealed record PlanMevcutArac(int KonfigurasyonId, int Adet);

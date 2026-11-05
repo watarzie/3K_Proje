@@ -44,6 +44,11 @@ public sealed class YuklemePlaniKaydetCommandValidator : AbstractValidator<Yukle
         Include(new YuklemePlaniBaslikValidator());
         RuleFor(x => x.RevizyonAciklamasi).MaximumLength(YuklemePlaniKurali.AciklamaEnFazla)
             .WithMessage($"Revizyon açıklaması en fazla {YuklemePlaniKurali.AciklamaEnFazla} karakter olabilir.");
+        // Gövdede açık null gelen liste 500 değil doğrulama hatası olur (boş liste "araç yok" demektir).
+        RuleFor(x => x.Ayarlar.MevcutAraclar).Cascade(CascadeMode.Stop)
+            .NotNull().WithMessage(YuklemePlaniKurali.MevcutAraclarMesaji)
+            .Must(YuklemePlaniKurali.MevcutAraclarGecerli).WithMessage(YuklemePlaniKurali.MevcutAraclarMesaji)
+            .When(x => x.Ayarlar != null);
         RuleFor(x => x.Ayarlar).Cascade(CascadeMode.Stop).NotNull().WithMessage("Plan ayarları eksik.").Must(YuklemePlaniKurali.AyarlarGecerli)
             .WithMessage($"Yerleşim boşluğu 0–{YuklemePlaniKurali.YerlesimBosluguEnFazlaMm} mm, güvenlik payları boş ya da 0–{YuklemePlaniKurali.GuvenlikPayiEnFazlaMm} mm, ağırlık payı boş ya da 0–{YuklemePlaniKurali.AgirlikPayiEnFazlaKg} kg olmalıdır.");
         RuleFor(x => x.SandikYukleri).Cascade(CascadeMode.Stop).NotNull().WithMessage("Sandık yük listesi eksik.")
@@ -98,6 +103,16 @@ public sealed class YuklemePlaniKaynaktanGuncelleCommandValidator : AbstractVali
     {
         RuleFor(x => x.PlanId).GreaterThan(0).WithMessage("Plan seçilmelidir.");
         RuleFor(x => x.BeklenenRevizyonNo).GreaterThan(0).WithMessage("Planın revizyon numarası eksik; sayfayı yenileyin.");
+    }
+}
+
+public sealed class YuklemePlaniHesaplaCommandValidator : AbstractValidator<YuklemePlaniHesaplaCommand>
+{
+    public YuklemePlaniHesaplaCommandValidator()
+    {
+        RuleFor(x => x.PlanId).GreaterThan(0).WithMessage("Plan seçilmelidir.");
+        RuleFor(x => x.BeklenenRevizyonNo).GreaterThan(0).WithMessage("Planın revizyon numarası eksik; sayfayı yenileyin.");
+        RuleFor(x => x.LokasyonTercihi).IsInEnum().WithMessage("Lokasyon tercihi geçersiz.");
     }
 }
 

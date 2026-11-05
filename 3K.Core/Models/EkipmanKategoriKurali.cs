@@ -47,6 +47,18 @@ public static class EkipmanKategoriKurali
         EkipmanKategorisi.KapaliKonteyner or EkipmanKategorisi.HardtopKonteyner or EkipmanKategorisi.KapaliKasa or
         EkipmanKategorisi.Frigo or EkipmanKategorisi.Tenteli;
 
+    /// <summary>
+    /// Zorunlu özel yük (trafo) için aile dışında değerlendirilebilen ekipman: lowbed / low-loader ve ağır yük dorsesi
+    /// (isterler 10.1, 10.3). Modüler ağır yük taşıyıcısı ayrı planlama gerektirdiği için otomatik aday değildir.
+    /// </summary>
+    public static bool OzelYukEkipmaniMi(EkipmanKategorisi kategori) => kategori is
+        EkipmanKategorisi.Lowbed or EkipmanKategorisi.AgirYukDorsesi;
+
+    /// <summary>Yan veya üst duvarı olan gövde: yükle duvar arasında yerleşim boşluğu bırakılır.</summary>
+    public static bool DuvarliMi(EkipmanKategorisi kategori) => kategori is
+        EkipmanKategorisi.KapaliKonteyner or EkipmanKategorisi.HardtopKonteyner or EkipmanKategorisi.OpenTopKonteyner or
+        EkipmanKategorisi.KapaliKasa or EkipmanKategorisi.Frigo or EkipmanKategorisi.Tenteli;
+
     /// <summary>Kendi dingili olan karayolu ekipmanı mı; konteynerin dingili yoktur, yükü taşıyan şasidir.</summary>
     public static bool DingilliMi(EkipmanKategorisi kategori) => kategori is not (
         EkipmanKategorisi.KapaliKonteyner or EkipmanKategorisi.HardtopKonteyner or EkipmanKategorisi.OpenTopKonteyner or

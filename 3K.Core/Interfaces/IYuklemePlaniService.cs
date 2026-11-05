@@ -1,3 +1,4 @@
+using _3K.Core.Enums;
 using _3K.Core.Models;
 
 namespace _3K.Core.Interfaces;
@@ -31,4 +32,10 @@ public interface IYuklemePlaniService
     /// değiştirilmemiş izinler yeni varsayılandan kurulur, yeni sandık eklenir, silinen veya sevk edilen sandık çıkar.
     /// </summary>
     Task<YuklemePlaniDetayi> KaynaktanGuncelleAsync(int planId, int beklenenRevizyonNo, int? kullaniciId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Son revizyonun yüklerini otomatik yerleştirir ve sonucu yeni revizyon olarak yazar (yükler ve ayarlar aynen
+    /// kopyalanır). Arada başka biri kaydettiyse 409. Lokasyon tercihi plana kaydedilir.
+    /// </summary>
+    Task<YuklemePlaniDetayi> HesaplaAsync(int planId, int beklenenRevizyonNo, YuklemeLokasyonTercihi lokasyonTercihi, int? kullaniciId, CancellationToken cancellationToken);
 }

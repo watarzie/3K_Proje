@@ -48,3 +48,9 @@ public sealed class MevzuatKaynagiModeli
     public DateTime? ErisimTarihi { get; init; }
     public string? Aciklama { get; init; }
 }
+
+/// <summary>Kural seti yetki alanı: bu sürümde yalnız Türkiye (isterler 23); Avrupa kuralları kapsam dışıdır.</summary>
+public static class MevzuatKuralSetiKurali
+{
+    public const string TurkiyeYetkiAlani = "TR";
+}

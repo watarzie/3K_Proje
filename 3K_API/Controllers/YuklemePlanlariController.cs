@@ -46,6 +46,14 @@ namespace _3K_API.Controllers
             return (await mediator.Send(command, ct)).ToActionResult();
         }
 
+        /// <summary>Otomatik yerleşim: sonuç yeni revizyon olarak yazılır; arada başka biri kaydettiyse 409.</summary>
+        [HttpPost("{id:int}/hesapla")]
+        public async Task<ActionResult> Hesapla(int id, [FromBody] YuklemePlaniHesaplaCommand command, CancellationToken ct)
+        {
+            command.PlanId = id;
+            return (await mediator.Send(command, ct)).ToActionResult();
+        }
+
         /// <summary>Kaynak farklarını uygulayan yeni revizyon.</summary>
         [HttpPost("{id:int}/kaynaktan-guncelle")]
         public async Task<ActionResult> KaynaktanGuncelle(int id, [FromBody] YuklemePlaniKaynaktanGuncelleCommand command, CancellationToken ct)

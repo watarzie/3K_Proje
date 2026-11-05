@@ -92,10 +92,27 @@ public sealed class YuklemePlaniKaynaktanGuncelleCommand : IRequest<Result<Yukle
     public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
 }
 
+/// <summary>
+/// Otomatik yerleşim: son revizyonun yükleri yerleştirilir ve sonuç yeni revizyon olarak yazılır. İlk hesap lokasyon
+/// ayrımı yapılmadan (<see cref="YuklemeLokasyonTercihi.HenuzSecilmedi"/>), sonra kullanıcı lokasyon tercihini seçer.
+/// </summary>
+public sealed class YuklemePlaniHesaplaCommand : IRequest<Result<YuklemePlaniDetayi>>, ISecuredRequest, IRequiresMenuPermission
+{
+    [JsonIgnore]
+    public int PlanId { get; set; }
+
+    public int BeklenenRevizyonNo { get; set; }
+    public YuklemeLokasyonTercihi LokasyonTercihi { get; set; } = YuklemeLokasyonTercihi.HenuzSecilmedi;
+
+    public string RequiredMenuKod => YetkiKodlari.YuklemePlanlama.Planlar;
+    public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
+}
+
 public sealed class YuklemePlaniCommandHandlers(IYuklemePlaniService service, ICurrentUserService currentUser) :
     IRequestHandler<YuklemePlaniOlusturCommand, Result<YuklemePlaniDetayi>>,
     IRequestHandler<YuklemePlaniKaydetCommand, Result<YuklemePlaniDetayi>>,
-    IRequestHandler<YuklemePlaniKaynaktanGuncelleCommand, Result<YuklemePlaniDetayi>>
+    IRequestHandler<YuklemePlaniKaynaktanGuncelleCommand, Result<YuklemePlaniDetayi>>,
+    IRequestHandler<YuklemePlaniHesaplaCommand, Result<YuklemePlaniDetayi>>
 {
     public async Task<Result<YuklemePlaniDetayi>> Handle(YuklemePlaniOlusturCommand request, CancellationToken cancellationToken) =>
         Result<YuklemePlaniDetayi>.Success(await service.OlusturAsync(request.Model(), currentUser.UserId, cancellationToken));
@@ -106,4 +123,8 @@ public sealed class YuklemePlaniCommandHandlers(IYuklemePlaniService service, IC
     public async Task<Result<YuklemePlaniDetayi>> Handle(YuklemePlaniKaynaktanGuncelleCommand request, CancellationToken cancellationToken) =>
         Result<YuklemePlaniDetayi>.Success(
             await service.KaynaktanGuncelleAsync(request.PlanId, request.BeklenenRevizyonNo, currentUser.UserId, cancellationToken));
+
+    public async Task<Result<YuklemePlaniDetayi>> Handle(YuklemePlaniHesaplaCommand request, CancellationToken cancellationToken) =>
+        Result<YuklemePlaniDetayi>.Success(
+            await service.HesaplaAsync(request.PlanId, request.BeklenenRevizyonNo, request.LokasyonTercihi, currentUser.UserId, cancellationToken));
 }
