@@ -112,7 +112,7 @@ internal sealed partial class YuklemePlaniService
         var ozelKategoriler = Enum.GetValues<EkipmanKategorisi>().Where(EkipmanKategoriKurali.OzelYukEkipmaniMi).ToList();
         var kayitlar = await context.EkipmanKonfigurasyonlari.AsNoTracking()
             .Where(k => (k.Aktif && k.Model.Tip.Aktif && (k.Model.Tip.AileId == aileId || ozelKategoriler.Contains(k.Model.Tip.Kategori))) ||
-                        (k.Aktif && mevcutIdleri.Contains(k.Id)))
+                        (k.Aktif && k.Model.Tip.Aktif && mevcutIdleri.Contains(k.Id)))
             .OrderBy(k => k.Kod)
             .Select(k => new
             {
@@ -187,7 +187,7 @@ internal sealed partial class YuklemePlaniService
 
     /// <summary>Saklanan yerleşimi ekran modeline çevirir: satır bilgileri, proje/lokasyon adları ve kullanılan ekipman geometrisi.</summary>
     private async Task<PlanYerlesimi?> YerlesimAsync(
-        YuklemePlani plan, YuklemePlanRevizyonu revizyon, YerlesimSonucu? sonuc, CancellationToken cancellationToken)
+        YuklemePlani plan, YuklemePlanRevizyonu revizyon, YerlesimSonucu? sonuc, CancellationToken cancellationToken, DateTime? hesapTarihi = null)
     {
         if (sonuc == null)
             return null;
@@ -226,10 +226,11 @@ internal sealed partial class YuklemePlaniService
 
         return new PlanYerlesimi
         {
-            HesapTarihi = revizyon.CreatedDate,
+            HesapTarihi = hesapTarihi ?? revizyon.CreatedDate,
             Sonuc = (YerlesimKontrolSonucu)(int)sonuc.Sonuc,
             LokasyonaGoreAyri = plan.LokasyonTercihi == YuklemeLokasyonTercihi.LokasyonaGoreAyri,
             ProjeBazindaAyri = plan.ProjeKarisimi == YuklemeProjeKarisimi.ProjeBazindaAyri,
+            ElleDuzenlendi = sonuc.ElleDuzenlendi,
             Araclar = sonuc.Araclar.Select(a =>
             {
                 var aracSatirlari = a.Konumlar.Select(k => satirlar.GetValueOrDefault(k.YukAnahtari)).Where(s => s != null).ToList();
@@ -268,6 +269,12 @@ internal sealed partial class YuklemePlaniService
                         Mesaj = k.Mesaj
                     }).ToList(),
                     Sonuc = (YerlesimKontrolSonucu)(int)a.Sonuc,
+                    YukSorunlari = a.YukSorunlari.Select(s => new PlanYukSorunu
+                    {
+                        YukAnahtari = s.YukAnahtari,
+                        Sonuc = (YerlesimKontrolSonucu)(int)s.Sonuc,
+                        Mesaj = s.Mesaj
+                    }).ToList(),
                     TeknikVeriJson = geometriler.GetValueOrDefault((a.KonfigurasyonId, a.RevizyonNo), "{}")
                 };
             }).ToList(),

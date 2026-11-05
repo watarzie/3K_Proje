@@ -37,5 +37,14 @@ public interface IYuklemePlaniService
     /// Son revizyonun yüklerini otomatik yerleştirir ve sonucu yeni revizyon olarak yazar (yükler ve ayarlar aynen
     /// kopyalanır). Arada başka biri kaydettiyse 409. Lokasyon tercihi plana kaydedilir.
     /// </summary>
+    /// <summary>Elle yerleşimi kaydetmeden denetler (sürükle-bırak sonrası anlık kontrol, isterler 22).</summary>
+    Task<PlanYerlesimi> ElleDenetleAsync(int planId, IReadOnlyList<ElleAracModeli> araclar, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Elle düzenlenen yerleşimi denetleyip yeni revizyon olarak yazar (yükler ve ayarlar aynen kopyalanır). Sorunlu
+    /// yerleşim de kaydedilir; sonuç "Uygunsuz" olur. Arada başka biri kaydettiyse 409.
+    /// </summary>
+    Task<YuklemePlaniDetayi> ElleKaydetAsync(ElleYerlesimModeli model, int? kullaniciId, CancellationToken cancellationToken);
+
     Task<YuklemePlaniDetayi> HesaplaAsync(int planId, int beklenenRevizyonNo, YuklemeLokasyonTercihi lokasyonTercihi, int? kullaniciId, CancellationToken cancellationToken);
 }

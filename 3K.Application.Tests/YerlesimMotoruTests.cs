@@ -11,7 +11,7 @@ namespace _3K.Application.Tests;
 /// </summary>
 public sealed class YerlesimMotoruTests
 {
-    private static readonly YerlesimAyarlari Ayar = new(30, 50, 0, 0, 0, 50);
+    internal static readonly YerlesimAyarlari Ayar = new(30, 50, 0, 0, 0, 50);
 
     private static EkipmanAdayi Konteyner(int id, string kod, int uzunluk, int kapasite = 26_500, bool ustten = false) => new(
         id, 1, kod, kod, "Konteyner", ustten ? "Open Top" : "Kapalı", AileIci: true, OzelYukEkipmani: false,
@@ -43,11 +43,11 @@ public sealed class YerlesimMotoruTests
                          new Dingil(15_320, DingilTuru.Tahriksiz, 1, 12_000)]
         });
 
-    private static YerlesimYuku Sandik(string kod, int boy, int en, int yuk, decimal kg, int? proje = 1, decimal? ustYuk = null,
+    internal static YerlesimYuku Sandik(string kod, int boy, int en, int yuk, decimal kg, int? proje = 1, decimal? ustYuk = null,
         bool ust = true, bool alt = true) =>
         new(kod, kod, proje, $"P{proje}", null, boy, en, yuk, kg, false, ust, alt, ustYuk ?? kg, false, OzelEkipmanZorunlulugu.Yok, "Sandık");
 
-    private static YerlesimYuku Trafo(string kod, int boy, int en, int yuk, decimal kg) =>
+    internal static YerlesimYuku Trafo(string kod, int boy, int en, int yuk, decimal kg) =>
         new(kod, kod, 1, "P1", null, boy, en, yuk, kg, false, false, false, null, true, OzelEkipmanZorunlulugu.Her, "Trafo");
 
     private static YerlesimSonucu Hesapla(IReadOnlyList<YerlesimYuku> yukler, IReadOnlyList<EkipmanAdayi> adaylar,

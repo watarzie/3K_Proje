@@ -27,7 +27,7 @@ public sealed class YuklemePlaniRaporTests
     /// Motorun gerçek çıktısından ekran modeli. <paramref name="uygun"/> ise trafo ve sığmayan sandık yoktur (taslak
     /// ibaresi basılmaz); <paramref name="projeBasinaYuk"/> çok projeli/çok yüklü düzen denemesi içindir.
     /// </summary>
-    internal static YuklemePlaniDetayi OrnekPlan(int projeSayisi, int projeBasinaYuk, bool uygun)
+    internal static YuklemePlaniDetayi OrnekPlan(int projeSayisi, int projeBasinaYuk, bool uygun, bool elle = false)
     {
         var yukler = new List<YerlesimYuku>();
         for (var i = 1; i <= 10; i++)
@@ -56,6 +56,7 @@ public sealed class YuklemePlaniRaporTests
         var yerlesim = new PlanYerlesimi
         {
             HesapTarihi = new DateTime(2026, 11, 5, 14, 30, 0),
+            ElleDuzenlendi = elle,
             Sonuc = (YerlesimKontrolSonucu)(int)sonuc.Sonuc,
             Araclar = sonuc.Araclar.Select(a => new PlanAraci
             {
@@ -74,6 +75,10 @@ public sealed class YuklemePlaniRaporTests
                 SolTasmaMm = a.SolTasmaMm, SagTasmaMm = a.SagTasmaMm, OnTasmaMm = a.OnTasmaMm, ArkaTasmaMm = a.ArkaTasmaMm,
                 Kontroller = a.Kontroller.Select(k => new PlanAracKontrolu { Tur = (YerlesimKontrolTuru)(int)k.Tur, Sonuc = (YerlesimKontrolSonucu)(int)k.Sonuc, Mesaj = k.Mesaj }).ToList(),
                 Sonuc = (YerlesimKontrolSonucu)(int)a.Sonuc,
+                // Elle örnekte ilk aracın ilk yükü çakışmalı sayılır (yük sorunu tablosu ve kırmızı kutu için).
+                YukSorunlari = elle && a.AracNo == 1
+                    ? [new PlanYukSorunu { YukAnahtari = a.Konumlar[0].YukAnahtari, Sonuc = YerlesimKontrolSonucu.Uygunsuz, Mesaj = "Çakışma: PA100-35-2" }]
+                    : [],
                 TeknikVeriJson = geometri[a.KonfigurasyonId]
             }).ToList(),
             Yerlesemeyenler = sonuc.Yerlesemeyenler.Select(y => new PlanYerlesemeyenYuk { YukAnahtari = y.YukAnahtari, Kod = y.Kod, Neden = y.Neden }).ToList(),
@@ -118,6 +123,22 @@ public sealed class YuklemePlaniRaporTests
             Directory.CreateDirectory(klasor);
             File.WriteAllBytes(Path.Combine(klasor, "arac-talebi.pdf"), talep);
             File.WriteAllBytes(Path.Combine(klasor, "yukleme-plani.pdf"), yukleme);
+        }
+    }
+
+    /// <summary>Elle düzenlenen yerleşim: ibare ve yük sorunu tablosuyla rapor düzen hatasız üretilir.</summary>
+    [Fact]
+    public void ElleDuzenlenmisPlan_RaporUretilir()
+    {
+        var plan = OrnekPlan(projeSayisi: 2, projeBasinaYuk: 0, uygun: true, elle: true);
+        Assert.True(plan.Yerlesim!.ElleDuzenlendi);
+        Assert.Single(plan.Yerlesim.Araclar[0].YukSorunlari);
+        var yukleme = new YuklemePlaniPdfOlusturucu().YuklemePlaniRaporu(plan, new DateTime(2026, 11, 5, 15, 0, 0));
+        Assert.Equal("%PDF", System.Text.Encoding.ASCII.GetString(yukleme, 0, 4));
+        if (Environment.GetEnvironmentVariable("THREEK_RAPOR_ORNEK_KLASORU") is { Length: > 0 } klasor)
+        {
+            Directory.CreateDirectory(klasor);
+            File.WriteAllBytes(Path.Combine(klasor, "yukleme-plani-elle.pdf"), yukleme);
         }
     }
 

@@ -125,6 +125,9 @@ public sealed class PlanYerlesimi
     public YerlesimKontrolSonucu Sonuc { get; init; }
     public bool LokasyonaGoreAyri { get; init; }
     public bool ProjeBazindaAyri { get; init; }
+
+    /// <summary>Yerleşim kullanıcı tarafından elle düzenlendi.</summary>
+    public bool ElleDuzenlendi { get; init; }
     public IReadOnlyList<PlanAraci> Araclar { get; init; } = [];
     public IReadOnlyList<PlanYerlesemeyenYuk> Yerlesemeyenler { get; init; } = [];
     public IReadOnlyList<PlanEkEkipmanIhtiyaci> EkIhtiyaclar { get; init; } = [];
@@ -163,6 +166,9 @@ public sealed class PlanAraci
     public IReadOnlyList<PlanAracKontrolu> Kontroller { get; init; } = [];
     public YerlesimKontrolSonucu Sonuc { get; init; }
 
+    /// <summary>Elle yerleşimde yük düzeyindeki sorunlar (çakışma, destek, istif izni, giriş…); otomatik yerleşimde boştur.</summary>
+    public IReadOnlyList<PlanYukSorunu> YukSorunlari { get; init; } = [];
+
     /// <summary>Hesapta kullanılan ekipman revizyonunun teknik verisi (3B görünüm; revizyonlar değişmez).</summary>
     public string TeknikVeriJson { get; init; } = "{}";
 }
@@ -196,6 +202,14 @@ public sealed class PlanAracKontrolu
     public string Mesaj { get; init; } = string.Empty;
 }
 
+/// <summary>Elle yerleşimde bir yükün sorunu (yön ve miktar, ilgili yük kodları, sınır ve aşım).</summary>
+public sealed class PlanYukSorunu
+{
+    public string YukAnahtari { get; init; } = string.Empty;
+    public YerlesimKontrolSonucu Sonuc { get; init; }
+    public string Mesaj { get; init; } = string.Empty;
+}
+
 public sealed class PlanYerlesemeyenYuk
 {
     public string YukAnahtari { get; init; } = string.Empty;
@@ -211,6 +225,15 @@ public sealed class PlanEkEkipmanIhtiyaci
     public string EkipmanAdi { get; init; } = string.Empty;
     public int Adet { get; init; }
 }
+
+/// <summary>Elle yerleşimde bir yükün konumu (ekipman koordinatları, mm) ve döndürülüp döndürülmediği.</summary>
+public sealed record ElleKonumModeli(string YukAnahtari, int XMm, int YMm, int ZMm, bool Donduruldu);
+
+/// <summary>Elle yerleşimde bir araç (aynı tipten eklenmiş boş araç da olabilir).</summary>
+public sealed record ElleAracModeli(int KonfigurasyonId, IReadOnlyList<ElleKonumModeli> Konumlar);
+
+/// <summary>Elle düzenlenen yerleşimin kaydı: son revizyon numarası beklenir (arada kaydedilmişse 409).</summary>
+public sealed record ElleYerlesimModeli(int PlanId, int BeklenenRevizyonNo, IReadOnlyList<ElleAracModeli> Araclar);
 
 /// <summary>Plandaki proje ve plana gelmeyen (sevk edilmiş) sandık sayısı.</summary>
 public sealed class PlanProjeBilgisi

@@ -52,6 +52,8 @@ public static class YuklemeEtiketleri
         YerlesimKontrolTuru.EkipmanVerisi => "Ekipman verisi",
         YerlesimKontrolTuru.GuvenlikPayi => "Güvenlik payı",
         YerlesimKontrolTuru.Mevzuat => "Mevzuat",
+        YerlesimKontrolTuru.Organizasyon => "Proje / lokasyon tercihi",
+        YerlesimKontrolTuru.ElleYerlesim => "Elle yerleşim",
         _ => "-"
     };
 
@@ -81,6 +83,9 @@ public static class YuklemeEtiketleri
 
     /// <summary>Lokasyonu belirsiz yük varsa raporlardaki açıklama (isterler 26).</summary>
     public const string OnPlanlamaNotu = "Ön planlama — yükleme lokasyonları kesinleşmemiştir.";
+
+    /// <summary>Elle düzenlenen yerleşimin rapor ve ekran notu.</summary>
+    public const string ElleDuzenlendiIbaresi = "Yerleşim elle düzenlendi: konumlar kullanıcıya aittir, kontroller bu konumlarla yapıldı.";
 
     /// <summary>Çözülmemiş uygunsuzluk varsa raporların ibaresi (isterler 29).</summary>
     public const string TaslakIbaresi = "TASLAK — YÜKLEMEYE UYGUN DEĞİL";

@@ -266,7 +266,7 @@ public static class YerlesimMotoru
             : $"Zorunlu özel ekipman: {yuk.Kod} {aileAdi} ailesinde taşınamıyor ({ailedeNeden}). 1 adet {aday.Kod} plana eklenmiştir.";
     }
 
-    private sealed class HavuzAraci(EkipmanAdayi aday)
+    internal sealed class HavuzAraci(EkipmanAdayi aday)
     {
         public EkipmanAdayi Aday { get; } = aday;
         public bool Kullanildi { get; set; }
@@ -304,7 +304,7 @@ public static class YerlesimMotoru
         return null;
     }
 
-    private static List<string> Uyarilar(YerlesimGirdisi girdi, List<AracYerlesimi> araclar, List<YerlesimAraci> sonuclar, List<HavuzAraci>? havuz)
+    internal static List<string> Uyarilar(YerlesimGirdisi girdi, List<AracYerlesimi> araclar, List<YerlesimAraci> sonuclar, List<HavuzAraci>? havuz)
     {
         var uyarilar = new List<string>();
         if (girdi.Yasal == null)

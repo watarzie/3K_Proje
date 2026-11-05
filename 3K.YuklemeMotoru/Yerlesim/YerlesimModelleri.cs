@@ -43,7 +43,13 @@ public enum KontrolTuru
     Destek = 9,
     EkipmanVerisi = 10,
     GuvenlikPayi = 11,
-    Mevzuat = 12
+    Mevzuat = 12,
+
+    /// <summary>Proje / lokasyon ayrımı ve zorunlu ekipman gibi plan tercihlerine uyum (elle düzenlemede).</summary>
+    Organizasyon = 13,
+
+    /// <summary>Elle yerleşimde yük düzeyindeki sorunların özeti (çakışma, destek, istif izni, giriş…).</summary>
+    ElleYerlesim = 14
 }
 
 /// <summary>
@@ -162,7 +168,20 @@ public sealed record YerlesimAraci(
     int OnTasmaMm,
     int ArkaTasmaMm,
     IReadOnlyList<AracKontrolu> Kontroller,
-    KontrolSonucu Sonuc);
+    KontrolSonucu Sonuc)
+{
+    /// <summary>Elle yerleşimde yük düzeyindeki sorunlar (yük anahtarı, sonuç, ölçülü açıklama); otomatik yerleşimde boştur.</summary>
+    public IReadOnlyList<YukSorunu> YukSorunlari { get; init; } = [];
+}
+
+/// <summary>Bir yükün elle yerleşimdeki sorunu (isterler 22: yön ve miktar, ilgili yük kodları, sınır ve aşım).</summary>
+public sealed record YukSorunu(string YukAnahtari, KontrolSonucu Sonuc, string Mesaj, KontrolTuru Tur = KontrolTuru.ElleYerlesim);
+
+/// <summary>Elle yerleşimde bir yükün konumu (ekipman koordinatları, mm); ölçüler yükün kendisinden, döndürmeyle.</summary>
+public sealed record ElleKonum(string YukAnahtari, int XMm, int YMm, int ZMm, bool Donduruldu);
+
+/// <summary>Elle yerleşimde bir araç: ekipman konfigürasyonu ve yükleri (boş araç olabilir).</summary>
+public sealed record ElleArac(int KonfigurasyonId, IReadOnlyList<ElleKonum> Konumlar);
 
 /// <summary>Yerleştirilemeyen yük ve nedeni.</summary>
 public sealed record YerlesemeyenYuk(string YukAnahtari, string Kod, string Neden);
@@ -181,4 +200,7 @@ public sealed record YerlesimSonucu
     public IReadOnlyList<EkEkipmanIhtiyaci> EkIhtiyaclar { get; init; } = [];
     public IReadOnlyList<string> Uyarilar { get; init; } = [];
     public KontrolSonucu Sonuc { get; init; } = KontrolSonucu.Uygun;
+
+    /// <summary>Yerleşim kullanıcı tarafından elle düzenlendi (otomatik hesap sonucu değil).</summary>
+    public bool ElleDuzenlendi { get; init; }
 }

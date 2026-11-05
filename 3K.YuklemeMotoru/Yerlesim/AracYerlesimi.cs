@@ -348,7 +348,7 @@ internal sealed class AracYerlesimi
     /// duvarlı gövdenin yan açıklık ölçüsü bilinmeden giriş kabul edilir ama kontrol "Teyit edilmedi" olur. Konum
     /// (<paramref name="x"/>) verilirse üst ve yan açıklıkta grup açıklığın boyuna aralığında olmalıdır.
     /// </summary>
-    private GirisYonu Giris(int boy, int en, int yukseklik, int? x = null)
+    internal GirisYonu Giris(int boy, int en, int yukseklik, int? x = null)
     {
         var hp = ayar.YuklemeHareketiPayiMm ?? 0;
         var acikliklar = Aday.TeknikVeri.Acikliklar;
@@ -407,6 +407,36 @@ internal sealed class AracYerlesimi
         if (arka?.GenislikMm is { } g && arka.YukseklikMm is { } h)
             return $"{Aday.Kod}: iç hacme sığıyor ama arka kapıdan geçmiyor (gereken {en + hp}×{yukseklik + hp} mm, kapı {g}×{h} mm)";
         return $"{Aday.Kod}: giriş açıklığından geçmiyor";
+    }
+
+    /// <summary>Elle yerleşimde yükün oturduğu yükleme yüzeyi: tabanı yüzey yüksekliğinde ve yüzeyle boyuna/enine örtüşen.</summary>
+    internal Yuzey? TabanYuzeyi(int x, int y, int z, int boy, int en) =>
+        yuzeyler.FirstOrDefault(s => Math.Abs(z - s.Z) <= ElleTolerans &&
+                                     x < s.XBas + s.Uzunluk && s.XBas < x + boy && y < s.YBas + s.Genislik && s.YBas < y + en);
+
+    /// <summary>Konumu en yakın (altındaki) yüzey; desteksiz yük çizim ve hesap için buna bağlanır.</summary>
+    internal Yuzey EnYakinYuzey(int x, int z) =>
+        yuzeyler.Where(s => x >= s.XBas - 1 && x <= s.XBas + s.Uzunluk).OrderBy(s => Math.Abs(z - s.Z)).FirstOrDefault()
+        ?? yuzeyler.OrderBy(s => Math.Abs(z - s.Z)).First();
+
+    /// <summary>Elle yerleşimde yükseklik/konum eşleşmesinde kabul edilen ölçü sapması (mm).</summary>
+    internal const int ElleTolerans = 2;
+
+    internal IReadOnlyList<Kutu> SokulemezEngeller => engeller;
+
+    /// <summary>
+    /// Elle yerleşimde bir istif (tabandaki yük ve üstüne oturanlar) ekler; konumlar mutlaktır, kontrol ayrıca yapılır.
+    /// </summary>
+    internal void ElleIstifEkle(Yuzey yuzey, GirisYonu yontem, IReadOnlyList<(YerlesimYuku Yuk, int X, int Y, int Z, int Boy, int En, bool Donduruldu)> katlar)
+    {
+        var taban = katlar[0];
+        var istif = new Istif(yuzey, null, taban.X, taban.Y, yontem);
+        foreach (var k in katlar)
+        {
+            istif.Katlar.Add(new Katman(k.Yuk, k.Boy, k.En, k.Donduruldu, k.X - taban.X, k.Y - taban.Y, k.Z - yuzey.Z));
+            ToplamKg += k.Yuk.BrutKg;
+        }
+        Istifler.Add(istif);
     }
 
     /// <summary>Sıraları enine ortalar (tek yük orta eksende; yan yana yükler grup olarak). Engel varsa sıra kaydırılmaz.</summary>

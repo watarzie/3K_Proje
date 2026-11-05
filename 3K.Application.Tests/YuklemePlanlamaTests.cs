@@ -467,6 +467,8 @@ public sealed class YuklemePlanlamaTests
             (new YuklemePlaniKaynaktanGuncelleCommand(), YetkiKodlari.YuklemePlanlama.Planlar, YetkiTipi.W),
             (new YuklemePlaniHesaplaCommand(), YetkiKodlari.YuklemePlanlama.Planlar, YetkiTipi.W),
             (new YuklemePlaniAracTalepRaporuQuery(), YetkiKodlari.YuklemePlanlama.Planlar, YetkiTipi.R),
+            (new YuklemePlaniElleDenetleQuery(), YetkiKodlari.YuklemePlanlama.Planlar, YetkiTipi.W),
+            (new YuklemePlaniElleKaydetCommand(), YetkiKodlari.YuklemePlanlama.Planlar, YetkiTipi.W),
             (new YuklemePlaniYuklemeRaporuQuery(), YetkiKodlari.YuklemePlanlama.Planlar, YetkiTipi.R),
             (new EkipmanAileleriQuery(), YetkiKodlari.YuklemePlanlama.EkipmanKitapligi, YetkiTipi.R),
             (new EkipmanKonfigurasyonlariQuery(), YetkiKodlari.YuklemePlanlama.EkipmanKitapligi, YetkiTipi.R),

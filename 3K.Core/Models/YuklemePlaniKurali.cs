@@ -72,6 +72,12 @@ public static class YuklemePlaniKurali
         PayGecerli(ayarlar.YuklemeHareketiPayiMm, GuvenlikPayiEnFazlaMm) &&
         PayGecerli(ayarlar.AgirlikPayiKg, AgirlikPayiEnFazlaKg);
 
+    /// <summary>Elle yerleşimde en fazla araç ve koordinat sınırı (mm, ekipman ölçüsünün çok dışı reddedilir).</summary>
+    public const int ElleAracEnFazla = 200;
+    public const int ElleKoordinatSiniriMm = 100_000;
+    public const string ElleYukGecersizMesaji = "Yerleşimde planda olmayan ya da birden fazla kez geçen yük var; sayfayı yenileyip tekrar deneyin.";
+    public const string ElleEkipmanGecersizMesaji = "Elle yerleşimdeki ekipmanlardan biri bulunamadı, pasif, sandık taşımaya uygun değil ya da teknik verisi okunamıyor.";
+
     /// <summary>Mevcut araçlara yerleştirmede en fazla araç satırı ve satır başına adet.</summary>
     public const int MevcutAracSatiriEnFazla = 20;
     public const int MevcutAracAdetEnFazla = 50;

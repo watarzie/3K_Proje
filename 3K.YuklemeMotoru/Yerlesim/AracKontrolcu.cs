@@ -10,18 +10,22 @@ internal static class AracKontrolcu
 {
     private static readonly CultureInfo Tr = CultureInfo.GetCultureInfo("tr-TR");
 
-    public static YerlesimAraci Olustur(int aracNo, AracYerlesimi arac, YerlesimAyarlari ayar, YasalSinirlar? yasal, string? aileDisiGerekce, bool zorunluOzelEkipman)
+    public static YerlesimAraci Olustur(int aracNo, AracYerlesimi arac, YerlesimAyarlari ayar, YasalSinirlar? yasal, string? aileDisiGerekce,
+        bool zorunluOzelEkipman, bool ortala = true)
     {
-        arac.Ortala();
+        // Elle yerleşimde kullanıcının konumu korunur (ortalanmaz).
+        if (ortala)
+            arac.Ortala();
         var konumlar = arac.Konumlar();
         var veri = arac.Aday.TeknikVeri;
         var yukler = arac.Yukler.ToDictionary(y => y.Anahtar);
 
-        var minX = Math.Min(0, konumlar.Min(k => k.XMm));
-        var maxX = Math.Max(arac.DisUzunluk, konumlar.Max(k => k.XMm + k.BoyMm));
-        var minY = Math.Min(0, konumlar.Min(k => k.YMm));
-        var maxY = Math.Max(arac.DisGenislik, konumlar.Max(k => k.YMm + k.EnMm));
-        var yukluYukseklik = Math.Max(veri.DisOlcu?.YukseklikMm ?? 0, konumlar.Max(k => k.ZMm + k.YukseklikMm));
+        // Boş araç (elle eklenmiş) da raporlanır: ölçüler ekipmanın kendisidir.
+        var minX = Math.Min(0, konumlar.Select(k => k.XMm).DefaultIfEmpty(0).Min());
+        var maxX = Math.Max(arac.DisUzunluk, konumlar.Select(k => k.XMm + k.BoyMm).DefaultIfEmpty(0).Max());
+        var minY = Math.Min(0, konumlar.Select(k => k.YMm).DefaultIfEmpty(0).Min());
+        var maxY = Math.Max(arac.DisGenislik, konumlar.Select(k => k.YMm + k.EnMm).DefaultIfEmpty(0).Max());
+        var yukluYukseklik = Math.Max(veri.DisOlcu?.YukseklikMm ?? 0, konumlar.Select(k => k.ZMm + k.YukseklikMm).DefaultIfEmpty(0).Max());
         var toplamKg = arac.ToplamKg;
         var agirlikMerkezi = toplamKg > 0
             ? (int)Math.Round(konumlar.Sum(k => yukler[k.YukAnahtari].BrutKg * (k.XMm + k.BoyMm / 2m)) / toplamKg)
@@ -96,6 +100,8 @@ internal static class AracKontrolcu
         if (!arac.Aday.Duvarli)
             return new(KontrolTuru.IcYukseklik, KontrolSonucu.Uygun, "Açık ekipman; iç yükseklik sınırı yok (yasal yükseklik ayrıca kontrol edilir)");
         var yuzeyler = arac.Aday.TeknikVeri.Yuzeyler.ToDictionary(y => y.Kod);
+        if (konumlar.Count == 0)
+            return new(KontrolTuru.IcYukseklik, KontrolSonucu.Uygun, "Araç boş");
         var bilinmeyen = konumlar.Select(k => k.YuzeyKodu).Distinct().Where(k => yuzeyler[k].KullanilabilirYukseklikMm == null).ToList();
         if (bilinmeyen.Count > 0)
             return new(KontrolTuru.IcYukseklik, KontrolSonucu.TeyitEdilmedi, $"İç yükseklik tanımlı değil ({string.Join(", ", bilinmeyen)})");

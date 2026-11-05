@@ -86,6 +86,10 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
             if (Taslak(plan))
                 col.Item().PaddingTop(4).Background("#FDECEA").Border(1).BorderColor(Kirmizi).Padding(5).AlignCenter()
                     .Text(YuklemeEtiketleri.TaslakIbaresi).Bold().FontSize(12).FontColor(Kirmizi);
+            // Elle düzenlenen yerleşim otomatik öneri değildir; kontroller kullanıcının konumlarıyla yapılmıştır (isterler 20).
+            if (Yerlesim(plan).ElleDuzenlendi)
+                col.Item().PaddingTop(4).Background("#EEF2FF").Border(1).BorderColor(Mavi).Padding(4).AlignCenter()
+                    .Text(YuklemeEtiketleri.ElleDuzenlendiIbaresi).Bold().FontColor(Mavi);
             // Kaynak sandık verisi plan kopyasından farklılaştıysa rapor eski kopyayla hazırlanmıştır (isterler 27).
             if (plan.KaynakFarklari.Count > 0)
                 col.Item().PaddingTop(4).Background("#FFF7ED").Border(1).BorderColor(Turuncu).Padding(4).AlignCenter()
@@ -487,7 +491,7 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
             foreach (var p in plan.Projeler)
                 Oge(renkler[p.ProjeNo], p.ProjeNo);
             Oge(Gri, "Projesiz");
-            Oge(Kirmizi, "Uygunsuz araçta kasa dışına taşan yük");
+            Oge(Kirmizi, "Uygunsuz araçta kasa dışına taşan ya da konumu uygunsuz yük");
         });
     }
 
@@ -503,8 +507,10 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
             var istif = sirali.Where(x => x.IstifNo == k.IstifNo).OrderBy(x => x.Kat).ToList();
             return istif.Count > 1 && istif[^1] == k ? string.Join("/", istif.Select(x => numara[x].ToString(Tr))) : numara[k].ToString(Tr);
         }
+        // Elle yerleşimde yük düzeyindeki uygunsuz sonuçlar (çakışma, desteksiz, kasa dışı…) da kırmızı çizilir.
+        var sorunluYukler = a.YukSorunlari.Where(s => s.Sonuc == YerlesimKontrolSonucu.Uygunsuz).Select(s => s.YukAnahtari).ToHashSet(StringComparer.Ordinal);
         var kutular = sirali.Select(k => new CizimKutusu(Etiket(k), k.XMm, k.YMm, k.ZMm, k.BoyMm, k.EnMm, k.YukseklikMm,
-            renkler.GetValueOrDefault(k.ProjeNo ?? string.Empty, Gri), uygunsuz && Tasiyor(k, veri))).ToList();
+            renkler.GetValueOrDefault(k.ProjeNo ?? string.Empty, Gri), (uygunsuz && Tasiyor(k, veri)) || sorunluYukler.Contains(k.YukAnahtari))).ToList();
 
         col.Item().PaddingTop(6).Row(row =>
         {
@@ -631,6 +637,31 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
                 Hucre(table.Cell(), zebra).Text(k.Mesaj);
             }
         });
+
+        if (a.YukSorunlari.Count > 0)
+        {
+            Bolum(col, "Yük sorunları (elle yerleşim)");
+            col.Item().Table(table =>
+            {
+                table.ColumnsDefinition(c =>
+                {
+                    c.ConstantColumn(24);
+                    c.RelativeColumn(1.2f);
+                    c.ConstantColumn(72);
+                    c.RelativeColumn(3);
+                });
+                var i = 0;
+                foreach (var s in a.YukSorunlari.OrderBy(s => s.Sonuc == YerlesimKontrolSonucu.Uygunsuz ? 0 : 1))
+                {
+                    var zebra = i++ % 2 == 1;
+                    var k = sirali.FirstOrDefault(x => x.YukAnahtari == s.YukAnahtari);
+                    Hucre(table.Cell(), zebra).Text(k == null ? "-" : (sirali.IndexOf(k) + 1).ToString(Tr)).Bold();
+                    Hucre(table.Cell(), zebra).Text(k?.Kod ?? s.YukAnahtari).SemiBold();
+                    Hucre(table.Cell(), zebra).Text(YuklemeEtiketleri.KontrolSonucu(s.Sonuc)).Bold().FontColor(SonucRengi(s.Sonuc));
+                    Hucre(table.Cell(), zebra).Text(s.Mesaj);
+                }
+            });
+        }
     }
 
     private static bool Tasiyor(PlanYukKonumu k, EkipmanTeknikVerisi v) =>

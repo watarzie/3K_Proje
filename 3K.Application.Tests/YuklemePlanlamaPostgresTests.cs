@@ -330,6 +330,133 @@ public sealed class YuklemePlanlamaPostgresTests
         });
     }
 
+    /// <summary>
+    /// Faz 4 elle yerleşim: denetleme kaydetmez; planda olmayan yük ve kullanılamayan ekipman 400, eski revizyon 409;
+    /// kaydetme yeni revizyon açar, elle konumları ve boş eklenen aracı saklar, çakışmayı yük sorunu olarak taşır.
+    /// </summary>
+    [PostgresRaporFact, Trait("Category", "Postgres")]
+    public async Task Postgres_ElleYerlesim_DenetleKaydetVeReddeder()
+    {
+        await FinansPostgresTests.InDatabase(async options =>
+        {
+            int projeId, k40Id, tenteliId;
+            await using (var db = new AppDbContext(options))
+            {
+                // Plan ailesi dışında (tenteli, özel yük ekipmanı değil) ve son yerleşimde kullanılmamış konfigürasyon.
+                var tenteli = new EkipmanKonfigurasyonu
+                {
+                    Model = new EkipmanModeli { TipId = 27, Uretici = "Test", ModelAdi = "TNT" },
+                    Kod = "TNT", Ad = "TNT", SonRevizyonNo = 1,
+                    Revizyonlar =
+                    [
+                        new EkipmanKonfigurasyonRevizyonu
+                        {
+                            RevizyonNo = 1, KaynakTuru = EkipmanKaynakTuru.Diger, DogrulamaDurumu = EkipmanDogrulamaDurumu.Dogrulandi,
+                            TeknikVeriJson = _3K.YuklemeMotoru.Ekipman.EkipmanTeknikVeriSerilestirici.Yaz(YerlesimMotoruTests.K40.TeknikVeri)
+                        }
+                    ]
+                };
+                db.EkipmanKonfigurasyonlari.Add(tenteli);
+                var k40 = new EkipmanKonfigurasyonu
+                {
+                    Model = new EkipmanModeli { TipId = 2, Uretici = "Test", ModelAdi = "K40" },
+                    Kod = "K40", Ad = "K40", SonRevizyonNo = 1,
+                    Revizyonlar =
+                    [
+                        new EkipmanKonfigurasyonRevizyonu
+                        {
+                            RevizyonNo = 1, KaynakTuru = EkipmanKaynakTuru.Diger, DogrulamaDurumu = EkipmanDogrulamaDurumu.Dogrulandi,
+                            TeknikVeriJson = _3K.YuklemeMotoru.Ekipman.EkipmanTeknikVeriSerilestirici.Yaz(YerlesimMotoruTests.K40.TeknikVeri)
+                        }
+                    ]
+                };
+                db.EkipmanKonfigurasyonlari.Add(k40);
+                var proje = new Proje { ProjeNo = "PA801-01", Musteri = "M", ProjeTipiId = (int)ProjeTipi.Normal };
+                db.Sandiklar.AddRange(Sandik(proje, "1", 1400, 500), Sandik(proje, "2", 1400, 400));
+                await db.SaveChangesAsync();
+                (projeId, k40Id, tenteliId) = (proje.Id, k40.Id, tenteli.Id);
+            }
+
+            YuklemePlaniDetayi hesap;
+            await using (var db = new AppDbContext(options))
+            {
+                var plan = await PlanServisi(db).OlusturAsync(new YuklemePlaniOlusturModel("Elle", YuklemeCalismaBicimi.IhtiyacaGoreArac, 1,
+                    YuklemeProjeKarisimi.Karisik, null, null, [projeId]), kullaniciId: null, Ct);
+                hesap = await PlanServisi(db).HesaplaAsync(plan.Id, 1, YuklemeLokasyonTercihi.Karisik, kullaniciId: null, Ct);
+            }
+            var otomatik = Assert.Single(hesap.Yerlesim!.Araclar);
+            Assert.Equal(2, otomatik.Konumlar.Count);
+            List<ElleKonumModeli> Konumlar(PlanAraci a) => a.Konumlar.Select(k => new ElleKonumModeli(k.YukAnahtari, k.XMm, k.YMm, k.ZMm, k.Donduruldu)).ToList();
+
+            await using (var db = new AppDbContext(options))
+            {
+                var servis = PlanServisi(db);
+                // İki yük aynı yerde: denetim çakışmayı yük sorunu olarak döner, revizyon yazılmaz.
+                var ilk = otomatik.Konumlar[0];
+                var ust = Konumlar(otomatik).Select(k => k with { XMm = ilk.XMm, YMm = ilk.YMm, ZMm = ilk.ZMm }).ToList();
+                var denetim = await servis.ElleDenetleAsync(hesap.Id, [new ElleAracModeli(k40Id, ust)], Ct);
+                Assert.True(denetim.ElleDuzenlendi);
+                var arac = Assert.Single(denetim.Araclar);
+                Assert.Equal(YerlesimKontrolSonucu.Uygunsuz, arac.Sonuc);
+                Assert.Contains(arac.YukSorunlari, s => s.Sonuc == YerlesimKontrolSonucu.Uygunsuz && s.Mesaj.StartsWith("Çakışma", StringComparison.Ordinal));
+                Assert.Equal(2, await db.YuklemePlanRevizyonlari.CountAsync(r => r.PlanId == hesap.Id));
+
+                // Planda olmayan / tekrarlanan yük ve plan ailesinde kullanılamayan ekipman 400.
+                var yabanci = await Assert.ThrowsAsync<IsKuraliException>(() => servis.ElleDenetleAsync(hesap.Id,
+                    [new ElleAracModeli(k40Id, [new ElleKonumModeli("s:999999", 0, 0, 0, false)])], Ct));
+                Assert.Equal((400, YuklemePlaniKurali.ElleYukGecersizMesaji), (yabanci.StatusCode, yabanci.Message));
+                var tekrar = Konumlar(otomatik);
+                tekrar.Add(tekrar[0]);
+                Assert.Equal(400, (await Assert.ThrowsAsync<IsKuraliException>(() => servis.ElleDenetleAsync(hesap.Id, [new ElleAracModeli(k40Id, tekrar)], Ct))).StatusCode);
+                var ekipman = await Assert.ThrowsAsync<IsKuraliException>(() => servis.ElleDenetleAsync(hesap.Id, [new ElleAracModeli(999_999, Konumlar(otomatik))], Ct));
+                Assert.Equal((400, YuklemePlaniKurali.ElleEkipmanGecersizMesaji), (ekipman.StatusCode, ekipman.Message));
+                var aileDisi = await Assert.ThrowsAsync<IsKuraliException>(() => servis.ElleDenetleAsync(hesap.Id, [new ElleAracModeli(tenteliId, Konumlar(otomatik))], Ct));
+                Assert.Equal((400, YuklemePlaniKurali.ElleEkipmanGecersizMesaji), (aileDisi.StatusCode, aileDisi.Message));
+
+                // Ret yolunda kaydetme revizyon yazmaz.
+                Assert.Equal(400, (await Assert.ThrowsAsync<IsKuraliException>(() => servis.ElleKaydetAsync(
+                    new ElleYerlesimModeli(hesap.Id, 2, [new ElleAracModeli(k40Id, [new ElleKonumModeli("s:999999", 0, 0, 0, false)])]), null, Ct))).StatusCode);
+                Assert.Equal(2, await db.YuklemePlanRevizyonlari.CountAsync(r => r.PlanId == hesap.Id));
+
+                // Eski revizyonla kaydetme 409 ve yazmaz.
+                Assert.Equal(409, (await Assert.ThrowsAsync<IsKuraliException>(() => servis.ElleKaydetAsync(
+                    new ElleYerlesimModeli(hesap.Id, 1, [new ElleAracModeli(k40Id, Konumlar(otomatik))]), null, Ct))).StatusCode);
+                Assert.Equal(2, await db.YuklemePlanRevizyonlari.CountAsync(r => r.PlanId == hesap.Id));
+            }
+
+            // İkinci yük boş eklenen aynı tip araca taşınır; kaydetme yeni revizyonda elle konumları saklar.
+            var tasinan = otomatik.Konumlar[1];
+            YuklemePlaniDetayi kayit;
+            await using (var db = new AppDbContext(options))
+                kayit = await PlanServisi(db).ElleKaydetAsync(new ElleYerlesimModeli(hesap.Id, 2,
+                [
+                    new ElleAracModeli(k40Id, Konumlar(otomatik).Take(1).ToList()),
+                    new ElleAracModeli(k40Id, [new ElleKonumModeli(tasinan.YukAnahtari, 0, tasinan.YMm, 0, tasinan.Donduruldu)]),
+                    new ElleAracModeli(k40Id, [])
+                ]), null, Ct);
+            Assert.Equal(3, kayit.RevizyonNo);
+            var elle = Assert.IsType<PlanYerlesimi>(kayit.Yerlesim);
+            Assert.True(elle.ElleDuzenlendi);
+            Assert.Equal(3, elle.Araclar.Count);
+            Assert.Equal((0, tasinan.YMm, 0), (elle.Araclar[1].Konumlar.Single().XMm, elle.Araclar[1].Konumlar.Single().YMm, elle.Araclar[1].Konumlar.Single().ZMm));
+            Assert.Empty(elle.Araclar[2].Konumlar);
+            Assert.Equal(tasinan.YukAnahtari, elle.Araclar[1].Konumlar.Single().YukAnahtari);
+            Assert.All(kayit.Yukler, y => Assert.Equal(PlanYukDurumu.Yerlesti, y.Durum));
+            Assert.Equal(otomatik.Konumlar[0].XMm, elle.Araclar[0].Konumlar.Single().XMm);
+
+            // Kaydedilen elle yerleşim yeniden okunur ve raporu üretilir.
+            await using (var db = new AppDbContext(options))
+            {
+                var okunan = await PlanServisi(db).PlanGetirAsync(hesap.Id, Ct);
+                Assert.True(okunan!.Yerlesim!.ElleDuzenlendi);
+                var rapor = await new YuklemePlaniRaporQueryHandlers(PlanServisi(db), new YuklemePlaniPdfOlusturucu())
+                    .Handle(new YuklemePlaniYuklemeRaporuQuery { PlanId = hesap.Id }, Ct);
+                Assert.True(rapor.IsSuccess);
+                Assert.StartsWith($"{hesap.PlanNo}_R3_YuklemePlani_", rapor.Value!.DosyaAdi, StringComparison.Ordinal);
+            }
+        });
+    }
+
     [PostgresRaporFact, Trait("Category", "Postgres")]
     public async Task Postgres_MevzuatKuralSeti_KurallarSiraylaVeKaynaklariyla()
     {

@@ -46,6 +46,22 @@ namespace _3K_API.Controllers
             return (await mediator.Send(command, ct)).ToActionResult();
         }
 
+        /// <summary>Elle yerleşimi kaydetmeden denetler (anlık kontrol).</summary>
+        [HttpPost("{id:int}/yerlesim/denetle")]
+        public async Task<ActionResult> ElleDenetle(int id, [FromBody] YuklemePlaniElleDenetleQuery query, CancellationToken ct)
+        {
+            query.PlanId = id;
+            return (await mediator.Send(query, ct)).ToActionResult();
+        }
+
+        /// <summary>Elle düzenlenen yerleşimi yeni revizyon olarak kaydeder; arada başka biri kaydettiyse 409.</summary>
+        [HttpPut("{id:int}/yerlesim")]
+        public async Task<ActionResult> ElleKaydet(int id, [FromBody] YuklemePlaniElleKaydetCommand command, CancellationToken ct)
+        {
+            command.PlanId = id;
+            return (await mediator.Send(command, ct)).ToActionResult();
+        }
+
         /// <summary>Araç talep ve planlama raporu (PDF); son revizyonun yerleşimiyle.</summary>
         [HttpGet("{id:int}/rapor/arac-talebi")]
         public async Task<ActionResult> AracTalepRaporu(int id, CancellationToken ct) =>
