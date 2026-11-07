@@ -198,8 +198,8 @@ dotnet test 3K.Application.Tests/3K.Application.Tests.csproj -c Release --filter
 
 - Ajanlar (`.claude/agents`): `kod-gozden-gecirici` (commit önermeden önce, salt okunur), `sema-betik-denetcisi` (EF modeli/betik/izin kodu değişince ve canlıya alımdan önce), `finans-maske-denetcisi` (Ambalaj DTO'su veya Finans isteği değişince), `is-kurali-dokumantasyon` (iş kuralı değişince doküman hizalama), `canli-hata-teshisci` (canlı hata bildiriminde, düzeltmeden önce teşhis).
 - Beceriler: `postgres-test` (izole PostgreSQL ile test), `yeni-yetki-kodu` (uçtan uca izin kodu).
-- MCP (`.mcp.json`): `context7` (kütüphane dokümanı), `postgres-salt-okunur` (`THREEK_READONLY_PG_URL`, yerel `3K_Db` salt okunur).
-- Yedek `3K_Db`'ye geri yüklenince salt-okunur rolün tablo izinleri silinir: `.claude/mcp-salt-okunur-rol.sql`'i `3K_Db` düğümünden tekrar çalıştır (DBeaver'da otomatik commit açık olmalı).
+- MCP (`.mcp.json`): `context7` (kütüphane dokümanı), `postgres-salt-okunur` (`THREEK_READONLY_PG_URL`, yerel geliştirme `3K_Db` salt okunur), `postgres-canli-kopya` (`THREEK_CANLI_KOPYA_PG_URL`, canlı yedeğinin kullanıcı tarafından geri yüklendiği yerel `3K_Db_Canli`, salt okunur). Canlı hata bildiriminde veri `3K_Db_Canli`'den okunur; `3K_Db` geliştirme veritabanıdır, canlı yedeğiyle ezilmez. Canlı kopyadaki kişisel veri rapora/çıktıya yazılmaz.
+- Yedek bir veritabanına geri yüklenince o veritabanında salt-okunur rolün tablo izinleri silinir: `.claude/mcp-salt-okunur-rol.sql`'i o veritabanının düğümünden (`3K_Db` ya da `3K_Db_Canli`) tekrar çalıştır (DBeaver'da otomatik commit açık olmalı).
 - Hook'lar: `.claude/hooks/koruma.js` gizli dosyayı ve gerçek veritabanına yazan SQL'i engeller; `crlf.js` yazılan `.cs/.sql/.md` dosyalarını CRLF'e çevirir.
 
 ## Teslim
