@@ -220,6 +220,29 @@ public class ServerAuthorizationRegressionTests
         Assert.Equal(0, fixture.Executed);
     }
 
+    /// <summary>
+    /// Aynı pencerede açıklama da düzenleniyorsa ekranın kendi yazma izni gerekir: Grid açıklaması Grid W,
+    /// 3K açıklaması 3K W. Sandıklar W yalnız ürün bilgisini açar.
+    /// </summary>
+    [Theory]
+    [InlineData(UrunAciklamaAlani.Grid, "grid-modulu", true)]
+    [InlineData(UrunAciklamaAlani.Grid, "3k-modulu", false)]
+    [InlineData(UrunAciklamaAlani.Grid, "sandik-yonetimi", false)]
+    [InlineData(UrunAciklamaAlani.UcK, "3k-modulu", true)]
+    [InlineData(UrunAciklamaAlani.UcK, "grid-modulu", false)]
+    [InlineData(UrunAciklamaAlani.UcK, "sandik-yonetimi", false)]
+    public async Task UrunAciklamasi_EkraninKendiYazmaIzniniIster(UrunAciklamaAlani alan, string menu, bool izinli)
+    {
+        var fixture = new Fixture(menu, YetkiTipi.W);
+        fixture.Seed(ProjeTipi.Normal);
+        var result = await fixture.Run(new SandikIcerikBilgisiGuncelleCommand
+        {
+            ProjeId = 10, SandikId = 40, SandikIcerikId = 50, AciklamaAlani = alan, Aciklama = "not"
+        });
+        Assert.Equal(izinli ? 1 : 0, fixture.Executed);
+        if (!izinli) Assert.Equal(403, result.StatusCode);
+    }
+
     [Fact]
     public async Task GridYazmaIzni_UrunBilgisiDisindakiSandikYazmasiniAcamaz()
     {

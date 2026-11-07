@@ -62,6 +62,9 @@ namespace _3K.Application.Features.SandikIslemleri.Validators
             RuleFor(x => x.SandikIcerikId).GreaterThan(0).WithMessage("Geçerli bir sandık içeriği belirtilmeli.");
             RuleFor(x => x.UrunBilgisi)
                 .Must(SandikIcerikUrunBilgisiKurali.Gecerli).WithMessage(SandikIcerikUrunBilgisiKurali.UzunlukMesaji);
+            RuleFor(x => x.AciklamaAlani).IsInEnum().WithMessage("Geçersiz açıklama alanı.");
+            RuleFor(x => x.Aciklama)
+                .Must(UrunAciklamaKurali.Gecerli).WithMessage(UrunAciklamaKurali.UzunlukMesaji);
         }
     }
 
