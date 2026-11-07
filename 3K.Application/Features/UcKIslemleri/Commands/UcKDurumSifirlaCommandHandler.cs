@@ -4,6 +4,7 @@ using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Interfaces;
 using _3K.Core.Helpers;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.UcKIslemleri.Commands
 {
@@ -212,6 +213,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     kaynakSatir.ProjeGonderilen = Math.Max(kaynakSatir.ProjeGonderilen - transfer.Miktar, 0);
                     kaynakSatir.DurumId = _durumHesaplaService.HesaplaGenelDurum(kaynakSatir.GridDurumuId, kaynakSatir.UcKDurumuId);
                     _durumHesaplaService.HesaplaKalanVeDurum(kaynakSatir);
+                    ProjeTransferIadeKurali.DonorYenidenSevkBorcunuDuzelt(kaynakSatir);
                     repo.Update(kaynakSatir);
                 }
 

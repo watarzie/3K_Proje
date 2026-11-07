@@ -709,6 +709,31 @@ public sealed class UcKKaynakTransferStokIadeKatalogTests
         Assert.NotNull(transfer.IptalTarihi);
     }
 
+    // Canlı vaka devamı (PA598-01): donör ürünü verince açılan yeniden sevk borcu transfer geri alınınca kapanır.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TransferGeriAlininca_DonordeTransferinActigiYenidenSevkBorcuKapanir(bool toplu)
+    {
+        using var kurgu = new Kurgu(2m, 2m, "Pompa", "PA-HEDEF");
+        var (donor, transfer) = ProjedenKarsilananTransferKur(kurgu, 2m);
+        donor.IstenenAdet = 2m;
+        donor.YenidenSevkGerekliAdet = 2m;
+        donor.GridSevkDurumuId = (int)GridSevkDurum.YenidenSevkGerekli;
+
+        var sonuc = toplu
+            ? await kurgu.TopluSifirlaAsync(
+                new UcKSandikSecimDto { CekiSatiriId = kurgu.Satir.Id, SandikIcerikId = kurgu.Icerik.Id })
+            : await kurgu.SifirlaAsync(kurgu.Icerik.Id);
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.Equal((int)ProjeTransferDurum.GeriAlindi, transfer.DurumId);
+        Assert.Equal(0m, donor.ProjeGonderilen);
+        Assert.Equal(0m, donor.KalanMiktar);
+        Assert.Equal(0m, donor.YenidenSevkGerekliAdet);
+        Assert.Equal((int)GridSevkDurum.SevkEdildi, donor.GridSevkDurumuId);
+    }
+
     [Fact]
     public async Task TekTahsisliTopluSandikReset_ProjedenKarsilanani_TumSatirGibiGeriAlirVeDonoruIadeEder()
     {
