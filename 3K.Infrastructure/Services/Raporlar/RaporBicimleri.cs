@@ -1,3 +1,4 @@
+using _3K.Core.Common;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Models;
@@ -58,5 +59,60 @@ internal static class RaporBicimleri
             aciklamalar.Add($"3K: {ucKAciklama}");
 
         return string.Join("\n", aciklamalar);
+    }
+
+    /// <summary>
+    /// Gerçekleşen çeki AÇIKLAMA hücresi: çeki/Grid/3K açıklamalarının altında sandık parçalarının ürün bilgisi
+    /// (<see cref="SandikIcerik.UrunBilgisi"/>: seri no, SKT, lot). Ayrı sütun açılmaz.
+    /// </summary>
+    internal static string GetGerceklesenRaporAciklama(CekiSatiri satir)
+    {
+        var satirlar = new List<string>();
+        var aciklama = GetRaporAciklama(satir);
+        if (!string.IsNullOrEmpty(aciklama))
+            satirlar.Add(aciklama);
+        satirlar.AddRange(UrunBilgisiSatirlari(satir.SandikIcerikleri));
+        return string.Join("\n", satirlar);
+    }
+
+    /// <summary>
+    /// Ürün bilgisi satırları. Bilgi tek (ya da bütün parçalarda aynı) ise "Ürün bilgisi: …"; bölünmüş üründe
+    /// parçalar farklı bilgi taşıyorsa her biri sandık numarasıyla ayrı satır: "Ürün bilgisi (Sandık 17): …".
+    /// Kullanıcının alt satırlara yazdığı bilgi tek satırda virgülle birleştirilir.
+    /// </summary>
+    internal static IReadOnlyList<string> UrunBilgisiSatirlari(IEnumerable<SandikIcerik> icerikler)
+    {
+        var bilgiler = icerikler
+            .Select(i => (SandikNo: i.Sandik?.SandikNo?.Trim(), Id: i.Id, Bilgi: UrunBilgisiTekSatir(i.UrunBilgisi)))
+            .Where(x => x.Bilgi.Length > 0)
+            .OrderBy(x => x.SandikNo ?? string.Empty, SandikNumarasiComparer.Instance)
+            .ThenBy(x => x.Id)
+            .ToList();
+
+        if (bilgiler.Count == 0)
+            return [];
+
+        var farkliBilgiler = bilgiler.Select(x => x.Bilgi).Distinct(StringComparer.Ordinal).ToList();
+        if (farkliBilgiler.Count == 1)
+            return [$"Ürün bilgisi: {farkliBilgiler[0]}"];
+
+        return bilgiler
+            .GroupBy(x => (x.SandikNo, x.Bilgi))
+            .Select(g => string.IsNullOrEmpty(g.Key.SandikNo)
+                ? $"Ürün bilgisi: {g.Key.Bilgi}"
+                : $"Ürün bilgisi (Sandık {g.Key.SandikNo}): {g.Key.Bilgi}")
+            .ToList();
+    }
+
+    private static string UrunBilgisiTekSatir(string? urunBilgisi)
+    {
+        if (string.IsNullOrWhiteSpace(urunBilgisi))
+            return string.Empty;
+
+        var parcalar = urunBilgisi
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+            .Select(p => p.Trim().TrimEnd(',', ';').TrimEnd())
+            .Where(p => p.Length > 0);
+        return string.Join(", ", parcalar);
     }
 }
