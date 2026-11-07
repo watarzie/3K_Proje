@@ -124,6 +124,68 @@ public static class YerlesimMotoru
         };
     }
 
+    /// <summary>
+    /// Elle yerleşimi tamamlar ("kalanı otomatik diz"): kullanıcının araçlara koyduğu yükler yerinde kalır (sabit);
+    /// araçlara konmamış yükler önce var olan araçlardaki boşluklara (proje/lokasyon ayrımına uyarak), sığmayanlar
+    /// otomatik yerleşimle açılan yeni araçlara yerleşir. Zorunlu özel yük ve ailede taşınamayan özel yük özel yük
+    /// ekipmanına gider. Hiçbir yere sığmayan yük araçlara konmaz (bekleyenlerde kalır). Sonuç konum listesidir;
+    /// kontroller <see cref="ElleYerlesimDenetimi.Denetle"/> ile yapılır.
+    /// </summary>
+    public static IReadOnlyList<ElleArac> ElleTamamla(YerlesimGirdisi girdi, IReadOnlyList<ElleArac> araclar, CancellationToken cancellationToken = default)
+    {
+        var baglam = new Baglam(girdi, cancellationToken);
+        var yukler = girdi.Yukler.ToDictionary(y => y.Anahtar);
+        var adaylar = girdi.Adaylar.ToDictionary(a => a.KonfigurasyonId);
+        var aileAdaylari = girdi.Adaylar.Where(a => a.AileIci && a.TeknikVeri.Yuzeyler.Count > 0).ToList();
+        var ozelAdaylar = girdi.Adaylar.Where(a => a.OzelYukEkipmani && a.TeknikVeri.Yuzeyler.Count > 0).ToList();
+
+        // Ekipmanı bilinmeyen araç olduğu gibi kalır (denetim uyarır); diğerleri sabit yükleriyle kurulur.
+        var sonuc = araclar.Select(elle => adaylar.TryGetValue(elle.KonfigurasyonId, out var aday) && aday.TeknikVeri.Yuzeyler.Count > 0
+            ? (Arac: ElleYerlesimDenetimi.SabitAracKur(girdi, aday, elle, yukler), Ham: (ElleArac?)null)
+            : (Arac: (AracYerlesimi?)null, Ham: elle)).ToList();
+        var yerlesen = araclar.SelectMany(a => a.Konumlar).Select(k => k.YukAnahtari).ToHashSet(StringComparer.Ordinal);
+
+        bool Uyumlu(AracYerlesimi arac, YerlesimYuku yuk) =>
+            (!girdi.ProjeBazindaAyri || arac.Yukler.All(y => y.ProjeId == yuk.ProjeId)) &&
+            (!girdi.LokasyonaGoreAyri || arac.Yukler.All(y => y.LokasyonId == yuk.LokasyonId));
+
+        var acikta = new List<YerlesimYuku>();
+        foreach (var yuk in Sirala(girdi.Yukler.Where(y => !yerlesen.Contains(y.Anahtar))))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (yuk.Zorunluluk == OzelEkipmanZorunlulugu.Her)
+            {
+                // Kullanıcının eklediği boş özel yük ekipmanı önce; yoksa uygun özel ekipman açılır.
+                var bos = sonuc.Select(s => s.Arac).FirstOrDefault(a => a is { Bos: true } && a.Aday.OzelYukEkipmani && a.TekYukYerlestir(yuk, out _));
+                if (bos == null && OzelYerlestir(yuk, ozelAdaylar, girdi).Arac is { } yeni)
+                    sonuc.Add((yeni, null));
+                continue;
+            }
+            if (!sonuc.Any(s => s.Arac is { } a && !a.Aday.OzelYukEkipmani && Uyumlu(a, yuk) && a.Ekle(yuk)))
+                acikta.Add(yuk);
+        }
+
+        // Var olan araçlara sığmayanlar: proje/lokasyon grubuna göre otomatik yerleşimle yeni araçlar.
+        foreach (var grup in acikta.GroupBy(y => (Proje: girdi.ProjeBazindaAyri ? y.ProjeId : null, Lokasyon: girdi.LokasyonaGoreAyri ? y.LokasyonId : null)))
+        {
+            var (paket, sigmayanlar) = IhtiyacaGore(grup.ToList(), aileAdaylari, baglam);
+            sonuc.AddRange(paket.Select(a => (Arac: (AracYerlesimi?)a, Ham: (ElleArac?)null)));
+            foreach (var yuk in sigmayanlar.Where(y => y.OzelYuk))
+                if (OzelYerlestir(yuk, ozelAdaylar, girdi).Arac is { } ozel)
+                    sonuc.Add((ozel, null));
+        }
+
+        return sonuc.Select(s =>
+        {
+            if (s.Arac is not { } arac)
+                return s.Ham!;
+            arac.Ortala();
+            arac.Dengele();
+            return new ElleArac(arac.Aday.KonfigurasyonId,
+                arac.Konumlar().Select(k => new ElleKonum(k.YukAnahtari, k.XMm, k.YMm, k.ZMm, k.Donduruldu)).ToList());
+        }).ToList();
+    }
+
     /// <summary>Hesap boyunca ortak durum: boş araçta sığma sonucu (aday, yük) başına bir kez hesaplanır; iptal izlenir.</summary>
     private sealed class Baglam(YerlesimGirdisi girdi, CancellationToken iptal)
     {
@@ -213,12 +275,50 @@ public static class YerlesimMotoru
 
     private static long TabanAlani(EkipmanAdayi a) => a.TeknikVeri.Yuzeyler.Sum(y => (long)y.UzunlukMm * y.GenislikMm);
 
-    /// <summary>Aynı alt tipten araçlara ilk uyan yöntemiyle (yükler büyükten küçüğe); boş araca da girmeyen yük ayrıca döner.</summary>
+    /// <summary>Bu sayıdan çok yükte yalnız temel sıralama denenir (hesap süresi sınırlı kalsın).</summary>
+    private const int CokluDenemeYukSiniri = 300;
+
+    /// <summary>
+    /// Denenen yük sıralamaları (hepsi belirlenimci; eşitlikte kod sırası): taban alanı, en uzun kenar, hacim, ağırlık ve
+    /// en kısa kenar önce. Farklı sıralama farklı boşluk bırakır; en iyi sonuç seçilir.
+    /// </summary>
+    private static IEnumerable<List<YerlesimYuku>> Siralamalar(List<YerlesimYuku> yukler)
+    {
+        yield return Sirala(yukler).ToList();
+        if (yukler.Count > CokluDenemeYukSiniri)
+            yield break;
+        static long Alan(YerlesimYuku y) => (long)y.BoyMm * y.EnMm;
+        yield return yukler.OrderByDescending(y => Math.Max(y.BoyMm, y.EnMm)).ThenByDescending(Alan).ThenBy(y => y.Kod, StringComparer.Ordinal).ToList();
+        yield return yukler.OrderByDescending(y => Alan(y) * y.YukseklikMm).ThenByDescending(y => y.BrutKg).ThenBy(y => y.Kod, StringComparer.Ordinal).ToList();
+        yield return yukler.OrderByDescending(y => y.BrutKg).ThenByDescending(Alan).ThenBy(y => y.Kod, StringComparer.Ordinal).ToList();
+        yield return yukler.OrderByDescending(y => Math.Min(y.BoyMm, y.EnMm)).ThenByDescending(Alan).ThenBy(y => y.Kod, StringComparer.Ordinal).ToList();
+    }
+
+    /// <summary>
+    /// Aynı alt tipten araçlara paketleme: her sıralama denenir; dışarıda kalan yükü en az, sonra aracı en az, sonra en
+    /// dengeli (ağırlık merkezi araç ortasına en yakın) olan seçilir. Eşitlikte önce denenen kalır.
+    /// </summary>
     private static (List<AracYerlesimi> Araclar, List<YerlesimYuku> Disarida) Paketle(EkipmanAdayi aday, List<YerlesimYuku> yukler, Baglam baglam)
+    {
+        (List<AracYerlesimi> Araclar, List<YerlesimYuku> Disarida, decimal Sapma)? enIyi = null;
+        foreach (var sirali in Siralamalar(yukler))
+        {
+            var (araclar, disarida) = SirayaGorePaketle(aday, sirali, baglam);
+            var sapma = araclar.Count == 0 ? 0 : araclar.Max(a => a.BoyunaSapma);
+            if (enIyi is not { } e || disarida.Count < e.Disarida.Count ||
+                (disarida.Count == e.Disarida.Count && (araclar.Count < e.Araclar.Count ||
+                 (araclar.Count == e.Araclar.Count && sapma < e.Sapma))))
+                enIyi = (araclar, disarida, sapma);
+        }
+        return (enIyi!.Value.Araclar, enIyi.Value.Disarida);
+    }
+
+    /// <summary>Aynı alt tipten araçlara ilk uyan yöntemiyle, verilen sırayla; boş araca da girmeyen yük ayrıca döner.</summary>
+    private static (List<AracYerlesimi> Araclar, List<YerlesimYuku> Disarida) SirayaGorePaketle(EkipmanAdayi aday, List<YerlesimYuku> yukler, Baglam baglam)
     {
         var araclar = new List<AracYerlesimi>();
         var disarida = new List<YerlesimYuku>();
-        foreach (var yuk in Sirala(yukler))
+        foreach (var yuk in yukler)
         {
             baglam.Iptal.ThrowIfCancellationRequested();
             if (araclar.Any(a => a.Ekle(yuk)))

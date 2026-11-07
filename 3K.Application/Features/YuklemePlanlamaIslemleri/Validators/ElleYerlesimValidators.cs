@@ -30,6 +30,16 @@ internal sealed class ElleYerlesimIstegiValidator : AbstractValidator<IElleYerle
     }
 }
 
+/// <summary>"Kalanı otomatik diz" isteğinin doğrulaması (denetlemeyle aynı sınırlar).</summary>
+public sealed class YuklemePlaniElleTamamlaQueryValidator : AbstractValidator<YuklemePlaniElleTamamlaQuery>
+{
+    public YuklemePlaniElleTamamlaQueryValidator()
+    {
+        RuleFor(x => x.PlanId).GreaterThan(0).WithMessage("Plan seçilmelidir.");
+        Include(new ElleYerlesimIstegiValidator());
+    }
+}
+
 /// <summary>Elle yerleşim denetimi isteğinin doğrulaması.</summary>
 public sealed class YuklemePlaniElleDenetleQueryValidator : AbstractValidator<YuklemePlaniElleDenetleQuery>
 {

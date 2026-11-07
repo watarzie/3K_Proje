@@ -54,6 +54,7 @@ public static class YuklemeEtiketleri
         YerlesimKontrolTuru.Mevzuat => "Mevzuat",
         YerlesimKontrolTuru.Organizasyon => "Proje / lokasyon tercihi",
         YerlesimKontrolTuru.ElleYerlesim => "Elle yerleşim",
+        YerlesimKontrolTuru.AgirlikDagilimi => "Ağırlık dağılımı",
         _ => "-"
     };
 

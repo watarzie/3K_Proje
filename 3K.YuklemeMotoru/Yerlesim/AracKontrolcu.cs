@@ -13,9 +13,12 @@ internal static class AracKontrolcu
     public static YerlesimAraci Olustur(int aracNo, AracYerlesimi arac, YerlesimAyarlari ayar, YasalSinirlar? yasal, string? aileDisiGerekce,
         bool zorunluOzelEkipman, bool ortala = true)
     {
-        // Elle yerleşimde kullanıcının konumu korunur (ortalanmaz).
+        // Elle yerleşimde kullanıcının konumu korunur (ortalanmaz, dengelenmez).
         if (ortala)
+        {
             arac.Ortala();
+            arac.Dengele();
+        }
         var konumlar = arac.Konumlar();
         var veri = arac.Aday.TeknikVeri;
         var yukler = arac.Yukler.ToDictionary(y => y.Anahtar);
@@ -37,6 +40,7 @@ internal static class AracKontrolcu
         var kontroller = new List<AracKontrolu>
         {
             Agirlik(arac, ayar),
+            AgirlikDagilimi(arac, ayar, konumlar, yukler),
             IcYukseklik(arac, ayar, konumlar)
         };
         if (KapiKontrolu(arac, ayar, konumlar) is { } kapi)
@@ -93,6 +97,30 @@ internal static class AracKontrolcu
             ? $"Toplam {Kg(arac.ToplamKg)}, sınır {Kg(kapasite)}, aşım {Kg(gereken - kapasite)}"
             : $"Toplam {Kg(arac.ToplamKg)}, sınır {Kg(kapasite)}";
         return Payli(KontrolTuru.Agirlik, gereken > kapasite, ayar.AgirlikPayiKg, olcum, "ağırlık");
+    }
+
+    /// <summary>
+    /// Ağırlık dağılımı: yükün ağırlık merkezinin araç ortasından boyuna (önde/arkada) ve enine (solda/sağda) sapması,
+    /// mm ve araç boyu/genişliğinin yüzdesi olarak. Sınır plan ayarıdır; tanımlı değilse "Teyit edilmedi".
+    /// </summary>
+    private static AracKontrolu AgirlikDagilimi(AracYerlesimi arac, YerlesimAyarlari ayar, List<YukKonumu> konumlar, Dictionary<string, YerlesimYuku> yukler)
+    {
+        var toplam = konumlar.Sum(k => yukler[k.YukAnahtari].BrutKg);
+        if (toplam <= 0 || arac.DisUzunluk <= 0 || arac.DisGenislik <= 0)
+            return new(KontrolTuru.AgirlikDagilimi, KontrolSonucu.Uygun, "Araç boş");
+        var mx = konumlar.Sum(k => yukler[k.YukAnahtari].BrutKg * (k.XMm + k.BoyMm / 2m)) / toplam;
+        var my = konumlar.Sum(k => yukler[k.YukAnahtari].BrutKg * (k.YMm + k.EnMm / 2m)) / toplam;
+        var boyuna = mx - arac.DisUzunluk / 2m;
+        var enine = my - arac.DisGenislik / 2m;
+        var boyYuzde = Math.Abs(boyuna) * 100 / arac.DisUzunluk;
+        var enYuzde = Math.Abs(enine) * 100 / arac.DisGenislik;
+        var olcum = $"Ağırlık merkezi araç ortasının {Mm((int)Math.Round(Math.Abs(boyuna)))} {(boyuna < 0 ? "önünde" : "arkasında")} " +
+                    $"(%{boyYuzde.ToString("0.#", Tr)}), {Mm((int)Math.Round(Math.Abs(enine)))} {(enine < 0 ? "solunda" : "sağında")} (%{enYuzde.ToString("0.#", Tr)})";
+        if (ayar.AgirlikMerkeziSapmaYuzde is not { } sinir)
+            return new(KontrolTuru.AgirlikDagilimi, KontrolSonucu.TeyitEdilmedi, $"{olcum}; ağırlık merkezi sapma sınırı tanımlanmadı");
+        return boyYuzde > sinir || enYuzde > sinir
+            ? new(KontrolTuru.AgirlikDagilimi, KontrolSonucu.Uygunsuz, $"{olcum}; sınır %{sinir}")
+            : new(KontrolTuru.AgirlikDagilimi, KontrolSonucu.Uygun, $"{olcum}; sınır %{sinir}");
     }
 
     private static AracKontrolu IcYukseklik(AracYerlesimi arac, YerlesimAyarlari ayar, List<YukKonumu> konumlar)

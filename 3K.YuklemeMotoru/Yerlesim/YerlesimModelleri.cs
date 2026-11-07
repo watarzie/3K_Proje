@@ -49,7 +49,10 @@ public enum KontrolTuru
     Organizasyon = 13,
 
     /// <summary>Elle yerleşimde yük düzeyindeki sorunların özeti (çakışma, destek, istif izni, giriş…).</summary>
-    ElleYerlesim = 14
+    ElleYerlesim = 14,
+
+    /// <summary>Yükün ağırlık merkezinin araç ortasından boyuna ve enine sapması.</summary>
+    AgirlikDagilimi = 15
 }
 
 /// <summary>
@@ -93,14 +96,19 @@ public sealed record EkipmanAdayi(
     bool Dogrulandi,
     EkipmanTeknikVerisi TeknikVeri);
 
-/// <summary>Yerleşim boşluğu ve güvenlik payları (isterler 17). Boş pay "tanımlanmadı" demektir; sıfır sayılmaz.</summary>
+/// <summary>
+/// Yerleşim boşluğu ve güvenlik payları (isterler 17). Boş pay "tanımlanmadı" demektir; sıfır sayılmaz.
+/// <see cref="AgirlikMerkeziSapmaYuzde"/>: yük ağırlık merkezinin araç ortasından izin verilen en fazla sapması (araç
+/// boyunun ve genişliğinin yüzdesi); boşsa ağırlık dağılımı ölçülür ama "Teyit edilmedi" kalır.
+/// </summary>
 public sealed record YerlesimAyarlari(
     int YerlesimBosluguMm,
     int? YukseklikPayiMm,
     int? GenislikPayiMm,
     int? UzunlukPayiMm,
     int? AgirlikPayiKg,
-    int? YuklemeHareketiPayiMm);
+    int? YuklemeHareketiPayiMm,
+    int? AgirlikMerkeziSapmaYuzde = null);
 
 /// <summary>
 /// Onaylı mevzuat kural setinden gelen yasal sınırlar. Onaylı set yoksa null verilir ve yasal kontroller "Teyit

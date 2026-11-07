@@ -43,11 +43,43 @@ public sealed class YuklemePlaniElleKaydetCommand : IRequest<Result<YuklemePlani
     public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
 }
 
-/// <summary>Elle yerleşim denetle/kaydet işleyicileri; denetim ve kayıt servistedir (istemci ölçü/ağırlık göndermez).</summary>
+/// <summary>
+/// "Kalanı otomatik diz": araçlardaki yükler sabit kalır, konmamış yükler yerleştirilir; sonuç denetlenip döner,
+/// kaydedilmez (durum değiştirmez). Düzenleme ekranına ait olduğu için yukleme-planlari W ister.
+/// </summary>
+public sealed class YuklemePlaniElleTamamlaQuery : IRequest<Result<PlanYerlesimi>>, ISecuredRequest, IRequiresMenuPermission, IElleYerlesimIstegi
+{
+    [JsonIgnore]
+    public int PlanId { get; set; }
+
+    public List<ElleAracDto> Araclar { get; set; } = [];
+
+    public string RequiredMenuKod => YetkiKodlari.YuklemePlanlama.Planlar;
+    public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
+}
+
+/// <summary>Elle yerleşimde eklenebilecek ekipmanlar (araç ekleme seçicisi); düzenleme ekranına ait, W ister.</summary>
+public sealed class YuklemePlaniElleEkipmanlariQuery : IRequest<Result<IReadOnlyList<ElleEkipmanSecenegi>>>, ISecuredRequest, IRequiresMenuPermission
+{
+    public int PlanId { get; set; }
+
+    public string RequiredMenuKod => YetkiKodlari.YuklemePlanlama.Planlar;
+    public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
+}
+
+/// <summary>Elle yerleşim işleyicileri; denetim, tamamlama ve kayıt servistedir (istemci ölçü/ağırlık göndermez).</summary>
 public sealed class YuklemePlaniElleHandlers(IYuklemePlaniService service, ICurrentUserService currentUser) :
     IRequestHandler<YuklemePlaniElleDenetleQuery, Result<PlanYerlesimi>>,
-    IRequestHandler<YuklemePlaniElleKaydetCommand, Result<YuklemePlaniDetayi>>
+    IRequestHandler<YuklemePlaniElleKaydetCommand, Result<YuklemePlaniDetayi>>,
+    IRequestHandler<YuklemePlaniElleTamamlaQuery, Result<PlanYerlesimi>>,
+    IRequestHandler<YuklemePlaniElleEkipmanlariQuery, Result<IReadOnlyList<ElleEkipmanSecenegi>>>
 {
+    public async Task<Result<PlanYerlesimi>> Handle(YuklemePlaniElleTamamlaQuery request, CancellationToken cancellationToken) =>
+        Result<PlanYerlesimi>.Success(await service.ElleTamamlaAsync(request.PlanId, request.Araclar.Select(a => a.Model()).ToList(), cancellationToken));
+
+    public async Task<Result<IReadOnlyList<ElleEkipmanSecenegi>>> Handle(YuklemePlaniElleEkipmanlariQuery request, CancellationToken cancellationToken) =>
+        Result<IReadOnlyList<ElleEkipmanSecenegi>>.Success(await service.ElleEkipmanlariAsync(request.PlanId, cancellationToken));
+
     public async Task<Result<PlanYerlesimi>> Handle(YuklemePlaniElleDenetleQuery request, CancellationToken cancellationToken) =>
         Result<PlanYerlesimi>.Success(await service.ElleDenetleAsync(request.PlanId, request.Araclar.Select(a => a.Model()).ToList(), cancellationToken));
 

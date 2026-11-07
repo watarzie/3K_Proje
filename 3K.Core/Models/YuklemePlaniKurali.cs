@@ -30,6 +30,9 @@ public static class YuklemePlaniKurali
     public const int GuvenlikPayiEnFazlaMm = 1000;
     public const int AgirlikPayiEnFazlaKg = 10_000;
 
+    /// <summary>Ağırlık merkezi sapma sınırının üst değeri (araç boyu/genişliğinin yüzdesi).</summary>
+    public const int AgirlikMerkeziSapmaEnFazlaYuzde = 50;
+
     /// <summary>Plana gelen sandık: sevk edilmemiş olan (sevk sonrası düzeltmedeki sandık da sevk edilmiş sayılır).</summary>
     public static bool PlanaGelirMi(int sandikDurumId) => sandikDurumId != (int)SandikDurum.Sevkedildi;
 
@@ -70,7 +73,8 @@ public static class YuklemePlaniKurali
         PayGecerli(ayarlar.GenislikPayiMm, GuvenlikPayiEnFazlaMm) &&
         PayGecerli(ayarlar.UzunlukPayiMm, GuvenlikPayiEnFazlaMm) &&
         PayGecerli(ayarlar.YuklemeHareketiPayiMm, GuvenlikPayiEnFazlaMm) &&
-        PayGecerli(ayarlar.AgirlikPayiKg, AgirlikPayiEnFazlaKg);
+        PayGecerli(ayarlar.AgirlikPayiKg, AgirlikPayiEnFazlaKg) &&
+        ayarlar.AgirlikMerkeziSapmaYuzde is null or (>= 1 and <= AgirlikMerkeziSapmaEnFazlaYuzde);
 
     /// <summary>Elle yerleşimde en fazla araç ve koordinat sınırı (mm, ekipman ölçüsünün çok dışı reddedilir).</summary>
     public const int ElleAracEnFazla = 200;
@@ -120,6 +124,12 @@ public sealed record YuklemePlanAyarlari
     public int? UzunlukPayiMm { get; init; }
     public int? AgirlikPayiKg { get; init; }
     public int? YuklemeHareketiPayiMm { get; init; }
+
+    /// <summary>
+    /// Yük ağırlık merkezinin araç ortasından izin verilen en fazla sapması (araç boyunun ve genişliğinin yüzdesi, 1–50).
+    /// Boşsa ağırlık dağılımı ölçülür ama "Teyit edilmedi" kalır; sayı işletmeyle kesinleşir.
+    /// </summary>
+    public int? AgirlikMerkeziSapmaYuzde { get; init; }
 
     /// <summary>Mevcut araçlara yerleştirmede kullanıcının verdiği araçlar (konfigürasyon ve adet); diğer biçimde boştur.</summary>
     public IReadOnlyList<PlanMevcutArac> MevcutAraclar { get; init; } = [];

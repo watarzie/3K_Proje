@@ -4,6 +4,7 @@ using _3K.Core.Enums;
 using _3K.Core.Exceptions;
 using _3K.Core.Helpers;
 using _3K.Core.Models;
+using _3K.YuklemeMotoru.Ekipman;
 using _3K.YuklemeMotoru.Yerlesim;
 
 namespace _3K.Infrastructure.Services.YuklemePlanlama;
@@ -25,6 +26,40 @@ internal sealed partial class YuklemePlaniService
         return (await YerlesimAsync(plan, revizyon, sonuc, cancellationToken, TurkeyTime.Now))!;
     }
 
+    public async Task<PlanYerlesimi> ElleTamamlaAsync(int planId, IReadOnlyList<ElleAracModeli> araclar, CancellationToken cancellationToken)
+    {
+        var plan = await context.YuklemePlanlari.AsNoTracking().Include(p => p.TasimaAilesi).SingleOrDefaultAsync(p => p.Id == planId, cancellationToken)
+                   ?? throw new KayitBulunamadiException(PlanBulunamadi);
+        var revizyon = await RevizyonAsync(plan.Id, plan.SonRevizyonNo, cancellationToken);
+        var girdi = await ElleGirdisiAsync(plan, revizyon, araclar, cancellationToken);
+        var tamam = YerlesimMotoru.ElleTamamla(girdi, ElleAraclari(araclar), cancellationToken);
+        var sonuc = Sonuclandir(plan, revizyon, ElleYerlesimDenetimi.Denetle(girdi, tamam));
+        // Tamamlama kaydedilmez; kullanıcı düzenleyip kaydeder.
+        return (await YerlesimAsync(plan, revizyon, sonuc, cancellationToken, TurkeyTime.Now))!;
+    }
+
+    public async Task<IReadOnlyList<ElleEkipmanSecenegi>> ElleEkipmanlariAsync(int planId, CancellationToken cancellationToken)
+    {
+        var plan = await context.YuklemePlanlari.AsNoTracking().SingleOrDefaultAsync(p => p.Id == planId, cancellationToken)
+                   ?? throw new KayitBulunamadiException(PlanBulunamadi);
+        var revizyon = await RevizyonAsync(plan.Id, plan.SonRevizyonNo, cancellationToken);
+        return (await ElleAdaylariAsync(plan, revizyon, cancellationToken))
+            .Where(a => a.TeknikVeri.Yuzeyler.Count > 0)
+            .OrderBy(a => !a.AileIci).ThenBy(a => a.Kod, StringComparer.Create(Tr, ignoreCase: false))
+            .Select(a => new ElleEkipmanSecenegi
+            {
+                KonfigurasyonId = a.KonfigurasyonId,
+                Kod = a.Kod,
+                Ad = a.Ad,
+                TipAdi = a.TipAdi,
+                AileAdi = a.AileAdi,
+                AileDisi = !a.AileIci,
+                OzelYukEkipmani = a.OzelYukEkipmani,
+                Dogrulandi = a.Dogrulandi,
+                TeknikVeriJson = EkipmanTeknikVeriSerilestirici.Yaz(a.TeknikVeri)
+            }).ToList();
+    }
+
     public async Task<YuklemePlaniDetayi> ElleKaydetAsync(ElleYerlesimModeli model, int? kullaniciId, CancellationToken cancellationToken)
     {
         var plan = await context.YuklemePlanlari.Include(p => p.TasimaAilesi).SingleOrDefaultAsync(p => p.Id == model.PlanId, cancellationToken)
@@ -41,13 +76,40 @@ internal sealed partial class YuklemePlaniService
         return (await PlanGetirAsync(plan.Id, cancellationToken))!;
     }
 
-    /// <summary>
-    /// Elle yerleşimin motor girdisi ve denetimi: yükler son revizyonun planlamaya dahil ve verisi tam satırlarıdır;
-    /// planda olmayan ya da tekrarlanan yük ve kullanılamayan ekipman reddedilir (400). Kullanılabilir ekipman: plan
-    /// ailesinin ve özel yük ekipmanının aktif konfigürasyonları, ayrıca mevcut araç listesindeki ya da son yerleşimde
-    /// kullanılmış (otomatik seçilmiş) konfigürasyonlar; yükleme yüzeyi olmayan ekipman kullanılamaz.
-    /// </summary>
+    /// <summary>Elle yerleşimin denetimi (denetleme ve kaydetme); girdi <see cref="ElleGirdisiAsync"/> ile kurulur.</summary>
     private async Task<YerlesimSonucu> ElleSonucAsync(
+        YuklemePlani plan, YuklemePlanRevizyonu revizyon, IReadOnlyList<ElleAracModeli> araclar, CancellationToken cancellationToken)
+    {
+        var girdi = await ElleGirdisiAsync(plan, revizyon, araclar, cancellationToken);
+        return Sonuclandir(plan, revizyon, ElleYerlesimDenetimi.Denetle(girdi, ElleAraclari(araclar)));
+    }
+
+    private static List<ElleArac> ElleAraclari(IReadOnlyList<ElleAracModeli> araclar) =>
+        araclar.Select(a => new ElleArac(a.KonfigurasyonId, a.Konumlar.Select(k => new ElleKonum(k.YukAnahtari, k.XMm, k.YMm, k.ZMm, k.Donduruldu)).ToList()))
+            .ToList();
+
+    /// <summary>Mevcut araçlara yerleştirmede filo aşımı uyarısı eklenir.</summary>
+    private YerlesimSonucu Sonuclandir(YuklemePlani plan, YuklemePlanRevizyonu revizyon, YerlesimSonucu sonuc) =>
+        plan.CalismaBicimi == YuklemeCalismaBicimi.MevcutAraclaraYerlestirme ? FiloAsimi(sonuc, Ayarlar(revizyon).MevcutAraclar) : sonuc;
+
+    /// <summary>
+    /// Elle yerleşimde kullanılabilir ekipman: plan ailesinin ve özel yük ekipmanının aktif konfigürasyonları, ayrıca
+    /// mevcut araç listesindeki ya da son yerleşimde kullanılmış (otomatik seçilmiş) konfigürasyonlar.
+    /// </summary>
+    private async Task<List<EkipmanAdayi>> ElleAdaylariAsync(YuklemePlani plan, YuklemePlanRevizyonu revizyon, CancellationToken cancellationToken)
+    {
+        var izinliDisarida = Ayarlar(revizyon).MevcutAraclar.Select(m => m.KonfigurasyonId)
+            .Concat(YerlesimSerilestirici.Oku(revizyon.YerlesimJson)?.Araclar.Select(a => a.KonfigurasyonId) ?? [])
+            .Distinct().ToList();
+        return await AdaylarAsync(plan.TasimaAilesiId, izinliDisarida, cancellationToken);
+    }
+
+    /// <summary>
+    /// Elle yerleşimin motor girdisi: yükler son revizyonun planlamaya dahil ve verisi tam satırlarıdır; planda olmayan
+    /// ya da tekrarlanan yük ve kullanılamayan ekipman (bkz. <see cref="ElleAdaylariAsync"/>; yükleme yüzeyi olmayan
+    /// ekipman kullanılamaz) reddedilir (400).
+    /// </summary>
+    private async Task<YerlesimGirdisi> ElleGirdisiAsync(
         YuklemePlani plan, YuklemePlanRevizyonu revizyon, IReadOnlyList<ElleAracModeli> araclar, CancellationToken cancellationToken)
     {
         var ayarlar = Ayarlar(revizyon);
@@ -66,27 +128,20 @@ internal sealed partial class YuklemePlaniService
             throw new IsKuraliException(YuklemePlaniKurali.ElleYukGecersizMesaji);
 
         var konfIdleri = araclar.Select(a => a.KonfigurasyonId).Distinct().ToList();
-        var izinliDisarida = ayarlar.MevcutAraclar.Select(m => m.KonfigurasyonId)
-            .Concat(YerlesimSerilestirici.Oku(revizyon.YerlesimJson)?.Araclar.Select(a => a.KonfigurasyonId) ?? [])
-            .Distinct().ToList();
-        var adaylar = await AdaylarAsync(plan.TasimaAilesiId, izinliDisarida, cancellationToken);
+        var adaylar = await ElleAdaylariAsync(plan, revizyon, cancellationToken);
         if (konfIdleri.Any(id => adaylar.All(a => a.KonfigurasyonId != id || a.TeknikVeri.Yuzeyler.Count == 0)))
             throw new IsKuraliException(YuklemePlaniKurali.ElleEkipmanGecersizMesaji);
 
-        var girdi = new YerlesimGirdisi(
+        return new YerlesimGirdisi(
             yukler,
             adaylar,
             new YerlesimAyarlari(ayarlar.YerlesimBosluguMm, ayarlar.YukseklikPayiMm, ayarlar.GenislikPayiMm, ayarlar.UzunlukPayiMm,
-                ayarlar.AgirlikPayiKg, ayarlar.YuklemeHareketiPayiMm),
+                ayarlar.AgirlikPayiKg, ayarlar.YuklemeHareketiPayiMm, ayarlar.AgirlikMerkeziSapmaYuzde),
             plan.ProjeKarisimi == YuklemeProjeKarisimi.ProjeBazindaAyri,
             plan.LokasyonTercihi == YuklemeLokasyonTercihi.LokasyonaGoreAyri,
             null,
             await YasalSinirlarAsync(cancellationToken),
             plan.TasimaAilesi.Ad);
-        var sonuc = ElleYerlesimDenetimi.Denetle(girdi, araclar
-            .Select(a => new ElleArac(a.KonfigurasyonId, a.Konumlar.Select(k => new ElleKonum(k.YukAnahtari, k.XMm, k.YMm, k.ZMm, k.Donduruldu)).ToList()))
-            .ToList());
-        return plan.CalismaBicimi == YuklemeCalismaBicimi.MevcutAraclaraYerlestirme ? FiloAsimi(sonuc, ayarlar.MevcutAraclar) : sonuc;
     }
 
     /// <summary>

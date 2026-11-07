@@ -46,5 +46,14 @@ public interface IYuklemePlaniService
     /// </summary>
     Task<YuklemePlaniDetayi> ElleKaydetAsync(ElleYerlesimModeli model, int? kullaniciId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// "Kalanı otomatik diz": verilen araçlardaki yükler yerinde kalır, araçlara konmamış yükler boşluklara ve gerekirse
+    /// yeni araçlara yerleşir; sonuç denetlenip döner, kaydedilmez.
+    /// </summary>
+    Task<PlanYerlesimi> ElleTamamlaAsync(int planId, IReadOnlyList<ElleAracModeli> araclar, CancellationToken cancellationToken);
+
+    /// <summary>Elle yerleşimde eklenebilecek ekipmanlar (teknik verisiyle).</summary>
+    Task<IReadOnlyList<ElleEkipmanSecenegi>> ElleEkipmanlariAsync(int planId, CancellationToken cancellationToken);
+
     Task<YuklemePlaniDetayi> HesaplaAsync(int planId, int beklenenRevizyonNo, YuklemeLokasyonTercihi lokasyonTercihi, int? kullaniciId, CancellationToken cancellationToken);
 }

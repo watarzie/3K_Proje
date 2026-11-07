@@ -3,11 +3,14 @@ using _3K.YuklemeMotoru.Ekipman;
 namespace _3K.YuklemeMotoru.Yerlesim;
 
 /// <summary>
-/// Tek aracın yerleşimi. Yükler yükleme yüzeylerinde önden arkaya sıralara (enine yan yana) dizilir; istif, alttaki
-/// yükün üst yüzeyine tamamen oturan yükle kurulur (köprüleme ve taşma yok: destek ölçütü işletmeyle kesinleşmedi).
-/// İstif dışarıda hazırlanmış grup sayılır ve bütün hâlinde giriş açıklığından geçmelidir (isterler 14). Üst ve yan
-/// açıklıkta grup, açıklığın boyuna aralığında olmalıdır (isterler 15). Sıralar sonunda enine ortalanır (isterler 16).
-/// Yükseklik sınırı bilinmeyen yüzeyde istif yapılmaz.
+/// Tek aracın yerleşimi. Yükler yükleme yüzeyinde "uç nokta" yöntemiyle yerleşir: yüzeyin ön-sol köşesi ve yerleşmiş
+/// her yükün arkası ve yanı aday konumdur; yük en öndeki, sonra en soldaki uygun konuma (iki yönüyle denenir) konur.
+/// Böylece kısa yükün arkasında kalan boşluk da kullanılır. Önce kullanılmış boy içinde taban, sonra istif, en son
+/// boyu uzatan taban denenir. İstif, alttaki yükün üst yüzeyine tamamen oturan yükle kurulur (köprüleme ve taşma yok:
+/// destek ölçütü işletmeyle kesinleşmedi). İstif dışarıda hazırlanmış grup sayılır ve bütün hâlinde giriş açıklığından
+/// geçmelidir (isterler 14). Üst ve yan açıklıkta grup, açıklığın boyuna aralığında olmalıdır (isterler 15). Boyuna
+/// örtüşen yükler öbek olarak enine ortalanır (isterler 16); dingilli araçta yük bloğu dingil ve king-pin dengesine göre
+/// boyuna kaydırılır. Elle konmuş (sabit) yük ortalanmaz ve kaydırılmaz. Yükseklik sınırı bilinmeyen yüzeyde istif yapılmaz.
 /// </summary>
 internal sealed class AracYerlesimi
 {
@@ -70,12 +73,42 @@ internal sealed class AracYerlesimi
             y.KullanilabilirYukseklikMm is { } i2 ? i2 - yp : null, sinir);
     }
 
-    /// <summary>Yükü bu araca ekler (yerdeki sırada, istifin üstünde ya da yeni sırada). Sığmazsa false.</summary>
+    /// <summary>
+    /// Yükü bu araca ekler: kullanılmış boy içinde tabana, olmazsa bir istifin üstüne, olmazsa boyu uzatarak tabana.
+    /// Sığmazsa false.
+    /// </summary>
     public bool Ekle(YerlesimYuku yuk)
     {
         if (!AgirlikUygun(yuk))
             return false;
-        return SiradaYerlestir(yuk) || IstifeYerlestir(yuk) || YeniSirayaYerlestir(yuk);
+        if (TabanYeri(yuk, kullanilanBoyda: true) is { } ici)
+        {
+            TabanaKoy(ici, yuk);
+            return true;
+        }
+        if (IstifeYerlestir(yuk))
+            return true;
+        if (TabanYeri(yuk, kullanilanBoyda: false) is { } yeni)
+        {
+            TabanaKoy(yeni, yuk);
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Boyuna sapma oranı: yükün ağırlık merkezinin aracın boyuna ortasından uzaklığı / araç boyu (0 = ortada). Aynı
+    /// araç sayısı veren denemeler arasında dengeli olanı seçmek için.
+    /// </summary>
+    public decimal BoyunaSapma
+    {
+        get
+        {
+            if (ToplamKg <= 0 || DisUzunluk <= 0)
+                return 0;
+            var moment = Istifler.SelectMany(i => i.Katlar.Select(k => k.Yuk.BrutKg * (i.X + k.XOfs + k.Boy / 2m))).Sum();
+            return Math.Abs(moment / ToplamKg - DisUzunluk / 2m) / DisUzunluk;
+        }
     }
 
     /// <summary>Boş araçta yükün neden sığmadığı (yerleşemeyen yük açıklaması); sığıyorsa null.</summary>
@@ -134,7 +167,8 @@ internal sealed class AracYerlesimi
             var yKonum = DisGenislik / 2 - en / 2;
             if (DengeliX(yuzey, boy, en, yKonum, yuk) is not { } x)
                 continue;
-            var istif = new Istif(yuzey, null, x, yKonum, GirisYonu.Yandan);
+            // Özel yükün üstüne yük konmaz (destek ve bağlama şartları tanımlı değil).
+            var istif = new Istif(yuzey, x, yKonum, GirisYonu.Yandan) { UstuneAcik = false };
             istif.Katlar.Add(new Katman(yuk, boy, en, boy != yuk.BoyMm, 0, 0, 0));
             Istifler.Add(istif);
             ToplamKg += yuk.BrutKg;
@@ -196,89 +230,98 @@ internal sealed class AracYerlesimi
             yield return (yuk.EnMm, yuk.BoyMm);
     }
 
-    private bool SiradaYerlestir(YerlesimYuku yuk)
+    /// <summary>Tabanda bir yükün yeri: yüzey, konum, yerleşik ölçü ve giriş yönü.</summary>
+    private sealed record TabanAdayi(Yuzey Yuzey, int X, int Y, int Boy, int En, GirisYonu Giris);
+
+    /// <summary>
+    /// Tabanda en öndeki, sonra en soldaki uygun konum (yüzeyler önden arkaya; ilk uygun yüzey). Eşit konumda kısa kenarı
+    /// boyuna olan yön seçilir (arkaya daha çok yük sığar). <paramref name="kullanilanBoyda"/> ise yük yüzeyde zaten
+    /// kullanılan boyun ötesine taşmamalıdır (boş yüzey atlanır).
+    /// </summary>
+    private TabanAdayi? TabanYeri(YerlesimYuku yuk, bool kullanilanBoyda)
     {
-        foreach (var y in yuzeyler)
+        foreach (var yuzey in yuzeyler)
         {
-            if (y.IcYukseklik is { } ic && yuk.YukseklikMm > ic)
+            if (yuzey.IcYukseklik is { } ic && yuk.YukseklikMm > ic)
                 continue;
-            foreach (var sira in y.Siralar)
+            var buradakiler = Istifler.Where(i => i.Yuzey == yuzey).ToList();
+            if (kullanilanBoyda && buradakiler.Count == 0)
+                continue;
+            var kullanilanSon = buradakiler.Count == 0 ? int.MaxValue : buradakiler.Max(i => i.X + i.Katlar[0].Boy);
+            var noktalar = Noktalar(yuzey, buradakiler);
+            TabanAdayi? enIyi = null;
+            foreach (var (boy, en) in Yonler(yuk))
             {
-                foreach (var (boy, en) in Yonler(yuk))
+                foreach (var (x, y) in noktalar)
                 {
-                    if (boy > sira.Derinlik)
+                    if (enIyi is { } e && (x > e.X || (x == e.X && (y > e.Y || (y == e.Y && boy >= e.Boy)))))
+                        break;
+                    if (kullanilanBoyda && x + boy > kullanilanSon)
                         continue;
-                    var yKonum = sira.Istifler.Count == 0 ? y.YBas + kenar : sira.SonY + ayar.YerlesimBosluguMm;
-                    if (yKonum + en + kenar > y.YBas + y.Genislik)
+                    if (!Sigar(yuzey, x, y, boy, en, yuk.YukseklikMm))
                         continue;
-                    if (Yerlestir(y, sira, sira.XBas, yKonum, boy, en, yuk))
-                        return true;
+                    var giris = Giris(boy, en, yuk.YukseklikMm, x, bayrakKur: false);
+                    if (giris == GirisYonu.Yok)
+                        continue;
+                    enIyi = new TabanAdayi(yuzey, x, y, boy, en, giris);
+                    break;
                 }
             }
+            if (enIyi != null)
+                return enIyi;
         }
-        return false;
+        return null;
     }
 
-    private bool YeniSirayaYerlestir(YerlesimYuku yuk)
+    /// <summary>
+    /// Aday konumlar (önden arkaya, soldan sağa sıralı): yüzeyin ön-sol köşesi; yerleşmiş her tabanın arkası, yanı ve
+    /// arkasının sol kenarı; sökülemeyen engelin arkası ve yanı; üst/yan açıklığın başlangıcı (giriş yalnız oradan olabilir).
+    /// </summary>
+    private List<(int X, int Y)> Noktalar(Yuzey yuzey, List<Istif> buradakiler)
     {
-        var up = ayar.UzunlukPayiMm ?? 0;
-        foreach (var y in yuzeyler)
+        var g = ayar.YerlesimBosluguMm;
+        var x0 = yuzey.XBas + kenar;
+        var y0 = yuzey.YBas + kenar;
+        var noktalar = new HashSet<(int X, int Y)> { (x0, y0) };
+        foreach (var i in buradakiler)
         {
-            if (y.IcYukseklik is { } ic && yuk.YukseklikMm > ic)
-                continue;
-            var sonSira = y.Siralar.LastOrDefault();
-            var ilkX = sonSira == null ? y.XBas + kenar : sonSira.XBas + sonSira.Derinlik + ayar.YerlesimBosluguMm;
-            // Kısa kenar boyuna: sıra derinliği az olur, arkaya daha çok sıra sığar.
-            foreach (var (boy, en) in Yonler(yuk).OrderBy(o => o.Boy))
-            {
-                var yKonum = y.YBas + kenar;
-                if (yKonum + en + kenar > y.YBas + y.Genislik)
-                    continue;
-                var x = ilkX;
-                for (var deneme = 0; deneme < 20; deneme++)
-                {
-                    if (x + boy + up + kenar > y.XBas + y.Uzunluk)
-                        break;
-                    var kutu = new Kutu(x, yKonum, y.Z, boy, en, yuk.YukseklikMm);
-                    var engel = engeller.FirstOrDefault(e => e.Kesisir(kutu, ayar.YerlesimBosluguMm));
-                    if (engel != null)
-                    {
-                        x = engel.X + engel.U + ayar.YerlesimBosluguMm;
-                        continue;
-                    }
-                    var sira = new Sira(x, boy);
-                    if (Yerlestir(y, sira, x, yKonum, boy, en, yuk))
-                    {
-                        y.Siralar.Add(sira);
-                        return true;
-                    }
-                    // Giriş yalnız açıklığın boyuna aralığından olabiliyorsa sıra açıklığın başına kaydırılır.
-                    var aciklikBasi = Aday.TeknikVeri.Acikliklar
-                        .Where(a => a.Taraf is AciklikTarafi.Ust or AciklikTarafi.Sol or AciklikTarafi.Sag && a.BaslangicXMm > x)
-                        .Select(a => a.BaslangicXMm!.Value).DefaultIfEmpty(-1).Min();
-                    if (aciklikBasi < 0)
-                        break;
-                    x = aciklikBasi;
-                }
-            }
+            var taban = i.Katlar[0];
+            noktalar.Add((i.X + taban.Boy + g, i.Y));
+            noktalar.Add((i.X + taban.Boy + g, y0));
+            noktalar.Add((i.X, i.Y + taban.En + g));
         }
-        return false;
+        foreach (var e in engeller.Where(e => e.X < yuzey.XBas + yuzey.Uzunluk && e.X + e.U > yuzey.XBas))
+        {
+            noktalar.Add((e.X + e.U + g, y0));
+            noktalar.Add((Math.Max(x0, e.X), e.Y + e.G + g));
+        }
+        foreach (var a in Aday.TeknikVeri.Acikliklar.Where(a => (a.Taraf is AciklikTarafi.Ust or AciklikTarafi.Sol or AciklikTarafi.Sag) && a.BaslangicXMm != null))
+            if (a.BaslangicXMm!.Value > x0 && a.BaslangicXMm.Value < yuzey.XBas + yuzey.Uzunluk)
+                noktalar.Add((a.BaslangicXMm.Value, y0));
+        return noktalar.OrderBy(n => n.X).ThenBy(n => n.Y).ToList();
     }
 
-    private bool Yerlestir(Yuzey y, Sira sira, int x, int yKonum, int boy, int en, YerlesimYuku yuk)
+    /// <summary>
+    /// Konum yüzeyde (kenar boşluğu ve arkada uzunluk payıyla) kalıyor, sökülemeyen engelle ve araçtaki bütün yüklerle
+    /// (elle konan yük komşu yüzeye taşabilir) yerleşim boşluğundan az mesafeye girmiyor mu.
+    /// </summary>
+    private bool Sigar(Yuzey yuzey, int x, int y, int boy, int en, int yukseklik)
     {
-        var kutu = new Kutu(x, yKonum, y.Z, boy, en, yuk.YukseklikMm);
-        if (engeller.Any(e => e.Kesisir(kutu, ayar.YerlesimBosluguMm)))
+        if (x < yuzey.XBas + kenar || y < yuzey.YBas + kenar ||
+            x + boy + (ayar.UzunlukPayiMm ?? 0) + kenar > yuzey.XBas + yuzey.Uzunluk || y + en + kenar > yuzey.YBas + yuzey.Genislik)
             return false;
-        var giris = Giris(boy, en, yuk.YukseklikMm, x);
-        if (giris == GirisYonu.Yok)
-            return false;
-        var istif = new Istif(y, sira, x, yKonum, giris);
-        istif.Katlar.Add(new Katman(yuk, boy, en, boy != yuk.BoyMm, 0, 0, 0));
-        sira.Istifler.Add(istif);
+        var kutu = new Kutu(x, y, yuzey.Z, boy, en, yukseklik);
+        var g = ayar.YerlesimBosluguMm;
+        return !engeller.Any(e => e.Kesisir(kutu, g)) && !Istifler.SelectMany(i => i.Kutular()).Any(k => k.Kesisir(kutu, g));
+    }
+
+    private void TabanaKoy(TabanAdayi t, YerlesimYuku yuk)
+    {
+        // Giriş seçilen konumda bayraklarıyla (kapı/yan ölçüsü bilinmiyor) yeniden değerlendirilir.
+        var istif = new Istif(t.Yuzey, t.X, t.Y, Giris(t.Boy, t.En, yuk.YukseklikMm, t.X));
+        istif.Katlar.Add(new Katman(yuk, t.Boy, t.En, t.Boy != yuk.BoyMm, 0, 0, 0));
         Istifler.Add(istif);
         ToplamKg += yuk.BrutKg;
-        return true;
     }
 
     private bool IstifeYerlestir(YerlesimYuku yuk)
@@ -287,7 +330,8 @@ internal sealed class AracYerlesimi
             return false;
         foreach (var istif in Istifler)
         {
-            if (istif.Sira == null)
+            // Tabanı yüzeyde olmayan (elle konmuş desteksiz ya da köprü) istifin üstüne yük konmaz.
+            if (!istif.UstuneAcik || istif.Katlar[0].Z > ElleTolerans)
                 continue;
             var ust = istif.Katlar[^1];
             if (!ust.Yuk.AltaKalabilir)
@@ -297,7 +341,9 @@ internal sealed class AracYerlesimi
                 IstifSiniriBilinmiyor = true;
                 continue;
             }
-            var yeniYukseklik = istif.Yukseklik + yuk.YukseklikMm;
+            // Üst kot gerçek konumdan: elle istifte katlar arasında sapma olabilir.
+            var ustKot = ust.Z + ust.Yuk.YukseklikMm;
+            var yeniYukseklik = ustKot + yuk.YukseklikMm;
             if (yeniYukseklik > sinir)
                 continue;
             if (!UstYukUygun(istif, yuk.BrutKg))
@@ -308,16 +354,18 @@ internal sealed class AracYerlesimi
                     continue;
                 var xo = ust.XOfs + (ust.Boy - boy) / 2;
                 var yo = ust.YOfs + (ust.En - en) / 2;
-                var kutu = new Kutu(istif.X + xo, istif.Y + yo, istif.Yuzey.Z + istif.Yukseklik, boy, en, yuk.YukseklikMm);
-                if (engeller.Any(e => e.Kesisir(kutu, ayar.YerlesimBosluguMm)))
+                var kutu = new Kutu(istif.X + xo, istif.Y + yo, istif.Yuzey.Z + ustKot, boy, en, yuk.YukseklikMm);
+                var g = ayar.YerlesimBosluguMm;
+                // Engel ve başka istifler (elle konan köprü yük alttakinin üstünü kaplayabilir) ile çakışmamalı.
+                if (engeller.Any(e => e.Kesisir(kutu, g)) ||
+                    Istifler.Where(i => i != istif).SelectMany(i => i.Kutular()).Any(k => k.Kesisir(kutu, g)))
                     continue;
                 // İstif dışarıda hazırlanır ve bütün hâlinde girer: taban ölçüsü ve yeni toplam yükseklik açıklıktan geçmeli.
                 var taban = istif.Katlar[0];
-                var giris = Giris(taban.Boy, taban.En, yeniYukseklik, istif.X);
-                if (giris == GirisYonu.Yok)
+                if (Giris(taban.Boy, taban.En, yeniYukseklik, istif.X, bayrakKur: false) == GirisYonu.Yok)
                     continue;
-                istif.Katlar.Add(new Katman(yuk, boy, en, boy != yuk.BoyMm, xo, yo, istif.Yukseklik));
-                istif.Yontem = giris;
+                istif.Katlar.Add(new Katman(yuk, boy, en, boy != yuk.BoyMm, xo, yo, ustKot));
+                istif.Yontem = Giris(taban.Boy, taban.En, yeniYukseklik, istif.X);
                 ToplamKg += yuk.BrutKg;
                 return true;
             }
@@ -347,8 +395,10 @@ internal sealed class AracYerlesimi
     /// Grubun (tek yük ya da istif) giriş yolu: arkadan kapıdan, olmuyorsa üst açıklıktan, sonra yandan. Arka kapı ya da
     /// duvarlı gövdenin yan açıklık ölçüsü bilinmeden giriş kabul edilir ama kontrol "Teyit edilmedi" olur. Konum
     /// (<paramref name="x"/>) verilirse üst ve yan açıklıkta grup açıklığın boyuna aralığında olmalıdır.
+    /// <paramref name="bayrakKur"/> false ise (aday denemesi) "ölçü bilinmiyor" bayrakları kurulmaz; bayrak yalnız seçilen
+    /// konumda kurulur, seçilmeyen deneme kontrolü "Teyit edilmedi"ye çekmez.
     /// </summary>
-    internal GirisYonu Giris(int boy, int en, int yukseklik, int? x = null)
+    internal GirisYonu Giris(int boy, int en, int yukseklik, int? x = null, bool bayrakKur = true)
     {
         var hp = ayar.YuklemeHareketiPayiMm ?? 0;
         var acikliklar = Aday.TeknikVeri.Acikliklar;
@@ -378,20 +428,21 @@ internal sealed class AracYerlesimi
             if (yan.Count == 0)
             {
                 // Açık platformda yan açıklık sınırı yoktur; duvarlı (tenteli) gövdede ölçü bilinmeden kabul teyit ister.
-                if (Aday.Duvarli)
+                if (Aday.Duvarli && bayrakKur)
                     YanBilinmiyor = true;
                 return GirisYonu.Yandan;
             }
             if (yan.Any(a => (a.YukseklikMm == null || yukseklik + hp <= a.YukseklikMm) && AralikIcinde(a, x, boy)))
             {
-                if (yan.All(a => a.YukseklikMm == null))
+                if (yan.All(a => a.YukseklikMm == null) && bayrakKur)
                     YanBilinmiyor = true;
                 return GirisYonu.Yandan;
             }
         }
         if (arkaBilinmiyor)
         {
-            KapiBilinmiyor = true;
+            if (bayrakKur)
+                KapiBilinmiyor = true;
             return GirisYonu.Arkadan;
         }
         return GirisYonu.Yok;
@@ -426,11 +477,12 @@ internal sealed class AracYerlesimi
 
     /// <summary>
     /// Elle yerleşimde bir istif (tabandaki yük ve üstüne oturanlar) ekler; konumlar mutlaktır, kontrol ayrıca yapılır.
+    /// İstif sabittir: ortalama ve dengeleme onu kaydırmaz ("kalanı otomatik diz" etrafına yerleştirir).
     /// </summary>
     internal void ElleIstifEkle(Yuzey yuzey, GirisYonu yontem, IReadOnlyList<(YerlesimYuku Yuk, int X, int Y, int Z, int Boy, int En, bool Donduruldu)> katlar)
     {
         var taban = katlar[0];
-        var istif = new Istif(yuzey, null, taban.X, taban.Y, yontem);
+        var istif = new Istif(yuzey, taban.X, taban.Y, yontem) { Sabit = true };
         foreach (var k in katlar)
         {
             istif.Katlar.Add(new Katman(k.Yuk, k.Boy, k.En, k.Donduruldu, k.X - taban.X, k.Y - taban.Y, k.Z - yuzey.Z));
@@ -439,25 +491,118 @@ internal sealed class AracYerlesimi
         Istifler.Add(istif);
     }
 
-    /// <summary>Sıraları enine ortalar (tek yük orta eksende; yan yana yükler grup olarak). Engel varsa sıra kaydırılmaz.</summary>
+    /// <summary>
+    /// Yüzeydeki istifleri boyuna örtüşen öbeklere ayırır (önden arkaya); bir öbek birlikte ortalanır. Öbekler boyuna
+    /// ayrık olduğu için birinin enine kaydırılması diğerine çarpmaz.
+    /// </summary>
+    private List<List<Istif>> Obekler(Yuzey yuzey)
+    {
+        var obekler = new List<List<Istif>>();
+        var obekSonu = int.MinValue;
+        foreach (var istif in Istifler.Where(i => i.Yuzey == yuzey).OrderBy(i => i.X))
+        {
+            if (obekler.Count == 0 || istif.X >= obekSonu)
+            {
+                obekler.Add([istif]);
+                obekSonu = istif.X + istif.Katlar[0].Boy;
+            }
+            else
+            {
+                obekler[^1].Add(istif);
+                obekSonu = Math.Max(obekSonu, istif.X + istif.Katlar[0].Boy);
+            }
+        }
+        return obekler;
+    }
+
+    /// <summary>
+    /// Öbekleri enine ortalar (tek yük orta eksende; yan yana yükler grup olarak). Engelle çakışacaksa ya da öbekte elle
+    /// konmuş (sabit) yük varsa öbek kaydırılmaz.
+    /// </summary>
     public void Ortala()
     {
-        foreach (var y in yuzeyler)
+        foreach (var yuzey in yuzeyler)
         {
-            foreach (var sira in y.Siralar)
+            foreach (var obek in Obekler(yuzey))
             {
-                if (sira.Istifler.Count == 0)
+                if (obek.Any(i => i.Sabit))
                     continue;
-                var sol = sira.Istifler.Min(i => i.Y);
-                var sag = sira.Istifler.Max(i => i.Y + i.Katlar[0].En);
-                var fark = y.YBas + (y.Genislik - (sag - sol)) / 2 - sol;
+                var sol = obek.Min(i => i.Y);
+                var sag = obek.Max(i => i.Y + i.Katlar[0].En);
+                var fark = yuzey.YBas + (yuzey.Genislik - (sag - sol)) / 2 - sol;
                 if (fark == 0)
                     continue;
-                var kesisir = sira.Istifler.SelectMany(i => i.Kutular(fark)).Any(k => engeller.Any(e => e.Kesisir(k, ayar.YerlesimBosluguMm)));
-                if (kesisir)
+                if (obek.SelectMany(i => i.Kutular(0, fark)).Any(k => engeller.Any(e => e.Kesisir(k, ayar.YerlesimBosluguMm))))
                     continue;
-                foreach (var istif in sira.Istifler)
+                foreach (var istif in obek)
                     istif.Y += fark;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Dingilli araçta yüzeydeki yük bloğu, boşta kalan boy içinde arkaya kaydırılarak dingil grubu ve king-pin kullanım
+    /// oranlarının büyüğü en aza indirilir (yalnız yükün payı; tek dingil grubu, dingil ve king-pin kapasitelerinin ikisi
+    /// de bilinmeli: biri bilinmezse amaç bütün yükü bilinmeyen tarafa yığar). Kayma engele çarpmamalı ve her grup
+    /// girişinden geçmeye devam etmelidir; giriş yönü kaymadan sonra yenilenir. Elle konmuş yük olan yüzey kaydırılmaz.
+    /// </summary>
+    public void Dengele()
+    {
+        var veri = Aday.TeknikVeri;
+        if (!Aday.Dingilli || veri.KingPin is not { } kp || veri.Dingiller.Count == 0 ||
+            veri.Dingiller.Select(d => d.GrupNo).Distinct().Count() > 1)
+            return;
+        var dingilKapasite = veri.Dingiller.All(d => d.KapasiteKg != null) ? veri.Dingiller.Sum(d => (decimal)d.KapasiteKg!.Value) : (decimal?)null;
+        var kpKapasite = (decimal?)kp.AzamiBaglantiYukuKg;
+        if (dingilKapasite is not > 0 || kpKapasite is not > 0)
+            return;
+        var dingilX = (decimal)veri.Dingiller.Average(d => d.XMm);
+        var g = ayar.YerlesimBosluguMm;
+
+        decimal Oran(IReadOnlyList<Istif> kayan, int d)
+        {
+            decimal dingil = 0, baglanti = 0;
+            foreach (var istif in Istifler)
+            {
+                var kay = kayan.Contains(istif) ? d : 0;
+                foreach (var k in istif.Katlar)
+                {
+                    var (dy, by) = Tepkiler(k.Yuk.BrutKg, istif.X + kay + k.XOfs + k.Boy / 2m, kp.XMm, dingilX);
+                    dingil += dy;
+                    baglanti += by;
+                }
+            }
+            return Math.Max(dingil / dingilKapasite.Value, baglanti / kpKapasite.Value);
+        }
+
+        foreach (var yuzey in yuzeyler)
+        {
+            var buradakiler = Istifler.Where(i => i.Yuzey == yuzey).ToList();
+            if (buradakiler.Count == 0 || buradakiler.Any(i => i.Sabit))
+                continue;
+            var bos = yuzey.XBas + yuzey.Uzunluk - kenar - (ayar.UzunlukPayiMm ?? 0) - buradakiler.Max(i => i.X + i.Katlar[0].Boy);
+            if (bos <= 0)
+                continue;
+            var enIyi = 0;
+            var enIyiOran = Oran(buradakiler, 0);
+            for (var d = Math.Min(50, bos); d <= bos; d = d == bos ? bos + 1 : Math.Min(d + 50, bos))
+            {
+                var oran = Oran(buradakiler, d);
+                if (oran >= enIyiOran)
+                    continue;
+                var gecerli = buradakiler.All(i =>
+                    !i.Kutular(d, 0).Any(k => engeller.Any(e => e.Kesisir(k, g))) &&
+                    Giris(i.Katlar[0].Boy, i.Katlar[0].En, i.Yukseklik, i.X + d, bayrakKur: false) != GirisYonu.Yok);
+                if (!gecerli)
+                    continue;
+                (enIyi, enIyiOran) = (d, oran);
+            }
+            if (enIyi == 0)
+                continue;
+            foreach (var istif in buradakiler)
+            {
+                istif.X += enIyi;
+                istif.Yontem = Giris(istif.Katlar[0].Boy, istif.Katlar[0].En, istif.Yukseklik, istif.X);
             }
         }
     }
@@ -480,31 +625,26 @@ internal sealed class AracYerlesimi
         return sonuc;
     }
 
-    internal sealed record Yuzey(string Kod, int XBas, int Uzunluk, int YBas, int Genislik, int Z, int? IcYukseklik, int? IstifSiniri)
-    {
-        public List<Sira> Siralar { get; } = [];
-    }
+    internal sealed record Yuzey(string Kod, int XBas, int Uzunluk, int YBas, int Genislik, int Z, int? IcYukseklik, int? IstifSiniri);
 
-    internal sealed class Sira(int xBas, int derinlik)
-    {
-        public int XBas { get; } = xBas;
-        public int Derinlik { get; } = derinlik;
-        public List<Istif> Istifler { get; } = [];
-        public int SonY => Istifler.Max(i => i.Y + i.Katlar[0].En);
-    }
-
-    internal sealed class Istif(Yuzey yuzey, Sira? sira, int x, int y, GirisYonu yontem)
+    internal sealed class Istif(Yuzey yuzey, int x, int y, GirisYonu yontem)
     {
         public Yuzey Yuzey { get; } = yuzey;
-        public Sira? Sira { get; } = sira;
-        public int X { get; } = x;
+        public int X { get; set; } = x;
         public int Y { get; set; } = y;
         public GirisYonu Yontem { get; set; } = yontem;
         public List<Katman> Katlar { get; } = [];
-        public int Yukseklik => Katlar.Sum(k => k.Yuk.YukseklikMm);
+        /// <summary>Tabandan en üst katın üstüne yükseklik (gerçek kotlardan; elle istifte katlar arası sapma olabilir).</summary>
+        public int Yukseklik => Katlar.Max(k => k.Z + k.Yuk.YukseklikMm) - Katlar[0].Z;
 
-        public IEnumerable<Kutu> Kutular(int yKaydir) =>
-            Katlar.Select(k => new Kutu(X + k.XOfs, Y + yKaydir + k.YOfs, Yuzey.Z + k.Z, k.Boy, k.En, k.Yuk.YukseklikMm));
+        /// <summary>Elle konmuş: ortalama ve dengeleme kaydırmaz.</summary>
+        public bool Sabit { get; init; }
+
+        /// <summary>Üstüne yük konabilir mi (özel yük ekipmanındaki tek yükün üstüne konmaz).</summary>
+        public bool UstuneAcik { get; init; } = true;
+
+        public IEnumerable<Kutu> Kutular(int xKaydir = 0, int yKaydir = 0) =>
+            Katlar.Select(k => new Kutu(X + xKaydir + k.XOfs, Y + yKaydir + k.YOfs, Yuzey.Z + k.Z, k.Boy, k.En, k.Yuk.YukseklikMm));
     }
 
     internal sealed record Katman(YerlesimYuku Yuk, int Boy, int En, bool Donduruldu, int XOfs, int YOfs, int Z);

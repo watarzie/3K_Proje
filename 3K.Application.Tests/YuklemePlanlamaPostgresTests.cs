@@ -454,6 +454,28 @@ public sealed class YuklemePlanlamaPostgresTests
                 Assert.True(rapor.IsSuccess);
                 Assert.StartsWith($"{hesap.PlanNo}_R3_YuklemePlani_", rapor.Value!.DosyaAdi, StringComparison.Ordinal);
             }
+
+            // Elle eklenebilecek ekipmanlar teknik verisiyle döner (aile dışı tenteli yok). "Kalanı otomatik diz": araçtaki
+            // yük yerinde kalır, bekleyen yük aynı araçtaki boşluğa yerleşir; sonuç kaydedilmez.
+            await using (var db = new AppDbContext(options))
+            {
+                var servis = PlanServisi(db);
+                var ekipmanlar = await servis.ElleEkipmanlariAsync(hesap.Id, Ct);
+                Assert.Contains("\"yuzeyler\"", Assert.Single(ekipmanlar, e => e.KonfigurasyonId == k40Id).TeknikVeriJson);
+                Assert.DoesNotContain(ekipmanlar, e => e.KonfigurasyonId == tenteliId);
+                await Assert.ThrowsAsync<KayitBulunamadiException>(() => servis.ElleEkipmanlariAsync(999_999, Ct));
+
+                var sabit = elle.Araclar[0].Konumlar.Single();
+                var tamam = await servis.ElleTamamlaAsync(hesap.Id,
+                    [new ElleAracModeli(k40Id, [new ElleKonumModeli(sabit.YukAnahtari, sabit.XMm, sabit.YMm, sabit.ZMm, sabit.Donduruldu)])], Ct);
+                var arac = Assert.Single(tamam.Araclar);
+                Assert.Equal(2, arac.Konumlar.Count);
+                var korunan = arac.Konumlar.Single(k => k.YukAnahtari == sabit.YukAnahtari);
+                Assert.Equal((sabit.XMm, sabit.YMm, sabit.ZMm), (korunan.XMm, korunan.YMm, korunan.ZMm));
+                Assert.Empty(tamam.Yerlesemeyenler);
+                Assert.True(tamam.ElleDuzenlendi);
+                Assert.Equal(3, await db.YuklemePlanRevizyonlari.CountAsync(r => r.PlanId == hesap.Id));
+            }
         });
     }
 

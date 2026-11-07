@@ -56,7 +56,7 @@ internal sealed partial class YuklemePlaniService
             yukler,
             adaylar,
             new YerlesimAyarlari(ayarlar.YerlesimBosluguMm, ayarlar.YukseklikPayiMm, ayarlar.GenislikPayiMm, ayarlar.UzunlukPayiMm,
-                ayarlar.AgirlikPayiKg, ayarlar.YuklemeHareketiPayiMm),
+                ayarlar.AgirlikPayiKg, ayarlar.YuklemeHareketiPayiMm, ayarlar.AgirlikMerkeziSapmaYuzde),
             plan.ProjeKarisimi == YuklemeProjeKarisimi.ProjeBazindaAyri,
             lokasyonTercihi == YuklemeLokasyonTercihi.LokasyonaGoreAyri,
             mevcut?.Select(m => new MevcutArac(m.KonfigurasyonId, m.Adet)).ToList(),

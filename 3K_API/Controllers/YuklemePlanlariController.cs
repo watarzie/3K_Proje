@@ -54,6 +54,19 @@ namespace _3K_API.Controllers
             return (await mediator.Send(query, ct)).ToActionResult();
         }
 
+        /// <summary>"Kalanı otomatik diz": araçlardaki yükler yerinde kalır, kalanlar yerleştirilir; kaydetmez.</summary>
+        [HttpPost("{id:int}/yerlesim/tamamla")]
+        public async Task<ActionResult> ElleTamamla(int id, [FromBody] YuklemePlaniElleTamamlaQuery query, CancellationToken ct)
+        {
+            query.PlanId = id;
+            return (await mediator.Send(query, ct)).ToActionResult();
+        }
+
+        /// <summary>Elle yerleşimde eklenebilecek ekipmanlar (araç ekleme seçicisi).</summary>
+        [HttpGet("{id:int}/yerlesim/ekipmanlar")]
+        public async Task<ActionResult> ElleEkipmanlari(int id, CancellationToken ct) =>
+            (await mediator.Send(new YuklemePlaniElleEkipmanlariQuery { PlanId = id }, ct)).ToActionResult();
+
         /// <summary>Elle düzenlenen yerleşimi yeni revizyon olarak kaydeder; arada başka biri kaydettiyse 409.</summary>
         [HttpPut("{id:int}/yerlesim")]
         public async Task<ActionResult> ElleKaydet(int id, [FromBody] YuklemePlaniElleKaydetCommand command, CancellationToken ct)

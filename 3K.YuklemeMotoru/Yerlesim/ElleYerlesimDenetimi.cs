@@ -53,8 +53,7 @@ public static class ElleYerlesimDenetimi
                     genelUyarilar.Add($"Araç {sonuclar.Count + 1}: '{k.YukAnahtari}' yükü planda yok ya da birden fazla kez yerleştirildi; yok sayıldı.");
                     continue;
                 }
-                var (boy, en) = k.Donduruldu ? (yuk.EnMm, yuk.BoyMm) : (yuk.BoyMm, yuk.EnMm);
-                yerler.Add(new Yer(yuk, k.XMm, k.YMm, k.ZMm, boy, en, k.Donduruldu));
+                yerler.Add(YerKur(yuk, k));
                 if (k.Donduruldu && !yuk.Dondurulebilir)
                     sorunlar.Add(new(yuk.Anahtar, KontrolSonucu.Uygunsuz, "Tabanda 90° döndürme izni yok", KontrolTuru.ElleYerlesim));
             }
@@ -66,18 +65,14 @@ public static class ElleYerlesimDenetimi
             sorunlar.AddRange(IstifKurallari(istifler));
             foreach (var istif in istifler)
             {
+                if (IstifEkle(arac, istif) != GirisYonu.Yok)
+                    continue;
                 var taban = istif[0];
-                var yuzey = arac.TabanYuzeyi(taban.X, taban.Y, taban.Z, taban.Boy, taban.En) ?? arac.EnYakinYuzey(taban.X, taban.Z);
                 var yukseklik = istif[^1].Ust - taban.Z;
-                var giris = arac.Giris(taban.Boy, taban.En, yukseklik, taban.X);
-                if (giris == GirisYonu.Yok)
-                    foreach (var y in istif)
-                        sorunlar.Add(new(y.Yuk.Anahtar, KontrolSonucu.Uygunsuz, istif.Count > 1
-                            ? $"Girişten geçemiyor: istif grubu {Mm(taban.Boy)} × {Mm(taban.En)} × {Mm(yukseklik)} açıklıktan geçmiyor (içeride istif yapılmaz)"
-                            : $"Girişten geçemiyor: {Mm(taban.Boy)} × {Mm(taban.En)} × {Mm(yukseklik)} açıklıktan geçmiyor", KontrolTuru.KapidanGecis));
-                // Giriş yoksa yöntem "Yok" yazılır (raporda "-"); bileşik bayrak yöntem gibi okunmasın.
-                arac.ElleIstifEkle(yuzey, giris,
-                    istif.Select(y => (y.Yuk, y.X, y.Y, y.Z, y.Boy, y.En, y.Donduruldu)).ToList());
+                foreach (var y in istif)
+                    sorunlar.Add(new(y.Yuk.Anahtar, KontrolSonucu.Uygunsuz, istif.Count > 1
+                        ? $"Girişten geçemiyor: istif grubu {Mm(taban.Boy)} × {Mm(taban.En)} × {Mm(yukseklik)} açıklıktan geçmiyor (içeride istif yapılmaz)"
+                        : $"Girişten geçemiyor: {Mm(taban.Boy)} × {Mm(taban.En)} × {Mm(yukseklik)} açıklıktan geçmiyor", KontrolTuru.KapidanGecis));
             }
             // Zorunlu özel yük yalnız özel yük ekipmanında taşınır (isterler 10.1, kabul 607).
             foreach (var y in yerler.Where(y => y.Yuk.Zorunluluk == OzelEkipmanZorunlulugu.Her && !aday.OzelYukEkipmani))
@@ -125,6 +120,38 @@ public static class ElleYerlesimDenetimi
             Sonuc = genel,
             ElleDuzenlendi = true
         };
+    }
+
+    private static Yer YerKur(YerlesimYuku yuk, ElleKonum k)
+    {
+        var (boy, en) = k.Donduruldu ? (yuk.EnMm, yuk.BoyMm) : (yuk.BoyMm, yuk.EnMm);
+        return new Yer(yuk, k.XMm, k.YMm, k.ZMm, boy, en, k.Donduruldu);
+    }
+
+    /// <summary>
+    /// İstifi araca ekler (taban yüzeyi; desteksizse en yakın yüzey). Giriş yoksa yöntem "Yok" yazılır (raporda "-");
+    /// bileşik bayrak yöntem gibi okunmasın. Giriş yönünü döndürür.
+    /// </summary>
+    private static GirisYonu IstifEkle(AracYerlesimi arac, List<Yer> istif)
+    {
+        var taban = istif[0];
+        var yuzey = arac.TabanYuzeyi(taban.X, taban.Y, taban.Z, taban.Boy, taban.En) ?? arac.EnYakinYuzey(taban.X, taban.Z);
+        var giris = arac.Giris(taban.Boy, taban.En, istif[^1].Ust - taban.Z, taban.X);
+        arac.ElleIstifEkle(yuzey, giris, istif.Select(y => (y.Yuk, y.X, y.Y, y.Z, y.Boy, y.En, y.Donduruldu)).ToList());
+        return giris;
+    }
+
+    /// <summary>
+    /// Elle konumlardan aracı kurar (istifler sabit); "kalanı otomatik diz" bu yüklerin etrafına yerleştirir. Planda
+    /// olmayan yük atlanır; kontrol yapılmaz (sonuç ayrıca <see cref="Denetle"/> ile denetlenir).
+    /// </summary>
+    internal static AracYerlesimi SabitAracKur(YerlesimGirdisi girdi, EkipmanAdayi aday, ElleArac elle, IReadOnlyDictionary<string, YerlesimYuku> yukler)
+    {
+        var arac = new AracYerlesimi(aday, girdi.Ayarlar, girdi.Yasal);
+        var yerler = elle.Konumlar.Where(k => yukler.ContainsKey(k.YukAnahtari)).Select(k => YerKur(yukler[k.YukAnahtari], k)).ToList();
+        foreach (var istif in IstifleriKur(arac, yerler).Istifler)
+            IstifEkle(arac, istif);
+        return arac;
     }
 
     /// <summary>

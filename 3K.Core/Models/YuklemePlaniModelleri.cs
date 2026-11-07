@@ -134,6 +134,23 @@ public sealed class PlanYerlesimi
     public IReadOnlyList<string> Uyarilar { get; init; } = [];
 }
 
+/// <summary>
+/// Elle yerleşimde eklenebilecek ekipman: plan ailesinin ve özel yük ekipmanının aktif, sandık taşımaya uygun
+/// konfigürasyonları ile mevcut araç listesindeki ve son yerleşimde kullanılan konfigürasyonlar.
+/// </summary>
+public sealed class ElleEkipmanSecenegi
+{
+    public int KonfigurasyonId { get; init; }
+    public string Kod { get; init; } = string.Empty;
+    public string Ad { get; init; } = string.Empty;
+    public string TipAdi { get; init; } = string.Empty;
+    public string AileAdi { get; init; } = string.Empty;
+    public bool AileDisi { get; init; }
+    public bool OzelYukEkipmani { get; init; }
+    public bool Dogrulandi { get; init; }
+    public string TeknikVeriJson { get; init; } = "{}";
+}
+
 /// <summary>Plandaki araç: kullanılan ekipman revizyonu ve geometrisi (3B için), yükler, toplamlar, taşmalar, kontroller.</summary>
 public sealed class PlanAraci
 {

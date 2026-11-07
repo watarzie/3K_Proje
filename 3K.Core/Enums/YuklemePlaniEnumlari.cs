@@ -86,7 +86,8 @@ namespace _3K.Core.Enums
         GuvenlikPayi = 11,
         Mevzuat = 12,
         Organizasyon = 13,
-        ElleYerlesim = 14
+        ElleYerlesim = 14,
+        AgirlikDagilimi = 15
     }
 
     /// <summary>Yükün (ya da istif grubunun) araca giriş yönü.</summary>

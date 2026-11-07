@@ -50,7 +50,7 @@ public sealed class YuklemePlaniKaydetCommandValidator : AbstractValidator<Yukle
             .Must(YuklemePlaniKurali.MevcutAraclarGecerli).WithMessage(YuklemePlaniKurali.MevcutAraclarMesaji)
             .When(x => x.Ayarlar != null);
         RuleFor(x => x.Ayarlar).Cascade(CascadeMode.Stop).NotNull().WithMessage("Plan ayarları eksik.").Must(YuklemePlaniKurali.AyarlarGecerli)
-            .WithMessage($"Yerleşim boşluğu 0–{YuklemePlaniKurali.YerlesimBosluguEnFazlaMm} mm, güvenlik payları boş ya da 0–{YuklemePlaniKurali.GuvenlikPayiEnFazlaMm} mm, ağırlık payı boş ya da 0–{YuklemePlaniKurali.AgirlikPayiEnFazlaKg} kg olmalıdır.");
+            .WithMessage($"Yerleşim boşluğu 0–{YuklemePlaniKurali.YerlesimBosluguEnFazlaMm} mm, güvenlik payları boş ya da 0–{YuklemePlaniKurali.GuvenlikPayiEnFazlaMm} mm, ağırlık payı boş ya da 0–{YuklemePlaniKurali.AgirlikPayiEnFazlaKg} kg, ağırlık merkezi sapma sınırı boş ya da %1–{YuklemePlaniKurali.AgirlikMerkeziSapmaEnFazlaYuzde} olmalıdır.");
         RuleFor(x => x.SandikYukleri).Cascade(CascadeMode.Stop).NotNull().WithMessage("Sandık yük listesi eksik.")
             .Must(y => y.Select(s => s.SandikId).Distinct().Count() == y.Count).WithMessage("Bir sandık plana birden fazla kez eklenemez.");
         RuleFor(x => x.ManuelYukler).NotNull().WithMessage("Elle eklenen yük listesi eksik.");
