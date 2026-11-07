@@ -685,6 +685,107 @@ public sealed class UcKKaynakTransferStokIadeKatalogTests
         Assert.Equal((int)SandikDurum.Hazirlaniyor, kurgu.Sandik.DurumId);
     }
 
+    // Canlı vaka (PA598-02 sandık 18, 07.11.2026): ekran sandıktaki satırı her zaman sandık içeriğiyle geri alır.
+    // Tek tahsisli üründe bu, tüm satırı geri almakla aynıdır; transfer terslenmezse donör de kilitli kalırdı.
+    [Fact]
+    public async Task TekTahsisliSandikReset_ProjedenKarsilanani_TumSatirGibiGeriAlirVeDonoruIadeEder()
+    {
+        using var kurgu = new Kurgu(2m, 2m, "Pompa", "PA-HEDEF");
+        var (donor, transfer) = ProjedenKarsilananTransferKur(kurgu, 2m);
+
+        var sonuc = await kurgu.SifirlaAsync(kurgu.Icerik.Id);
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.Equal(1, kurgu.Uow.SaveCount);
+        Assert.Equal((int)UcKDurum.Bekliyor, kurgu.Satir.UcKDurumuId);
+        Assert.Equal(0m, kurgu.Satir.ProjeKarsilanan);
+        Assert.Equal(0m, kurgu.Satir.KarsilananMiktar);
+        Assert.Null(kurgu.Satir.KaynakHedefProjeNo);
+        Assert.Equal(0m, kurgu.Icerik.KonulanAdet);
+        Assert.Equal(0m, kurgu.Icerik.ProjeKarsilanan);
+        Assert.Equal(2m, kurgu.Icerik.EksikAdet);
+        Assert.Equal(0m, donor.ProjeGonderilen);
+        Assert.Equal((int)ProjeTransferDurum.GeriAlindi, transfer.DurumId);
+        Assert.NotNull(transfer.IptalTarihi);
+    }
+
+    [Fact]
+    public async Task TekTahsisliTopluSandikReset_ProjedenKarsilanani_TumSatirGibiGeriAlirVeDonoruIadeEder()
+    {
+        using var kurgu = new Kurgu(2m, 2m, "Pompa", "PA-HEDEF");
+        var (donor, transfer) = ProjedenKarsilananTransferKur(kurgu, 2m);
+
+        var sonuc = await kurgu.TopluSifirlaAsync(
+            new UcKSandikSecimDto { CekiSatiriId = kurgu.Satir.Id, SandikIcerikId = kurgu.Icerik.Id });
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.Equal(1, kurgu.Uow.SaveCount);
+        Assert.Equal((int)UcKDurum.Bekliyor, kurgu.Satir.UcKDurumuId);
+        Assert.Equal(0m, kurgu.Satir.ProjeKarsilanan);
+        Assert.Equal(0m, kurgu.Icerik.KonulanAdet);
+        Assert.Equal(0m, kurgu.Icerik.ProjeKarsilanan);
+        Assert.Equal(0m, donor.ProjeGonderilen);
+        Assert.Equal((int)ProjeTransferDurum.GeriAlindi, transfer.DurumId);
+    }
+
+    [Fact]
+    public async Task TekTahsisliSandikReset_StoktanKarsilanani_StoguIadeEderVeHareketiSiler()
+    {
+        using var kurgu = new Kurgu(2m, 2m);
+        kurgu.Satir.GridDurumuId = (int)GridDurum.Gelmedi;
+        kurgu.Satir.UcKDurumuId = (int)UcKDurum.StoktanKarsilandi;
+        kurgu.Satir.UcKKarsilamaTipiId = (int)UcKDurum.StoktanKarsilandi;
+        kurgu.Satir.KarsilananMiktar = 1.5m;
+        kurgu.Satir.StokKarsilanan = 1.5m;
+        kurgu.Icerik.KonulanAdet = 1.5m;
+        kurgu.Icerik.StokKarsilanan = 1.5m;
+        kurgu.Icerik.EksikAdet = 0.5m;
+        kurgu.Sandik.DurumId = (int)SandikDurum.Kapandi;
+        var stok = new StokKaydi { Id = 61, MalzemeAdi = "MALZEME", Miktar = 0m, DurumId = (int)StokDurum.Tukendi };
+        kurgu.Uow.Repo<StokKaydi>().Rows.Add(stok);
+        kurgu.Uow.Repo<StokHareketi>().Rows.Add(new StokHareketi
+        {
+            Id = 62,
+            StokKaydiId = stok.Id,
+            CekiSatiriId = kurgu.Satir.Id,
+            Miktar = 1.5m,
+            IslemTipiId = (int)IslemTipi.StoktanKarsilandi
+        });
+
+        var sonuc = await kurgu.SifirlaAsync(kurgu.Icerik.Id);
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.Equal(1, kurgu.Uow.SaveCount);
+        Assert.Equal(0m, kurgu.Satir.StokKarsilanan);
+        Assert.Equal(0m, kurgu.Icerik.KonulanAdet);
+        Assert.Equal(0m, kurgu.Icerik.StokKarsilanan);
+        Assert.Equal(1.5m, stok.Miktar);
+        Assert.Equal((int)StokDurum.Aktif, stok.DurumId);
+        Assert.Empty(kurgu.Uow.Repo<StokHareketi>().Rows);
+        Assert.Equal((int)SandikDurum.Hazirlaniyor, kurgu.Sandik.DurumId);
+    }
+
+    [Fact]
+    public async Task CokTahsisliSandikReset_ProjedenKarsilananParcayiMutasyonsuzReddeder()
+    {
+        using var kurgu = new Kurgu(2m, 2m, "Pompa", "PA-HEDEF");
+        var (donor, transfer) = ProjedenKarsilananTransferKur(kurgu, 1m);
+        var ikinci = IkinciIcerikEkle(kurgu, 41, 31);
+        ikinci.AktifGridSevkKarsilananMiktari = null;
+        var oncekiSatir = Snapshot(kurgu.Satir);
+        var oncekiIcerik = Snapshot(kurgu.Icerik);
+        var oncekiDonor = Snapshot(donor);
+
+        var sonuc = await kurgu.SifirlaAsync(kurgu.Icerik.Id);
+
+        Assert.False(sonuc.IsSuccess);
+        Assert.Equal(0, kurgu.Uow.SaveCount);
+        Assert.Equal(oncekiSatir, Snapshot(kurgu.Satir));
+        Assert.Equal(oncekiIcerik, Snapshot(kurgu.Icerik));
+        Assert.Equal(oncekiDonor, Snapshot(donor));
+        Assert.Equal((int)ProjeTransferDurum.Aktif, transfer.DurumId);
+    }
+
     [Fact]
     public async Task AktifGidenTransferVarkenDonorReset_ReddedilirVeTumDegerlerKorunur()
     {
@@ -800,13 +901,15 @@ public sealed class UcKKaynakTransferStokIadeKatalogTests
     }
 
     [Fact]
-    public async Task TopluReset_StokVeyaProjeKaynakliChildSeciminiMutasyonsuzReddeder()
+    public async Task TopluReset_CokTahsislideStokVeyaProjeKaynakliChildSeciminiMutasyonsuzReddeder()
     {
         using var kurgu = new Kurgu(2m, 2m);
         ResetIcinDoldur(kurgu.Satir, kurgu.Icerik);
         kurgu.Satir.StokKarsilanan = 0.5m;
         kurgu.Satir.KarsilananMiktar = 0.5m;
         kurgu.Icerik.StokKarsilanan = 0.5m;
+        // Tek tahsisli üründe sandık seçimi tüm satır geri alması olur; ret yalnız çok tahsisli üründe kalır.
+        IkinciIcerikEkle(kurgu, 41, 31);
         var oncekiSatir = Snapshot(kurgu.Satir);
         var oncekiIcerik = Snapshot(kurgu.Icerik);
 
@@ -1045,6 +1148,39 @@ public sealed class UcKKaynakTransferStokIadeKatalogTests
         kurgu.Uow.Repo<Sandik>().Rows.Add(sandik);
         kurgu.Uow.Repo<SandikIcerik>().Rows.Add(icerik);
         return (satir, sandik, icerik);
+    }
+
+    /// <summary>
+    /// Hedef satırı donörden <paramref name="miktar"/> kadar "Projeden Karşılandı" yapar: satır ve tek sandık
+    /// içeriği ProjeKarsilanan taşır, donörün ProjeGonderilen'i artar, aktif transfer kaydı yazılır.
+    /// </summary>
+    private static (CekiSatiri Donor, ProjeTransfer Transfer) ProjedenKarsilananTransferKur(Kurgu kurgu, decimal miktar)
+    {
+        kurgu.Satir.GridDurumuId = (int)GridDurum.Gelmedi;
+        kurgu.Satir.UcKDurumuId = (int)UcKDurum.ProjedenKarsilandi;
+        kurgu.Satir.UcKKarsilamaTipiId = (int)UcKDurum.ProjedenKarsilandi;
+        kurgu.Satir.KarsilananMiktar = miktar;
+        kurgu.Satir.ProjeKarsilanan = miktar;
+        kurgu.Satir.KaynakHedefProjeNo = "PA-KAYNAK";
+        kurgu.Icerik.KonulanAdet = miktar;
+        kurgu.Icerik.ProjeKarsilanan = miktar;
+        kurgu.Icerik.EksikAdet = Math.Max(kurgu.Icerik.TahsisMiktari - miktar, 0m);
+        var donor = kurgu.DonorEkle("PA-KAYNAK", 4m, 2m, 0m, miktar, 2m);
+        var transfer = new ProjeTransfer
+        {
+            Id = 702,
+            KaynakProjeId = donor.Ceki.ProjeId,
+            HedefProjeId = kurgu.Proje.Id,
+            KaynakCekiSatiriId = donor.Id,
+            HedefCekiSatiriId = kurgu.Satir.Id,
+            BarkodNo = kurgu.Satir.BarkodNo,
+            UrunAdi = kurgu.Satir.Aciklama,
+            Miktar = miktar,
+            DurumId = (int)ProjeTransferDurum.Aktif,
+            KullaniciId = 7
+        };
+        kurgu.Uow.Repo<ProjeTransfer>().Rows.Add(transfer);
+        return (donor, transfer);
     }
 
     private static SandikIcerik IkinciIcerikEkle(Kurgu kurgu, int icerikId, int sandikId)

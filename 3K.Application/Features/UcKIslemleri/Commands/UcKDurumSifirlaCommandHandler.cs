@@ -59,10 +59,21 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 return Result.Failure(seciliIcerikResult.Error!.Message, seciliIcerikResult.StatusCode);
 
             var seciliIcerik = seciliIcerikResult.Value;
+            var sandikIcerikId = request.SandikIcerikId;
+            var tekTahsisNotu = string.Empty;
             if (seciliIcerik != null && (seciliIcerik.StokKarsilanan > 0 || seciliIcerik.ProjeKarsilanan > 0))
             {
-                return Result.Failure(
-                    "Stoktan veya projeden karşılanan parçanın yalnız bir sandık için geri alınması güvenli değildir. Önce ilgili kaynak hareketini geri alın veya ürünün tüm 3K işlemini sıfırlayın.");
+                if (!await UcKDurumSifirlamaHelper.TekTahsisMiAsync(_unitOfWork, satir.Id))
+                {
+                    return Result.Failure(
+                        "Stoktan veya projeden karşılanan parçanın yalnız bir sandık için geri alınması güvenli değildir. Önce ilgili kaynak hareketini geri alın veya ürünün tüm 3K işlemini sıfırlayın.");
+                }
+
+                // Ürünün tek sandık tahsisi: sandık bazlı geri alma ürünün tamamını geri almakla aynıdır ve
+                // stok/proje kaynağı yalnız tüm satır yolunda iade edilir (U-170).
+                tekTahsisNotu = $"Tek tahsis: sandık isteği (SandikIcerikId:{seciliIcerik.Id}) tüm satır olarak uygulandı. ";
+                seciliIcerik = null;
+                sandikIcerikId = null;
             }
 
             if (seciliIcerik != null &&
@@ -213,7 +224,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             var senkronizasyonResult = await UcKSandikIcerikSenkronizasyonHelper.SenkronizeAsync(
                 _unitOfWork,
                 satir,
-                request.SandikIcerikId);
+                sandikIcerikId);
             if (!senkronizasyonResult.IsSuccess)
                 return Result.Failure(senkronizasyonResult.Error!.Message, senkronizasyonResult.StatusCode);
 
@@ -229,7 +240,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
             // ===== Hareket kaydı =====
             var detay = seciliIcerik == null
-                ? $"3K Sıfırlandı: UcKDurum:{eskiDurum}→Bekliyor, " +
+                ? $"{tekTahsisNotu}3K Sıfırlandı: UcKDurum:{eskiDurum}→Bekliyor, " +
                   $"GelenMiktar:{eskiGelenMiktar}→0, StokKarsilanan:{eskiStokKarsilanan}→0, " +
                   $"ProjeKarsilanan:{eskiProjeKarsilanan}→0, TedarikciKarsilanan:{eskiTedarikciKarsilanan}→0, " +
                   $"GeriGonderilen:{eskiGeriGonderilenMiktar}→0, HataliMiktar:{eskiHataliMiktar}→0, " +
@@ -281,6 +292,19 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
             return AggregateBaslangicDurumunda(satir)
                 && !satir.KaliteDurumId.HasValue
                 && !satir.SurecDurumId.HasValue;
+        }
+
+        /// <summary>
+        /// Ürünün yalnız bir sandık tahsisi var mı? Öyleyse ürünün bütün 3K işlemi o sandıktadır ve sandık bazlı
+        /// geri alma, tüm satırı geri almakla aynı sonucu verir. Ekran sandığa konmuş satırı her zaman sandık
+        /// içeriğiyle gönderdiği için stoktan/projeden karşılanan tek tahsisli ürün başka yoldan geri alınamaz;
+        /// donör taraf da aktif transfer yüzünden kilitli kalırdı.
+        /// </summary>
+        public static async Task<bool> TekTahsisMiAsync(IUnitOfWork unitOfWork, int cekiSatiriId)
+        {
+            var tahsisler = await unitOfWork.GetRepository<SandikIcerik>()
+                .FindAsync(i => i.CekiSatiriId == cekiSatiriId);
+            return tahsisler.Take(2).Count() == 1;
         }
 
         public static bool SandikBazliSifirlamaGerekliMi(

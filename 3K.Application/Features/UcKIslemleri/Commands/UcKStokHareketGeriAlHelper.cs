@@ -29,7 +29,12 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
 
             var stokRepo = unitOfWork.GetRepository<StokKaydi>();
             var stokIdler = stokHareketleri.Select(h => h.StokKaydiId).Distinct().ToList();
-            var stoklar = (await stokRepo.FindAsync(s => stokIdler.Contains(s.Id))).ToDictionary(s => s.Id);
+            // İzlenen sorgu: toplu geri almada aynı stok kaydı birden çok satır için güncellenirse ikinci çağrı
+            // ilk çağrının kaydedilmemiş iadesini görür ve aynı örneği günceller ("already being tracked" olmaz).
+            var stoklar = stokRepo.Queryable()
+                .Where(s => stokIdler.Contains(s.Id))
+                .ToList()
+                .ToDictionary(s => s.Id);
             var tumIlgiliStokHareketleri = (await stokHareketRepo.FindAsync(h => stokIdler.Contains(h.StokKaydiId))).ToList();
             var geriAlinacakHareketIdleri = stokHareketleri.Select(h => h.Id).ToHashSet();
 
