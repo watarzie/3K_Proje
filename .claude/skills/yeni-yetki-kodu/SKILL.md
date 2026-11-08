@@ -9,7 +9,7 @@ disable-model-invocation: true
 
 Yetki kodları tek kaynaktan gelir; bir parçası eksik kalan kod ya ekranda görünmez ya da sunucuda 403 verir.
 Aşağıdaki adımların **hepsi aynı işte** yapılır. Önce `docs/is-kurallari/GRID_3K_IS_KURALLARI.md` içindeki yetki
-kurallarını ve CLAUDE.md "Yetki modeli" bölümünü oku.
+kurallarını ve `.claude/rules/yetki-modeli.md` dosyasını oku.
 
 ## 0. Karar ver (belirsizse kullanıcıya sor)
 - Kod (kebab-case, ör. `sevkiyatlar`), sabit adı (PascalCase), üst düğüm (`ParentId` için üst kod).
