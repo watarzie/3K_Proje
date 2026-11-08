@@ -513,7 +513,7 @@ public sealed class CekiOrijinalMiktarTests
                 typeof(decimal), typeof(decimal), typeof(decimal), typeof(string), typeof(DateTime), typeof(string), typeof(uint),
                 typeof(int), typeof(string), typeof(string), typeof(decimal), typeof(string),
                 typeof(DateTime), typeof(int), typeof(int), typeof(decimal), typeof(decimal),
-                typeof(decimal), typeof(int), typeof(string), typeof(int), typeof(bool),
+                typeof(DateTime), typeof(decimal), typeof(int), typeof(string), typeof(int), typeof(bool),
                 typeof(int), typeof(string), typeof(DateTime), typeof(uint), typeof(decimal)
             };
             for (var i = 0; i < tipler.Length; i++)
@@ -531,7 +531,7 @@ public sealed class CekiOrijinalMiktarTests
                 0m, veri.Tahsis, 0m, bos, bos, bos, 1u,
                 veri.SandikId, bos, bos, bos, bos,
                 DateTime.UtcNow, (int)DepoLokasyon.Belirsiz, (int)SandikDurum.Hazirlaniyor, bos, bos,
-                bos, veri.ProjeId, veri.SandikNo, bos, false,
+                bos, bos, veri.ProjeId, veri.SandikNo, bos, false,
                 (int)SandikTipi.AhsapKapali, bos, bos, 1u, bos);
         }
     }

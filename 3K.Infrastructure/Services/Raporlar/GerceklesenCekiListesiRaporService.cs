@@ -149,7 +149,7 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context, I
 
         string GetAciklama(CekiSatiri satir)
         {
-            return RaporBicimleri.GetRaporAciklama(satir);
+            return RaporBicimleri.GetGerceklesenRaporAciklama(satir);
         }
 
         satirlar = satirlar
@@ -735,7 +735,7 @@ internal sealed class GerceklesenCekiListesiRaporService(AppDbContext context, I
             worksheet.Cell(dataRow, 11).Value = GetGerceklesenRaporDurum(satir);
             var sevk = GetSevkDurumu(satir);
             RaporExcelStilleri.SetSevkCell(worksheet.Cell(dataRow, 12), RaporBicimleri.SevkMetni(sevk), sevk?.Durum);
-            worksheet.Cell(dataRow, 13).Value = RaporBicimleri.GetRaporAciklama(satir);
+            worksheet.Cell(dataRow, 13).Value = RaporBicimleri.GetGerceklesenRaporAciklama(satir);
 
             if (dataSira % 2 == 0)
                 worksheet.Range(dataRow, 1, dataRow, lastColumn).Style.Fill.BackgroundColor = XLColor.FromHtml("#F8FAFE");

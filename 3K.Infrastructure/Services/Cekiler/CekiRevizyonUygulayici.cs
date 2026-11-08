@@ -334,6 +334,7 @@ internal sealed class CekiRevizyonUygulayici(
                     kaynakSatir.ProjeGonderilen = Math.Max(kaynakSatir.ProjeGonderilen - transfer.Miktar, 0);
                     kaynakSatir.DurumId = durumHesaplaService.HesaplaGenelDurum(kaynakSatir.GridDurumuId, kaynakSatir.UcKDurumuId);
                     durumHesaplaService.HesaplaKalanVeDurum(kaynakSatir);
+                    ProjeTransferIadeKurali.DonorYenidenSevkBorcunuDuzelt(kaynakSatir);
                     context.CekiSatirlari.Update(kaynakSatir);
                 }
 
@@ -666,6 +667,7 @@ internal sealed class CekiRevizyonUygulayici(
                 kaynakSatir.ProjeGonderilen = Math.Max(kaynakSatir.ProjeGonderilen - transfer.Miktar, 0);
                 kaynakSatir.DurumId = durumHesaplaService.HesaplaGenelDurum(kaynakSatir.GridDurumuId, kaynakSatir.UcKDurumuId);
                 durumHesaplaService.HesaplaKalanVeDurum(kaynakSatir);
+                ProjeTransferIadeKurali.DonorYenidenSevkBorcunuDuzelt(kaynakSatir);
                 context.CekiSatirlari.Update(kaynakSatir);
             }
 

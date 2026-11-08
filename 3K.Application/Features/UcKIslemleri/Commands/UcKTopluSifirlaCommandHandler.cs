@@ -4,6 +4,7 @@ using _3K.Application.Common;
 using _3K.Core.Entities;
 using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.UcKIslemleri.Commands
 {
@@ -105,10 +106,20 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 }
 
                 var seciliIcerik = seciliIcerikResult.Value;
+                var sandikIcerikId = secim.SandikIcerikId;
+                var tekTahsisNotu = string.Empty;
                 if (seciliIcerik != null && (seciliIcerik.StokKarsilanan > 0 || seciliIcerik.ProjeKarsilanan > 0))
                 {
-                    hatalar.Add($"#{satir.SiraNo}: Stoktan veya projeden karşılanan sandık parçası toplu olarak tek başına sıfırlanamaz.");
-                    continue;
+                    if (!await UcKDurumSifirlamaHelper.TekTahsisMiAsync(_unitOfWork, satir.Id))
+                    {
+                        hatalar.Add($"#{satir.SiraNo}: Stoktan veya projeden karşılanan sandık parçası toplu olarak tek başına sıfırlanamaz.");
+                        continue;
+                    }
+
+                    // Tekil geri almayla aynı kural: tek tahsisli üründe tüm satır geri alınır (U-185).
+                    tekTahsisNotu = $"Tek tahsis: sandık isteği (SandikIcerikId:{seciliIcerik.Id}) tüm satır olarak uygulandı. ";
+                    seciliIcerik = null;
+                    sandikIcerikId = null;
                 }
 
                 if (seciliIcerik != null &&
@@ -234,6 +245,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                         kaynakSatir.ProjeGonderilen = Math.Max(kaynakSatir.ProjeGonderilen - transfer.Miktar, 0);
                         kaynakSatir.DurumId = _durumHesaplaService.HesaplaGenelDurum(kaynakSatir.GridDurumuId, kaynakSatir.UcKDurumuId);
                         _durumHesaplaService.HesaplaKalanVeDurum(kaynakSatir);
+                        ProjeTransferIadeKurali.DonorYenidenSevkBorcunuDuzelt(kaynakSatir);
                         repo.Update(kaynakSatir);
                     }
 
@@ -247,7 +259,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                 var senkronizasyonResult = await UcKSandikIcerikSenkronizasyonHelper.SenkronizeAsync(
                     _unitOfWork,
                     satir,
-                    secim.SandikIcerikId);
+                    sandikIcerikId);
                 if (!senkronizasyonResult.IsSuccess)
                     return Result.Failure($"#{satir.SiraNo}: {senkronizasyonResult.Error!.Message}");
 
@@ -282,7 +294,7 @@ namespace _3K.Application.Features.UcKIslemleri.Commands
                     IslemTipiId = (int)IslemTipi.UcKDurumSifirlandi,
                     EskiDeger = $"UcKDurum:{eskiDurum}, KaliteDurum:{eskiKaliteDurumId?.ToString() ?? "null"}, SurecDurum:{eskiSurecDurumId?.ToString() ?? "null"}",
                     YeniDeger = "Bekliyor (Sıfırlandı)",
-                    Aciklama = $"Toplu 3K sıfırlama — KaliteDurum:{eskiKaliteDurumId?.ToString() ?? "null"}→{satir.KaliteDurumId?.ToString() ?? "null"}, SurecDurum:{eskiSurecDurumId?.ToString() ?? "null"}→{satir.SurecDurumId?.ToString() ?? "null"}. {(string.IsNullOrWhiteSpace(request.Aciklama) ? "Açıklama yok" : request.Aciklama)}"
+                    Aciklama = $"Toplu 3K sıfırlama — {tekTahsisNotu}KaliteDurum:{eskiKaliteDurumId?.ToString() ?? "null"}→{satir.KaliteDurumId?.ToString() ?? "null"}, SurecDurum:{eskiSurecDurumId?.ToString() ?? "null"}→{satir.SurecDurumId?.ToString() ?? "null"}. {(string.IsNullOrWhiteSpace(request.Aciklama) ? "Açıklama yok" : request.Aciklama)}"
                 });
             }
 

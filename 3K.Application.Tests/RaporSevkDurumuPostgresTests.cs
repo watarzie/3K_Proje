@@ -533,6 +533,81 @@ public sealed class RaporSevkDurumuPostgresTests
         });
     }
 
+    /// <summary>
+    /// Sandık parçasının ürün bilgisi (seri no, SKT, lot) gerçekleşen çeki PDF ve Excel'inde AÇIKLAMA hücresinde,
+    /// çeki/Grid açıklamasının altında yazılır; bölünmüş üründe farklı bilgiler sandık numarasıyla ayrılır.
+    /// </summary>
+    [PostgresRaporFact]
+    [Trait("Category", "Postgres")]
+    public async Task GerceklesenCeki_UrunBilgisiAciklamaHucresindeYazilir()
+    {
+        await WithDatabase(async options =>
+        {
+            int projeId;
+            await using (var seed = new AppDbContext(options))
+            {
+                var kullanici = new Kullanici { RolId = 1, AdSoyad = "Sentetik Sevk Operatörü", Email = "sevk@example.invalid" };
+                var proje = new Proje { ProjeNo = "QA-URUN-BILGISI", Musteri = "Sentetik Ürün Bilgisi", ProjeTipiId = (int)ProjeTipi.Normal };
+                var ceki = new Ceki { Proje = proje, OrijinalDosyaYolu = "sentetik.xlsx", YuklemeTarihi = new DateTime(2026, 11, 8, 9, 0, 0) };
+                proje.Cekiler.Add(ceki);
+                var s2 = new Sandik { Proje = proje, SandikNo = "2", Ad = "Sevkli", DurumId = (int)SandikDurum.Sevkedildi };
+                var s10 = new Sandik { Proje = proje, SandikNo = "10", Ad = "Sevkli", DurumId = (int)SandikDurum.Sevkedildi };
+                proje.Sandiklar.Add(s2);
+                proje.Sandiklar.Add(s10);
+
+                void Urun(string barkod, string? remarks, string? grid, params (Sandik Sandik, string? Bilgi)[] parcalar)
+                {
+                    var satir = new CekiSatiri
+                    {
+                        Ceki = ceki, SiraNo = ceki.CekiSatirlari.Count + 1, BarkodNo = barkod, Aciklama = "Sentetik ürün",
+                        CekideGecenSandikNo = parcalar[0].Sandik.SandikNo, IstenenAdet = parcalar.Length,
+                        GelenMiktar = parcalar.Length, GridDurumuId = (int)GridDurum.TamGeldi, Remarks = remarks, GridAciklama = grid
+                    };
+                    foreach (var (sandik, bilgi) in parcalar)
+                    {
+                        var icerik = new SandikIcerik
+                        {
+                            Sandik = sandik, CekiSatiri = satir, TahsisMiktari = 1, KonulanAdet = 1, UrunBilgisi = bilgi
+                        };
+                        satir.SandikIcerikleri.Add(icerik);
+                        sandik.SandikIcerikleri.Add(icerik);
+                    }
+                    ceki.CekiSatirlari.Add(satir);
+                }
+
+                Urun("U-1", "6", "caner bayram", (s2, "SN: A-1001\nSKT: 03.2027"));
+                Urun("U-2", null, null, (s2, "SN: A-2001"), (s10, "SN: A-2002"));
+                Urun("U-3", null, "caner bayram", (s10, null));
+                var sevkiyat = new Sevkiyat
+                {
+                    Proje = proje, SevkiyatNo = 1, SevkTarihi = new DateTime(2026, 11, 8, 14, 0, 0), Kullanici = kullanici,
+                    AracPlaka = "34ABC123"
+                };
+                sevkiyat.Sandiklar.Add(new SevkiyatSandik { Sevkiyat = sevkiyat, Sandik = s2 });
+                sevkiyat.Sandiklar.Add(new SevkiyatSandik { Sevkiyat = sevkiyat, Sandik = s10 });
+                proje.Sevkiyatlar.Add(sevkiyat);
+                seed.Projeler.Add(proje);
+                await seed.SaveChangesAsync();
+                projeId = proje.Id;
+            }
+
+            await using var context = new AppDbContext(options);
+            var gerceklesen = Gerceklesen(context);
+            var pdf = await gerceklesen.GerceklesenCekiListesiRaporuPdfOlusturAsync(projeId);
+            var excel = await gerceklesen.GerceklesenCekiListesiRaporuExcelOlusturAsync(projeId);
+            await OrnekKaydetAsync("urun-bilgisi-gerceklesen.pdf", pdf);
+            await OrnekKaydetAsync("urun-bilgisi-gerceklesen.xlsx", excel);
+
+            Assert.True(pdf.Length > 0);
+            using var workbook = new XLWorkbook(new MemoryStream(excel));
+            var aciklamalar = Satirlar(workbook.Worksheet("Gerçekleşen Çeki"))
+                .ToDictionary(r => r.Cell(3).GetString(), r => r.Cell(13).GetString());
+            Assert.Equal("Çeki: 6\nGrid: caner bayram\nÜrün bilgisi: SN: A-1001, SKT: 03.2027", aciklamalar["U-1"]);
+            Assert.Equal("Ürün bilgisi (Sandık 2): SN: A-2001\nÜrün bilgisi (Sandık 10): SN: A-2002", aciklamalar["U-2"]);
+            Assert.Equal("Grid: caner bayram", aciklamalar["U-3"]);
+        });
+    }
+
     private static GerceklesenCekiListesiRaporService Gerceklesen(AppDbContext context) =>
         new(context, new SahaTamamlamaService(context));
 

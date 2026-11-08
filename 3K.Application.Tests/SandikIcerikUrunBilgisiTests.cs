@@ -160,20 +160,162 @@ public sealed class SandikIcerikUrunBilgisiTests
         Assert.Equal(0, k.Uow.SaveCount);
     }
 
+    // ===== Açıklama: aynı pencere Grid ekranında Grid, 3K ekranında 3K açıklamasını düzenler =====
+
+    [Theory]
+    [InlineData(UrunAciklamaAlani.Grid, "Grid Açıklaması Güncellendi")]
+    [InlineData(UrunAciklamaAlani.UcK, "3K Açıklaması Güncellendi")]
+    public async Task Aciklama_ekranin_alanina_yazilir_diger_aciklamaya_ve_islem_durumuna_dokunmaz(UrunAciklamaAlani alan, string islem)
+    {
+        var k = new Kurgu();
+        k.Satir.GridAciklama = "eski grid";
+        k.Satir.UcKAciklama = "eski 3k";
+        k.Satir.UcKDurumuId = (int)UcKDurum.TamGeldi;
+        k.Satir.GelenMiktar = 2;
+
+        var sonuc = await k.GuncelleAsync(null, null, alan, "  sonradan not  ", alan == UrunAciklamaAlani.Grid ? "eski grid" : "eski 3k");
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.Equal(alan == UrunAciklamaAlani.Grid ? "sonradan not" : "eski grid", k.Satir.GridAciklama);
+        Assert.Equal(alan == UrunAciklamaAlani.UcK ? "sonradan not" : "eski 3k", k.Satir.UcKAciklama);
+        Assert.Equal((int)UcKDurum.TamGeldi, k.Satir.UcKDurumuId);
+        Assert.Equal(2, k.Satir.GelenMiktar);
+        Assert.Equal(1, k.Uow.SaveCount);
+        var hareket = Assert.Single(k.Hareket.Rows);
+        Assert.Equal(("CekiSatiri", "23", islem), (hareket.ReferansTipi, hareket.ReferansId, hareket.Islem));
+        Assert.Equal((int)IslemTipi.NotEklendi, hareket.IslemTipiId);
+        Assert.Equal("sonradan not", hareket.YeniDeger);
+    }
+
+    [Fact]
+    public async Task Bilgi_ve_aciklama_tek_kayitta_birlikte_yazilir_iki_hareket_dusulur()
+    {
+        var k = new Kurgu();
+
+        var sonuc = await k.GuncelleAsync("SKT: 03.2027", null, UrunAciklamaAlani.UcK, "3k deneme", null);
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.Equal("SKT: 03.2027", k.Icerik.UrunBilgisi);
+        Assert.Equal("3k deneme", k.Satir.UcKAciklama);
+        Assert.Equal(1, k.Uow.SaveCount);
+        Assert.Equal(["Ürün Bilgisi Güncellendi", "3K Açıklaması Güncellendi"], k.Hareket.Rows.Select(h => h.Islem));
+    }
+
+    [Fact]
+    public async Task Bos_aciklama_siler_ayni_aciklama_hicbir_sey_yazmaz()
+    {
+        var k = new Kurgu();
+        k.Satir.GridAciklama = "not";
+
+        Assert.True((await k.GuncelleAsync(null, null, UrunAciklamaAlani.Grid, " not ", "not")).IsSuccess);
+        Assert.Equal(0, k.Uow.SaveCount);
+        Assert.Empty(k.Hareket.Rows);
+
+        Assert.True((await k.GuncelleAsync(null, null, UrunAciklamaAlani.Grid, "   ", "not")).IsSuccess);
+        Assert.Null(k.Satir.GridAciklama);
+        Assert.Single(k.Hareket.Rows);
+    }
+
+    /// <summary>Açıklamada çakışma varsa ürün bilgisi de yazılmaz: kayıt hep birlikte uygulanır ya da hiç uygulanmaz.</summary>
+    [Fact]
+    public async Task Aciklama_ekrandaki_eski_degerden_farkliysa_409_ve_hicbir_alan_yazilmaz()
+    {
+        var k = new Kurgu();
+        k.Satir.UcKAciklama = "başkasının notu";
+
+        var sonuc = await k.GuncelleAsync("SN-1", null, UrunAciklamaAlani.UcK, "benim notum", null);
+
+        Assert.Equal(409, sonuc.StatusCode);
+        Assert.Equal(UrunAciklamaKurali.CakismaMesaji, sonuc.Error?.Message);
+        Assert.Null(k.Icerik.UrunBilgisi);
+        Assert.Equal("başkasının notu", k.Satir.UcKAciklama);
+        Assert.Equal(0, k.Uow.SaveCount);
+        Assert.Empty(k.Hareket.Rows);
+    }
+
+    [Fact]
+    public async Task Sevk_kilitli_sandikta_aciklama_da_degistirilemez()
+    {
+        var k = new Kurgu();
+        k.Sandik.DurumId = (int)SandikDurum.Sevkedildi;
+
+        var sonuc = await k.GuncelleAsync(null, null, UrunAciklamaAlani.UcK, "not", null);
+
+        Assert.False(sonuc.IsSuccess);
+        Assert.Null(k.Satir.UcKAciklama);
+        Assert.Equal(0, k.Uow.SaveCount);
+    }
+
+    /// <summary>Sevk sonrası düzeltmede açılan sandıkta (kilit kalkmış) açıklama eklenebilir.</summary>
+    [Fact]
+    public async Task Sevk_sonrasi_duzeltmedeki_sandikta_aciklama_eklenebilir()
+    {
+        var k = new Kurgu();
+        k.Sandik.DurumId = (int)SandikDurum.Sevkedildi;
+        k.Sandik.SevkiyatDuzeltmeAcikMi = true;
+
+        var sonuc = await k.GuncelleAsync(null, null, UrunAciklamaAlani.UcK, "sonradan not", null);
+
+        Assert.True(sonuc.IsSuccess, sonuc.Error?.Message);
+        Assert.Equal("sonradan not", k.Satir.UcKAciklama);
+    }
+
+    [Fact]
+    public async Task Ceki_bagi_olmayan_satirda_aciklama_reddedilir()
+    {
+        var k = new Kurgu();
+        k.Icerik.CekiSatiriId = null;
+
+        var sonuc = await k.GuncelleAsync("SN-1", null, UrunAciklamaAlani.UcK, "not", null);
+
+        Assert.Equal(UrunAciklamaKurali.CekiBagiYokMesaji, sonuc.Error?.Message);
+        Assert.Null(k.Icerik.UrunBilgisi);
+        Assert.Equal(0, k.Uow.SaveCount);
+    }
+
+    [Fact]
+    public void Validator_bin_karakteri_asan_aciklamayi_ve_gecersiz_alani_reddeder()
+    {
+        var validator = new SandikIcerikBilgisiGuncelleCommandValidator();
+        var komut = new SandikIcerikBilgisiGuncelleCommand
+        {
+            ProjeId = 1, SandikId = 2, SandikIcerikId = 3, AciklamaAlani = UrunAciklamaAlani.Grid, Aciklama = new string('x', 1000)
+        };
+        Assert.True(validator.Validate(komut).IsValid);
+        komut.Aciklama = new string('x', 1001);
+        Assert.False(validator.Validate(komut).IsValid);
+        komut.Aciklama = "not";
+        komut.AciklamaAlani = (UrunAciklamaAlani)9;
+        Assert.False(validator.Validate(komut).IsValid);
+    }
+
     private sealed class Kurgu
     {
         public Kurgu()
         {
             Sandik = new Sandik { Id = 30, ProjeId = 10, SandikNo = "1", DurumId = (int)SandikDurum.Hazirlaniyor };
+            Satir = new CekiSatiri { Id = 23, IstenenAdet = 2 };
             Icerik = new SandikIcerik { Id = 40, SandikId = Sandik.Id, Sandik = Sandik, CekiSatiriId = 23, TahsisMiktari = 2 };
             Uow.Repo<Sandik>().Rows.Add(Sandik);
             Uow.Repo<SandikIcerik>().Rows.Add(Icerik);
+            Uow.Repo<CekiSatiri>().Rows.Add(Satir);
         }
 
         public OrtakMemoryUow Uow { get; } = new();
         public OrtakHareket Hareket { get; } = new();
         public Sandik Sandik { get; }
+        public CekiSatiri Satir { get; }
         public SandikIcerik Icerik { get; }
+
+        public Task<_3K.Application.Common.Result> GuncelleAsync(
+            string? bilgi, string? onceki, UrunAciklamaAlani alan, string? aciklama, string? oncekiAciklama) =>
+            new SandikIcerikBilgisiGuncelleCommandHandler(Uow, Hareket, new OrtakUser())
+                .Handle(new()
+                {
+                    ProjeId = 10, SandikId = Sandik.Id, SandikIcerikId = Icerik.Id,
+                    UrunBilgisi = bilgi, OncekiUrunBilgisi = onceki,
+                    AciklamaAlani = alan, Aciklama = aciklama, OncekiAciklama = oncekiAciklama
+                }, default);
 
         /// <summary>Önceki değer verilmezse kullanıcı ekranda kayıtlı (güncel) değeri görüyordur.</summary>
         public Task<_3K.Application.Common.Result> GuncelleAsync(string? bilgi) => GuncelleAsync(bilgi, Icerik.UrunBilgisi);

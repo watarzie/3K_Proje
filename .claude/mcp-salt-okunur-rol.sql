@@ -1,14 +1,20 @@
 -- =====================================================================================
 -- "postgres-salt-okunur" MCP sunucusu için yalnız okuma yetkili rol (Claude Code teşhis sorguları).
 --
--- KULLANICI ÇALIŞTIRIR (pgAdmin'de sorgu aracını 3K_Db düğümünden açın). Claude bu betiği çalıştırmaz.
+-- KULLANICI ÇALIŞTIRIR (pgAdmin'de sorgu aracını izin verilecek veritabanının düğümünden açın). Claude bu betiği çalıştırmaz.
 -- MCP paketi (@modelcontextprotocol/server-postgres) sorguları salt okunur transaction'da çalıştırır ama paket artık
 -- desteklenmiyor; asıl güvence bu roldür: yalnız SELECT yetkisi, varsayılan salt okunur transaction, zaman aşımı.
 --
--- 1) Aşağıdaki '<GÜÇLÜ-PAROLA>' yerine güçlü bir parola yazıp çalıştırın.
--- 2) Windows kullanıcı ortam değişkeni (yalnız sizin makinenizde; depoya yazılmaz):
---      THREEK_READONLY_PG_URL = postgresql://claude_okuyucu:<parola>@localhost:5432/3K_Db
--- 3) Claude Code'u yeniden başlatın; ilk açılışta .mcp.json sunucusunu onaylayın.
+-- Rol sunucu genelidir, izinler veritabanına özeldir: betik bağlı olduğu veritabanına (current_database()) izin verir.
+-- Hem 3K_Db'de hem canlı kopyada (3K_Db_Canli) o veritabanının düğümünden açılan sorgu penceresinde çalıştırılır.
+-- Yedek geri yüklenince o veritabanındaki izinler silinir: geri yüklemeden sonra aynı veritabanında yeniden çalıştırın
+-- (rol zaten varsa parolası değişmez; '<GÜÇLÜ-PAROLA>' yalnız ilk kurulumda kullanılır).
+--
+-- 1) İlk kurulumda aşağıdaki '<GÜÇLÜ-PAROLA>' yerine güçlü bir parola yazıp çalıştırın.
+-- 2) Windows kullanıcı ortam değişkenleri (yalnız sizin makinenizde; depoya yazılmaz):
+--      THREEK_READONLY_PG_URL       = postgresql://claude_okuyucu:<parola>@localhost:5432/3K_Db
+--      THREEK_CANLI_KOPYA_PG_URL    = postgresql://claude_okuyucu:<parola>@localhost:5432/3K_Db_Canli
+-- 3) Claude Code'u yeniden başlatın; ilk açılışta .mcp.json sunucularını onaylayın.
 -- =====================================================================================
 BEGIN;
 
@@ -23,7 +29,10 @@ END $$;
 ALTER ROLE claude_okuyucu SET default_transaction_read_only = on;
 ALTER ROLE claude_okuyucu SET statement_timeout = '30s';
 
-GRANT CONNECT ON DATABASE "3K_Db" TO claude_okuyucu;
+DO $$
+BEGIN
+    EXECUTE format('GRANT CONNECT ON DATABASE %I TO claude_okuyucu', current_database());
+END $$;
 GRANT USAGE ON SCHEMA public TO claude_okuyucu;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO claude_okuyucu;
 -- Sonradan eklenen tablolar da okunabilsin (tablo sahibi rol tarafından oluşturulanlar için).
