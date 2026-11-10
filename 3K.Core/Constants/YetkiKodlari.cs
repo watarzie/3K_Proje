@@ -209,5 +209,11 @@ public static class YetkiKodlari
 
         /// <summary>Mevzuat kuralları ekranı: kural setleri, kurallar ve kaynakları (R).</summary>
         public const string MevzuatKurallari = "mevzuat-kurallari";
+
+        /// <summary>
+        /// Araç yükleme (saha) ekranı: R yükleme oturumunu ve ilerlemeyi görür; W oturum başlatır, kapatır, yükü
+        /// yüklendi işaretler ve işareti geri alır. Operatöre plan düzenleme izni vermeden verilebilsin diye ayrı izindir.
+        /// </summary>
+        public const string AracYukleme = "arac-yukleme";
     }
 }

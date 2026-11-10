@@ -116,6 +116,12 @@ public sealed class YuklemePlaniDetayi
 
     /// <summary>Planlamaya dahil yüklerin farklı lokasyon sayısı (belirsiz lokasyon ayrı sayılır); 1'den fazlaysa lokasyon tercihi sorulur.</summary>
     public int FarkliLokasyonSayisi { get; init; }
+
+    /// <summary>
+    /// Sahada süren yükleme oturumu (yoksa null). Oturum başladığı revizyonla sürer; plan revize edilirse sahadaki
+    /// yükleme yeni revizyona geçmez, bu yüzden plan ekranı uyarır.
+    /// </summary>
+    public AracYuklemeOturumu? SurenYukleme { get; init; }
 }
 
 /// <summary>Otomatik yerleşim sonucu (isterler 16–19, 22–23, 27): araçlar, yerleşemeyenler, ek ihtiyaç ve uyarılar.</summary>

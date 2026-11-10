@@ -77,6 +77,8 @@ namespace _3K.Infrastructure.Data
         public DbSet<YuklemePlanRevizyonu> YuklemePlanRevizyonlari { get; set; } = null!;
         public DbSet<YuklemePlanProjesi> YuklemePlanProjeleri { get; set; } = null!;
         public DbSet<YuklemePlanYuku> YuklemePlanYukleri { get; set; } = null!;
+        public DbSet<YuklemeOturumu> YuklemeOturumlari { get; set; } = null!;
+        public DbSet<YuklemeOturumYuku> YuklemeOturumYukleri { get; set; } = null!;
 
         // ======= RBAC (Rol Tabanlı Erişim Kontrolü) DbSet'leri =======
         public DbSet<Rol> Roller { get; set; } = null!;

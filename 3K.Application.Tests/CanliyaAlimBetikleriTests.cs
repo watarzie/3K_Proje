@@ -13,29 +13,32 @@ namespace _3K.Application.Tests;
 /// 25 <c>20261024_01_Proje_Baglanti_Turu.sql</c>, 26 <c>20261024_02_Barkod_Urun_Arama_Yetkisi.sql</c>,
 /// 27 <c>20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql</c>, 28 <c>20261025_01_Giris_Kilidi.sql</c>,
 /// 29 <c>20261026_01_Barkod_Etiket_Yetkisi.sql</c>, 30 <c>20261105_01_Yuk_Turu.sql</c>,
-/// 31 <c>20261105_02_Yukleme_Planlama.sql</c>, 32 <c>20261105_03_Yukleme_Yerlesim.sql</c>) önceki sürümün şemasında çalıştırılır. Sonuç şeması EF modeliyle
+/// 31 <c>20261105_02_Yukleme_Planlama.sql</c>, 32 <c>20261105_03_Yukleme_Yerlesim.sql</c>,
+/// 33 <c>20261109_01_Arac_Yukleme.sql</c>) önceki sürümün şemasında çalıştırılır. Sonuç şeması EF modeliyle
 /// aynıdır (kolon, kısıt, ON DELETE kuralı, indeks). Betiklerin tekrarı hiçbir şeyi değiştirmez: var olan taşıma izi ve
 /// verilmiş izinler korunur. Salt okunur durum sorgusu (<c>kontrol/Betik_Durumu.sql</c>) klasördeki her betiği listeler
 /// ve öncesini/sonrasını doğru gösterir. 1–20 numaralı betikler canlıya uygulanıp depodan kaldırıldığı için burada yoktur.
 /// </summary>
 public sealed class CanliyaAlimBetikleriTests
 {
-    /// <summary>Canlıda çalıştırma sırası (scripts/database/README.md, sıra 22–32).</summary>
+    /// <summary>Canlıda çalıştırma sırası (scripts/database/README.md, sıra 22–33).</summary>
     private static readonly string[] Betikler =
         ["20261021_02_Sahadan_Sahaya_Tasima.sql", "20261023_01_Grid_Saha_Gorunumu_Yetkisi.sql",
             "20261023_02_Sevk_Sonrasi_Duzeltme.sql", "20261024_01_Proje_Baglanti_Turu.sql",
             "20261024_02_Barkod_Urun_Arama_Yetkisi.sql", "20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql",
             "20261025_01_Giris_Kilidi.sql", "20261026_01_Barkod_Etiket_Yetkisi.sql",
-            "20261105_01_Yuk_Turu.sql", "20261105_02_Yukleme_Planlama.sql", "20261105_03_Yukleme_Yerlesim.sql"];
+            "20261105_01_Yuk_Turu.sql", "20261105_02_Yukleme_Planlama.sql", "20261105_03_Yukleme_Yerlesim.sql",
+            "20261109_01_Arac_Yukleme.sql"];
 
-    /// <summary>31 numaralı betiğin izin düğümleri: kod, Id, rota, üst düğüm.</summary>
+    /// <summary>31 ve 33 numaralı betiklerin izin düğümleri: kod, Id, rota, üst düğüm.</summary>
     private static readonly (string Kod, int Id, string? Route, int? ParentId)[] YuklemeDugumleri =
     [
         (YetkiKodlari.YuklemePlanlama.Modul, 5263, null, null),
         (YetkiKodlari.YuklemePlanlama.Planlar, 5264, "/yukleme-planlari", 5263),
         (YetkiKodlari.YuklemePlanlama.EkipmanKitapligi, 5265, "/ekipman-kitapligi", 5263),
         (YetkiKodlari.YuklemePlanlama.EkipmanDogrulama, 5266, null, 5265),
-        (YetkiKodlari.YuklemePlanlama.MevzuatKurallari, 5267, "/mevzuat-kurallari", 5263)
+        (YetkiKodlari.YuklemePlanlama.MevzuatKurallari, 5267, "/mevzuat-kurallari", 5263),
+        (YetkiKodlari.YuklemePlanlama.AracYukleme, 5268, "/arac-yukleme", 5263)
     ];
 
     /// <summary>Önceki sürümün (master) şeması: bu sürümün eklediği tablo, kolon, kısıt ve indeksler yoktur.</summary>
@@ -50,6 +53,8 @@ public sealed class CanliyaAlimBetikleriTests
         DROP TABLE "SandikDurumOlaylari";
         DROP TABLE "LookupSandikAcilmaSebepleri";
         ALTER TABLE "Sandiklar" DROP COLUMN "KapanmaTarihi";
+        DROP TABLE "YuklemeOturumYukleri";
+        DROP TABLE "YuklemeOturumlari";
         DROP TABLE "YuklemePlanYukleri";
         DROP TABLE "YuklemePlanProjeleri";
         DROP TABLE "YuklemePlanRevizyonlari";
@@ -160,7 +165,7 @@ public sealed class CanliyaAlimBetikleriTests
                 tur => Assert.Equal((int)YukTuru.Sandik, tur));
             Assert.Equal(["Sandık", "Trafo", "Diğer özel yük"],
                 await db.LookupYukTurleri.AsNoTracking().OrderBy(t => t.Id).Select(t => t.Deger).ToListAsync());
-            // 31: modül düğümleri, yalnız Admin W; tohumlar; v1 kural seti taslaktır.
+            // 31 ve 33: modül düğümleri (araç yükleme dahil), yalnız Admin W; tohumlar; v1 kural seti taslaktır.
             var yukleme = await YuklemeDurumuAsync(db);
             Assert.Equal(YuklemeDugumleri.Select(d => (d.Id, d.Route, d.ParentId)), yukleme.Dugumler.Select(d => (d.Id, d.Route, d.ParentId)));
             Assert.True(yukleme.Dugumler[0].Sira > (await db.MenuTanimlari.AsNoTracking()
@@ -348,7 +353,7 @@ public sealed class CanliyaAlimBetikleriTests
         List<List<(int RolId, int YetkiTipiId)>> Izinler,
         (int Aile, int Tip, int Kaynak, int Kural, MevzuatKuralSetiDurumu SetDurumu) Tohumlar);
 
-    /// <summary>31 numaralı betiğin bıraktıkları: düğümler (betikteki sırayla), her düğümün izinleri ve tohum sayıları.</summary>
+    /// <summary>31 ve 33 numaralı betiklerin bıraktıkları: düğümler (betikteki sırayla), her düğümün izinleri ve tohum sayıları.</summary>
     private static async Task<YuklemeBetikDurumu> YuklemeDurumuAsync(AppDbContext db)
     {
         var dugumler = new List<(int Id, string? Route, int? ParentId, int Sira)>();

@@ -191,7 +191,11 @@ internal sealed partial class YuklemePlaniService
     {
         if (sonuc == null)
             return null;
-        var satirlar = revizyon.Yukler.ToDictionary(y => YuklemePlaniKurali.YukAnahtari(y.Kaynak, y.SandikId, y.ManuelGrupNo, y.BirimNo));
+        // Sandığı sonradan silinen satırın sandık bağı boşalır ve anahtarı kalmaz (birden çok satır aynı "s:" anahtarını
+        // üretirdi); yerleşimdeki eski anahtar satırsız kalır ve koduyla değil anahtarıyla gösterilir.
+        var satirlar = revizyon.Yukler
+            .Where(y => y.Kaynak != PlanYukKaynagi.Sandik || y.SandikId != null)
+            .ToDictionary(y => YuklemePlaniKurali.YukAnahtari(y.Kaynak, y.SandikId, y.ManuelGrupNo, y.BirimNo));
         var konfIdleri = sonuc.Araclar.Select(a => a.KonfigurasyonId).Distinct().ToList();
         var revizyonNolari = sonuc.Araclar.Select(a => a.RevizyonNo).Distinct().ToList();
         var geometriler = (await context.EkipmanKonfigurasyonRevizyonlari.AsNoTracking()

@@ -8,6 +8,61 @@ koşum sayıları tarihsel kayıttır; depo dışında yönetilen 02–04 SQL'le
 bugünkü halini veya canlıda elle uygulanmasını doğrulamaz. Bu geçiş için
 ayrı staging provası ve DBA doğrulaması gerekir.
 
+## Araç yükleme, saha (YK-01–YK-11) — 10 Kasım 2026
+
+Değişiklik henüz commit edilmedi (dal `feature/yukleme-simulasyonu`). Kullanıcı kararları 9 Kasım 2026.
+
+**Davranış.**
+- Yeni ekran `/arac-yukleme`, `arac-yukleme` iznini ister (Id 5268, `yukleme-planlama` altında): R izler; W oturum başlatır, yükü işaretler, işareti geri alır, oturumu kapatır. Yükleme planının yerleşimi sahada tabletle uygulanır; operatör sandık barkodunu okutur.
+- Oturum planın son revizyonuyla başlar ve o revizyonun yerleşimine sabit kalır. İstek beklenen revizyon numarasını taşır; plan arada revize edildiyse 409. Yerleşim yoksa başlatılamaz. Planda aynı anda tek açık oturum olur. Plan sonradan revize edilirse oturum eski yerleşimle sürer ve "plan değişti" bayrağı döner.
+- Sandık barkodu `Sandik.Id` değerinin 12 haneli sıfır dolgusudur ve sunucuda çözülür: yüklenebilir, sıra dışı, başka araçta, zaten yüklendi, planda yok, geçersiz barkod. Çözüm kayıt yazmaz.
+- İşaretleme yalnız ekrandaki aracın yerleşimdeki yükü için yapılır. Barkod kaynağında istek okutulan barkodu da taşır; barkod işaretlenen yükle eşleşmezse 400. Plana elle eklenen yük yalnız Elle kaynağıyla işaretlenir.
+- Sıra dışı yük onaysız 409 alır, onayla kabul edilir ve sıra dışı olarak kaydedilir; sıra dışılığı sunucu hesaplar. Aynı adımdaki istif katları kendi arasında serbesttir.
+- Bir yükün oturumda tek etkin işareti olur; tekrar okutma yeni kayıt yazmaz. Geri alma gerekçe ister (5–500 karakter) ve işareti silmez.
+- İptal her zaman, tamamlama yüklenmemiş yük varken gerekçe ister. Kapanan oturum yeniden açılmaz. İşaretleme, geri alma ve kapatma oturum satırı kilidi altında sırayla yürür.
+- Yükleme işareti planlama kaydıdır: sandık durumu, sevk kayıtları, hareket geçmişi ve Grid/3K sayaçları değişmez.
+- Yükleme adımı ve yük numarası tek kuraldan (`YuklemeSirasiKurali`) türer; yükleme planı PDF'i, plan ekranındaki oynatıcı ve saha ekranı aynı numarayı kullanır.
+- Durum isteği, oturumu ve son revizyonunda yerleşimi olmayan planı 404 ile gizler. Plan listesi araması en fazla 100 karakterdir.
+
+**Kapsam sınırı.** Şema ve izin `scripts/database/20261109_01_Arac_Yukleme.sql` ile kurulur (README sıra 33). Kurallar katalog bölüm 6.4'tedir. Eşleme satırları `coverage/ORTAK_SAHA_YETKI_TEST_ESLESMESI.md` dosyasındadır: YK-01, YK-04, YK-06 ve YK-11 Birim; YK-02, YK-03, YK-07, YK-08 ve YK-10 Entegrasyon; YK-05 ve YK-09 Kısmi. Yükleme planlamasının önceki aşamaları (plan ve revizyon, otomatik ve elle yerleşim, ekipman kitaplığı, mevzuat) katalogda kural olarak ve bu dosyada koşum bölümü olarak yer almaz. Ambalaj ve Finans'ta yeni kural yoktur.
+
+- [AracYuklemeTests](../../3K.Application.Tests/AracYuklemeTests.cs) (7 metot, 26 vaka; bellek içi):
+  - Sandık barkodunun çözülmesi (Theory, 11 vaka) ve Barkod kaynağında barkod–yük eşleşmesi (Theory, 6 vaka; elle eklenen yük eşleşmez).
+  - Sıradaki adım ve sıra dışılık; gerekçe sınırı (Theory, 5 vaka; 500 kabul, 501 ret).
+  - Sekiz isteğin `arac-yukleme` R/W bildirimi.
+  - Doğrulayıcılar: barkod çözme, başlatma, işaretleme (Barkod kaynağında barkod zorunlu, Elle kaynağında değil), plan listesi araması (100 kabul, 101 ret), geri alma ve kapatma.
+- [YuklemeSirasiKuraliTests](../../3K.Application.Tests/YuklemeSirasiKuraliTests.cs) (4 metot; bellek içi): sıra ve kat, istifin tek adım olması ve ardışık adım numarası, gerçek motor çıktısında önden arkaya sıra, otomatik ve elle yerleşimde istif numarası ile yükleme sırasının eşitliği.
+- [YuklemePlanlamaPostgresTests](../../3K.Application.Tests/YuklemePlanlamaPostgresTests.cs) (izole PostgreSQL): `Postgres_AracYukleme_OturumIsaretGeriAlVeKapat` tek testte şunları sınar:
+  - Oturum başlatma, tek açık oturum ve oturumu, yerleşimi olmayan planın durum sorgusunda görünmemesi.
+  - Barkod çözümü, işaretleme retleri ve Barkod kaynağında barkod–yük uyuşmazlığının 400 alması.
+  - Tekrar ve eşzamanlı işaretleme, veritabanının ikinci etkin işareti reddetmesi, geri alma.
+  - Plan revizyonundan sonra oturumun sürmesi; kapanış ve gerekçe kuralları.
+  - Kapatma ile işaretleme yarışı: oturum satırı kilidinde bekleyen işaretleme kapanıştan sonra 409 alır.
+  - Sandık, hareket ve sevk tablolarının değişmediği; sandık silinince işaret bağının boşalması ve kapanmış oturumun okunması.
+- [CanliyaAlimBetikleriTests](../../3K.Application.Tests/CanliyaAlimBetikleriTests.cs) (izole PostgreSQL, 1 test): betik 33'ü de çalıştırır; iki tabloyu ve indeksleri EF modeliyle karşılaştırır, izin düğümünü (5268, `/arac-yukleme`, üst 5263) ve yalnız Admin W iznini doğrular.
+- [YuklemePlaniRaporTests](../../3K.Application.Tests/YuklemePlaniRaporTests.cs) (6 metot; bellek içi): PDF artık numarayı ortak kuraldan aldığı için koşuldu. Testler raporun üretildiğini ve çizimde numara metninin bulunduğunu doğrular; basılan numaraların içeriğini karşılaştırmaz.
+
+**Koşum (Release, 10 Kasım 2026, dokümantasyon oturumu, PostgreSQL'siz):**
+- Filtre `FullyQualifiedName~AracYuklemeTests|FullyQualifiedName~YuklemeSirasiKuraliTests|FullyQualifiedName~YuklemePlaniRaporTests|FullyQualifiedName~YuklemePlanlamaPostgresTests|FullyQualifiedName~CanliyaAlimBetikleriTests|FullyQualifiedName~ButunKorumaliOperasyonlar_SunucudaTanimlidir` (`dotnet test ... -c Release --no-build`) ile 44 test seçildi: 37 başarılı, 0 başarısız, 7 atlanan.
+  - Başarılı: `AracYuklemeTests` 26 vaka, `YuklemeSirasiKuraliTests` 4, `YuklemePlaniRaporTests` 6 ve `ServerAuthorizationRegressionTests.ButunKorumaliOperasyonlar_SunucudaTanimlidir`.
+  - Atlananlar: `YuklemePlanlamaPostgresTests` sınıfının altı testi (`Postgres_AracYukleme_OturumIsaretGeriAlVeKapat` dahil) ve `CanliyaAlimBetikleriTests.Postgres_Betik_SemayiModeleGetirir_TekrarindaTasimaIziniKorur`. Oturumda `THREEK_TEST_POSTGRES` tanımlı değildi.
+  - Bu oturumda derleme yapılmadı: geliştirme oturumunun 10 Kasım 2026 20:02 tarihli Release derlemesi kullanıldı. Derleme, gözden geçirme düzeltmelerini içerir ve koşum anında bütün kaynak dosyalarından yeniydi.
+- Kural–test eşleme doğrulayıcısı (`scripts/test/Test-IsKuraliEslemesi.ps1`): 559 kural doğrulandı (önceki 548 + YK-01–YK-11). `-TrxPath` kipi kullanılmadı.
+
+**Koşulmayanlar:**
+- Yedi PostgreSQL testi bu oturumda koşulmadı (atlandı). Oturum, işaret, geri alma, kapanış, oturum satırı kilidi, eşzamanlılık, "sandık ve sevk değişmez" ölçümü ve betik davranışı bu oturumda gerçek veritabanında doğrulanmadı; YK-02, YK-03, YK-07, YK-08 ve YK-10 yalnız bu testlere dayanır.
+- Tam paketler (.NET ve ön yüz) koşulmadı. Ön yüz spec'leri (`yukleme-adimlari.spec.ts`, `arac-yukleme.service.spec.ts`, `arac-yukleme-planlar`, `arac-yukleme-oturum`, `arac-yukleme-arac` ve `plan-yukleme-oynatici` bileşen spec'leri) bu oturumda koşulmadı.
+- HTTP ve tarayıcı akışı, tablet ve el okuyucusuyla okutma, canlı veri (`3K_Db`) denenmedi.
+
+**Açık kalanlar (YK-01–YK-11):**
+- Saklanan işaret kaynağı (Barkod/Elle), yükleyen ve geri alan kullanıcı hiçbir testte okunmuyor (YK-05, YK-08).
+- İptalin başarıyla kapanması, bütün yükler yüklüyken gerekçesiz tamamlama ve kapanan oturumdan sonra aynı planda yeni oturum başlatma testsiz (YK-09).
+- Oturum satırı kilidi yalnız kapatma ile işaretleme yarışında sınanıyor; kapatma ile geri alma yarışı (eksik yük sayımı) ve aynı işaretin eşzamanlı iki geri alınması testsiz (YK-08, YK-09).
+- İzin yalnız bildirim düzeyinde testli: gerçek `AuthorizationBehavior` ile 403 akışı, üst düğüm tavanı ve `yukleme-planlari` izninin bu uçları açmaması testsiz (YK-11).
+- Durum sorgusunun boş sonucunun 404'e çevrilmesi, eşzamanlı iki başlatmada benzersizlik ihlalinin 409'a çevrilmesi, olmayan plan 404, araca konmuş yükü olmayan yerleşim 400 ve liste sırası testsiz (YK-02).
+- PDF'te basılan numaraların ve istif etiketinin içeriği testsiz (YK-01). Grid/3K sayaçlarının değişmediği doğrudan ölçülmüyor; test verisinde çeki satırı yok (YK-10).
+- İstif grubunun veritabanıyla işaretlenmesi ve plana elle eklenen yükün işaretlenmesi testsiz (YK-05, YK-06).
+
 ## Barkod etiketi (C-16) — 26 Ekim 2026
 
 Değişiklik henüz commit edilmedi.

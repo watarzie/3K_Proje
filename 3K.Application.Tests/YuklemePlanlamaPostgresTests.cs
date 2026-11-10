@@ -517,4 +517,264 @@ public sealed class YuklemePlanlamaPostgresTests
             }
         });
     }
+
+    /// <summary>
+    /// Araç yükleme (saha): oturum son revizyonun yerleşimine sabitlenir ve planda tek açık oturum olur; barkod çözme
+    /// durum değiştirmez; sıra dışı yük onay ister; aynı yük tekrar ya da iki tabletten aynı anda okutulursa tek kayıt
+    /// kalır; geri alma iz bırakır; plan revize edilse de oturum başladığı yerleşimle sürer; kapanan oturuma yazılmaz.
+    /// Hiçbir adım sandık durumunu, hareket geçmişini, sevk kayıtlarını ya da plan revizyonlarını değiştirmez.
+    /// </summary>
+    [PostgresRaporFact, Trait("Category", "Postgres")]
+    public async Task Postgres_AracYukleme_OturumIsaretGeriAlVeKapat()
+    {
+        await FinansPostgresTests.InDatabase(async options =>
+        {
+            int projeA, projeB, disSandik;
+            await using (var db = new AppDbContext(options))
+            {
+                db.EkipmanKonfigurasyonlari.Add(new EkipmanKonfigurasyonu
+                {
+                    Model = new EkipmanModeli { TipId = 2, Uretici = "Test", ModelAdi = "K40" },
+                    Kod = "K40", Ad = "K40", SonRevizyonNo = 1,
+                    Revizyonlar =
+                    [
+                        new EkipmanKonfigurasyonRevizyonu
+                        {
+                            RevizyonNo = 1, KaynakTuru = EkipmanKaynakTuru.Diger, DogrulamaDurumu = EkipmanDogrulamaDurumu.Dogrulandi,
+                            TeknikVeriJson = _3K.YuklemeMotoru.Ekipman.EkipmanTeknikVeriSerilestirici.Yaz(YerlesimMotoruTests.K40.TeknikVeri)
+                        }
+                    ]
+                });
+                var a = new Proje { ProjeNo = "PA900-01", Musteri = "M", ProjeTipiId = (int)ProjeTipi.Normal };
+                var b = new Proje { ProjeNo = "PA900-02", Musteri = "M", ProjeTipiId = (int)ProjeTipi.Normal };
+                var c = new Proje { ProjeNo = "PA900-03", Musteri = "M", ProjeTipiId = (int)ProjeTipi.Normal };
+                // Üste konamayan sandıklar: her biri ayrı yükleme adımıdır (sıra dışı denemesi için).
+                var dis = Sandik(c, "1", 1400, 300);
+                db.Sandiklar.AddRange(Sandik(a, "1", 3000, 900), Sandik(a, "2", 2600, 800), Sandik(a, "3", 2200, 700), Sandik(b, "1", 1400, 500), dis);
+                await db.SaveChangesAsync();
+                (projeA, projeB, disSandik) = (a.Id, b.Id, dis.Id);
+            }
+
+            YuklemePlaniDetayi plan;
+            await using (var db = new AppDbContext(options))
+            {
+                var servis = PlanServisi(db);
+                plan = await servis.OlusturAsync(new YuklemePlaniOlusturModel("Saha yükleme", YuklemeCalismaBicimi.IhtiyacaGoreArac, 1,
+                    YuklemeProjeKarisimi.ProjeBazindaAyri, null, null, [projeA, projeB]), kullaniciId: null, Ct);
+                // Yerleşim yokken oturum başlatılamaz ve plan yükleme listesinde görünmez.
+                var yerlesimsiz = await Assert.ThrowsAsync<IsKuraliException>(() => servis.BaslatAsync(plan.Id, 1, null, Ct));
+                Assert.Equal((400, YuklemeOturumuKurali.YerlesimYokMesaji), (yerlesimsiz.StatusCode, yerlesimsiz.Message));
+                Assert.Empty((await servis.YuklenecekPlanlarAsync(null, null, null, Ct)).Items);
+                // Ne yüklemesi ne yerleşimi olan plan, listede olduğu gibi durum ucunda da görünmez (404).
+                Assert.Null(await servis.DurumAsync(plan.Id, Ct));
+
+                // Üst üste konmasın: her sandık ayrı adım olsun.
+                var secimler = plan.Yukler.Select(y => new PlanSandikYukuKaydi(y.SandikId!.Value, true, false, false, false, y.UstYukSiniriKg,
+                    PlanYukIzni.UsteKonma | PlanYukIzni.AltaKalma)).ToList();
+                plan = await servis.KaydetAsync(new YuklemePlaniKaydetModel(plan.Id, 1, "Saha yükleme", YuklemeCalismaBicimi.IhtiyacaGoreArac, 1,
+                    YuklemeProjeKarisimi.ProjeBazindaAyri, null, null, null, new YuklemePlanAyarlari(), [projeA, projeB], secimler, []), null, Ct);
+                plan = await servis.HesaplaAsync(plan.Id, 2, YuklemeLokasyonTercihi.Karisik, kullaniciId: null, Ct);
+            }
+            Assert.Equal((3, 2), (plan.RevizyonNo, plan.Yerlesim!.Araclar.Count));
+            var aracA = plan.Yerlesim.Araclar.Single(x => x.ProjeNolari.Contains("PA900-01"));
+            var aracB = plan.Yerlesim.Araclar.Single(x => x.ProjeNolari.Contains("PA900-02"));
+            var adimlar = YuklemeSirasiKurali.Adimlar(aracA.Konumlar);
+            Assert.Equal(3, adimlar.Count);
+            var (yuk1, yuk2, yuk3) = (adimlar[0].Yukler.Single().Konum.YukAnahtari, adimlar[1].Yukler.Single().Konum.YukAnahtari, adimlar[2].Yukler.Single().Konum.YukAnahtari);
+            int SandikKimligi(string anahtar) => int.Parse(anahtar.AsSpan(2), System.Globalization.CultureInfo.InvariantCulture);
+            string Barkod(string anahtar) => BarkodEtiketKurali.SandikBarkodu(SandikKimligi(anahtar));
+            var anahtarB = aracB.Konumlar.Single().YukAnahtari;
+            YukIsaretleModeli Isaret(int oturumId, string anahtar, int aracNo, bool onay = false, YuklemeIsaretKaynagi kaynak = YuklemeIsaretKaynagi.Barkod) =>
+                new(oturumId, aracNo, anahtar, kaynak, onay, kaynak == YuklemeIsaretKaynagi.Barkod ? Barkod(anahtar) : null);
+
+            int oturumId;
+            await using (var db = new AppDbContext(options))
+            {
+                var servis = PlanServisi(db);
+                // Eski revizyonla başlatma 409; doğru revizyonla başlar; ikinci başlatma 409 (planda tek açık oturum).
+                Assert.Equal(409, (await Assert.ThrowsAsync<IsKuraliException>(() => servis.BaslatAsync(plan.Id, 2, null, Ct))).StatusCode);
+                var durum = await servis.BaslatAsync(plan.Id, 3, null, Ct);
+                oturumId = durum.Oturum!.Id;
+                Assert.Equal((YuklemeOturumDurumu.Acik, 3, 2, 4, 0, false), (durum.Oturum.Durum, durum.Oturum.RevizyonNo, durum.Oturum.AracSayisi,
+                    durum.Oturum.ToplamYuk, durum.Oturum.YuklenenYuk, durum.Oturum.PlanDegisti));
+                Assert.Equal([(aracA.AracNo, 3, 0), (aracB.AracNo, 1, 0)], durum.Araclar.OrderBy(x => x.AracNo == aracA.AracNo ? 0 : 1).Select(x => (x.AracNo, x.ToplamYuk, x.YuklenenYuk)));
+                Assert.False(durum.Baslatilabilir);
+                var ikinci = await Assert.ThrowsAsync<IsKuraliException>(() => servis.BaslatAsync(plan.Id, 3, null, Ct));
+                Assert.Equal((409, YuklemeOturumuKurali.AcikOturumVarMesaji), (ikinci.StatusCode, ikinci.Message));
+                Assert.Equal(1, await db.YuklemeOturumlari.CountAsync());
+                // Veritabanı da ikinci açık oturumu reddeder.
+                db.YuklemeOturumlari.Add(new YuklemeOturumu { PlanId = plan.Id, RevizyonId = await db.YuklemePlanRevizyonlari.Where(r => r.PlanId == plan.Id && r.RevizyonNo == 3).Select(r => r.Id).SingleAsync(), RevizyonNo = 3, BaslamaTarihi = TurkeyTime.Now });
+                await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+            }
+
+            await using (var db = new AppDbContext(options))
+            {
+                var servis = PlanServisi(db);
+                Assert.Equal(oturumId, Assert.Single((await servis.YuklenecekPlanlarAsync("saha", null, null, Ct)).Items).AcikOturum!.Id);
+                Assert.Equal(oturumId, (await servis.PlanGetirAsync(plan.Id, Ct))!.SurenYukleme!.Id);
+                var arac = (await servis.AracAsync(oturumId, aracA.AracNo, Ct))!;
+                Assert.Equal((1, 0, 3), (arac.SiradakiAdimNo!.Value, arac.Isaretler.Count, arac.Arac.Konumlar.Count));
+                Assert.Null(await servis.AracAsync(oturumId, 99, Ct));
+                Assert.Null(await servis.AracAsync(oturumId + 99, aracA.AracNo, Ct));
+
+                // Barkod çözme: geçersiz, plan dışı, başka araç, sırada, sıra dışı. Hiçbiri kayıt yazmaz.
+                Assert.Equal(YukCozumSonucu.GecersizBarkod, (await servis.CozumleAsync(oturumId, "FCT00967433", aracA.AracNo, Ct)).Sonuc);
+                Assert.Equal(YukCozumSonucu.PlandaYok, (await servis.CozumleAsync(oturumId, BarkodEtiketKurali.SandikBarkodu(disSandik), aracA.AracNo, Ct)).Sonuc);
+                var baska = await servis.CozumleAsync(oturumId, Barkod(anahtarB), aracA.AracNo, Ct);
+                Assert.Equal((YukCozumSonucu.BaskaAracta, aracB.AracNo), (baska.Sonuc, baska.AracNo!.Value));
+                var sirada = await servis.CozumleAsync(oturumId, Barkod(yuk1), aracA.AracNo, Ct);
+                Assert.Equal((YukCozumSonucu.Yuklenebilir, yuk1, 1, 1), (sirada.Sonuc, sirada.YukAnahtari, sirada.AdimNo!.Value, sirada.No!.Value));
+                Assert.Equal(YukCozumSonucu.SiraDisi, (await servis.CozumleAsync(oturumId, Barkod(yuk3), aracA.AracNo, Ct)).Sonuc);
+                Assert.Equal(0, await db.YuklemeOturumYukleri.CountAsync());
+
+                // İşaretleme retleri kayıt yazmaz: onaysız sıra dışı 409, yanlış araç ve plan dışı yük 400, olmayan araç 404.
+                Assert.Equal(409, (await Assert.ThrowsAsync<IsKuraliException>(() => servis.IsaretleAsync(Isaret(oturumId, yuk3, aracA.AracNo), null, Ct))).StatusCode);
+                Assert.Equal(400, (await Assert.ThrowsAsync<IsKuraliException>(() => servis.IsaretleAsync(Isaret(oturumId, anahtarB, aracA.AracNo), null, Ct))).StatusCode);
+                var planDisi = await Assert.ThrowsAsync<IsKuraliException>(() => servis.IsaretleAsync(Isaret(oturumId, $"s:{disSandik}", aracA.AracNo), null, Ct));
+                Assert.Equal((400, YuklemeOturumuKurali.PlandaYokMesaji), (planDisi.StatusCode, planDisi.Message));
+                await Assert.ThrowsAsync<KayitBulunamadiException>(() => servis.IsaretleAsync(Isaret(oturumId, yuk1, 99), null, Ct));
+                // Barkod kaynağı sunucuda doğrulanır: barkodsuz, başka sandığın barkoduyla ya da ürün barkoduyla
+                // "barkodla okutuldu" kaydı yazılamaz.
+                foreach (var okutulan in new string?[] { null, "", Barkod(yuk2), "FCT00967433" })
+                {
+                    var uyusmaz = await Assert.ThrowsAsync<IsKuraliException>(() => servis.IsaretleAsync(
+                        new YukIsaretleModeli(oturumId, aracA.AracNo, yuk1, YuklemeIsaretKaynagi.Barkod, false, okutulan), null, Ct));
+                    Assert.Equal((400, YuklemeOturumuKurali.BarkodUyusmuyorMesaji), (uyusmaz.StatusCode, uyusmaz.Message));
+                }
+                Assert.Equal(0, await db.YuklemeOturumYukleri.CountAsync());
+
+                // Sıradaki yük işaretlenir; aynı okutma ikinci kez gelirse yeni kayıt yazılmaz.
+                var ilk = await servis.IsaretleAsync(Isaret(oturumId, yuk1, aracA.AracNo), null, Ct);
+                Assert.Equal((false, 2, 1), (ilk.ZatenYuklendi, ilk.Arac.SiradakiAdimNo!.Value, ilk.Arac.Oturum.YuklenenYuk));
+                var tekrar = await servis.IsaretleAsync(Isaret(oturumId, yuk1, aracA.AracNo), null, Ct);
+                Assert.Equal((true, 1), (tekrar.ZatenYuklendi, tekrar.Arac.Isaretler.Count));
+                var zaten = await servis.CozumleAsync(oturumId, Barkod(yuk1), aracA.AracNo, Ct);
+                Assert.Equal((YukCozumSonucu.ZatenYuklendi, ilk.Arac.Isaretler[0].Id), (zaten.Sonuc, zaten.Isaret!.Id));
+            }
+
+            // Veritabanı da aynı yükün ikinci etkin işaretini reddeder (kısmi benzersiz indeks).
+            await using (var db = new AppDbContext(options))
+            {
+                db.YuklemeOturumYukleri.Add(new YuklemeOturumYuku
+                {
+                    OturumId = oturumId, AracNo = aracA.AracNo, YukAnahtari = yuk1, Kod = "x", AdimNo = 1,
+                    Kaynak = YuklemeIsaretKaynagi.Elle, YuklemeTarihi = TurkeyTime.Now
+                });
+                await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+            }
+
+            // İki tablet aynı yükü aynı anda okutur (sıra dışı, onaylı): tek etkin kayıt kalır, biri "zaten yüklendi" alır.
+            await using (var db1 = new AppDbContext(options))
+            await using (var db2 = new AppDbContext(options))
+            {
+                var sonuclar = await Task.WhenAll(
+                    PlanServisi(db1).IsaretleAsync(Isaret(oturumId, yuk3, aracA.AracNo, onay: true), null, Ct),
+                    PlanServisi(db2).IsaretleAsync(Isaret(oturumId, yuk3, aracA.AracNo, onay: true, YuklemeIsaretKaynagi.Elle), null, Ct));
+                Assert.Single(sonuclar, s => !s.ZatenYuklendi);
+            }
+
+            int siraDisiIsaret;
+            await using (var db = new AppDbContext(options))
+            {
+                var servis = PlanServisi(db);
+                var kayit = await db.YuklemeOturumYukleri.AsNoTracking().SingleAsync(y => y.YukAnahtari == yuk3);
+                Assert.Equal((true, 3, (int?)SandikKimligi(yuk3)), (kayit.SiraDisi, kayit.AdimNo, kayit.SandikId));
+                siraDisiIsaret = kayit.Id;
+
+                // Geri alma gerekçe ister, kaydı silmez; yük yeniden işaretlenebilir. Geri alınmış işaret ikinci kez geri alınmaz.
+                Assert.Equal(400, (await Assert.ThrowsAsync<IsKuraliException>(() => servis.GeriAlAsync(oturumId, siraDisiIsaret, "x", null, Ct))).StatusCode);
+                var geri = await servis.GeriAlAsync(oturumId, siraDisiIsaret, "  yanlış sandık okutuldu  ", null, Ct);
+                Assert.Equal((1, 2), (geri.Isaretler.Count, geri.SiradakiAdimNo!.Value));
+                var geriAlinan = await db.YuklemeOturumYukleri.AsNoTracking().SingleAsync(y => y.Id == siraDisiIsaret);
+                Assert.Equal(("yanlış sandık okutuldu", true), (geriAlinan.GeriAlmaGerekcesi, geriAlinan.GeriAlinmaTarihi != null));
+                await Assert.ThrowsAsync<KayitBulunamadiException>(() => servis.GeriAlAsync(oturumId, siraDisiIsaret, "ikinci deneme", null, Ct));
+                await servis.IsaretleAsync(Isaret(oturumId, yuk2, aracA.AracNo, kaynak: YuklemeIsaretKaynagi.Elle), null, Ct);
+                var yeniden = await servis.IsaretleAsync(Isaret(oturumId, yuk3, aracA.AracNo), null, Ct);
+                Assert.Equal((false, (int?)null, 3), (yeniden.ZatenYuklendi, yeniden.Arac.SiradakiAdimNo, yeniden.Arac.Isaretler.Count));
+                Assert.Equal((2, 1), (await db.YuklemeOturumYukleri.CountAsync(y => y.YukAnahtari == yuk3),
+                    await db.YuklemeOturumYukleri.CountAsync(y => y.YukAnahtari == yuk3 && y.GeriAlinmaTarihi == null)));
+            }
+
+            // Plan revize edilir (yeni revizyon yerleşimsiz): oturum başladığı yerleşimle sürer.
+            await using (var db = new AppDbContext(options))
+            {
+                var servis = PlanServisi(db);
+                var secimler = plan.Yukler.Select(y => new PlanSandikYukuKaydi(y.SandikId!.Value, y.Dahil, y.DondurulebilirMi,
+                    y.UsteKonabilirMi, y.AltaKalabilirMi, y.UstYukSiniriKg, y.ElleDegisenIzinler)).ToList();
+                var revize = await servis.KaydetAsync(new YuklemePlaniKaydetModel(plan.Id, 3, "Saha yükleme", YuklemeCalismaBicimi.IhtiyacaGoreArac, 1,
+                    YuklemeProjeKarisimi.ProjeBazindaAyri, null, null, null, new YuklemePlanAyarlari(), [projeA, projeB], secimler, []), null, Ct);
+                Assert.Equal((4, true, (PlanYerlesimi?)null), (revize.RevizyonNo, revize.SurenYukleme!.PlanDegisti, revize.Yerlesim));
+                var durum = (await servis.DurumAsync(plan.Id, Ct))!;
+                Assert.Equal((false, false, true, 3, 3), (durum.YerlesimVar, durum.Baslatilabilir, durum.Oturum!.PlanDegisti, durum.Oturum.RevizyonNo, durum.Oturum.YuklenenYuk));
+                Assert.Equal(2, durum.Araclar.Count);
+                Assert.Equal(3, (await servis.AracAsync(oturumId, aracA.AracNo, Ct))!.Isaretler.Count);
+                // Revize edilmiş planda da yükleme sürer.
+                Assert.False((await servis.IsaretleAsync(Isaret(oturumId, anahtarB, aracB.AracNo), null, Ct)).ZatenYuklendi);
+                await servis.GeriAlAsync(oturumId, (await db.YuklemeOturumYukleri.AsNoTracking().SingleAsync(y => y.YukAnahtari == anahtarB)).Id, "araç değişti", null, Ct);
+
+                // Kapanış: iptal gerekçe ister; eksik yükle tamamlama gerekçe ister. Ret durumunda oturum açık kalır.
+                Assert.Equal(400, (await Assert.ThrowsAsync<IsKuraliException>(() => servis.KapatAsync(oturumId, iptal: true, null, null, Ct))).StatusCode);
+                var eksik = await Assert.ThrowsAsync<IsKuraliException>(() => servis.KapatAsync(oturumId, iptal: false, null, null, Ct));
+                Assert.Equal((400, YuklemeOturumuKurali.EksikYukGerekceMesaji), (eksik.StatusCode, eksik.Message));
+                Assert.Equal(YuklemeOturumDurumu.Acik, (await db.YuklemeOturumlari.AsNoTracking().SingleAsync()).Durum);
+            }
+
+            // Kapatma ile işaretleme yarışı: oturuma yazan işlemler oturum satırının kilidinde sıraya girer. Kapatma
+            // sürerken gelen okutma bekler ve kapanış commit edilince "oturum kapalı" alır; kapanmış oturuma işaret düşmez.
+            await using (var kapatan = new AppDbContext(options))
+            await using (var okutan = new AppDbContext(options))
+            {
+                await using var transaction = await kapatan.Database.BeginTransactionAsync();
+                await kapatan.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM \"YuklemeOturumlari\" WHERE \"Id\" = {oturumId} FOR UPDATE");
+                var bekleyen = PlanServisi(okutan).IsaretleAsync(Isaret(oturumId, anahtarB, aracB.AracNo), null, Ct);
+                var kilitBekleyen = 0;
+                for (var deneme = 0; deneme < 100 && kilitBekleyen == 0; deneme++)
+                {
+                    await Task.Delay(50);
+                    kilitBekleyen = (await kapatan.Database.SqlQueryRaw<int>(
+                        "SELECT count(*)::int AS \"Value\" FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'")
+                        .ToListAsync())[0];
+                }
+                Assert.Equal((1, false), (kilitBekleyen, bekleyen.IsCompleted));
+
+                var kapali = await PlanServisi(kapatan).KapatAsync(oturumId, iptal: false, "PA900-02 sandığı sonraki araçla gidecek", null, Ct);
+                Assert.Equal((YuklemeOturumDurumu.Tamamlandi, 3, "PA900-02 sandığı sonraki araçla gidecek", false), (kapali.Oturum!.Durum, kapali.Oturum.YuklenenYuk,
+                    kapali.Oturum.KapanisGerekcesi, kapali.Baslatilabilir));
+                await transaction.CommitAsync();
+
+                var gecKalan = await Assert.ThrowsAsync<IsKuraliException>(() => bekleyen);
+                Assert.Equal((409, YuklemeOturumuKurali.OturumKapaliMesaji), (gecKalan.StatusCode, gecKalan.Message));
+                Assert.Equal(0, await okutan.YuklemeOturumYukleri.CountAsync(y => y.YukAnahtari == anahtarB && y.GeriAlinmaTarihi == null));
+            }
+
+            await using (var db = new AppDbContext(options))
+            {
+                var servis = PlanServisi(db);
+                // Kapanan oturuma yazılmaz ve yeniden kapatılmaz; son revizyonda yerleşim olmadığı için yenisi de başlamaz.
+                var yazma = await Assert.ThrowsAsync<IsKuraliException>(() => servis.IsaretleAsync(Isaret(oturumId, anahtarB, aracB.AracNo), null, Ct));
+                Assert.Equal((409, YuklemeOturumuKurali.OturumKapaliMesaji), (yazma.StatusCode, yazma.Message));
+                Assert.Equal(409, (await Assert.ThrowsAsync<IsKuraliException>(() => servis.GeriAlAsync(oturumId, siraDisiIsaret, "kapalı oturum", null, Ct))).StatusCode);
+                Assert.Equal(409, (await Assert.ThrowsAsync<IsKuraliException>(() => servis.KapatAsync(oturumId, iptal: true, "ikinci kapatma", null, Ct))).StatusCode);
+                Assert.Equal(409, (await Assert.ThrowsAsync<IsKuraliException>(() => servis.CozumleAsync(oturumId, Barkod(anahtarB), aracB.AracNo, Ct))).StatusCode);
+                Assert.Equal(400, (await Assert.ThrowsAsync<IsKuraliException>(() => servis.BaslatAsync(plan.Id, 4, null, Ct))).StatusCode);
+                Assert.Empty((await servis.YuklenecekPlanlarAsync(null, null, null, Ct)).Items);
+                Assert.Null((await servis.PlanGetirAsync(plan.Id, Ct))!.SurenYukleme);
+
+                // Yükleme işaretleri planlama kaydıdır: sandık, hareket geçmişi, sevk ve plan revizyonu değişmedi.
+                Assert.All(await db.Sandiklar.AsNoTracking().ToListAsync(), s => Assert.Equal(((int)SandikDurum.Hazirlaniyor, (DateTime?)null), (s.DurumId, s.UpdatedDate)));
+                Assert.Equal((0, 0, 0, 4), (await db.HareketGecmisleri.CountAsync(), await db.Sevkiyatlar.CountAsync(), await db.SevkSeferleri.CountAsync(),
+                    await db.YuklemePlanRevizyonlari.CountAsync(r => r.PlanId == plan.Id)));
+                // Sandığı sonradan silinen yüklerin bağı boşalır; kapanmış oturumun yerleşimi ve işaretleri yine okunur
+                // (iki sandık birden silinince aynı boş anahtar ekranı çökertmemeli).
+                var (silinen1, silinen2) = (SandikKimligi(yuk1), SandikKimligi(yuk2));
+                await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM \"Sandiklar\" WHERE \"Id\" = {silinen1} OR \"Id\" = {silinen2}");
+                var silinmis = (await servis.AracAsync(oturumId, aracA.AracNo, Ct))!;
+                Assert.Equal((3, 3), (silinmis.Arac.Konumlar.Count, silinmis.Isaretler.Count));
+                Assert.Equal(2, (await servis.DurumAsync(plan.Id, Ct))!.Araclar.Count);
+                Assert.Equal(2, await db.YuklemeOturumYukleri.CountAsync(y => y.SandikId == null && y.GeriAlinmaTarihi == null));
+                // Yükleme kaydı olan plan revizyonu silinemez (FK RESTRICT).
+                await Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlRawAsync("DELETE FROM \"YuklemePlanRevizyonlari\" WHERE \"RevizyonNo\" = 3"));
+            }
+        });
+    }
 }

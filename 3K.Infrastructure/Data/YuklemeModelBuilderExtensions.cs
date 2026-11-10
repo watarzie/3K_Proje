@@ -229,6 +229,59 @@ internal static class YuklemeModelBuilderExtensions
                 .HasForeignKey(p => p.LokasyonId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
+
+        modelBuilder.Entity<YuklemeOturumu>(e =>
+        {
+            e.ToTable("YuklemeOturumlari", table =>
+            {
+                table.HasCheckConstraint("CK_YuklemeOturumlari_Durum", "\"Durum\" IN (1, 2, 3)");
+                // Açık oturumun kapanış zamanı yoktur; kapanan oturumunki vardır.
+                table.HasCheckConstraint("CK_YuklemeOturumlari_Kapanis", "(\"Durum\" = 1) = (\"KapanisTarihi\" IS NULL)");
+                table.HasCheckConstraint("CK_YuklemeOturumlari_Sayilar", "\"AracSayisi\" >= 0 AND \"ToplamYuk\" >= 0");
+            });
+            e.Property(p => p.Durum).HasConversion<short>();
+            e.Property(p => p.KapanisGerekcesi).HasMaxLength(YuklemeOturumuKurali.GerekceEnFazla);
+            e.Property(p => p.Version).IsRowVersion();
+            // Planda aynı anda tek açık oturum (iki kişi aynı anda başlatırsa biri reddedilir).
+            e.HasIndex(p => p.PlanId).IsUnique().HasFilter("\"Durum\" = 1");
+            // Yükleme kaydı olan plan ve revizyon silinemez.
+            e.HasOne(p => p.Plan)
+                .WithMany()
+                .HasForeignKey(p => p.PlanId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(p => p.Revizyon)
+                .WithMany()
+                .HasForeignKey(p => p.RevizyonId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<YuklemeOturumYuku>(e =>
+        {
+            e.ToTable("YuklemeOturumYukleri", table =>
+            {
+                table.HasCheckConstraint("CK_YuklemeOturumYukleri_AracNo_Pozitif", "\"AracNo\" > 0");
+                table.HasCheckConstraint("CK_YuklemeOturumYukleri_Kaynak", "\"Kaynak\" IN (1, 2)");
+                // Geri alınan işaretin zamanı ve gerekçesi birlikte dolar.
+                table.HasCheckConstraint(
+                    "CK_YuklemeOturumYukleri_GeriAlma", "(\"GeriAlinmaTarihi\" IS NULL) = (\"GeriAlmaGerekcesi\" IS NULL)");
+            });
+            e.Property(p => p.YukAnahtari).HasMaxLength(YuklemeOturumuKurali.YukAnahtariEnFazla).IsRequired();
+            e.Property(p => p.Kod).IsRequired();
+            e.Property(p => p.Kaynak).HasConversion<short>();
+            e.Property(p => p.GeriAlmaGerekcesi).HasMaxLength(YuklemeOturumuKurali.GerekceEnFazla);
+            // Oturumda bir yükün en çok bir etkin işareti olur (iki tablet aynı yükü okutursa tek kayıt kalır).
+            e.HasIndex(p => new { p.OturumId, p.YukAnahtari }).IsUnique().HasFilter("\"GeriAlinmaTarihi\" IS NULL");
+            e.HasIndex(p => new { p.OturumId, p.AracNo });
+            e.HasOne(p => p.Oturum)
+                .WithMany(o => o.Yukler)
+                .HasForeignKey(p => p.OturumId)
+                .OnDelete(DeleteBehavior.Cascade);
+            // Sandık silinirse bağ boşalır; kod kopyası kalır.
+            e.HasOne(p => p.Sandik)
+                .WithMany()
+                .HasForeignKey(p => p.SandikId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
     }
 
     /// <summary>

@@ -118,4 +118,37 @@ namespace _3K.Core.Enums
         /// <summary>Sandık planın projelerinden başka bir projeye geçmiş.</summary>
         ProjedenCikti = 9
     }
+
+    /// <summary>Araç yükleme oturumunun durumu; kapanan oturum yeniden açılmaz.</summary>
+    public enum YuklemeOturumDurumu
+    {
+        Acik = 1,
+        Tamamlandi = 2,
+        IptalEdildi = 3
+    }
+
+    /// <summary>Yükleme işaretinin nasıl verildiği: sandık barkodu okutularak ya da listeden elle.</summary>
+    public enum YuklemeIsaretKaynagi
+    {
+        Barkod = 1,
+        Elle = 2
+    }
+
+    /// <summary>Okutulan barkodun çözüm sonucu (araç yükleme ekranı operatörü buna göre yönlendirir).</summary>
+    public enum YukCozumSonucu
+    {
+        /// <summary>Yük ekrandaki araçta ve sırada: işaretlenebilir.</summary>
+        Yuklenebilir = 1,
+
+        /// <summary>Yük ekrandaki araçta ama sıradaki adım tamamlanmadı: onayla işaretlenebilir.</summary>
+        SiraDisi = 2,
+
+        /// <summary>Yük oturumun başka bir aracına ait.</summary>
+        BaskaAracta = 3,
+        ZatenYuklendi = 4,
+
+        /// <summary>Sandık oturumun yerleşiminde yok (plan dışı, hariç tutulmuş ya da yerleşememiş).</summary>
+        PlandaYok = 5,
+        GecersizBarkod = 6
+    }
 }

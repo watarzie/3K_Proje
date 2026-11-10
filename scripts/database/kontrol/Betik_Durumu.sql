@@ -18,6 +18,7 @@
 -- 31 numaralı betik YuklemePlanYukleri, EkipmanKonfigurasyonRevizyonlari ve MevzuatKurallari tablolarını ve menü
 -- düğümlerini (yukleme-planlama, mevzuat-kurallari) birlikte arar.
 -- 32 numaralı betik YuklemePlanRevizyonlari.YerlesimJson kolonunu arar (kısıt aynı transaction'da eklenir).
+-- 33 numaralı betik YuklemeOturumlari ve YuklemeOturumYukleri tablolarını ve menü düğümünü (arac-yukleme) arar.
 -- Yeni betik eklenince buraya satır eklenir (CanliyaAlimBetikleriTests dosya listesiyle karşılaştırır).
 -- =====================================================================================
 WITH kolon(tablo, ad) AS (SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public')
@@ -44,6 +45,9 @@ FROM (VALUES
                                                     AND EXISTS (SELECT 1 FROM kolon WHERE tablo = 'MevzuatKurallari' AND ad = 'ParametrelerJson')
                                                     AND EXISTS (SELECT 1 FROM "MenuTanimlari" WHERE "Kod" = 'yukleme-planlama')
                                                     AND EXISTS (SELECT 1 FROM "MenuTanimlari" WHERE "Kod" = 'mevzuat-kurallari')),
-    (32, '20261105_03_Yukleme_Yerlesim',            EXISTS (SELECT 1 FROM kolon WHERE tablo = 'YuklemePlanRevizyonlari' AND ad = 'YerlesimJson'))
+    (32, '20261105_03_Yukleme_Yerlesim',            EXISTS (SELECT 1 FROM kolon WHERE tablo = 'YuklemePlanRevizyonlari' AND ad = 'YerlesimJson')),
+    (33, '20261109_01_Arac_Yukleme',                EXISTS (SELECT 1 FROM kolon WHERE tablo = 'YuklemeOturumlari' AND ad = 'RevizyonNo')
+                                                    AND EXISTS (SELECT 1 FROM kolon WHERE tablo = 'YuklemeOturumYukleri' AND ad = 'YukAnahtari')
+                                                    AND EXISTS (SELECT 1 FROM "MenuTanimlari" WHERE "Kod" = 'arac-yukleme'))
 ) AS t(sira, betik, uygulandi)
 ORDER BY sira;

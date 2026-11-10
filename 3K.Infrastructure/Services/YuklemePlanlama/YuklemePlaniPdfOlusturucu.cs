@@ -57,9 +57,6 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
 
     private static EkipmanTeknikVerisi TeknikVeri(PlanAraci a) => EkipmanTeknikVeriSerilestirici.Oku(a.TeknikVeriJson) ?? new EkipmanTeknikVerisi();
 
-    /// <summary>Araçtaki yükler yükleme sırasıyla; "No" bu sıradaki konumdur (çizim etiketiyle aynı).</summary>
-    private static List<PlanYukKonumu> Sirali(PlanAraci a) => a.Konumlar.OrderBy(k => k.YuklemeSirasi).ThenBy(k => k.Kat).ToList();
-
     private static void UstCubuk(PageDescriptor page, string baslik, YuklemePlaniDetayi plan, DateTime raporTarihi)
     {
         page.Header().Column(col =>
@@ -498,15 +495,17 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
     private static void AracSayfasi(ColumnDescriptor col, PlanAraci a, int aracSayisi, Dictionary<string, string> renkler)
     {
         var veri = TeknikVeri(a);
-        var sirali = Sirali(a);
+        // Numara ("No"), çizim etiketi ve istif grupları aynı yükleme adımlarından türer (tek kural).
+        var adimlar = YuklemeSirasiKurali.Adimlar(a.Konumlar);
+        var sirali = adimlar.SelectMany(adim => adim.Yukler).Select(y => y.Konum).ToList();
         var uygunsuz = a.Sonuc == YerlesimKontrolSonucu.Uygunsuz;
         // Üstteki katın etiketi istifin bütün numaralarını taşır (alttakiler üstten ve 3B görünümde örtülür).
-        var numara = sirali.Select((k, i) => (k, No: i + 1)).ToDictionary(x => x.k, x => x.No);
-        string Etiket(PlanYukKonumu k)
-        {
-            var istif = sirali.Where(x => x.IstifNo == k.IstifNo).OrderBy(x => x.Kat).ToList();
-            return istif.Count > 1 && istif[^1] == k ? string.Join("/", istif.Select(x => numara[x].ToString(Tr))) : numara[k].ToString(Tr);
-        }
+        var etiketler = adimlar
+            .SelectMany(adim => adim.Yukler.Select((y, i) => (y.Konum, Etiket: adim.Yukler.Count > 1 && i == adim.Yukler.Count - 1
+                ? string.Join("/", adim.Yukler.Select(x => x.No.ToString(Tr)))
+                : y.No.ToString(Tr))))
+            .ToDictionary(x => x.Konum, x => x.Etiket);
+        string Etiket(PlanYukKonumu k) => etiketler[k];
         // Elle yerleşimde yük düzeyindeki uygunsuz sonuçlar (çakışma, desteksiz, kasa dışı…) da kırmızı çizilir.
         var sorunluYukler = a.YukSorunlari.Where(s => s.Sonuc == YerlesimKontrolSonucu.Uygunsuz).Select(s => s.YukAnahtari).ToHashSet(StringComparer.Ordinal);
         var kutular = sirali.Select(k => new CizimKutusu(Etiket(k), k.XMm, k.YMm, k.ZMm, k.BoyMm, k.EnMm, k.YukseklikMm,
@@ -608,14 +607,16 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
                 : "No: görsellerdeki numara. Sıra: yükleme sırası; aynı sıradaki katlar bir istif grubudur ve birlikte yüklenir.")
             .FontSize(6.5f).FontColor(Gri);
 
-        var gruplar = sirali.GroupBy(k => k.IstifNo).Where(g => g.Count() > 1).ToList();
+        // İstif grubu = birden çok yükü olan yükleme adımı (numaralar yük listesindeki "No" ile aynıdır).
+        var gruplar = adimlar.Where(g => g.Yukler.Count > 1).ToList();
         if (gruplar.Count > 0)
         {
             Bolum(col, kapali ? "Dışarıda hazırlanacak istif grupları" : "İstif grupları");
             foreach (var g in gruplar)
             {
-                var numaralar = g.Select(k => (sirali.IndexOf(k) + 1).ToString(Tr));
-                col.Item().Text($"• İstif {g.Key} (yükleme sırası {g.First().YuklemeSirasi}): No {string.Join(" + ", numaralar)} · {g.Count()} kat · toplam yükseklik {Mm(g.Sum(k => k.YukseklikMm))} mm · {Kg(g.Sum(k => k.BrutKg))}");
+                var yukler = g.Yukler.Select(y => y.Konum).ToList();
+                var numaralar = g.Yukler.Select(y => y.No.ToString(Tr));
+                col.Item().Text($"• İstif {yukler[0].IstifNo} (yükleme sırası {g.YuklemeSirasi}): No {string.Join(" + ", numaralar)} · {yukler.Count} kat · toplam yükseklik {Mm(yukler.Sum(k => k.YukseklikMm))} mm · {Kg(yukler.Sum(k => k.BrutKg))}");
             }
         }
 
@@ -708,7 +709,10 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
             });
         }
 
-        var satirlarByAnahtar = plan.Yukler.ToDictionary(s => YuklemePlaniKurali.YukAnahtari(s.Kaynak, s.SandikId, s.ManuelGrupNo, s.BirimNo));
+        // Sandığı sonradan silinen satırın anahtarı kalmaz (bkz. YuklemePlaniService.YerlesimAsync).
+        var satirlarByAnahtar = plan.Yukler
+            .Where(s => s.Kaynak != PlanYukKaynagi.Sandik || s.SandikId != null)
+            .ToDictionary(s => YuklemePlaniKurali.YukAnahtari(s.Kaynak, s.SandikId, s.ManuelGrupNo, s.BirimNo));
         Liste("Yerleşemeyen yükler",
             y.Yerlesemeyenler.Select(u => (u.Kod, satirlarByAnahtar.GetValueOrDefault(u.YukAnahtari)?.ProjeNo, u.Neden)).ToList(),
             "Bütün hesaplanan yükler yerleşti.");

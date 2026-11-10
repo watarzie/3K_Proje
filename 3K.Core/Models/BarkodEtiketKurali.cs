@@ -30,6 +30,18 @@ public static class BarkodEtiketKurali
     }
 
     /// <summary>
+    /// Okutulan sandık barkodundan sandık kimliği (<see cref="SandikBarkodu"/> işleminin tersi): tam 12 rakam ve
+    /// sıfırdan büyük. Ürün barkodu (16 hane), harf içeren ya da başka uzunluktaki metin için <c>null</c>.
+    /// </summary>
+    public static int? SandikBarkoduCoz(string? barkod)
+    {
+        var metin = barkod?.Trim();
+        if (metin == null || metin.Length != SandikBarkodHanesi || !metin.All(char.IsAsciiDigit))
+            return null;
+        return long.Parse(metin, CultureInfo.InvariantCulture) is > 0 and <= int.MaxValue and var id ? (int)id : null;
+    }
+
+    /// <summary>
     /// Ürün barkodu: kırpılıp büyük harfe çevrilir ve 16 haneye soldan sıfırla doldurulur (FCT00967433 →
     /// 00000FCT00967433). Boş, 16 karakterden uzun ya da Code 128 / EZPL ile basılamayan (Türkçe harf, ^, ~) barkod için
     /// <c>null</c>.

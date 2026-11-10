@@ -155,6 +155,7 @@ public static class DependencyInjection
     private static void AddYuklemePlanlamaServices(this IServiceCollection services)
     {
         services.AddScoped<IYuklemePlaniService, YuklemePlaniService>();
+        services.AddScoped<IYuklemeOturumuService, YuklemePlaniService>();
         services.AddScoped<IEkipmanKitapligiService, EkipmanKitapligiService>();
         services.AddScoped<IMevzuatKuralService, MevzuatKuralService>();
         services.AddSingleton<IYuklemePlaniRaporOlusturucu, YuklemePlaniPdfOlusturucu>();
