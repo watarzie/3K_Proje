@@ -182,7 +182,7 @@ Değişiklik henüz commit edilmedi.
 Değişiklik henüz commit edilmedi.
 
 **Davranış.** Yeni Grid Sahası ekranı proje tipinden bağımsız ve salt okunurdur; `grid-saha-gorunumu` R ister (G-111). Menü düğümü ve rol izinleri `scripts/database/uygulandi/2026-10/20261023_01_Grid_Saha_Gorunumu_Yetkisi.sql` ile kurulur (README sıra 23).
-- Ürünler (`GET api/grid/saha/urunler`, G-112, G-113): Grid'e gelmiş (Tam/Eksik Geldi) satırları listeler. Varsayılan kapsam "Grid'de bekleyen"dir, "Tümü" kapsamı da vardır.
+- Ürünler (`GET api/grid/saha/urunler`, G-112, G-113): Grid'e gelmiş (Tam/Eksik Geldi) satırları listeler. Varsayılan kapsam "Grid'de bekleyen"dir, "Tümü" kapsamı da vardır. 12.11.2026: "Son mal kabul" sıralaması (tarihsiz satır sonda) ve son mal kabul tarihi süzgeci eklendi; `GridSahaPostgresTests` canlı ∪ arşiv son tarihle sıralamayı, sayfalamayı ve iki uçlu süzgeci, `GridSahaTests` süzgeç doğrulamasını sınar.
   - Bekleyen miktar `max(GridGelenAdet − GelenMiktar − yolda, 0)` ile hesaplanır. Saf kural `GridSahaBekleyenKurali`'dır, SQL ikizi `GridSorgulari`'dır.
   - Sevk kilidi Grid iş listesiyle ortaktır (`GridSorgulari.SevkKilidiDisinda`).
 - Mal kabul (`GET api/grid/saha/mal-kabul`, G-114): canlı ve arşiv hareket geçmişindeki Grid teslim alma kayıtlarını `GridHareketOkuyucu` ile okur. Varsayılan aralık son 30 gün, en uzun aralık 366 gündür.
