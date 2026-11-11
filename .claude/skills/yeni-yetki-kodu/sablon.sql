@@ -59,4 +59,14 @@ BEGIN
     END LOOP;
 END $$;
 
+-- Betik kaydı (scripts/database/README.md "Betik kaydı"): bu betiğin bu veritabanında çalıştığını aynı transaction içinde yazar.
+CREATE TABLE IF NOT EXISTS "BetikKayitlari" (
+    "BetikAdi"       text PRIMARY KEY,
+    "UygulamaTarihi" timestamp without time zone NOT NULL,
+    "Uygulayan"      text NOT NULL
+);
+INSERT INTO "BetikKayitlari" ("BetikAdi", "UygulamaTarihi", "Uygulayan")
+VALUES ('<BETIK_ADI>', now() AT TIME ZONE 'Europe/Istanbul', current_user)
+ON CONFLICT ("BetikAdi") DO NOTHING;
+
 COMMIT;

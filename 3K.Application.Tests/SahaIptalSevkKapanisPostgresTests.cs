@@ -134,7 +134,7 @@ public sealed class SahaIptalSevkKapanisPostgresTests
             var degisenler = betikSonrasi.Where(x => x.Value.DurumId == (int)ProjeDurum.SevkEdildi).Select(x => x.Key).Order();
             Assert.Equal(["QA-IPTAL-ELDE", "QA-IPTAL-LEGACY", "QA-IPTAL-SEVKLI", "QA-IPTAL-TASINMIS"], degisenler);
             Assert.All(betikSonrasi, x => Assert.Equal(
-                x.Value.DurumId == (int)ProjeDurum.SevkEdildi ? BetikAdi : null, x.Value.UpdatedBy));
+                x.Value.DurumId == (int)ProjeDurum.SevkEdildi ? Path.GetFileName(BetikAdi) : null, x.Value.UpdatedBy));
 
             // Tekrar: onarılacak proje kalmadığı için hiçbir kayıt değişmez.
             await BetigiCalistirAsync(db);
@@ -181,7 +181,7 @@ public sealed class SahaIptalSevkKapanisPostgresTests
         });
     }
 
-    private const string BetikAdi = "20261112_01_Saha_Iptal_Proje_Sevk_Durumu.sql";
+    private const string BetikAdi = "bekleyen/20261112_01_Saha_Iptal_Proje_Sevk_Durumu.sql";
     private const string YedekBetigi = "geri-alma/20261112_01_Yedek.sql";
     private const string GeriAlmaBetigi = "geri-alma/20261112_01_Geri_Al.sql";
 
@@ -204,7 +204,7 @@ public sealed class SahaIptalSevkKapanisPostgresTests
         komut.CommandText = await File.ReadAllTextAsync(BetikYolu(Path.Combine("kontrol", "Betik_Durumu.sql")));
         await using var okuyucu = await komut.ExecuteReaderAsync();
         while (await okuyucu.ReadAsync())
-            if (okuyucu.GetString(1) + ".sql" == BetikAdi)
+            if (okuyucu.GetString(1) + ".sql" == Path.GetFileName(BetikAdi))
                 return okuyucu.GetString(2);
         throw new Xunit.Sdk.XunitException("Durum sorgusunda betik satırı yok.");
     }

@@ -12,8 +12,8 @@ namespace _3K.Application.Tests;
 /// 23 <c>20261023_01_Grid_Saha_Gorunumu_Yetkisi.sql</c>, 24 <c>20261023_02_Sevk_Sonrasi_Duzeltme.sql</c>,
 /// 25 <c>20261024_01_Proje_Baglanti_Turu.sql</c>, 26 <c>20261024_02_Barkod_Urun_Arama_Yetkisi.sql</c>,
 /// 27 <c>20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql</c>, 28 <c>20261025_01_Giris_Kilidi.sql</c>,
-/// 29 <c>20261026_01_Barkod_Etiket_Yetkisi.sql</c>, 34 <c>20261112_01_Saha_Iptal_Proje_Sevk_Durumu.sql</c>) önceki sürümün
-/// şemasında çalıştırılır. Sonuç şeması EF modeliyle
+/// 29 <c>20261026_01_Barkod_Etiket_Yetkisi.sql</c>; hepsi <c>uygulandi/2026-10/</c> altında; 34
+/// <c>bekleyen/20261112_01_Saha_Iptal_Proje_Sevk_Durumu.sql</c>) önceki sürümün şemasında çalıştırılır. Sonuç şeması EF modeliyle
 /// aynıdır (kolon, kısıt, ON DELETE kuralı, indeks). Betiklerin tekrarı hiçbir şeyi değiştirmez: var olan taşıma izi ve
 /// verilmiş izinler korunur. Salt okunur durum sorgusu (<c>kontrol/Betik_Durumu.sql</c>) klasördeki her betiği listeler
 /// ve öncesini/sonrasını doğru gösterir. 1–20 numaralı betikler canlıya uygulanıp depodan kaldırıldığı için burada yoktur.
@@ -22,11 +22,13 @@ public sealed class CanliyaAlimBetikleriTests
 {
     /// <summary>Canlıda çalıştırma sırası (scripts/database/README.md, sıra 22–29 ve 34; 30–33 yükleme dalında).</summary>
     private static readonly string[] Betikler =
-        ["20261021_02_Sahadan_Sahaya_Tasima.sql", "20261023_01_Grid_Saha_Gorunumu_Yetkisi.sql",
-            "20261023_02_Sevk_Sonrasi_Duzeltme.sql", "20261024_01_Proje_Baglanti_Turu.sql",
-            "20261024_02_Barkod_Urun_Arama_Yetkisi.sql", "20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql",
-            "20261025_01_Giris_Kilidi.sql", "20261026_01_Barkod_Etiket_Yetkisi.sql",
-            VeriOnarimBetigi + ".sql"];
+        [.. new[]
+        {
+            "20261021_02_Sahadan_Sahaya_Tasima", "20261023_01_Grid_Saha_Gorunumu_Yetkisi",
+            "20261023_02_Sevk_Sonrasi_Duzeltme", "20261024_01_Proje_Baglanti_Turu",
+            "20261024_02_Barkod_Urun_Arama_Yetkisi", "20261024_03_Sandik_Acilis_Kapanis_Gecmisi",
+            "20261025_01_Giris_Kilidi", "20261026_01_Barkod_Etiket_Yetkisi"
+        }.Select(ad => $"uygulandi/2026-10/{ad}.sql"), $"bekleyen/{VeriOnarimBetigi}.sql"];
 
     /// <summary>
     /// 34 numaralı veri onarımı iz bırakmaz: onarılacak proje yoksa uygulanmış görünür. Seçimi ve C# kuralıyla eşliği
@@ -87,8 +89,12 @@ public sealed class CanliyaAlimBetikleriTests
             await db.Database.ExecuteSqlRawAsync(OncekiKullaniciSemasi);
 
             // Durum sorgusu: klasördeki her betik bir satırdır; önceki sürümde uygulanmamıştır.
-            var dosyalar = Directory.GetFiles(Path.GetDirectoryName(Betik(Betikler[0]))!, "*.sql")
+            // Durum sorgusu bekleyen/ ve uygulandi/ altındaki her betiği listeler (geri-alma/ ve kontrol/ hariç).
+            var kok = Path.GetDirectoryName(Betik(Path.Combine("kontrol", "Betik_Durumu.sql")))! + "/..";
+            var dosyalar = new[] { "bekleyen", "uygulandi" }
+                .SelectMany(k => Directory.GetFiles(Path.Combine(kok, k), "*.sql", SearchOption.AllDirectories))
                 .Select(Path.GetFileNameWithoutExtension).Order(StringComparer.Ordinal).ToList();
+            Assert.Equal(Betikler.Length, dosyalar.Count);
             var durum = await BetikDurumuAsync(db);
             Assert.Equal(dosyalar, durum.Keys.Order(StringComparer.Ordinal));
             Assert.All(durum, x => Assert.Equal(x.Key == VeriOnarimBetigi ? "uygulanmış" : "UYGULANMAMIŞ", x.Value));
@@ -97,6 +103,10 @@ public sealed class CanliyaAlimBetikleriTests
                 await CalistirAsync(db, betik);
 
             Assert.All(await BetikDurumuAsync(db), x => Assert.Equal("uygulanmış", x.Value));
+            // Betik kaydı: 34 kendi satırını yazar (kaynak "kayıt"); kayıt bloğundan önceki 22–29 izden tanınır.
+            var kayitlar = await BetikKayitlariAsync(db);
+            Assert.Equal(new[] { VeriOnarimBetigi }, kayitlar.Keys);
+            Assert.All(await BetikKaynagiAsync(db), x => Assert.Equal(x.Key == VeriOnarimBetigi ? "kayıt" : "iz", x.Value));
             var gridSaha = await db.MenuTanimlari.AsNoTracking().SingleAsync(m => m.Kod == YetkiKodlari.Sandik.GridSahaGorunumu);
             // Rotasız izin düğümü: kenar menüde görünmez, ekran proje listesindeki düğmeyle açılır.
             Assert.Equal((5258, (string?)null, "MENU.GRID_SAHA_GORUNUMU", 5, 10), (gridSaha.Id, gridSaha.Route, gridSaha.LabelKey, gridSaha.ParentId!.Value, gridSaha.Sira));
@@ -162,6 +172,8 @@ public sealed class CanliyaAlimBetikleriTests
             Assert.Null((await db.MenuTanimlari.AsNoTracking().SingleAsync(m => m.Kod == YetkiKodlari.Sandik.BarkodUrunArama)).Route);
 
             Assert.Equal(sema, await SemaAsync(db));
+            // Tekrar çalıştırma kaydı çoğaltmaz, ilk tarihi korur.
+            Assert.Equal(kayitlar, await BetikKayitlariAsync(db));
             Assert.Equal(izinler, await GridSahaIzinleriAsync(db));
             Assert.Equal(1, await db.MenuTanimlari.CountAsync(m => m.Kod == YetkiKodlari.Sandik.GridSahaGorunumu));
             Assert.Equal(duzeltmeIzinleri, await IzinlerAsync(db, YetkiKodlari.Sandik.SevkSonrasiDuzeltme));
@@ -381,6 +393,36 @@ public sealed class CanliyaAlimBetikleriTests
         return (kullanici.BasarisizGirisSayisi, kullanici.GirisKilitBitisTarihi);
     }
 
+    /// <summary>
+    /// Şema (kayıt tablosu hariç). "BetikKayitlari" EF modelinde yoktur: uygulama okumaz, betiklerin kendisi kurar ve yazar
+    /// (scripts/database/README.md, "Betik kaydı").
+    /// </summary>
     private static async Task<List<string>> SemaAsync(AppDbContext db) =>
-        (await db.Database.SqlQueryRaw<string>(SemaSorgusu).ToListAsync()).Order(StringComparer.Ordinal).ToList();
+        (await db.Database.SqlQueryRaw<string>(SemaSorgusu).ToListAsync())
+        .Where(x => !x.Contains("BetikKayitlari", StringComparison.Ordinal))
+        .Order(StringComparer.Ordinal).ToList();
+
+    /// <summary>Betik adı → ilk uygulama zamanı ("BetikKayitlari").</summary>
+    private static async Task<Dictionary<string, DateTime>> BetikKayitlariAsync(AppDbContext db)
+    {
+        await using var komut = db.Database.GetDbConnection().CreateCommand();
+        komut.CommandText = "SELECT \"BetikAdi\", \"UygulamaTarihi\" FROM \"BetikKayitlari\" ORDER BY \"BetikAdi\"";
+        await using var okuyucu = await komut.ExecuteReaderAsync();
+        var sonuc = new Dictionary<string, DateTime>();
+        while (await okuyucu.ReadAsync())
+            sonuc.Add(okuyucu.GetString(0), okuyucu.GetDateTime(1));
+        return sonuc;
+    }
+
+    /// <summary>Betik adı → durum sorgusunun kaynak sütunu (kayıt / iz / -).</summary>
+    private static async Task<Dictionary<string, string>> BetikKaynagiAsync(AppDbContext db)
+    {
+        await using var komut = db.Database.GetDbConnection().CreateCommand();
+        komut.CommandText = await File.ReadAllTextAsync(Betik(Path.Combine("kontrol", "Betik_Durumu.sql")));
+        await using var okuyucu = await komut.ExecuteReaderAsync();
+        var sonuc = new Dictionary<string, string>();
+        while (await okuyucu.ReadAsync())
+            sonuc.Add(okuyucu.GetString(1), okuyucu.GetString(3));
+        return sonuc;
+    }
 }

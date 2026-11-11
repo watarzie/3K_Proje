@@ -1,8 +1,11 @@
 -- =====================================================================================
 -- Betik durumu (SALT OKUNUR): bu klasördeki betiklerden hangisi bağlı veritabanında uygulanmış?
 --
--- Her betik bıraktığı kalıcı izle (kolon, tablo, menü düğümü) tanınır; hiçbir şey değiştirmez. Canlıya alımdan önce
--- 3K_Db düğümünden açılan sorgu penceresinde çalıştırın; UYGULANMAMIŞ satırlar README sırasıyla uygulanır.
+-- Hiçbir şey değiştirmez. Canlıya alımdan önce 3K_Db düğümünden açılan sorgu penceresinde çalıştırın; UYGULANMAMIŞ
+-- satırlar README sırasıyla uygulanır. Sütunlar: durum; kaynak ("kayıt" = betik "BetikKayitlari"na kendi satırını
+-- yazmış, "iz" = kayıt yok ama betiğin bıraktığı kalıcı iz (kolon, tablo, menü düğümü) bulundu); kayit_tarihi.
+-- Kayıt tablosu 34 numaralı betikle başladı; 22–29 kayıt yazmaz, izden tanınır. Tablo yoksa sorgu yine çalışır.
+-- Satırlar bekleyen/ ve uygulandi/ klasörlerindeki bütün betikleri kapsar (geri-alma/ ve kontrol/ hariç).
 -- 1–20 numaralı betikler canlıya uygulandı ve depodan kaldırıldı (da54f6f); burada yalnız depodaki betikler listelenir.
 -- 21 boş kaldı (otomatik sahaya aktarım şema değişikliği gerektirmedi).
 -- 22 numaralı betik kolonu ve tabloyu birlikte arar: biri eksikse UYGULANMAMIŞ görünür ve betik tekrar çalıştırılır.
@@ -18,9 +21,18 @@
 -- 34 numaralı betik veri onarımıdır (S-27): sahada iptalle kapanacak Eksik Sevk Edildi normal proje kalmadıysa
 -- uygulanmış görünür; UYGULANMAMIŞ ise onarılacak proje vardır. Seçim betiktekiyle aynıdır; biri değişirse öteki de
 -- güncellenir (saha_iptal_* CTE'leri).
--- Yeni betik eklenince buraya satır eklenir (CanliyaAlimBetikleriTests dosya listesiyle karşılaştırır).
+-- Yeni betik eklenince buraya satır eklenir (CanliyaAlimBetikleriTests dosya listesiyle karşılaştırır); betiğin sonunda
+-- README'deki "Betik kaydı" bloğu bulunur. İz satırı yine yazılır: kayıt bloğundan önce elle uygulanmış veritabanı için.
 -- =====================================================================================
 WITH kolon(tablo, ad) AS (SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public'),
+-- Kayıt tablosu henüz yoksa boş okunur (to_regclass); varsa dinamik okunur, böylece sorgu her veritabanında çalışır.
+kayit AS (
+    SELECT x.ad, x.tarih
+    FROM XMLTABLE('/table/row'
+             PASSING CASE WHEN to_regclass('"BetikKayitlari"') IS NULL THEN '<table/>'::xml
+                          ELSE query_to_xml('SELECT "BetikAdi" AS ad, "UygulamaTarihi" AS tarih FROM "BetikKayitlari"',
+                                            false, false, '') END
+             COLUMNS ad text PATH 'ad', tarih timestamp PATH 'tarih') x),
 saha_iptal_aday AS (
     SELECT p."Id" AS proje_id FROM "Projeler" p
     WHERE p."ProjeTipiId" = 1 AND p."DurumId" = 6
@@ -72,7 +84,13 @@ saha_iptal_onarilacak AS (
           GROUP BY ks.proje_id, ks.satir_id, ks.kalan) o
     GROUP BY o.proje_id
     HAVING BOOL_AND(o.kalan <= o.kapanis) AND BOOL_OR(o.kalan > o.gerceklesen))
-SELECT sira, betik, CASE WHEN uygulandi IS NULL THEN 'tespit edilemez' WHEN uygulandi THEN 'uygulanmış' ELSE 'UYGULANMAMIŞ' END AS durum
+SELECT t.sira, t.betik,
+       CASE WHEN k.ad IS NOT NULL THEN 'uygulanmış'
+            WHEN t.uygulandi IS NULL THEN 'tespit edilemez'
+            WHEN t.uygulandi THEN 'uygulanmış'
+            ELSE 'UYGULANMAMIŞ' END AS durum,
+       CASE WHEN k.ad IS NOT NULL THEN 'kayıt' WHEN t.uygulandi THEN 'iz' ELSE '-' END AS kaynak,
+       k.tarih AS kayit_tarihi
 FROM (VALUES
     (22, '20261021_02_Sahadan_Sahaya_Tasima',       EXISTS (SELECT 1 FROM kolon WHERE tablo = 'SahaAktarimlari' AND ad = 'IslemAnahtari')
                                                     AND EXISTS (SELECT 1 FROM kolon WHERE tablo = 'SahaTasimaKalemleri' AND ad = 'KaynakCekiSatiriId')),
@@ -90,4 +108,5 @@ FROM (VALUES
     (29, '20261026_01_Barkod_Etiket_Yetkisi',       EXISTS (SELECT 1 FROM "MenuTanimlari" WHERE "Kod" = 'barkod-etiket')),
     (34, '20261112_01_Saha_Iptal_Proje_Sevk_Durumu', NOT EXISTS (SELECT 1 FROM saha_iptal_onarilacak))
 ) AS t(sira, betik, uygulandi)
-ORDER BY sira;
+LEFT JOIN kayit k ON k.ad = t.betik
+ORDER BY t.sira;

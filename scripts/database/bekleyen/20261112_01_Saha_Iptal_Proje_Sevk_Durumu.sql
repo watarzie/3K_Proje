@@ -26,11 +26,12 @@
 -- Yalnız Projeler.DurumId (6 → 5), UpdatedDate ve UpdatedBy (= bu betiğin adı) değişir. Miktar, sandık, saha aktarımı,
 -- gerçekleşen sevk tarihi değişmez. Sevk Edildi proje uygulamada kilitlenir (sevk edilmiş her proje gibi).
 -- Hareket geçmişine yazılmaz (kullanıcı yok). Değişen projeler NOTICE olarak listelenir.
--- Tekrar çalıştırılabilir: onarılacak proje kalmadıysa hiçbir şey değişmez.
+-- Tekrar çalıştırılabilir: onarılacak proje kalmadıysa hiçbir şey değişmez. İlk çalışma "BetikKayitlari"na yazılır.
 --
 -- Geri alma: projenin "Proje kilidi aç" işlemi ya da sahadaki iptalin kaldırılması durumu yeniden hesaplar. Gerekirse
 -- NOTICE'ta listelenen kimlikler için: UPDATE "Projeler" SET "DurumId" = 6 WHERE "Id" IN (...) AND "DurumId" = 5;
--- Önce test veritabanında, sonra canlıda 3K_Db düğümünden açılan sorgu penceresinde çalıştırın.
+-- Önce test veritabanında, sonra canlıda 3K_Db düğümünden açılan sorgu penceresinde çalıştırın. Öncesinde
+-- geri-alma/20261112_01_Yedek.sql çalıştırılır. Canlıda çalıştıktan sonra dosya uygulandi/<YYYY-MM>/ klasörüne taşınır.
 -- =====================================================================================
 BEGIN;
 
@@ -129,5 +130,15 @@ BEGIN
     END LOOP;
     RAISE NOTICE 'Toplam % proje Eksik Sevk Edildi -> Sevk Edildi.', adet;
 END $$;
+
+-- Betik kaydı (README "Betik kaydı"): bu betiğin bu veritabanında çalıştığını aynı transaction içinde yazar.
+CREATE TABLE IF NOT EXISTS "BetikKayitlari" (
+    "BetikAdi"       text PRIMARY KEY,
+    "UygulamaTarihi" timestamp without time zone NOT NULL,
+    "Uygulayan"      text NOT NULL
+);
+INSERT INTO "BetikKayitlari" ("BetikAdi", "UygulamaTarihi", "Uygulayan")
+VALUES ('20261112_01_Saha_Iptal_Proje_Sevk_Durumu', now() AT TIME ZONE 'Europe/Istanbul', current_user)
+ON CONFLICT ("BetikAdi") DO NOTHING;
 
 COMMIT;

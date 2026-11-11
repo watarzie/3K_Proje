@@ -8,7 +8,8 @@
 --
 -- Not: Yeni API çalışıyorsa, bu projelerde sahadaki bir Grid işlemi senkronu tetiklediğinde S-27 kuralı durumu yeniden
 -- Sevk Edildi yapar. Kalıcı geri dönüş için API de önceki sürüme alınmalıdır.
--- Tekrar çalıştırılabilir: geri alınacak proje kalmadıysa hiçbir şey değişmez.
+-- Tekrar çalıştırılabilir: geri alınacak proje kalmadıysa hiçbir şey değişmez. Onarımın "BetikKayitlari" satırını siler,
+-- kendi satırını yazar.
 -- =====================================================================================
 -- Yedek yoksa transaction açılmadan durur (oturum yarım transaction'da kalmaz).
 DO $$
@@ -54,5 +55,17 @@ BEGIN
     END LOOP;
     RAISE NOTICE 'Toplam % proje geri alındı.', (SELECT COUNT(*) FROM geri_alinan);
 END $$;
+
+-- Betik kaydı (README "Betik kaydı"): bu betiğin bu veritabanında çalıştığını aynı transaction içinde yazar.
+CREATE TABLE IF NOT EXISTS "BetikKayitlari" (
+    "BetikAdi"       text PRIMARY KEY,
+    "UygulamaTarihi" timestamp without time zone NOT NULL,
+    "Uygulayan"      text NOT NULL
+);
+INSERT INTO "BetikKayitlari" ("BetikAdi", "UygulamaTarihi", "Uygulayan")
+VALUES ('20261112_01_Geri_Al', now() AT TIME ZONE 'Europe/Istanbul', current_user)
+ON CONFLICT ("BetikAdi") DO NOTHING;
+-- Onarım geri alındı: kaydı silinir, durum sorgusu 34'ü yeniden izden (onarılacak proje var mı) değerlendirir.
+DELETE FROM "BetikKayitlari" WHERE "BetikAdi" = '20261112_01_Saha_Iptal_Proje_Sevk_Durumu';
 
 COMMIT;
