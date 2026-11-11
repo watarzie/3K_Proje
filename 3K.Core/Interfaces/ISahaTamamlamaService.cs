@@ -28,6 +28,15 @@ namespace _3K.Core.Interfaces
             IEnumerable<int> kaynakCekiSatiriIds,
             CancellationToken cancellationToken = default);
 
+        /// <summary>
+        /// S-27: Aktif aktarımı sahada Grid İptal edilmiş kök satırlar için, gerçekleşen saha sevkine ek olarak
+        /// iptalle kapanan miktar (<see cref="SahaIptalSevkKapanisKurali"/>). Saha sandığının sevkini beklemez.
+        /// Yalnız normal projenin sevk durumu hesabında kullanılır; fiziksel teslim değildir.
+        /// </summary>
+        Task<Dictionary<int, decimal>> GetSahaIptalKapananMapAsync(
+            IEnumerable<int> kaynakCekiSatiriIds,
+            CancellationToken cancellationToken = default);
+
         Task<HashSet<int>> GetAktifSandikBazliAktarimSatirIdsAsync(
             IEnumerable<int> kaynakCekiSatiriIds,
             CancellationToken cancellationToken = default);

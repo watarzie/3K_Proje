@@ -131,6 +131,7 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                 .ToList();
             var sahaTamamlamaMap = await _sahaTamamlamaService.GetAktifIsTamamlamaMapAsync(normalKaynakSatirIds, cancellationToken);
             var sevkEdilenSahaTamamlamaMap = await _sahaTamamlamaService.GetSevkEdilenGerceklesenTamamlamaMapAsync(normalKaynakSatirIds, cancellationToken);
+            var sahaIptalKapananMap = await _sahaTamamlamaService.GetSahaIptalKapananMapAsync(normalKaynakSatirIds, cancellationToken);
             var normalKaynakSandikIds = projeler
                 .Where(p => p.ProjeTipiId == (int)ProjeTipi.Normal)
                 .SelectMany(p => p.Sandiklar ?? Enumerable.Empty<Sandik>())
@@ -145,7 +146,8 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                     _lookupCache,
                     sahaTamamlamaMap,
                     sevkEdilenSahaTamamlamaMap,
-                    kaynakSandikSahaDurumu.SahaUzerindenSevkEdilenSandikIds))
+                    kaynakSandikSahaDurumu.SahaUzerindenSevkEdilenSandikIds,
+                    sahaIptalKapananMap))
                 .ToList();
 
             return Result<DashboardPagedResultDto<DashboardProjeItemDto>>.Success(new DashboardPagedResultDto<DashboardProjeItemDto>

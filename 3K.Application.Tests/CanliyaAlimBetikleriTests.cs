@@ -12,19 +12,27 @@ namespace _3K.Application.Tests;
 /// 23 <c>20261023_01_Grid_Saha_Gorunumu_Yetkisi.sql</c>, 24 <c>20261023_02_Sevk_Sonrasi_Duzeltme.sql</c>,
 /// 25 <c>20261024_01_Proje_Baglanti_Turu.sql</c>, 26 <c>20261024_02_Barkod_Urun_Arama_Yetkisi.sql</c>,
 /// 27 <c>20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql</c>, 28 <c>20261025_01_Giris_Kilidi.sql</c>,
-/// 29 <c>20261026_01_Barkod_Etiket_Yetkisi.sql</c>) önceki sürümün şemasında çalıştırılır. Sonuç şeması EF modeliyle
+/// 29 <c>20261026_01_Barkod_Etiket_Yetkisi.sql</c>, 34 <c>20261112_01_Saha_Iptal_Proje_Sevk_Durumu.sql</c>) önceki sürümün
+/// şemasında çalıştırılır. Sonuç şeması EF modeliyle
 /// aynıdır (kolon, kısıt, ON DELETE kuralı, indeks). Betiklerin tekrarı hiçbir şeyi değiştirmez: var olan taşıma izi ve
 /// verilmiş izinler korunur. Salt okunur durum sorgusu (<c>kontrol/Betik_Durumu.sql</c>) klasördeki her betiği listeler
 /// ve öncesini/sonrasını doğru gösterir. 1–20 numaralı betikler canlıya uygulanıp depodan kaldırıldığı için burada yoktur.
 /// </summary>
 public sealed class CanliyaAlimBetikleriTests
 {
-    /// <summary>Canlıda çalıştırma sırası (scripts/database/README.md, sıra 22–29).</summary>
+    /// <summary>Canlıda çalıştırma sırası (scripts/database/README.md, sıra 22–29 ve 34; 30–33 yükleme dalında).</summary>
     private static readonly string[] Betikler =
         ["20261021_02_Sahadan_Sahaya_Tasima.sql", "20261023_01_Grid_Saha_Gorunumu_Yetkisi.sql",
             "20261023_02_Sevk_Sonrasi_Duzeltme.sql", "20261024_01_Proje_Baglanti_Turu.sql",
             "20261024_02_Barkod_Urun_Arama_Yetkisi.sql", "20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql",
-            "20261025_01_Giris_Kilidi.sql", "20261026_01_Barkod_Etiket_Yetkisi.sql"];
+            "20261025_01_Giris_Kilidi.sql", "20261026_01_Barkod_Etiket_Yetkisi.sql",
+            VeriOnarimBetigi + ".sql"];
+
+    /// <summary>
+    /// 34 numaralı veri onarımı iz bırakmaz: onarılacak proje yoksa uygulanmış görünür. Seçimi ve C# kuralıyla eşliği
+    /// <see cref="SahaIptalSevkKapanisPostgresTests"/> sınar.
+    /// </summary>
+    private const string VeriOnarimBetigi = "20261112_01_Saha_Iptal_Proje_Sevk_Durumu";
 
     /// <summary>Önceki sürümün (master) şeması: bu sürümün eklediği tablo, kolon, kısıt ve indeksler yoktur.</summary>
     private const string OncekiSema = """
@@ -83,7 +91,7 @@ public sealed class CanliyaAlimBetikleriTests
                 .Select(Path.GetFileNameWithoutExtension).Order(StringComparer.Ordinal).ToList();
             var durum = await BetikDurumuAsync(db);
             Assert.Equal(dosyalar, durum.Keys.Order(StringComparer.Ordinal));
-            Assert.All(durum, x => Assert.Equal("UYGULANMAMIŞ", x.Value));
+            Assert.All(durum, x => Assert.Equal(x.Key == VeriOnarimBetigi ? "uygulanmış" : "UYGULANMAMIŞ", x.Value));
 
             foreach (var betik in Betikler)
                 await CalistirAsync(db, betik);

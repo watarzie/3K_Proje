@@ -381,6 +381,7 @@ public class SevkiyatKilidiAcRegresyonTests
         public Task<Dictionary<int, decimal>> GetAktifTamamlamaMapAsync(IEnumerable<int> ids, CancellationToken token = default) => throw new NotSupportedException();
         public Task<Dictionary<int, decimal>> GetAktifGerceklesenTamamlamaMapAsync(IEnumerable<int> ids, CancellationToken token = default) => throw new NotSupportedException();
         public Task<Dictionary<int, decimal>> GetAktifIsTamamlamaMapAsync(IEnumerable<int> ids, CancellationToken token = default) => GetAktifGerceklesenTamamlamaMapAsync(ids, token);
+        public Task<Dictionary<int, decimal>> GetSahaIptalKapananMapAsync(IEnumerable<int> ids, CancellationToken token = default) => Task.FromResult(new Dictionary<int, decimal>());
         public Task<Dictionary<int, decimal>> GetSevkEdilenGerceklesenTamamlamaMapAsync(IEnumerable<int> ids, CancellationToken token = default)
         { Assert.Equal(new[] { 50 }, ids); return Task.FromResult(new Dictionary<int, decimal>()); }
         public Task<HashSet<int>> GetAktifSandikBazliAktarimSatirIdsAsync(IEnumerable<int> ids, CancellationToken token = default) => throw new NotSupportedException();

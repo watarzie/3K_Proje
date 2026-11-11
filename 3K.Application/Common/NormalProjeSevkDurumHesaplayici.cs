@@ -2,6 +2,7 @@ using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 
 namespace _3K.Application.Common;
 
@@ -44,28 +45,36 @@ public static class NormalProjeSevkDurumHesaplayici
             cancellationToken);
 
         // Aktif/plânlanan aktarım değil, mevcut servisin doğruladığı gerçekleşmiş saha sevki.
+        var kokSatirIds = satirlar.Where(cs => !cs.KaynakCekiSatiriId.HasValue).Select(cs => cs.Id).ToList();
         var sevkEdilenSahaTamamlama = await sahaTamamlamaService.GetSevkEdilenGerceklesenTamamlamaMapAsync(
-            satirlar.Where(cs => !cs.KaynakCekiSatiriId.HasValue).Select(cs => cs.Id),
+            kokSatirIds,
             cancellationToken);
+        var sahaIptalKapanan = await sahaTamamlamaService.GetSahaIptalKapananMapAsync(kokSatirIds, cancellationToken);
 
         return Hesapla(mevcutDurumId, guncelSandiklar, satirlar,
-            sahaUzerindenSevkEdilenSandikIds, sevkEdilenSahaTamamlama);
+            sahaUzerindenSevkEdilenSandikIds, sevkEdilenSahaTamamlama, sahaIptalKapanan);
     }
 
+    /// <param name="sahaIptalKapanan">
+    /// S-27: sahada Grid İptal edilen aktarılmış miktar; yalnız "bütün ürünler tamamlandı mı" kararında kapanmış sayılır,
+    /// saha sevki var sayılmaz.
+    /// </param>
     public static int Hesapla(
         int mevcutDurumId,
         IReadOnlyCollection<Sandik> guncelSandiklar,
         IReadOnlyCollection<CekiSatiri> satirlar,
         IReadOnlySet<int> sahaUzerindenSevkEdilenSandikIds,
-        IReadOnlyDictionary<int, decimal> sevkEdilenSahaTamamlama)
+        IReadOnlyDictionary<int, decimal> sevkEdilenSahaTamamlama,
+        IReadOnlyDictionary<int, decimal> sahaIptalKapanan)
     {
+        var sevkKapanis = SahaIptalSevkKapanisKurali.SevkKapanisHaritasi(sevkEdilenSahaTamamlama, sahaIptalKapanan);
         var fizikselSevk = guncelSandiklar.Count(s => s.DurumId == (int)SandikDurum.Sevkedildi);
         var etkinSevk = guncelSandiklar.Count(s =>
             s.DurumId == (int)SandikDurum.Sevkedildi || sahaUzerindenSevkEdilenSandikIds.Contains(s.Id));
         var sahaSevkiVar = guncelSandiklar.Any(s => sahaUzerindenSevkEdilenSandikIds.Contains(s.Id)) ||
             satirlar.Any(cs => sevkEdilenSahaTamamlama.GetValueOrDefault(cs.Id) > 0);
         var tumUrunlerTamamlandi = satirlar.Count > 0 &&
-            satirlar.All(cs => CekiSatiriKalanHelper.HesaplaEtkinKalan(cs, sevkEdilenSahaTamamlama) <= 0);
+            satirlar.All(cs => CekiSatiriKalanHelper.HesaplaEtkinKalan(cs, sevkKapanis) <= 0);
 
         var sevkDurumu = NormalProjeSevkDurumHelper.Hesapla(
             guncelSandiklar.Count,

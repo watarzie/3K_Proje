@@ -218,6 +218,7 @@ public sealed class SahaProjeTamamlanmaRegresyonTests
         public int SevkGerceklesenOkumaSayisi { get; private set; }
         public Task<Dictionary<int, decimal>> GetAktifIsTamamlamaMapAsync(IEnumerable<int> ids, CancellationToken token = default)
         { IsTamamlamaOkumaSayisi++; return Task.FromResult(IsTamamlama); }
+        public Task<Dictionary<int, decimal>> GetSahaIptalKapananMapAsync(IEnumerable<int> ids, CancellationToken token = default) => Task.FromResult(new Dictionary<int, decimal>());
         public Task<Dictionary<int, decimal>> GetSevkEdilenGerceklesenTamamlamaMapAsync(IEnumerable<int> ids, CancellationToken token = default)
         { SevkGerceklesenOkumaSayisi++; return Task.FromResult(new Dictionary<int, decimal>()); }
         public Task<KaynakSandikSahaAktarimDurumu> GetKaynakSandikSahaAktarimDurumuAsync(IEnumerable<int> ids, CancellationToken token = default)

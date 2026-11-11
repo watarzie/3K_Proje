@@ -165,6 +165,7 @@ public sealed class NormalProjeSevkKomutlariTests
         public int SenkronizasyonSayisi { get; private set; }
         public Task<KaynakSandikSahaAktarimDurumu> GetKaynakSandikSahaAktarimDurumuAsync(
             IEnumerable<int> ids, CancellationToken token = default) => Task.FromResult(SandikDurumu);
+        public Task<Dictionary<int, decimal>> GetSahaIptalKapananMapAsync(IEnumerable<int> ids, CancellationToken token = default) => Task.FromResult(new Dictionary<int, decimal>());
         public Task<Dictionary<int, decimal>> GetSevkEdilenGerceklesenTamamlamaMapAsync(IEnumerable<int> ids, CancellationToken token = default)
         {
             Assert.Equal(new[] { 50 }, ids);

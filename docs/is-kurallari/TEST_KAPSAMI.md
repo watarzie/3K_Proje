@@ -8,6 +8,20 @@ koşum sayıları tarihsel kayıttır; depo dışında yönetilen 02–04 SQL'le
 bugünkü halini veya canlıda elle uygulanmasını doğrulamaz. Bu geçiş için
 ayrı staging provası ve DBA doğrulaması gerekir.
 
+## Sahada iptal edilen ürün ve ana projenin sevk durumu (S-27) — 12 Kasım 2026
+
+Değişiklik henüz commit edilmedi.
+
+**Davranış.** Bütün normal sandıkları sevk edilmiş, tek açık ürünü sahaya aktarılıp sahada Grid İptal edilmiş normal proje Eksik Sevk Edildi'de kalıyor ve Sandık Yönetimi listesinden çıkmıyordu (canlı PA675-01, PA677-03). Sevk durumu hesabı artık sahadaki iptali kapanmış sayar (`ISahaTamamlamaService.GetSahaIptalKapananMapAsync`, `SahaIptalSevkKapanisKurali`). Gerçekleşen saha sevki haritası ve "saha sevki var mı" kararı değişmedi. Kalıcı senkron (`SenkronizeKaynakProjelerAsync`), sevk/kilit işlemlerinin hesaplayıcısı (`NormalProjeSevkDurumHesaplayici`), proje listesi ve gösterge paneli aynı kuralı kullanır.
+
+**Veri onarımı.** `scripts/database/20261112_01_Saha_Iptal_Proje_Sevk_Durumu.sql` (README 34) bu durumdaki projeleri bir kez 6 → 5 çeker. Canlı kopyada (11.11.2026) seçimi yalnız PA675-01 ve PA677-03'ü buldu. Durum sorgusu (`kontrol/Betik_Durumu.sql`) onarılacak proje kalmadıysa "uygulanmış" gösterir.
+
+- [NormalProjeSevkDurumHesaplayiciTests](../../3K.Application.Tests/NormalProjeSevkDurumHesaplayiciTests.cs): iptalle kapanan miktar (tam, kısmi, gerçekleşenle karışık); sevk kaydı olmadan ve normal sandık eldeyken tam sevk üretmemesi; kapanan miktarın iki kez düşülmemesi; haritaların toplanması.
+- [SahaIptalSevkKapanisPostgresTests](../../3K.Application.Tests/SahaIptalSevkKapanisPostgresTests.cs) (`THREEK_TEST_POSTGRES` ister): yeni defter, saha sandığı elde, defter öncesi (legacy) ve sahadan sahaya taşınmış satırla Sevk Edildi; iptal yok, kısmi aktarım ve geri alınmış aktarımda Eksik Sevk korunur; iptal kaldırılınca Eksik Sevk Edildi'ye dönüş; liste ile kalıcı senkronun eşitliği; onarım betiğinin seçiminin C# senkronuyla aynı olması, tekrarında hiçbir şey değişmemesi ve durum sorgusu.
+- [CanliyaAlimBetikleriTests](../../3K.Application.Tests/CanliyaAlimBetikleriTests.cs): betik önceki sürüm şemasında hatasız çalışır ve tekrarlanır; durum sorgusunda 34 satırı bulunur.
+
+**Sınır.** Gösterge paneli projeksiyonunun ayrı testi yoktur (aynı harita parametresini kullanır). Ön yüz değişmedi.
+
 ## Barkod etiketi (C-16) — 26 Ekim 2026
 
 Değişiklik henüz commit edilmedi.
