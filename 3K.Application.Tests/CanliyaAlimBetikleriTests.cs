@@ -13,7 +13,8 @@ namespace _3K.Application.Tests;
 /// 25 <c>20261024_01_Proje_Baglanti_Turu.sql</c>, 26 <c>20261024_02_Barkod_Urun_Arama_Yetkisi.sql</c>,
 /// 27 <c>20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql</c>, 28 <c>20261025_01_Giris_Kilidi.sql</c>,
 /// 29 <c>20261026_01_Barkod_Etiket_Yetkisi.sql</c>; hepsi <c>uygulandi/2026-10/</c> altında; 34
-/// <c>bekleyen/20261112_01_Saha_Iptal_Proje_Sevk_Durumu.sql</c>) önceki sürümün şemasında çalıştırılır. Sonuç şeması EF modeliyle
+/// <c>uygulandi/2026-11/20261112_01_Saha_Iptal_Proje_Sevk_Durumu.sql</c>; 35
+/// <c>bekleyen/20261117_01_Saha_Kapanis_Proje_Sevk_Durumu.sql</c>) önceki sürümün şemasında çalıştırılır. Sonuç şeması EF modeliyle
 /// aynıdır (kolon, kısıt, ON DELETE kuralı, indeks). Betiklerin tekrarı hiçbir şeyi değiştirmez: var olan taşıma izi ve
 /// verilmiş izinler korunur. Salt okunur durum sorgusu (<c>kontrol/Betik_Durumu.sql</c>) klasördeki her betiği listeler
 /// ve öncesini/sonrasını doğru gösterir. 1–20 numaralı betikler canlıya uygulanıp depodan kaldırıldığı için burada yoktur.
@@ -28,13 +29,19 @@ public sealed class CanliyaAlimBetikleriTests
             "20261023_02_Sevk_Sonrasi_Duzeltme", "20261024_01_Proje_Baglanti_Turu",
             "20261024_02_Barkod_Urun_Arama_Yetkisi", "20261024_03_Sandik_Acilis_Kapanis_Gecmisi",
             "20261025_01_Giris_Kilidi", "20261026_01_Barkod_Etiket_Yetkisi"
-        }.Select(ad => $"uygulandi/2026-10/{ad}.sql"), $"bekleyen/{VeriOnarimBetigi}.sql"];
+        }.Select(ad => $"uygulandi/2026-10/{ad}.sql"), $"uygulandi/2026-11/{VeriOnarimBetigi}.sql",
+        $"bekleyen/{VeriOnarimBetigi35}.sql"];
 
     /// <summary>
     /// 34 numaralı veri onarımı iz bırakmaz: onarılacak proje yoksa uygulanmış görünür. Seçimi ve C# kuralıyla eşliği
     /// <see cref="SahaIptalSevkKapanisPostgresTests"/> sınar.
     /// </summary>
     private const string VeriOnarimBetigi = "20261112_01_Saha_Iptal_Proje_Sevk_Durumu";
+
+    /// <summary>35 numaralı veri onarımı da iz bırakmaz; seçimi <see cref="SahaIptalSevkKapanisPostgresTests"/> sınar.</summary>
+    private const string VeriOnarimBetigi35 = "20261117_01_Saha_Kapanis_Proje_Sevk_Durumu";
+
+    private static bool VeriOnarimi(string betik) => betik is VeriOnarimBetigi or VeriOnarimBetigi35;
 
     /// <summary>Önceki sürümün (master) şeması: bu sürümün eklediği tablo, kolon, kısıt ve indeksler yoktur.</summary>
     private const string OncekiSema = """
@@ -97,7 +104,7 @@ public sealed class CanliyaAlimBetikleriTests
             Assert.Equal(Betikler.Length, dosyalar.Count);
             var durum = await BetikDurumuAsync(db);
             Assert.Equal(dosyalar, durum.Keys.Order(StringComparer.Ordinal));
-            Assert.All(durum, x => Assert.Equal(x.Key == VeriOnarimBetigi ? "uygulanmış" : "UYGULANMAMIŞ", x.Value));
+            Assert.All(durum, x => Assert.Equal(VeriOnarimi(x.Key) ? "uygulanmış" : "UYGULANMAMIŞ", x.Value));
 
             foreach (var betik in Betikler)
                 await CalistirAsync(db, betik);
@@ -105,8 +112,8 @@ public sealed class CanliyaAlimBetikleriTests
             Assert.All(await BetikDurumuAsync(db), x => Assert.Equal("uygulanmış", x.Value));
             // Betik kaydı: 34 kendi satırını yazar (kaynak "kayıt"); kayıt bloğundan önceki 22–29 izden tanınır.
             var kayitlar = await BetikKayitlariAsync(db);
-            Assert.Equal(new[] { VeriOnarimBetigi }, kayitlar.Keys);
-            Assert.All(await BetikKaynagiAsync(db), x => Assert.Equal(x.Key == VeriOnarimBetigi ? "kayıt" : "iz", x.Value));
+            Assert.Equal(new[] { VeriOnarimBetigi, VeriOnarimBetigi35 }, kayitlar.Keys);
+            Assert.All(await BetikKaynagiAsync(db), x => Assert.Equal(VeriOnarimi(x.Key) ? "kayıt" : "iz", x.Value));
             var gridSaha = await db.MenuTanimlari.AsNoTracking().SingleAsync(m => m.Kod == YetkiKodlari.Sandik.GridSahaGorunumu);
             // Rotasız izin düğümü: kenar menüde görünmez, ekran proje listesindeki düğmeyle açılır.
             Assert.Equal((5258, (string?)null, "MENU.GRID_SAHA_GORUNUMU", 5, 10), (gridSaha.Id, gridSaha.Route, gridSaha.LabelKey, gridSaha.ParentId!.Value, gridSaha.Sira));

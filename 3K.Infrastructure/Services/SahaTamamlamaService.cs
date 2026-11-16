@@ -162,7 +162,7 @@ namespace _3K.Infrastructure.Services
 
             // Kalem, sahadan sahaya taşımada satırla birlikte gittiği için hangi sahada olursa olsun aynı kök satırı
             // gösterir. Gerçekleşen kısım yalnız sevk kapsamındaki kalemde sayılır (GetSevkEdilenGerceklesenTamamlamaMapAsync
-            // ile aynı formül); iptal edilen kalemin geri kalanı burada kapanır.
+            // ile aynı formül); sahada Grid İptal ya da Grid Kapandı yapılan kalemin geri kalanı burada kapanır.
             var yeniSatirlar = await _context.SahaAktarimKalemleri
                 .AsNoTracking()
                 .Where(k =>
@@ -170,7 +170,8 @@ namespace _3K.Infrastructure.Services
                     k.DurumId != (int)SahaAktarimDurum.GeriAlindi &&
                     k.DurumId != (int)SahaAktarimDurum.Iptal &&
                     k.SahaCekiSatiri != null &&
-                    k.SahaCekiSatiri.GridDurumuId == (int)GridDurum.Iptal)
+                    (k.SahaCekiSatiri.GridDurumuId == (int)GridDurum.Iptal ||
+                     k.SahaCekiSatiri.GridDurumuId == (int)GridDurum.GridKapandi))
                 .Select(k => new SahaIptalSatirRow
                 {
                     KaynakCekiSatiriId = k.KaynakCekiSatiriId,
@@ -191,7 +192,7 @@ namespace _3K.Infrastructure.Services
                     kaynakIds.Contains(cs.KaynakCekiSatiriId.Value) &&
                     !temsilEdilenSahaSatirIds.Contains(cs.Id) &&
                     cs.Ceki.Proje.ProjeTipiId == (int)ProjeTipi.Saha &&
-                    cs.GridDurumuId == (int)GridDurum.Iptal)
+                    (cs.GridDurumuId == (int)GridDurum.Iptal || cs.GridDurumuId == (int)GridDurum.GridKapandi))
                 .Select(cs => new SahaIptalSatirRow
                 {
                     KaynakCekiSatiriId = cs.KaynakCekiSatiriId!.Value,

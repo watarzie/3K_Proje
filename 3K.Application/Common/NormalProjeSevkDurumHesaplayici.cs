@@ -56,7 +56,7 @@ public static class NormalProjeSevkDurumHesaplayici
     }
 
     /// <param name="sahaIptalKapanan">
-    /// S-27: sahada Grid İptal edilen aktarılmış miktar; yalnız "bütün ürünler tamamlandı mı" kararında kapanmış sayılır,
+    /// S-27: sahada Grid İptal ya da Grid Kapandı yapılan aktarılmış miktar; yalnız "bütün ürünler tamamlandı mı" kararında kapanmış sayılır,
     /// saha sevki var sayılmaz.
     /// </param>
     public static int Hesapla(

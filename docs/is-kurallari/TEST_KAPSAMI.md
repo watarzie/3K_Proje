@@ -8,13 +8,24 @@ koşum sayıları tarihsel kayıttır; depo dışında yönetilen 02–04 SQL'le
 bugünkü halini veya canlıda elle uygulanmasını doğrulamaz. Bu geçiş için
 ayrı staging provası ve DBA doğrulaması gerekir.
 
+## Sahada Grid Kapandı yapılan ürün ve 35 numaralı onarım (S-27 genişlemesi) — 17 Kasım 2026
+
+Değişiklik henüz commit edilmedi.
+
+**Davranış.** S-27 artık sahada Grid Kapandı yapılan ürünü de Grid İptal gibi kapanmış sayar (`SahaTamamlamaService.GetSahaIptalKapananMapAsync`). Canlı kopyada (17.11.2026) PA600-12, PA600-47 ve PA613-01 bu yüzden Eksik Sevk Edildi'de kalıyordu. PA600-47-SAHA'nın tek sandığı sevkli olduğu halde eski sürümün yazdığı Eksik Sevk Edildi durumu onu Saha Yönetimi listesinde tutuyordu.
+
+**Veri onarımı.** `scripts/database/bekleyen/20261117_01_Saha_Kapanis_Proje_Sevk_Durumu.sql` (README 35) ve `geri-alma/20261117_01_Yedek.sql`, `geri-alma/20261117_01_Geri_Al.sql`. 34 numaralı betik canlıda 11.11.2026'da çalıştığı için değiştirilmedi ve `uygulandi/2026-11/` altına taşındı. Canlı kopyada 35'in seçimi tam olarak PA600-12, PA600-47, PA600-47-SAHA ve PA613-01'dir; 34'ün onarılacak projesi kalmamıştır.
+
+- [SahaIptalSevkKapanisPostgresTests](../../3K.Application.Tests/SahaIptalSevkKapanisPostgresTests.cs): sahada Grid Kapandı (yeni defter ve legacy) ile Sevk Edildi, kısmi Grid Kapandı ile Eksik Sevk korunur; 35'in seçimi (normal projelerde C# senkronuyla aynı), saha projesi adımı (sandığı elde olan saha değişmez), yedek, geri alma, tekrar ve durum sorgusu.
+- [CanliyaAlimBetikleriTests](../../3K.Application.Tests/CanliyaAlimBetikleriTests.cs): 34 `uygulandi/2026-11/`, 35 `bekleyen/` altında; ikisi de kayıt yazar.
+
 ## Sahada iptal edilen ürün ve ana projenin sevk durumu (S-27) — 12 Kasım 2026
 
 Değişiklik henüz commit edilmedi.
 
 **Davranış.** Bütün normal sandıkları sevk edilmiş, tek açık ürünü sahaya aktarılıp sahada Grid İptal edilmiş normal proje Eksik Sevk Edildi'de kalıyor ve Sandık Yönetimi listesinden çıkmıyordu (canlı PA675-01, PA677-03). Sevk durumu hesabı artık sahadaki iptali kapanmış sayar (`ISahaTamamlamaService.GetSahaIptalKapananMapAsync`, `SahaIptalSevkKapanisKurali`). Gerçekleşen saha sevki haritası ve "saha sevki var mı" kararı değişmedi. Kalıcı senkron (`SenkronizeKaynakProjelerAsync`), sevk/kilit işlemlerinin hesaplayıcısı (`NormalProjeSevkDurumHesaplayici`), proje listesi ve gösterge paneli aynı kuralı kullanır.
 
-**Veri onarımı.** `scripts/database/bekleyen/20261112_01_Saha_Iptal_Proje_Sevk_Durumu.sql` (README 34) bu durumdaki projeleri bir kez 6 → 5 çeker. Canlı kopyada (11.11.2026) seçimi yalnız PA675-01 ve PA677-03'ü buldu. Durum sorgusu (`kontrol/Betik_Durumu.sql`) onarılacak proje kalmadıysa "uygulanmış" gösterir.
+**Veri onarımı.** `scripts/database/uygulandi/2026-11/20261112_01_Saha_Iptal_Proje_Sevk_Durumu.sql` (README 34) bu durumdaki projeleri bir kez 6 → 5 çeker. Canlı kopyada (11.11.2026) seçimi yalnız PA675-01 ve PA677-03'ü buldu. Durum sorgusu (`kontrol/Betik_Durumu.sql`) onarılacak proje kalmadıysa "uygulanmış" gösterir.
 
 - [NormalProjeSevkDurumHesaplayiciTests](../../3K.Application.Tests/NormalProjeSevkDurumHesaplayiciTests.cs): iptalle kapanan miktar (tam, kısmi, gerçekleşenle karışık); sevk kaydı olmadan ve normal sandık eldeyken tam sevk üretmemesi; kapanan miktarın iki kez düşülmemesi; haritaların toplanması.
 - [SahaIptalSevkKapanisPostgresTests](../../3K.Application.Tests/SahaIptalSevkKapanisPostgresTests.cs) (`THREEK_TEST_POSTGRES` ister): yeni defter, saha sandığı elde, defter öncesi (legacy) ve sahadan sahaya taşınmış satırla Sevk Edildi; iptal yok, kısmi aktarım ve geri alınmış aktarımda Eksik Sevk korunur; iptal kaldırılınca Eksik Sevk Edildi'ye dönüş; liste ile kalıcı senkronun eşitliği; onarım betiğinin seçiminin C# senkronuyla aynı olması, tekrarında hiçbir şey değişmemesi ve durum sorgusu.

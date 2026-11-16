@@ -17,7 +17,9 @@ namespace _3K.Application.Tests;
 /// Sevk durumu sahadan yalnız konulan adedi saydığı için proje Eksik Sevk Edildi kalıyor ve Sandık Yönetimi listesinden
 /// çıkmıyordu. Sahada iptal edilen aktarılmış miktar, ana projede iptal edilen ürün gibi kapanmış sayılır; saha
 /// sandığının sevki beklenmez. İptal geri alınınca durum Eksik Sevk Edildi'ye döner. Liste ve kalıcı senkron aynıdır;
-/// gerçekleşen saha sevki haritası (fiziksel teslim) değişmez.
+/// gerçekleşen saha sevki haritası (fiziksel teslim) değişmez. 17.11.2026'dan beri sahada Grid Kapandı yapılan ürün de
+/// aynı şekilde kapanır (canlı PA600-12, PA600-47, PA613-01); 35 numaralı onarım betiği bunları ve bütün sandıkları sevkli
+/// Eksik Sevk Edildi saha projesini (PA600-47-SAHA) düzeltir.
 /// </summary>
 public sealed class SahaIptalSevkKapanisPostgresTests
 {
@@ -31,11 +33,13 @@ public sealed class SahaIptalSevkKapanisPostgresTests
                 new Senaryo("QA-IPTAL-SEVKLI", SahaSandikSevkli: true),
                 new Senaryo("QA-IPTAL-ELDE", SahaSandikSevkli: false),
                 new Senaryo("QA-IPTAL-LEGACY", SahaSandikSevkli: false, Legacy: true),
-                new Senaryo("QA-IPTAL-TASINMIS", SahaSandikSevkli: true, SahaProjeNo: "QA-IPTAL-BASKA-SAHA"));
+                new Senaryo("QA-IPTAL-TASINMIS", SahaSandikSevkli: true, SahaProjeNo: "QA-IPTAL-BASKA-SAHA"),
+                new Senaryo("QA-KAPANDI-SEVKLI", SahaSandikSevkli: true, SahaGrid: GridDurum.GridKapandi),
+                new Senaryo("QA-KAPANDI-LEGACY", SahaSandikSevkli: false, Legacy: true, SahaGrid: GridDurum.GridKapandi));
 
             var durumlar = await DurumlariHesapla(options);
 
-            Assert.Equal(4, durumlar.Count);
+            Assert.Equal(6, durumlar.Count);
             Assert.All(durumlar, d => Assert.Equal(((int)ProjeDurum.SevkEdildi, (int)ProjeDurum.SevkEdildi), d.Value));
 
             // Kapanış fiziksel teslim değildir: gerçekleşen saha sevki haritası iptal satırına bir şey yazmaz.
@@ -43,7 +47,7 @@ public sealed class SahaIptalSevkKapanisPostgresTests
             var kaynakIds = await KaynakSatirIdsAsync(db);
             Assert.All(await new SahaTamamlamaService(db).GetSevkEdilenGerceklesenTamamlamaMapAsync(kaynakIds),
                 x => Assert.Equal(0, x.Value));
-            Assert.Equal(4, (await new SahaTamamlamaService(db).GetSahaIptalKapananMapAsync(kaynakIds)).Values.Count(v => v == 2));
+            Assert.Equal(6, (await new SahaTamamlamaService(db).GetSahaIptalKapananMapAsync(kaynakIds)).Values.Count(v => v == 2));
         });
     }
 
@@ -56,11 +60,12 @@ public sealed class SahaIptalSevkKapanisPostgresTests
             await Kur(options,
                 new Senaryo("QA-IPTAL-YOK", SahaSandikSevkli: true, SahaGrid: GridDurum.Gelmedi),
                 new Senaryo("QA-IPTAL-KISMI", SahaSandikSevkli: true, Aktarilan: 1),
+                new Senaryo("QA-KAPANDI-KISMI", SahaSandikSevkli: true, Aktarilan: 1, SahaGrid: GridDurum.GridKapandi),
                 new Senaryo("QA-IPTAL-GERIALINDI", SahaSandikSevkli: false, KalemDurum: SahaAktarimDurum.GeriAlindi));
 
             var durumlar = await DurumlariHesapla(options);
 
-            Assert.Equal(3, durumlar.Count);
+            Assert.Equal(4, durumlar.Count);
             Assert.All(durumlar, d =>
                 Assert.Equal(((int)ProjeDurum.EksikSevkEdildi, (int)ProjeDurum.EksikSevkEdildi), d.Value));
         });
@@ -163,6 +168,63 @@ public sealed class SahaIptalSevkKapanisPostgresTests
         });
     }
 
+    /// <summary>
+    /// 35 numaralı onarım: sahada Grid İptal ya da Grid Kapandı ile kapanan normal projeler ve bütün sandıkları sevkli
+    /// Eksik Sevk Edildi saha projesi 6 → 5. Normal projelerde seçim C# senkronuyla aynıdır. Yedek, geri alma, durum sorgusu
+    /// ve tekrar 34'teki gibi.
+    /// </summary>
+    [SandikPostgresFact]
+    [Trait("Category", "Postgres")]
+    public async Task VeriOnarimBetigi35_KapandiDahilKapananlariVeSevkliSahayiSevkEdildiYapar()
+    {
+        await WithDatabase(async options =>
+        {
+            await Kur(options,
+                new Senaryo("QA-K-IPTAL", SahaSandikSevkli: true),
+                new Senaryo("QA-K-KAPANDI", SahaSandikSevkli: true, SahaGrid: GridDurum.GridKapandi,
+                    SahaDurum: ProjeDurum.EksikSevkEdildi),
+                new Senaryo("QA-K-KAPANDI-LEGACY", SahaSandikSevkli: false, Legacy: true, SahaGrid: GridDurum.GridKapandi),
+                new Senaryo("QA-K-YOK", SahaSandikSevkli: true, SahaGrid: GridDurum.Gelmedi),
+                new Senaryo("QA-K-KISMI", SahaSandikSevkli: true, Aktarilan: 1, SahaGrid: GridDurum.GridKapandi),
+                new Senaryo("QA-K-SAHA-ELDE", SahaSandikSevkli: false, SahaGrid: GridDurum.Gelmedi,
+                    SahaDurum: ProjeDurum.EksikSevkEdildi));
+
+            await using var db = new AppDbContext(options);
+            await db.Database.OpenConnectionAsync();
+            var projeler = () => db.Projeler.AsNoTracking()
+                .ToDictionaryAsync(p => p.ProjeNo, p => (p.DurumId, p.UpdatedBy, p.UpdatedDate));
+            Assert.Equal("UYGULANMAMIŞ", await BetikDurumuAsync(db, Betik35));
+            var oncesi = await projeler();
+
+            await BetigiCalistirAsync(db, Yedek35);
+            await BetigiCalistirAsync(db, Betik35);
+
+            var sonrasi = await projeler();
+            Assert.Equal("uygulanmış", await BetikDurumuAsync(db, Betik35));
+            Assert.Equal(["QA-K-IPTAL", "QA-K-KAPANDI", "QA-K-KAPANDI-LEGACY", "QA-K-KAPANDI-SAHA"],
+                sonrasi.Where(x => x.Value.DurumId != oncesi[x.Key].DurumId).Select(x => x.Key).Order(StringComparer.Ordinal));
+            Assert.All(sonrasi.Where(x => x.Value.DurumId != oncesi[x.Key].DurumId), x =>
+                Assert.Equal(((int)ProjeDurum.SevkEdildi, Path.GetFileName(Betik35)), (x.Value.DurumId, x.Value.UpdatedBy)));
+            // Sandığı elde olan saha projesi Eksik Sevk Edildi kalır.
+            Assert.Equal((int)ProjeDurum.EksikSevkEdildi, sonrasi["QA-K-SAHA-ELDE-SAHA"].DurumId);
+
+            await BetigiCalistirAsync(db, Betik35);
+            Assert.Equal(sonrasi, await projeler());
+
+            await BetigiCalistirAsync(db, Yedek35);
+            await BetigiCalistirAsync(db, GeriAlma35);
+            Assert.Equal(oncesi, await projeler());
+            Assert.Equal("UYGULANMAMIŞ", await BetikDurumuAsync(db, Betik35));
+
+            // Yeniden uygulanınca aynı sonuç; normal projelerde yeni API'nin senkron ve liste hesabıyla aynıdır.
+            await BetigiCalistirAsync(db, Betik35);
+            Assert.Equal(sonrasi.ToDictionary(x => x.Key, x => x.Value.DurumId),
+                (await projeler()).ToDictionary(x => x.Key, x => x.Value.DurumId));
+            var api = await DurumlariHesapla(options);
+            Assert.All(api, x => Assert.Equal((sonrasi[x.Key].DurumId, sonrasi[x.Key].DurumId), x.Value));
+        });
+    }
+
     [SandikPostgresFact]
     [Trait("Category", "Postgres")]
     public async Task GeriAlmaBetigi_YedekYoksaHataVerir_HicbirKayitDegismez()
@@ -181,9 +243,12 @@ public sealed class SahaIptalSevkKapanisPostgresTests
         });
     }
 
-    private const string BetikAdi = "bekleyen/20261112_01_Saha_Iptal_Proje_Sevk_Durumu.sql";
+    private const string BetikAdi = "uygulandi/2026-11/20261112_01_Saha_Iptal_Proje_Sevk_Durumu.sql";
     private const string YedekBetigi = "geri-alma/20261112_01_Yedek.sql";
     private const string GeriAlmaBetigi = "geri-alma/20261112_01_Geri_Al.sql";
+    private const string Betik35 = "bekleyen/20261117_01_Saha_Kapanis_Proje_Sevk_Durumu.sql";
+    private const string Yedek35 = "geri-alma/20261117_01_Yedek.sql";
+    private const string GeriAlma35 = "geri-alma/20261117_01_Geri_Al.sql";
 
     private static async Task BetigiCalistirAsync(AppDbContext db, string ad = BetikAdi)
     {
@@ -198,13 +263,13 @@ public sealed class SahaIptalSevkKapanisPostgresTests
     }
 
     /// <summary>Durum sorgusunun (kontrol/Betik_Durumu.sql) bu betik için verdiği sonuç.</summary>
-    private static async Task<string> BetikDurumuAsync(AppDbContext db)
+    private static async Task<string> BetikDurumuAsync(AppDbContext db, string betik = BetikAdi)
     {
         await using var komut = db.Database.GetDbConnection().CreateCommand();
         komut.CommandText = await File.ReadAllTextAsync(BetikYolu(Path.Combine("kontrol", "Betik_Durumu.sql")));
         await using var okuyucu = await komut.ExecuteReaderAsync();
         while (await okuyucu.ReadAsync())
-            if (okuyucu.GetString(1) + ".sql" == Path.GetFileName(BetikAdi))
+            if (okuyucu.GetString(1) + ".sql" == Path.GetFileName(betik))
                 return okuyucu.GetString(2);
         throw new Xunit.Sdk.XunitException("Durum sorgusunda betik satırı yok.");
     }
@@ -225,7 +290,8 @@ public sealed class SahaIptalSevkKapanisPostgresTests
         GridDurum SahaGrid = GridDurum.Iptal,
         decimal Aktarilan = 2,
         SahaAktarimDurum? KalemDurum = null,
-        string? SahaProjeNo = null);
+        string? SahaProjeNo = null,
+        ProjeDurum SahaDurum = ProjeDurum.Hazirlaniyor);
 
     /// <summary>
     /// Her senaryo ayrı bir normal proje: iki sandığı da sevk edilmiş, Eksik Sevk Edildi kayıtlı; biri tam gelen, diğeri
@@ -237,7 +303,7 @@ public sealed class SahaIptalSevkKapanisPostgresTests
         foreach (var s in senaryolar)
         {
             var proje = new Proje { ProjeNo = s.ProjeNo, Musteri = "Sentetik", ProjeTipiId = (int)ProjeTipi.Normal, DurumId = (int)ProjeDurum.EksikSevkEdildi };
-            var saha = new Proje { ProjeNo = s.SahaProjeNo ?? s.ProjeNo + "-SAHA", Musteri = "Sentetik", ProjeTipiId = (int)ProjeTipi.Saha, DurumId = (int)ProjeDurum.Hazirlaniyor };
+            var saha = new Proje { ProjeNo = s.SahaProjeNo ?? s.ProjeNo + "-SAHA", Musteri = "Sentetik", ProjeTipiId = (int)ProjeTipi.Saha, DurumId = (int)s.SahaDurum };
             var ceki = new Ceki { Proje = proje, OrijinalDosyaYolu = "sentetik.xlsx", YuklemeTarihi = new DateTime(2026, 9, 1, 9, 0, 0) };
             var sahaCeki = new Ceki { Proje = saha, OrijinalDosyaYolu = "saha.xlsx", YuklemeTarihi = new DateTime(2026, 10, 20, 9, 0, 0) };
             proje.Cekiler.Add(ceki);

@@ -20,7 +20,9 @@
 -- 30–33 feature/yukleme-simulasyonu dalındadır.
 -- 34 numaralı betik veri onarımıdır (S-27): sahada iptalle kapanacak Eksik Sevk Edildi normal proje kalmadıysa
 -- uygulanmış görünür; UYGULANMAMIŞ ise onarılacak proje vardır. Seçim betiktekiyle aynıdır; biri değişirse öteki de
--- güncellenir (saha_iptal_* CTE'leri).
+-- güncellenir (saha_iptal_* CTE'leri). 34 canlıda 11.11.2026'da kayıt bloğundan önceki sürümüyle çalıştı (kaynak "iz").
+-- 35 numaralı betik veri onarımıdır (S-27 genişlemesi): sahada Grid İptal ya da Grid Kapandı ile kapanacak normal proje ve
+-- bütün sandıkları sevkli Eksik Sevk Edildi saha/yedek proje kalmadıysa uygulanmış görünür (saha_kapanis_onarilacak).
 -- Yeni betik eklenince buraya satır eklenir (CanliyaAlimBetikleriTests dosya listesiyle karşılaştırır); betiğin sonunda
 -- README'deki "Betik kaydı" bloğu bulunur. İz satırı yine yazılır: kayıt bloğundan önce elle uygulanmış veritabanı için.
 -- =====================================================================================
@@ -51,9 +53,11 @@ saha_iptal_kok AS (
     WHERE cs."KaynakCekiSatiriId" IS NULL),
 saha_iptal_katki AS (
     SELECT x.kaynak_id, x.gerceklesen,
-           CASE WHEN x.saha_iptal THEN GREATEST(GREATEST(x.aktarilan, 0), x.gerceklesen) ELSE x.gerceklesen END AS kapanis
+           CASE WHEN x.saha_grid = 12 THEN GREATEST(GREATEST(x.aktarilan, 0), x.gerceklesen) ELSE x.gerceklesen END AS kapanis,
+           CASE WHEN x.saha_grid IN (12, 14) THEN GREATEST(GREATEST(x.aktarilan, 0), x.gerceklesen) ELSE x.gerceklesen END
+               AS kapanis_kapandi_dahil
     FROM (
-        SELECT k."KaynakCekiSatiriId" AS kaynak_id, k."Miktar" AS aktarilan, COALESCE(ss."GridDurumuId" = 12, FALSE) AS saha_iptal,
+        SELECT k."KaynakCekiSatiriId" AS kaynak_id, k."Miktar" AS aktarilan, ss."GridDurumuId" AS saha_grid,
                CASE WHEN k."SevkiyatKapsamindaMi" AND k."Miktar" > 0
                     THEN LEAST(GREATEST(COALESCE(ic.konulan, 0), 0) + GREATEST(COALESCE(ss."TrafoSevkAdet", 0), 0), k."Miktar")
                     ELSE 0 END AS gerceklesen
@@ -63,7 +67,7 @@ saha_iptal_katki AS (
                            FROM "SandikIcerikleri" si WHERE si."CekiSatiriId" = k."SahaCekiSatiriId") ic ON TRUE
         WHERE k."DurumId" NOT IN (6, 7) AND k."KaynakCekiSatiriId" IN (SELECT satir_id FROM saha_iptal_kok)
         UNION ALL
-        SELECT cs."KaynakCekiSatiriId", cs."IstenenAdet", cs."GridDurumuId" = 12,
+        SELECT cs."KaynakCekiSatiriId", cs."IstenenAdet", cs."GridDurumuId",
                CASE WHEN COALESCE(ic.sevkli, FALSE) AND cs."IstenenAdet" > 0
                     THEN LEAST(GREATEST(COALESCE(ic.konulan, 0), 0) + GREATEST(cs."TrafoSevkAdet", 0), cs."IstenenAdet")
                     ELSE 0 END
@@ -76,14 +80,27 @@ saha_iptal_katki AS (
                            WHERE si."CekiSatiriId" = cs."Id") ic ON TRUE
         WHERE cs."KaynakCekiSatiriId" IN (SELECT satir_id FROM saha_iptal_kok)
           AND NOT EXISTS (SELECT 1 FROM "SahaAktarimKalemleri" d WHERE d."SahaCekiSatiriId" = cs."Id")) x),
+saha_iptal_satir AS (
+    SELECT ks.proje_id, ks.satir_id, ks.kalan,
+           COALESCE(SUM(kt.gerceklesen), 0) AS gerceklesen, COALESCE(SUM(kt.kapanis), 0) AS kapanis,
+           COALESCE(SUM(kt.kapanis_kapandi_dahil), 0) AS kapanis_kapandi_dahil
+    FROM saha_iptal_kok ks LEFT JOIN saha_iptal_katki kt ON kt.kaynak_id = ks.satir_id
+    GROUP BY ks.proje_id, ks.satir_id, ks.kalan),
+-- 34: yalnız sahada Grid İptal.
 saha_iptal_onarilacak AS (
-    SELECT o.proje_id
-    FROM (SELECT ks.proje_id, ks.satir_id, ks.kalan,
-                 COALESCE(SUM(kt.gerceklesen), 0) AS gerceklesen, COALESCE(SUM(kt.kapanis), 0) AS kapanis
-          FROM saha_iptal_kok ks LEFT JOIN saha_iptal_katki kt ON kt.kaynak_id = ks.satir_id
-          GROUP BY ks.proje_id, ks.satir_id, ks.kalan) o
+    SELECT o.proje_id FROM saha_iptal_satir o
     GROUP BY o.proje_id
-    HAVING BOOL_AND(o.kalan <= o.kapanis) AND BOOL_OR(o.kalan > o.gerceklesen))
+    HAVING BOOL_AND(o.kalan <= o.kapanis) AND BOOL_OR(o.kalan > o.gerceklesen)),
+-- 35: sahada Grid İptal ya da Grid Kapandı (normal projeler) + bütün sandıkları sevkli Eksik Sevk Edildi saha/yedek.
+saha_kapanis_onarilacak AS (
+    SELECT o.proje_id FROM saha_iptal_satir o
+    GROUP BY o.proje_id
+    HAVING BOOL_AND(o.kalan <= o.kapanis_kapandi_dahil) AND BOOL_OR(o.kalan > o.gerceklesen)
+    UNION ALL
+    SELECT p."Id" FROM "Projeler" p
+    WHERE p."ProjeTipiId" IN (2, 3) AND p."DurumId" = 6
+      AND EXISTS (SELECT 1 FROM "Sandiklar" s WHERE s."ProjeId" = p."Id")
+      AND NOT EXISTS (SELECT 1 FROM "Sandiklar" s WHERE s."ProjeId" = p."Id" AND (s."DurumId" <> 4 OR s."SevkiyatDuzeltmeAcikMi")))
 SELECT t.sira, t.betik,
        CASE WHEN k.ad IS NOT NULL THEN 'uygulanmış'
             WHEN t.uygulandi IS NULL THEN 'tespit edilemez'
@@ -106,7 +123,8 @@ FROM (VALUES
     (28, '20261025_01_Giris_Kilidi',                EXISTS (SELECT 1 FROM kolon WHERE tablo = 'Kullanicilar' AND ad = 'BasarisizGirisSayisi')
                                                     AND EXISTS (SELECT 1 FROM kolon WHERE tablo = 'Kullanicilar' AND ad = 'GirisKilitBitisTarihi')),
     (29, '20261026_01_Barkod_Etiket_Yetkisi',       EXISTS (SELECT 1 FROM "MenuTanimlari" WHERE "Kod" = 'barkod-etiket')),
-    (34, '20261112_01_Saha_Iptal_Proje_Sevk_Durumu', NOT EXISTS (SELECT 1 FROM saha_iptal_onarilacak))
+    (34, '20261112_01_Saha_Iptal_Proje_Sevk_Durumu', NOT EXISTS (SELECT 1 FROM saha_iptal_onarilacak)),
+    (35, '20261117_01_Saha_Kapanis_Proje_Sevk_Durumu', NOT EXISTS (SELECT 1 FROM saha_kapanis_onarilacak))
 ) AS t(sira, betik, uygulandi)
 LEFT JOIN kayit k ON k.ad = t.betik
 ORDER BY t.sira;
