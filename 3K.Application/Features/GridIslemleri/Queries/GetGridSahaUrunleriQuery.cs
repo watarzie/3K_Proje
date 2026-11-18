@@ -29,6 +29,16 @@ namespace _3K.Application.Features.GridIslemleri.Queries
         /// <summary><see cref="GridSahaSiralama"/> değerlerinden biri; boşsa proje.</summary>
         public string? Siralama { get; set; }
         public bool Azalan { get; set; }
+        /// <summary>
+        /// Son mal kabul tarihi süzgeci (gün, iki uç dahil): satırın en son mal kabulü bu aralıktaysa listelenir; mal
+        /// kabul kaydı olmayan satır süzgeç verilince düşer. Uçlardan biri boş bırakılabilir.
+        /// </summary>
+        public DateTime? MalKabulBaslangic { get; set; }
+        public DateTime? MalKabulBitis { get; set; }
+
+        /// <summary>Kabul edilen en eski / en yeni tarih (taşmayı önler).</summary>
+        public static readonly DateTime EnErkenTarih = new(2000, 1, 1);
+        public static readonly DateTime EnGecTarih = new(2100, 12, 31);
     }
 
     /// <summary>Grid Sahası ürün listesinin kapsamı.</summary>
@@ -51,8 +61,10 @@ namespace _3K.Application.Features.GridIslemleri.Queries
         public const string Proje = "proje";
         public const string Bekleyen = "bekleyen";
         public const string Sandik = "sandik";
+        /// <summary>Son mal kabul tarihi (canlı ∪ arşiv); mal kabul kaydı olmayan satırlar iki yönde de sondadır.</summary>
+        public const string SonMalKabul = "son-mal-kabul";
 
-        public static readonly IReadOnlyList<string> Hepsi = [Proje, Bekleyen, Sandik];
+        public static readonly IReadOnlyList<string> Hepsi = [Proje, Bekleyen, Sandik, SonMalKabul];
 
         public static bool Gecerli(string? deger) =>
             !string.IsNullOrWhiteSpace(deger) && Hepsi.Contains(deger.Trim().ToLowerInvariant());

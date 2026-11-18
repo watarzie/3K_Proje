@@ -28,7 +28,8 @@ Commit atmaz, `git add` ile stage etmez, push yapmaz, dal değiştirmezsin.
 - **Veri:** `GenericRepository` izleme semantiğine dikkat (`FindAsync` izlenmez, `GetByIdAsync`/`Queryable()` izlenir;
   ayrı örneği `Update` etme). Büyüyebilen liste `SayfaliSonuc<T>` ile DB'de sayfalı. Sorgu durum değiştirmez.
 - **Alan kuralları:** `CLAUDE.md` "Korunacak alan kuralları". Tekil, toplu ve eski uçları birlikte değiştir.
-- **Şema (EF migration yok):** configuration + `scripts/database/YYYYMMDD_NN_Konu.sql` (tek transaction, idempotent)
+- **Şema (EF migration yok):** configuration + `scripts/database/bekleyen/YYYYMMDD_NN_Konu.sql` (tek transaction,
+  idempotent, sonunda README "Betik kaydı" bloğu)
   + `scripts/database/README.md` satırı + `scripts/database/kontrol/Betik_Durumu.sql` satırı +
   `CanliyaAlimBetikleriTests` listesi; Finans/Ambalaj tablosuysa `20260929_01_Finans_Ambalaj_Sifirlama.sql`. Veri kaybı
   riski taşıyan değişiklik (kolon silme, tip daraltma, yeniden adlandırma yerine drop+add) varsa uygulamadan önce sor.

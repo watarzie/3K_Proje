@@ -23,7 +23,17 @@ namespace _3K.Application.Features.GridIslemleri.Validators
             RuleFor(x => x.Siralama)
                 .Must(siralama => string.IsNullOrWhiteSpace(siralama) || GridSahaSiralama.Gecerli(siralama))
                 .WithMessage("Geçersiz sıralama alanı.");
+            RuleFor(x => x)
+                .Must(x => MakulTarih(x.MalKabulBaslangic) && MakulTarih(x.MalKabulBitis))
+                .WithMessage("Tarih 2000–2100 aralığında olmalıdır.");
+            RuleFor(x => x)
+                .Must(x => !x.MalKabulBaslangic.HasValue || !x.MalKabulBitis.HasValue || x.MalKabulBaslangic.Value.Date <= x.MalKabulBitis.Value.Date)
+                .WithMessage("Tarih aralığı geçersiz: başlangıç bitişten sonra olamaz.");
         }
+
+        private static bool MakulTarih(DateTime? tarih) =>
+            !tarih.HasValue ||
+            (tarih.Value >= GetGridSahaUrunleriQuery.EnErkenTarih && tarih.Value <= GetGridSahaUrunleriQuery.EnGecTarih);
     }
 
     public sealed class GetGridMalKabulGecmisiQueryValidator : AbstractValidator<GetGridMalKabulGecmisiQuery>

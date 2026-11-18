@@ -13,7 +13,8 @@ namespace _3K.Application.Features.GridIslemleri.Queries
     /// Grid sahasına gelmiş ve sahada sonuçlanmış (Trafo Sevk, Grid Kapandı) ürünleri veritabanında süzer, sıralar ve sayfalar (Grid'de bekleyen miktar
     /// <see cref="GridSorgulari.GriddeBekleyenIfadesi"/> ile SQL'de hesaplanır). Sevk kilidi dışlaması Grid iş
     /// listesiyle ortaktır; aktif saha aktarımlı normal kök satır düşmez, rozetle işaretlenir. Son mal kabulün tarihi ve
-    /// personeli yalnız sayfadaki satırlar için hareket geçmişinden okunur (Grid'e geliş tarihi saklanmaz). Özet,
+    /// personeli yalnız sayfadaki satırlar için hareket geçmişinden okunur (Grid'e geliş tarihi saklanmaz); son mal
+    /// kabule göre sıralama ve tarih süzgeci ise gruplanmış son tarih sol birleştirilerek SQL'de yapılır. Özet,
     /// arama ve süzgeçlerden bağımsızdır. Durum değiştirmez.
     /// </summary>
     public sealed class GetGridSahaUrunleriQueryHandler(
@@ -46,11 +47,32 @@ namespace _3K.Application.Features.GridIslemleri.Queries
             var bugunMalKabul = await hareketOkuyucu.MalKabulSayisiAsync(bugun, bugun.AddDays(1), cancellationToken);
 
             var filtreli = Suz(GridSahaKapsami.TumuMu(request.Kapsam) ? gelmis : bekleyenler, request);
-            var toplam = await queryExecutor.CountAsync(filtreli, cancellationToken);
-            var satirlar = await queryExecutor.ToListAsync(
-                Sirala(filtreli, request)
+            var tariheGoreSirala = GridSahaSiralama.Normalize(request.Siralama) == GridSahaSiralama.SonMalKabul;
+            int toplam;
+            IQueryable<CekiSatiri> sayfaSorgusu;
+            if (tariheGoreSirala || request.MalKabulBaslangic.HasValue || request.MalKabulBitis.HasValue)
+            {
+                // Son mal kabul tarihi gerekiyorsa (sıralama ya da süzgeç) hareketlerden gruplanmış tarih sol birleştirilir.
+                var tarihli = TariheGoreSuz(MalKabulTarihiyle(filtreli), request);
+                toplam = await queryExecutor.CountAsync(tarihli, cancellationToken);
+                sayfaSorgusu = tariheGoreSirala
+                    ? TariheGoreSirala(tarihli, request.Azalan)
+                        .Skip((sayfa - 1) * sayfaBoyutu)
+                        .Take(sayfaBoyutu)
+                        .Select(x => x.Satir)
+                    : Sirala(tarihli.Select(x => x.Satir), request)
+                        .Skip((sayfa - 1) * sayfaBoyutu)
+                        .Take(sayfaBoyutu);
+            }
+            else
+            {
+                toplam = await queryExecutor.CountAsync(filtreli, cancellationToken);
+                sayfaSorgusu = Sirala(filtreli, request)
                     .Skip((sayfa - 1) * sayfaBoyutu)
-                    .Take(sayfaBoyutu)
+                    .Take(sayfaBoyutu);
+            }
+            var satirlar = await queryExecutor.ToListAsync(
+                sayfaSorgusu
                     .Select(GridSorgulari.BekleyenIle((cs, bekleyen) => new UrunSatiri
                     {
                         Id = cs.Id,
@@ -155,6 +177,43 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                 .ThenBy(cs => cs.Id);
         }
 
+        /// <summary>Satıra en son mal kabul tarihini ekler (canlı ∪ arşiv); mal kabul kaydı olmayan satırda tarih boştur.</summary>
+        private IQueryable<TarihliSatir> MalKabulTarihiyle(IQueryable<CekiSatiri> sorgu) =>
+            from cs in sorgu
+            join son in hareketOkuyucu.SonMalKabulTarihleri() on cs.Id.ToString() equals son.ReferansId into eslesen
+            from son in eslesen.DefaultIfEmpty()
+            select new TarihliSatir { Satir = cs, Tarih = son != null ? son.Tarih : null };
+
+        /// <summary>Son mal kabul tarihi aralığı (gün, iki uç dahil); süzgeç verilince tarihi olmayan satır düşer.</summary>
+        private static IQueryable<TarihliSatir> TariheGoreSuz(IQueryable<TarihliSatir> sorgu, GetGridSahaUrunleriQuery request)
+        {
+            if (request.MalKabulBaslangic.HasValue)
+            {
+                var baslangic = request.MalKabulBaslangic.Value.Date;
+                sorgu = sorgu.Where(x => x.Tarih >= baslangic);
+            }
+            if (request.MalKabulBitis.HasValue)
+            {
+                var bitisHaric = request.MalKabulBitis.Value.Date.AddDays(1);
+                sorgu = sorgu.Where(x => x.Tarih < bitisHaric);
+            }
+            return sorgu;
+        }
+
+        /// <summary>
+        /// Son mal kabul tarihine göre sıralar (mal kabul kayıtları sekmesi gibi varsayılan en yeni önce ekranda seçilir);
+        /// tarihi olmayan satırlar iki yönde de sondadır, eşitlikte proje, sandık, sıra.
+        /// </summary>
+        private static IOrderedQueryable<TarihliSatir> TariheGoreSirala(IQueryable<TarihliSatir> sorgu, bool azalan)
+        {
+            var tarihsizSonda = sorgu.OrderBy(x => x.Tarih == null);
+            return (azalan ? tarihsizSonda.ThenByDescending(x => x.Tarih) : tarihsizSonda.ThenBy(x => x.Tarih))
+                .ThenBy(x => x.Satir.Ceki.Proje.ProjeNo)
+                .ThenBy(x => string.IsNullOrWhiteSpace(x.Satir.FiiliSandikNo) ? x.Satir.CekideGecenSandikNo : x.Satir.FiiliSandikNo)
+                .ThenBy(x => x.Satir.SiraNo)
+                .ThenBy(x => x.Satir.Id);
+        }
+
         private async Task<HashSet<int>> SahayaAktarilanlarAsync(List<UrunSatiri> satirlar, CancellationToken cancellationToken)
         {
             var kokSatirlar = satirlar
@@ -208,6 +267,12 @@ namespace _3K.Application.Features.GridIslemleri.Queries
                 SahayaAktarildiMi = sahayaAktarildi,
                 GridAciklama = x.GridAciklama
             };
+        }
+
+        private sealed class TarihliSatir
+        {
+            public CekiSatiri Satir { get; init; } = null!;
+            public DateTime? Tarih { get; init; }
         }
 
         private sealed class OzetSatiri

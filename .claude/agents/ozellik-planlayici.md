@@ -36,7 +36,7 @@ Yalnız okursun; kod, doküman ve betik yazmazsın. Şartnameyi ve planı raporu
   (`YetkiKodlari` + betik `MenuTanimlari` + ön yüz `yetki-kodlari.ts` + TR/EN `MENU.*` + yetki eşleme dokümanı).
 - Handler: `Result.Failure` / `IsKuraliException`; hepsi-ya-hiçbiri için `ExecuteAtomicAsync`; onay gerekiyorsa
   `ApprovalBehavior` ve 202 akışı; `xmin`/tekrar anahtarı gereken yerler.
-- Veri: şema değişikliği = EF configuration + `scripts/database/YYYYMMDD_NN_Konu.sql` (+ README, `Betik_Durumu.sql`,
+- Veri: şema değişikliği = EF configuration + `scripts/database/bekleyen/YYYYMMDD_NN_Konu.sql` (+ kayıt bloğu, README, `Betik_Durumu.sql`,
   `CanliyaAlimBetikleriTests`; Finans/Ambalaj ise sıfırlama betiği). Büyüyebilen liste `SayfaliSonuc<T>`.
 - Ön yüz: servis `core/services`, DTO `shared/models` (alan adı, nullable, enum sayısı birebir), rota `loadComponent` +
   `menuGuard` + `data.menuKod` (+ `data.projeTipi`), düğme `permissions.canWrite(izin.X)`, metin TR+EN, 202 için

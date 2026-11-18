@@ -3,6 +3,7 @@ using _3K.Core.Entities;
 using _3K.Core.Enums;
 using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.DashboardIslemleri.Queries
 {
@@ -11,13 +12,13 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
         public static DashboardProjeItemDto ToProjeItem(
             Proje proje,
             ILookupCacheService lookupCache,
-            IReadOnlyDictionary<int, decimal>? sahaTamamlamaMap = null,
-            IReadOnlyDictionary<int, decimal>? sevkEdilenSahaTamamlamaMap = null,
-            IReadOnlySet<int>? sahaUzerindenSevkEdilenSandikIds = null)
+            IReadOnlyDictionary<int, decimal> sahaTamamlamaMap,
+            IReadOnlyDictionary<int, decimal> sevkEdilenSahaTamamlamaMap,
+            IReadOnlySet<int> sahaUzerindenSevkEdilenSandikIds,
+            IReadOnlyDictionary<int, decimal> sahaIptalKapananMap)
         {
-            sahaTamamlamaMap ??= new Dictionary<int, decimal>();
-            sevkEdilenSahaTamamlamaMap ??= new Dictionary<int, decimal>();
-            sahaUzerindenSevkEdilenSandikIds ??= new HashSet<int>();
+            // S-27: sahada iptal edilen ürün sevk durumunda kapanmış sayılır; saha sevki varlığı gerçekleşenle kalır.
+            var sevkKapanisMap = SahaIptalSevkKapanisKurali.SevkKapanisHaritasi(sevkEdilenSahaTamamlamaMap, sahaIptalKapananMap);
             var sandiklar = proje.Sandiklar ?? new List<Sandik>();
             var cekiSatirlari = proje.Cekiler?.SelectMany(c => c.CekiSatirlari).ToList() ?? new List<CekiSatiri>();
             var sandikIcerikleri = sandiklar.SelectMany(s => s.SandikIcerikleri).ToList();
@@ -27,7 +28,7 @@ namespace _3K.Application.Features.DashboardIslemleri.Queries
                 ? sandikIcerikleri.Count(SahaYedekUrunTamamlanmaHelper.TamamlandiMi)
                 : cekiSatirlari.Count(cs => CekiSatiriKalanHelper.HesaplaEtkinKalan(cs, sahaTamamlamaMap) <= 0);
             var normalUrunlerSevkKapsamindaTamamlandi = !isSahaYedek && toplamUrun > 0 &&
-                cekiSatirlari.All(cs => CekiSatiriKalanHelper.HesaplaEtkinKalan(cs, sevkEdilenSahaTamamlamaMap) <= 0);
+                cekiSatirlari.All(cs => CekiSatiriKalanHelper.HesaplaEtkinKalan(cs, sevkKapanisMap) <= 0);
             var sahaSevkiyleTamamlamaVar = !isSahaYedek &&
                 cekiSatirlari.Any(cs => sevkEdilenSahaTamamlamaMap.GetValueOrDefault(cs.Id) > 0);
             var durumId = HesaplaDurumId(

@@ -8,6 +8,31 @@ koşum sayıları tarihsel kayıttır; depo dışında yönetilen 02–04 SQL'le
 bugünkü halini veya canlıda elle uygulanmasını doğrulamaz. Bu geçiş için
 ayrı staging provası ve DBA doğrulaması gerekir.
 
+## Sahada Grid Kapandı yapılan ürün ve 35 numaralı onarım (S-27 genişlemesi) — 17 Kasım 2026
+
+Değişiklik henüz commit edilmedi.
+
+**Davranış.** S-27 artık sahada Grid Kapandı yapılan ürünü de Grid İptal gibi kapanmış sayar (`SahaTamamlamaService.GetSahaIptalKapananMapAsync`). Canlı kopyada (17.11.2026) PA600-12, PA600-47 ve PA613-01 bu yüzden Eksik Sevk Edildi'de kalıyordu. PA600-47-SAHA'nın tek sandığı sevkli olduğu halde eski sürümün yazdığı Eksik Sevk Edildi durumu onu Saha Yönetimi listesinde tutuyordu.
+
+**Veri onarımı.** `scripts/database/bekleyen/20261117_01_Saha_Kapanis_Proje_Sevk_Durumu.sql` (README 35) ve `geri-alma/20261117_01_Yedek.sql`, `geri-alma/20261117_01_Geri_Al.sql`. 34 numaralı betik canlıda 11.11.2026'da çalıştığı için değiştirilmedi ve `uygulandi/2026-11/` altına taşındı. Canlı kopyada 35'in seçimi tam olarak PA600-12, PA600-47, PA600-47-SAHA ve PA613-01'dir; 34'ün onarılacak projesi kalmamıştır.
+
+- [SahaIptalSevkKapanisPostgresTests](../../3K.Application.Tests/SahaIptalSevkKapanisPostgresTests.cs): sahada Grid Kapandı (yeni defter ve legacy) ile Sevk Edildi, kısmi Grid Kapandı ile Eksik Sevk korunur; 35'in seçimi (normal projelerde C# senkronuyla aynı), saha projesi adımı (sandığı elde olan saha değişmez), yedek, geri alma, tekrar ve durum sorgusu.
+- [CanliyaAlimBetikleriTests](../../3K.Application.Tests/CanliyaAlimBetikleriTests.cs): 34 `uygulandi/2026-11/`, 35 `bekleyen/` altında; ikisi de kayıt yazar.
+
+## Sahada iptal edilen ürün ve ana projenin sevk durumu (S-27) — 12 Kasım 2026
+
+Değişiklik henüz commit edilmedi.
+
+**Davranış.** Bütün normal sandıkları sevk edilmiş, tek açık ürünü sahaya aktarılıp sahada Grid İptal edilmiş normal proje Eksik Sevk Edildi'de kalıyor ve Sandık Yönetimi listesinden çıkmıyordu (canlı PA675-01, PA677-03). Sevk durumu hesabı artık sahadaki iptali kapanmış sayar (`ISahaTamamlamaService.GetSahaIptalKapananMapAsync`, `SahaIptalSevkKapanisKurali`). Gerçekleşen saha sevki haritası ve "saha sevki var mı" kararı değişmedi. Kalıcı senkron (`SenkronizeKaynakProjelerAsync`), sevk/kilit işlemlerinin hesaplayıcısı (`NormalProjeSevkDurumHesaplayici`), proje listesi ve gösterge paneli aynı kuralı kullanır.
+
+**Veri onarımı.** `scripts/database/uygulandi/2026-11/20261112_01_Saha_Iptal_Proje_Sevk_Durumu.sql` (README 34) bu durumdaki projeleri bir kez 6 → 5 çeker. Canlı kopyada (11.11.2026) seçimi yalnız PA675-01 ve PA677-03'ü buldu. Durum sorgusu (`kontrol/Betik_Durumu.sql`) onarılacak proje kalmadıysa "uygulanmış" gösterir.
+
+- [NormalProjeSevkDurumHesaplayiciTests](../../3K.Application.Tests/NormalProjeSevkDurumHesaplayiciTests.cs): iptalle kapanan miktar (tam, kısmi, gerçekleşenle karışık); sevk kaydı olmadan ve normal sandık eldeyken tam sevk üretmemesi; kapanan miktarın iki kez düşülmemesi; haritaların toplanması.
+- [SahaIptalSevkKapanisPostgresTests](../../3K.Application.Tests/SahaIptalSevkKapanisPostgresTests.cs) (`THREEK_TEST_POSTGRES` ister): yeni defter, saha sandığı elde, defter öncesi (legacy) ve sahadan sahaya taşınmış satırla Sevk Edildi; iptal yok, kısmi aktarım ve geri alınmış aktarımda Eksik Sevk korunur; iptal kaldırılınca Eksik Sevk Edildi'ye dönüş; liste ile kalıcı senkronun eşitliği; onarım betiğinin seçiminin C# senkronuyla aynı olması, tekrarında hiçbir şey değişmemesi ve durum sorgusu.
+- [CanliyaAlimBetikleriTests](../../3K.Application.Tests/CanliyaAlimBetikleriTests.cs): betik önceki sürüm şemasında hatasız çalışır ve tekrarlanır; durum sorgusunda 34 satırı bulunur.
+
+**Sınır.** Gösterge paneli projeksiyonunun ayrı testi yoktur (aynı harita parametresini kullanır). Ön yüz değişmedi.
+
 ## Araç yükleme, saha (YK-01–YK-11) — 10 Kasım 2026
 
 Değişiklik henüz commit edilmedi (dal `feature/yukleme-simulasyonu`). Kullanıcı kararları 9 Kasım 2026.
@@ -24,7 +49,7 @@ Değişiklik henüz commit edilmedi (dal `feature/yukleme-simulasyonu`). Kullan�
 - Yükleme adımı ve yük numarası tek kuraldan (`YuklemeSirasiKurali`) türer; yükleme planı PDF'i, plan ekranındaki oynatıcı ve saha ekranı aynı numarayı kullanır.
 - Durum isteği, oturumu ve son revizyonunda yerleşimi olmayan planı 404 ile gizler. Plan listesi araması en fazla 100 karakterdir.
 
-**Kapsam sınırı.** Şema ve izin `scripts/database/20261109_01_Arac_Yukleme.sql` ile kurulur (README sıra 33). Kurallar katalog bölüm 6.4'tedir. Eşleme satırları `coverage/ORTAK_SAHA_YETKI_TEST_ESLESMESI.md` dosyasındadır: YK-01, YK-04, YK-06 ve YK-11 Birim; YK-02, YK-03, YK-07, YK-08 ve YK-10 Entegrasyon; YK-05 ve YK-09 Kısmi. Yükleme planlamasının önceki aşamaları (plan ve revizyon, otomatik ve elle yerleşim, ekipman kitaplığı, mevzuat) katalogda kural olarak ve bu dosyada koşum bölümü olarak yer almaz. Ambalaj ve Finans'ta yeni kural yoktur.
+**Kapsam sınırı.** Şema ve izin `scripts/database/bekleyen/20261109_01_Arac_Yukleme.sql` ile kurulur (README sıra 33). Kurallar katalog bölüm 6.4'tedir. Eşleme satırları `coverage/ORTAK_SAHA_YETKI_TEST_ESLESMESI.md` dosyasındadır: YK-01, YK-04, YK-06 ve YK-11 Birim; YK-02, YK-03, YK-07, YK-08 ve YK-10 Entegrasyon; YK-05 ve YK-09 Kısmi. Yükleme planlamasının önceki aşamaları (plan ve revizyon, otomatik ve elle yerleşim, ekipman kitaplığı, mevzuat) katalogda kural olarak ve bu dosyada koşum bölümü olarak yer almaz. Ambalaj ve Finans'ta yeni kural yoktur.
 
 - [AracYuklemeTests](../../3K.Application.Tests/AracYuklemeTests.cs) (7 metot, 26 vaka; bellek içi):
   - Sandık barkodunun çözülmesi (Theory, 11 vaka) ve Barkod kaynağında barkod–yük eşleşmesi (Theory, 6 vaka; elle eklenen yük eşleşmez).
@@ -74,7 +99,7 @@ Değişiklik henüz commit edilmedi.
 - Listeler sunucuda sayfalıdır. Sınırlar: 200 seçim, adet 1–100, toplam 1000 etiket, REMARKS 60. Projeye ait olmayan seçim 404 alır.
 - Ürünler çeki satırları ile çeki satırı olmayan sandık içerikleridir (elle eklenen malzemeler). Seçim (kaynak, kimlik) ile yapılır.
 
-**Kapsam sınırı.** İzin `scripts/database/20261026_01_Barkod_Etiket_Yetkisi.sql` ile kurulur (README sıra 29; şema değişikliği yok). Eşleme satırı `coverage/ORTAK_SAHA_YETKI_TEST_ESLESMESI.md` dosyasındadır: C-16 Birim. Ambalaj ve Finans'ta yeni kural yoktur.
+**Kapsam sınırı.** İzin `scripts/database/uygulandi/2026-10/20261026_01_Barkod_Etiket_Yetkisi.sql` ile kurulur (README sıra 29; şema değişikliği yok). Eşleme satırı `coverage/ORTAK_SAHA_YETKI_TEST_ESLESMESI.md` dosyasındadır: C-16 Birim. Ambalaj ve Finans'ta yeni kural yoktur.
 
 - [BarkodEtiketTests](../../3K.Application.Tests/BarkodEtiketTests.cs) (10 metot; 9'u bellek içi, 1'i izole PostgreSQL):
   - Code 128 kodlaması (alt küme seçimi, kontrol sembolü, desen tablosu).
@@ -130,7 +155,7 @@ Değişiklik henüz commit edilmedi.
 - **Açılış/kapanış olayları (C-14):** Her kapanma ve geri açılma `SandikDurumOlaylari`'na yazılır. Tek yazım noktası `SandikDurumOlayInterceptor`'dır. Elle ve toplu handler'lar olayı kaynak ve sebeple kendisi ekler. Diğer yollar "Otomatik" kaynaklıdır. Kapandı → Sevk Edildi geri açılma sayılmaz. Sandık silinince iz kalır. Betik 27 eski hareket geçmişini "Geçmişten aktarılan" kaynağıyla bir kez aktarır.
 - **İstatistik (C-15):** Ekran `sandik-acilis-istatistigi` R ister. Tarih aralığı, proje ve müşteri süzgeci vardır. Ekranda özet, sebep dağılımı ve en çok açılan 20 sandık; proje, müşteri, kişi ve olay tabloları sunucuda sayfalıdır (25/50/100); Excel çıktısı alınır. Sandığın zaman çizelgesi `GET api/sandik/{sandikId}/durum-gecmisi` ucundadır.
 
-**Kapsam sınırı.** Şema, tohum, geçmiş aktarımı ve izin `scripts/database/20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql` ile kurulur (README sıra 27, izin düğümü Id 5261). Eşleme satırları `coverage/ORTAK_SAHA_YETKI_TEST_ESLESMESI.md` dosyasındadır: C-11 ve C-13 Birim, C-12 Kısmi, C-14 ve C-15 Entegrasyon. Ambalaj ve Finans'ta yeni kural yoktur.
+**Kapsam sınırı.** Şema, tohum, geçmiş aktarımı ve izin `scripts/database/uygulandi/2026-10/20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql` ile kurulur (README sıra 27, izin düğümü Id 5261). Eşleme satırları `coverage/ORTAK_SAHA_YETKI_TEST_ESLESMESI.md` dosyasındadır: C-11 ve C-13 Birim, C-12 Kısmi, C-14 ve C-15 Entegrasyon. Ambalaj ve Finans'ta yeni kural yoktur.
 
 - [SandikAcilisKapanisTests](../../3K.Application.Tests/SandikAcilisKapanisTests.cs) (bellek içi, 14 metot / 31 vaka):
   - Olay türü matrisi ve yeni Kapandı sandık.
@@ -186,7 +211,7 @@ Değişiklik henüz commit edilmedi.
 - Düzeltme sandık eklemeyi ve silmeyi açmaz (L-16, kullanıcı kararı). Bu yetenek bir ara sürümde vardı, aynı gün kaldırıldı. Yeni ve silinen sandık kilitli projede düzeltme açıkken de reddedilir; sonradan sandık gerekiyorsa projeye normal yolla eklenir.
 - Sahaya aktarılmış ürün düzeltmede de değişmez; sandık içeriği hedef saha projelerini döner (L-17).
 
-**Kapsam sınırı.** Şema ve izin `scripts/database/20261023_02_Sevk_Sonrasi_Duzeltme.sql` ile kurulur (README sıra 24). Betik tabloyu kurar ve izin düğümünü ekler (Id 5259); izni yalnız Admin W alır. Ambalaj ve Finans'ta yeni kural yoktur. Eşleme satırları `coverage/ORTAK_SAHA_YETKI_TEST_ESLESMESI.md` (L-12, L-14, L-16 Birim; L-13, L-15 Kısmi; L-17 Entegrasyon) ve `coverage/GRID_TAHSIS_TEST_ESLESMESI.md` (K-034) dosyalarındadır. Ön yüz: `sandik-detay` (düzeltme paneli, saha bağlantısı; `sandik-detay-duzeltme.spec.ts`), `uck-sandiklar` ve `proje-listesi` kilit açma pencereleri.
+**Kapsam sınırı.** Şema ve izin `scripts/database/uygulandi/2026-10/20261023_02_Sevk_Sonrasi_Duzeltme.sql` ile kurulur (README sıra 24). Betik tabloyu kurar ve izin düğümünü ekler (Id 5259); izni yalnız Admin W alır. Ambalaj ve Finans'ta yeni kural yoktur. Eşleme satırları `coverage/ORTAK_SAHA_YETKI_TEST_ESLESMESI.md` (L-12, L-14, L-16 Birim; L-13, L-15 Kısmi; L-17 Entegrasyon) ve `coverage/GRID_TAHSIS_TEST_ESLESMESI.md` (K-034) dosyalarındadır. Ön yüz: `sandik-detay` (düzeltme paneli, saha bağlantısı; `sandik-detay-duzeltme.spec.ts`), `uck-sandiklar` ve `proje-listesi` kilit açma pencereleri.
 
 - [SevkSonrasiDuzeltmeTests](../../3K.Application.Tests/SevkSonrasiDuzeltmeTests.cs) (bellek içi, 4 metot / 7 vaka): saf fark kuralı (değişiklik yok, eklendi/çıkarıldı/değişti ve sandık bilgisi, bölünmüş tahsis tek ürün). Gerekçe doğrulayıcısı iki komutta korunarak açmada boş/boşluk gerekçeyi reddeder, geri alınarak açmada istemez.
 - [SevkSonrasiDuzeltmePostgresTests](../../3K.Application.Tests/SevkSonrasiDuzeltmePostgresTests.cs) (izole PostgreSQL, 4 test, `THREEK_TEST_POSTGRES` ister):
@@ -222,8 +247,8 @@ Değişiklik henüz commit edilmedi.
 
 Değişiklik henüz commit edilmedi.
 
-**Davranış.** Yeni Grid Sahası ekranı proje tipinden bağımsız ve salt okunurdur; `grid-saha-gorunumu` R ister (G-111). Menü düğümü ve rol izinleri `scripts/database/20261023_01_Grid_Saha_Gorunumu_Yetkisi.sql` ile kurulur (README sıra 23).
-- Ürünler (`GET api/grid/saha/urunler`, G-112, G-113): Grid'e gelmiş (Tam/Eksik Geldi) satırları listeler. Varsayılan kapsam "Grid'de bekleyen"dir, "Tümü" kapsamı da vardır.
+**Davranış.** Yeni Grid Sahası ekranı proje tipinden bağımsız ve salt okunurdur; `grid-saha-gorunumu` R ister (G-111). Menü düğümü ve rol izinleri `scripts/database/uygulandi/2026-10/20261023_01_Grid_Saha_Gorunumu_Yetkisi.sql` ile kurulur (README sıra 23).
+- Ürünler (`GET api/grid/saha/urunler`, G-112, G-113): Grid'e gelmiş (Tam/Eksik Geldi) satırları listeler. Varsayılan kapsam "Grid'de bekleyen"dir, "Tümü" kapsamı da vardır. 12.11.2026: "Son mal kabul" sıralaması (tarihsiz satır sonda) ve son mal kabul tarihi süzgeci eklendi; `GridSahaPostgresTests` canlı ∪ arşiv son tarihle sıralamayı, sayfalamayı ve iki uçlu süzgeci, `GridSahaTests` süzgeç doğrulamasını sınar.
   - Bekleyen miktar `max(GridGelenAdet − GelenMiktar − yolda, 0)` ile hesaplanır. Saf kural `GridSahaBekleyenKurali`'dır, SQL ikizi `GridSorgulari`'dır.
   - Sevk kilidi Grid iş listesiyle ortaktır (`GridSorgulari.SevkKilidiDisinda`).
 - Mal kabul (`GET api/grid/saha/mal-kabul`, G-114): canlı ve arşiv hareket geçmişindeki Grid teslim alma kayıtlarını `GridHareketOkuyucu` ile okur. Varsayılan aralık son 30 gün, en uzun aralık 366 gündür.
@@ -298,7 +323,7 @@ Değişiklik henüz commit edilmedi. Aynı günün otomatik aktarım bölümün�
 
 **Rapor (R-08).** Saha projesinin sevk sonrası eksik raporunda ayrı "Saha izi" bölümü vardır: PDF'te ürün sayfalarından sonra ayrı yatay sayfa, Excel'de "Saha Izi" sayfası (aynı satır kaynağı). Bölüm, kök projelerin sahalardaki bütün aktif ürünlerini, gittiği saha ve sandığı, "A (1) → B (3)" izini ve sevk durumunu listeler.
 
-**Şema ve kapsam sınırı.** Şema betiği `scripts/database/20261021_02_Sahadan_Sahaya_Tasima.sql`'dir (README sıra 22): `SahaAktarimlari.KaynakSahaProjeId`, `SahaAktarimlari.IslemAnahtari` (boş olmayan değer için benzersiz indeks) ve `SahaTasimaKalemleri`. README'ye göre yeni API'den önce uygulanır. Ambalaj ve Finans'ta yeni kural yoktur. Ön yüz akışı bu bölümde doğrulanmadı.
+**Şema ve kapsam sınırı.** Şema betiği `scripts/database/uygulandi/2026-10/20261021_02_Sahadan_Sahaya_Tasima.sql`'dir (README sıra 22): `SahaAktarimlari.KaynakSahaProjeId`, `SahaAktarimlari.IslemAnahtari` (boş olmayan değer için benzersiz indeks) ve `SahaTasimaKalemleri`. README'ye göre yeni API'den önce uygulanır. Ambalaj ve Finans'ta yeni kural yoktur. Ön yüz akışı bu bölümde doğrulanmadı.
 
 - [SahadanSahayaTasimaTests](../../3K.Application.Tests/SahadanSahayaTasimaTests.cs) (bellek içi, 16 metot / 18 vaka; SQL/transaction kanıtı değildir):
   - Satır taşımada sayaçlar, kök bağ, defter kaydı ve iz hedefe geçer; kök toplamı değişmez.

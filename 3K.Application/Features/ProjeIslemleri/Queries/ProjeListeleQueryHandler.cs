@@ -6,6 +6,7 @@ using _3K.Core.Constants;
 using _3K.Core.Entities;
 using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
+using _3K.Core.Models;
 
 namespace _3K.Application.Features.ProjeIslemleri.Queries
 {
@@ -45,6 +46,10 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                 .ToList();
             var sahaTamamlamaMap = await _sahaTamamlamaService.GetAktifIsTamamlamaMapAsync(normalKaynakSatirIds, cancellationToken);
             var sevkEdilenSahaTamamlamaMap = await _sahaTamamlamaService.GetSevkEdilenGerceklesenTamamlamaMapAsync(normalKaynakSatirIds, cancellationToken);
+            // S-27: sahada iptal edilen ürün sevk durumunda kapanmış sayılır; saha sevki varlığı gerçekleşenle kalır.
+            var sevkKapanisMap = SahaIptalSevkKapanisKurali.SevkKapanisHaritasi(
+                sevkEdilenSahaTamamlamaMap,
+                await _sahaTamamlamaService.GetSahaIptalKapananMapAsync(normalKaynakSatirIds, cancellationToken));
             var normalKaynakSandikIds = projeler
                 .Where(p => p.ProjeTipiId == (int)ProjeTipi.Normal)
                 .SelectMany(p => p.Sandiklar ?? Enumerable.Empty<Sandik>())
@@ -111,7 +116,7 @@ namespace _3K.Application.Features.ProjeIslemleri.Queries
                     ? sandikIcerikleri.Count(SahaYedekUrunTamamlanmaHelper.TamamlandiMi)
                     : cekiSatirlari.Count(cs => CekiSatiriKalanHelper.HesaplaEtkinKalan(cs, sahaTamamlamaMap) <= 0);
                 var normalUrunlerSevkKapsamindaTamamlandi = !isSahaYedek && toplamUrun > 0 &&
-                    cekiSatirlari.All(cs => CekiSatiriKalanHelper.HesaplaEtkinKalan(cs, sevkEdilenSahaTamamlamaMap) <= 0);
+                    cekiSatirlari.All(cs => CekiSatiriKalanHelper.HesaplaEtkinKalan(cs, sevkKapanisMap) <= 0);
                 var sahaSevkiyleTamamlamaVar = !isSahaYedek &&
                     (cekiSatirlari.Any(cs => sevkEdilenSahaTamamlamaMap.GetValueOrDefault(cs.Id) > 0) ||
                      sahaUzerindenSevkEdilmisSandikSayisi > 0);

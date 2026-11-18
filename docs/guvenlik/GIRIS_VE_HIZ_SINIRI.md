@@ -6,7 +6,7 @@
 ## Hesap bazlı giriş kilidi
 
 - Art arda 5 hatalı parola → hesap 15 dakika kilitlenir (`Kullanicilar.BasarisizGirisSayisi`, `GirisKilitBitisTarihi`,
-  Türkiye saati; betik `scripts/database/20261025_01_Giris_Kilidi.sql`).
+  Türkiye saati; betik `scripts/database/uygulandi/2026-10/20261025_01_Giris_Kilidi.sql`).
 - Kilitliyken doğru parola da reddedilir. Süre dolunca sonraki hatalı deneme sayacı 1'den başlatır.
 - Başarılı giriş ve yöneticinin parola değiştirmesi (`KullaniciSifreDegistirCommand`) sayacı ve kilidi sıfırlar.
 - Hatalı parola, bilinmeyen e-posta ve kilitli hesap aynı 401 ve aynı mesajı alır; bilinmeyen e-postada da BCrypt çalışır.

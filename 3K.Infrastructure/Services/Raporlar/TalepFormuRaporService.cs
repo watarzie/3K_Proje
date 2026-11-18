@@ -19,7 +19,7 @@ namespace _3K.Infrastructure.Services.Raporlar;
 internal sealed class TalepFormuRaporService(AppDbContext context, ISahaTamamlamaService sahaTamamlama) : ITalepFormuRaporService
 {
     private static readonly string[] Basliklar =
-        ["#", "Proje No", "Barkod", "Ürün Adı", "İstenen Miktar", "Ölçü Birimi"];
+        ["#", "Proje No", "Barkod", "Ürün Adı", "İstenen Miktar", "Ölçü Birimi", "Süreç"];
 
     public async Task<byte[]> TopluTalepFormuExcelAsync(IReadOnlyList<int> projeIds, CancellationToken cancellationToken = default)
     {
@@ -30,6 +30,7 @@ internal sealed class TalepFormuRaporService(AppDbContext context, ISahaTamamlam
         // GridEksikMiktar ve KalanMiktar veritabanı kolonu değildir; formülleri entity'de tek yerdedir, filtre bellekte uygulanır.
         var adaylar = (await context.CekiSatirlari.AsNoTracking()
                 .Include(cs => cs.BirimLookup)
+                .Include(cs => cs.SurecDurumLookup)
                 .Where(cs => projeIds.Contains(cs.Ceki.ProjeId))
                 .Select(cs => new { Satir = cs, cs.Ceki.ProjeId })
                 .ToListAsync(cancellationToken))
@@ -82,6 +83,8 @@ internal sealed class TalepFormuRaporService(AppDbContext context, ISahaTamamlam
             sayfa.Cell(satirNo, 4).Value = RaporBicimleri.RaporMetni(satir.Aciklama);
             RaporExcelStilleri.SetDecimalCell(sayfa.Cell(satirNo, 5), satir.KalanMiktar);
             sayfa.Cell(satirNo, 6).Value = satir.BirimLookup?.Deger ?? string.Empty;
+            // Süreç atanmamış satır Grid ekranı ve eksik raporuyla aynı biçimde "-" yazılır.
+            sayfa.Cell(satirNo, 7).Value = satir.SurecDurumLookup?.Deger ?? "-";
             if (sira % 2 == 0)
                 sayfa.Range(satirNo, 1, satirNo, sonKolon).Style.Fill.BackgroundColor = XLColor.FromHtml("#F8FAFE");
         }

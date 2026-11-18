@@ -173,6 +173,19 @@ internal sealed class GridHareketOkuyucu(AppDbContext context) : IGridHareketOku
                 });
     }
 
+    public IQueryable<GridSonMalKabulTarihi> SonMalKabulTarihleri() =>
+        // ReferansId'de indeks yoktur: satır başına ilişkili alt sorgu yerine mal kabulleri bir kez gruplayıp birleştiririz.
+        context.HareketGecmisleri.AsNoTracking()
+            .Where(CanliMalKabul)
+            .Where(h => h.ReferansId != null)
+            .Select(h => new { ReferansId = h.ReferansId!, h.Tarih })
+            .Concat(context.HareketGecmisleriArsiv.AsNoTracking()
+                .Where(ArsivMalKabul)
+                .Where(h => h.ReferansId != null)
+                .Select(h => new { ReferansId = h.ReferansId!, h.Tarih }))
+            .GroupBy(x => x.ReferansId)
+            .Select(g => new GridSonMalKabulTarihi { ReferansId = g.Key, Tarih = g.Max(x => x.Tarih) });
+
     public async Task<int> MalKabulSayisiAsync(DateTime baslangicDahil, DateTime bitisHaric, CancellationToken cancellationToken = default)
     {
         var canli = await context.HareketGecmisleri.AsNoTracking()

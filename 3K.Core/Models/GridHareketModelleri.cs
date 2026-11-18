@@ -72,3 +72,13 @@ public sealed class GridHareketSayfasi
 
 /// <summary>Çeki satırının en son mal kabul kaydı (canlı ya da arşiv): ne zaman, kim.</summary>
 public sealed record GridSonMalKabul(int CekiSatiriId, DateTime Tarih, int KullaniciId, string KullaniciAdi);
+
+/// <summary>
+/// Sorguda birleştirilen son mal kabul tarihi: hareketin referans kimliği (çeki satırı kimliğinin metni) ve o satırın
+/// en son mal kabul tarihi (canlı ve arşiv). Ürün listesinin tarih sıralaması ve süzgeci bununla SQL'de yapılır.
+/// </summary>
+public sealed class GridSonMalKabulTarihi
+{
+    public string ReferansId { get; init; } = string.Empty;
+    public DateTime Tarih { get; init; }
+}

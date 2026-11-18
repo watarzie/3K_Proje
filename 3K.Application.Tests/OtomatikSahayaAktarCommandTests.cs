@@ -539,6 +539,7 @@ public class OtomatikSahayaAktarCommandTests
         public Task<Dictionary<int, decimal>> GetAktifGerceklesenTamamlamaMapAsync(IEnumerable<int> ids, CancellationToken token = default) => throw new NotSupportedException();
         public Task<Dictionary<int, decimal>> GetAktifIsTamamlamaMapAsync(IEnumerable<int> ids, CancellationToken token = default) => throw new NotSupportedException();
         public Task<Dictionary<int, decimal>> GetSevkEdilenTamamlamaMapAsync(IEnumerable<int> ids, CancellationToken token = default) => throw new NotSupportedException();
+        public Task<Dictionary<int, decimal>> GetSahaIptalKapananMapAsync(IEnumerable<int> ids, CancellationToken token = default) => Task.FromResult(new Dictionary<int, decimal>());
         public Task<Dictionary<int, decimal>> GetSevkEdilenGerceklesenTamamlamaMapAsync(IEnumerable<int> ids, CancellationToken token = default) => throw new NotSupportedException();
         public Task<HashSet<int>> GetAktifSandikBazliAktarimSatirIdsAsync(IEnumerable<int> ids, CancellationToken token = default) => throw new NotSupportedException();
         public Task SenkronizeKaynakProjelerBySahaSandikIdsAsync(IEnumerable<int> ids, CancellationToken token = default) => throw new NotSupportedException();

@@ -51,7 +51,8 @@ public sealed class TalepFormuRaporTests
     /// <summary>
     /// Grid eksiği olan ve 3K kalanı süren satırlar seçim sırasıyla tek sayfada; İstenen Miktar 3K kalanıdır. 3K'nın
     /// stoktan tamamen karşıladığı satır Grid'de eksik görünse de forma girmez; kısmen karşılanan satır kalan kadar,
-    /// hatalı ürünü olan karşılanmış satır kalan kuralı gereği en az 1 olarak yazılır. Ürün Açıklaması sütunu yoktur.
+    /// hatalı ürünü olan karşılanmış satır kalan kuralı gereği en az 1 olarak yazılır. Ürün Açıklaması sütunu yoktur;
+    /// ölçü biriminin yanında satırın süreç durumu yazılır.
     /// </summary>
     [PostgresRaporFact, Trait("Category", "Postgres")]
     public async Task Excel_grid_eksigi_olup_3k_kalani_suren_satirlari_kalan_miktariyla_listeler()
@@ -60,13 +61,14 @@ public sealed class TalepFormuRaporTests
         {
             await using var db = new AppDbContext(options);
             var pa1 = Proje("PA-1"); var pa2 = Proje("PA-2");
-            Satir(pa1, "2", 1, "B-EKSIK", "Kablo", istenen: 10, gridGelen: 4, trafo: 1, birim: Birim.Metre);
+            Satir(pa1, "2", 1, "B-EKSIK", "Kablo", istenen: 10, gridGelen: 4, trafo: 1, birim: Birim.Metre,
+                surec: SurecDurum.Sipariste);
             Satir(pa1, "1", 2, "B-TAM", "Tam gelen", istenen: 5, gridGelen: 5);
             Satir(pa1, "1", 1, "B-IPTAL", "İptal", istenen: 5, gridDurum: GridDurum.Iptal);
             Satir(pa1, "1", 3, "B-KAPALI", "Kapandı", istenen: 5, gridDurum: GridDurum.GridKapandi);
             Satir(pa1, "1", 4, "B-FAZLA", "Fazla gelen", istenen: 2, gridGelen: 3);
             Satir(pa1, "1", 5, "B-STOK", "Stoktan tamamı", istenen: 16, stok: 16);
-            Satir(pa1, "1", 6, "B-TEDARIK", "Tedarikçiden kısmi", istenen: 16, tedarikci: 10);
+            Satir(pa1, "1", 6, "B-TEDARIK", "Tedarikçiden kısmi", istenen: 16, tedarikci: 10, surec: SurecDurum.Tedarik);
             Satir(pa1, "1", 7, "B-HATALI", "Hatalı ürünlü", istenen: 5, stok: 5, hatali: 1);
             Satir(pa2, "10", 1, "B-PA2", "Takım", istenen: 2, birim: Birim.Takim);
             db.AddRange(pa1, pa2); await db.SaveChangesAsync();
@@ -77,17 +79,19 @@ public sealed class TalepFormuRaporTests
             Assert.Equal("TALEP FORMU", sayfa.Cell(1, 1).GetString());
             Assert.Equal("PA-2, PA-1", sayfa.Cell(3, 2).GetString());
             Assert.Equal("4 kalem", sayfa.Cell(3, 4).GetString());
-            Assert.Equal(["#", "Proje No", "Barkod", "Ürün Adı", "İstenen Miktar", "Ölçü Birimi"],
-                Enumerable.Range(1, 6).Select(k => sayfa.Cell(5, k).GetString()));
-            Assert.True(sayfa.Cell(5, 7).IsEmpty());
+            Assert.Equal(["#", "Proje No", "Barkod", "Ürün Adı", "İstenen Miktar", "Ölçü Birimi", "Süreç"],
+                Enumerable.Range(1, 7).Select(k => sayfa.Cell(5, k).GetString()));
+            Assert.True(sayfa.Cell(5, 8).IsEmpty());
 
-            (int Sira, string Proje, string Barkod, string Ad, decimal Miktar, string Birim) Satiri(int r) =>
+            (int Sira, string Proje, string Barkod, string Ad, decimal Miktar, string Birim, string Surec) Satiri(int r) =>
                 (sayfa.Cell(r, 1).GetValue<int>(), sayfa.Cell(r, 2).GetString(), sayfa.Cell(r, 3).GetString(),
-                 sayfa.Cell(r, 4).GetString(), sayfa.Cell(r, 5).GetValue<decimal>(), sayfa.Cell(r, 6).GetString());
-            Assert.Equal((1, "PA-2", "B-PA2", "Takım", 2m, "Takım"), Satiri(6));
-            Assert.Equal((2, "PA-1", "B-TEDARIK", "Tedarikçiden kısmi", 6m, "Adet"), Satiri(7));
-            Assert.Equal((3, "PA-1", "B-HATALI", "Hatalı ürünlü", 1m, "Adet"), Satiri(8));
-            Assert.Equal((4, "PA-1", "B-EKSIK", "Kablo", 9m, "Metre"), Satiri(9));
+                 sayfa.Cell(r, 4).GetString(), sayfa.Cell(r, 5).GetValue<decimal>(), sayfa.Cell(r, 6).GetString(),
+                 sayfa.Cell(r, 7).GetString());
+            // Süreç ölçü biriminin yanındadır; atanmamış süreç "-" yazılır.
+            Assert.Equal((1, "PA-2", "B-PA2", "Takım", 2m, "Takım", "-"), Satiri(6));
+            Assert.Equal((2, "PA-1", "B-TEDARIK", "Tedarikçiden kısmi", 6m, "Adet", "Tedarik"), Satiri(7));
+            Assert.Equal((3, "PA-1", "B-HATALI", "Hatalı ürünlü", 1m, "Adet", "-"), Satiri(8));
+            Assert.Equal((4, "PA-1", "B-EKSIK", "Kablo", 9m, "Metre", "Siparişte"), Satiri(9));
             Assert.True(sayfa.Cell(10, 1).IsEmpty());
             Assert.DoesNotContain(Enumerable.Range(6, 4), r => sayfa.Cell(r, 3).GetString() == "B-STOK");
         });
@@ -149,7 +153,7 @@ public sealed class TalepFormuRaporTests
 
     private static void Satir(Proje proje, string sandikNo, int sira, string barkod, string aciklama,
         decimal istenen, decimal gridGelen = 0, decimal trafo = 0, Birim birim = Birim.Adet, GridDurum? gridDurum = null,
-        decimal stok = 0, decimal tedarikci = 0, decimal hatali = 0)
+        decimal stok = 0, decimal tedarikci = 0, decimal hatali = 0, SurecDurum? surec = null)
     {
         var ceki = proje.Cekiler.FirstOrDefault() ?? new Ceki();
         if (proje.Cekiler.Count == 0) proje.Cekiler.Add(ceki);
@@ -158,7 +162,7 @@ public sealed class TalepFormuRaporTests
             SiraNo = sira, BarkodNo = barkod, Aciklama = aciklama, Remarks = "Kırmızı", CekideGecenSandikNo = sandikNo,
             IstenenAdet = istenen, GridGelenAdet = gridGelen, TrafoSevkAdet = trafo, BirimId = (int)birim,
             StokKarsilanan = stok, TedarikciKarsilanan = tedarikci, HataliMiktar = hatali,
-            GridDurumuId = (int)(gridDurum ?? GridDurum.Gelmedi)
+            GridDurumuId = (int)(gridDurum ?? GridDurum.Gelmedi), SurecDurumId = (int?)surec
         });
     }
 

@@ -126,7 +126,19 @@ public sealed class GridSahaPostgresTests
                 // Trafo Sevk: 3 adet trafoya gitti (Grid gelene girmez), Grid'e gelen 2 adet 3K'ya ulaşmadı: Grid'de 2.
                 TrafoSatiri(Satir(1007, "1", "Nem alıcı röle", gridGelen: 2, gelen: 0, durum: GridDurum.TrafoSevk), trafo: 3));
             db.SandikIcerikleri.Add(new SandikIcerik { SandikId = 701, CekiSatiriId = 1004, TahsisMiktari = 5 });
-            db.HareketGecmisleri.Add(Canli(500, IslemTipi.GridDurumGuncellendi, 70, Gun, "CekiSatiri", "1001", "10", "8", "Grid Durum Güncellendi", "x | Gelen: 10"));
+            db.HareketGecmisleri.AddRange(
+                Canli(500, IslemTipi.GridDurumGuncellendi, 70, Gun, "CekiSatiri", "1001", "10", "8", "Grid Durum Güncellendi", "x | Gelen: 10"),
+                // 1007'nin eski canlı kabulü; en yenisi arşivde (Gun + 1 gün).
+                Canli(500, IslemTipi.GridDurumGuncellendi, 70, Gun.AddDays(-5), "CekiSatiri", "1007", "10", "8", "Grid Durum Güncellendi", "eski"),
+                // 1002'nin aynı durumdaki güncellemesi mal kabul değildir: 1002'nin son mal kabulü yoktur.
+                Canli(500, IslemTipi.GridDurumGuncellendi, 70, Gun.AddDays(2), "CekiSatiri", "1002", "9", "9", "Grid Durum Güncellendi", "sevk"),
+                Canli(500, IslemTipi.GridDurumGuncellendi, 70, Gun.AddDays(-3), "CekiSatiri", "1003", "10", "8", "Grid Durum Güncellendi", "x | Gelen: 5"));
+            db.HareketGecmisleriArsiv.Add(new HareketGecmisiArsiv
+            {
+                ProjeId = 500, ProjeNo = "PA-500", ReferansTipi = "CekiSatiri", ReferansId = "1007", Islem = "Grid Durum Güncellendi",
+                IslemTipiId = (int)IslemTipi.GridDurumGuncellendi, KullaniciId = 70, KullaniciAdi = "Ayşe Grid", Tarih = Gun.AddDays(1),
+                EskiDeger = "8", YeniDeger = "11", Aciklama = "arşiv | Trafo: 3 | Gelen: 2"
+            });
             await db.SaveChangesAsync();
             db.ChangeTracker.Clear();
 
@@ -164,6 +176,27 @@ public sealed class GridSahaPostgresTests
             var bekleyeneGore = await Getir(new GetGridSahaUrunleriQuery { Siralama = GridSahaSiralama.Bekleyen, Azalan = true, PageSize = 1 });
             Assert.Equal([1001], bekleyeneGore.Liste.Items.Select(x => x.CekiSatiriId));
             Assert.Equal((3, 3, true), (bekleyeneGore.Liste.TotalCount, bekleyeneGore.Liste.TotalPages, bekleyeneGore.Liste.HasNextPage));
+
+            // Son mal kabule göre: canlı ∪ arşivdeki en yeni kabul; tarihi olmayan satır iki yönde de sondadır.
+            async Task<List<int>> Kimlikler(GetGridSahaUrunleriQuery q) => (await Getir(q)).Liste.Items.Select(x => x.CekiSatiriId).ToList();
+            Assert.Equal([1007, 1001, 1002], await Kimlikler(new GetGridSahaUrunleriQuery { Siralama = GridSahaSiralama.SonMalKabul, Azalan = true }));
+            Assert.Equal([1001, 1007, 1002], await Kimlikler(new GetGridSahaUrunleriQuery { Siralama = GridSahaSiralama.SonMalKabul }));
+            Assert.Equal([1007, 1001, 1003, 1002, 1006],
+                await Kimlikler(new GetGridSahaUrunleriQuery { Kapsam = GridSahaKapsami.Tumu, Siralama = GridSahaSiralama.SonMalKabul, Azalan = true }));
+            var tarihSirali = await Getir(new GetGridSahaUrunleriQuery { Siralama = GridSahaSiralama.SonMalKabul, Azalan = true, PageSize = 1, PageNumber = 2 });
+            Assert.Equal([1001], tarihSirali.Liste.Items.Select(x => x.CekiSatiriId));
+            Assert.Equal(3, tarihSirali.Liste.TotalCount);
+            Assert.Equal(Gun.AddDays(1),
+                (await Getir(new GetGridSahaUrunleriQuery { Siralama = GridSahaSiralama.SonMalKabul, Azalan = true, PageSize = 1 })).Liste.Items[0].SonMalKabulTarihi);
+
+            // Son mal kabul tarihi süzgeci (gün, iki uç dahil); tarihi olmayan satır düşer, başka sıralamayla da çalışır.
+            Assert.Equal([1001], await Kimlikler(new GetGridSahaUrunleriQuery { MalKabulBaslangic = Gun.Date, MalKabulBitis = Gun.Date }));
+            var aralik = await Getir(new GetGridSahaUrunleriQuery { MalKabulBaslangic = Gun.Date, MalKabulBitis = Gun.Date.AddDays(1) });
+            Assert.Equal([1007, 1001], aralik.Liste.Items.Select(x => x.CekiSatiriId));
+            Assert.Equal(2, aralik.Liste.TotalCount);
+            Assert.Equal([1003], await Kimlikler(new GetGridSahaUrunleriQuery { Kapsam = GridSahaKapsami.Tumu, MalKabulBitis = Gun.Date.AddDays(-1) }));
+            Assert.Equal([1001, 1007],
+                await Kimlikler(new GetGridSahaUrunleriQuery { MalKabulBaslangic = Gun.Date.AddDays(-1), Siralama = GridSahaSiralama.Bekleyen, Azalan = true }));
         });
     }
 

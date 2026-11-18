@@ -184,6 +184,13 @@ public sealed class GridSahaTests
         Assert.False(urunler.Validate(new GetGridSahaUrunleriQuery { GridDurumuId = (int)GridDurum.Iptal }).IsValid);
         Assert.False(urunler.Validate(new GetGridSahaUrunleriQuery { Siralama = "gelis" }).IsValid);
         Assert.False(urunler.Validate(new GetGridSahaUrunleriQuery { PageSize = 101 }).IsValid);
+        Assert.True(urunler.Validate(new GetGridSahaUrunleriQuery { Siralama = GridSahaSiralama.SonMalKabul, Azalan = true }).IsValid);
+        // Son mal kabul tarihi süzgeci: tek uç yeterli, aynı gün geçerli, ters aralık ve taşan tarih doğrulama hatası.
+        Assert.True(urunler.Validate(new GetGridSahaUrunleriQuery { MalKabulBaslangic = new(2026, 10, 1) }).IsValid);
+        Assert.True(urunler.Validate(new GetGridSahaUrunleriQuery { MalKabulBaslangic = new(2026, 10, 1), MalKabulBitis = new(2026, 10, 1) }).IsValid);
+        Assert.False(urunler.Validate(new GetGridSahaUrunleriQuery { MalKabulBaslangic = new(2026, 10, 2), MalKabulBitis = new(2026, 10, 1) }).IsValid);
+        Assert.False(urunler.Validate(new GetGridSahaUrunleriQuery { MalKabulBitis = DateTime.MaxValue }).IsValid);
+        Assert.False(urunler.Validate(new GetGridSahaUrunleriQuery { MalKabulBaslangic = DateTime.MinValue }).IsValid);
 
         var malKabul = new GetGridMalKabulGecmisiQueryValidator();
         Assert.True(malKabul.Validate(new GetGridMalKabulGecmisiQuery { Tur = GridMalKabulTuru.Hepsi }).IsValid);
@@ -273,6 +280,8 @@ public sealed class GridSahaTests
 
         public Task<IReadOnlyDictionary<int, GridSonMalKabul>> SonMalKabulleriAsync(IReadOnlyCollection<int> cekiSatiriIds, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyDictionary<int, GridSonMalKabul>>(new Dictionary<int, GridSonMalKabul>());
+
+        public IQueryable<GridSonMalKabulTarihi> SonMalKabulTarihleri() => Enumerable.Empty<GridSonMalKabulTarihi>().AsQueryable();
 
         public Task<int> MalKabulSayisiAsync(DateTime baslangicDahil, DateTime bitisHaric, CancellationToken cancellationToken = default) =>
             Task.FromResult(0);

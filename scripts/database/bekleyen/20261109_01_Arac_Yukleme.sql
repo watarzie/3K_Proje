@@ -134,4 +134,14 @@ BEGIN
     END LOOP;
 END $$;
 
+-- Betik kaydı (README "Betik kaydı"): bu betiğin bu veritabanında çalıştığını aynı transaction içinde yazar.
+CREATE TABLE IF NOT EXISTS "BetikKayitlari" (
+    "BetikAdi"       text PRIMARY KEY,
+    "UygulamaTarihi" timestamp without time zone NOT NULL,
+    "Uygulayan"      text NOT NULL
+);
+INSERT INTO "BetikKayitlari" ("BetikAdi", "UygulamaTarihi", "Uygulayan")
+VALUES ('20261109_01_Arac_Yukleme', now() AT TIME ZONE 'Europe/Istanbul', current_user)
+ON CONFLICT ("BetikAdi") DO NOTHING;
+
 COMMIT;

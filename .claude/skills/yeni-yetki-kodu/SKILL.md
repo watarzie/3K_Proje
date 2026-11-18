@@ -21,7 +21,7 @@ kurallarını ve `.claude/rules/yetki-modeli.md` dosyasını oku.
 `MenuTanimlari` Id'leri betiklerle sabit verilir. Kullanılmış en büyük Id'yi bul ve bir sonrakini al:
 
 ```bash
-grep -rhoE "\(52[0-9]{2}, '|\"Id\" = 52[0-9]{2}" scripts/database/*.sql | grep -oE "52[0-9]{2}" | sort -u | tail -3
+grep -rhoE "\(52[0-9]{2}, '|\"Id\" = 52[0-9]{2}" scripts/database --include=*.sql | grep -oE "52[0-9]{2}" | sort -u | tail -3
 ```
 
 **Asla yeniden kullanma:** 5202, 5204, 5205, 5208, 5234 (silinmiş kodlara aitti; eski rol kayıtlarıyla çakışır).
@@ -34,7 +34,8 @@ grep -rhoE "\(52[0-9]{2}, '|\"Id\" = 52[0-9]{2}" scripts/database/*.sql | grep -
   `RequiredYetkiTipi`) veya `RequestMenuPermissionResolver.GetFixedPolicy` satırı. Kod literali yazma.
 
 ## 3. SQL betiği
-`scripts/database/YYYYMMDD_NN_<Konu>_Yetkisi.sql` — idempotent, tek `BEGIN … COMMIT`, uygulama açılışında çalışmaz.
+`scripts/database/bekleyen/YYYYMMDD_NN_<Konu>_Yetkisi.sql` — idempotent, tek `BEGIN … COMMIT`, uygulama açılışında çalışmaz;
+`COMMIT`'ten önce README'deki "Betik kaydı" bloğu bulunur.
 Bu dizindeki [sablon.sql](sablon.sql) dosyasını kopyalayıp yer tutucuları doldur. Şablon:
 - üst düğüm yoksa veya Id/kod başka kayda aitse **hiçbir şey değiştirmeden** `RAISE EXCEPTION` ile durur,
 - düğüm varsa eklemez, verilmiş izni değiştirmez,
