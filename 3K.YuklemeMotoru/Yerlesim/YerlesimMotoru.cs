@@ -1,18 +1,20 @@
 namespace _3K.YuklemeMotoru.Yerlesim;
 
 /// <summary>
-/// Otomatik yerleşim (Simülasyon isterleri 2, 8–10, 14–17, 24–25). Hedef bütün zorunlu koşullar sağlanarak en az araç
-/// kullanmaktır. Normal yükler yalnız seçilen ailenin uygun alt tiplerine yerleşir; aile dışı ekipman yalnız zorunlu özel
-/// yük için (trafonun kendisi her zaman, diğer özel yük ailede teknik olarak taşınamıyorsa) gerekçesiyle eklenir. Proje
-/// bazında ayrı ve lokasyona göre ayrı tercihlerinde gruplar aynı araca girmez. Hiçbir yük sessizce düşmez: araca
-/// girmeyen her yük nedeniyle "yerleşemeyen" listesindedir.
+/// Otomatik yerleşim (Simülasyon isterleri 2, 8–10, 14–17, 24–25; saha geri bildirimi 19.11.2026 madde 1–4). Hedef bütün
+/// zorunlu koşullar sağlanarak en az araç kullanmaktır. Araç tipi yük başına seçilir: her yük seçilen ailede kendisini
+/// alan en sade kademeye (<see cref="EkipmanAdayi.Kademe"/>) gider; en büyük yükün gerektirdiği tip bütün araçlara
+/// uygulanmaz. Özel kademe aracına (ör. Open Top) sığan daha sade yükler de konur, kalanlar kendi kademelerinin
+/// araçlarına gider. Aileye sığmayan yük (trafonun kendisi her zaman) gerekçesiyle özel yük ekipmanına (lowbed) gider;
+/// lowbed tonaja göre seçilir ve yanına başka yük konmaz. Proje bazında ayrı ve lokasyona göre ayrı tercihlerinde gruplar
+/// aynı araca girmez. Hiçbir yük sessizce düşmez: araca girmeyen her yük nedeniyle "yerleşemeyen" listesindedir.
 /// </summary>
 public static class YerlesimMotoru
 {
     public static YerlesimSonucu Hesapla(YerlesimGirdisi girdi, CancellationToken cancellationToken = default)
     {
         var baglam = new Baglam(girdi, cancellationToken);
-        var aileAdaylari = girdi.Adaylar.Where(a => a.AileIci && a.TeknikVeri.Yuzeyler.Count > 0).ToList();
+        var aileAdaylari = AileAdaylari(girdi);
         var ozelAdaylar = girdi.Adaylar.Where(a => a.OzelYukEkipmani && a.TeknikVeri.Yuzeyler.Count > 0).ToList();
         var havuz = MevcutHavuz(girdi);
         var aileAraclari = new List<(AracYerlesimi Arac, string? Gerekce)>();
@@ -38,16 +40,15 @@ public static class YerlesimMotoru
                 if (aileAdaylari.Count == 0)
                 {
                     // Aile dışına çıkış veri eksikliğiyle değil, yalnız teknik zorunlulukla yapılır (isterler 10.2).
-                    yerlesemeyenler.Add(new(yuk.Anahtar, yuk.Kod, $"{girdi.AileAdi} ailesinde sandık taşımaya uygun ekipman verisi yok"));
+                    yerlesemeyenler.Add(new(yuk.Anahtar, yuk.Kod, AiledeAdayYokNedeni(girdi)));
                     continue;
                 }
                 var nedenler = aileAdaylari.Select(a => baglam.Neden(a, yuk)).ToList();
                 if (nedenler.Any(n => n == null))
                     aileYukleri.Add(yuk);
-                else if (yuk.OzelYuk)
-                    ozelYukler.Add((yuk, Ozetle(nedenler)));
                 else
-                    yerlesemeyenler.Add(new(yuk.Anahtar, yuk.Kod, $"{girdi.AileAdi} ailesindeki hiçbir ekipmana sığmıyor: {Ozetle(nedenler)}"));
+                    // Ailede taşınamayan her yük (türü ne olursa olsun) gerekçesiyle uygun özel araca gider.
+                    ozelYukler.Add((yuk, Ozetle(nedenler)));
             }
 
             // Zorunlu özel yük önce: kullanıcının mevcut araç listesindeki lowbed sandıklara harcanmasın.
@@ -61,7 +62,9 @@ public static class YerlesimMotoru
                 var (arac, neden) = OzelYerlestir(yuk, ozelAdaylar, girdi);
                 if (arac == null)
                 {
-                    yerlesemeyenler.Add(new(yuk.Anahtar, yuk.Kod, neden!));
+                    yerlesemeyenler.Add(new(yuk.Anahtar, yuk.Kod, ailedeNeden == null
+                        ? neden!
+                        : $"{girdi.AileAdi} ailesindeki hiçbir ekipmana sığmıyor: {ailedeNeden}. {neden}"));
                     continue;
                 }
                 ozelAraclar.Add((arac, arac.Aday.AileIci ? null : Gerekce(yuk, arac.Aday, girdi.AileAdi, ailedeNeden)));
@@ -85,8 +88,8 @@ public static class YerlesimMotoru
             }
             else
             {
-                var (paket, sigmayanlar) = IhtiyacaGore(aileYukleri, aileAdaylari, baglam);
-                aileAraclari.AddRange(paket.Select(a => (a, (string?)null)));
+                var (paket, sigmayanlar) = Kademeli(aileYukleri, aileAdaylari, baglam);
+                aileAraclari.AddRange(paket);
                 yerlesemeyenler.AddRange(sigmayanlar.Select(y => new YerlesemeyenYuk(y.Anahtar, y.Kod, "Seçilen alt tiplere birlikte yerleştirilemedi")));
             }
         }
@@ -96,7 +99,8 @@ public static class YerlesimMotoru
         {
             foreach (var yuk in disaridaKalanlar)
                 yerlesemeyenler.Add(new(yuk.Anahtar, yuk.Kod, "Mevcut araçlara sığmadı"));
-            ekIhtiyaclar = IhtiyacaGore(disaridaKalanlar, aileAdaylari, baglam).Araclar
+            ekIhtiyaclar = Kademeli(disaridaKalanlar, aileAdaylari, baglam).Araclar
+                .Select(a => a.Arac)
                 .GroupBy(a => a.Aday)
                 .Select(g => new EkEkipmanIhtiyaci(g.Key.KonfigurasyonId, g.Key.Kod, g.Key.Ad, g.Count()))
                 .ToList();
@@ -136,7 +140,7 @@ public static class YerlesimMotoru
         var baglam = new Baglam(girdi, cancellationToken);
         var yukler = girdi.Yukler.ToDictionary(y => y.Anahtar);
         var adaylar = girdi.Adaylar.ToDictionary(a => a.KonfigurasyonId);
-        var aileAdaylari = girdi.Adaylar.Where(a => a.AileIci && a.TeknikVeri.Yuzeyler.Count > 0).ToList();
+        var aileAdaylari = AileAdaylari(girdi);
         var ozelAdaylar = girdi.Adaylar.Where(a => a.OzelYukEkipmani && a.TeknikVeri.Yuzeyler.Count > 0).ToList();
 
         // Ekipmanı bilinmeyen araç olduğu gibi kalır (denetim uyarır); diğerleri sabit yükleriyle kurulur.
@@ -149,30 +153,42 @@ public static class YerlesimMotoru
             (!girdi.ProjeBazindaAyri || arac.Yukler.All(y => y.ProjeId == yuk.ProjeId)) &&
             (!girdi.LokasyonaGoreAyri || arac.Yukler.All(y => y.LokasyonId == yuk.LokasyonId));
 
+        // Özel araca giden yük: kullanıcının eklediği boş özel yük ekipmanı önce; yoksa uygun özel ekipman açılır.
+        void OzeleKoy(YerlesimYuku yuk)
+        {
+            var bos = sonuc.Select(s => s.Arac).FirstOrDefault(a => a is { Bos: true } && a.Aday.OzelYukEkipmani && a.TekYukYerlestir(yuk, out _));
+            if (bos == null && OzelYerlestir(yuk, ozelAdaylar, girdi).Arac is { } yeni)
+                sonuc.Add((yeni, null));
+        }
+
+        // Normal yük var olan araçlara eklenir: aile araçları (seçilen aile lowbed ailesiyse onlar da); zorunlu özel yükü
+        // taşıyan aracın yanına yük konmaz.
+        bool YukAlir(AracYerlesimi arac) =>
+            (!arac.Aday.OzelYukEkipmani || arac.Aday.AileIci) && arac.Yukler.All(y => y.Zorunluluk != OzelEkipmanZorunlulugu.Her);
+
         var acikta = new List<YerlesimYuku>();
         foreach (var yuk in Sirala(girdi.Yukler.Where(y => !yerlesen.Contains(y.Anahtar))))
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (yuk.Zorunluluk == OzelEkipmanZorunlulugu.Her)
             {
-                // Kullanıcının eklediği boş özel yük ekipmanı önce; yoksa uygun özel ekipman açılır.
-                var bos = sonuc.Select(s => s.Arac).FirstOrDefault(a => a is { Bos: true } && a.Aday.OzelYukEkipmani && a.TekYukYerlestir(yuk, out _));
-                if (bos == null && OzelYerlestir(yuk, ozelAdaylar, girdi).Arac is { } yeni)
-                    sonuc.Add((yeni, null));
+                OzeleKoy(yuk);
                 continue;
             }
-            if (!sonuc.Any(s => s.Arac is { } a && !a.Aday.OzelYukEkipmani && Uyumlu(a, yuk) && a.Ekle(yuk)))
+            if (!sonuc.Any(s => s.Arac is { } a && YukAlir(a) && Uyumlu(a, yuk) && a.Ekle(yuk)))
                 acikta.Add(yuk);
         }
 
-        // Var olan araçlara sığmayanlar: proje/lokasyon grubuna göre otomatik yerleşimle yeni araçlar.
+        // Var olan araçlara sığmayanlar: proje/lokasyon grubuna göre otomatik yerleşimle yeni araçlar. Ailede aday yoksa
+        // yük aile dışına çıkmaz (isterler 10.2; Hesapla ile aynı), bekleyenlerde kalır.
         foreach (var grup in acikta.GroupBy(y => (Proje: girdi.ProjeBazindaAyri ? y.ProjeId : null, Lokasyon: girdi.LokasyonaGoreAyri ? y.LokasyonId : null)))
         {
-            var (paket, sigmayanlar) = IhtiyacaGore(grup.ToList(), aileAdaylari, baglam);
-            sonuc.AddRange(paket.Select(a => (Arac: (AracYerlesimi?)a, Ham: (ElleArac?)null)));
-            foreach (var yuk in sigmayanlar.Where(y => y.OzelYuk))
-                if (OzelYerlestir(yuk, ozelAdaylar, girdi).Arac is { } ozel)
-                    sonuc.Add((ozel, null));
+            if (aileAdaylari.Count == 0)
+                break;
+            var (paket, sigmayanlar) = Kademeli(grup.ToList(), aileAdaylari, baglam);
+            sonuc.AddRange(paket.Select(a => (Arac: (AracYerlesimi?)a.Arac, Ham: (ElleArac?)null)));
+            foreach (var yuk in sigmayanlar)
+                OzeleKoy(yuk);
         }
 
         return sonuc.Select(s =>
@@ -202,6 +218,78 @@ public static class YerlesimMotoru
             return neden;
         }
     }
+
+    /// <summary>
+    /// Normal yüklerin aday kümesi: seçilen ailenin verisi olan ve otomatik yerleşimde kullanılan (kademesi olan) tipleri.
+    /// Mevcut araçlara yerleştirmede kullanıcının filosu esastır: kademesi olmayan aile tipi (ör. Reefer) de sayılır.
+    /// </summary>
+    internal static List<EkipmanAdayi> AileAdaylari(YerlesimGirdisi girdi) =>
+        girdi.Adaylar.Where(a => a.AileIci && (a.Kademe != null || girdi.MevcutAraclar != null) && a.TeknikVeri.Yuzeyler.Count > 0).ToList();
+
+    private static string AiledeAdayYokNedeni(YerlesimGirdisi girdi) =>
+        girdi.Adaylar.Any(a => a.AileIci && a.TeknikVeri.Yuzeyler.Count > 0)
+            ? $"{girdi.AileAdi} ailesinde otomatik kullanılan araç tipi yok; planda araç tipi seçin"
+            : $"{girdi.AileAdi} ailesinde sandık taşımaya uygun ekipman verisi yok";
+
+    /// <summary>Kademe sırası: seçilen (ya da otomatik) tipler önce sadelik sırasıyla, yedek tipler en sonda.</summary>
+    private static long Seviye(EkipmanAdayi a) => (a.Yedek ? 1L << 32 : 0) + (a.Kademe ?? 1);
+
+    /// <summary>
+    /// Yük başına araç tipi (saha geri bildirimi madde 1): her yük kendisini alan en sade kademeye atanır. Kademeler en
+    /// özelden başlayarak paketlenir (kademe içinde en az araç, son araç küçültülür); açılan özel araçlara daha sade
+    /// yükler de konur, kalanlar sonraki kademelere geçer. Böylece yalnız gereken yük için özel tip gelir. Araçlar
+    /// sadeden özele sıralanır; yedek tip aracı hangi yükler için açıldığını gerekçesinde yazar. Hiçbir adaya girmeyen
+    /// yük ayrıca döner.
+    /// </summary>
+    private static (List<(AracYerlesimi Arac, string? Gerekce)> Araclar, List<YerlesimYuku> Sigmayanlar) Kademeli(
+        List<YerlesimYuku> yukler, List<EkipmanAdayi> adaylar, Baglam baglam)
+    {
+        var sigmayanlar = new List<YerlesimYuku>();
+        var gerekli = new Dictionary<string, long>(StringComparer.Ordinal);
+        foreach (var yuk in yukler)
+        {
+            var uyanlar = adaylar.Where(a => baglam.Neden(a, yuk) == null).ToList();
+            if (uyanlar.Count == 0)
+                sigmayanlar.Add(yuk);
+            else
+                gerekli[yuk.Anahtar] = uyanlar.Min(Seviye);
+        }
+
+        var acilanlar = new List<(long Seviye, AracYerlesimi Arac, string? Gerekce)>();
+        var kalan = Sirala(yukler.Where(y => gerekli.ContainsKey(y.Anahtar))).ToList();
+        foreach (var seviye in gerekli.Values.Distinct().OrderDescending())
+        {
+            baglam.Iptal.ThrowIfCancellationRequested();
+            var grup = kalan.Where(y => gerekli[y.Anahtar] == seviye).ToList();
+            if (grup.Count == 0)
+                continue;
+            var (paket, disarida) = IhtiyacaGore(grup, adaylar.Where(a => Seviye(a) == seviye).ToList(), baglam);
+            sigmayanlar.AddRange(disarida);
+            var islenen = grup.Select(y => y.Anahtar).ToHashSet(StringComparer.Ordinal);
+            // Özel tipin araçlarına sığan daha sade yükler de konur ("yanına aldığı kadar").
+            foreach (var yuk in kalan.Where(y => !islenen.Contains(y.Anahtar)))
+                if (paket.Any(a => a.Ekle(yuk)))
+                    islenen.Add(yuk.Anahtar);
+            kalan = kalan.Where(y => !islenen.Contains(y.Anahtar)).ToList();
+            foreach (var arac in paket)
+                acilanlar.Add((seviye, arac, arac.Aday.Yedek ? YedekGerekce(arac, grup) : null));
+        }
+        return (acilanlar.OrderBy(a => a.Seviye).Select(a => (a.Arac, a.Gerekce)).ToList(), sigmayanlar);
+    }
+
+    private static string YedekGerekce(AracYerlesimi arac, List<YerlesimYuku> gerektirenler)
+    {
+        var anahtarlar = arac.Yukler.Select(y => y.Anahtar).ToHashSet(StringComparer.Ordinal);
+        return YedekGerekce(arac.Aday, gerektirenler.Where(y => anahtarlar.Contains(y.Anahtar)).Select(y => y.Kod));
+    }
+
+    /// <summary>Yedek tip aracının gerekçesi (otomatik yerleşim ve elle denetim aynı metni üretir).</summary>
+    internal static string YedekGerekce(EkipmanAdayi aday, IEnumerable<string> kodlar) =>
+        $"Seçilen tiplere sığmadı: {string.Join(", ", kodlar)}. Bu yükler için 1 adet {aday.Kod} ({aday.TipAdi}) plana eklenmiştir.";
+
+    /// <summary>Aileye sığmadığı için özel araca giden yükün gerekçesi (elle denetim; otomatik yerleşim nedenleriyle yazar).</summary>
+    internal static string AileyeSigmayanGerekce(EkipmanAdayi aday, string aileAdi, IEnumerable<string> kodlar) =>
+        $"Zorunlu özel ekipman: {string.Join(", ", kodlar)} {aileAdi} ailesinde taşınamıyor. 1 adet {aday.Kod} plana eklenmiştir.";
 
     /// <summary>Taban alanı büyükten küçüğe, sonra ağırdan hafife: ağır ve geniş yük alta, hafif yük üste gelir.</summary>
     private static IEnumerable<YerlesimYuku> Sirala(IEnumerable<YerlesimYuku> yukler) =>
@@ -333,7 +421,8 @@ public static class YerlesimMotoru
     }
 
     /// <summary>
-    /// Zorunlu özel yük: uygun özel yük ekipmanlarından yükü alan en alçak yüzeyli olan (toplam yüksekliği en az). Aday
+    /// Özel yük ekipmanı (lowbed, ağır yük dorsesi): yükü alabilenlerden teknik kapasitesi en küçük olan (tonaja göre;
+    /// saha geri bildirimi madde 2), eşitlikte yüzeyi en alçak olan. Araç yalnız bu yükü taşır, yanına sandık konmaz. Aday
     /// yoksa ya da hiçbiri uygun değilse uygunluk üretilmez, neden yazılır.
     /// </summary>
     private static (AracYerlesimi? Arac, string? Neden) OzelYerlestir(YerlesimYuku yuk, List<EkipmanAdayi> adaylar, YerlesimGirdisi girdi)
@@ -350,9 +439,10 @@ public static class YerlesimMotoru
                 nedenler.Add(neden!);
                 continue;
             }
-            var z = arac.Konumlar()[0].ZMm;
-            if (enIyi == null || z < enIyi.Konumlar()[0].ZMm ||
-                (z == enIyi.Konumlar()[0].ZMm && (aday.TeknikVeri.TeknikKapasiteKg ?? int.MaxValue) < (enIyi.Aday.TeknikVeri.TeknikKapasiteKg ?? int.MaxValue)))
+            var kapasite = aday.TeknikVeri.TeknikKapasiteKg ?? int.MaxValue;
+            var enIyiKapasite = enIyi?.Aday.TeknikVeri.TeknikKapasiteKg ?? int.MaxValue;
+            if (enIyi == null || kapasite < enIyiKapasite ||
+                (kapasite == enIyiKapasite && arac.Konumlar()[0].ZMm < enIyi.Konumlar()[0].ZMm))
                 enIyi = arac;
         }
         return enIyi != null ? (enIyi, null) : (null, $"Uygun özel yük ekipmanı bulunamadı: {Ozetle(nedenler)}");
@@ -361,7 +451,7 @@ public static class YerlesimMotoru
     private static string Gerekce(YerlesimYuku yuk, EkipmanAdayi aday, string aileAdi, string? ailedeNeden)
     {
         var tur = string.IsNullOrWhiteSpace(yuk.YukTuruAdi) ? "yükü" : yuk.YukTuruAdi.ToLower(System.Globalization.CultureInfo.GetCultureInfo("tr-TR"));
-        return yuk.Zorunluluk == OzelEkipmanZorunlulugu.Her
+        return yuk.Zorunluluk == OzelEkipmanZorunlulugu.Her || ailedeNeden == null
             ? $"Zorunlu özel ekipman: {yuk.Kod} {tur} için {aday.TipAdi} gereklidir. Genel {aileAdi} tercihinin dışında 1 adet {aday.Kod} plana eklenmiştir."
             : $"Zorunlu özel ekipman: {yuk.Kod} {aileAdi} ailesinde taşınamıyor ({ailedeNeden}). 1 adet {aday.Kod} plana eklenmiştir.";
     }

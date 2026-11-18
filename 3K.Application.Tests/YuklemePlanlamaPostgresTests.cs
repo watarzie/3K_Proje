@@ -524,6 +524,83 @@ public sealed class YuklemePlanlamaPostgresTests
     /// kalır; geri alma iz bırakır; plan revize edilse de oturum başladığı yerleşimle sürer; kapanan oturuma yazılmaz.
     /// Hiçbir adım sandık durumunu, hareket geçmişini, sevk kayıtlarını ya da plan revizyonlarını değiştirmez.
     /// </summary>
+    /// <summary>
+    /// İki kademeli araç seçimi (saha geri bildirimi 19.11.2026 madde 1, 3): tanımlar aileleri ve tiplerini ayrı verir
+    /// (lowbed kendi ailesinde); tip seçilmeyen planda sade tip (40' DV) kullanılır; 40' High Cube seçilince yalnız o tip
+    /// gelir; başka ailenin tipi seçilemez.
+    /// </summary>
+    [PostgresRaporFact, Trait("Category", "Postgres")]
+    public async Task Postgres_AracTipleri_AileVeTipSecimi()
+    {
+        await FinansPostgresTests.InDatabase(async options =>
+        {
+            int projeId;
+            await using (var db = new AppDbContext(options))
+            {
+                EkipmanKonfigurasyonu Konfig(int tipId, string kod) => new()
+                {
+                    Model = new EkipmanModeli { TipId = tipId, Uretici = "Test", ModelAdi = kod },
+                    Kod = kod, Ad = kod, SonRevizyonNo = 1,
+                    Revizyonlar =
+                    [
+                        new EkipmanKonfigurasyonRevizyonu
+                        {
+                            RevizyonNo = 1, KaynakTuru = EkipmanKaynakTuru.Diger, DogrulamaDurumu = EkipmanDogrulamaDurumu.Dogrulandi,
+                            TeknikVeriJson = _3K.YuklemeMotoru.Ekipman.EkipmanTeknikVeriSerilestirici.Yaz(YerlesimMotoruTests.K40.TeknikVeri)
+                        }
+                    ]
+                };
+                // Tip 2 = 40' DV (sıra 1), 3 = 40' High Cube (sıra 2), 13 = 40' Reefer HC (sırasız).
+                db.EkipmanKonfigurasyonlari.AddRange(Konfig(2, "K40DV"), Konfig(3, "K40HC"), Konfig(13, "K40RF"));
+                var proje = new Proje { ProjeNo = "PA910-01", Musteri = "M", ProjeTipiId = (int)ProjeTipi.Normal };
+                db.Sandiklar.AddRange(Sandik(proje, "1", 2000, 500), Sandik(proje, "2", 2000, 500));
+                await db.SaveChangesAsync();
+                projeId = proje.Id;
+            }
+
+            await using (var db = new AppDbContext(options))
+            {
+                var servis = PlanServisi(db);
+                var tanimlar = await servis.TanimlarAsync(Ct);
+                Assert.Equal(["Konteyner", "Standart açık kasa / platform", "Lowbed / ağır yük", "Tenteli", "Kapalı kasa / frigo", "Diğer özel amaçlı"],
+                    tanimlar.TasimaAileleri.Select(a => a.Ad));
+                Assert.Contains(tanimlar.TasimaTipleri, t => t is { Id: 21, AileId: 8, OtomatikSecilir: true });
+                Assert.DoesNotContain(tanimlar.TasimaTipleri, t => t.AileId == 2 && t.Ad.Contains("owbed", StringComparison.Ordinal));
+                Assert.Contains(tanimlar.TasimaTipleri, t => t is { Id: 13, AileId: 1, OtomatikSecilir: false });
+                // Konteyner tipleri sadelik sırasıyla: DV, High Cube, … ; sırasızlar (Reefer) sonda.
+                var konteyner = tanimlar.TasimaTipleri.Where(t => t.AileId == 1).ToList();
+                Assert.True(konteyner.FindIndex(t => t.Id == 2) < konteyner.FindIndex(t => t.Id == 3));
+                Assert.All(konteyner.SkipWhile(t => t.OtomatikSecilir), t => Assert.False(t.OtomatikSecilir));
+
+                var plan = await servis.OlusturAsync(new YuklemePlaniOlusturModel("Tip seçimi", YuklemeCalismaBicimi.IhtiyacaGoreArac, 1,
+                    YuklemeProjeKarisimi.Karisik, null, null, [projeId]), kullaniciId: null, Ct);
+                var secimler = plan.Yukler.Select(y => new PlanSandikYukuKaydi(y.SandikId!.Value, true, false, false, false, y.UstYukSiniriKg,
+                    PlanYukIzni.UsteKonma | PlanYukIzni.AltaKalma)).ToList();
+                YuklemePlaniKaydetModel Kaydet(int revizyon, IReadOnlyList<int> tipler) => new(plan.Id, revizyon, "Tip seçimi",
+                    YuklemeCalismaBicimi.IhtiyacaGoreArac, 1, YuklemeProjeKarisimi.Karisik, null, null, null,
+                    new YuklemePlanAyarlari { TipIdleri = tipler }, [projeId], secimler, []);
+
+                // Tip seçilmeyen planda sade tip: 40' DV (Reefer otomatik gelmez).
+                plan = await servis.HesaplaAsync(plan.Id, 1, YuklemeLokasyonTercihi.Karisik, kullaniciId: null, Ct);
+                Assert.All(plan.Yerlesim!.Araclar, a => Assert.Equal("K40DV", a.EkipmanKodu));
+
+                // Başka ailenin tipi (21 = lowbed) seçilemez; kayıt yazılmaz.
+                var aileDisi = await Assert.ThrowsAsync<IsKuraliException>(() => servis.KaydetAsync(Kaydet(plan.RevizyonNo, [21]), null, Ct));
+                Assert.Equal((400, YuklemePlaniKurali.TipAileDisiMesaji), (aileDisi.StatusCode, aileDisi.Message));
+
+                plan = await servis.KaydetAsync(Kaydet(plan.RevizyonNo, [3]), null, Ct);
+                Assert.Equal([3], plan.Ayarlar.TipIdleri);
+                plan = await servis.HesaplaAsync(plan.Id, plan.RevizyonNo, YuklemeLokasyonTercihi.Karisik, kullaniciId: null, Ct);
+                Assert.All(plan.Yerlesim!.Araclar, a => Assert.Equal("K40HC", a.EkipmanKodu));
+
+                // Açıkça seçilen Reefer kullanılır.
+                plan = await servis.KaydetAsync(Kaydet(plan.RevizyonNo, [13]), null, Ct);
+                plan = await servis.HesaplaAsync(plan.Id, plan.RevizyonNo, YuklemeLokasyonTercihi.Karisik, kullaniciId: null, Ct);
+                Assert.All(plan.Yerlesim!.Araclar, a => Assert.Equal("K40RF", a.EkipmanKodu));
+            }
+        });
+    }
+
     [PostgresRaporFact, Trait("Category", "Postgres")]
     public async Task Postgres_AracYukleme_OturumIsaretGeriAlVeKapat()
     {

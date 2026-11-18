@@ -27,6 +27,7 @@
 -- güncellenir (saha_iptal_* CTE'leri). 34 canlıda 11.11.2026'da kayıt bloğundan önceki sürümüyle çalıştı (kaynak "iz").
 -- 35 numaralı betik veri onarımıdır (S-27 genişlemesi): sahada Grid İptal ya da Grid Kapandı ile kapanacak normal proje ve
 -- bütün sandıkları sevkli Eksik Sevk Edildi saha/yedek proje kalmadıysa uygulanmış görünür (saha_kapanis_onarilacak).
+-- 36 numaralı betik EkipmanTipleri.OtomatikSecimSirasi kolonunu arar (lowbed ailesi aynı transaction'da kurulur).
 -- Yeni betik eklenince buraya satır eklenir (CanliyaAlimBetikleriTests dosya listesiyle karşılaştırır); betiğin sonunda
 -- README'deki "Betik kaydı" bloğu bulunur. İz satırı yine yazılır: kayıt bloğundan önce elle uygulanmış veritabanı için.
 -- =====================================================================================
@@ -139,7 +140,8 @@ FROM (VALUES
                                                     AND EXISTS (SELECT 1 FROM kolon WHERE tablo = 'YuklemeOturumYukleri' AND ad = 'YukAnahtari')
                                                     AND EXISTS (SELECT 1 FROM "MenuTanimlari" WHERE "Kod" = 'arac-yukleme')),
     (34, '20261112_01_Saha_Iptal_Proje_Sevk_Durumu', NOT EXISTS (SELECT 1 FROM saha_iptal_onarilacak)),
-    (35, '20261117_01_Saha_Kapanis_Proje_Sevk_Durumu', NOT EXISTS (SELECT 1 FROM saha_kapanis_onarilacak))
+    (35, '20261117_01_Saha_Kapanis_Proje_Sevk_Durumu', NOT EXISTS (SELECT 1 FROM saha_kapanis_onarilacak)),
+    (36, '20261119_01_Yukleme_Arac_Aileleri',       EXISTS (SELECT 1 FROM kolon WHERE tablo = 'EkipmanTipleri' AND ad = 'OtomatikSecimSirasi'))
 ) AS t(sira, betik, uygulandi)
 LEFT JOIN kayit k ON k.ad = t.betik
 ORDER BY t.sira;

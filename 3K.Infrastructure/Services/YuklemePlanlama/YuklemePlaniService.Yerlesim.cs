@@ -48,7 +48,7 @@ internal sealed partial class YuklemePlaniService
         var mevcutIdleri = mevcut?.Select(m => m.KonfigurasyonId).ToList() ?? [];
         if (mevcutIdleri.Count > 0)
             await MevcutAraclariDenetleAsync(ayarlar, cancellationToken);
-        var adaylar = await AdaylarAsync(plan.TasimaAilesiId, mevcutIdleri, cancellationToken);
+        var adaylar = await AdaylarAsync(plan.TasimaAilesiId, ayarlar.TipIdleri, mevcutIdleri, cancellationToken);
         if (mevcutIdleri.Any(id => adaylar.All(a => a.KonfigurasyonId != id)))
             throw new IsKuraliException(MevcutAracKullanilamaz);
 
@@ -105,10 +105,17 @@ internal sealed partial class YuklemePlaniService
 
     /// <summary>
     /// Aday konfigürasyonlar (son revizyonları): ailedeki sandık taşımaya uygun aktif tipler, özel yük ekipmanları ve
-    /// kullanıcının mevcut araç listesindekiler. Teknik verisi okunamayan konfigürasyon aday olmaz.
+    /// kullanıcının mevcut araç listesindekiler. Teknik verisi okunamayan konfigürasyon aday olmaz. Aile tiplerinin
+    /// kademesi sadelik sırasından ve plandaki tip seçiminden gelir (<see cref="YuklemePlaniKurali.AracTipiKademesi"/>).
     /// </summary>
-    private async Task<List<EkipmanAdayi>> AdaylarAsync(int aileId, List<int> mevcutIdleri, CancellationToken cancellationToken)
+    private async Task<List<EkipmanAdayi>> AdaylarAsync(int aileId, IReadOnlyList<int> tipIdleri, List<int> mevcutIdleri, CancellationToken cancellationToken)
     {
+        // Kayıtlı seçimden yalnız bu ailenin aktif tipleri sayılır (sonradan pasif yapılan tip seçimi daraltmaz).
+        var secili = tipIdleri.Count == 0
+            ? []
+            : (await context.EkipmanTipleri.AsNoTracking()
+                .Where(t => tipIdleri.Contains(t.Id) && t.AileId == aileId && t.Aktif).Select(t => t.Id)
+                .ToListAsync(cancellationToken)).ToHashSet();
         var ozelKategoriler = Enum.GetValues<EkipmanKategorisi>().Where(EkipmanKategoriKurali.OzelYukEkipmaniMi).ToList();
         var kayitlar = await context.EkipmanKonfigurasyonlari.AsNoTracking()
             .Where(k => (k.Aktif && k.Model.Tip.Aktif && (k.Model.Tip.AileId == aileId || ozelKategoriler.Contains(k.Model.Tip.Kategori))) ||
@@ -122,6 +129,8 @@ internal sealed partial class YuklemePlaniService
                 k.SonRevizyonNo,
                 k.Model.Tip.Kategori,
                 k.Model.Tip.AileId,
+                k.Model.TipId,
+                k.Model.Tip.OtomatikSecimSirasi,
                 TipAdi = k.Model.Tip.Ad,
                 AileAdi = k.Model.Tip.Aile.Ad,
                 Revizyon = k.Revizyonlar.Where(r => r.RevizyonNo == k.SonRevizyonNo)
@@ -135,6 +144,8 @@ internal sealed partial class YuklemePlaniService
             if (k.Revizyon == null || !EkipmanKategoriKurali.SandikTasimayaUygunMu(k.Kategori) ||
                 EkipmanTeknikVeriSerilestirici.Oku(k.Revizyon.TeknikVeriJson) is not { } veri)
                 continue;
+            // Aile dışı aday (özel yük ekipmanı, mevcut araç) kademe almaz: normal yükte aile adayı olarak kullanılmaz.
+            var kademe = k.AileId == aileId ? YuklemePlaniKurali.AracTipiKademesi(k.TipId, k.OtomatikSecimSirasi, secili) : (null, false);
             adaylar.Add(new EkipmanAdayi(
                 k.Id, k.SonRevizyonNo, k.Kod, k.Ad, k.AileAdi, k.TipAdi,
                 AileIci: k.AileId == aileId,
@@ -143,7 +154,9 @@ internal sealed partial class YuklemePlaniService
                 EkipmanKategoriKurali.DuvarliMi(k.Kategori),
                 EkipmanKategoriKurali.DingilliMi(k.Kategori),
                 k.Revizyon.DogrulamaDurumu == EkipmanDogrulamaDurumu.Dogrulandi,
-                veri));
+                veri,
+                kademe.Kademe,
+                kademe.Yedek));
         }
         return adaylar;
     }

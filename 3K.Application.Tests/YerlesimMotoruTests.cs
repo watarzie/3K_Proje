@@ -13,17 +13,18 @@ public sealed class YerlesimMotoruTests
 {
     internal static readonly YerlesimAyarlari Ayar = new(30, 50, 0, 0, 0, 50);
 
-    private static EkipmanAdayi Konteyner(int id, string kod, int uzunluk, int kapasite = 26_500, bool ustten = false) => new(
+    private static EkipmanAdayi Konteyner(int id, string kod, int uzunluk, int kapasite = 26_500, bool ustten = false,
+        int icYukseklik = 2_393, int kapiYukseklik = 2_280) => new(
         id, 1, kod, kod, "Konteyner", ustten ? "Open Top" : "Kapalı", AileIci: true, OzelYukEkipmani: false,
         ustten ? GirisYonu.Arkadan | GirisYonu.Ustten : GirisYonu.Arkadan, Duvarli: true, Dingilli: false, Dogrulandi: true,
         new EkipmanTeknikVerisi
         {
             DisOlcu = new Olcu(uzunluk + 160, 2_438, 2_591),
             TeknikKapasiteKg = kapasite,
-            Yuzeyler = [new YukYuzeyi("ANA", "Taban", 0, uzunluk, 2_352, 0, 2_393, null, null)],
+            Yuzeyler = [new YukYuzeyi("ANA", "Taban", 0, uzunluk, 2_352, 0, icYukseklik, null, null)],
             Acikliklar = ustten
-                ? [new Aciklik(AciklikTarafi.Arka, null, null, 2_340, 2_280), new Aciklik(AciklikTarafi.Ust, 100, uzunluk - 200, 2_200, null)]
-                : [new Aciklik(AciklikTarafi.Arka, null, null, 2_340, 2_280)]
+                ? [new Aciklik(AciklikTarafi.Arka, null, null, 2_340, kapiYukseklik), new Aciklik(AciklikTarafi.Ust, 100, uzunluk - 200, 2_200, null)]
+                : [new Aciklik(AciklikTarafi.Arka, null, null, 2_340, kapiYukseklik)]
         });
 
     internal static readonly EkipmanAdayi K40 = Konteyner(40, "K40", 12_032);
@@ -119,13 +120,175 @@ public sealed class YerlesimMotoruTests
         Assert.All(izinsiz.Konumlar, k => Assert.Equal(1, k.Kat));
     }
 
-    /// <summary>Senaryo: normal sandıklarda konteyner seçilmişse sistem keyfî olarak açık kasa / lowbed ekleyemez.</summary>
+    /// <summary>
+    /// Saha geri bildirimi (19.11.2026) madde 4: seçilen aileye sığmayan yük, türü "Sandık" olsa da bırakılmaz; gerekçesiyle
+    /// lowbed'e gider ve yanına başka yük konmaz. Diğer sandıklar ailede kalır.
+    /// </summary>
     [Fact]
-    public void NormalSandik_AileDisiEkipmanaGitmez()
+    public void AileyeSigmayanSandik_GerekceliLowbede()
+    {
+        var genis = Sandik("01", 6_000, 2_500, 2_400, 15_000, ust: false, alt: false);
+        var sonuc = Hesapla([genis, Sandik("02", 2_000, 1_200, 1_000, 500)], [K40, Lowbed]);
+        Assert.Empty(sonuc.Yerlesemeyenler);
+        var lowbed = sonuc.Araclar.Single(a => a.EkipmanKodu == "LB-3");
+        Assert.Equal("01", Assert.Single(lowbed.Konumlar).YukAnahtari);
+        Assert.Contains("01 Konteyner ailesinde taşınamıyor", lowbed.AileDisiGerekce);
+        Assert.Equal("02", Assert.Single(sonuc.Araclar.Single(a => a.EkipmanKodu == "K40").Konumlar).YukAnahtari);
+    }
+
+    /// <summary>Aileye de lowbed'e de sığmayan yük yerleşemeyenlerde, iki nedeniyle birlikte kalır.</summary>
+    [Fact]
+    public void AileyeVeLowbedeSigmayan_YerlesemeyenNedenli()
     {
         var sonuc = Hesapla([Sandik("UZUN", 13_000, 2_000, 1_000, 3_000)], [K40, Lowbed]);
         Assert.Empty(sonuc.Araclar);
-        Assert.Contains("Konteyner ailesindeki hiçbir ekipmana sığmıyor", Assert.Single(sonuc.Yerlesemeyenler).Neden);
+        var neden = Assert.Single(sonuc.Yerlesemeyenler).Neden;
+        Assert.Contains("Konteyner ailesindeki hiçbir ekipmana sığmıyor", neden);
+        Assert.Contains("Uygun özel yük ekipmanı bulunamadı", neden);
+    }
+
+    /// <summary>
+    /// Saha geri bildirimi madde 1: araç tipi yük başına seçilir. Kapıdan geçmeyen tek yük için Open Top gelir ve ona
+    /// sığan sandıklar da konur; kalan sandıklar standart konteynere gider (bütün araçlar Open Top olmaz).
+    /// </summary>
+    [Fact]
+    public void OzelTip_YalnizGerekenYukIcinGelir()
+    {
+        var openTop = Konteyner(41, "OT40", 12_032, ustten: true) with { Kademe = 4 };
+        var yukler = Enumerable.Range(1, 30).Select(i => Sandik($"S{i:00}", 2_000, 2_000, 1_200, 400, ust: false))
+            .Append(Sandik("YUKSEK", 2_000, 2_000, 2_330, 500, ust: false)).ToList();
+        var sonuc = Hesapla(yukler, [K40, openTop]);
+        Assert.Empty(sonuc.Yerlesemeyenler);
+        var ot = Assert.Single(sonuc.Araclar, a => a.EkipmanKodu == "OT40");
+        Assert.Contains(ot.Konumlar, k => k.YukAnahtari == "YUKSEK");
+        Assert.True(ot.Konumlar.Count > 1, "Open Top'a sığan sandıklar da konur.");
+        Assert.All(sonuc.Araclar.Where(a => a != ot), a => Assert.Equal("K40", a.EkipmanKodu));
+        Assert.Equal(31, sonuc.Araclar.Sum(a => a.Konumlar.Count));
+        // Sade araçlar önce numaralanır.
+        Assert.Equal("OT40", sonuc.Araclar[^1].EkipmanKodu);
+        Assert.Null(ot.AileDisiGerekce);
+    }
+
+    /// <summary>Kademesi olmayan tip (ör. Reefer, açıkça seçilmedikçe) otomatik yerleşimde kullanılmaz.</summary>
+    [Fact]
+    public void KademesizTip_OtomatikGelmez()
+    {
+        var reefer = Konteyner(45, "RF40", 12_032) with { Kademe = null };
+        var sonuc = Hesapla([Sandik("S1", 2_000, 1_200, 1_000, 500)], [reefer, K40]);
+        Assert.Equal("K40", Assert.Single(sonuc.Araclar).EkipmanKodu);
+
+        var yalnizReefer = Hesapla([Sandik("S1", 2_000, 1_200, 1_000, 500)], [reefer]);
+        Assert.Empty(yalnizReefer.Araclar);
+        Assert.Contains("otomatik kullanılan araç tipi yok", Assert.Single(yalnizReefer.Yerlesemeyenler).Neden);
+    }
+
+    /// <summary>
+    /// Saha geri bildirimi madde 3: tip seçilince normal yükler yalnız seçilen tipe gider (daha sade tip seçilmediyse
+    /// kullanılmaz); seçilen tipe sığmayan yük için ailenin yedek tipi gerekçesiyle gelir.
+    /// </summary>
+    [Fact]
+    public void SeciliTip_YalnizOKullanilir_SigmayanaYedekGerekceli()
+    {
+        var hc = Konteyner(46, "HC40", 12_032, icYukseklik: 2_698, kapiYukseklik: 2_585) with { Kademe = 2 };
+        var dv = K40 with { Yedek = true };
+        var openTop = Konteyner(41, "OT40", 12_032, ustten: true) with { Kademe = 4, Yedek = true };
+        var sandiklar = Enumerable.Range(1, 3).Select(i => Sandik($"S{i}", 2_000, 1_200, 1_000, 500)).ToList();
+        var yalnizHc = Hesapla(sandiklar, [dv, hc, openTop]);
+        Assert.Equal("HC40", Assert.Single(yalnizHc.Araclar).EkipmanKodu);
+
+        // 2.330 mm: kapısı dar (2.280) High Cube'un ve DV'nin kapısından geçmez; yedek Open Top üstten alır. Özel aracın
+        // yanına sığan sandıklar da konur (saha geri bildirimi madde 1): seçilen HC'ye ayrıca araç açılmaz.
+        var yuksek = Sandik("YUKSEK", 2_000, 2_000, 2_330, 500);
+        var hcKapisiDar = Konteyner(46, "HC40", 12_032, icYukseklik: 2_698, kapiYukseklik: 2_280) with { Kademe = 2 };
+        var sonuc = Hesapla([.. sandiklar, yuksek], [dv, hcKapisiDar, openTop]);
+        var ot = Assert.Single(sonuc.Araclar, a => a.EkipmanKodu == "OT40");
+        Assert.StartsWith("Seçilen tiplere sığmadı: YUKSEK. Bu yükler için 1 adet OT40", ot.AileDisiGerekce);
+        Assert.False(ot.AileDisi);
+        Assert.Equal(4, ot.Konumlar.Count);
+        Assert.DoesNotContain(sonuc.Araclar, a => a.EkipmanKodu is "K40" or "HC40");
+    }
+
+    /// <summary>Ailede veri var ama otomatik tip yoksa (yalnız Reefer) neden tip seçmeyi söyler.</summary>
+    [Fact]
+    public void OtomatikTipYoksa_TipSecmeyiSoyler()
+    {
+        var reefer = Konteyner(45, "RF40", 12_032) with { Kademe = null };
+        var sonuc = Hesapla([Sandik("S1", 2_000, 1_200, 1_000, 500)], [reefer, Lowbed]);
+        Assert.Empty(sonuc.Araclar);
+        Assert.Contains("otomatik kullanılan araç tipi yok; planda araç tipi seçin", Assert.Single(sonuc.Yerlesemeyenler).Neden);
+    }
+
+    /// <summary>Mevcut araçlara yerleştirmede kullanıcının filosu esastır: kademesi olmayan aile tipi (Reefer) de kullanılır.</summary>
+    [Fact]
+    public void MevcutAraclar_KademesizFiloKullanilir()
+    {
+        var reefer = Konteyner(45, "RF40", 12_032) with { Kademe = null };
+        var sonuc = Hesapla([Sandik("S1", 2_000, 1_200, 1_000, 500)], [reefer, Lowbed], mevcut: [new MevcutArac(45, 1)]);
+        Assert.Equal("RF40", Assert.Single(sonuc.Araclar).EkipmanKodu);
+        Assert.Empty(sonuc.Yerlesemeyenler);
+    }
+
+    /// <summary>"Kalanı diz", Hesapla gibi: ailede aday yoksa yük lowbed'e çıkmaz, bekleyenlerde kalır (isterler 10.2).</summary>
+    [Fact]
+    public void ElleTamamla_AiledeVeriYoksa_AileDisinaCikmaz()
+    {
+        var girdi = new YerlesimGirdisi([Sandik("S1", 2_000, 1_200, 1_000, 500)], [Lowbed], Ayar, false, false, null, null, "Tenteli");
+        Assert.Empty(YerlesimMotoru.ElleTamamla(girdi, []));
+    }
+
+    /// <summary>Lowbed ailesi seçiliyse "kalanı diz" kullanıcının boş lowbed'ine yük koyar; trafo taşıyan lowbed'e koymaz.</summary>
+    [Fact]
+    public void ElleTamamla_LowbedAilesindeVarOlanAracaEkler()
+    {
+        var lowbed = Lowbed with { AileIci = true };
+        var trafo = Trafo("TR-01", 6_000, 2_400, 3_000, 30_000);
+        var girdi = new YerlesimGirdisi([Sandik("S1", 2_000, 1_200, 1_000, 500), trafo], [lowbed], Ayar, false, false, null, null, "Lowbed / ağır yük");
+        var trafoKonumu = Assert.Single(YerlesimMotoru.ElleTamamla(new YerlesimGirdisi([trafo], [lowbed], Ayar, false, false, null, null, "Lowbed / ağır yük"), [])).Konumlar;
+        var araclar = YerlesimMotoru.ElleTamamla(girdi, [new ElleArac(90, trafoKonumu), new ElleArac(90, [])]);
+        Assert.Equal(2, araclar.Count);
+        Assert.Equal(["TR-01"], araclar[0].Konumlar.Select(k => k.YukAnahtari));
+        Assert.Equal(["S1"], araclar[1].Konumlar.Select(k => k.YukAnahtari));
+    }
+
+    /// <summary>Elle denetim, aileye sığmadığı için lowbed'e giden sandığın ve yedek tipin gerekçesini korur.</summary>
+    [Fact]
+    public void ElleDenetim_AileyeSigmayanVeYedekGerekcesiKorunur()
+    {
+        var genis = Sandik("01", 6_000, 2_500, 2_400, 15_000, ust: false, alt: false);
+        var girdi = new YerlesimGirdisi([genis, Sandik("02", 2_000, 1_200, 1_000, 500)], [K40, Lowbed], Ayar, false, false, null, null, "Konteyner");
+        var denetim = ElleYerlesimDenetimi.Denetle(girdi, YerlesimMotoru.ElleTamamla(girdi, []));
+        var lowbed = denetim.Araclar.Single(a => a.EkipmanKodu == "LB-3");
+        Assert.Equal("Zorunlu özel ekipman: 01 Konteyner ailesinde taşınamıyor. 1 adet LB-3 plana eklenmiştir.", lowbed.AileDisiGerekce);
+        Assert.True(lowbed.ZorunluOzelEkipman);
+
+        var hc = Konteyner(46, "HC40", 12_032, icYukseklik: 2_698, kapiYukseklik: 2_280) with { Kademe = 2 };
+        var openTop = Konteyner(41, "OT40", 12_032, ustten: true) with { Kademe = 4, Yedek = true };
+        var yedekGirdi = new YerlesimGirdisi([Sandik("YUKSEK", 2_000, 2_000, 2_330, 500)], [hc, openTop], Ayar, false, false, null, null, "Konteyner");
+        var ot = Assert.Single(ElleYerlesimDenetimi.Denetle(yedekGirdi, YerlesimMotoru.ElleTamamla(yedekGirdi, [])).Araclar);
+        Assert.StartsWith("Seçilen tiplere sığmadı: YUKSEK.", ot.AileDisiGerekce);
+    }
+
+    /// <summary>Saha geri bildirimi madde 2: lowbed tonaja göre seçilir (yükü taşıyan en küçük kapasite).</summary>
+    [Fact]
+    public void Lowbed_TonajaGoreSecilir()
+    {
+        var lowbed45 = Lowbed with { KonfigurasyonId = 91, Kod = "LB-45", TeknikVeri = Lowbed.TeknikVeri with { TeknikKapasiteKg = 45_000 } };
+        var hafif = Hesapla([Trafo("TR-01", 6_000, 2_400, 3_000, 30_000)], [K40, Lowbed, lowbed45]);
+        Assert.Equal("LB-45", Assert.Single(hafif.Araclar).EkipmanKodu);
+        var agir = Hesapla([Trafo("TR-02", 6_000, 2_400, 3_000, 50_000)], [K40, Lowbed, lowbed45]);
+        Assert.Equal("LB-3", Assert.Single(agir.Araclar).EkipmanKodu);
+    }
+
+    /// <summary>"Kalanı diz" de yük başına tip seçer: Open Top yalnız gereken yük için açılır.</summary>
+    [Fact]
+    public void ElleTamamla_OzelTipYalnizGerekenYukIcin()
+    {
+        var openTop = Konteyner(41, "OT40", 12_032, ustten: true) with { Kademe = 4 };
+        var yukler = Enumerable.Range(1, 30).Select(i => Sandik($"S{i:00}", 2_000, 2_000, 1_200, 400, ust: false))
+            .Append(Sandik("YUKSEK", 2_000, 2_000, 2_330, 500, ust: false)).ToList();
+        var araclar = YerlesimMotoru.ElleTamamla(new YerlesimGirdisi(yukler, [K40, openTop], Ayar, false, false, null, null, "Konteyner"), []);
+        Assert.Equal(1, araclar.Count(a => a.KonfigurasyonId == 41));
+        Assert.Equal(31, araclar.Sum(a => a.Konumlar.Count));
     }
 
     /// <summary>Senaryo: konteyner seçili projede trafo varsa sandıklar konteynerde, trafo gerekçeli lowbed'de planlanır.</summary>

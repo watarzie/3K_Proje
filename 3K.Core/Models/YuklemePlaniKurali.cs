@@ -88,6 +88,25 @@ public static class YuklemePlaniKurali
     public const string MevcutAraclarMesaji = "Mevcut araçlar listesi geçersiz: her konfigürasyon bir kez, adet 1–50, en fazla 20 satır.";
     public const string MevcutAracGerekliMesaji = "Mevcut araçlara yerleştirmede en az bir araç seçilmelidir.";
 
+    /// <summary>Taşıma ailesinde seçilebilecek en fazla tip (ör. Konteyner → 40' High Cube).</summary>
+    public const int TipSecimiEnFazla = 20;
+    public const string TipSecimiMesaji = "Seçilen araç tipleri geçersiz: her tip bir kez, en fazla 20 tip.";
+    public const string TipAileDisiMesaji = "Seçilen araç tiplerinden biri bu taşıma ailesine ait değil, pasif ya da sandık taşımaya uygun değil.";
+
+    public static bool TipIdleriGecerli(IReadOnlyList<int>? tipIdleri) =>
+        tipIdleri is null ||
+        (tipIdleri.Count <= TipSecimiEnFazla && tipIdleri.All(id => id > 0) && tipIdleri.Distinct().Count() == tipIdleri.Count);
+
+    /// <summary>
+    /// Aile tipinin otomatik yerleşimdeki kademesi (saha geri bildirimi 19.11.2026 madde 1, 3). Tip seçilmemişse ailenin
+    /// sadelik sırası olan tipleri kullanılır (sırası boş tip, ör. Reefer, gelmez). Tip seçilmişse normal yükler yalnız
+    /// seçilen tiplere gider; seçilmeyen tipler yalnız seçilenlere sığmayan yük için yedektir (gerekçesiyle).
+    /// </summary>
+    public static (int? Kademe, bool Yedek) AracTipiKademesi(int tipId, int? otomatikSecimSirasi, IReadOnlyCollection<int> seciliTipler) =>
+        seciliTipler.Count == 0 ? (otomatikSecimSirasi, false)
+        : seciliTipler.Contains(tipId) ? (otomatikSecimSirasi ?? 1, false)
+        : (otomatikSecimSirasi, true);
+
     /// <summary>
     /// Yük listesindeki satırın anahtarı (yerleşim sonucu ile satırı eşler; ön yüz aynı biçimi kullanır): sandıkta
     /// "s:{sandıkId}", elle eklenen yükte "m:{grupNo}:{birimNo}".
@@ -133,6 +152,12 @@ public sealed record YuklemePlanAyarlari
 
     /// <summary>Mevcut araçlara yerleştirmede kullanıcının verdiği araçlar (konfigürasyon ve adet); diğer biçimde boştur.</summary>
     public IReadOnlyList<PlanMevcutArac> MevcutAraclar { get; init; } = [];
+
+    /// <summary>
+    /// Taşıma ailesinde seçilen tipler (<c>EkipmanTipleri.Id</c>; ör. Konteyner → 40' High Cube). Boşsa ailenin otomatik
+    /// tipleri sadelik sırasıyla kullanılır. Aile değişince eski seçim geçersizdir.
+    /// </summary>
+    public IReadOnlyList<int> TipIdleri { get; init; } = [];
 }
 
 /// <summary>Mevcut araçlara yerleştirmede bir araç tipi: ekipman konfigürasyonu ve adet.</summary>

@@ -79,7 +79,15 @@ public sealed record YerlesimYuku(
 
 /// <summary>
 /// Aday ekipman konfigürasyonu (son revizyonu). <see cref="AileIci"/> plandaki genel taşıma ailesinin adayıdır;
-/// <see cref="OzelYukEkipmani"/> zorunlu özel yük için aile dışında değerlendirilebilen ekipmandır (lowbed).
+/// <see cref="OzelYukEkipmani"/> aileye sığmayan ya da özel ekipman zorunlu yük için aile dışında değerlendirilebilen
+/// ekipmandır (lowbed, ağır yük dorsesi).
+/// <para>
+/// <see cref="Kademe"/>: aile adayının sadelik sırası (küçük = sade, ör. standart konteyner, sonra High Cube, Hardtop,
+/// Open Top…). Her yük kendisini alan en sade kademeye gider; özel kademe aracına sığan daha sade yükler de konur, kalan
+/// yükler kendi kademelerinin araçlarına gider. Boş kademe aday otomatik yerleşimde kullanılmaz (ör. Reefer, açıkça
+/// seçilmedikçe). <see cref="Yedek"/>: kullanıcı tip seçtiğinde seçilmeyen aile tipi; yalnız seçilen tiplere sığmayan
+/// yük için ve gerekçesiyle kullanılır.
+/// </para>
 /// </summary>
 public sealed record EkipmanAdayi(
     int KonfigurasyonId,
@@ -94,7 +102,9 @@ public sealed record EkipmanAdayi(
     bool Duvarli,
     bool Dingilli,
     bool Dogrulandi,
-    EkipmanTeknikVerisi TeknikVeri);
+    EkipmanTeknikVerisi TeknikVeri,
+    int? Kademe = 1,
+    bool Yedek = false);
 
 /// <summary>
 /// Yerleşim boşluğu ve güvenlik payları (isterler 17). Boş pay "tanımlanmadı" demektir; sıfır sayılmaz.

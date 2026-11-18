@@ -49,6 +49,10 @@ public sealed class YuklemePlaniKaydetCommandValidator : AbstractValidator<Yukle
             .NotNull().WithMessage(YuklemePlaniKurali.MevcutAraclarMesaji)
             .Must(YuklemePlaniKurali.MevcutAraclarGecerli).WithMessage(YuklemePlaniKurali.MevcutAraclarMesaji)
             .When(x => x.Ayarlar != null);
+        RuleFor(x => x.Ayarlar.TipIdleri).Cascade(CascadeMode.Stop)
+            .NotNull().WithMessage(YuklemePlaniKurali.TipSecimiMesaji)
+            .Must(YuklemePlaniKurali.TipIdleriGecerli).WithMessage(YuklemePlaniKurali.TipSecimiMesaji)
+            .When(x => x.Ayarlar != null);
         RuleFor(x => x.Ayarlar).Cascade(CascadeMode.Stop).NotNull().WithMessage("Plan ayarları eksik.").Must(YuklemePlaniKurali.AyarlarGecerli)
             .WithMessage($"Yerleşim boşluğu 0–{YuklemePlaniKurali.YerlesimBosluguEnFazlaMm} mm, güvenlik payları boş ya da 0–{YuklemePlaniKurali.GuvenlikPayiEnFazlaMm} mm, ağırlık payı boş ya da 0–{YuklemePlaniKurali.AgirlikPayiEnFazlaKg} kg, ağırlık merkezi sapma sınırı boş ya da %1–{YuklemePlaniKurali.AgirlikMerkeziSapmaEnFazlaYuzde} olmalıdır.");
         RuleFor(x => x.SandikYukleri).Cascade(CascadeMode.Stop).NotNull().WithMessage("Sandık yük listesi eksik.")

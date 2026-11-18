@@ -16,7 +16,8 @@ namespace _3K.Application.Tests;
 /// <c>uygulandi/2026-11/20261112_01_Saha_Iptal_Proje_Sevk_Durumu.sql</c>; 30 <c>bekleyen/20261105_01_Yuk_Turu.sql</c>,
 /// 31 <c>bekleyen/20261105_02_Yukleme_Planlama.sql</c>, 32 <c>bekleyen/20261105_03_Yukleme_Yerlesim.sql</c>,
 /// 33 <c>bekleyen/20261109_01_Arac_Yukleme.sql</c>, 35
-/// <c>bekleyen/20261117_01_Saha_Kapanis_Proje_Sevk_Durumu.sql</c>) önceki sürümün şemasında çalıştırılır. Sonuç şeması EF modeliyle
+/// <c>bekleyen/20261117_01_Saha_Kapanis_Proje_Sevk_Durumu.sql</c>, 36 <c>bekleyen/20261119_01_Yukleme_Arac_Aileleri.sql</c>)
+/// önceki sürümün şemasında çalıştırılır. Sonuç şeması EF modeliyle
 /// aynıdır (kolon, kısıt, ON DELETE kuralı, indeks). Betiklerin tekrarı hiçbir şeyi değiştirmez: var olan taşıma izi ve
 /// verilmiş izinler korunur. Salt okunur durum sorgusu (<c>kontrol/Betik_Durumu.sql</c>) klasördeki her betiği listeler
 /// ve öncesini/sonrasını doğru gösterir. 1–20 numaralı betikler canlıya uygulanıp depodan kaldırıldığı için burada yoktur.
@@ -27,7 +28,10 @@ public sealed class CanliyaAlimBetikleriTests
     private static readonly string[] YuklemeBetikleri =
         ["20261105_01_Yuk_Turu", "20261105_02_Yukleme_Planlama", "20261105_03_Yukleme_Yerlesim", "20261109_01_Arac_Yukleme"];
 
-    /// <summary>Canlıda çalıştırma sırası (scripts/database/README.md, sıra 22–29, 34, 30–33 ve 35).</summary>
+    /// <summary>36: araç aileleri ve tip sadelik sırası (35'ten sonra, ad sırasıyla).</summary>
+    private const string AracAileleriBetigi = "20261119_01_Yukleme_Arac_Aileleri";
+
+    /// <summary>Canlıda çalıştırma sırası (scripts/database/README.md, sıra 22–29, 34, 30–33, 35 ve 36).</summary>
     private static readonly string[] Betikler =
         [.. new[]
         {
@@ -36,11 +40,11 @@ public sealed class CanliyaAlimBetikleriTests
             "20261024_02_Barkod_Urun_Arama_Yetkisi", "20261024_03_Sandik_Acilis_Kapanis_Gecmisi",
             "20261025_01_Giris_Kilidi", "20261026_01_Barkod_Etiket_Yetkisi"
         }.Select(ad => $"uygulandi/2026-10/{ad}.sql"), $"uygulandi/2026-11/{VeriOnarimBetigi}.sql",
-        .. YuklemeBetikleri.Select(ad => $"bekleyen/{ad}.sql"), $"bekleyen/{VeriOnarimBetigi35}.sql"];
+        .. YuklemeBetikleri.Select(ad => $"bekleyen/{ad}.sql"), $"bekleyen/{VeriOnarimBetigi35}.sql", $"bekleyen/{AracAileleriBetigi}.sql"];
 
     /// <summary>Kayıt bloğu taşıyan betikler, ad sırasıyla (kayıt tablosu da ada göre okunur).</summary>
     private static readonly string[] KayitYazanlar =
-        [.. YuklemeBetikleri.Append(VeriOnarimBetigi).Append(VeriOnarimBetigi35).Order(StringComparer.Ordinal)];
+        [.. YuklemeBetikleri.Append(VeriOnarimBetigi).Append(VeriOnarimBetigi35).Append(AracAileleriBetigi).Order(StringComparer.Ordinal)];
 
     private static bool KayitYazar(string betik) => KayitYazanlar.Contains(betik);
 
@@ -151,7 +155,7 @@ public sealed class CanliyaAlimBetikleriTests
                 await CalistirAsync(db, betik);
 
             Assert.All(await BetikDurumuAsync(db), x => Assert.Equal("uygulanmış", x.Value));
-            // Betik kaydı: 30–35 kendi satırını yazar (kaynak "kayıt"); kayıt bloğundan önceki 22–29 izden tanınır.
+            // Betik kaydı: 30–36 kendi satırını yazar (kaynak "kayıt"); kayıt bloğundan önceki 22–29 izden tanınır.
             var kayitlar = await BetikKayitlariAsync(db);
             Assert.Equal(KayitYazanlar, kayitlar.Keys);
             Assert.All(await BetikKaynagiAsync(db), x => Assert.Equal(KayitYazar(x.Key) ? "kayıt" : "iz", x.Value));
@@ -204,7 +208,14 @@ public sealed class CanliyaAlimBetikleriTests
             Assert.True(yukleme.Dugumler[0].Sira > (await db.MenuTanimlari.AsNoTracking()
                 .Where(m => m.ParentId == null && m.Id != 5263).MaxAsync(m => m.Sira)));
             Assert.All(yukleme.Izinler, x => Assert.Equal([(SistemRolleri.AdminId, (int)YetkiTipi.W)], x));
-            Assert.Equal((7, 37, 3, 17, MevzuatKuralSetiDurumu.Taslak), yukleme.Tohumlar);
+            Assert.Equal((8, 37, 3, 17, MevzuatKuralSetiDurumu.Taslak), yukleme.Tohumlar);
+            // 36: lowbed ve ağır yük tipleri kendi ailesinde; tohum tiplerin sadelik sırası EF tohumuyla aynı.
+            var tipler = await db.EkipmanTipleri.AsNoTracking().OrderBy(t => t.Id)
+                .Select(t => new { t.Id, t.AileId, t.OtomatikSecimSirasi }).ToListAsync();
+            Assert.Equal(EkipmanTohumu.Tipler.Select(t => (t.Id, t.AileId, t.OtomatikSecimSirasi)),
+                tipler.Select(t => (t.Id, t.AileId, t.OtomatikSecimSirasi)));
+            Assert.Equal(EkipmanTohumu.Aileler.OrderBy(a => a.Id).Select(a => (a.Id, a.Ad, a.Sira)),
+                (await db.EkipmanAileleri.AsNoTracking().OrderBy(a => a.Id).Select(a => new { a.Id, a.Ad, a.Sira }).ToListAsync()).Select(a => (a.Id, a.Ad, a.Sira)));
             var sema = await SemaAsync(db);
             var fark = modelSemasi.Except(sema).Select(x => "eksik: " + x).Concat(sema.Except(modelSemasi).Select(x => "fazla: " + x)).ToList();
             Assert.True(fark.Count == 0, string.Join(Environment.NewLine, fark));
@@ -221,6 +232,9 @@ public sealed class CanliyaAlimBetikleriTests
             var elleTarih = new DateTime(2026, 9, 30, 12, 0, 0);
             await db.Database.ExecuteSqlAsync(
                 $"""UPDATE "Sandiklar" SET "KapanmaTarihi" = {elleTarih} WHERE "Id" IN ({gecmis.KapaliSandikId}, {gecmis.AcikSandikId})""");
+            // 36: elle değiştirilen tip sadelik sırası ve aile sırası tekrar çalıştırmada korunur.
+            await db.Database.ExecuteSqlRawAsync("""UPDATE "EkipmanTipleri" SET "OtomatikSecimSirasi" = 9 WHERE "Kod" = 'k40-hc'""");
+            await db.Database.ExecuteSqlRawAsync("""UPDATE "EkipmanAileleri" SET "Sira" = 20 WHERE "Kod" = 'tenteli'""");
             // 28: tekrar çalıştırma var olan sayaç ve kilide dokunmaz.
             var kilit = new DateTime(2026, 10, 25, 9, 30, 0);
             await db.Database.ExecuteSqlAsync(
@@ -228,6 +242,8 @@ public sealed class CanliyaAlimBetikleriTests
             foreach (var betik in Betikler)
                 await CalistirAsync(db, betik);
             Assert.Equal((3, (DateTime?)kilit), await GirisKilidiAsync(db, gecmis.KullaniciId));
+            Assert.Equal(9, (await db.EkipmanTipleri.AsNoTracking().SingleAsync(t => t.Kod == "k40-hc")).OtomatikSecimSirasi);
+            Assert.Equal(20, (await db.EkipmanAileleri.AsNoTracking().SingleAsync(a => a.Kod == "tenteli")).Sira);
             Assert.Null((await db.MenuTanimlari.AsNoTracking().SingleAsync(m => m.Kod == YetkiKodlari.Sandik.GridSahaGorunumu)).Route);
             Assert.Null((await db.MenuTanimlari.AsNoTracking().SingleAsync(m => m.Kod == YetkiKodlari.Sandik.BarkodUrunArama)).Route);
 

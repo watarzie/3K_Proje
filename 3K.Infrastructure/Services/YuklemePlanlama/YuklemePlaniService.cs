@@ -44,14 +44,20 @@ internal sealed partial class YuklemePlaniService(AppDbContext context, IUnitOfW
     {
         var aileler = await context.EkipmanAileleri.AsNoTracking()
             .OrderBy(a => a.Sira)
-            .Select(a => new { a.Id, a.Ad, Kategoriler = a.Tipler.Where(t => t.Aktif).Select(t => t.Kategori).ToList() })
+            .Select(a => new { a.Id, a.Ad })
             .ToListAsync(cancellationToken);
+        var tipler = (await context.EkipmanTipleri.AsNoTracking()
+                .Where(t => t.Aktif)
+                .OrderBy(t => t.OtomatikSecimSirasi == null).ThenBy(t => t.OtomatikSecimSirasi).ThenBy(t => t.Sira)
+                .Select(t => new { t.Id, t.AileId, t.Ad, t.Kategori, t.OtomatikSecimSirasi })
+                .ToListAsync(cancellationToken))
+            .Where(t => EkipmanKategoriKurali.SandikTasimayaUygunMu(t.Kategori))
+            .ToList();
+        var uygunAileler = tipler.Select(t => t.AileId).ToHashSet();
         return new YuklemePlaniTanimlari
         {
-            TasimaAileleri = aileler
-                .Where(a => a.Kategoriler.Any(EkipmanKategoriKurali.SandikTasimayaUygunMu))
-                .Select(a => new SecimOgesi(a.Id, a.Ad))
-                .ToList(),
+            TasimaAileleri = aileler.Where(a => uygunAileler.Contains(a.Id)).Select(a => new SecimOgesi(a.Id, a.Ad)).ToList(),
+            TasimaTipleri = tipler.Select(t => new TasimaTipi(t.Id, t.AileId, t.Ad, t.OtomatikSecimSirasi != null)).ToList(),
             YukTurleri = await context.LookupYukTurleri.AsNoTracking()
                 .OrderBy(t => t.Id).Select(t => new SecimOgesi(t.Id, t.Deger)).ToListAsync(cancellationToken),
             Lokasyonlar = await context.LookupDepoLokasyonlari.AsNoTracking()
@@ -220,6 +226,7 @@ internal sealed partial class YuklemePlaniService(AppDbContext context, IUnitOfW
         if (plan.TasimaAilesiId != model.TasimaAilesiId)
             await AileyiDenetleAsync(model.TasimaAilesiId, cancellationToken);
         await MevcutAraclariDenetleAsync(model.Ayarlar, cancellationToken);
+        await TipleriDenetleAsync(model.TasimaAilesiId, model.Ayarlar.TipIdleri, cancellationToken);
 
         var onceki = await RevizyonAsync(plan.Id, plan.SonRevizyonNo, cancellationToken);
         var projeler = await ProjeleriAsync(model.ProjeIdleri, cancellationToken);
@@ -567,6 +574,18 @@ internal sealed partial class YuklemePlaniService(AppDbContext context, IUnitOfW
         });
     }
 
+    /// <summary>Seçilen tipler planın ailesinde, aktif ve sandık taşımaya uygun olmalı.</summary>
+    private async Task TipleriDenetleAsync(int aileId, IReadOnlyList<int> tipIdleri, CancellationToken cancellationToken)
+    {
+        if (tipIdleri.Count == 0)
+            return;
+        var kategoriler = await context.EkipmanTipleri.AsNoTracking()
+            .Where(t => tipIdleri.Contains(t.Id) && t.AileId == aileId && t.Aktif)
+            .Select(t => t.Kategori).ToListAsync(cancellationToken);
+        if (kategoriler.Count != tipIdleri.Count || !kategoriler.All(EkipmanKategoriKurali.SandikTasimayaUygunMu))
+            throw new IsKuraliException(YuklemePlaniKurali.TipAileDisiMesaji);
+    }
+
     private async Task AileyiDenetleAsync(int aileId, CancellationToken cancellationToken)
     {
         var kategoriler = await context.EkipmanTipleri.AsNoTracking()
@@ -681,8 +700,8 @@ internal sealed partial class YuklemePlaniService(AppDbContext context, IUnitOfW
     private static YuklemePlanAyarlari Ayarlar(YuklemePlanRevizyonu revizyon)
     {
         var ayarlar = JsonSerializer.Deserialize<YuklemePlanAyarlari>(revizyon.AyarlarJson, AyarJsonu) ?? new YuklemePlanAyarlari();
-        // JSON'da açık null gelen liste boş sayılır (alan Faz 2'de eklendi).
-        return ayarlar.MevcutAraclar is null ? ayarlar with { MevcutAraclar = [] } : ayarlar;
+        // JSON'da olmayan ya da açık null gelen liste boş sayılır (MevcutAraclar Faz 2'de, TipIdleri 19.11.2026'da eklendi).
+        return ayarlar with { MevcutAraclar = ayarlar.MevcutAraclar ?? [], TipIdleri = ayarlar.TipIdleri ?? [] };
     }
 
     private static string OlcuMetni(decimal? boy, decimal? en, decimal? yukseklik) =>

@@ -28,6 +28,13 @@ public class EkipmanTipi : BaseEntity
     public int Sira { get; set; }
     public bool Aktif { get; set; } = true;
 
+    /// <summary>
+    /// Otomatik yerleşimdeki sadelik sırası (küçük = sade; ör. standart konteyner 1, High Cube 2, Hardtop 3, Open Top 4).
+    /// Her yük kendisini alan en sade tipe gider. Boşsa tip yalnız kullanıcı planda açıkça seçince kullanılır (Reefer,
+    /// Pallet Wide, frigo); yeni eklenen tip de sırası verilene kadar böyledir.
+    /// </summary>
+    public int? OtomatikSecimSirasi { get; set; }
+
     public virtual EkipmanAilesi Aile { get; set; } = null!;
 }
 

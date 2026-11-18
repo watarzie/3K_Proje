@@ -101,7 +101,7 @@ internal sealed partial class YuklemePlaniService
         var izinliDisarida = Ayarlar(revizyon).MevcutAraclar.Select(m => m.KonfigurasyonId)
             .Concat(YerlesimSerilestirici.Oku(revizyon.YerlesimJson)?.Araclar.Select(a => a.KonfigurasyonId) ?? [])
             .Distinct().ToList();
-        return await AdaylarAsync(plan.TasimaAilesiId, izinliDisarida, cancellationToken);
+        return await AdaylarAsync(plan.TasimaAilesiId, Ayarlar(revizyon).TipIdleri, izinliDisarida, cancellationToken);
     }
 
     /// <summary>

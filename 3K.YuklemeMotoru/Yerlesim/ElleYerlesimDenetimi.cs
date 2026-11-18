@@ -79,10 +79,30 @@ public static class ElleYerlesimDenetimi
                 sorunlar.Add(new(y.Yuk.Anahtar, KontrolSonucu.Uygunsuz,
                     $"Yanlış ekipman: {y.Yuk.Kod} {(y.Yuk.YukTuruAdi ?? "özel yük").ToLower(Tr)} uygun lowbed / özel yük ekipmanı gerektirir", KontrolTuru.ElleYerlesim));
 
-            var zorunlu = yerler.Any(y => y.Yuk.Zorunluluk == OzelEkipmanZorunlulugu.Her) && aday.OzelYukEkipmani;
-            var gerekce = aday.AileIci ? null
-                : zorunlu ? $"Zorunlu özel ekipman: {string.Join(", ", yerler.Where(y => y.Yuk.Zorunluluk == OzelEkipmanZorunlulugu.Her).Select(y => y.Yuk.Kod))} için {aday.Kod} (elle)."
-                : $"Aile dışı ekipman elle eklendi: {aday.Kod}.";
+            // Gerekçe otomatik yerleşimle aynı ölçütle kurulur: zorunlu özel yük, aileye sığmayan yük, seçilen tiplere sığmayan yük.
+            var aileAdaylari = YerlesimMotoru.AileAdaylari(girdi);
+            bool Sigmaz(YerlesimYuku yuk, IEnumerable<EkipmanAdayi> adaylar) =>
+                adaylar.All(a => AracYerlesimi.SigmamaNedeni(a, girdi.Ayarlar, girdi.Yasal, yuk) != null);
+            var zorunluYukler = yerler.Where(y => y.Yuk.Zorunluluk == OzelEkipmanZorunlulugu.Her).Select(y => y.Yuk.Kod).ToList();
+            var aileyeSigmayanlar = aday.OzelYukEkipmani && !aday.AileIci && aileAdaylari.Count > 0
+                ? yerler.Where(y => y.Yuk.Zorunluluk != OzelEkipmanZorunlulugu.Her && Sigmaz(y.Yuk, aileAdaylari)).Select(y => y.Yuk.Kod).ToList()
+                : [];
+            var zorunlu = aday.OzelYukEkipmani && (zorunluYukler.Count > 0 || aileyeSigmayanlar.Count > 0);
+            string? gerekce;
+            if (aday.AileIci)
+            {
+                var yedekGerektiren = aday.Yedek
+                    ? yerler.Where(y => Sigmaz(y.Yuk, aileAdaylari.Where(a => !a.Yedek))).Select(y => y.Yuk.Kod).ToList()
+                    : [];
+                gerekce = !aday.Yedek ? null
+                    : yedekGerektiren.Count > 0 ? YerlesimMotoru.YedekGerekce(aday, yedekGerektiren)
+                    : $"Seçilen tipler dışındaki {aday.Kod} ({aday.TipAdi}) elle eklendi.";
+            }
+            else
+                gerekce = zorunluYukler.Count > 0
+                    ? $"Zorunlu özel ekipman: {string.Join(", ", zorunluYukler)} için {aday.Kod} (elle)."
+                    : aileyeSigmayanlar.Count > 0 ? YerlesimMotoru.AileyeSigmayanGerekce(aday, girdi.AileAdi, aileyeSigmayanlar)
+                    : $"Aile dışı ekipman elle eklendi: {aday.Kod}.";
             var sonuc = AracKontrolcu.Olustur(sonuclar.Count + 1, arac, girdi.Ayarlar, girdi.Yasal, gerekce, zorunlu, ortala: false);
 
             var ekKontroller = new List<AracKontrolu> { Organizasyon(girdi, yerler) };

@@ -27,6 +27,46 @@ namespace _3K.Application.Tests;
 public sealed class YuklemePlanlamaTests
 {
     /// <summary>Kabul 17: ölçüsü veya ağırlığı eksik, sıfır ya da geçersiz yük hesaplanmaz; mesaj satırda gösterilir.</summary>
+    /// <summary>
+    /// Araç tipi kademesi (saha geri bildirimi 19.11.2026 madde 1, 3): tip seçilmemişse sadelik sırası olan tipler
+    /// kullanılır; seçilmişse yalnız seçilenler (sırası boş olan seçilmiş tip de), seçilmeyenler yedektir.
+    /// </summary>
+    [Theory]
+    [InlineData(new int[0], 3, 2, 2, false)]
+    [InlineData(new int[0], 12, null, null, false)]
+    [InlineData(new[] { 3 }, 3, 2, 2, false)]
+    [InlineData(new[] { 12 }, 12, null, 1, false)]
+    [InlineData(new[] { 3 }, 7, 4, 4, true)]
+    [InlineData(new[] { 3 }, 12, null, null, true)]
+    public void AracTipiKademesi_SecimeGore(int[] secili, int tipId, int? sira, int? beklenenKademe, bool beklenenYedek) =>
+        Assert.Equal((beklenenKademe, beklenenYedek), YuklemePlaniKurali.AracTipiKademesi(tipId, sira, secili));
+
+    [Fact]
+    public void TipSecimi_TekrarsizVeSinirli()
+    {
+        Assert.True(YuklemePlaniKurali.TipIdleriGecerli([]));
+        Assert.True(YuklemePlaniKurali.TipIdleriGecerli([3, 7]));
+        Assert.False(YuklemePlaniKurali.TipIdleriGecerli([3, 3]));
+        Assert.False(YuklemePlaniKurali.TipIdleriGecerli([0]));
+        Assert.False(YuklemePlaniKurali.TipIdleriGecerli(Enumerable.Range(1, YuklemePlaniKurali.TipSecimiEnFazla + 1).ToList()));
+    }
+
+    /// <summary>Tohum: lowbed ve ağır yük tipleri kendi ailesinde; Reefer, Pallet Wide ve frigo yalnız seçilince gelir.</summary>
+    [Fact]
+    public void Tohum_LowbedAyriAilede_OzelKonteynerlerOtomatikGelmez()
+    {
+        var tipler = EkipmanTohumu.Tipler.ToDictionary(t => t.Kod);
+        Assert.All(["lowbed", "low-loader", "uzamali-agir-yuk", "havuzlu", "hidrolik-dumenli", "moduler"],
+            kod => Assert.Equal(EkipmanTohumu.LowbedAilesiId, tipler[kod].AileId));
+        Assert.DoesNotContain(EkipmanTohumu.Tipler, t => t.AileId == 2 && EkipmanKategoriKurali.OzelYukEkipmaniMi(t.Kategori));
+        Assert.All(["k20-rf", "k40-rf", "k45-pw", "frigo"], kod => Assert.Null(tipler[kod].OtomatikSecimSirasi));
+        Assert.True(tipler["k40-dv"].OtomatikSecimSirasi < tipler["k40-hc"].OtomatikSecimSirasi);
+        Assert.True(tipler["k40-hc"].OtomatikSecimSirasi < tipler["k40-ht"].OtomatikSecimSirasi);
+        Assert.True(tipler["k40-ht"].OtomatikSecimSirasi < tipler["k40-ot"].OtomatikSecimSirasi);
+        Assert.True(tipler["k40-ot"].OtomatikSecimSirasi < tipler["k40-fr"].OtomatikSecimSirasi);
+        Assert.True(tipler["k40-fr"].OtomatikSecimSirasi < tipler["k40-pl"].OtomatikSecimSirasi);
+    }
+
     [Fact]
     public void VeriKurali_EksikSifirVeGecersizHesaplanmaz_MesajlarIsterlerdekiGibi()
     {

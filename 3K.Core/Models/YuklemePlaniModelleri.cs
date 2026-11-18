@@ -346,13 +346,23 @@ public sealed class PlanProjeAdayi
     public int SevkEdilmisSandikSayisi { get; init; }
 }
 
-/// <summary>Plan ekranının seçim listeleri: taşıma aileleri (sandık taşımaya uygun tipi olanlar), yük türleri, lokasyonlar.</summary>
+/// <summary>
+/// Plan ekranının seçim listeleri: taşıma aileleri (sandık taşımaya uygun tipi olanlar) ve bu ailelerin sandık taşımaya
+/// uygun aktif tipleri (iki kademeli seçim: önce aile, sonra tip), yük türleri, lokasyonlar.
+/// </summary>
 public sealed class YuklemePlaniTanimlari
 {
     public IReadOnlyList<SecimOgesi> TasimaAileleri { get; init; } = [];
+    public IReadOnlyList<TasimaTipi> TasimaTipleri { get; init; } = [];
     public IReadOnlyList<SecimOgesi> YukTurleri { get; init; } = [];
     public IReadOnlyList<SecimOgesi> Lokasyonlar { get; init; } = [];
 }
 
 /// <summary>Kimlik ve görünen ad.</summary>
 public sealed record SecimOgesi(int Id, string Ad);
+
+/// <summary>
+/// Taşıma ailesinin tipi. <see cref="OtomatikSecilir"/>: tip seçilmeyen planda da kullanılır (sadelik sırası var);
+/// değilse (Reefer, Pallet Wide, frigo) yalnız açıkça seçilince.
+/// </summary>
+public sealed record TasimaTipi(int Id, int AileId, string Ad, bool OtomatikSecilir);

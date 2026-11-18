@@ -7,7 +7,8 @@ namespace _3K.Infrastructure.Data;
 
 /// <summary>
 /// Yükleme Simülasyonu ve Araç Planlama: ekipman kitaplığı, mevzuat kural setleri ve yükleme planı eşlemeleri
-/// (20261105_02_Yukleme_Planlama.sql aynı şemayı kurar).
+/// (20261105_02_Yukleme_Planlama.sql aynı şemayı kurar; 20261119_01_Yukleme_Arac_Aileleri.sql tip sadelik sırasını ve
+/// Lowbed / ağır yük ailesini ekler).
 /// </summary>
 internal static class YuklemeModelBuilderExtensions
 {
@@ -23,7 +24,8 @@ internal static class YuklemeModelBuilderExtensions
 
         modelBuilder.Entity<EkipmanTipi>(e =>
         {
-            e.ToTable("EkipmanTipleri");
+            e.ToTable("EkipmanTipleri", table => table.HasCheckConstraint(
+                "CK_EkipmanTipleri_OtomatikSecimSirasi", "\"OtomatikSecimSirasi\" IS NULL OR \"OtomatikSecimSirasi\" > 0"));
             e.Property(p => p.Kod).HasMaxLength(EkipmanKitapligiKurali.KodEnFazla).IsRequired();
             e.Property(p => p.Ad).HasMaxLength(EkipmanKitapligiKurali.AdEnFazla).IsRequired();
             e.Property(p => p.Kategori).HasConversion<short>();
@@ -292,27 +294,36 @@ internal static class YuklemeModelBuilderExtensions
     {
         var tarih = new DateTime(2026, 11, 5);
         modelBuilder.Entity<EkipmanAilesi>().HasData(EkipmanTohumu.Aileler.Select(a =>
-            new EkipmanAilesi { Id = a.Id, Kod = a.Kod, Ad = a.Ad, Sira = a.Id, CreatedDate = tarih }));
+            new EkipmanAilesi { Id = a.Id, Kod = a.Kod, Ad = a.Ad, Sira = a.Sira, CreatedDate = tarih }));
         modelBuilder.Entity<EkipmanTipi>().HasData(EkipmanTohumu.Tipler.Select((t, i) =>
-            new EkipmanTipi { Id = t.Id, AileId = t.AileId, Kod = t.Kod, Ad = t.Ad, Kategori = t.Kategori, Sira = i + 1, Aktif = true, CreatedDate = tarih }));
+            new EkipmanTipi
+            {
+                Id = t.Id, AileId = t.AileId, Kod = t.Kod, Ad = t.Ad, Kategori = t.Kategori, Sira = i + 1, Aktif = true,
+                OtomatikSecimSirasi = t.OtomatikSecimSirasi, CreatedDate = tarih
+            }));
     }
 }
 
-/// <summary>Tohum aileler ve tipler; betik (20261105_02) aynı kimlik ve kodları yazar.</summary>
+/// <summary>
+/// Tohum aileler ve tipler; betikler (20261105_02 kurar, 20261119_01 lowbed ailesini ayırır ve sadelik sırasını yazar) aynı
+/// kimlik, kod ve değerleri yazar. Lowbed ve ağır yük tipleri kendi ailesindedir (saha geri bildirimi 19.11.2026 madde 3):
+/// standart açık kasa seçilince lowbed gelmez.
+/// </summary>
 internal static class EkipmanTohumu
 {
-    public static readonly (int Id, string Kod, string Ad)[] Aileler =
+    public static readonly (int Id, string Kod, string Ad, int Sira)[] Aileler =
     [
-        (1, "konteyner", "Konteyner"),
-        (2, "acik-platform", "Açık kasa / açık platform / lowbed"),
-        (3, "tenteli", "Tenteli"),
-        (4, "kapali-kasa", "Kapalı kasa / frigo"),
-        (5, "konteyner-sasisi", "Konteyner şasisi"),
-        (6, "dokme-tanker", "Damper / hareketli taban / silobas / tanker"),
-        (7, "diger", "Diğer özel amaçlı")
+        (1, "konteyner", "Konteyner", 1),
+        (2, "acik-platform", "Standart açık kasa / platform", 2),
+        (8, "lowbed-agir-yuk", "Lowbed / ağır yük", 3),
+        (3, "tenteli", "Tenteli", 4),
+        (4, "kapali-kasa", "Kapalı kasa / frigo", 5),
+        (5, "konteyner-sasisi", "Konteyner şasisi", 6),
+        (6, "dokme-tanker", "Damper / hareketli taban / silobas / tanker", 7),
+        (7, "diger", "Diğer özel amaçlı", 8)
     ];
 
-    public static readonly (int Id, int AileId, string Kod, string Ad, EkipmanKategorisi Kategori)[] Tipler =
+    private static readonly (int Id, int AileId, string Kod, string Ad, EkipmanKategorisi Kategori)[] TipTanimlari =
     [
         (1, 1, "k20-dv", "20' standart (DV)", EkipmanKategorisi.KapaliKonteyner),
         (2, 1, "k40-dv", "40' standart (DV)", EkipmanKategorisi.KapaliKonteyner),
@@ -352,4 +363,28 @@ internal static class EkipmanTohumu
         (36, 6, "tanker", "Tanker", EkipmanKategorisi.Tanker),
         (37, 7, "diger-ozel", "Diğer özel amaçlı taşıyıcı", EkipmanKategorisi.Diger)
     ];
+
+    /// <summary>
+    /// Otomatik yerleşimdeki sadelik sırası (EkipmanTipi.OtomatikSecimSirasi). Listede olmayan tip yalnız açıkça seçilince
+    /// kullanılır (Reefer, Pallet Wide, frigo, modüler, diğer).
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, int> OtomatikSecimSiralari = new Dictionary<string, int>
+    {
+        ["k20-dv"] = 1, ["k40-dv"] = 1, ["k40-hc"] = 2, ["k45-hc"] = 2, ["k20-ht"] = 3, ["k40-ht"] = 3,
+        ["k20-ot"] = 4, ["k40-ot"] = 4, ["k20-fr"] = 5, ["k40-fr"] = 5, ["k20-pl"] = 6, ["k40-pl"] = 6,
+        ["acik-kasa"] = 1, ["kapakli-acik-kasa"] = 1, ["sal-platform"] = 2, ["uzamali-platform"] = 3,
+        ["lowbed"] = 1, ["low-loader"] = 1, ["uzamali-agir-yuk"] = 2, ["havuzlu"] = 2, ["hidrolik-dumenli"] = 3,
+        ["tenteli-standart"] = 1, ["tenteli-mega"] = 2, ["tenteli-jumbo"] = 2,
+        ["kapali-kasa"] = 1
+    };
+
+    /// <summary>Lowbed ve ağır yük tiplerinin ailesi (20261119_01 bu tipleri 2'den 8'e taşır).</summary>
+    public const int LowbedAilesiId = 8;
+
+    private static readonly HashSet<string> LowbedAilesiTipleri =
+        ["lowbed", "low-loader", "uzamali-agir-yuk", "havuzlu", "hidrolik-dumenli", "moduler"];
+
+    public static readonly (int Id, int AileId, string Kod, string Ad, EkipmanKategorisi Kategori, int? OtomatikSecimSirasi)[] Tipler =
+        TipTanimlari.Select(t => (t.Id, LowbedAilesiTipleri.Contains(t.Kod) ? LowbedAilesiId : t.AileId, t.Kod, t.Ad, t.Kategori,
+            OtomatikSecimSiralari.TryGetValue(t.Kod, out var sira) ? (int?)sira : null)).ToArray();
 }
