@@ -23,6 +23,8 @@
 -- güncellenir (saha_iptal_* CTE'leri). 34 canlıda 11.11.2026'da kayıt bloğundan önceki sürümüyle çalıştı (kaynak "iz").
 -- 35 numaralı betik veri onarımıdır (S-27 genişlemesi): sahada Grid İptal ya da Grid Kapandı ile kapanacak normal proje ve
 -- bütün sandıkları sevkli Eksik Sevk Edildi saha/yedek proje kalmadıysa uygulanmış görünür (saha_kapanis_onarilacak).
+-- 36 numaralı betik veri onarımıdır: sayaçları boş eski geri gönderim satırı (canlı Id 34371) onarılmış ya da durumu
+-- değişmişse uygulanmış görünür (geri_gonderim_onarilacak; seçim betiktekiyle aynıdır).
 -- Yeni betik eklenince buraya satır eklenir (CanliyaAlimBetikleriTests dosya listesiyle karşılaştırır); betiğin sonunda
 -- README'deki "Betik kaydı" bloğu bulunur. İz satırı yine yazılır: kayıt bloğundan önce elle uygulanmış veritabanı için.
 -- =====================================================================================
@@ -100,7 +102,17 @@ saha_kapanis_onarilacak AS (
     SELECT p."Id" FROM "Projeler" p
     WHERE p."ProjeTipiId" IN (2, 3) AND p."DurumId" = 6
       AND EXISTS (SELECT 1 FROM "Sandiklar" s WHERE s."ProjeId" = p."Id")
-      AND NOT EXISTS (SELECT 1 FROM "Sandiklar" s WHERE s."ProjeId" = p."Id" AND (s."DurumId" <> 4 OR s."SevkiyatDuzeltmeAcikMi")))
+      AND NOT EXISTS (SELECT 1 FROM "Sandiklar" s WHERE s."ProjeId" = p."Id" AND (s."DurumId" <> 4 OR s."SevkiyatDuzeltmeAcikMi"))),
+-- 36: sayaçları boş eski geri gönderim (yalnız canlı Id 34371).
+geri_gonderim_onarilacak AS (
+    SELECT cs."Id" FROM "CekiSatirlari" cs
+    WHERE cs."Id" = 34371 AND cs."UcKDurumuId" = 12 AND cs."GridSevkDurumuId" = 4
+      AND cs."YenidenSevkGerekliAdet" > 0 AND COALESCE(cs."GridSevkMiktari", 0) > 0
+      AND cs."AktifGridSevkKarsilananMiktari" IS NULL AND cs."AktifGridSevkPartisiErkenSonuclandirildiMi" IS NULL
+      AND NOT EXISTS (SELECT 1 FROM "SandikIcerikleri" si
+                      WHERE si."CekiSatiriId" = cs."Id" AND si."AktifGridSevkKarsilananMiktari" IS NOT NULL)
+      AND NOT EXISTS (SELECT 1 FROM "SandikIcerikleri" si JOIN "Sandiklar" s ON s."Id" = si."SandikId"
+                      WHERE si."CekiSatiriId" = cs."Id" AND s."DurumId" = 4))
 SELECT t.sira, t.betik,
        CASE WHEN k.ad IS NOT NULL THEN 'uygulanmış'
             WHEN t.uygulandi IS NULL THEN 'tespit edilemez'
@@ -124,7 +136,8 @@ FROM (VALUES
                                                     AND EXISTS (SELECT 1 FROM kolon WHERE tablo = 'Kullanicilar' AND ad = 'GirisKilitBitisTarihi')),
     (29, '20261026_01_Barkod_Etiket_Yetkisi',       EXISTS (SELECT 1 FROM "MenuTanimlari" WHERE "Kod" = 'barkod-etiket')),
     (34, '20261112_01_Saha_Iptal_Proje_Sevk_Durumu', NOT EXISTS (SELECT 1 FROM saha_iptal_onarilacak)),
-    (35, '20261117_01_Saha_Kapanis_Proje_Sevk_Durumu', NOT EXISTS (SELECT 1 FROM saha_kapanis_onarilacak))
+    (35, '20261117_01_Saha_Kapanis_Proje_Sevk_Durumu', NOT EXISTS (SELECT 1 FROM saha_kapanis_onarilacak)),
+    (36, '20261119_01_Geri_Gonderim_Sevk_Partisi_Sayaci', NOT EXISTS (SELECT 1 FROM geri_gonderim_onarilacak))
 ) AS t(sira, betik, uygulandi)
 LEFT JOIN kayit k ON k.ad = t.betik
 ORDER BY t.sira;
