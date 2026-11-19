@@ -8,9 +8,12 @@ namespace _3K.Core.Interfaces;
 /// </summary>
 public interface IYuklemePlaniRaporOlusturucu
 {
-    /// <summary>Araç talep ve planlama raporu: araç tipleri ve adetleri, zorunlu özel ekipman ve gerekçesi, uyarılar.</summary>
+    /// <summary>Araç talep formu: depoya gereken araç tipleri ve adetleri; özel araç gerekçesi ve atanamayan yükler.</summary>
     byte[] AracTalepRaporu(YuklemePlaniDetayi plan, DateTime raporTarihi);
 
-    /// <summary>Araç bazlı yükleme planı: her araç için görünümler, yük listesi, yükleme sırası, kontroller.</summary>
+    /// <summary>
+    /// Araç bazlı yükleme planı: her araç çizimleri ve sandık numaralı yük listesiyle aynı sayfada (yükleme adımı sırası);
+    /// sayfaya sığmayan liste sonraki sayfada iki sütunla sürer.
+    /// </summary>
     byte[] YuklemePlaniRaporu(YuklemePlaniDetayi plan, DateTime raporTarihi);
 }

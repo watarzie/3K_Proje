@@ -11,8 +11,9 @@ public sealed record YuklemeAdimi(int AdimNo, int YuklemeSirasi, IReadOnlyList<Y
 
 /// <summary>
 /// Araç içi yükleme sırası (Simülasyon isterleri 14, 16): yükler yükleme sırasına, aynı sırada kata göre dizilir; bu
-/// listedeki konum yükün numarasıdır ("No"). Adım, aynı yükleme sırasını paylaşan yüklerdir. Rapor bu kuralı kullanır;
-/// plan ekranındaki 3B adım adım oynatma aynı numarayı ve adımı ön yüzdeki aynasıyla (yukleme-adimlari.ts) üretir.
+/// listedeki konum yükün numarasıdır ("No"). Adım, aynı yükleme sırasını paylaşan yüklerdir. Rapor bu kuralla yükleri
+/// dizer ve adım numarasını "Sıra" olarak basar (yük sandık numarasıyla yazılır); plan ekranındaki 3B adım adım oynatma
+/// ve saha ekranı aynı adımı ön yüzdeki aynasıyla (yukleme-adimlari.ts) üretir.
 /// </summary>
 public static class YuklemeSirasiKurali
 {

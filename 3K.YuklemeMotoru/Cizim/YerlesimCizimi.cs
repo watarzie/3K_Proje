@@ -4,7 +4,7 @@ using _3K.YuklemeMotoru.Ekipman;
 
 namespace _3K.YuklemeMotoru.Cizim;
 
-/// <summary>Çizimdeki yük kutusu (ekipman koordinatları, mm). Etiket rapordaki yük listesinin numarasıdır.</summary>
+/// <summary>Çizimdeki yük kutusu (ekipman koordinatları, mm). Etiket yükün sandık numarası ya da kodudur (rapordaki yük listesiyle aynı).</summary>
 public sealed record CizimKutusu(string Etiket, int XMm, int YMm, int ZMm, int BoyMm, int EnMm, int YukseklikMm, string Renk, bool Sorunlu);
 
 /// <summary>Çizimin bakış yönü.</summary>
@@ -19,7 +19,7 @@ public enum CizimGorunumu
 /// <summary>
 /// Yerleşimin SVG çizimi (araç bazlı yükleme planı raporu, isterler 29): üstten, yandan (soldan bakış), arkadan ve
 /// izometrik. Ekipman koordinatları: X önden arkaya, Y soldan sağa, Z yerden yukarı (mm). Yükler proje rengiyle ve
-/// listedeki numarasıyla çizilir (kimlik yalnız renge bağlı değildir); uygunsuz yük kırmızıdır. Yön (ÖN/ARKA, SOL/SAĞ)
+/// sandık numarasıyla çizilir (kimlik yalnız renge bağlı değildir); uygunsuz yük kırmızıdır. Yön (ÖN/ARKA, SOL/SAĞ)
 /// ve yükleme açıklıkları işaretlenir. Bilinmeyen ekipman verisi çizilmez.
 /// </summary>
 public static class YerlesimCizimi
@@ -80,8 +80,16 @@ public static class YerlesimCizimi
         new string(metin.Where(c => !char.IsControl(c)).ToArray())
             .Replace("&", "&amp;", StringComparison.Ordinal).Replace("<", "&lt;", StringComparison.Ordinal).Replace(">", "&gt;", StringComparison.Ordinal);
 
-    /// <summary>Etiket yazı boyutu: kutunun küçük kenarına göre, okunur aralıkta.</summary>
-    private static double EtiketBoyu(double a, double b, double olcek) => Math.Clamp(Math.Min(a, b) * 0.45, olcek * 2.2, olcek * 5);
+    /// <summary>
+    /// Etiket yazı boyutu: kutunun küçük kenarına göre okunur aralıkta; uzun etiket (sandık kodu) kutunun yazı yönündeki
+    /// kenarına sığacak kadar küçülür (komşu kutunun üstüne taşmasın). Alt sınır okunurluk içindir; çok dar kutuda yazı
+    /// kenardan taşabilir.
+    /// </summary>
+    private static double EtiketBoyu(string etiket, double yaziYonu, double dik, double olcek)
+    {
+        var sigan = yaziYonu * 0.9 / (Math.Max(etiket.Length, 1) * 0.6);
+        return Math.Max(Math.Min(Math.Clamp(Math.Min(yaziYonu, dik) * 0.45, olcek * 2.2, olcek * 5), sigan), olcek * 1.0);
+    }
 
     private static string KutuDolgusu(CizimKutusu k) => k.Sorunlu ? SorunRengi : k.Renk;
 
@@ -126,7 +134,7 @@ public static class YerlesimCizimi
         foreach (var k in kutular.OrderBy(k => k.ZMm + k.YukseklikMm))
         {
             t.Dikdortgen(k.XMm, SvgY(k.YMm + k.EnMm), k.BoyMm, k.EnMm, KutuDolgusu(k), k.Sorunlu ? "#7f1d1d" : "#1e293b", c * (k.Sorunlu ? 0.5 : 0.2), 0.88);
-            t.Yazi(k.XMm + k.BoyMm / 2.0, SvgY(k.YMm + k.EnMm / 2.0), k.Etiket, EtiketBoyu(k.BoyMm, k.EnMm, c), "#ffffff");
+            t.Yazi(k.XMm + k.BoyMm / 2.0, SvgY(k.YMm + k.EnMm / 2.0), k.Etiket, EtiketBoyu(k.Etiket, k.BoyMm, k.EnMm, c), "#ffffff");
         }
 
         t.Yazi(-g * 0.09, SvgY(g / 2.0), "ÖN", c * 3.2);
@@ -168,7 +176,7 @@ public static class YerlesimCizimi
         foreach (var k in kutular.OrderByDescending(k => k.YMm))
         {
             t.Dikdortgen(k.XMm, SvgZ(k.ZMm + k.YukseklikMm), k.BoyMm, k.YukseklikMm, KutuDolgusu(k), k.Sorunlu ? "#7f1d1d" : "#1e293b", c * (k.Sorunlu ? 0.5 : 0.2), 0.88);
-            t.Yazi(k.XMm + k.BoyMm / 2.0, SvgZ(k.ZMm + k.YukseklikMm / 2.0), k.Etiket, EtiketBoyu(k.BoyMm, k.YukseklikMm, c), "#ffffff");
+            t.Yazi(k.XMm + k.BoyMm / 2.0, SvgZ(k.ZMm + k.YukseklikMm / 2.0), k.Etiket, EtiketBoyu(k.Etiket, k.BoyMm, k.YukseklikMm, c), "#ffffff");
         }
         foreach (var a in e.Acikliklar.Where(a => a.Taraf is AciklikTarafi.Arka or AciklikTarafi.On))
         {
@@ -205,7 +213,7 @@ public static class YerlesimCizimi
         foreach (var k in kutular.OrderBy(k => k.XMm))
         {
             t.Dikdortgen(k.YMm, SvgZ(k.ZMm + k.YukseklikMm), k.EnMm, k.YukseklikMm, KutuDolgusu(k), k.Sorunlu ? "#7f1d1d" : "#1e293b", c * (k.Sorunlu ? 0.5 : 0.2), 0.88);
-            t.Yazi(k.YMm + k.EnMm / 2.0, SvgZ(k.ZMm + k.YukseklikMm / 2.0), k.Etiket, EtiketBoyu(k.EnMm, k.YukseklikMm, c), "#ffffff");
+            t.Yazi(k.YMm + k.EnMm / 2.0, SvgZ(k.ZMm + k.YukseklikMm / 2.0), k.Etiket, EtiketBoyu(k.Etiket, k.EnMm, k.YukseklikMm, c), "#ffffff");
         }
         if (e.Acikliklar.FirstOrDefault(a => a.Taraf == AciklikTarafi.Arka) is { GenislikMm: { } ag, YukseklikMm: { } ah })
         {
@@ -270,7 +278,7 @@ public static class YerlesimCizimi
             t.Cokgen([Iz(x0, y1, z0), Iz(x1, y1, z0), Iz(x1, y1, z1), Iz(x0, y1, z1)], Koyu(dolgu, 0.86), cizgi, c * 0.15);
             t.Cokgen([Iz(x0, y0, z1), Iz(x1, y0, z1), Iz(x1, y1, z1), Iz(x0, y1, z1)], dolgu, cizgi, c * 0.15);
             var merkez = Iz((x0 + x1) / 2, (y0 + y1) / 2, z1);
-            t.Yazi(merkez.X, merkez.Y, k.Etiket, EtiketBoyu(k.BoyMm, k.EnMm, c) * 0.8, "#ffffff");
+            t.Yazi(merkez.X, merkez.Y, k.Etiket, EtiketBoyu(k.Etiket, Math.Min(k.BoyMm, k.EnMm) * 1.6, Math.Min(k.BoyMm, k.EnMm), c) * 0.8, "#ffffff");
         }
         var on = Iz(0, g / 2.0, ust);
         var arka = Iz(u, g / 2.0, ust);

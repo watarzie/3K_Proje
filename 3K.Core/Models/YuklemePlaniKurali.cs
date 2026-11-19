@@ -45,6 +45,19 @@ public static class YuklemePlaniKurali
     /// <summary>Sandığın plandaki kodu: proje numarası ve sandık numarası (ör. PA600-35-01).</summary>
     public static string SandikKodu(string projeNo, string sandikNo) => $"{projeNo.Trim()}-{sandikNo.Trim()}";
 
+    /// <summary>
+    /// Çizimde ve 3B görünümde yükün üstüne yazılan ad (saha geri bildirimi 19.11.2026 madde 8): tek projeli planda yalnız
+    /// sandık (koli) numarası, çok projeli planda proje numarasıyla birlikte tam kod (ör. PA600-23-01). Kodu proje
+    /// numarasıyla başlamayan yük (elle eklenen) tam koduyla yazılır. Ön yüzdeki <c>sandikEtiketi</c> aynı kuraldır.
+    /// </summary>
+    public static string SandikEtiketi(string kod, string? projeNo, bool tekProje)
+    {
+        if (!tekProje || string.IsNullOrWhiteSpace(projeNo))
+            return kod;
+        var onek = projeNo.Trim() + "-";
+        return kod.Length > onek.Length && kod.StartsWith(onek, StringComparison.Ordinal) ? kod[onek.Length..] : kod;
+    }
+
     /// <summary>Global benzersiz plan numarası: oluşturma yılı ve o yılın sırası (ör. YP-2026-000123).</summary>
     public static string PlanNo(int yil, int sira) => PlanNoOneki(yil) + sira.ToString("D6", CultureInfo.InvariantCulture);
 
