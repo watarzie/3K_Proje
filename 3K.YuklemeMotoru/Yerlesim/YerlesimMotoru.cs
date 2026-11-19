@@ -5,7 +5,8 @@ namespace _3K.YuklemeMotoru.Yerlesim;
 /// zorunlu koşullar sağlanarak en az araç kullanmaktır. Araç tipi yük başına seçilir: her yük seçilen ailede kendisini
 /// alan en sade kademeye (<see cref="EkipmanAdayi.Kademe"/>) gider; en büyük yükün gerektirdiği tip bütün araçlara
 /// uygulanmaz. Özel kademe aracına (ör. Open Top) sığan daha sade yükler de konur, kalanlar kendi kademelerinin
-/// araçlarına gider. Aileye sığmayan yük (trafonun kendisi her zaman) gerekçesiyle özel yük ekipmanına (lowbed) gider;
+/// araçlarına gider. Daha üst bir kapalı kademe (ör. High Cube) toplam araç sayısını düşürüyorsa o kullanılır; üst
+/// kademeye ihtiyacı olmayan araçlar yine en sade tipe indirilir (kullanıcı kararı, 20 Kasım 2026). Aileye sığmayan yük (trafonun kendisi her zaman) gerekçesiyle özel yük ekipmanına (lowbed) gider;
 /// lowbed tonaja göre seçilir ve yanına başka yük konmaz. Proje bazında ayrı ve lokasyona göre ayrı tercihlerinde gruplar
 /// aynı araca girmez. Hiçbir yük sessizce düşmez: araca girmeyen her yük nedeniyle "yerleşemeyen" listesindedir.
 /// </summary>
@@ -21,6 +22,9 @@ public static class YerlesimMotoru
         var ozelAraclar = new List<(AracYerlesimi Arac, string? Gerekce)>();
         var yerlesemeyenler = new List<YerlesemeyenYuk>();
         var disaridaKalanlar = new List<YerlesimYuku>();
+        // En az araç için üst kademeye çıkan grupların kazancı (araç) ve kullanılan tipleri; tek uyarı satırı yazılır.
+        var kazanc = 0;
+        var ustTipler = new List<(long Seviye, string Tip)>();
 
         var gruplar = girdi.Yukler
             .GroupBy(y => (Proje: girdi.ProjeBazindaAyri ? y.ProjeId : null, Lokasyon: girdi.LokasyonaGoreAyri ? y.LokasyonId : null))
@@ -88,8 +92,13 @@ public static class YerlesimMotoru
             }
             else
             {
-                var (paket, sigmayanlar) = Kademeli(aileYukleri, aileAdaylari, baglam);
+                var (paket, sigmayanlar, yukseltme) = Kademeli(aileYukleri, aileAdaylari, baglam);
                 aileAraclari.AddRange(paket);
+                if (yukseltme is { } yukselen)
+                {
+                    kazanc += yukselen.Kazanc;
+                    ustTipler.AddRange(yukselen.Tipler);
+                }
                 yerlesemeyenler.AddRange(sigmayanlar.Select(y => new YerlesemeyenYuk(y.Anahtar, y.Kod, "Seçilen alt tiplere birlikte yerleştirilemedi")));
             }
         }
@@ -99,6 +108,7 @@ public static class YerlesimMotoru
         {
             foreach (var yuk in disaridaKalanlar)
                 yerlesemeyenler.Add(new(yuk.Anahtar, yuk.Kod, "Mevcut araçlara sığmadı"));
+            // Ek ihtiyaç önerisi de en az araç kuralıyla hesaplanır (öneri listesidir, ayrıca uyarı yazılmaz).
             ekIhtiyaclar = Kademeli(disaridaKalanlar, aileAdaylari, baglam).Araclar
                 .Select(a => a.Arac)
                 .GroupBy(a => a.Aday)
@@ -112,6 +122,12 @@ public static class YerlesimMotoru
             .Where(a => !a.Arac.Bos).ToList();
         var sonuclar = araclar.Select((a, i) => AracKontrolcu.Olustur(i + 1, a.Arac, girdi.Ayarlar, a.Gerekce, a.Zorunlu)).ToList();
         var uyarilar = Uyarilar(girdi, araclar.Select(a => a.Arac).ToList(), sonuclar, havuz);
+        if (kazanc > 0)
+        {
+            var tipler = ustTipler.OrderBy(t => t.Seviye).Select(t => t.Tip).Distinct().ToList();
+            uyarilar.Add($"En az araç için {string.Join(", ", tipler)} kullanıldı: yalnız en sade tiplerle {araclar.Count + kazanc} araç gerekirdi, " +
+                         $"bu düzenle {araclar.Count} araç.");
+        }
         // Genel sonuç araçların en kötüsüdür; yerleşemeyen yük varsa plan eksiktir ve uygunluk üretilmez.
         var genel = yerlesemeyenler.Count > 0 ? KontrolSonucu.Uygunsuz : AracKontrolcu.EnKotu(sonuclar.Select(a => a.Sonuc));
         if (sonuclar.Count == 0 && genel == KontrolSonucu.Uygun)
@@ -185,7 +201,9 @@ public static class YerlesimMotoru
         {
             if (aileAdaylari.Count == 0)
                 break;
-            var (paket, sigmayanlar) = Kademeli(grup.ToList(), aileAdaylari, baglam);
+            // "Kalanı diz" de en az araç kuralını uygular; sonuç konum listesi olduğu için uyarı satırı taşınmaz (açılan
+            // araçlar düzenleyicide tipiyle görünür).
+            var (paket, sigmayanlar, _) = Kademeli(grup.ToList(), aileAdaylari, baglam);
             sonuc.AddRange(paket.Select(a => (Arac: (AracYerlesimi?)a.Arac, Ham: (ElleArac?)null)));
             foreach (var yuk in sigmayanlar)
                 OzeleKoy(yuk);
@@ -235,36 +253,94 @@ public static class YerlesimMotoru
     private static long Seviye(EkipmanAdayi a) => (a.Yedek ? 1L << 32 : 0) + (a.Kademe ?? 1);
 
     /// <summary>
-    /// Yük başına araç tipi (saha geri bildirimi madde 1): her yük kendisini alan en sade kademeye atanır. Kademeler en
-    /// özelden başlayarak paketlenir (kademe içinde en az araç, son araç küçültülür); açılan özel araçlara daha sade
-    /// yükler de konur, kalanlar sonraki kademelere geçer. Böylece yalnız gereken yük için özel tip gelir. Araçlar
-    /// sadeden özele sıralanır; yedek tip aracı hangi yükler için açıldığını gerekçesinde yazar. Hiçbir adaya girmeyen
-    /// yük ayrıca döner.
+    /// Yük başına araç tipi (saha geri bildirimi madde 1): her yük kendisini alan en sade kademeye atanır ve kademeler
+    /// <see cref="SeviyelerlePaketle"/> ile paketlenir. Ardından en az araç aranır (kullanıcı kararı, 20 Kasım 2026): daha
+    /// sade yükler sırayla her üst kapalı kademeye (ör. standart yerine High Cube) yükseltilerek yeniden paketlenir; toplam
+    /// araç sayısı düşüyorsa o düzen seçilir, eşitlikte sade olan kalır. Yükseltilen düzende üst kademeye ihtiyacı olmayan
+    /// araçlar yine en sade ve en küçük tipe indirilir (<see cref="Sadelestir"/>). Yükseltme yalnız duvarlı (kapalı,
+    /// Hardtop, Open Top) tiplere yapılır: sıradan sandık araç sayısı için Flat Rack ya da platforma taşınmaz. Kullanıcının
+    /// seçmediği (yedek) tipe de yükseltme yapılmaz. Hiçbir adaya girmeyen yük ayrıca döner; üst kademe seçildiyse kazanılan
+    /// araç sayısı ve kullanılan üst tipler döner (uyarı satırını <see cref="Hesapla"/> yazar).
     /// </summary>
-    private static (List<(AracYerlesimi Arac, string? Gerekce)> Araclar, List<YerlesimYuku> Sigmayanlar) Kademeli(
+    private static (List<(AracYerlesimi Arac, string? Gerekce)> Araclar, List<YerlesimYuku> Sigmayanlar,
+        (int Kazanc, List<(long Seviye, string Tip)> Tipler)? Yukseltme) Kademeli(
         List<YerlesimYuku> yukler, List<EkipmanAdayi> adaylar, Baglam baglam)
     {
         var sigmayanlar = new List<YerlesimYuku>();
-        var gerekli = new Dictionary<string, long>(StringComparer.Ordinal);
+        var temel = new Dictionary<string, long>(StringComparer.Ordinal);
         foreach (var yuk in yukler)
         {
             var uyanlar = adaylar.Where(a => baglam.Neden(a, yuk) == null).ToList();
             if (uyanlar.Count == 0)
                 sigmayanlar.Add(yuk);
             else
-                gerekli[yuk.Anahtar] = uyanlar.Min(Seviye);
+                temel[yuk.Anahtar] = uyanlar.Min(Seviye);
+        }
+        var yerlesecekler = yukler.Where(y => temel.ContainsKey(y.Anahtar)).ToList();
+
+        var enIyi = SeviyelerlePaketle(yerlesecekler, temel, adaylar, baglam);
+        var temelAracSayisi = enIyi.Araclar.Count;
+        var yukseltildi = false;
+        // Tek araç zaten en azdır. Yükseltme adayları: seçilmiş (yedek olmayan) duvarlı tipler.
+        var ustAdaylar = temelAracSayisi > 1 ? adaylar.Where(a => !a.Yedek && a.Duvarli).ToList() : [];
+        foreach (var taban in ustAdaylar.Select(Seviye).Distinct().Order())
+        {
+            baglam.Iptal.ThrowIfCancellationRequested();
+            var atama = new Dictionary<string, long>(temel, StringComparer.Ordinal);
+            var degisti = false;
+            foreach (var yuk in yerlesecekler.Where(y => temel[y.Anahtar] < taban))
+            {
+                var uyan = ustAdaylar.Where(a => Seviye(a) >= taban && baglam.Neden(a, yuk) == null).Select(a => (long?)Seviye(a)).Min();
+                if (uyan is not { } seviye)
+                    continue;
+                atama[yuk.Anahtar] = seviye;
+                degisti = true;
+            }
+            if (!degisti)
+                continue;
+            var deneme = SeviyelerlePaketle(yerlesecekler, atama, adaylar, baglam);
+            // Yalnız araç sayısı kesin düşerse (ve dışarıda yük artmadan) kabul edilir; eşitlikte sade düzen kalır.
+            if (deneme.Disarida.Count > enIyi.Disarida.Count || deneme.Araclar.Count >= enIyi.Araclar.Count)
+                continue;
+            Sadelestir(deneme.Araclar, adaylar, baglam);
+            enIyi = deneme;
+            yukseltildi = true;
         }
 
+        (int Kazanc, List<(long Seviye, string Tip)> Tipler)? yukseltme = null;
+        if (yukseltildi)
+        {
+            // Yükseltilen araç: yüklerinin hiçbiri bu kademeyi gerektirmediği halde araç sayısı için o tipte kalan araç.
+            // Hepsi sade tipe inebildiyse kazanç dizilişten gelmiştir; üst tip kullanılmadığı için uyarı yazılmaz.
+            var tipler = enIyi.Araclar
+                .Where(a => !a.Arac.Aday.Yedek && a.Arac.Yukler.All(y => temel[y.Anahtar] < a.Seviye))
+                .Select(a => (a.Seviye, Tip: a.Arac.Aday.TipAdi)).Distinct().ToList();
+            if (tipler.Count > 0)
+                yukseltme = (temelAracSayisi - enIyi.Araclar.Count, tipler);
+        }
+        sigmayanlar.AddRange(enIyi.Disarida);
+        return (enIyi.Araclar.OrderBy(a => a.Seviye).Select(a => (a.Arac, a.Gerekce)).ToList(), sigmayanlar, yukseltme);
+    }
+
+    /// <summary>
+    /// Verilen kademe atamasıyla paketleme: kademeler en özelden başlar (kademe içinde en az araç, son araç küçültülür);
+    /// açılan özel araçlara daha sade yükler de konur ("yanına aldığı kadar"), kalanlar sonraki kademelere geçer. Yedek
+    /// tip aracı hangi yükler için açıldığını gerekçesinde yazar. Paketlenemeyen yük ayrıca döner.
+    /// </summary>
+    private static (List<(long Seviye, AracYerlesimi Arac, string? Gerekce)> Araclar, List<YerlesimYuku> Disarida) SeviyelerlePaketle(
+        List<YerlesimYuku> yukler, Dictionary<string, long> gerekli, List<EkipmanAdayi> adaylar, Baglam baglam)
+    {
         var acilanlar = new List<(long Seviye, AracYerlesimi Arac, string? Gerekce)>();
-        var kalan = Sirala(yukler.Where(y => gerekli.ContainsKey(y.Anahtar))).ToList();
-        foreach (var seviye in gerekli.Values.Distinct().OrderDescending())
+        var disaridaKalanlar = new List<YerlesimYuku>();
+        var kalan = Sirala(yukler).ToList();
+        foreach (var seviye in yukler.Select(y => gerekli[y.Anahtar]).Distinct().OrderDescending())
         {
             baglam.Iptal.ThrowIfCancellationRequested();
             var grup = kalan.Where(y => gerekli[y.Anahtar] == seviye).ToList();
             if (grup.Count == 0)
                 continue;
             var (paket, disarida) = IhtiyacaGore(grup, adaylar.Where(a => Seviye(a) == seviye).ToList(), baglam);
-            sigmayanlar.AddRange(disarida);
+            disaridaKalanlar.AddRange(disarida);
             var islenen = grup.Select(y => y.Anahtar).ToHashSet(StringComparer.Ordinal);
             // Özel tipin araçlarına sığan daha sade yükler de konur ("yanına aldığı kadar").
             foreach (var yuk in kalan.Where(y => !islenen.Contains(y.Anahtar)))
@@ -274,7 +350,37 @@ public static class YerlesimMotoru
             foreach (var arac in paket)
                 acilanlar.Add((seviye, arac, arac.Aday.Yedek ? YedekGerekce(arac, grup) : null));
         }
-        return (acilanlar.OrderBy(a => a.Seviye).Select(a => (a.Arac, a.Gerekce)).ToList(), sigmayanlar);
+        return (acilanlar, disaridaKalanlar);
+    }
+
+    /// <summary>
+    /// Yükseltilen düzende her aracı, bütün yüklerini tek araçta alabilen daha sade (aynı sadelikte daha küçük tabanlı) tipe
+    /// indirir; araç sayısı değişmez. Böylece üst tip yalnız ona ihtiyacı olan araçta kalır. Aynı sadelikte verisi tam olan
+    /// aday önce denenir (<see cref="IhtiyacaGore"/> ile aynı tercih).
+    /// </summary>
+    private static void Sadelestir(List<(long Seviye, AracYerlesimi Arac, string? Gerekce)> araclar, List<EkipmanAdayi> adaylar, Baglam baglam)
+    {
+        for (var i = 0; i < araclar.Count; i++)
+        {
+            baglam.Iptal.ThrowIfCancellationRequested();
+            var (seviye, arac, _) = araclar[i];
+            if (arac.Aday.Yedek)
+                continue;
+            var yukleri = arac.Yukler.ToList();
+            var dahaSadeler = adaylar
+                .Where(a => !a.Yedek && (Seviye(a) < seviye || (Seviye(a) == seviye && TabanAlani(a) < TabanAlani(arac.Aday))))
+                .OrderBy(Seviye).ThenBy(EksikVeri).ThenBy(TabanAlani);
+            foreach (var aday in dahaSadeler)
+            {
+                if (yukleri.Any(y => baglam.Neden(aday, y) != null))
+                    continue;
+                var (tek, disarida) = Paketle(aday, yukleri, baglam);
+                if (tek.Count != 1 || disarida.Count != 0)
+                    continue;
+                araclar[i] = (Seviye(aday), tek[0], null);
+                break;
+            }
+        }
     }
 
     private static string YedekGerekce(AracYerlesimi arac, List<YerlesimYuku> gerektirenler)

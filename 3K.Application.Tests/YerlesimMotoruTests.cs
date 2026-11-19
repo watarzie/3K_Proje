@@ -356,6 +356,104 @@ public sealed class YerlesimMotoruTests
         Assert.Empty(sonuc.Yerlesemeyenler);
     }
 
+    /// <summary>40' High Cube (kademe 2): iç yükseklik 2.700 mm; 1.200 mm'lik iki sandık üst üste yalnız burada sığar.</summary>
+    private static readonly EkipmanAdayi K40Hc =
+        Konteyner(41, "K40HC", 12_032, icYukseklik: 2_700, kapiYukseklik: 2_585) with { Kademe = 2, TipAdi = "40' High Cube" };
+
+    private static List<YerlesimYuku> IstiflenenSandiklar(int adet) =>
+        Enumerable.Range(1, adet).Select(i => Sandik($"I{i:00}", 5_800, 2_000, 1_200, 1_000)).ToList();
+
+    /// <summary>
+    /// En az araç (kullanıcı kararı, 20 Kasım 2026): standart konteynerde istiflenemeyen sandıklar High Cube'da üst üste
+    /// gelir ve araç sayısı düşer; motor High Cube'u kendiliğinden seçer ve nedenini uyarıda yazar.
+    /// </summary>
+    [Fact]
+    public void EnAzArac_UstKademeAracSayisiniDusururse_Secilir()
+    {
+        var yukler = IstiflenenSandiklar(4);
+        Assert.Equal(["K40", "K40"], Hesapla(yukler, [K40]).Araclar.Select(a => a.EkipmanKodu));
+
+        var sonuc = Hesapla(yukler, [K40, K40Hc]);
+        var arac = Assert.Single(sonuc.Araclar);
+        Assert.Equal("K40HC", arac.EkipmanKodu);
+        Assert.Equal(4, arac.Konumlar.Count);
+        Assert.Empty(sonuc.Yerlesemeyenler);
+        Assert.Contains(sonuc.Uyarilar, u => u == "En az araç için 40' High Cube kullanıldı: yalnız en sade tiplerle 2 araç gerekirdi, bu düzenle 1 araç.");
+        // Aynı girdi aynı sonucu verir; "kalanı diz" de aynı kuralla tek High Cube açar.
+        Assert.Equal(YerlesimSerilestirici.Yaz(sonuc), YerlesimSerilestirici.Yaz(Hesapla(yukler, [K40, K40Hc])));
+        var girdi = new YerlesimGirdisi(yukler, [K40, K40Hc], Ayar, false, false, null, "Konteyner");
+        Assert.Equal(41, Assert.Single(YerlesimMotoru.ElleTamamla(girdi, [])).KonfigurasyonId);
+    }
+
+    /// <summary>
+    /// Üst kademe yalnız ona ihtiyacı olan araçta kalır: istif gerektirmeyen yükleri taşıyan araç yine standart
+    /// konteynere indirilir (en büyük ihtiyacın tipi bütün araçlara uygulanmaz).
+    /// </summary>
+    [Fact]
+    public void EnAzArac_IhtiyaciOlmayanAracSadeTipeIner()
+    {
+        var yukler = IstiflenenSandiklar(4);
+        yukler.AddRange([Sandik("Y1", 5_800, 2_000, 2_000, 3_000, ust: false, alt: false), Sandik("Y2", 5_800, 2_000, 2_000, 3_000, ust: false, alt: false)]);
+        Assert.Equal(3, Hesapla(yukler, [K40]).Araclar.Count);
+
+        var sonuc = Hesapla(yukler, [K40, K40Hc]);
+        Assert.Equal(["K40", "K40HC"], sonuc.Araclar.Select(a => a.EkipmanKodu));
+        Assert.Equal(["Y1", "Y2"], sonuc.Araclar[0].Konumlar.Select(k => k.YukAnahtari).Order());
+        // Her yük tam bir kez yerleşir.
+        Assert.Equal(yukler.Select(y => y.Anahtar).Order(), sonuc.Araclar.SelectMany(a => a.Konumlar).Select(k => k.YukAnahtari).Order());
+        Assert.Empty(sonuc.Yerlesemeyenler);
+    }
+
+    /// <summary>
+    /// Yükseltme yalnız duvarlı (kapalı) tiplere yapılır: geniş platform aynı yükleri daha az araçla alsa da sıradan sandık
+    /// araç sayısı için açık tipe taşınmaz.
+    /// </summary>
+    [Fact]
+    public void EnAzArac_AcikTipeYukseltilmez()
+    {
+        var platform = new EkipmanAdayi(55, 1, "PLT", "40' Platform", "Konteyner", "40' Platform", AileIci: true, OzelYukEkipmani: false,
+            GirisYonu.Ustten | GirisYonu.Yandan, Duvarli: false, Dingilli: false, Dogrulandi: true,
+            new EkipmanTeknikVerisi
+            {
+                DisOlcu = new Olcu(12_192, 2_600, 648),
+                TeknikKapasiteKg = 39_000,
+                Yuzeyler = [new YukYuzeyi("ANA", "Taban", 0, 12_192, 2_600, 648, null, null, null)]
+            },
+            Kademe: 6);
+        var yukler = Enumerable.Range(1, 4).Select(i => Sandik($"D{i}", 5_800, 1_200, 1_000, 1_000, ust: false, alt: false)).ToList();
+        // Platformda yan yana ikişer sığar (tek araç); standart konteynerde tek sıra, iki araç.
+        Assert.Single(Hesapla(yukler, [platform]).Araclar);
+        var sonuc = Hesapla(yukler, [K40, platform]);
+        Assert.Equal(["K40", "K40"], sonuc.Araclar.Select(a => a.EkipmanKodu));
+        Assert.DoesNotContain(sonuc.Uyarilar, u => u.StartsWith("En az araç", StringComparison.Ordinal));
+    }
+
+    /// <summary>Proje bazında ayrı planda her grup kendi içinde yükseltilir; uyarı planın toplam araç sayısıyla tek satır yazılır.</summary>
+    [Fact]
+    public void EnAzArac_ProjeBazindaAyri_TekUyari()
+    {
+        var yukler = Enumerable.Range(1, 8).Select(i => Sandik($"P{i}", 5_800, 2_000, 1_200, 1_000, proje: i <= 4 ? 1 : 2)).ToList();
+        var sonuc = Hesapla(yukler, [K40, K40Hc], projeAyri: true);
+        Assert.Equal(["K40HC", "K40HC"], sonuc.Araclar.Select(a => a.EkipmanKodu));
+        Assert.All(sonuc.Araclar, a => Assert.Single(a.ProjeIdleri));
+        Assert.Equal(["En az araç için 40' High Cube kullanıldı: yalnız en sade tiplerle 4 araç gerekirdi, bu düzenle 2 araç."],
+            sonuc.Uyarilar.Where(u => u.StartsWith("En az araç", StringComparison.Ordinal)));
+    }
+
+    /// <summary>Araç sayısı aynıysa sade tip kalır ve uyarı yazılmaz; kullanıcının seçmediği (yedek) tipe yükseltme yapılmaz.</summary>
+    [Fact]
+    public void EnAzArac_EsitlikteSadeKalir_YedekTipeYukseltilmez()
+    {
+        var esit = Hesapla(IstiflenenSandiklar(2), [K40, K40Hc]);
+        Assert.Equal("K40", Assert.Single(esit.Araclar).EkipmanKodu);
+        Assert.DoesNotContain(esit.Uyarilar, u => u.StartsWith("En az araç", StringComparison.Ordinal));
+
+        // Kullanıcı yalnız standart konteyneri seçti: High Cube yedektir, araç sayısı için kullanılmaz.
+        var secili = Hesapla(IstiflenenSandiklar(4), [K40, K40Hc with { Yedek = true }]);
+        Assert.Equal(["K40", "K40"], secili.Araclar.Select(a => a.EkipmanKodu));
+        Assert.DoesNotContain(secili.Uyarilar, u => u.StartsWith("En az araç", StringComparison.Ordinal));
+    }
+
     /// <summary>Proje bazında ayrı yüklemede bir araçta yalnız bir proje bulunur.</summary>
     [Fact]
     public void ProjeBazindaAyri_AracBasinaTekProje()
