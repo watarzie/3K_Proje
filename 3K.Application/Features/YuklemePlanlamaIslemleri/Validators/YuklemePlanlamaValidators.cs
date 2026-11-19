@@ -40,18 +40,63 @@ public sealed class YuklemePlaniPlanHesaplaCommandValidator : AbstractValidator<
             .GreaterThan(0).WithMessage(RevizyonEksik)
             .When(x => x.PlanId != null);
         RuleFor(x => x.TasimaAilesiId).GreaterThan(0).WithMessage("Taşıma ailesi seçilmelidir.");
-        RuleFor(x => x.ProjeIdleri).Cascade(CascadeMode.Stop).NotEmpty().WithMessage("En az bir proje seçilmelidir.")
-            .Must(p => p.Distinct().Count() <= YuklemePlaniKurali.EnFazlaProje).WithMessage(YuklemePlaniBaslikValidator.ProjeSayisiMesaji)
-            .Must(p => p.All(id => id > 0)).WithMessage("Proje kimliği geçersiz.");
+        RuleFor(x => x.ProjeIdleri).ProjeSecimi();
         RuleFor(x => x.Ayarlar.TipIdleri).Cascade(CascadeMode.Stop)
             .NotNull().WithMessage(YuklemePlaniKurali.TipSecimiMesaji)
             .Must(YuklemePlaniKurali.TipIdleriGecerli).WithMessage(YuklemePlaniKurali.TipSecimiMesaji)
             .When(x => x.Ayarlar != null);
         RuleFor(x => x.Ayarlar).Cascade(CascadeMode.Stop).NotNull().WithMessage("Plan ayarları eksik.").Must(YuklemePlaniKurali.AyarlarGecerli)
             .WithMessage(YuklemePlaniKaydetCommandValidator.AyarlarMesaji);
+        RuleFor(x => x.LokasyonTercihi).Must(YuklemePlaniKurali.HesapLokasyonTercihiGecerli).WithMessage(YuklemePlaniKurali.LokasyonTercihiMesaji);
+        // Sandık seçimleri isteğe bağlıdır (boşsa bütün sandıklar dahil ve varsayılan izinli); gönderilirse kaydetmedeki
+        // kurallarla doğrulanır. Cascade Stop: boş öge sonraki kurallarda 500 üretmesin, 400 dönsün.
+        When(x => x.SandikYukleri != null, () =>
+        {
+            RuleFor(x => x.SandikYukleri!).Cascade(CascadeMode.Stop)
+                .Must(y => y.All(s => s != null)).WithMessage(PlanSandikYukuDtoValidator.BosOgeMesaji)
+                .Must(y => y.Count <= YuklemePlaniKurali.EnFazlaYuk).WithMessage(YuklemePlaniKurali.YukSiniriMesaji)
+                .Must(PlanSandikYukuDtoValidator.Tekil).WithMessage(YuklemePlaniKurali.SandikTekrariMesaji);
+            RuleForEach(x => x.SandikYukleri).SetValidator(new PlanSandikYukuDtoValidator());
+        });
     }
 
     private const string RevizyonEksik = "Plan revizyonu eksik; sayfayı yenileyin.";
+}
+
+/// <summary>Yük önizlemesi: proje seçimi tek adımlı hesapla aynı kuraldır.</summary>
+public sealed class PlanYukOnizlemeQueryValidator : AbstractValidator<PlanYukOnizlemeQuery>
+{
+    public PlanYukOnizlemeQueryValidator() => RuleFor(x => x.ProjeIdleri).ProjeSecimi();
+}
+
+/// <summary>Plan isteklerinin ortak proje seçimi kuralı.</summary>
+internal static class YuklemePlaniKuralUzantilari
+{
+    /// <summary>En az bir proje, sınır kadar farklı proje ve pozitif kimlik. Cascade Stop: null liste 500 değil 400 olur.</summary>
+    public static void ProjeSecimi<T>(this IRuleBuilderInitial<T, List<int>> kural) =>
+        kural.Cascade(CascadeMode.Stop).NotEmpty().WithMessage("En az bir proje seçilmelidir.")
+            .Must(p => p.Distinct().Count() <= YuklemePlaniKurali.EnFazlaProje).WithMessage(YuklemePlaniBaslikValidator.ProjeSayisiMesaji)
+            .Must(p => p.All(id => id > 0)).WithMessage("Proje kimliği geçersiz.");
+}
+
+/// <summary>
+/// Sandık yükünün kullanıcı seçimi (kaydetme ve tek adımlı hesap aynı kuralları kullanır): geçerli sandık kimliği, üst yük
+/// sınırı ve "elle değişti" bayrakları.
+/// </summary>
+public sealed class PlanSandikYukuDtoValidator : AbstractValidator<PlanSandikYukuDto>
+{
+    internal const string BosOgeMesaji = "Sandık yük listesinde boş kayıt var.";
+
+    public PlanSandikYukuDtoValidator()
+    {
+        RuleFor(s => s.SandikId).GreaterThan(0).WithMessage("Sandık kimliği geçersiz.");
+        RuleFor(s => s.UstYukSiniriKg).Must(YukIzinKurali.UstYukSiniriGecerli).WithMessage(YukIzinKurali.UstYukSiniriMesaji);
+        RuleFor(s => s.ElleDegisenIzinler).Must(YukIzinKurali.ElleDegisenGecerli).WithMessage(YukIzinKurali.ElleDegisenMesaji);
+    }
+
+    /// <summary>Bir sandığın seçimi listede bir kez geçer.</summary>
+    internal static bool Tekil(List<PlanSandikYukuDto> yukler) =>
+        YuklemePlaniKurali.SandikSecimleriTekil(yukler.Select(s => s.SandikId).ToList());
 }
 
 public sealed class YuklemePlaniOlusturCommandValidator : AbstractValidator<YuklemePlaniOlusturCommand>
@@ -83,17 +128,12 @@ public sealed class YuklemePlaniKaydetCommandValidator : AbstractValidator<Yukle
         RuleFor(x => x.Ayarlar).Cascade(CascadeMode.Stop).NotNull().WithMessage("Plan ayarları eksik.").Must(YuklemePlaniKurali.AyarlarGecerli)
             .WithMessage(AyarlarMesaji);
         RuleFor(x => x.SandikYukleri).Cascade(CascadeMode.Stop).NotNull().WithMessage("Sandık yük listesi eksik.")
-            .Must(y => y.Select(s => s.SandikId).Distinct().Count() == y.Count).WithMessage("Bir sandık plana birden fazla kez eklenemez.");
+            .Must(PlanSandikYukuDtoValidator.Tekil).WithMessage(YuklemePlaniKurali.SandikTekrariMesaji);
         RuleFor(x => x.ManuelYukler).NotNull().WithMessage("Elle eklenen yük listesi eksik.");
-        RuleForEach(x => x.SandikYukleri).ChildRules(y =>
-        {
-            y.RuleFor(s => s.SandikId).GreaterThan(0).WithMessage("Sandık kimliği geçersiz.");
-            y.RuleFor(s => s.UstYukSiniriKg).Must(YukIzinKurali.UstYukSiniriGecerli).WithMessage(YukIzinKurali.UstYukSiniriMesaji);
-            y.RuleFor(s => s.ElleDegisenIzinler).Must(YukIzinKurali.ElleDegisenGecerli).WithMessage(YukIzinKurali.ElleDegisenMesaji);
-        });
+        RuleForEach(x => x.SandikYukleri).SetValidator(new PlanSandikYukuDtoValidator());
         RuleForEach(x => x.ManuelYukler).SetValidator(new PlanManuelYukDtoValidator());
         RuleFor(x => x).Must(x => (x.SandikYukleri?.Count ?? 0) + (x.ManuelYukler ?? []).Sum(m => Math.Max(m.Adet, 0)) <= YuklemePlaniKurali.EnFazlaYuk)
-            .WithMessage($"Bir planda en fazla {YuklemePlaniKurali.EnFazlaYuk} yük olabilir.");
+            .WithMessage(YuklemePlaniKurali.YukSiniriMesaji);
     }
 }
 

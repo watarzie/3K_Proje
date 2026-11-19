@@ -86,8 +86,17 @@ namespace _3K_API.Controllers
             (await mediator.Send(new YuklemePlaniYuklemeRaporuQuery { PlanId = id }, ct)).ToFileResult();
 
         /// <summary>
-        /// Tek adımlı plan hesabı: proje, aile/tip ve paylarla planı (planId yoksa yenisini) kurar ve yerleşimi hesaplar;
-        /// sonuç tek revizyondur. Var olan planda arada başka biri hesapladıysa 409.
+        /// Hesaptan önce yük önizlemesi: seçilen projelerin plana gelecek sandıkları varsayılan izinlerle; kaydetmez
+        /// (proje listesi uzun olabildiği için gövdede gönderilir).
+        /// </summary>
+        [HttpPost("yuk-onizleme")]
+        public async Task<ActionResult> YukOnizleme([FromBody] PlanYukOnizlemeQuery query, CancellationToken ct) =>
+            (await mediator.Send(query, ct)).ToActionResult();
+
+        /// <summary>
+        /// Tek adımlı plan hesabı: proje, sandık seçimleri, aile/tip, yükleme yeri tercihi ve yükler arası boşlukla planı kurar ve
+        /// yerleşimi hesaplar; sonuç tek revizyondur. planId yoksa aynı projelerin en son planına (o da yoksa yeni plana)
+        /// yazılır; planId verildiyse arada başka biri hesapladıysa 409.
         /// </summary>
         [HttpPost("yerlesim-hesapla")]
         public async Task<ActionResult> PlanHesapla([FromBody] YuklemePlaniPlanHesaplaCommand command, CancellationToken ct) =>

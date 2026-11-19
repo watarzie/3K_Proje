@@ -30,7 +30,7 @@ internal sealed partial class YuklemePlaniService(AppDbContext context, IUnitOfW
     private const string ManuelProjeGecersiz = "Elle eklenen yükün projesi planın projelerinden biri olmalıdır.";
     private const string LokasyonBulunamadi = "Elle eklenen yükün lokasyonu bulunamadı.";
     private const string KaynakDegismedi = "Planın kaynağında değişiklik yok.";
-    private static readonly string YukSiniriAsildi = $"Bir planda en fazla {YuklemePlaniKurali.EnFazlaYuk} yük olabilir.";
+    private static readonly string YukSiniriAsildi = YuklemePlaniKurali.YukSiniriMesaji;
 
     /// <summary>Sandığın güncel verisi (plana kopyalanan alanlar).</summary>
     private sealed record SandikKaynagi(
@@ -252,14 +252,14 @@ internal sealed partial class YuklemePlaniService(AppDbContext context, IUnitOfW
         {
             var satir = Kopyala(y, satirlar.Count + 1);
             if (y.SandikId is { } id && secimler.TryGetValue(id, out var secim))
-                SecimiUygula(satir, secim.Dahil, new PlanYukIzinleri(secim.DondurulebilirMi, secim.UsteKonabilirMi, secim.AltaKalabilirMi, secim.UstYukSiniriKg), secim.ElleDegisenIzinler);
+                SecimiUygula(satir, secim);
             satirlar.Add(satir);
         }
         foreach (var s in yeniSandiklar)
         {
             var satir = SandikSatiri(s, satirlar.Count + 1, dahil: true, YukIzinKurali.Varsayilan(s.YukTuruId, s.Brut), PlanYukIzni.Yok);
             if (secimler.TryGetValue(s.Id, out var secim))
-                SecimiUygula(satir, secim.Dahil, new PlanYukIzinleri(secim.DondurulebilirMi, secim.UsteKonabilirMi, secim.AltaKalabilirMi, secim.UstYukSiniriKg), secim.ElleDegisenIzinler);
+                SecimiUygula(satir, secim);
             satirlar.Add(satir);
         }
         satirlar.AddRange(await ManuelSatirlarAsync(model.ManuelYukler, projeler, satirlar.Count, cancellationToken));
@@ -347,47 +347,8 @@ internal sealed partial class YuklemePlaniService(AppDbContext context, IUnitOfW
 
         var satirlar = revizyon.Yukler.OrderBy(y => y.SiraNo).Select(y =>
         {
-            var sorunlar = YukVeriKurali.Sorunlar(y.BoyMm, y.EnMm, y.YukseklikMm, y.BrutKg);
-            var durum = YuklemePlaniKurali.Durum(y.Dahil, sorunlar);
             var anahtar = YuklemePlaniKurali.YukAnahtari(y.Kaynak, y.SandikId, y.ManuelGrupNo, y.BirimNo);
-            int? aracNo = aracNolari.TryGetValue(anahtar, out var no) ? no : null;
-            var neden = nedenler.GetValueOrDefault(anahtar);
-            if (durum == PlanYukDurumu.Bekliyor && aracNo != null)
-                durum = PlanYukDurumu.Yerlesti;
-            else if (durum == PlanYukDurumu.Bekliyor && neden != null)
-                durum = PlanYukDurumu.Yerlesemedi;
-            return new PlanYukSatiri
-            {
-                SiraNo = y.SiraNo,
-                Kaynak = y.Kaynak,
-                SandikId = y.SandikId,
-                ManuelGrupNo = y.ManuelGrupNo,
-                BirimNo = y.BirimNo,
-                BirimSayisi = y.BirimSayisi,
-                Kod = y.Kod,
-                Aciklama = y.Aciklama,
-                ProjeId = y.ProjeId,
-                ProjeNo = y.ProjeNo,
-                YukTuruId = y.YukTuruId,
-                YukTuruAdi = yukTurleri.GetValueOrDefault(y.YukTuruId, string.Empty),
-                BoyMm = y.BoyMm,
-                EnMm = y.EnMm,
-                YukseklikMm = y.YukseklikMm,
-                BrutKg = y.BrutKg,
-                LokasyonId = y.LokasyonId,
-                LokasyonAdi = y.LokasyonAdi,
-                Dahil = y.Dahil,
-                DondurulebilirMi = y.DondurulebilirMi,
-                UsteKonabilirMi = y.UsteKonabilirMi,
-                AltaKalabilirMi = y.AltaKalabilirMi,
-                UstYukSiniriKg = y.UstYukSiniriKg,
-                ElleDegisenIzinler = y.ElleDegisenIzinler,
-                OzelTasimaNotu = y.OzelTasimaNotu,
-                Durum = durum,
-                VeriSorunlari = sorunlar,
-                AracNo = aracNo,
-                YerlesimNotu = neden
-            };
+            return YukSatiri(y, yukTurleri, aracNolari.TryGetValue(anahtar, out var no) ? no : null, nedenler.GetValueOrDefault(anahtar));
         }).ToList();
 
         return new YuklemePlaniDetayi
@@ -427,8 +388,7 @@ internal sealed partial class YuklemePlaniService(AppDbContext context, IUnitOfW
             },
             KaynakFarklari = KaynakFarklari(revizyon, guncel, projeIdleri, yukTurleri),
             Yerlesim = await YerlesimAsync(plan, revizyon, sonuc, cancellationToken),
-            FarkliLokasyonSayisi = satirlar.Where(s => s.Dahil && s.VeriSorunlari.Count == 0)
-                .Select(s => YuklemePlaniKurali.LokasyonBelirsizMi(s.LokasyonId) ? null : s.LokasyonId).Distinct().Count(),
+            FarkliLokasyonSayisi = YuklemePlaniKurali.FarkliLokasyonSayisi(satirlar),
             SurenYukleme = await SurenYuklemeAsync(plan, cancellationToken)
         };
     }
@@ -681,14 +641,94 @@ internal sealed partial class YuklemePlaniService(AppDbContext context, IUnitOfW
         OzelTasimaNotu = y.OzelTasimaNotu
     };
 
-    private static void SecimiUygula(YuklemePlanYuku satir, bool dahil, PlanYukIzinleri izin, PlanYukIzni elleDegisen)
+    /// <summary>
+    /// Kullanıcının sandık seçimini (dahil, izinler, elle değişen izin bayrakları) satıra yazar; kaydetme ve tek adımlı
+    /// hesap aynı kuralı kullanır. Ölçü, ağırlık ve lokasyon istemciden alınmaz.
+    /// </summary>
+    private static void SecimiUygula(YuklemePlanYuku satir, PlanSandikYukuKaydi secim)
     {
-        satir.Dahil = dahil;
-        satir.DondurulebilirMi = izin.DondurulebilirMi;
-        satir.UsteKonabilirMi = izin.UsteKonabilirMi;
-        satir.AltaKalabilirMi = izin.AltaKalabilirMi;
-        satir.UstYukSiniriKg = izin.UstYukSiniriKg;
-        satir.ElleDegisenIzinler = elleDegisen;
+        satir.Dahil = secim.Dahil;
+        satir.DondurulebilirMi = secim.DondurulebilirMi;
+        satir.UsteKonabilirMi = secim.UsteKonabilirMi;
+        satir.AltaKalabilirMi = secim.AltaKalabilirMi;
+        satir.UstYukSiniriKg = secim.UstYukSiniriKg;
+        satir.ElleDegisenIzinler = secim.ElleDegisenIzinler;
+    }
+
+    /// <summary>
+    /// Seçilen projelerin plana gelen sandık satırları (kaynaktan, proje ve doğal sandık numarası sırasıyla; tek adımlı
+    /// hesap ve yük önizlemesi aynı satırları üretir). Seçimi gönderilen sandık o seçimle, öbürleri dahil ve varsayılan
+    /// izinlerle gelir; seçilen projelerde olmayan sandığın seçimi yok sayılır. Seçimde kullanıcının elle değiştirdiği
+    /// (bayraklı) izin korunur, öbür izinler güncel kaynaktan (yük türü, brüt) yeniden kurulur: ekran eski satırı geri
+    /// gönderse de kaynakta sonradan girilen brüt üst yük sınırına yansır.
+    /// </summary>
+    private async Task<List<YuklemePlanYuku>> KaynakSatirlariAsync(
+        IReadOnlyList<int> projeIdleri, IReadOnlyList<PlanSandikYukuKaydi>? secimler, CancellationToken cancellationToken)
+    {
+        var sandiklar = PlanaGelenler(await SandiklarAsync(projeIdleri, [], cancellationToken), projeIdleri);
+        var secimSozlugu = (secimler ?? []).ToDictionary(s => s.SandikId);
+        return sandiklar.Select((s, i) =>
+        {
+            var satir = SandikSatiri(s, i + 1, dahil: true, YukIzinKurali.Varsayilan(s.YukTuruId, s.Brut), PlanYukIzni.Yok);
+            if (secimSozlugu.TryGetValue(s.Id, out var secim))
+            {
+                SecimiUygula(satir, secim);
+                var izinler = YukIzinKurali.Yenile(
+                    new PlanYukIzinleri(secim.DondurulebilirMi, secim.UsteKonabilirMi, secim.AltaKalabilirMi, secim.UstYukSiniriKg),
+                    secim.ElleDegisenIzinler, s.YukTuruId, s.Brut);
+                satir.DondurulebilirMi = izinler.DondurulebilirMi;
+                satir.UsteKonabilirMi = izinler.UsteKonabilirMi;
+                satir.AltaKalabilirMi = izinler.AltaKalabilirMi;
+                satir.UstYukSiniriKg = izinler.UstYukSiniriKg;
+            }
+            return satir;
+        }).ToList();
+    }
+
+    /// <summary>
+    /// Plan satırını ekran satırına çevirir: veri sorunları ve durum kopyadan hesaplanır; son hesapta araca yerleştiyse
+    /// ya da yerleşemediyse durum ona göre yazılır (plan detayı ve yük önizlemesi aynı eşlemeden geçer).
+    /// </summary>
+    private static PlanYukSatiri YukSatiri(YuklemePlanYuku y, IReadOnlyDictionary<int, string> yukTurleri, int? aracNo, string? yerlesimNotu)
+    {
+        var sorunlar = YukVeriKurali.Sorunlar(y.BoyMm, y.EnMm, y.YukseklikMm, y.BrutKg);
+        var durum = YuklemePlaniKurali.Durum(y.Dahil, sorunlar);
+        if (durum == PlanYukDurumu.Bekliyor && aracNo != null)
+            durum = PlanYukDurumu.Yerlesti;
+        else if (durum == PlanYukDurumu.Bekliyor && yerlesimNotu != null)
+            durum = PlanYukDurumu.Yerlesemedi;
+        return new PlanYukSatiri
+        {
+            SiraNo = y.SiraNo,
+            Kaynak = y.Kaynak,
+            SandikId = y.SandikId,
+            ManuelGrupNo = y.ManuelGrupNo,
+            BirimNo = y.BirimNo,
+            BirimSayisi = y.BirimSayisi,
+            Kod = y.Kod,
+            Aciklama = y.Aciklama,
+            ProjeId = y.ProjeId,
+            ProjeNo = y.ProjeNo,
+            YukTuruId = y.YukTuruId,
+            YukTuruAdi = yukTurleri.GetValueOrDefault(y.YukTuruId, string.Empty),
+            BoyMm = y.BoyMm,
+            EnMm = y.EnMm,
+            YukseklikMm = y.YukseklikMm,
+            BrutKg = y.BrutKg,
+            LokasyonId = y.LokasyonId,
+            LokasyonAdi = y.LokasyonAdi,
+            Dahil = y.Dahil,
+            DondurulebilirMi = y.DondurulebilirMi,
+            UsteKonabilirMi = y.UsteKonabilirMi,
+            AltaKalabilirMi = y.AltaKalabilirMi,
+            UstYukSiniriKg = y.UstYukSiniriKg,
+            ElleDegisenIzinler = y.ElleDegisenIzinler,
+            OzelTasimaNotu = y.OzelTasimaNotu,
+            Durum = durum,
+            VeriSorunlari = sorunlar,
+            AracNo = aracNo,
+            YerlesimNotu = yerlesimNotu
+        };
     }
 
     private static YuklemePlanAyarlari Ayarlar(YuklemePlanRevizyonu revizyon)

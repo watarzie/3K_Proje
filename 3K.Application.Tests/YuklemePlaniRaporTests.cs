@@ -27,7 +27,8 @@ public sealed class YuklemePlaniRaporTests
     /// Motorun gerçek çıktısından ekran modeli. <paramref name="uygun"/> ise trafo ve sığmayan sandık yoktur (taslak
     /// ibaresi basılmaz); <paramref name="projeBasinaYuk"/> çok projeli/çok yüklü düzen denemesi içindir.
     /// </summary>
-    internal static YuklemePlaniDetayi OrnekPlan(int projeSayisi, int projeBasinaYuk, bool uygun, bool elle = false, bool tekProje = false, int kucukYuk = 0)
+    internal static YuklemePlaniDetayi OrnekPlan(int projeSayisi, int projeBasinaYuk, bool uygun, bool elle = false, bool tekProje = false, int kucukYuk = 0,
+        bool lokasyonaGoreAyri = false)
     {
         var yukler = new List<YerlesimYuku>();
         for (var i = 1; i <= 10; i++)
@@ -37,7 +38,8 @@ public sealed class YuklemePlaniRaporTests
             yukler.Add(Sandik($"PA100-35-K{i}", 1, 600, 400, 450, 40));
         if (!tekProje)
             for (var i = 1; i <= 4; i++)
-                yukler.Add(Sandik($"PA200-35-{i}", 2, 2_200, 1_200, 1_400, 600));
+                // Lokasyona göre ayrı örnekte ikinci proje başka lokasyondadır (2 = Seymen); araçlar lokasyona bölünür.
+                yukler.Add(Sandik($"PA200-35-{i}", 2, 2_200, 1_200, 1_400, 600, lokasyon: lokasyonaGoreAyri ? 2 : 1));
         for (var p = 3; p <= projeSayisi; p++)
             for (var i = 1; i <= projeBasinaYuk; i++)
                 yukler.Add(Sandik($"PA{p}00-35-{i}", p, 1_200 + i % 3 * 100, 1_000, 900, 250));
@@ -46,7 +48,7 @@ public sealed class YuklemePlaniRaporTests
             yukler.Add(new("s:TR", "PA100-35-1T", 1, "PA100-35", 1, 6_000, 3_000, 3_800, 45_000, false, false, false, null, true, OzelEkipmanZorunlulugu.Her, "Trafo"));
             yukler.Add(Sandik("PA200-35-UZUN", 2, 13_000, 1_000, 1_000, 900));
         }
-        var girdi = new YerlesimGirdisi(yukler, [YerlesimMotoruTests.K40, YerlesimMotoruTests.Lowbed], Ayar, false, false, null,
+        var girdi = new YerlesimGirdisi(yukler, [YerlesimMotoruTests.K40, YerlesimMotoruTests.Lowbed], Ayar, false, lokasyonaGoreAyri, null,
             "Konteyner");
         var sonuc = YerlesimMotoru.Hesapla(girdi);
         var yukSozluk = yukler.ToDictionary(y => y.Anahtar);
@@ -61,13 +63,15 @@ public sealed class YuklemePlaniRaporTests
         {
             HesapTarihi = new DateTime(2026, 11, 5, 14, 30, 0),
             ElleDuzenlendi = elle,
+            LokasyonaGoreAyri = lokasyonaGoreAyri,
             Sonuc = (YerlesimKontrolSonucu)(int)sonuc.Sonuc,
             Araclar = sonuc.Araclar.Select(a => new PlanAraci
             {
                 AracNo = a.AracNo, KonfigurasyonId = a.KonfigurasyonId, RevizyonNo = a.RevizyonNo, EkipmanKodu = a.EkipmanKodu, EkipmanAdi = a.EkipmanAdi,
                 AileAdi = a.AileAdi, TipAdi = a.TipAdi, AileDisi = a.AileDisi, ZorunluOzelEkipman = a.ZorunluOzelEkipman, AileDisiGerekce = a.AileDisiGerekce,
                 ProjeNolari = a.Konumlar.Select(k => yukSozluk[k.YukAnahtari].ProjeNo!).Distinct().ToList(),
-                Lokasyonlar = a.Konumlar.Select(k => yukSozluk[k.YukAnahtari].LokasyonId == null ? YuklemeEtiketleri.BelirsizLokasyon : "3K").Distinct().ToList(),
+                Lokasyonlar = a.Konumlar.Select(k => yukSozluk[k.YukAnahtari].LokasyonId switch { null => YuklemeEtiketleri.BelirsizLokasyon, 2 => "Seymen", _ => "3K" })
+                    .Distinct().Order(StringComparer.Ordinal).ToList(),
                 Konumlar = a.Konumlar.Select(k => new PlanYukKonumu
                 {
                     YukAnahtari = k.YukAnahtari, Kod = yukSozluk[k.YukAnahtari].Kod, ProjeNo = yukSozluk[k.YukAnahtari].ProjeNo, BrutKg = yukSozluk[k.YukAnahtari].BrutKg,
@@ -97,7 +101,8 @@ public sealed class YuklemePlaniRaporTests
         return new YuklemePlaniDetayi
         {
             Id = 1, PlanNo = "YP-2026-000007", Ad = "Wasit sevki", CalismaBicimi = YuklemeCalismaBicimi.IhtiyacaGoreArac, TasimaAilesiId = 1,
-            TasimaAilesiAdi = "Konteyner", ProjeKarisimi = YuklemeProjeKarisimi.Karisik, LokasyonTercihi = YuklemeLokasyonTercihi.Karisik,
+            TasimaAilesiAdi = "Konteyner", ProjeKarisimi = YuklemeProjeKarisimi.Karisik,
+            LokasyonTercihi = lokasyonaGoreAyri ? YuklemeLokasyonTercihi.LokasyonaGoreAyri : YuklemeLokasyonTercihi.Karisik,
             YuklemeTarihi = new DateTime(2026, 11, 12), RevizyonNo = 4, Kaydeden = "Planlama Kullanıcısı",
             Projeler = Enumerable.Range(1, tekProje ? 1 : Math.Max(2, projeSayisi))
                 .Select(p => new PlanProjeBilgisi { ProjeId = p, ProjeNo = $"PA{p}00-35", Musteri = $"MÜŞTERİ {p}" }).ToList(),
@@ -272,7 +277,104 @@ public sealed class YuklemePlaniRaporTests
         Assert.True(YerlesimGosterimKurali.Gosterilir(YerlesimKontrolSonucu.Uygunsuz));
         Assert.False(YerlesimGosterimKurali.UyariGosterilir("Onaylı mevzuat kural seti yok; yasal ölçü ve ağırlık kontrolleri teyit edilmedi."));
         Assert.False(YerlesimGosterimKurali.UyariGosterilir("Tanımlanmamış güvenlik payları: yükseklik. İlgili kontroller teyit edilmedi."));
-        Assert.True(YerlesimGosterimKurali.UyariGosterilir("Araç 2: farklı lokasyonlardaki yükler aynı araca atandı; fiziksel yükleme organizasyonu belirlenmelidir."));
+        // Farklı lokasyonların aynı araca atanması artık uyarı değildir (20 Kasım 2026); eski saklı uyarı da gösterilmez.
+        // Metin "Araç N: " ile başladığı için içerikle eşleşir; öbür uyarılar etkilenmez.
+        Assert.False(YerlesimGosterimKurali.UyariGosterilir("Araç 2: farklı lokasyonlardaki yükler aynı araca atandı; fiziksel yükleme organizasyonu belirlenmelidir."));
+        Assert.False(YerlesimGosterimKurali.UyariGosterilir("Araç 12: farklı lokasyonlardaki yükler aynı araca atandı; fiziksel yükleme organizasyonu belirlenmelidir."));
+        Assert.True(YerlesimGosterimKurali.UyariGosterilir("Araç 2 (K40): yükseklik sınırı bilinmediği için istif yapılmadı."));
+        Assert.True(YerlesimGosterimKurali.UyariGosterilir("1 yük yerleşemedi; plan eksiktir."));
+    }
+
+    /// <summary>
+    /// Lokasyona göre ayrı plan (saha isteği, 20 Kasım 2026): talep formu araçları lokasyona, sonra tipe göre toplar; her
+    /// lokasyonun ara toplamı araç sayısıdır ve toplamları planın araç sayısını verir. Lokasyon sırası ilk aracın sırasıdır.
+    /// </summary>
+    [Fact]
+    public void AracTalepFormu_LokasyonKirilimi()
+    {
+        static PlanAraci Arac(int no, string tip, params string[] lokasyonlar) =>
+            new() { AracNo = no, AileAdi = "Konteyner", TipAdi = tip, Lokasyonlar = lokasyonlar };
+        var plan = new YuklemePlaniDetayi
+        {
+            Yerlesim = new PlanYerlesimi
+            {
+                LokasyonaGoreAyri = true,
+                Araclar =
+                [
+                    Arac(1, "40' standart (DV)", "3K"), Arac(2, "40' High Cube", "Seymen"), Arac(3, "40' standart (DV)", "3K"),
+                    Arac(4, "40' High Cube", "3K"), Arac(5, "40' standart (DV)", YuklemeEtiketleri.BelirsizLokasyon), Arac(6, "40' standart (DV)")
+                ]
+            }
+        };
+
+        var lokasyonlar = YuklemePlaniPdfOlusturucu.LokasyonAracTipleri(plan);
+        Assert.Equal(["3K", "Seymen", YuklemeEtiketleri.BelirsizLokasyon], lokasyonlar.Select(l => l.Lokasyon));
+        Assert.Equal([3, 1, 2], lokasyonlar.Select(l => l.Adet));
+        Assert.Equal([("40' standart (DV)", 2), ("40' High Cube", 1)], lokasyonlar[0].Tipler.Select(t => (t.TipAdi, t.Adet)));
+        Assert.Equal([("40' High Cube", 1)], lokasyonlar[1].Tipler.Select(t => (t.TipAdi, t.Adet)));
+        // Lokasyonu belirsiz yükler ve yükü olmayan araç aynı "belirsiz" grubundadır.
+        Assert.Equal([("40' standart (DV)", 2)], lokasyonlar[2].Tipler.Select(t => (t.TipAdi, t.Adet)));
+        Assert.Equal(plan.Yerlesim.Araclar.Count, lokasyonlar.Sum(l => l.Adet));
+        Assert.All(lokasyonlar, l => Assert.Equal(l.Adet, l.Tipler.Sum(t => t.Adet)));
+        // Elle düzenlemeyle iki lokasyonun yükünü alan araç iki lokasyonla birlikte yazılır.
+        Assert.Equal("3K + Seymen", YuklemePlaniPdfOlusturucu.AracLokasyonu(Arac(7, "40' High Cube", "3K", "Seymen")));
+        // Lokasyona göre ayrı planda "tek yerden" notu yazılmaz.
+        Assert.Null(YuklemePlaniPdfOlusturucu.KarisikLokasyonNotu(plan));
+    }
+
+    /// <summary>
+    /// Tek yerden (karışık) planda tablo tip bazındadır; yükler birden çok lokasyondaysa lokasyonları ve lokasyon başına araç
+    /// sayısı için ne yapılacağını söyleyen tek not yazılır, tek lokasyonda not yoktur.
+    /// </summary>
+    [Fact]
+    public void AracTalepFormu_KarisikPlandaLokasyonNotu()
+    {
+        static YuklemePlaniDetayi Plan(params string[][] aracLokasyonlari) => new()
+        {
+            Yerlesim = new PlanYerlesimi
+            {
+                Araclar = aracLokasyonlari.Select((l, i) => new PlanAraci { AracNo = i + 1, AileAdi = "Konteyner", TipAdi = "40' standart (DV)", Lokasyonlar = l }).ToList()
+            }
+        };
+
+        var notu = YuklemePlaniPdfOlusturucu.KarisikLokasyonNotu(Plan(["Seymen", "3K"], ["3K"]));
+        Assert.NotNull(notu);
+        Assert.StartsWith("Yükler 2 lokasyonda: 3K, Seymen.", notu, StringComparison.Ordinal);
+        Assert.Contains("\"Lokasyona göre ayrı\"", notu, StringComparison.Ordinal);
+        Assert.Null(YuklemePlaniPdfOlusturucu.KarisikLokasyonNotu(Plan(["3K"], ["3K"])));
+        Assert.Null(YuklemePlaniPdfOlusturucu.KarisikLokasyonNotu(Plan()));
+
+        // Örnek plan tek yerden hesaplanır ve yükleri iki lokasyondadır (3K ve belirsiz): not yazılır, tablo tip bazında kalır.
+        var ornek = OrnekPlan(projeSayisi: 2, projeBasinaYuk: 0, uygun: true);
+        Assert.False(ornek.Yerlesim!.LokasyonaGoreAyri);
+        Assert.Contains(YuklemeEtiketleri.BelirsizLokasyon, YuklemePlaniPdfOlusturucu.KarisikLokasyonNotu(ornek)!, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Lokasyona göre ayrı hesaplanan plan: motor her araca tek lokasyon verir, iki rapor lokasyon sütunu/başlığıyla düzen
+    /// hatası vermeden üretilir (örnek çıktı görsel kontrol içindir).
+    /// </summary>
+    [Fact]
+    public void LokasyonaGoreAyriPlan_RaporlarUretilir()
+    {
+        var plan = OrnekPlan(projeSayisi: 2, projeBasinaYuk: 0, uygun: true, lokasyonaGoreAyri: true);
+        Assert.True(plan.Yerlesim!.LokasyonaGoreAyri);
+        Assert.All(plan.Yerlesim.Araclar, a => Assert.Single(a.Lokasyonlar));
+        var lokasyonlar = YuklemePlaniPdfOlusturucu.LokasyonAracTipleri(plan);
+        Assert.Equal(["3K", YuklemeEtiketleri.BelirsizLokasyon, "Seymen"], lokasyonlar.Select(l => l.Lokasyon).Order(StringComparer.Ordinal));
+        Assert.Equal(plan.Yerlesim.Araclar.Count, lokasyonlar.Sum(l => l.Adet));
+
+        var olusturucu = new YuklemePlaniPdfOlusturucu();
+        var talep = olusturucu.AracTalepRaporu(plan, new DateTime(2026, 11, 20, 15, 0, 0));
+        var yukleme = olusturucu.YuklemePlaniRaporu(plan, new DateTime(2026, 11, 20, 15, 0, 0));
+        Assert.Equal("%PDF", System.Text.Encoding.ASCII.GetString(talep, 0, 4));
+        Assert.Equal("%PDF", System.Text.Encoding.ASCII.GetString(yukleme, 0, 4));
+        if (Environment.GetEnvironmentVariable("THREEK_RAPOR_ORNEK_KLASORU") is { Length: > 0 } klasor)
+        {
+            Directory.CreateDirectory(klasor);
+            File.WriteAllBytes(Path.Combine(klasor, "arac-talebi-lokasyon.pdf"), talep);
+            File.WriteAllBytes(Path.Combine(klasor, "yukleme-plani-lokasyon.pdf"), yukleme);
+        }
     }
 
     /// <summary>

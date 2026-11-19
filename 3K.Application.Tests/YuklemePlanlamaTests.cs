@@ -151,6 +151,113 @@ public sealed class YuklemePlanlamaTests
         Assert.False(dogrulayici.Validate(tip).IsValid);
     }
 
+    /// <summary>
+    /// Tek adımlı hesapta yükleme yeri tercihi ve sandık seçimleri (saha isteği, 20 Kasım 2026): ikisi de isteğe bağlıdır;
+    /// tanımsız tercih, yinelenen sandık, geçersiz üst yük sınırı ya da "elle değişti" bayrağı ve boş öge 400 olur. Sandık
+    /// kuralları kaydetme isteğiyle aynıdır.
+    /// </summary>
+    [Fact]
+    public void PlanHesapla_LokasyonTercihiVeSandikSecimleriDogrulamasi()
+    {
+        var dogrulayici = new YuklemePlaniPlanHesaplaCommandValidator();
+        YuklemePlaniPlanHesaplaCommand Istek() => new() { ProjeIdleri = [1], TasimaAilesiId = 1 };
+        PlanSandikYukuDto Secim(int sandikId, decimal? ustYuk = 500m, PlanYukIzni elle = PlanYukIzni.Yok) =>
+            new(sandikId, true, false, true, true, ustYuk, elle);
+
+        foreach (var tercih in new YuklemeLokasyonTercihi?[] { null, YuklemeLokasyonTercihi.HenuzSecilmedi, YuklemeLokasyonTercihi.LokasyonaGoreAyri, YuklemeLokasyonTercihi.Karisik })
+        {
+            var istek = Istek();
+            istek.LokasyonTercihi = tercih;
+            Assert.True(dogrulayici.Validate(istek).IsValid);
+        }
+        foreach (var tanimsiz in new[] { 0, 4, -1 })
+        {
+            var istek = Istek();
+            istek.LokasyonTercihi = (YuklemeLokasyonTercihi)tanimsiz;
+            Assert.Equal([YuklemePlaniKurali.LokasyonTercihiMesaji], dogrulayici.Validate(istek).Errors.Select(e => e.ErrorMessage));
+        }
+
+        // Gönderilmeyen ve boş liste geçerlidir (bütün sandıklar dahil, varsayılan izinli).
+        var bos = Istek();
+        bos.SandikYukleri = [];
+        Assert.True(dogrulayici.Validate(bos).IsValid);
+        var secimli = Istek();
+        secimli.SandikYukleri = [Secim(5), Secim(6, null, PlanYukIzni.UstYukSiniri)];
+        Assert.True(dogrulayici.Validate(secimli).IsValid);
+        Assert.Equal([5, 6], secimli.Model().SandikYukleri!.Select(y => y.SandikId));
+        Assert.Null(Istek().Model().SandikYukleri);
+
+        var yinelenen = Istek();
+        yinelenen.SandikYukleri = [Secim(5), Secim(6), Secim(5)];
+        Assert.Contains(dogrulayici.Validate(yinelenen).Errors, e => e.ErrorMessage == YuklemePlaniKurali.SandikTekrariMesaji);
+
+        (PlanSandikYukuDto Secim, string Mesaj)[] hatalilar =
+        [
+            (Secim(0), "Sandık kimliği geçersiz."),
+            (Secim(5, -1), YukIzinKurali.UstYukSiniriMesaji),
+            (Secim(5, 100m, (PlanYukIzni)16), YukIzinKurali.ElleDegisenMesaji)
+        ];
+        foreach (var (secim, mesaj) in hatalilar)
+        {
+            var istek = Istek();
+            istek.SandikYukleri = [secim];
+            Assert.Equal([mesaj], dogrulayici.Validate(istek).Errors.Select(e => e.ErrorMessage));
+            // Aynı kural kaydetme isteğinde de aynı mesajı verir (tek doğrulayıcı).
+            var kayit = GecerliKayit();
+            kayit.SandikYukleri = [secim];
+            Assert.Contains(new YuklemePlaniKaydetCommandValidator().Validate(kayit).Errors, e => e.ErrorMessage == mesaj);
+        }
+
+        // Gövdede null öge 500 değil doğrulama hatasıdır.
+        var bosOge = Istek();
+        bosOge.SandikYukleri = [null!];
+        Assert.False(dogrulayici.Validate(bosOge).IsValid);
+    }
+
+    /// <summary>Gönderilmeyen ya da "henüz seçilmedi" tercih tek yerden (karışık) hesaplanır; yalnız açık seçim araçları lokasyona böler.</summary>
+    [Theory]
+    [InlineData(null, YuklemeLokasyonTercihi.Karisik)]
+    [InlineData(YuklemeLokasyonTercihi.HenuzSecilmedi, YuklemeLokasyonTercihi.Karisik)]
+    [InlineData(YuklemeLokasyonTercihi.Karisik, YuklemeLokasyonTercihi.Karisik)]
+    [InlineData(YuklemeLokasyonTercihi.LokasyonaGoreAyri, YuklemeLokasyonTercihi.LokasyonaGoreAyri)]
+    public void HesapLokasyonTercihi_BosVeSecilmemisTekYerden(YuklemeLokasyonTercihi? gelen, YuklemeLokasyonTercihi uygulanan) =>
+        Assert.Equal(uygulanan, YuklemePlaniKurali.HesapLokasyonTercihi(gelen));
+
+    /// <summary>
+    /// Farklı lokasyon sayısı (plan detayı ve yük önizlemesi aynı hesap): yalnız dahil ve verisi tam yükler sayılır;
+    /// lokasyonsuz ve depo lokasyonu "Belirsiz" olan yükler tek "belirsiz" lokasyondur.
+    /// </summary>
+    [Fact]
+    public void FarkliLokasyonSayisi_DahilVeVerisiTamYukler_BelirsizlerTekLokasyon()
+    {
+        static PlanYukSatiri Satir(int? lokasyon, bool dahil = true, bool eksik = false) =>
+            new() { LokasyonId = lokasyon, Dahil = dahil, VeriSorunlari = eksik ? ["Ölçü giriniz."] : [] };
+        Assert.Equal(0, YuklemePlaniKurali.FarkliLokasyonSayisi([]));
+        Assert.Equal(1, YuklemePlaniKurali.FarkliLokasyonSayisi([Satir((int)DepoLokasyon.UcK), Satir((int)DepoLokasyon.UcK)]));
+        Assert.Equal(2, YuklemePlaniKurali.FarkliLokasyonSayisi([Satir((int)DepoLokasyon.UcK), Satir((int)DepoLokasyon.Seymen)]));
+        Assert.Equal(2, YuklemePlaniKurali.FarkliLokasyonSayisi([Satir((int)DepoLokasyon.UcK), Satir(null), Satir((int)DepoLokasyon.Belirsiz)]));
+        // Hariç tutulan ve verisi eksik yük lokasyon sayısını artırmaz.
+        Assert.Equal(1, YuklemePlaniKurali.FarkliLokasyonSayisi(
+            [Satir((int)DepoLokasyon.UcK), Satir((int)DepoLokasyon.Seymen, dahil: false), Satir(null, eksik: true)]));
+    }
+
+    /// <summary>Yük önizlemesi: proje seçimi tek adımlı hesapla aynı kuraldır (boş, sınır üstü ve geçersiz kimlik 400).</summary>
+    [Fact]
+    public void YukOnizleme_ProjeSecimiHesaplaIleAyniKural()
+    {
+        var onizleme = new PlanYukOnizlemeQueryValidator();
+        var hesap = new YuklemePlaniPlanHesaplaCommandValidator();
+        List<int>?[] secimler = [[1, 2], [], null, [0], Enumerable.Range(1, YuklemePlaniKurali.EnFazlaProje + 1).ToList(), [3, 3]];
+        foreach (var secim in secimler)
+        {
+            var onizlemeHatalari = onizleme.Validate(new PlanYukOnizlemeQuery { ProjeIdleri = secim! }).Errors.Select(e => e.ErrorMessage).ToList();
+            var hesapHatalari = hesap.Validate(new YuklemePlaniPlanHesaplaCommand { ProjeIdleri = secim!, TasimaAilesiId = 1 }).Errors.Select(e => e.ErrorMessage).ToList();
+            Assert.Equal(hesapHatalari, onizlemeHatalari);
+        }
+        Assert.True(onizleme.Validate(new PlanYukOnizlemeQuery { ProjeIdleri = [1, 2] }).IsValid);
+        Assert.Equal(["En az bir proje seçilmelidir."], onizleme.Validate(new PlanYukOnizlemeQuery()).Errors.Select(e => e.ErrorMessage));
+    }
+
     /// <summary>Tek adımlı hesapta plan adı seçilen proje numaralarıdır; sınırı aşarsa kısaltılır.</summary>
     [Fact]
     public void OtomatikPlanAdi_ProjeNumaralari()
@@ -524,6 +631,7 @@ public sealed class YuklemePlanlamaTests
             (new PlanProjeAdaylariQuery(), YetkiKodlari.YuklemePlanlama.Planlar, YetkiTipi.R),
             (new YuklemePlanlariQuery(), YetkiKodlari.YuklemePlanlama.Planlar, YetkiTipi.R),
             (new YuklemePlaniGetirQuery(), YetkiKodlari.YuklemePlanlama.Planlar, YetkiTipi.R),
+            (new PlanYukOnizlemeQuery(), YetkiKodlari.YuklemePlanlama.Planlar, YetkiTipi.R),
             (new YuklemePlaniOlusturCommand(), YetkiKodlari.YuklemePlanlama.Planlar, YetkiTipi.W),
             (new YuklemePlaniKaydetCommand(), YetkiKodlari.YuklemePlanlama.Planlar, YetkiTipi.W),
             (new YuklemePlaniKaynaktanGuncelleCommand(), YetkiKodlari.YuklemePlanlama.Planlar, YetkiTipi.W),

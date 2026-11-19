@@ -500,6 +500,32 @@ public sealed class YerlesimMotoruTests
         Assert.Contains("teknik kapasite", Assert.Single(asim.Yerlesemeyenler).Neden);
     }
 
+    /// <summary>
+    /// Yükleme yeri tercihi (saha isteği, 20 Kasım 2026): tek yerden hesapta farklı lokasyonların yükleri aynı araca girer ve
+    /// bu bilinçli seçim uyarı üretmez; lokasyona göre ayrı hesapta her araç tek lokasyonun yükünü taşır.
+    /// </summary>
+    [Fact]
+    public void FarkliLokasyon_TekYerdenUyariYazilmaz_AyriHesaptaAracBasinaTekLokasyon()
+    {
+        YerlesimYuku[] yukler =
+        [
+            Sandik("A", 2_000, 1_200, 1_000, 500) with { LokasyonId = 2 },
+            Sandik("B", 2_000, 1_200, 1_000, 500) with { LokasyonId = 3 },
+            Sandik("C", 2_000, 1_200, 1_000, 500)
+        ];
+
+        var tekYerden = Hesapla(yukler, [K40]);
+        var arac = Assert.Single(tekYerden.Araclar);
+        Assert.Equal(3, arac.LokasyonIdleri.Count);
+        Assert.DoesNotContain(tekYerden.Uyarilar, u => u.Contains("lokasyon", StringComparison.OrdinalIgnoreCase));
+
+        var ayri = YerlesimMotoru.Hesapla(new YerlesimGirdisi(yukler, [K40], Ayar, false, true, null, "Konteyner"));
+        Assert.Equal(3, ayri.Araclar.Count);
+        Assert.All(ayri.Araclar, a => Assert.Single(a.LokasyonIdleri));
+        Assert.Empty(ayri.Yerlesemeyenler);
+        Assert.DoesNotContain(ayri.Uyarilar, u => u.Contains("lokasyon", StringComparison.OrdinalIgnoreCase));
+    }
+
     /// <summary>Son araç küçük alt tiple değiştirilirken o alt tipe girmeyen yük düşmez (araç değiştirilmez).</summary>
     [Fact]
     public void AltTipDegisimi_YukDusurmez()

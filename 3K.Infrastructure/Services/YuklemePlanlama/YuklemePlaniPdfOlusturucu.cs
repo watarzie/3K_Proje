@@ -12,8 +12,8 @@ namespace _3K.Infrastructure.Services.YuklemePlanlama;
 
 /// <summary>
 /// Yükleme planı PDF'leri (Simülasyon isterleri 28–29, saha geri bildirimi 19.11.2026 madde 7–8). Araç talep formu
-/// depoya yalnız araç tipini ve adedini bildirir; yükleme planında her araç, çizimleri ve içindeki yüklerin tablosuyla
-/// aynı sayfadadır. Çizimlerde ve tabloda yük sandık numarasıyla yazılır (tek projede koli no, çok projede tam kod).
+/// depoya yalnız araç tipini ve adedini bildirir (lokasyona göre ayrı planda lokasyon kırılımıyla; saha isteği
+/// 20.11.2026); yükleme planında her araç, çizimleri ve içindeki yüklerin tablosuyla aynı sayfadadır. Çizimlerde ve tabloda yük sandık numarasıyla yazılır (tek projede koli no, çok projede tam kod).
 /// Çözülmemiş uygunsuzluk ya da yerleşemeyen yük varsa "TASLAK — YÜKLEMEYE UYGUN DEĞİL" ibaresi basılır.
 /// </summary>
 internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
@@ -188,8 +188,10 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
     /// Araçlar tipe göre (aile + tip) toplanır; sıra plandaki ilk aracın sırasıdır. Aynı tipteki farklı ekipmanlar depo
     /// için ayrı satır değildir (madde 7: depoya araç tipi ve adedi yeter).
     /// </summary>
-    internal static IReadOnlyList<AracTipiSatiri> AracTipleri(YuklemePlaniDetayi plan) =>
-        Yerlesim(plan).Araclar
+    internal static IReadOnlyList<AracTipiSatiri> AracTipleri(YuklemePlaniDetayi plan) => AracTipleri(Yerlesim(plan).Araclar);
+
+    private static IReadOnlyList<AracTipiSatiri> AracTipleri(IEnumerable<PlanAraci> araclar) =>
+        araclar
             .GroupBy(a => (a.AileAdi, a.TipAdi))
             .OrderBy(g => g.Min(a => a.AracNo))
             .Select(g => new AracTipiSatiri(
@@ -200,12 +202,64 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
                 g.Where(a => TasmaMetni(a).Length > 0).Select(a => $"Araç {a.AracNo}: {TasmaMetni(a)}").ToList()))
             .ToList();
 
+    /// <summary>Talep formunun lokasyon kırılımı: lokasyondan istenen araç tipleri ve lokasyonun araç sayısı (ara toplam).</summary>
+    internal sealed record LokasyonAracSatiri(string Lokasyon, IReadOnlyList<AracTipiSatiri> Tipler, int Adet);
+
+    /// <summary>
+    /// Aracın yükleneceği lokasyon. Lokasyona göre ayrı planda tek değerdir (lokasyonu belirsiz yükler kendi grubundadır);
+    /// elle düzenlemeyle karışmış araçta lokasyonlar birlikte yazılır, yükü olmayan araçta lokasyon belirsizdir.
+    /// </summary>
+    internal static string AracLokasyonu(PlanAraci a) =>
+        a.Lokasyonlar.Count == 0 ? YuklemeEtiketleri.BelirsizLokasyon : string.Join(" + ", a.Lokasyonlar);
+
+    /// <summary>
+    /// Lokasyona göre ayrı planda araçlar önce lokasyona, sonra tipe göre toplanır (depo her lokasyona kaç araç
+    /// göndereceğini görür); lokasyon sırası plandaki ilk aracının sırasıdır.
+    /// </summary>
+    internal static IReadOnlyList<LokasyonAracSatiri> LokasyonAracTipleri(YuklemePlaniDetayi plan) =>
+        Yerlesim(plan).Araclar
+            .GroupBy(AracLokasyonu, StringComparer.Ordinal)
+            .OrderBy(g => g.Min(a => a.AracNo))
+            .Select(g => new LokasyonAracSatiri(g.Key, AracTipleri(g), g.Count()))
+            .ToList();
+
+    /// <summary>
+    /// Tek yerden (karışık) hesaplanan planda yükler birden çok lokasyondaysa talep formunun notu: lokasyonlar ve lokasyon
+    /// başına araç sayısı için ne yapılacağı. Tek lokasyonda ya da lokasyona göre ayrı planda not yoktur (null).
+    /// </summary>
+    internal static string? KarisikLokasyonNotu(YuklemePlaniDetayi plan)
+    {
+        var y = Yerlesim(plan);
+        if (y.LokasyonaGoreAyri)
+            return null;
+        var lokasyonlar = y.Araclar.SelectMany(a => a.Lokasyonlar).Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Create(Tr, ignoreCase: false)).ToList();
+        return lokasyonlar.Count <= 1
+            ? null
+            : $"Yükler {lokasyonlar.Count} lokasyonda: {string.Join(", ", lokasyonlar)}. " +
+              "Lokasyon başına araç sayısı için \"Lokasyona göre ayrı\" seçeneğiyle hesaplayın.";
+    }
+
     public byte[] AracTalepRaporu(YuklemePlaniDetayi plan, DateTime raporTarihi)
     {
         QuestPDF.Settings.License = LicenseType.Community;
         var y = Yerlesim(plan);
         var tipler = AracTipleri(plan);
+        var lokasyonlar = y.LokasyonaGoreAyri ? LokasyonAracTipleri(plan) : [];
+        var lokasyonNotu = KarisikLokasyonNotu(plan);
         var atanamayanlar = AtanamayanYukler(plan);
+
+        static void TipHucresi(IContainer hucre, AracTipiSatiri t) => hucre.PaddingVertical(2).Column(c =>
+        {
+            c.Item().Text(t.TipAdi).SemiBold().FontSize(11);
+            c.Item().Text(t.AileAdi).FontSize(7.5f).FontColor(Gri);
+            foreach (var g in t.Gerekceler)
+                c.Item().Text("Özel araç: " + g).FontSize(7.5f).FontColor(Turuncu);
+            foreach (var ts in t.Tasmalar)
+                c.Item().Text($"Taşma ({ts}); izin gerekebilir.").FontSize(7.5f).FontColor(Turuncu);
+        });
+
+        static IContainer ToplamHucresi(IContainer hucre, string arkaPlan) => hucre.Background(arkaPlan).Border(0.5f).BorderColor(Kenar).Padding(4);
 
         return Document.Create(container => container.Page(page =>
         {
@@ -224,37 +278,63 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
                 });
 
                 Bolum(col, "Gereken araçlar");
-                col.Item().Table(table =>
-                {
-                    table.ColumnsDefinition(c =>
+                if (y.LokasyonaGoreAyri)
+                    // Lokasyona göre ayrı plan: depo her lokasyona hangi tipten kaç araç göndereceğini görür.
+                    col.Item().Table(table =>
                     {
-                        c.RelativeColumn();
-                        c.ConstantColumn(70);
-                    });
-                    BasliklariYaz(table, "Araç tipi", "Adet");
-                    var i = 0;
-                    foreach (var t in tipler)
-                    {
-                        var zebra = i++ % 2 == 1;
-                        Hucre(table.Cell(), zebra).PaddingVertical(2).Column(c =>
+                        table.ColumnsDefinition(c =>
                         {
-                            c.Item().Text(t.TipAdi).SemiBold().FontSize(11);
-                            c.Item().Text(t.AileAdi).FontSize(7.5f).FontColor(Gri);
-                            foreach (var g in t.Gerekceler)
-                                c.Item().Text("Özel araç: " + g).FontSize(7.5f).FontColor(Turuncu);
-                            foreach (var ts in t.Tasmalar)
-                                c.Item().Text($"Taşma ({ts}); izin gerekebilir.").FontSize(7.5f).FontColor(Turuncu);
+                            c.RelativeColumn(2);
+                            c.RelativeColumn(3);
+                            c.ConstantColumn(70);
                         });
-                        Hucre(table.Cell(), zebra).AlignRight().AlignMiddle().Text(t.Adet.ToString(Tr)).Bold().FontSize(14);
-                    }
-                    if (tipler.Count == 0)
-                        table.Cell().ColumnSpan(2).Border(0.5f).BorderColor(Kenar).Padding(6).Text("Araç yok.").FontColor(Gri);
-                    else
+                        BasliklariYaz(table, "Lokasyon", "Araç tipi", "Adet");
+                        foreach (var l in lokasyonlar)
+                        {
+                            for (var i = 0; i < l.Tipler.Count; i++)
+                            {
+                                // Lokasyon adı grubun ilk satırında yazılır; grup ara toplamıyla kapanır.
+                                Hucre(table.Cell(), false).AlignMiddle().Text(i == 0 ? l.Lokasyon : string.Empty).SemiBold().FontSize(11);
+                                TipHucresi(Hucre(table.Cell(), false), l.Tipler[i]);
+                                Hucre(table.Cell(), false).AlignRight().AlignMiddle().Text(l.Tipler[i].Adet.ToString(Tr)).Bold().FontSize(14);
+                            }
+                            ToplamHucresi(table.Cell().ColumnSpan(2), Zebra).Text($"{l.Lokasyon} toplamı").SemiBold();
+                            ToplamHucresi(table.Cell(), Zebra).AlignRight().Text(l.Adet.ToString(Tr)).Bold().FontSize(11);
+                        }
+                        if (lokasyonlar.Count == 0)
+                            table.Cell().ColumnSpan(3).Border(0.5f).BorderColor(Kenar).Padding(6).Text("Araç yok.").FontColor(Gri);
+                        else
+                        {
+                            ToplamHucresi(table.Cell().ColumnSpan(2), AcikMavi).Text("TOPLAM").Bold();
+                            ToplamHucresi(table.Cell(), AcikMavi).AlignRight().Text(y.Araclar.Count.ToString(Tr)).Bold().FontSize(14);
+                        }
+                    });
+                else
+                    col.Item().Table(table =>
                     {
-                        table.Cell().Background(AcikMavi).Border(0.5f).BorderColor(Kenar).Padding(4).Text("TOPLAM").Bold();
-                        table.Cell().Background(AcikMavi).Border(0.5f).BorderColor(Kenar).Padding(4).AlignRight().Text(y.Araclar.Count.ToString(Tr)).Bold().FontSize(14);
-                    }
-                });
+                        table.ColumnsDefinition(c =>
+                        {
+                            c.RelativeColumn();
+                            c.ConstantColumn(70);
+                        });
+                        BasliklariYaz(table, "Araç tipi", "Adet");
+                        var i = 0;
+                        foreach (var t in tipler)
+                        {
+                            var zebra = i++ % 2 == 1;
+                            TipHucresi(Hucre(table.Cell(), zebra), t);
+                            Hucre(table.Cell(), zebra).AlignRight().AlignMiddle().Text(t.Adet.ToString(Tr)).Bold().FontSize(14);
+                        }
+                        if (tipler.Count == 0)
+                            table.Cell().ColumnSpan(2).Border(0.5f).BorderColor(Kenar).Padding(6).Text("Araç yok.").FontColor(Gri);
+                        else
+                        {
+                            ToplamHucresi(table.Cell(), AcikMavi).Text("TOPLAM").Bold();
+                            ToplamHucresi(table.Cell(), AcikMavi).AlignRight().Text(y.Araclar.Count.ToString(Tr)).Bold().FontSize(14);
+                        }
+                    });
+                if (lokasyonNotu != null)
+                    col.Item().PaddingTop(4).Text(lokasyonNotu).FontSize(8).FontColor(Gri);
 
                 // Eski "mevcut araçlar" planlarında sığmayan yükler için önerilen ek araçlar (plana eklenmemiştir).
                 if (y.EkIhtiyaclar.Count > 0)
@@ -301,7 +381,8 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
             // "Elle düzenlendi" ve "kaynak farkı" çubukları araç sayfasında yaklaşık iki yük satırı yer kaplar.
             var ustSatir = (y.ElleDuzenlendi ? 2 : 0) + (plan.KaynakFarklari.Count > 0 ? 2 : 0);
             foreach (var a in y.Araclar)
-                Sayfa(container, $"{altMetin} | Araç {a.AracNo} / {y.Araclar.Count}", col => AracSayfasi(col, a, y.Araclar.Count, renkler, tekProje, ustSatir));
+                Sayfa(container, $"{altMetin} | Araç {a.AracNo} / {y.Araclar.Count}",
+                    col => AracSayfasi(col, a, y.Araclar.Count, renkler, tekProje, ustSatir, y.LokasyonaGoreAyri));
             if (atanamayanlar.Count > 0)
                 Sayfa(container, altMetin, col =>
                 {
@@ -334,20 +415,28 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
         Bolum(col, "Araçlar");
         col.Item().Table(table =>
         {
+            // Lokasyon sütunu yalnız lokasyona göre ayrı planda vardır (her araç tek lokasyondan yüklenir).
             table.ColumnsDefinition(c =>
             {
                 c.ConstantColumn(34);
+                if (y.LokasyonaGoreAyri)
+                    c.RelativeColumn(1.4f);
                 c.RelativeColumn(2.4f);
                 c.ConstantColumn(40);
                 c.RelativeColumn(1.6f);
                 c.ConstantColumn(70);
             });
-            BasliklariYaz(table, "Araç", "Araç tipi", "Yük", "Ağırlık / kapasite", "Sonuç");
+            if (y.LokasyonaGoreAyri)
+                BasliklariYaz(table, "Araç", "Lokasyon", "Araç tipi", "Yük", "Ağırlık / kapasite", "Sonuç");
+            else
+                BasliklariYaz(table, "Araç", "Araç tipi", "Yük", "Ağırlık / kapasite", "Sonuç");
             var i = 0;
             foreach (var a in y.Araclar)
             {
                 var zebra = i++ % 2 == 1;
                 Hucre(table.Cell(), zebra).Text(a.AracNo.ToString(Tr)).Bold();
+                if (y.LokasyonaGoreAyri)
+                    Hucre(table.Cell(), zebra).Text(AracLokasyonu(a)).SemiBold();
                 Hucre(table.Cell(), zebra).Text(t =>
                 {
                     t.Span(a.TipAdi).SemiBold();
@@ -408,7 +497,8 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
     /// </summary>
     internal const int YanTablosuSatiri = 29;
 
-    private static void AracSayfasi(ColumnDescriptor col, PlanAraci a, int aracSayisi, Dictionary<string, string> renkler, bool tekProje, int ustSatir)
+    private static void AracSayfasi(
+        ColumnDescriptor col, PlanAraci a, int aracSayisi, Dictionary<string, string> renkler, bool tekProje, int ustSatir, bool lokasyonaGoreAyri)
     {
         var veri = TeknikVeri(a);
         var yukler = AracYukleri(a, tekProje);
@@ -432,6 +522,9 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
             row.RelativeItem().Text(t =>
             {
                 t.Span($"Araç {a.AracNo} / {aracSayisi} · ").Bold().FontSize(12).FontColor(Mavi);
+                // Lokasyona göre ayrı planda aracın yükleneceği yer başlıkta yazılır.
+                if (lokasyonaGoreAyri)
+                    t.Span($"{AracLokasyonu(a)} · ").Bold().FontSize(12).FontColor(Mavi);
                 t.Span(a.TipAdi).Bold().FontSize(12);
                 t.Span($"   {a.EkipmanKodu} · {a.Konumlar.Count} yük · {Kg(a.ToplamKg)}" + (a.KapasiteKg is { } k ? $" / {Kg(k)}" : string.Empty) +
                        (yontemler.Count > 0 ? $" · yükleme: {string.Join(", ", yontemler)}" : string.Empty)).FontColor(Gri);

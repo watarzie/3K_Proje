@@ -359,12 +359,28 @@ public sealed class YuklemePlaniTanimlari
 public sealed record SecimOgesi(int Id, string Ad);
 
 /// <summary>
-/// Tek adımlı plan hesabı (saha geri bildirimi 19.11.2026 madde 5): projeler, taşıma ailesi ve tipleri, güvenlik payları.
-/// <see cref="PlanId"/> boşsa yeni plan açılır; doluysa planın yeni revizyonu yazılır ve <see cref="BeklenenRevizyonNo"/>
-/// tutmazsa 409 döner. Yükler her hesapta kaynaktan (sevk edilmişler dahil) yeniden kurulur.
+/// Tek adımlı plan hesabı (saha geri bildirimi 19.11.2026 madde 5): projeler, taşıma ailesi ve tipleri, yükler arası boşluk.
+/// <see cref="PlanId"/> doluysa planın yeni revizyonu yazılır ve <see cref="BeklenenRevizyonNo"/> tutmazsa 409 döner;
+/// boşsa aynı proje kümesinin en son planı kullanılır (revizyon beklenmez), o da yoksa yeni plan açılır. Yükler her
+/// hesapta kaynaktan (sevk edilmişler dahil) yeniden kurulur. <see cref="LokasyonTercihi"/> boş ya da "henüz seçilmedi"
+/// ise tek yerden (karışık) hesaplanır. <see cref="SandikYukleri"/> kullanıcının sandık seçimleridir (dahil ve izinler):
+/// listede olmayan sandık dahil ve varsayılan izinlidir, seçilen projelerde olmayan sandık yok sayılır.
 /// </summary>
 public sealed record YuklemePlaniHesaplaModel(
-    int? PlanId, int? BeklenenRevizyonNo, IReadOnlyList<int> ProjeIdleri, int TasimaAilesiId, YuklemePlanAyarlari Ayarlar);
+    int? PlanId, int? BeklenenRevizyonNo, IReadOnlyList<int> ProjeIdleri, int TasimaAilesiId, YuklemePlanAyarlari Ayarlar,
+    YuklemeLokasyonTercihi? LokasyonTercihi = null, IReadOnlyList<PlanSandikYukuKaydi>? SandikYukleri = null);
+
+/// <summary>
+/// Hesaptan önce yük önizlemesi: seçilen projelerin plana gelecek sandıkları (hesapla ile aynı kaynak ve sıra) varsayılan
+/// izinlerle; hiçbir şey kaydedilmez.
+/// </summary>
+public sealed class PlanYukOnizlemesi
+{
+    public IReadOnlyList<PlanYukSatiri> Yukler { get; init; } = [];
+
+    /// <summary>Plan detayındaki aynı adlı alanla aynı hesap (<see cref="YuklemePlaniKurali.FarkliLokasyonSayisi"/>).</summary>
+    public int FarkliLokasyonSayisi { get; init; }
+}
 
 /// <summary>
 /// Taşıma ailesinin tipi. <see cref="OtomatikSecilir"/>: tip seçilmeyen planda da kullanılır (sadelik sırası var);

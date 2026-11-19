@@ -52,6 +52,7 @@ internal sealed partial class YuklemePlaniService
         await TipleriDenetleAsync(model.TasimaAilesiId, model.Ayarlar.TipIdleri, cancellationToken);
         var projeler = await ProjeleriAsync(model.ProjeIdleri, cancellationToken);
         var aileAdi = await context.EkipmanAileleri.AsNoTracking().Where(a => a.Id == model.TasimaAilesiId).Select(a => a.Ad).SingleAsync(cancellationToken);
+        var lokasyonTercihi = YuklemePlaniKurali.HesapLokasyonTercihi(model.LokasyonTercihi);
 
         YuklemePlani plan;
         YuklemePlanRevizyonu? onceki = null;
@@ -61,6 +62,14 @@ internal sealed partial class YuklemePlaniService
                    ?? throw new KayitBulunamadiException(PlanBulunamadi);
             if (plan.SonRevizyonNo != model.BeklenenRevizyonNo)
                 throw IsKuraliException.Cakisma(EszamanliKayit);
+            onceki = await RevizyonAsync(plan.Id, plan.SonRevizyonNo, cancellationToken);
+        }
+        else if (await AyniProjeliSonPlanAsync(projeler.Select(p => p.Id).ToList(), cancellationToken) is { } ayniProjeli)
+        {
+            // Ekranda plan kavramı yok (saha isteği, 20 Kasım 2026): aynı projeler yeniden hesaplanınca yeni plan açılmaz,
+            // en son planın revizyonu artar (sahada yüklemesi süren kayıt hariç). Kullanıcı plan seçmediği için beklenen
+            // revizyon sorulmaz.
+            plan = ayniProjeli;
             onceki = await RevizyonAsync(plan.Id, plan.SonRevizyonNo, cancellationToken);
         }
         else
@@ -79,12 +88,11 @@ internal sealed partial class YuklemePlaniService
         if (onceki != null && plan.Ad == OtomatikAd(onceki.Projeler.Where(p => p.ProjeId != null).Select(p => new SecimOgesi(p.ProjeId!.Value, p.ProjeNo))))
             plan.Ad = OtomatikAd(projeler);
 
-        // Yükler her hesapta kaynaktan kurulur (sevk edilmişler dahil, planlamaya dahil, varsayılan izinlerle); formdan
-        // kalkan seçimler (çalışma biçimi, proje karışımı, lokasyon tercihi, mevcut araçlar) varsayılandır. Eski planda
-        // elle eklenmiş yükler seçili projelerdeyse (ya da projesizse) korunur.
-        var sandiklar = PlanaGelenler(await SandiklarAsync(model.ProjeIdleri, [], cancellationToken), model.ProjeIdleri);
-        var satirlar = sandiklar.Select((s, i) =>
-            SandikSatiri(s, i + 1, dahil: true, YukIzinKurali.Varsayilan(s.YukTuruId, s.Brut), PlanYukIzni.Yok)).ToList();
+        // Yükler her hesapta kaynaktan kurulur (sevk edilmişler dahil); hangi sandığın yükleneceği ve izinleri kullanıcının
+        // gönderdiği seçimlerden gelir, seçimi olmayan sandık dahil ve varsayılan izinlidir. Formda olmayan seçimler
+        // (çalışma biçimi, proje karışımı, mevcut araçlar) varsayılandır. Eski planda elle eklenmiş yükler seçili
+        // projelerdeyse (ya da projesizse) korunur.
+        var satirlar = await KaynakSatirlariAsync(model.ProjeIdleri, model.SandikYukleri, cancellationToken);
         var secili = model.ProjeIdleri.ToHashSet();
         var eskiManueller = (onceki?.Yukler ?? []).Where(y => y.Kaynak == PlanYukKaynagi.Manuel && (y.ProjeId == null || secili.Contains(y.ProjeId.Value)));
         foreach (var manuel in eskiManueller.OrderBy(y => y.SiraNo))
@@ -100,13 +108,13 @@ internal sealed partial class YuklemePlaniService
             MevcutAraclar = [],
             AgirlikMerkeziSapmaYuzde = oncekiAyarlar?.AgirlikMerkeziSapmaYuzde
         };
-        var sonuc = await YerlesimHesaplaAsync(model.TasimaAilesiId, aileAdi, YuklemeProjeKarisimi.Karisik, YuklemeLokasyonTercihi.Karisik,
+        var sonuc = await YerlesimHesaplaAsync(model.TasimaAilesiId, aileAdi, YuklemeProjeKarisimi.Karisik, lokasyonTercihi,
             ayarlar, null, satirlar, cancellationToken);
 
         plan.TasimaAilesiId = model.TasimaAilesiId;
         plan.CalismaBicimi = YuklemeCalismaBicimi.IhtiyacaGoreArac;
         plan.ProjeKarisimi = YuklemeProjeKarisimi.Karisik;
-        plan.LokasyonTercihi = YuklemeLokasyonTercihi.Karisik;
+        plan.LokasyonTercihi = lokasyonTercihi;
         // Yeni plan, hesap başarılı olunca eklenir: reddedilen hesap bağlamda yarım kayıt bırakmaz.
         if (plan.Id == 0)
             context.YuklemePlanlari.Add(plan);
@@ -122,6 +130,37 @@ internal sealed partial class YuklemePlaniService
         }
         return (await PlanGetirAsync(plan.Id, cancellationToken))!;
     }
+
+    public async Task<PlanYukOnizlemesi> YukOnizlemeAsync(IReadOnlyList<int> projeIdleri, CancellationToken cancellationToken)
+    {
+        await ProjeleriAsync(projeIdleri, cancellationToken);
+        var kaynak = await KaynakSatirlariAsync(projeIdleri, null, cancellationToken);
+        // Hesap bu yük sayısını zaten reddeder; önizleme de sınırsız liste döndürmez.
+        if (kaynak.Count > YuklemePlaniKurali.EnFazlaYuk)
+            throw new IsKuraliException(YukSiniriAsildi);
+        var yukTurleri = await context.LookupYukTurleri.AsNoTracking().ToDictionaryAsync(t => t.Id, t => t.Deger, cancellationToken);
+        var satirlar = kaynak.Select(y => YukSatiri(y, yukTurleri, aracNo: null, yerlesimNotu: null)).ToList();
+        return new PlanYukOnizlemesi
+        {
+            Yukler = satirlar,
+            FarkliLokasyonSayisi = YuklemePlaniKurali.FarkliLokasyonSayisi(satirlar)
+        };
+    }
+
+    /// <summary>
+    /// Son revizyonunun projeleri verilen kümeyle birebir aynı olan en son plan (son revizyonu en yeni olan); yoksa null.
+    /// Projesi silinmiş (bağı boşalmış) plan eşleşmez. Sahada yüklemesi süren (açık oturumu olan) plan da eşleşmez:
+    /// kullanıcı o kaydı görmeden üzerine yazmasın, yeni kayıt açılsın. Plan izlenen nesnedir (yeni revizyon ona yazılır).
+    /// </summary>
+    private async Task<YuklemePlani?> AyniProjeliSonPlanAsync(List<int> projeIdleri, CancellationToken cancellationToken) =>
+        await context.YuklemePlanRevizyonlari
+            .Where(r => r.RevizyonNo == r.Plan.SonRevizyonNo &&
+                        r.Projeler.Count == projeIdleri.Count &&
+                        r.Projeler.All(p => p.ProjeId != null && projeIdleri.Contains(p.ProjeId.Value)) &&
+                        !context.YuklemeOturumlari.Any(o => o.PlanId == r.PlanId && o.Durum == YuklemeOturumDurumu.Acik))
+            .OrderByDescending(r => r.CreatedDate).ThenByDescending(r => r.PlanId)
+            .Select(r => r.Plan)
+            .FirstOrDefaultAsync(cancellationToken);
 
     private const string PlanNoIndeksi = "IX_YuklemePlanlari_PlanNo";
     private const string AyniAndaYeniPlan = "Aynı anda başka bir plan açıldı; tekrar \"Hesapla\"ya basın.";

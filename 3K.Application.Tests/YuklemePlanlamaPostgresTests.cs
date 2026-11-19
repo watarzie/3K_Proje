@@ -266,6 +266,224 @@ public sealed class YuklemePlanlamaPostgresTests
         });
     }
 
+    private static EkipmanKonfigurasyonu K40Konfigurasyonu() => new()
+    {
+        Model = new EkipmanModeli { TipId = 2, Uretici = "Test", ModelAdi = "K40" },
+        Kod = "K40DV", Ad = "K40DV", SonRevizyonNo = 1,
+        Revizyonlar =
+        [
+            new EkipmanKonfigurasyonRevizyonu
+            {
+                RevizyonNo = 1, KaynakTuru = EkipmanKaynakTuru.Diger, DogrulamaDurumu = EkipmanDogrulamaDurumu.Dogrulandi,
+                TeknikVeriJson = _3K.YuklemeMotoru.Ekipman.EkipmanTeknikVeriSerilestirici.Yaz(YerlesimMotoruTests.K40.TeknikVeri)
+            }
+        ]
+    };
+
+    private static Sandik Sandik(Proje proje, string no, decimal? boy, decimal? brut, DepoLokasyon lokasyon)
+    {
+        var sandik = Sandik(proje, no, boy, brut);
+        sandik.DepoLokasyonId = (int)lokasyon;
+        return sandik;
+    }
+
+    /// <summary>
+    /// Tek ekranlı simülasyon (saha isteği, 20 Kasım 2026): hangi sandıkların yükleneceği ve izinleri kullanıcıdan gelir
+    /// (hariç tutulan sandık yerleşime girmez, seçilen projelerde olmayan sandık yok sayılır); yükleme yeri tercihi plana
+    /// yazılır ve lokasyona göre ayrı hesapta her araç tek lokasyondan yüklenir; plan verilmeyen hesap aynı projelerin en
+    /// son planına revizyon yazar, farklı proje kümesi yeni plan açar.
+    /// </summary>
+    [PostgresRaporFact, Trait("Category", "Postgres")]
+    public async Task Postgres_PlanHesapla_SandikSecimleriLokasyonTercihiVeAyniProjelerinPlani()
+    {
+        await FinansPostgresTests.InDatabase(async options =>
+        {
+            int projeA, projeB, s1, s2, s3, s4, yabanci;
+            await using (var db = new AppDbContext(options))
+            {
+                db.EkipmanKonfigurasyonlari.Add(K40Konfigurasyonu());
+                var a = new Proje { ProjeNo = "PA930-01", Musteri = "M", ProjeTipiId = (int)ProjeTipi.Normal };
+                var b = new Proje { ProjeNo = "PA930-02", Musteri = "M", ProjeTipiId = (int)ProjeTipi.Normal };
+                var c = new Proje { ProjeNo = "PA930-03", Musteri = "M", ProjeTipiId = (int)ProjeTipi.Normal };
+                var sandiklar = new[]
+                {
+                    Sandik(a, "1", 2000, 600), Sandik(a, "2", 1400, 500), Sandik(a, "3", 1400, 400, DepoLokasyon.Seymen),
+                    Sandik(a, "4", 1400, 300, DepoLokasyon.Belirsiz), Sandik(b, "1", 1400, 200), Sandik(c, "1", 1400, 100)
+                };
+                db.Sandiklar.AddRange(sandiklar);
+                await db.SaveChangesAsync();
+                (projeA, projeB) = (a.Id, b.Id);
+                (s1, s2, s3, s4, yabanci) = (sandiklar[0].Id, sandiklar[1].Id, sandiklar[2].Id, sandiklar[3].Id, sandiklar[5].Id);
+            }
+
+            YuklemePlaniHesaplaModel Hesap(IReadOnlyList<int> projeler, int? planId = null, int? revizyon = null,
+                YuklemeLokasyonTercihi? tercih = null, IReadOnlyList<PlanSandikYukuKaydi>? secimler = null) =>
+                new(planId, revizyon, projeler, 1, new YuklemePlanAyarlari(), tercih, secimler);
+
+            // (1) Sandık seçimleri: 2 hariç, 3'ün izinleri elle değişti; başka projenin sandığı yok sayılır. Tercih
+            // gönderilmediği için tek yerden (karışık) hesaplanır.
+            var elle = PlanYukIzni.Dondurme | PlanYukIzni.UsteKonma | PlanYukIzni.UstYukSiniri;
+            YuklemePlaniDetayi ilk;
+            await using (var db = new AppDbContext(options))
+            {
+                ilk = await PlanServisi(db).PlanHesaplaAsync(Hesap([projeA], secimler:
+                [
+                    new PlanSandikYukuKaydi(s2, false, false, true, true, 500m, PlanYukIzni.Yok),
+                    new PlanSandikYukuKaydi(s3, true, true, false, true, 150m, elle),
+                    new PlanSandikYukuKaydi(yabanci, true, true, true, true, 100m, PlanYukIzni.Yok)
+                ]), kullaniciId: null, Ct);
+            }
+            Assert.Equal(["PA930-01-1", "PA930-01-2", "PA930-01-3", "PA930-01-4"], ilk.Yukler.Select(y => y.Kod));
+            Assert.Equal((1, YuklemeLokasyonTercihi.Karisik, false), (ilk.RevizyonNo, ilk.LokasyonTercihi, ilk.Yerlesim!.LokasyonaGoreAyri));
+            var haric = ilk.Yukler.Single(y => y.SandikId == s2);
+            Assert.Equal((false, PlanYukDurumu.HaricTutuldu, (int?)null), (haric.Dahil, haric.Durum, haric.AracNo));
+            Assert.DoesNotContain(ilk.Yerlesim.Araclar.SelectMany(a => a.Konumlar), k => k.YukAnahtari == "s:" + s2);
+            Assert.DoesNotContain(ilk.Yerlesim.Yerlesemeyenler, y => y.YukAnahtari == "s:" + s2);
+            var izinli = ilk.Yukler.Single(y => y.SandikId == s3);
+            Assert.Equal((true, true, false, true, 150m, elle, PlanYukDurumu.Yerlesti),
+                (izinli.Dahil, izinli.DondurulebilirMi, izinli.UsteKonabilirMi, izinli.AltaKalabilirMi, izinli.UstYukSiniriKg, izinli.ElleDegisenIzinler, izinli.Durum));
+            // Seçimi gönderilmeyen sandık dahil ve varsayılan izinlidir (üst yük sınırı kendi brütü).
+            var varsayilan = ilk.Yukler.Single(y => y.SandikId == s1);
+            Assert.Equal((true, false, true, true, 600m, PlanYukIzni.Yok),
+                (varsayilan.Dahil, varsayilan.DondurulebilirMi, varsayilan.UsteKonabilirMi, varsayilan.AltaKalabilirMi, varsayilan.UstYukSiniriKg, varsayilan.ElleDegisenIzinler));
+            Assert.Equal((4, 3, 1, 3), (ilk.Sayaclar.Toplam, ilk.Sayaclar.Secilen, ilk.Sayaclar.HaricTutulan, ilk.Sayaclar.Yerlesen));
+            // Tek yerden: üç lokasyonun yükü aynı araçta; bilinçli seçim olduğu için uyarı yazılmaz.
+            var tekArac = Assert.Single(ilk.Yerlesim.Araclar);
+            Assert.Equal((3, 3), (tekArac.Lokasyonlar.Count, ilk.FarkliLokasyonSayisi));
+            Assert.Contains(YuklemeEtiketleri.BelirsizLokasyon, tekArac.Lokasyonlar);
+            Assert.DoesNotContain(ilk.Yerlesim.Uyarilar, u => u.Contains("lokasyon", StringComparison.OrdinalIgnoreCase));
+
+            await using (var db = new AppDbContext(options))
+            {
+                // Seçimler satıra yazıldı (ekran modeli değil, saklanan revizyon).
+                var satirlar = await db.YuklemePlanYukleri.AsNoTracking().Where(y => y.Revizyon.PlanId == ilk.Id && y.Revizyon.RevizyonNo == 1).ToListAsync();
+                Assert.Equal(4, satirlar.Count);
+                Assert.False(satirlar.Single(y => y.SandikId == s2).Dahil);
+                var saklanan = satirlar.Single(y => y.SandikId == s3);
+                Assert.Equal((true, false, 150m, elle), (saklanan.DondurulebilirMi, saklanan.UsteKonabilirMi, saklanan.UstYukSiniriKg, saklanan.ElleDegisenIzinler));
+                Assert.DoesNotContain(satirlar, y => y.SandikId == yabanci);
+            }
+
+            // (2) + (3) Plan verilmeden aynı projeler: yeni plan açılmaz, aynı planın revizyonu artar (revizyon beklenmez).
+            // Lokasyona göre ayrı: her araçta tek lokasyon; tercih plana yazılır. Seçim gönderilmediği için 2 yeniden dahildir.
+            YuklemePlaniDetayi ayri;
+            await using (var db = new AppDbContext(options))
+            {
+                ayri = await PlanServisi(db).PlanHesaplaAsync(Hesap([projeA], tercih: YuklemeLokasyonTercihi.LokasyonaGoreAyri), null, Ct);
+                Assert.Equal((ilk.Id, ilk.PlanNo, 2), (ayri.Id, ayri.PlanNo, ayri.RevizyonNo));
+                Assert.Equal((1, 2), (await db.YuklemePlanlari.CountAsync(), await db.YuklemePlanRevizyonlari.CountAsync()));
+                Assert.Equal(YuklemeLokasyonTercihi.LokasyonaGoreAyri, (await db.YuklemePlanlari.AsNoTracking().SingleAsync()).LokasyonTercihi);
+            }
+            Assert.Equal((YuklemeLokasyonTercihi.LokasyonaGoreAyri, true), (ayri.LokasyonTercihi, ayri.Yerlesim!.LokasyonaGoreAyri));
+            Assert.All(ayri.Yukler, y => Assert.True(y.Dahil));
+            Assert.Equal(3, ayri.Yerlesim.Araclar.Count);
+            Assert.All(ayri.Yerlesim.Araclar, a => Assert.Single(a.Lokasyonlar));
+            Assert.Equal(3, ayri.Yerlesim.Araclar.Select(a => a.Lokasyonlar[0]).Distinct().Count());
+            // Aynı lokasyondaki iki sandık (1 ve 2) aynı araçtadır.
+            Assert.Equal(ayri.Yukler.Single(y => y.SandikId == s1).AracNo, ayri.Yukler.Single(y => y.SandikId == s2).AracNo);
+            Assert.NotEqual(ayri.Yukler.Single(y => y.SandikId == s1).AracNo, ayri.Yukler.Single(y => y.SandikId == s3).AracNo);
+            Assert.NotEqual(ayri.Yukler.Single(y => y.SandikId == s3).AracNo, ayri.Yukler.Single(y => y.SandikId == s4).AracNo);
+
+            await using (var db = new AppDbContext(options))
+            {
+                var servis = PlanServisi(db);
+                // Farklı proje kümesi yeni plan açar; aynı küme (sıra ve tekrar fark etmez) yine o plana yazar.
+                var ikili = await servis.PlanHesaplaAsync(Hesap([projeA, projeB]), null, Ct);
+                Assert.NotEqual(ilk.Id, ikili.Id);
+                Assert.Equal((1, "PA930-01, PA930-02"), (ikili.RevizyonNo, ikili.Ad));
+                var ikiliTekrar = await servis.PlanHesaplaAsync(Hesap([projeB, projeA, projeB]), null, Ct);
+                Assert.Equal((ikili.Id, 2), (ikiliTekrar.Id, ikiliTekrar.RevizyonNo));
+                // Alt küme başka kümedir: tek projeli hesap ilk plana döner. "Henüz seçilmedi" tek yerden sayılır ve saklanır.
+                var tekrar = await servis.PlanHesaplaAsync(Hesap([projeA], tercih: YuklemeLokasyonTercihi.HenuzSecilmedi), null, Ct);
+                Assert.Equal((ilk.Id, 3, YuklemeLokasyonTercihi.Karisik), (tekrar.Id, tekrar.RevizyonNo, tekrar.LokasyonTercihi));
+                Assert.Single(tekrar.Yerlesim!.Araclar);
+                Assert.Equal(2, await db.YuklemePlanlari.CountAsync());
+
+                // Plan açıkça verilirse beklenen revizyon denetimi sürer (409) ve hiçbir şey yazılmaz.
+                var cakisma = await Assert.ThrowsAsync<IsKuraliException>(() => servis.PlanHesaplaAsync(Hesap([projeA], ilk.Id, 2), null, Ct));
+                Assert.Equal(409, cakisma.StatusCode);
+                Assert.Equal(5, await db.YuklemePlanRevizyonlari.CountAsync());
+
+                // Elle değişmemiş (bayraksız) izin istemciden alınmaz: güncel kaynaktan (brüt 600 kg) yeniden kurulur.
+                var bayraksiz = await servis.PlanHesaplaAsync(Hesap([projeA, projeB], secimler:
+                    [new PlanSandikYukuKaydi(s1, true, true, false, false, 5m, PlanYukIzni.Yok)]), null, Ct);
+                Assert.Equal((ikili.Id, 3), (bayraksiz.Id, bayraksiz.RevizyonNo));
+                var s1Satiri = bayraksiz.Yukler.Single(y => y.SandikId == s1);
+                Assert.Equal((false, true, true, 600m, PlanYukIzni.Yok),
+                    (s1Satiri.DondurulebilirMi, s1Satiri.UsteKonabilirMi, s1Satiri.AltaKalabilirMi, s1Satiri.UstYukSiniriKg, s1Satiri.ElleDegisenIzinler));
+
+                // Sahada yüklemesi süren kayda plan verilmeden yazılmaz: aynı projeler için yeni kayıt açılır, eskisi değişmez.
+                await servis.BaslatAsync(ikili.Id, 3, null, Ct);
+                var oturumVarken = await servis.PlanHesaplaAsync(Hesap([projeA, projeB]), null, Ct);
+                Assert.NotEqual(ikili.Id, oturumVarken.Id);
+                Assert.Equal(1, oturumVarken.RevizyonNo);
+                Assert.Equal(3, await db.YuklemePlanRevizyonlari.CountAsync(r => r.PlanId == ikili.Id));
+                Assert.Equal(3, await db.YuklemePlanlari.CountAsync());
+            }
+        });
+    }
+
+    /// <summary>
+    /// Yük önizlemesi: seçilen projelerin plana gelecek sandıkları hesapla ile aynı satırlardır (aynı kaynak ve sıra, sevk
+    /// edilmişler dahil, varsayılan izinli, verisi eksik olan sorunuyla) ve hiçbir şey yazılmaz.
+    /// </summary>
+    [PostgresRaporFact, Trait("Category", "Postgres")]
+    public async Task Postgres_YukOnizleme_HesaplaIleAyniSatirlar_Yazmaz()
+    {
+        await FinansPostgresTests.InDatabase(async options =>
+        {
+            int projeA, projeB, olcusuz;
+            await using (var db = new AppDbContext(options))
+            {
+                db.EkipmanKonfigurasyonlari.Add(K40Konfigurasyonu());
+                var a = new Proje { ProjeNo = "PA940-01", Musteri = "M", ProjeTipiId = (int)ProjeTipi.Normal };
+                var b = new Proje { ProjeNo = "PA940-02", Musteri = "M", ProjeTipiId = (int)ProjeTipi.Saha };
+                var c = new Proje { ProjeNo = "PA940-03", Musteri = "M", ProjeTipiId = (int)ProjeTipi.Normal };
+                var eksik = Sandik(a, "10", null, 300);
+                db.Sandiklar.AddRange(eksik, Sandik(a, "2", 1400, 500, (int)SandikDurum.Sevkedildi), Sandik(a, "1", 2000, 600, DepoLokasyon.Seymen),
+                    Sandik(b, "1", 1400, 200, DepoLokasyon.Belirsiz), Sandik(c, "1", 1400, 100));
+                await db.SaveChangesAsync();
+                (projeA, projeB, olcusuz) = (a.Id, b.Id, eksik.Id);
+            }
+
+            PlanYukOnizlemesi onizleme;
+            await using (var db = new AppDbContext(options))
+            {
+                var sonuc = await new YuklemePlaniQueryHandlers(PlanServisi(db)).Handle(new PlanYukOnizlemeQuery { ProjeIdleri = [projeB, projeA] }, Ct);
+                Assert.True(sonuc.IsSuccess);
+                onizleme = sonuc.Value!;
+                // Sorgu durum değiştirmez: plan, revizyon ve yük satırı yazılmadı; bağlamda bekleyen değişiklik yok.
+                Assert.False(db.ChangeTracker.HasChanges());
+                Assert.Equal((0, 0, 0), (await db.YuklemePlanlari.CountAsync(), await db.YuklemePlanRevizyonlari.CountAsync(), await db.YuklemePlanYukleri.CountAsync()));
+                await Assert.ThrowsAsync<KayitBulunamadiException>(() => PlanServisi(db).YukOnizlemeAsync([projeA, 999_999], Ct));
+            }
+            // Proje ve doğal sandık numarası sırası; sevk edilmiş sandık (2) de gelir; başka projenin sandığı gelmez.
+            Assert.Equal(["PA940-01-1", "PA940-01-2", "PA940-01-10", "PA940-02-1"], onizleme.Yukler.Select(y => y.Kod));
+            Assert.Equal([1, 2, 3, 4], onizleme.Yukler.Select(y => y.SiraNo));
+            Assert.All(onizleme.Yukler, y => Assert.Equal((true, PlanYukKaynagi.Sandik, (int?)null, (string?)null, PlanYukIzni.Yok),
+                (y.Dahil, y.Kaynak, y.AracNo, y.YerlesimNotu, y.ElleDegisenIzinler)));
+            var eksikSatir = onizleme.Yukler.Single(y => y.SandikId == olcusuz);
+            Assert.Equal((PlanYukDurumu.EksikVeri, "Ölçü giriniz."), (eksikSatir.Durum, Assert.Single(eksikSatir.VeriSorunlari)));
+            Assert.All(onizleme.Yukler.Where(y => y.SandikId != olcusuz), y => Assert.Equal(PlanYukDurumu.Bekliyor, y.Durum));
+            var ilkSatir = onizleme.Yukler[0];
+            Assert.Equal((false, true, true, 600m, (int?)(int)DepoLokasyon.Seymen), (ilkSatir.DondurulebilirMi, ilkSatir.UsteKonabilirMi, ilkSatir.AltaKalabilirMi,
+                ilkSatir.UstYukSiniriKg, ilkSatir.LokasyonId));
+            // Verisi tam yükler üç lokasyonda: Seymen, 3K ve belirsiz (verisi eksik sandık sayılmaz).
+            Assert.Equal(3, onizleme.FarkliLokasyonSayisi);
+
+            // Hesap aynı satırları üretir (aynı kaynak, sıra ve varsayılan izinler); farklı lokasyon sayısı aynı hesaptır.
+            await using (var db = new AppDbContext(options))
+            {
+                var hesap = await PlanServisi(db).PlanHesaplaAsync(new YuklemePlaniHesaplaModel(null, null, [projeB, projeA], 1, new YuklemePlanAyarlari()), null, Ct);
+                static object Ozet(PlanYukSatiri y) => (y.SiraNo, y.Kaynak, y.SandikId, y.Kod, y.Aciklama, y.ProjeId, y.ProjeNo, y.YukTuruId, y.YukTuruAdi, y.BoyMm, y.EnMm,
+                    y.YukseklikMm, y.BrutKg, y.LokasyonId, y.LokasyonAdi, y.Dahil, y.DondurulebilirMi, y.UsteKonabilirMi, y.AltaKalabilirMi, y.UstYukSiniriKg,
+                    y.ElleDegisenIzinler, string.Join("|", y.VeriSorunlari));
+                Assert.Equal(onizleme.Yukler.Select(Ozet), hesap.Yukler.Select(Ozet));
+                Assert.Equal(onizleme.FarkliLokasyonSayisi, hesap.FarkliLokasyonSayisi);
+            }
+        });
+    }
+
     [PostgresRaporFact, Trait("Category", "Postgres")]
     public async Task Postgres_EkipmanIceAktarim_OnizlemeYazmaz_RevizyonluVeDogrulanir()
     {

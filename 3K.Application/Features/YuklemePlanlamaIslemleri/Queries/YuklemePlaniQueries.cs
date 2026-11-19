@@ -45,13 +45,30 @@ public sealed class YuklemePlaniGetirQuery : IRequest<Result<YuklemePlaniDetayi>
     public YetkiTipi RequiredYetkiTipi => YetkiTipi.R;
 }
 
+/// <summary>
+/// Hesaptan önce yük önizlemesi (yukleme-planlari R): seçilen projelerin plana gelecek sandıkları, hesapla ile aynı kaynak
+/// ve sırayla, varsayılan izinlerle. Kullanıcı hangi sandıkların yükleneceğini ve izinleri bu listede seçer; hiçbir şey
+/// kaydedilmez.
+/// </summary>
+public sealed class PlanYukOnizlemeQuery : IRequest<Result<PlanYukOnizlemesi>>, ISecuredRequest, IRequiresMenuPermission
+{
+    public List<int> ProjeIdleri { get; set; } = [];
+
+    public string RequiredMenuKod => YetkiKodlari.YuklemePlanlama.Planlar;
+    public YetkiTipi RequiredYetkiTipi => YetkiTipi.R;
+}
+
 public sealed class YuklemePlaniQueryHandlers(IYuklemePlaniService service) :
     IRequestHandler<YuklemePlaniTanimlariQuery, Result<YuklemePlaniTanimlari>>,
     IRequestHandler<PlanProjeAdaylariQuery, Result<SayfaliSonuc<PlanProjeAdayi>>>,
     IRequestHandler<YuklemePlanlariQuery, Result<SayfaliSonuc<YuklemePlaniOzeti>>>,
-    IRequestHandler<YuklemePlaniGetirQuery, Result<YuklemePlaniDetayi>>
+    IRequestHandler<YuklemePlaniGetirQuery, Result<YuklemePlaniDetayi>>,
+    IRequestHandler<PlanYukOnizlemeQuery, Result<PlanYukOnizlemesi>>
 {
     public const string PlanBulunamadi = "Yükleme planı bulunamadı.";
+
+    public async Task<Result<PlanYukOnizlemesi>> Handle(PlanYukOnizlemeQuery request, CancellationToken cancellationToken) =>
+        Result<PlanYukOnizlemesi>.Success(await service.YukOnizlemeAsync(request.ProjeIdleri.Distinct().ToList(), cancellationToken));
 
     public async Task<Result<YuklemePlaniTanimlari>> Handle(YuklemePlaniTanimlariQuery request, CancellationToken cancellationToken) =>
         Result<YuklemePlaniTanimlari>.Success(await service.TanimlarAsync(cancellationToken));

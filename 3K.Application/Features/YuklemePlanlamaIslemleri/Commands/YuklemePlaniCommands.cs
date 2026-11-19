@@ -109,25 +109,36 @@ public sealed class YuklemePlaniHesaplaCommand : IRequest<Result<YuklemePlaniDet
 }
 
 /// <summary>
-/// Tek adımlı plan hesabı (saha geri bildirimi 19.11.2026 madde 5): proje, taşıma ailesi/tipleri ve paylarla planı (yoksa
-/// açar) kaynaktan kurar ve yerleşimi aynı revizyonda yazar. Kaydetme ve revizyon notu adımı yoktur.
+/// Tek adımlı plan hesabı (saha geri bildirimi 19.11.2026 madde 5; 20.11.2026): proje, sandık seçimleri, taşıma
+/// ailesi/tipleri, yükleme yeri tercihi ve yükler arası boşlukla planı kaynaktan kurar ve yerleşimi aynı revizyonda yazar. Kaydetme ve
+/// revizyon notu adımı yoktur; ekranda plan kavramı olmadığı için plan verilmezse aynı projelerin en son planına yazılır.
 /// </summary>
 public sealed class YuklemePlaniPlanHesaplaCommand : IRequest<Result<YuklemePlaniDetayi>>, ISecuredRequest, IRequiresMenuPermission
 {
-    /// <summary>Boşsa yeni plan açılır.</summary>
+    /// <summary>Boşsa aynı proje kümesinin en son planı kullanılır; o da yoksa yeni plan açılır.</summary>
     public int? PlanId { get; set; }
 
-    /// <summary>Var olan planda zorunlu: arada başka biri hesapladıysa 409.</summary>
+    /// <summary>Plan verildiyse zorunlu: arada başka biri hesapladıysa 409.</summary>
     public int? BeklenenRevizyonNo { get; set; }
 
     public List<int> ProjeIdleri { get; set; } = [];
     public int TasimaAilesiId { get; set; }
     public YuklemePlanAyarlari Ayarlar { get; set; } = new();
 
+    /// <summary>Yükleme yeri: tek yerden (Karisik) ya da lokasyona göre ayrı. Boş ya da "henüz seçilmedi" tek yerden sayılır.</summary>
+    public YuklemeLokasyonTercihi? LokasyonTercihi { get; set; }
+
+    /// <summary>
+    /// Hangi sandıkların yükleneceği ve izinleri. Boşsa bütün sandıklar dahil ve varsayılan izinlidir; listede olmayan
+    /// sandık da öyledir. Seçilen projelerde olmayan sandık yok sayılır.
+    /// </summary>
+    public List<PlanSandikYukuDto>? SandikYukleri { get; set; }
+
     public string RequiredMenuKod => YetkiKodlari.YuklemePlanlama.Planlar;
     public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
 
-    public YuklemePlaniHesaplaModel Model() => new(PlanId, BeklenenRevizyonNo, ProjeIdleri, TasimaAilesiId, Ayarlar);
+    public YuklemePlaniHesaplaModel Model() =>
+        new(PlanId, BeklenenRevizyonNo, ProjeIdleri.Distinct().ToList(), TasimaAilesiId, Ayarlar, LokasyonTercihi, SandikYukleri?.Select(y => y.Model()).ToList());
 }
 
 public sealed class YuklemePlaniCommandHandlers(IYuklemePlaniService service, ICurrentUserService currentUser) :

@@ -121,7 +121,7 @@ public static class YerlesimMotoru
             .Concat(ozelAraclar.Select(a => (a.Arac, a.Gerekce, Zorunlu: true)))
             .Where(a => !a.Arac.Bos).ToList();
         var sonuclar = araclar.Select((a, i) => AracKontrolcu.Olustur(i + 1, a.Arac, girdi.Ayarlar, a.Gerekce, a.Zorunlu)).ToList();
-        var uyarilar = Uyarilar(girdi, araclar.Select(a => a.Arac).ToList(), sonuclar, havuz);
+        var uyarilar = Uyarilar(araclar.Select(a => a.Arac).ToList(), havuz);
         if (kazanc > 0)
         {
             var tipler = ustTipler.OrderBy(t => t.Seviye).Select(t => t.Tip).Distinct().ToList();
@@ -600,7 +600,7 @@ public static class YerlesimMotoru
         return null;
     }
 
-    internal static List<string> Uyarilar(YerlesimGirdisi girdi, List<AracYerlesimi> araclar, List<YerlesimAraci> sonuclar, List<HavuzAraci>? havuz)
+    internal static List<string> Uyarilar(List<AracYerlesimi> araclar, List<HavuzAraci>? havuz)
     {
         // Teyit edilemeyen kontroller gösterilmez (AracKontrolcu.Gosterilecekler); tanımsız güvenlik payı ayrıca uyarılmaz.
         var uyarilar = new List<string>();
@@ -609,8 +609,8 @@ public static class YerlesimMotoru
             if (araclar[i].IstifSiniriBilinmiyor)
                 uyarilar.Add($"Araç {i + 1} ({araclar[i].Aday.Kod}): yükseklik sınırı bilinmediği için istif yapılmadı.");
         }
-        foreach (var arac in sonuclar.Where(a => a.LokasyonIdleri.Count > 1))
-            uyarilar.Add($"Araç {arac.AracNo}: farklı lokasyonlardaki yükler aynı araca atandı; fiziksel yükleme organizasyonu belirlenmelidir.");
+        // Farklı lokasyonların aynı araca atanması uyarılmaz: "tek yerden" yükleme kullanıcının seçimidir, lokasyona göre
+        // ayrı planda zaten oluşmaz (elle düzenlemede tercih ihlali Organizasyon kontrolüyle bildirilir).
         var bos = havuz?.Count(h => !h.Kullanildi) ?? 0;
         if (bos > 0)
             uyarilar.Add($"Mevcut araçlardan {bos} tanesi boş kaldı.");

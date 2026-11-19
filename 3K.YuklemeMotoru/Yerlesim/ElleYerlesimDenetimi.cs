@@ -127,7 +127,7 @@ public static class ElleYerlesimDenetimi
         // Hiçbir araca konmayan yükler bekleyenler listesindedir.
         var bekleyenler = girdi.Yukler.Where(y => !kullanilan.Contains(y.Anahtar))
             .Select(y => new YerlesemeyenYuk(y.Anahtar, y.Kod, "Bekleyenler listesinde (elle yerleştirilmedi)")).ToList();
-        var uyarilar = YerlesimMotoru.Uyarilar(girdi, yerlesimler, sonuclar, null);
+        var uyarilar = YerlesimMotoru.Uyarilar(yerlesimler, null);
         uyarilar.InsertRange(0, genelUyarilar);
         uyarilar.Insert(0, "Yerleşim elle düzenlendi; kontroller elle konumlar üzerinden yapıldı.");
         if (bekleyenler.Count > 0)

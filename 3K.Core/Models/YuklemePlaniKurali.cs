@@ -17,6 +17,8 @@ public static class YuklemePlaniKurali
     /// <summary>Bir revizyondaki en fazla fiziksel yük; 3B sahne hepsini birlikte çizdiği için liste sayfasızdır.</summary>
     public const int EnFazlaYuk = 2000;
 
+    public static readonly string YukSiniriMesaji = $"Bir planda en fazla {EnFazlaYuk} yük olabilir.";
+
     public const int ManuelKodEnFazla = 100;
     public const int ManuelAciklamaEnFazla = 500;
     public const int ManuelAdetEnFazla = 500;
@@ -134,6 +136,31 @@ public static class YuklemePlaniKurali
     /// lokasyona göre ayrı planlama bu tek kuralı kullanır.
     /// </summary>
     public static bool LokasyonBelirsizMi(int? lokasyonId) => lokasyonId is null || lokasyonId == (int)DepoLokasyon.Belirsiz;
+
+    /// <summary>
+    /// Planlamaya dahil ve verisi tam yüklerin farklı lokasyon sayısı (belirsiz lokasyonlar tek ayrı lokasyon sayılır). Plan
+    /// detayı ve yük önizlemesi aynı hesabı kullanır; 1'den fazlaysa ekran yükleme yeri tercihini sorar.
+    /// </summary>
+    public static int FarkliLokasyonSayisi(IEnumerable<PlanYukSatiri> satirlar) =>
+        satirlar.Where(s => s.Dahil && s.VeriSorunlari.Count == 0)
+            .Select(s => LokasyonBelirsizMi(s.LokasyonId) ? null : s.LokasyonId).Distinct().Count();
+
+    public const string LokasyonTercihiMesaji = "Yükleme yeri tercihi geçersiz.";
+
+    /// <summary>Tek adımlı hesapta yükleme yeri tercihi isteğe bağlıdır; gönderilirse tanımlı değerlerden biri olmalıdır.</summary>
+    public static bool HesapLokasyonTercihiGecerli(YuklemeLokasyonTercihi? tercih) => tercih is null || Enum.IsDefined(tercih.Value);
+
+    /// <summary>
+    /// Tek adımlı hesapta uygulanan yükleme yeri tercihi (saha isteği, 20 Kasım 2026): gönderilmeyen ya da "henüz
+    /// seçilmedi" tek yerden (karışık) sayılır; yalnız açıkça seçilen "lokasyona göre ayrı" araçları lokasyona böler.
+    /// </summary>
+    public static YuklemeLokasyonTercihi HesapLokasyonTercihi(YuklemeLokasyonTercihi? tercih) =>
+        tercih == YuklemeLokasyonTercihi.LokasyonaGoreAyri ? YuklemeLokasyonTercihi.LokasyonaGoreAyri : YuklemeLokasyonTercihi.Karisik;
+
+    public const string SandikTekrariMesaji = "Bir sandık plana birden fazla kez eklenemez.";
+
+    /// <summary>Sandık seçimleri (dahil ve izinler) sandık başına bir kez gönderilir.</summary>
+    public static bool SandikSecimleriTekil(IReadOnlyCollection<int> sandikIdleri) => sandikIdleri.Distinct().Count() == sandikIdleri.Count;
 
     public static bool MevcutAraclarGecerli(IReadOnlyList<PlanMevcutArac>? araclar) =>
         araclar is null ||
