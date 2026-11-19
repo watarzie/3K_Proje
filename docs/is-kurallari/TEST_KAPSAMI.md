@@ -49,7 +49,7 @@ Değişiklik henüz commit edilmedi (dal `feature/yukleme-simulasyonu`). Kullan�
 - Yükleme adımı ve yük numarası tek kuraldan (`YuklemeSirasiKurali`) türer; yükleme planı PDF'i, plan ekranındaki oynatıcı ve saha ekranı aynı numarayı kullanır.
 - Durum isteği, oturumu ve son revizyonunda yerleşimi olmayan planı 404 ile gizler. Plan listesi araması en fazla 100 karakterdir.
 
-**Kapsam sınırı.** Şema ve izin `scripts/database/bekleyen/20261109_01_Arac_Yukleme.sql` ile kurulur (README sıra 33). Kurallar katalog bölüm 6.4'tedir. Eşleme satırları `coverage/ORTAK_SAHA_YETKI_TEST_ESLESMESI.md` dosyasındadır: YK-01, YK-04, YK-06 ve YK-11 Birim; YK-02, YK-03, YK-07, YK-08 ve YK-10 Entegrasyon; YK-05 ve YK-09 Kısmi. Yükleme planlamasının önceki aşamaları (plan ve revizyon, otomatik ve elle yerleşim, ekipman kitaplığı, mevzuat) katalogda kural olarak ve bu dosyada koşum bölümü olarak yer almaz. Ambalaj ve Finans'ta yeni kural yoktur.
+**Kapsam sınırı.** Şema ve izin `scripts/database/bekleyen/20261109_01_Arac_Yukleme.sql` ile kurulur (README sıra 33). Kurallar katalog bölüm 6.4'tedir. Eşleme satırları `coverage/ORTAK_SAHA_YETKI_TEST_ESLESMESI.md` dosyasındadır: YK-01, YK-04, YK-06 ve YK-11 Birim; YK-02, YK-03, YK-07, YK-08 ve YK-10 Entegrasyon; YK-05 ve YK-09 Kısmi. Yükleme planlamasının önceki aşamaları (plan ve revizyon, otomatik ve elle yerleşim, ekipman kitaplığı) katalogda kural olarak ve bu dosyada koşum bölümü olarak yer almaz. Ambalaj ve Finans'ta yeni kural yoktur.
 
 - [AracYuklemeTests](../../3K.Application.Tests/AracYuklemeTests.cs) (7 metot, 26 vaka; bellek içi):
   - Sandık barkodunun çözülmesi (Theory, 11 vaka) ve Barkod kaynağında barkod–yük eşleşmesi (Theory, 6 vaka; elle eklenen yük eşleşmez).

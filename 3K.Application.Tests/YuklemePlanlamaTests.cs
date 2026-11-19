@@ -541,9 +541,7 @@ public sealed class YuklemePlanlamaTests
             (new EkipmanDisaAktarQuery(), YetkiKodlari.YuklemePlanlama.EkipmanKitapligi, YetkiTipi.R),
             (new EkipmanIceAktarOnizleQuery(), YetkiKodlari.YuklemePlanlama.EkipmanKitapligi, YetkiTipi.W),
             (new EkipmanIceAktarCommand(), YetkiKodlari.YuklemePlanlama.EkipmanKitapligi, YetkiTipi.W),
-            (new EkipmanDogrulaCommand(), YetkiKodlari.YuklemePlanlama.EkipmanDogrulama, YetkiTipi.W),
-            (new MevzuatKuralSetleriQuery(), YetkiKodlari.YuklemePlanlama.MevzuatKurallari, YetkiTipi.R),
-            (new MevzuatKuralSetiGetirQuery(), YetkiKodlari.YuklemePlanlama.MevzuatKurallari, YetkiTipi.R)
+            (new EkipmanDogrulaCommand(), YetkiKodlari.YuklemePlanlama.EkipmanDogrulama, YetkiTipi.W)
         ];
         foreach (var (istek, kod, tip) in beklenen)
         {
@@ -561,7 +559,7 @@ public sealed class YuklemePlanlamaTests
             return gecti;
         }
         Assert.True(await GecerMi(OrtakRoller.Yalniz(YetkiKodlari.YuklemePlanlama.Planlar)));
-        // Ekipman kitaplığı ve mevzuat izinleri plan kaydetmeye yetmez.
+        // Ekipman kitaplığı izinleri plan kaydetmeye yetmez.
         Assert.False(await GecerMi(OrtakRoller.Haric(YetkiKodlari.YuklemePlanlama.Planlar)));
     }
 }

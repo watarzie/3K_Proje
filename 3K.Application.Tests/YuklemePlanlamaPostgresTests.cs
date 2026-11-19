@@ -15,7 +15,7 @@ namespace _3K.Application.Tests;
 /// <summary>
 /// Yükleme Simülasyonu Faz 1, gerçek PostgreSQL şemasıyla: plan oluşturma (kabul 1, 2, 17), değişmez revizyonla kaydetme
 /// ve eşzamanlı kayıt, kaynak farkının plana sessizce yazılmaması ve kaynaktan güncelleme; ekipman kitaplığının
-/// önizlemeli, atomik ve revizyonlu içe aktarımı ile doğrulaması; mevzuat kural seti okuması.
+/// önizlemeli, atomik ve revizyonlu içe aktarımı ile doğrulaması.
 /// </summary>
 public sealed class YuklemePlanlamaPostgresTests
 {
@@ -362,12 +362,6 @@ public sealed class YuklemePlanlamaPostgresTests
                     DurumId = (int)SandikDurum.Hazirlaniyor, TipId = (int)SandikTipi.AhsapKapali, DepoLokasyonId = (int)DepoLokasyon.UcK
                 };
                 db.Sandiklar.AddRange(trafo, Sandik(proje, "2", 1400, 500), Sandik(proje, "3", 1400, 400), Sandik(proje, "4", null, 300));
-                db.MevzuatKuralSetleri.Add(new MevzuatKuralSeti
-                {
-                    YetkiAlani = MevzuatKuralSetiKurali.TurkiyeYetkiAlani, Ad = "Onaylı TR", SurumNo = 1, GecerlilikBaslangici = new DateTime(2026, 1, 1),
-                    Durum = MevzuatKuralSetiDurumu.Onayli,
-                    Kurallar = [new MevzuatKurali { Kod = "G", Tip = MevzuatKuralTipi.AzamiGenislik, ParametrelerJson = "{\"genelMm\":2550}", Aciklama = "g", Sira = 1 }]
-                });
                 await db.SaveChangesAsync();
                 (projeId, trafoId) = (proje.Id, trafo.Id);
             }
@@ -397,8 +391,9 @@ public sealed class YuklemePlanlamaPostgresTests
             Assert.True(lowbed.AileDisi);
             Assert.Contains("PA800-01-1 trafo için Lowbed gereklidir", lowbed.AileDisiGerekce);
             Assert.Contains("\"yuzeyler\"", lowbed.TeknikVeriJson);
-            // Onaylı kural seti: 3.000 mm trafo genişliği 2.550 mm sınırı aşar.
-            Assert.Equal(YerlesimKontrolSonucu.Uygunsuz, lowbed.Kontroller.Single(k => k.Tur == YerlesimKontrolTuru.YasalGenislik).Sonuc);
+            // Mevzuat kontrolü yapılmaz; teyit edilemeyen kontroller araçta gösterilmez.
+            Assert.DoesNotContain(lowbed.Kontroller, k => k.Sonuc == YerlesimKontrolSonucu.TeyitEdilmedi ||
+                k.Tur is YerlesimKontrolTuru.YasalGenislik or YerlesimKontrolTuru.YasalYukseklik or YerlesimKontrolTuru.Mevzuat);
             var trafoSatiri = hesap.Yukler.Single(y => y.SandikId == trafoId);
             Assert.Equal((PlanYukDurumu.Yerlesti, lowbed.AracNo), (trafoSatiri.Durum, trafoSatiri.AracNo!.Value));
             Assert.Equal(PlanYukDurumu.EksikVeri, hesap.Yukler.Single(y => y.Kod == "PA800-01-4").Durum);
@@ -585,45 +580,6 @@ public sealed class YuklemePlanlamaPostgresTests
                 Assert.Empty(tamam.Yerlesemeyenler);
                 Assert.True(tamam.ElleDuzenlendi);
                 Assert.Equal(3, await db.YuklemePlanRevizyonlari.CountAsync(r => r.PlanId == hesap.Id));
-            }
-        });
-    }
-
-    [PostgresRaporFact, Trait("Category", "Postgres")]
-    public async Task Postgres_MevzuatKuralSeti_KurallarSiraylaVeKaynaklariyla()
-    {
-        await FinansPostgresTests.InDatabase(async options =>
-        {
-            int setId;
-            await using (var db = new AppDbContext(options))
-            {
-                var kaynak = new MevzuatKaynagi { YetkiAlani = "TR", Ad = "Yönetmelik", Tur = MevzuatKaynakTuru.Yonetmelik };
-                var set = new MevzuatKuralSeti
-                {
-                    YetkiAlani = "TR", Ad = "TR kuralları", SurumNo = 1, GecerlilikBaslangici = new DateTime(2026, 11, 5),
-                    Kurallar =
-                    [
-                        new MevzuatKurali { Kod = "B", Tip = MevzuatKuralTipi.AzamiYukseklik, ParametrelerJson = "{\"genelMm\":4000}", Aciklama = "y", Sira = 2, Kaynak = kaynak },
-                        new MevzuatKurali { Kod = "A", Tip = MevzuatKuralTipi.AzamiGenislik, ParametrelerJson = "{\"genelMm\":2550}", Aciklama = "g", Sira = 1, Kaynak = kaynak }
-                    ]
-                };
-                db.MevzuatKuralSetleri.Add(set);
-                await db.SaveChangesAsync();
-                setId = set.Id;
-                // Parametre JSON nesne olmalıdır (veritabanı kısıtı).
-                db.MevzuatKurallari.Add(new MevzuatKurali { KuralSetiId = set.Id, Kod = "C", Tip = MevzuatKuralTipi.Isaretleme, ParametrelerJson = "[]", Aciklama = "x" });
-                await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
-            }
-
-            await using (var db = new AppDbContext(options))
-            {
-                var servis = new MevzuatKuralService(db);
-                var ozet = Assert.Single(await servis.KuralSetleriAsync(Ct));
-                Assert.Equal((MevzuatKuralSetiDurumu.Taslak, 2), (ozet.Durum, ozet.KuralSayisi));
-                var detay = (await servis.KuralSetiGetirAsync(setId, Ct))!;
-                Assert.Equal(["A", "B"], detay.Kurallar.Select(k => k.Kod));
-                Assert.Equal("Yönetmelik", Assert.Single(detay.Kaynaklar).Ad);
-                Assert.Null(await servis.KuralSetiGetirAsync(setId + 99, Ct));
             }
         });
     }

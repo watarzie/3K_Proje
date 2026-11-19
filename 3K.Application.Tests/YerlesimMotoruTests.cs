@@ -53,7 +53,7 @@ public sealed class YerlesimMotoruTests
 
     private static YerlesimSonucu Hesapla(IReadOnlyList<YerlesimYuku> yukler, IReadOnlyList<EkipmanAdayi> adaylar,
         bool projeAyri = false, IReadOnlyList<MevcutArac>? mevcut = null, YerlesimAyarlari? ayar = null) =>
-        YerlesimMotoru.Hesapla(new YerlesimGirdisi(yukler, adaylar, ayar ?? Ayar, projeAyri, false, mevcut, null, "Konteyner"));
+        YerlesimMotoru.Hesapla(new YerlesimGirdisi(yukler, adaylar, ayar ?? Ayar, projeAyri, false, mevcut, "Konteyner"));
 
     /// <summary>Senaryo: yük içeri sığar ama kapıdan geçmez → kapalı ekipman uygun gösterilmez.</summary>
     [Fact]
@@ -232,7 +232,7 @@ public sealed class YerlesimMotoruTests
     [Fact]
     public void ElleTamamla_AiledeVeriYoksa_AileDisinaCikmaz()
     {
-        var girdi = new YerlesimGirdisi([Sandik("S1", 2_000, 1_200, 1_000, 500)], [Lowbed], Ayar, false, false, null, null, "Tenteli");
+        var girdi = new YerlesimGirdisi([Sandik("S1", 2_000, 1_200, 1_000, 500)], [Lowbed], Ayar, false, false, null, "Tenteli");
         Assert.Empty(YerlesimMotoru.ElleTamamla(girdi, []));
     }
 
@@ -242,8 +242,8 @@ public sealed class YerlesimMotoruTests
     {
         var lowbed = Lowbed with { AileIci = true };
         var trafo = Trafo("TR-01", 6_000, 2_400, 3_000, 30_000);
-        var girdi = new YerlesimGirdisi([Sandik("S1", 2_000, 1_200, 1_000, 500), trafo], [lowbed], Ayar, false, false, null, null, "Lowbed / ağır yük");
-        var trafoKonumu = Assert.Single(YerlesimMotoru.ElleTamamla(new YerlesimGirdisi([trafo], [lowbed], Ayar, false, false, null, null, "Lowbed / ağır yük"), [])).Konumlar;
+        var girdi = new YerlesimGirdisi([Sandik("S1", 2_000, 1_200, 1_000, 500), trafo], [lowbed], Ayar, false, false, null, "Lowbed / ağır yük");
+        var trafoKonumu = Assert.Single(YerlesimMotoru.ElleTamamla(new YerlesimGirdisi([trafo], [lowbed], Ayar, false, false, null, "Lowbed / ağır yük"), [])).Konumlar;
         var araclar = YerlesimMotoru.ElleTamamla(girdi, [new ElleArac(90, trafoKonumu), new ElleArac(90, [])]);
         Assert.Equal(2, araclar.Count);
         Assert.Equal(["TR-01"], araclar[0].Konumlar.Select(k => k.YukAnahtari));
@@ -255,7 +255,7 @@ public sealed class YerlesimMotoruTests
     public void ElleDenetim_AileyeSigmayanVeYedekGerekcesiKorunur()
     {
         var genis = Sandik("01", 6_000, 2_500, 2_400, 15_000, ust: false, alt: false);
-        var girdi = new YerlesimGirdisi([genis, Sandik("02", 2_000, 1_200, 1_000, 500)], [K40, Lowbed], Ayar, false, false, null, null, "Konteyner");
+        var girdi = new YerlesimGirdisi([genis, Sandik("02", 2_000, 1_200, 1_000, 500)], [K40, Lowbed], Ayar, false, false, null, "Konteyner");
         var denetim = ElleYerlesimDenetimi.Denetle(girdi, YerlesimMotoru.ElleTamamla(girdi, []));
         var lowbed = denetim.Araclar.Single(a => a.EkipmanKodu == "LB-3");
         Assert.Equal("Zorunlu özel ekipman: 01 Konteyner ailesinde taşınamıyor. 1 adet LB-3 plana eklenmiştir.", lowbed.AileDisiGerekce);
@@ -263,7 +263,7 @@ public sealed class YerlesimMotoruTests
 
         var hc = Konteyner(46, "HC40", 12_032, icYukseklik: 2_698, kapiYukseklik: 2_280) with { Kademe = 2 };
         var openTop = Konteyner(41, "OT40", 12_032, ustten: true) with { Kademe = 4, Yedek = true };
-        var yedekGirdi = new YerlesimGirdisi([Sandik("YUKSEK", 2_000, 2_000, 2_330, 500)], [hc, openTop], Ayar, false, false, null, null, "Konteyner");
+        var yedekGirdi = new YerlesimGirdisi([Sandik("YUKSEK", 2_000, 2_000, 2_330, 500)], [hc, openTop], Ayar, false, false, null, "Konteyner");
         var ot = Assert.Single(ElleYerlesimDenetimi.Denetle(yedekGirdi, YerlesimMotoru.ElleTamamla(yedekGirdi, [])).Araclar);
         Assert.StartsWith("Seçilen tiplere sığmadı: YUKSEK.", ot.AileDisiGerekce);
     }
@@ -286,7 +286,7 @@ public sealed class YerlesimMotoruTests
         var openTop = Konteyner(41, "OT40", 12_032, ustten: true) with { Kademe = 4 };
         var yukler = Enumerable.Range(1, 30).Select(i => Sandik($"S{i:00}", 2_000, 2_000, 1_200, 400, ust: false))
             .Append(Sandik("YUKSEK", 2_000, 2_000, 2_330, 500, ust: false)).ToList();
-        var araclar = YerlesimMotoru.ElleTamamla(new YerlesimGirdisi(yukler, [K40, openTop], Ayar, false, false, null, null, "Konteyner"), []);
+        var araclar = YerlesimMotoru.ElleTamamla(new YerlesimGirdisi(yukler, [K40, openTop], Ayar, false, false, null, "Konteyner"), []);
         Assert.Equal(1, araclar.Count(a => a.KonfigurasyonId == 41));
         Assert.Equal(31, araclar.Sum(a => a.Konumlar.Count));
     }
@@ -337,10 +337,9 @@ public sealed class YerlesimMotoruTests
         Assert.Equal(1_350, arac.SolTasmaMm);
         Assert.Equal(1_350, arac.SagTasmaMm);
         Assert.Equal(5_250, arac.YukluGenislikMm);
-        var tasma = arac.Kontroller.Single(k => k.Tur == KontrolTuru.Tasma);
-        Assert.Equal(KontrolSonucu.TeyitEdilmedi, tasma.Sonuc);
-        Assert.Contains("sol 1.350 mm", tasma.Mesaj);
-        Assert.Equal(KontrolSonucu.TeyitEdilmedi, arac.Kontroller.Single(k => k.Tur == KontrolTuru.EkipmanVerisi).Sonuc);
+        // Taşma izni teyit gerektirir; kontrol listesinde gösterilmez, miktar taşma alanlarındadır. Doğrulanmamış
+        // ekipman verisi de ayrı kontrol olarak yazılmaz.
+        Assert.DoesNotContain(arac.Kontroller, k => k.Tur is KontrolTuru.Tasma or KontrolTuru.EkipmanVerisi);
         // 45 t yükün dingil ve king-pin payı kapasitelere göre dengelenir; konum havuzun önüne yapışık değildir.
         Assert.True(Assert.Single(arac.Konumlar).XMm > 3_200);
         Assert.DoesNotContain(arac.Kontroller, k => k.Sonuc == KontrolSonucu.Uygunsuz);
@@ -380,16 +379,24 @@ public sealed class YerlesimMotoruTests
         Assert.Equal(1, Assert.Single(sonuc.EkIhtiyaclar).Adet);
     }
 
-    /// <summary>Tanımsız güvenlik payı ve onaylı mevzuat yokluğu "Teyit edilmedi" üretir; sıfır payla uygunluk yoktur.</summary>
+    /// <summary>
+    /// Tanımsız güvenlik payı sıfır sayılmaz: o kontrol "Uygun" yazılmaz, teyit edilemediği için gösterilmez; araç sonucu
+    /// gösterilen kontrollerden türer. Mevzuat ve tanımsız pay uyarısı yazılmaz (saha isteği, 20 Kasım 2026).
+    /// </summary>
     [Fact]
-    public void TanimsizPay_TeyitEdilmedi()
+    public void TanimsizPay_KontrolGosterilmez()
     {
         var paysiz = new YerlesimAyarlari(30, null, null, null, null, null);
         var sonuc = Hesapla([Sandik("S1", 2_000, 1_200, 1_000, 500)], [K40], ayar: paysiz);
         var arac = Assert.Single(sonuc.Araclar);
-        Assert.Equal(KontrolSonucu.TeyitEdilmedi, arac.Kontroller.Single(k => k.Tur == KontrolTuru.Agirlik).Sonuc);
-        Assert.Contains(sonuc.Uyarilar, u => u.StartsWith("Tanımlanmamış güvenlik payları: yükseklik", StringComparison.Ordinal));
-        Assert.Contains(sonuc.Uyarilar, u => u.StartsWith("Onaylı mevzuat kural seti yok", StringComparison.Ordinal));
+        Assert.DoesNotContain(arac.Kontroller, k => k.Tur == KontrolTuru.Agirlik);
+        Assert.DoesNotContain(arac.Kontroller, k => k.Sonuc == KontrolSonucu.TeyitEdilmedi);
+        Assert.DoesNotContain(arac.Kontroller, k => k.Tur is KontrolTuru.YasalYukseklik or KontrolTuru.YasalGenislik or KontrolTuru.Mevzuat);
+        Assert.Equal(KontrolSonucu.Uygun, arac.Sonuc);
+        Assert.DoesNotContain(sonuc.Uyarilar, u => u.Contains("teyit", StringComparison.OrdinalIgnoreCase) || u.Contains("mevzuat", StringComparison.OrdinalIgnoreCase));
+        // Paylı ayarda geçen kontrol "Uygun" yazılır.
+        Assert.Equal(KontrolSonucu.Uygun, Assert.Single(Hesapla([Sandik("S1", 2_000, 1_200, 1_000, 500)], [K40]).Araclar)
+            .Kontroller.Single(k => k.Tur == KontrolTuru.Agirlik).Sonuc);
 
         var asim = Hesapla([Sandik("S1", 2_000, 1_200, 1_000, 30_000)], [K40]);
         Assert.Contains("teknik kapasite", Assert.Single(asim.Yerlesemeyenler).Neden);
@@ -415,9 +422,9 @@ public sealed class YerlesimMotoruTests
         Assert.Equal(4, sonuc.Araclar[0].Konumlar.Count);
     }
 
-    /// <summary>Tentelide yan açıklık ölçüsü yoksa yandan geçiş teyit edilemez (uygunluk üretilmez).</summary>
+    /// <summary>Tentelide yan açıklık ölçüsü yoksa yandan geçiş teyit edilemez: uygunluk üretilmez, kontrol gösterilmez.</summary>
     [Fact]
-    public void Tenteli_YanAciklikYoksaTeyitEdilmedi()
+    public void Tenteli_YanAciklikYoksaGecisGosterilmez()
     {
         var tenteli = new EkipmanAdayi(70, 1, "TNT", "Tenteli", "Tenteli", "Tenteli", AileIci: true, OzelYukEkipmani: false,
             GirisYonu.Yandan, Duvarli: true, Dingilli: true, Dogrulandi: true,
@@ -428,9 +435,7 @@ public sealed class YerlesimMotoruTests
                 Yuzeyler = [new YukYuzeyi("ANA", "Taban", 0, 13_600, 2_480, 1_200, 2_700, null, null)]
             });
         var arac = Assert.Single(Hesapla([Sandik("S1", 2_000, 1_200, 1_000, 500)], [tenteli]).Araclar);
-        var gecis = arac.Kontroller.Single(k => k.Tur == KontrolTuru.KapidanGecis);
-        Assert.Equal(KontrolSonucu.TeyitEdilmedi, gecis.Sonuc);
-        Assert.Contains("Yan açıklık", gecis.Mesaj);
+        Assert.DoesNotContain(arac.Kontroller, k => k.Tur == KontrolTuru.KapidanGecis);
     }
 
     /// <summary>Lowbed'de sökülemeyen engelle çakışan konum seçilmez; çakışmasız konum yoksa uygunluk üretilmez.</summary>
@@ -472,7 +477,7 @@ public sealed class YerlesimMotoruTests
         Assert.False(sonuc.Araclar.Single(a => a.EkipmanKodu == "K40").ZorunluOzelEkipman);
     }
 
-    /// <summary>Birden çok dingil grubunda grup yükü tek mesnetle hesaplanmaz; kesin sonuç verilmez.</summary>
+    /// <summary>Birden çok dingil grubunda grup yükü tek mesnetle hesaplanmaz; kesin sonuç verilmez (kontrol gösterilmez).</summary>
     [Fact]
     public void CokDingilGrubu_KesinSonucVerilmez()
     {
@@ -484,7 +489,7 @@ public sealed class YerlesimMotoruTests
             }
         };
         var arac = Assert.Single(Hesapla([Trafo("TR-01", 6_000, 3_000, 3_800, 45_000)], [iki]).Araclar);
-        Assert.Equal(KontrolSonucu.TeyitEdilmedi, arac.Kontroller.Single(k => k.Tur == KontrolTuru.Dingil).Sonuc);
+        Assert.DoesNotContain(arac.Kontroller, k => k.Tur == KontrolTuru.Dingil);
     }
 
     /// <summary>Sonuç saklama biçimi geri okunduğunda aynıdır.</summary>

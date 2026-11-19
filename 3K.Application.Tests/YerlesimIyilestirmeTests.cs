@@ -27,7 +27,7 @@ public sealed class YerlesimIyilestirmeTests
         });
 
     private static YerlesimGirdisi Girdi(IReadOnlyList<YerlesimYuku> yukler, IReadOnlyList<EkipmanAdayi> adaylar, YerlesimAyarlari? ayar = null) =>
-        new(yukler, adaylar, ayar ?? Ayar, false, false, null, null, "Konteyner");
+        new(yukler, adaylar, ayar ?? Ayar, false, false, null, "Konteyner");
 
     /// <summary>
     /// Sıra modelinde kısa yükün arkası boş kalırdı: 3.000 mm yükün yanına konan 1.400 mm yükün arkasına (30 mm boşlukla) ikinci 1.400 mm
@@ -59,11 +59,11 @@ public sealed class YerlesimIyilestirmeTests
         var konum = Assert.Single(arac.Konumlar);
         // Dengeli merkez ≈ king-pin + (dingil payı / yük) × açıklık = 1.200 + 12.857/20.000 × 9.810 ≈ 7.507 mm.
         Assert.InRange(konum.XMm + konum.BoyMm / 2, 7_300, 7_700);
-        Assert.NotEqual(KontrolSonucu.Uygunsuz, arac.Kontroller.Single(k => k.Tur == KontrolTuru.Dingil).Sonuc);
-        Assert.NotEqual(KontrolSonucu.Uygunsuz, arac.Kontroller.Single(k => k.Tur == KontrolTuru.BaglantiYuku).Sonuc);
+        // Aşım yoksa kesin sonuç verilmez (dara ve çekici dağılımı bilinmiyor); kontrol teyitsiz kalır ve gösterilmez.
+        Assert.DoesNotContain(arac.Kontroller, k => k.Tur is KontrolTuru.Dingil or KontrolTuru.BaglantiYuku && k.Sonuc == KontrolSonucu.Uygunsuz);
     }
 
-    /// <summary>Ağırlık dağılımı: sınır tanımlı değilse ölçülür ama teyit edilmez; sınır aşılırsa uygunsuz, içindeyse uygun.</summary>
+    /// <summary>Ağırlık dağılımı: sınır tanımlı değilse teyit edilmez ve gösterilmez; sınır aşılırsa uygunsuz, içindeyse uygun.</summary>
     [Fact]
     public void AgirlikDagilimi_SinirTanimliysaDegerlendirilir()
     {
@@ -71,10 +71,8 @@ public sealed class YerlesimIyilestirmeTests
         YerlesimAraci Arac(int? sinir) => Assert.Single(YerlesimMotoru.Hesapla(Girdi(yukler, [K40], Ayar with { AgirlikMerkeziSapmaYuzde = sinir })).Araclar);
         AracKontrolu Kontrol(int? sinir) => Arac(sinir).Kontroller.Single(k => k.Tur == KontrolTuru.AgirlikDagilimi);
 
-        var tanimsiz = Kontrol(null);
-        Assert.Equal(KontrolSonucu.TeyitEdilmedi, tanimsiz.Sonuc);
-        Assert.Contains("önünde", tanimsiz.Mesaj);
-        Assert.EndsWith("ağırlık merkezi sapma sınırı tanımlanmadı", tanimsiz.Mesaj);
+        Assert.DoesNotContain(Arac(null).Kontroller, k => k.Tur == KontrolTuru.AgirlikDagilimi);
+        Assert.Contains("önünde", Kontrol(50).Mesaj);
         // Konteynerde yük öne yaslanır: tek kısa yükün merkezi ortadan ~5,4 m önde (%44) → %10 sınırı aşılır, %50 aşılmaz.
         Assert.Equal(KontrolSonucu.Uygunsuz, Kontrol(10).Sonuc);
         Assert.Equal(KontrolSonucu.Uygun, Kontrol(50).Sonuc);

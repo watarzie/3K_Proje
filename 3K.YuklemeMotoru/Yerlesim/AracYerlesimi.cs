@@ -15,16 +15,14 @@ namespace _3K.YuklemeMotoru.Yerlesim;
 internal sealed class AracYerlesimi
 {
     private readonly YerlesimAyarlari ayar;
-    private readonly YasalSinirlar? yasal;
     private readonly List<Yuzey> yuzeyler;
     private readonly List<Kutu> engeller;
     private readonly int kenar;
 
-    public AracYerlesimi(EkipmanAdayi aday, YerlesimAyarlari ayar, YasalSinirlar? yasal)
+    public AracYerlesimi(EkipmanAdayi aday, YerlesimAyarlari ayar)
     {
         Aday = aday;
         this.ayar = ayar;
-        this.yasal = yasal;
         kenar = aday.Duvarli ? ayar.YerlesimBosluguMm : 0;
         var veri = aday.TeknikVeri;
         DisGenislik = veri.DisOlcu?.GenislikMm ?? (veri.Yuzeyler.Count == 0 ? 0 : veri.Yuzeyler.Max(y => y.GenislikMm));
@@ -62,13 +60,10 @@ internal sealed class AracYerlesimi
     {
         var yBas = Math.Max(0, (DisGenislik - y.GenislikMm) / 2);
         var yp = ayar.YukseklikPayiMm ?? 0;
-        // İstif sınırı: iç yükseklik (biliniyorsa) ve onaylı yasal yükseklikten yüzey yüksekliği düşülerek; ikisi de
-        // bilinmiyorsa istif yapılmaz.
+        // İstif sınırı iç yüksekliktir (yükseklik payı düşülerek); bilinmiyorsa istif yapılmaz.
         int? sinir = null;
         if (y.KullanilabilirYukseklikMm is { } ic)
             sinir = ic - yp;
-        if (yasal?.YukseklikMm is { } yasalY && Aday.Dingilli)
-            sinir = Math.Min(sinir ?? int.MaxValue, yasalY - y.YerdenYukseklikMm - yp);
         return new Yuzey(y.Kod, y.BaslangicXMm, y.UzunlukMm, yBas, y.GenislikMm, y.YerdenYukseklikMm,
             y.KullanilabilirYukseklikMm is { } i2 ? i2 - yp : null, sinir);
     }
@@ -112,9 +107,9 @@ internal sealed class AracYerlesimi
     }
 
     /// <summary>Boş araçta yükün neden sığmadığı (yerleşemeyen yük açıklaması); sığıyorsa null.</summary>
-    public static string? SigmamaNedeni(EkipmanAdayi aday, YerlesimAyarlari ayar, YasalSinirlar? yasal, YerlesimYuku yuk)
+    public static string? SigmamaNedeni(EkipmanAdayi aday, YerlesimAyarlari ayar, YerlesimYuku yuk)
     {
-        var bos = new AracYerlesimi(aday, ayar, yasal);
+        var bos = new AracYerlesimi(aday, ayar);
         if (bos.Ekle(yuk))
             return null;
         if (aday.TeknikVeri.Yuzeyler.Count == 0)

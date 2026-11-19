@@ -66,7 +66,6 @@ public sealed class CanliyaAlimBetikleriTests
         (YetkiKodlari.YuklemePlanlama.Planlar, 5264, "/yukleme-planlari", 5263),
         (YetkiKodlari.YuklemePlanlama.EkipmanKitapligi, 5265, "/ekipman-kitapligi", 5263),
         (YetkiKodlari.YuklemePlanlama.EkipmanDogrulama, 5266, null, 5265),
-        (YetkiKodlari.YuklemePlanlama.MevzuatKurallari, 5267, "/mevzuat-kurallari", 5263),
         (YetkiKodlari.YuklemePlanlama.AracYukleme, 5268, "/arac-yukleme", 5263)
     ];
 
@@ -88,9 +87,6 @@ public sealed class CanliyaAlimBetikleriTests
         DROP TABLE "YuklemePlanProjeleri";
         DROP TABLE "YuklemePlanRevizyonlari";
         DROP TABLE "YuklemePlanlari";
-        DROP TABLE "MevzuatKurallari";
-        DROP TABLE "MevzuatKuralSetleri";
-        DROP TABLE "MevzuatKaynaklari";
         DROP TABLE "EkipmanKonfigurasyonRevizyonlari";
         DROP TABLE "EkipmanKonfigurasyonlari";
         DROP TABLE "EkipmanModelleri";
@@ -202,13 +198,13 @@ public sealed class CanliyaAlimBetikleriTests
                 tur => Assert.Equal((int)YukTuru.Sandik, tur));
             Assert.Equal(["Sandık", "Trafo", "Diğer özel yük"],
                 await db.LookupYukTurleri.AsNoTracking().OrderBy(t => t.Id).Select(t => t.Deger).ToListAsync());
-            // 31 ve 33: modül düğümleri (araç yükleme dahil), yalnız Admin W; tohumlar; v1 kural seti taslaktır.
+            // 31 ve 33: modül düğümleri (araç yükleme dahil), yalnız Admin W; aile ve tip tohumları.
             var yukleme = await YuklemeDurumuAsync(db);
             Assert.Equal(YuklemeDugumleri.Select(d => (d.Id, d.Route, d.ParentId)), yukleme.Dugumler.Select(d => (d.Id, d.Route, d.ParentId)));
             Assert.True(yukleme.Dugumler[0].Sira > (await db.MenuTanimlari.AsNoTracking()
                 .Where(m => m.ParentId == null && m.Id != 5263).MaxAsync(m => m.Sira)));
             Assert.All(yukleme.Izinler, x => Assert.Equal([(SistemRolleri.AdminId, (int)YetkiTipi.W)], x));
-            Assert.Equal((8, 37, 3, 17, MevzuatKuralSetiDurumu.Taslak), yukleme.Tohumlar);
+            Assert.Equal((8, 37), yukleme.Tohumlar);
             // 36: lowbed ve ağır yük tipleri kendi ailesinde; tohum tiplerin sadelik sırası EF tohumuyla aynı.
             var tipler = await db.EkipmanTipleri.AsNoTracking().OrderBy(t => t.Id)
                 .Select(t => new { t.Id, t.AileId, t.OtomatikSecimSirasi }).ToListAsync();
@@ -402,7 +398,7 @@ public sealed class CanliyaAlimBetikleriTests
     private sealed record YuklemeBetikDurumu(
         List<(int Id, string? Route, int? ParentId, int Sira)> Dugumler,
         List<List<(int RolId, int YetkiTipiId)>> Izinler,
-        (int Aile, int Tip, int Kaynak, int Kural, MevzuatKuralSetiDurumu SetDurumu) Tohumlar);
+        (int Aile, int Tip) Tohumlar);
 
     /// <summary>31 ve 33 numaralı betiklerin bıraktıkları: düğümler (betikteki sırayla), her düğümün izinleri ve tohum sayıları.</summary>
     private static async Task<YuklemeBetikDurumu> YuklemeDurumuAsync(AppDbContext db)
@@ -415,9 +411,7 @@ public sealed class CanliyaAlimBetikleriTests
             dugumler.Add((dugum.Id, dugum.Route, dugum.ParentId, dugum.Sira));
             izinler.Add(await IzinlerAsync(db, kod));
         }
-        var tohumlar = (await db.EkipmanAileleri.CountAsync(), await db.EkipmanTipleri.CountAsync(),
-            await db.MevzuatKaynaklari.CountAsync(), await db.MevzuatKurallari.CountAsync(),
-            (await db.MevzuatKuralSetleri.AsNoTracking().SingleAsync()).Durum);
+        var tohumlar = (await db.EkipmanAileleri.CountAsync(), await db.EkipmanTipleri.CountAsync());
         return new YuklemeBetikDurumu(dugumler, izinler, tohumlar);
     }
 

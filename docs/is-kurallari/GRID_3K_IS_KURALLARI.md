@@ -596,7 +596,7 @@ Kaynak: [EksikUrunlerRaporService.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K
 
 ### 6.4 Araç yükleme (saha) (9 Kasım 2026)
 
-Yükleme planının yerleşimi sahada tabletle uygulanır: operatör sandık barkodunu el okuyucusuyla okutur, sunucu yükü çözer ve "yüklendi" işaretini kaydeder. Bu bölüm yalnız sahadaki yükleme kaydını ve bunun sandık/sevk kurallarıyla sınırını anlatır. Yükleme planının kendisi (plan ve revizyon, otomatik ve elle yerleşim, ekipman kitaplığı, mevzuat kuralları) bu katalogda kural olarak yazılmamıştır. Uçlar `api/arac-yukleme` altındadır; ekran `/arac-yukleme` rotasındadır.
+Yükleme planının yerleşimi sahada tabletle uygulanır: operatör sandık barkodunu el okuyucusuyla okutur, sunucu yükü çözer ve "yüklendi" işaretini kaydeder. Bu bölüm yalnız sahadaki yükleme kaydını ve bunun sandık/sevk kurallarıyla sınırını anlatır. Yükleme planının kendisi (plan ve revizyon, otomatik ve elle yerleşim, ekipman kitaplığı) bu katalogda kural olarak yazılmamıştır. Uçlar `api/arac-yukleme` altındadır; ekran `/arac-yukleme` rotasındadır.
 
 **YK-01 — Yükleme adımı ve yük numarası tek kuraldan türer (9 Kasım 2026).** Bir aracın yükleri `YuklemeSirasiKurali` ile sıralanır; rapor, plan ekranı ve saha ekranı aynı numarayı ve aynı adımı gösterir.
 - **Numara ("No"):** Yükler yükleme sırasına (`YuklemeSirasi`), aynı sırada kata (`Kat`, alt kat önce) göre dizilir. Yükün numarası bu listedeki konumudur ve 1'den başlar. Girdi sırası sonucu değiştirmez.

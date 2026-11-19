@@ -41,7 +41,7 @@ public sealed record Olcu(int UzunlukMm, int GenislikMm, int YukseklikMm);
 
 /// <summary>
 /// Yükleme yüzeyi: boyuna başlangıcı, uzunluğu, genişliği ve yerden yüksekliği. Kullanılabilir yükseklik kapalı ve
-/// tenteli gövdede iç yüksekliktir; açık platformda boştur (sınır yasal yüksekliktir).
+/// tenteli gövdede iç yüksekliktir; açık platformda boştur (istif sınırı yoktur).
 /// </summary>
 public sealed record YukYuzeyi(
     string Kod,

@@ -110,7 +110,7 @@ public static class YerlesimMotoru
         var araclar = aileAraclari.Select(a => (a.Arac, a.Gerekce, Zorunlu: false))
             .Concat(ozelAraclar.Select(a => (a.Arac, a.Gerekce, Zorunlu: true)))
             .Where(a => !a.Arac.Bos).ToList();
-        var sonuclar = araclar.Select((a, i) => AracKontrolcu.Olustur(i + 1, a.Arac, girdi.Ayarlar, girdi.Yasal, a.Gerekce, a.Zorunlu)).ToList();
+        var sonuclar = araclar.Select((a, i) => AracKontrolcu.Olustur(i + 1, a.Arac, girdi.Ayarlar, a.Gerekce, a.Zorunlu)).ToList();
         var uyarilar = Uyarilar(girdi, araclar.Select(a => a.Arac).ToList(), sonuclar, havuz);
         // Genel sonuç araçların en kötüsüdür; yerleşemeyen yük varsa plan eksiktir ve uygunluk üretilmez.
         var genel = yerlesemeyenler.Count > 0 ? KontrolSonucu.Uygunsuz : AracKontrolcu.EnKotu(sonuclar.Select(a => a.Sonuc));
@@ -214,7 +214,7 @@ public static class YerlesimMotoru
         {
             var anahtar = (aday.KonfigurasyonId, yuk.Anahtar);
             if (!nedenler.TryGetValue(anahtar, out var neden))
-                nedenler[anahtar] = neden = AracYerlesimi.SigmamaNedeni(aday, Girdi.Ayarlar, Girdi.Yasal, yuk);
+                nedenler[anahtar] = neden = AracYerlesimi.SigmamaNedeni(aday, Girdi.Ayarlar, yuk);
             return neden;
         }
     }
@@ -411,7 +411,7 @@ public static class YerlesimMotoru
             baglam.Iptal.ThrowIfCancellationRequested();
             if (araclar.Any(a => a.Ekle(yuk)))
                 continue;
-            var yeni = new AracYerlesimi(aday, baglam.Girdi.Ayarlar, baglam.Girdi.Yasal);
+            var yeni = new AracYerlesimi(aday, baglam.Girdi.Ayarlar);
             if (yeni.Ekle(yuk))
                 araclar.Add(yeni);
             else
@@ -433,7 +433,7 @@ public static class YerlesimMotoru
         AracYerlesimi? enIyi = null;
         foreach (var aday in adaylar)
         {
-            var arac = new AracYerlesimi(aday, girdi.Ayarlar, girdi.Yasal);
+            var arac = new AracYerlesimi(aday, girdi.Ayarlar);
             if (!arac.TekYukYerlestir(yuk, out var neden))
             {
                 nedenler.Add(neden!);
@@ -484,7 +484,7 @@ public static class YerlesimMotoru
             : havuz.Where(h => !h.Kullanildi).OrderBy(h => h.Aday.OzelYukEkipmani);
         foreach (var h in sira)
         {
-            var arac = new AracYerlesimi(h.Aday, girdi.Ayarlar, girdi.Yasal);
+            var arac = new AracYerlesimi(h.Aday, girdi.Ayarlar);
             var oldu = ozelEkipman ? arac.TekYukYerlestir(yuk, out _) : arac.Ekle(yuk);
             if (!oldu)
                 continue;
@@ -496,18 +496,8 @@ public static class YerlesimMotoru
 
     internal static List<string> Uyarilar(YerlesimGirdisi girdi, List<AracYerlesimi> araclar, List<YerlesimAraci> sonuclar, List<HavuzAraci>? havuz)
     {
+        // Teyit edilemeyen kontroller gösterilmez (AracKontrolcu.Gosterilecekler); tanımsız güvenlik payı ayrıca uyarılmaz.
         var uyarilar = new List<string>();
-        if (girdi.Yasal == null)
-            uyarilar.Add("Onaylı mevzuat kural seti yok; yasal ölçü ve ağırlık kontrolleri teyit edilmedi.");
-        var ayar = girdi.Ayarlar;
-        var tanimsiz = new List<string>();
-        if (ayar.YukseklikPayiMm == null) tanimsiz.Add("yükseklik");
-        if (ayar.GenislikPayiMm == null) tanimsiz.Add("genişlik");
-        if (ayar.UzunlukPayiMm == null) tanimsiz.Add("uzunluk");
-        if (ayar.AgirlikPayiKg == null) tanimsiz.Add("ağırlık");
-        if (ayar.YuklemeHareketiPayiMm == null) tanimsiz.Add("yükleme hareketi");
-        if (tanimsiz.Count > 0)
-            uyarilar.Add($"Tanımlanmamış güvenlik payları: {string.Join(", ", tanimsiz)}. İlgili kontroller teyit edilmedi.");
         for (var i = 0; i < araclar.Count; i++)
         {
             if (araclar[i].IstifSiniriBilinmiyor)

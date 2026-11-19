@@ -151,13 +151,12 @@ public static class DependencyInjection
         services.AddScoped<IUcKSandikDurumRaporService, UcKSandikDurumRaporService>();
     }
 
-    /// <summary>Yükleme Simülasyonu ve Araç Planlama: plan, ekipman kitaplığı ve mevzuat kuralları.</summary>
+    /// <summary>Yükleme Simülasyonu ve Araç Planlama: plan ve ekipman kitaplığı.</summary>
     private static void AddYuklemePlanlamaServices(this IServiceCollection services)
     {
         services.AddScoped<IYuklemePlaniService, YuklemePlaniService>();
         services.AddScoped<IYuklemeOturumuService, YuklemePlaniService>();
         services.AddScoped<IEkipmanKitapligiService, EkipmanKitapligiService>();
-        services.AddScoped<IMevzuatKuralService, MevzuatKuralService>();
         services.AddSingleton<IYuklemePlaniRaporOlusturucu, YuklemePlaniPdfOlusturucu>();
     }
 

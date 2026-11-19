@@ -172,7 +172,7 @@ internal static class EkipmanExcelDosyasi
             "Her konfigürasyon Konfigurasyonlar sayfasında bir satırdır; yüzey, açıklık, engel, dingil ve bağlama noktaları ilgili sayfalarda KonfigurasyonKodu ile bağlanır.",
             "1. satır başlıktır, 2. satır birim/açıklamadır; veri 3. satırdan başlar. Başlıkları değiştirmeyin.",
             "Uzunluklar tamsayı milimetre, ağırlıklar tamsayı kilogramdır. Koordinatlar: X ekipmanın ön ucundan arkaya, Y sol kenardan sağa, Z yerden yukarı.",
-            "Bilinmeyen değeri boş bırakın; tahminle doldurmayın. Boş veriye dayanan kontrol 'Teyit edilmedi' olur.",
+            "Bilinmeyen değeri boş bırakın; tahminle doldurmayın. Boş veriye dayanan kontrol yapılamaz ve planda gösterilmez.",
             "Var olan kod yeniden yüklenirse teknik verisi veya kaynağı değişen konfigürasyon yeni (doğrulanmamış) revizyon alır; değişmeyene dokunulmaz. Dosyada olmayan konfigürasyon silinmez.",
             "Dosyada bir sorun varsa hiçbir kayıt yazılmaz; önizleme sorunları sayfa ve satır numarasıyla listeler."
         ];

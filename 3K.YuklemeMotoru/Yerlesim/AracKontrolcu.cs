@@ -4,14 +4,16 @@ namespace _3K.YuklemeMotoru.Yerlesim;
 
 /// <summary>
 /// Yerleşmiş aracın toplamları ve kontrolleri (isterler 22–23). Veri yoksa ya da ilgili güvenlik payı tanımlanmamışsa
-/// kontrol "Teyit edilmedi" olur; sıfır payla uygunluk üretilmez. Kasa dışına taşma ile yasal sınır ayrı değerlendirilir.
+/// kontrol "Teyit edilmedi" çıkar ve gösterilmez (sahanın isteği, 20 Kasım 2026): araçta yalnız uygun ve uygunsuz
+/// kontroller kalır, araç sonucu da onlardan türer. Tanımsız pay sıfır sayılmaz (o kontrol uygun yazılmaz, gizlenir).
+/// Mevzuat (yasal ölçü) kontrolü yapılmaz.
 /// </summary>
 internal static class AracKontrolcu
 {
     private static readonly CultureInfo Tr = CultureInfo.GetCultureInfo("tr-TR");
 
-    public static YerlesimAraci Olustur(int aracNo, AracYerlesimi arac, YerlesimAyarlari ayar, YasalSinirlar? yasal, string? aileDisiGerekce,
-        bool zorunluOzelEkipman, bool ortala = true)
+    public static YerlesimAraci Olustur(int aracNo, AracYerlesimi arac, YerlesimAyarlari ayar, string? aileDisiGerekce,
+        bool zorunluOzelEkipman, bool ortala = true, bool teyitsizleriAyikla = true)
     {
         // Elle yerleşimde kullanıcının konumu korunur (ortalanmaz, dengelenmez).
         if (ortala)
@@ -45,26 +47,28 @@ internal static class AracKontrolcu
         };
         if (KapiKontrolu(arac, ayar, konumlar) is { } kapi)
             kontroller.Add(kapi);
-        kontroller.Add(YasalYukseklik(arac, ayar, yasal, olcu));
-        kontroller.Add(YasalGenislik(ayar, yasal, olcu));
-        kontroller.Add(Tasma(olcu, yasal));
+        kontroller.Add(Tasma(olcu));
         kontroller.AddRange(DingilVeBaglanti(arac, konumlar, yukler));
         kontroller.Add(Destek(arac, konumlar, yukler));
-        // Yasal uzunluk, toplam ağırlık ve yasal dingil sınırları çekici/kombinasyon verisi ister; bu sürümde hesaplanmaz.
-        kontroller.Add(new(KontrolTuru.Mevzuat, KontrolSonucu.TeyitEdilmedi,
-            "Yasal uzunluk, toplam ağırlık ve yasal dingil sınırları çekici ve kombinasyon verisi olmadan hesaplanamadı"));
-        if (!arac.Aday.Dogrulandi)
-            kontroller.Add(new(KontrolTuru.EkipmanVerisi, KontrolSonucu.TeyitEdilmedi,
-                $"{arac.Aday.Kod} teknik verisi (revizyon {arac.Aday.RevizyonNo}) doğrulanmamış; sonuçlar teyit edilmelidir."));
+        // Elle denetim yük sorunlarını aynı türdeki kontrolle birleştirdikten sonra ayıklar (teyit edilemeyen destek
+        // kontrolü, havadaki yükün sorunuyla uygunsuza döner).
+        var gosterilecek = teyitsizleriAyikla ? Gosterilecekler(kontroller) : kontroller;
 
         var projeler = konumlar.Select(k => yukler[k.YukAnahtari].ProjeId).Distinct().ToList();
         var lokasyonlar = konumlar.Select(k => yukler[k.YukAnahtari].LokasyonId).Distinct().ToList();
         return new YerlesimAraci(aracNo, arac.Aday.KonfigurasyonId, arac.Aday.RevizyonNo, arac.Aday.Kod, arac.Aday.Ad,
             arac.Aday.AileAdi, arac.Aday.TipAdi, !arac.Aday.AileIci, zorunluOzelEkipman && !arac.Aday.AileIci, aileDisiGerekce, projeler, lokasyonlar, konumlar,
             toplamKg, veri.TeknikKapasiteKg, doluluk, agirlikMerkezi, olcu.YukseklikMm, olcu.GenislikMm, olcu.UzunlukMm,
-            Math.Max(0, olcu.Sol), Math.Max(0, olcu.Sag), Math.Max(0, olcu.On), Math.Max(0, olcu.Arka), kontroller,
-            EnKotu(kontroller.Select(k => k.Sonuc)));
+            Math.Max(0, olcu.Sol), Math.Max(0, olcu.Sag), Math.Max(0, olcu.On), Math.Max(0, olcu.Arka), gosterilecek,
+            EnKotu(gosterilecek.Select(k => k.Sonuc)));
     }
+
+    /// <summary>
+    /// Araçta gösterilecek kontroller: "Teyit edilmedi" çıkanlar (veri, pay ya da sınır tanımsız) listeden düşer; araç
+    /// sonucu da yalnız kalanlardan türer. Taşma miktarı aracın taşma alanlarında ayrıca durur.
+    /// </summary>
+    public static List<AracKontrolu> Gosterilecekler(IEnumerable<AracKontrolu> kontroller) =>
+        kontroller.Where(k => k.Sonuc != KontrolSonucu.TeyitEdilmedi).ToList();
 
     public static KontrolSonucu EnKotu(IEnumerable<KontrolSonucu> sonuclar)
     {
@@ -126,7 +130,7 @@ internal static class AracKontrolcu
     private static AracKontrolu IcYukseklik(AracYerlesimi arac, YerlesimAyarlari ayar, List<YukKonumu> konumlar)
     {
         if (!arac.Aday.Duvarli)
-            return new(KontrolTuru.IcYukseklik, KontrolSonucu.Uygun, "Açık ekipman; iç yükseklik sınırı yok (yasal yükseklik ayrıca kontrol edilir)");
+            return new(KontrolTuru.IcYukseklik, KontrolSonucu.Uygun, "Açık ekipman; iç yükseklik sınırı yok");
         var yuzeyler = arac.Aday.TeknikVeri.Yuzeyler.ToDictionary(y => y.Kod);
         if (konumlar.Count == 0)
             return new(KontrolTuru.IcYukseklik, KontrolSonucu.Uygun, "Araç boş");
@@ -164,29 +168,11 @@ internal static class AracKontrolcu
         return Payli(KontrolTuru.KapidanGecis, false, ayar.YuklemeHareketiPayiMm, olcum, "yükleme hareket");
     }
 
-    private static AracKontrolu YasalYukseklik(AracYerlesimi arac, YerlesimAyarlari ayar, YasalSinirlar? yasal, Olculer olcu)
-    {
-        if (yasal?.YukseklikMm is not { } sinir)
-            return new(KontrolTuru.YasalYukseklik, KontrolSonucu.TeyitEdilmedi, $"Yüklü yükseklik {Mm(olcu.YukseklikMm)}; onaylı mevzuat kural seti yok");
-        if (!arac.DingilliMi)
-            return new(KontrolTuru.YasalYukseklik, KontrolSonucu.TeyitEdilmedi,
-                $"Konteyner üst kotu {Mm(olcu.YukseklikMm)}; taşıyıcı şasi yüksekliği bilinmediği için yerden yükseklik hesaplanamadı");
-        var gereken = olcu.YukseklikMm + (ayar.YukseklikPayiMm ?? 0);
-        var olcum = $"Yerden yükseklik {Mm(olcu.YukseklikMm)}, sınır {Mm(sinir)}" + (gereken > sinir ? $", aşım {Mm(gereken - sinir)}; özel yük izni gerekir" : string.Empty);
-        return Payli(KontrolTuru.YasalYukseklik, gereken > sinir, ayar.YukseklikPayiMm, olcum, "yükseklik");
-    }
-
-    private static AracKontrolu YasalGenislik(YerlesimAyarlari ayar, YasalSinirlar? yasal, Olculer olcu)
-    {
-        if (yasal?.GenislikMm is not { } sinir)
-            return new(KontrolTuru.YasalGenislik, KontrolSonucu.TeyitEdilmedi, $"Yüklü genişlik {Mm(olcu.GenislikMm)}; onaylı mevzuat kural seti yok");
-        var gereken = olcu.GenislikMm + (ayar.GenislikPayiMm ?? 0);
-        var olcum = $"Yüklü genişlik {Mm(olcu.GenislikMm)}, sınır {Mm(sinir)}" + (gereken > sinir ? $", aşım {Mm(gereken - sinir)}; özel yük izni gerekir" : string.Empty);
-        return Payli(KontrolTuru.YasalGenislik, gereken > sinir, ayar.GenislikPayiMm, olcum, "genişlik");
-    }
-
-    /// <summary>Kasa dışına taşma (yön ve miktar). Yandan taşma özel yük iznine bağlıdır; izin kararı motorun değildir.</summary>
-    private static AracKontrolu Tasma(Olculer olcu, YasalSinirlar? yasal)
+    /// <summary>
+    /// Kasa dışına taşma (yön ve miktar). Taşma varsa sonuç "Teyit edilmedi"dir (izin kararı motorun değildir) ve
+    /// kontrol listesinde gösterilmez; miktar aracın taşma alanlarında yazılır.
+    /// </summary>
+    private static AracKontrolu Tasma(Olculer olcu)
     {
         var parcalar = new List<string>();
         if (olcu.Sol > 0) parcalar.Add($"sol {Mm(olcu.Sol)}");
@@ -195,9 +181,7 @@ internal static class AracKontrolcu
         if (olcu.Arka > 0) parcalar.Add($"arka {Mm(olcu.Arka)}");
         if (parcalar.Count == 0)
             return new(KontrolTuru.Tasma, KontrolSonucu.Uygun, "Kasa dışına taşma yok");
-        var yan = Math.Max(olcu.Sol, olcu.Sag);
-        var izin = yasal?.YandanTasmaMm is { } sinir && yan > sinir ? "yandan taşma özel yük taşıma iznine bağlıdır" : "izin gereksinimi teyit edilmelidir";
-        return new(KontrolTuru.Tasma, KontrolSonucu.TeyitEdilmedi, $"Kasa dışına taşma: {string.Join(", ", parcalar)}; {izin}");
+        return new(KontrolTuru.Tasma, KontrolSonucu.TeyitEdilmedi, $"Kasa dışına taşma: {string.Join(", ", parcalar)}; izin gereksinimi teyit edilmelidir");
     }
 
     /// <summary>

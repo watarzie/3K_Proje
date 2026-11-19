@@ -140,7 +140,6 @@ internal sealed partial class YuklemePlaniService
             plan.ProjeKarisimi == YuklemeProjeKarisimi.ProjeBazindaAyri,
             plan.LokasyonTercihi == YuklemeLokasyonTercihi.LokasyonaGoreAyri,
             null,
-            await YasalSinirlarAsync(cancellationToken),
             plan.TasimaAilesi.Ad);
     }
 

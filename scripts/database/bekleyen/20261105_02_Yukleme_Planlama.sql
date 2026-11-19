@@ -1,35 +1,21 @@
 -- =====================================================================================
--- 31 · Yükleme Simülasyonu ve Araç Planlama, Faz 1 (5 Kasım 2026): ekipman kitaplığı, mevzuat kural setleri,
--- yükleme planı tabloları ve modül izinleri.
+-- 31 · Yükleme Simülasyonu ve Araç Planlama, Faz 1 (5 Kasım 2026): ekipman kitaplığı, yükleme planı tabloları ve
+-- modül izinleri. Mevzuat kural setleri (tablolar, TR v1 taslak tohumu, mevzuat-kurallari izni) 20 Kasım 2026'da
+-- sahanın isteğiyle kaldırıldı; betik canlıya uygulanmadan önce çıkarıldığı için silme betiği yoktur.
 --
 -- 1) Ekipman kitaplığı: EkipmanAileleri (genel taşıma ailesi) → EkipmanTipleri (alt tip; davranış Kategori'den) →
 --    EkipmanModelleri (üretici/model) → EkipmanKonfigurasyonlari (planda kullanılan birim, xmin) →
 --    EkipmanKonfigurasyonRevizyonlari (değişmez teknik veri jsonb, kaynağı ve doğrulama durumu). Aile ve tipler
 --    tohumlanır (isterler 9 ve 11); teknik veri tohumlanmaz, gerçek değerler kaynağıyla girilir (isterler 31).
--- 2) Mevzuat: MevzuatKaynaklari → MevzuatKuralSetleri (yetki alanı + sürüm, Taslak/Onaylı/Kaldırıldı) →
---    MevzuatKurallari (kapalı tip kümesi, tipe özgü parametre jsonb, madde atfı). TR v1 kural seti TASLAK durumda
---    tohumlanır: yürürlükteki 2012 yönetmeliğinin boyut/ağırlık/taşma değerleri ve Mart 2026 özel yük yönetmeliği
---    TASLAĞININ izin kategorileri, destek aracı, zabıta desteği, ÖYYB, gece ve otoyol kuralları (kaynak türüyle
---    ayrılır). Hesap yalnız onaylı sürümle yapılır; onay işletme ve hukuktadır.
--- 3) Yükleme planı: YuklemePlanlari (başlık, xmin) → YuklemePlanRevizyonlari (değişmez; ayarlar jsonb) →
+-- 2) Yükleme planı: YuklemePlanlari (başlık, xmin) → YuklemePlanRevizyonlari (değişmez; ayarlar jsonb) →
 --    YuklemePlanProjeleri ve YuklemePlanYukleri (her fiziksel yük bir satır; ölçü/ağırlık/lokasyon/yük türü kopyası).
 --    Kaynak sandık, proje veya lokasyon silinirse bağ boşalır, kopya kalır.
--- 4) İzinler (Admin W; diğer roller rol yönetiminden eklenir, kullanıcı kararı 5 Kasım 2026):
+-- 3) İzinler (Admin W; diğer roller rol yönetiminden eklenir, kullanıcı kararı 5 Kasım 2026):
 --    yukleme-planlama (5263, kenar menü grubu, rotasız), yukleme-planlari (5264, /yukleme-planlari),
---    ekipman-kitapligi (5265, /ekipman-kitapligi), ekipman-dogrulama (5266, rotasız, kitaplığın altında),
---    mevzuat-kurallari (5267, /mevzuat-kurallari).
+--    ekipman-kitapligi (5265, /ekipman-kitapligi), ekipman-dogrulama (5266, rotasız, kitaplığın altında).
 --
--- Kural parametreleri (uzunluk mm, ağırlık kg; "...BuyukMm" kesin büyüktür, "...EnFazla..." dahildir; dingil grubu
--- kademeleri sıralıdır, ilk eşleşen kademe uygulanır, "aralikUstMm": null üst sınırsızdır):
---   AzamiGenislik {genelMm, frigorifikMm} · AzamiYukseklik {genelMm} · AzamiUzunluk {motorluAracMm, romorkMm,
---   yariRomorkluAracMm, ikiRomorkluKatarMm} · TasmaSiniri {ondenMm, arkadanMm, yandanMm} · TekDingilSiniri
---   {tahriksizKg, tahrikliKg} · DingilGrubuSiniri {aracTuru, dingilSayisi, kademeler[{aralikUstMm, ustDahil, sinirKg}]}
---   · KatarToplamAgirligi {kademeler[{kombinasyon, dingilSayisi|dingilSayisiEnAz, sinirKg}]} · OlcumToleransi
---   {tartiYuzde, tartiSabitKg, boyutYuzde} · OzelYukIzinKategorisi {kategoriler[...], dingilBasinaEnFazlaKg}
---   · DestekAraci {satirlar[...]} · ZabitaDestegi · OzelYukYeterlilikBelgesi · GeceYasagi · OtoyolKisiti · Isaretleme.
---
--- Yıkıcı değildir, tekrar çalıştırılabilir: tablo/kısıt/indeks/tohum/düğüm varsa eklenmez, verilmiş izin ve onaylanmış
--- kural seti değiştirilmez. 30 numaralı betik (LookupYukTurleri) önce uygulanmış olmalıdır; değilse veya menü Id/kodu
+-- Yıkıcı değildir, tekrar çalıştırılabilir: tablo/kısıt/indeks/tohum/düğüm varsa eklenmez, verilmiş izin
+-- değiştirilmez. 30 numaralı betik (LookupYukTurleri) önce uygulanmış olmalıdır; değilse veya menü Id/kodu
 -- başka kayda aitse hiçbir şey değiştirmeden durur. Yalnız yeni tablo ekler. FK'li tablo oluşturma,
 -- başvurulan tablolara (Projeler, Sandiklar, lookup ve ekipman aileleri) COMMIT'e kadar SHARE ROW EXCLUSIVE kilit
 -- alır: okuma sürer, yazma bekler. Betik kısadır; yoğun saatte oturumda önce SET lock_timeout = '5s'; verilebilir. Yeni API'den önce uygulanır (yoksa
@@ -44,10 +30,10 @@ BEGIN
     END IF;
     IF EXISTS (
         SELECT 1 FROM (VALUES (5263, 'yukleme-planlama'), (5264, 'yukleme-planlari'), (5265, 'ekipman-kitapligi'),
-                              (5266, 'ekipman-dogrulama'), (5267, 'mevzuat-kurallari')) AS beklenen(id, kod)
+                              (5266, 'ekipman-dogrulama')) AS beklenen(id, kod)
         JOIN "MenuTanimlari" m ON (m."Id" = beklenen.id AND m."Kod" <> beklenen.kod)
                                OR (m."Kod" = beklenen.kod AND m."Id" <> beklenen.id)) THEN
-        RAISE EXCEPTION '5263–5267 numaralı menü tanımları veya yükleme planlama kodları başka bir kayda ait; betik durduruldu.';
+        RAISE EXCEPTION '5263–5266 numaralı menü tanımları veya yükleme planlama kodları başka bir kayda ait; betik durduruldu.';
     END IF;
 END $$;
 
@@ -139,66 +125,6 @@ CREATE TABLE IF NOT EXISTS "EkipmanKonfigurasyonRevizyonlari" (
     CONSTRAINT "FK_EkipmanKonfigurasyonRevizyonlari_EkipmanKonfigurasyonlari_K~" FOREIGN KEY ("KonfigurasyonId") REFERENCES "EkipmanKonfigurasyonlari" ("Id") ON DELETE RESTRICT
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "IX_EkipmanKonfigurasyonRevizyonlari_KonfigurasyonId_RevizyonNo" ON "EkipmanKonfigurasyonRevizyonlari" ("KonfigurasyonId", "RevizyonNo");
-
--- ===== Mevzuat =====
-CREATE TABLE IF NOT EXISTS "MevzuatKaynaklari" (
-    "Id" integer GENERATED BY DEFAULT AS IDENTITY,
-    "YetkiAlani" character varying(10) NOT NULL,
-    "Ad" character varying(500) NOT NULL,
-    "Tur" smallint NOT NULL,
-    "ResmiGazeteTarihi" timestamp without time zone,
-    "ResmiGazeteSayisi" character varying(50),
-    "Url" character varying(1000),
-    "ErisimTarihi" timestamp without time zone,
-    "Aciklama" character varying(2000),
-    "CreatedDate" timestamp without time zone NOT NULL,
-    "UpdatedDate" timestamp without time zone,
-    "CreatedBy" text,
-    "UpdatedBy" text,
-    CONSTRAINT "PK_MevzuatKaynaklari" PRIMARY KEY ("Id")
-);
-
-CREATE TABLE IF NOT EXISTS "MevzuatKuralSetleri" (
-    "Id" integer GENERATED BY DEFAULT AS IDENTITY,
-    "YetkiAlani" character varying(10) NOT NULL,
-    "Ad" character varying(200) NOT NULL,
-    "SurumNo" integer NOT NULL,
-    "GecerlilikBaslangici" timestamp without time zone NOT NULL,
-    "GecerlilikBitisi" timestamp without time zone,
-    "Durum" smallint NOT NULL,
-    "OnaylayanKullaniciId" integer,
-    "OnayTarihi" timestamp without time zone,
-    "Aciklama" character varying(2000),
-    "CreatedDate" timestamp without time zone NOT NULL,
-    "UpdatedDate" timestamp without time zone,
-    "CreatedBy" text,
-    "UpdatedBy" text,
-    CONSTRAINT "PK_MevzuatKuralSetleri" PRIMARY KEY ("Id"),
-    CONSTRAINT "CK_MevzuatKuralSetleri_SurumNo_Pozitif" CHECK ("SurumNo" > 0)
-);
-CREATE UNIQUE INDEX IF NOT EXISTS "IX_MevzuatKuralSetleri_YetkiAlani_SurumNo" ON "MevzuatKuralSetleri" ("YetkiAlani", "SurumNo");
-
-CREATE TABLE IF NOT EXISTS "MevzuatKurallari" (
-    "Id" integer GENERATED BY DEFAULT AS IDENTITY,
-    "KuralSetiId" integer NOT NULL,
-    "Kod" character varying(100) NOT NULL,
-    "Tip" smallint NOT NULL,
-    "ParametrelerJson" jsonb NOT NULL,
-    "KaynakId" integer,
-    "Madde" character varying(200),
-    "Aciklama" character varying(2000) NOT NULL,
-    "Sira" integer NOT NULL,
-    "CreatedDate" timestamp without time zone NOT NULL,
-    "UpdatedDate" timestamp without time zone,
-    "CreatedBy" text,
-    "UpdatedBy" text,
-    CONSTRAINT "PK_MevzuatKurallari" PRIMARY KEY ("Id"),
-    CONSTRAINT "CK_MevzuatKurallari_ParametrelerJson_Nesne" CHECK (jsonb_typeof("ParametrelerJson") = 'object'),
-    CONSTRAINT "FK_MevzuatKurallari_MevzuatKaynaklari_KaynakId" FOREIGN KEY ("KaynakId") REFERENCES "MevzuatKaynaklari" ("Id") ON DELETE RESTRICT,
-    CONSTRAINT "FK_MevzuatKurallari_MevzuatKuralSetleri_KuralSetiId" FOREIGN KEY ("KuralSetiId") REFERENCES "MevzuatKuralSetleri" ("Id") ON DELETE CASCADE
-);
-CREATE INDEX IF NOT EXISTS "IX_MevzuatKurallari_KaynakId" ON "MevzuatKurallari" ("KaynakId");
-CREATE UNIQUE INDEX IF NOT EXISTS "IX_MevzuatKurallari_KuralSetiId_Kod" ON "MevzuatKurallari" ("KuralSetiId", "Kod");
 
 -- ===== Yükleme planı =====
 CREATE TABLE IF NOT EXISTS "YuklemePlanlari" (
@@ -363,90 +289,6 @@ INSERT INTO "EkipmanTipleri" ("Id", "AileId", "Kod", "Ad", "Kategori", "Sira", "
 ON CONFLICT DO NOTHING;
 SELECT setval(pg_get_serial_sequence('"EkipmanTipleri"', 'Id'), (SELECT max("Id") FROM "EkipmanTipleri"));
 
--- ===== Tohum: TR mevzuat kaynakları ve v1 kural seti (TASLAK) =====
--- Tur: 1 kanun, 2 yönetmelik, 3 yönetmelik taslağı.
-INSERT INTO "MevzuatKaynaklari" ("Id", "YetkiAlani", "Ad", "Tur", "ResmiGazeteTarihi", "ResmiGazeteSayisi", "Url", "ErisimTarihi", "Aciklama", "CreatedDate", "CreatedBy") VALUES
-    (1, 'TR', 'Araçların Yüklenmesine İlişkin Ölçü ve Usuller ile Tartı ve Boyut Ölçüm Toleransları Hakkında Yönetmelik', 2,
-     '2012-11-08', '28461',
-     'https://www.lexpera.com.tr/mevzuat/yonetmelikler/araclarin-yuklenmesine-iliskin-olcu-ve-usuller-ile-tarti-ve-boyut-olcum-toleranslari-hakkinda-1',
-     '2026-11-05', 'Yürürlük 12.11.2012; son değişiklik RG 01.04.2017/30025 (Lexpera konsolide metni). Bölünemeyen özel yükler için Karayolları Trafik Yönetmeliği şartlarına atıf yapar.',
-     '2026-11-05', '20261105_02_Yukleme_Planlama.sql'),
-    (2, 'TR', '7574 sayılı Karayolları Trafik Kanununda Değişiklik Yapılmasına Dair Kanun', 1,
-     '2026-02-27', '33181', 'https://www.resmigazete.gov.tr/eskiler/2026/02/20260227-0.htm',
-     '2026-11-05', 'Özel yük izninin usul ve esaslarını Ulaştırma ve Altyapı Bakanlığı yönetmeliğine bırakır; karayolu kullanım bedeli ve trafik zabıtası desteği bedeli getirir.',
-     '2026-11-05', '20261105_02_Yukleme_Planlama.sql'),
-    (3, 'TR', 'Özel Yüklerin Taşınması ile Trafiğe Çıkışları Özel İzne Bağlı Araçlar Hakkında Yönetmelik Taslağı', 3,
-     NULL, NULL,
-     'https://www.aso.org.tr/uploads/attachments/%C3%96zel%20Y%C3%BCklerin%20Ta%C5%9F%C4%B1nmas%C4%B1%20ile%20Trafi%C4%9Fe%20%C3%87%C4%B1k%C4%B1%C5%9Flar%C4%B1%20%C3%96zel%20%C4%B0zne%20Ba%C4%9Fl%C4%B1%20Ara%C3%A7lar%20Hakk%C4%B1nda%20Y%C3%B6netmelik.pdf',
-     '2026-11-05', 'UAB taslağı (ASO''nun yayımladığı metin, belge tarihi 18.03.2026). Yayımlandığı doğrulanmadı; yürürlük yayımdan üç ay sonradır.',
-     '2026-11-05', '20261105_02_Yukleme_Planlama.sql')
-ON CONFLICT DO NOTHING;
-SELECT setval(pg_get_serial_sequence('"MevzuatKaynaklari"', 'Id'), (SELECT max("Id") FROM "MevzuatKaynaklari"));
-
-INSERT INTO "MevzuatKuralSetleri" ("Id", "YetkiAlani", "Ad", "SurumNo", "GecerlilikBaslangici", "Durum", "Aciklama", "CreatedDate", "CreatedBy") VALUES
-    (1, 'TR', 'Türkiye karayolu boyut, ağırlık ve özel yük kuralları', 1, '2026-11-05', 1,
-     'İlk sürüm (5 Kasım 2026): yürürlükteki 2012 yönetmeliği ile Mart 2026 özel yük yönetmeliği taslağından derlendi. Taslaktan gelen kurallar kaynak türüyle ayrılır. İşletme ve hukuk onayına kadar TASLAK; hesapta kullanılmaz.',
-     '2026-11-05', '20261105_02_Yukleme_Planlama.sql')
-ON CONFLICT DO NOTHING;
-SELECT setval(pg_get_serial_sequence('"MevzuatKuralSetleri"', 'Id'), (SELECT max("Id") FROM "MevzuatKuralSetleri"));
-
--- Tip: 1 azami genişlik, 2 azami yükseklik, 3 azami uzunluk, 4 taşma, 5 tek dingil, 6 dingil grubu, 7 katar toplamı,
--- 8 ölçüm toleransı, 9 özel yük izin kategorisi, 10 destek aracı, 11 zabıta desteği, 12 ÖYYB, 13 gece yasağı,
--- 14 otoyol kısıtı, 15 işaretleme.
-INSERT INTO "MevzuatKurallari" ("Id", "KuralSetiId", "Kod", "Tip", "ParametrelerJson", "KaynakId", "Madde", "Aciklama", "Sira", "CreatedDate", "CreatedBy") VALUES
-    (1, 1, 'AZAMI_GENISLIK', 1, '{"genelMm":2550,"frigorifikMm":2600}', 1, 'm.5 (a)',
-     'Araçların azami genişliği 2,55 m; frigorifik taşıtlarda yalnız frigorifik yapıda 2,60 m.', 1, '2026-11-05', '20261105_02_Yukleme_Planlama.sql'),
-    (2, 1, 'AZAMI_YUKSEKLIK', 2, '{"genelMm":4000}', 1, 'm.5 (b)',
-     'Araçların azami yüksekliği 4,00 m (yerden; platform, konteyner yapısı, altlık ve yük birlikte).', 2, '2026-11-05', '20261105_02_Yukleme_Planlama.sql'),
-    (3, 1, 'AZAMI_UZUNLUK', 3, '{"motorluAracMm":12000,"romorkMm":12000,"yariRomorkluAracMm":16500,"ikiRomorkluKatarMm":22000}', 1, 'm.5 (c)',
-     'Azami uzunluk: otobüs dışındaki motorlu araç 12,00 m, römork 12,00 m, yarı römorklu araç 16,50 m, iki römorklu katar 22,00 m.', 3, '2026-11-05', '20261105_02_Yukleme_Planlama.sql'),
-    (4, 1, 'TASMA_SINIRI', 4, '{"ondenMm":1000,"arkadanMm":2000,"yandanMm":0}', 1, 'm.6/1 (h)',
-     'Yük aracın boyunu önden 1 m, arkadan 2 m aşamaz; kasanın sağ ve sol yanından taşamaz.', 4, '2026-11-05', '20261105_02_Yukleme_Planlama.sql'),
-    (5, 1, 'TEK_DINGIL', 5, '{"tahriksizKg":10000,"tahrikliKg":11500}', 1, 'm.5 (ç)',
-     'Tek dingil azami ağırlığı: tahriksiz 10 t, tahrikli 11,5 t.', 5, '2026-11-05', '20261105_02_Yukleme_Planlama.sql'),
-    (6, 1, 'DINGIL_GRUBU_IKILI_MOTORLU', 6,
-     '{"aracTuru":"motorlu","dingilSayisi":2,"kademeler":[{"aralikUstMm":1000,"ustDahil":false,"sinirKg":11500},{"aralikUstMm":1300,"ustDahil":false,"sinirKg":16000},{"aralikUstMm":1800,"ustDahil":false,"sinirKg":18000}]}',
-     1, 'm.5 (ç)',
-     'Motorlu araçta iki dingilli aks grubu: d<1 m 11,5 t; 1–1,3 m 16 t; 1,3–1,8 m 18 t (tip onayı şartlarıyla 19 t). 1,8 m ve üstü için değer yoktur.', 6, '2026-11-05', '20261105_02_Yukleme_Planlama.sql'),
-    (7, 1, 'DINGIL_GRUBU_IKILI_ROMORK', 6,
-     '{"aracTuru":"romork","dingilSayisi":2,"kademeler":[{"aralikUstMm":1000,"ustDahil":false,"sinirKg":11000},{"aralikUstMm":1300,"ustDahil":false,"sinirKg":16000},{"aralikUstMm":1800,"ustDahil":false,"sinirKg":18000},{"aralikUstMm":null,"ustDahil":false,"sinirKg":20000}]}',
-     1, 'm.5 (ç)',
-     'Römork ve yarı römorkta iki dingilli aks grubu: d<1 m 11 t; 1–1,3 m 16 t; 1,3–1,8 m 18 t; 1,8 m ve üstü 20 t.', 7, '2026-11-05', '20261105_02_Yukleme_Planlama.sql'),
-    (8, 1, 'DINGIL_GRUBU_UCLU', 6,
-     '{"dingilSayisi":3,"kademeler":[{"aralikUstMm":1300,"ustDahil":true,"sinirKg":21000},{"aralikUstMm":1400,"ustDahil":true,"sinirKg":24000}]}',
-     1, 'm.5 (ç)',
-     'Üç dingilli aks grubu: d≤1,3 m 21 t; 1,3<d≤1,4 m 24 t. 1,4 m üstü için değer yoktur.', 8, '2026-11-05', '20261105_02_Yukleme_Planlama.sql'),
-    (9, 1, 'KATAR_TOPLAM_AGIRLIK', 7,
-     '{"kademeler":[{"kombinasyon":"yariRomorkluArac","dingilSayisi":3,"sinirKg":28000},{"kombinasyon":"romorkluVeyaYariRomorkluArac","dingilSayisi":4,"sinirKg":36000},{"kombinasyon":"yariRomorkluArac","dingilSayisi":4,"yariRomorkGrubuKg":20000,"sinirKg":38000},{"kombinasyon":"yariRomorkluVeyaRomorkluKatar","dingilSayisiEnAz":5,"sinirKg":40000},{"kombinasyon":"isoKonteyner40","sinirKg":44000}]}',
-     1, 'm.5 (ç)',
-     'Azami toplam ağırlık: 3 dingilli yarı römorklu araç 28 t; 4 dingilli römorklu/yarı römorklu araç 36 t (yarı römork grubu 20 t ise 38 t); 5 ve daha çok dingilli katar 40 t; 40 ft ISO konteyner taşıyan, iki veya üç dingilli yarı römorklu üç dingilli motorlu araç 44 t.', 9, '2026-11-05', '20261105_02_Yukleme_Planlama.sql'),
-    (10, 1, 'OLCUM_TOLERANSI', 8, '{"tartiYuzde":3.75,"tartiSabitKg":500,"boyutYuzde":2}', 1, 'm.7–8',
-     'Denetim toleransı: tartıda azami ağırlığın %3,75''i + 500 kg, boyutta %2. Planlama payı olarak kullanılmaz (isterler 17).', 10, '2026-11-05', '20261105_02_Yukleme_Planlama.sql'),
-    (11, 1, 'OZEL_YUK_IZIN_KATEGORISI', 9,
-     '{"kategoriler":[{"kod":"Kategori-1","genislikEnFazlaMm":3400,"yukseklikEnFazlaMm":4800,"uzunlukEnFazlaMm":22000,"agirlikEnFazlaKg":90000,"sureGun":180},{"kod":"Kategori-3","genislikEnFazlaMm":3000,"yukseklikEnFazlaMm":4800,"uzunlukEnFazlaMm":22000,"agirlikEnFazlaKg":44000,"sureGun":180,"ayniCinsBirdenFazla":true},{"kod":"Kategori-2","seferlik":true}],"dingilBasinaEnFazlaKg":{"tahriksiz":10000,"tahrikli":11500,"pandul":12000},"ucDingilliCekiciAgirlikEsigiKg":50000}',
-     3, 'Taslak m.5–6',
-     'Karayolu İzin Belgesi: Kategori-1 G≤3,40 m, Y≤4,80 m, U≤22 m, A≤90 t (180 gün, tek yük); Kategori-3 G≤3,00 m, Y≤4,80 m, U≤22 m, A≤44 t (180 gün); bunları aşan Kategori-2 (tek sefer). Kategori-1/3''te dingil başına tahriksiz 10 t, tahrikli 11,5 t, pandül 12 t; Kategori-1''de 50 t ve üstü katarda üç dingilli çekici.', 11, '2026-11-05', '20261105_02_Yukleme_Planlama.sql'),
-    (12, 1, 'DESTEK_ARACI', 10,
-     '{"satirlar":[{"kategoriler":["Kategori-1","Kategori-3"],"genislikEnFazlaMm":3000,"uzunlukEnFazlaMm":22000,"arkadanTasma":false,"ikiYonlu":"yok","bolunmus":"yok","otoyol":"yok"},{"kategoriler":["Kategori-1","Kategori-3"],"genislikEnFazlaMm":3000,"uzunlukEnFazlaMm":22000,"arkadanTasma":true,"ikiYonlu":"arkada","bolunmus":"arkada","otoyol":"arkada"},{"kategoriler":["Kategori-1"],"genislikBuyukMm":3000,"genislikEnFazlaMm":3400,"uzunlukEnFazlaMm":22000,"ikiYonlu":"ondeVeArkada","bolunmus":"arkada","otoyol":"arkada"},{"kategoriler":["Kategori-2"],"genislikEnFazlaMm":4500,"agirlikKucukKg":150000,"ikiYonlu":"ondeVeArkada","bolunmus":"arkada","otoyol":"arkada"},{"kategoriler":["Kategori-2"],"genislikEnFazlaMm":4500,"agirlikEnAzKg":150000,"ikiYonlu":"ondeVeArkada","bolunmus":"ondeVeArkada","otoyol":"ondeVeArkada"},{"kategoriler":["Kategori-2"],"genislikBuyukMm":4500,"ikiYonlu":"ondeVeArkada","bolunmus":"ondeVeArkada","otoyol":"ondeVeArkada"}]}',
-     3, 'Taslak m.10',
-     'Destek aracı: yol tipine (iki yönlü, bölünmüş, otoyol) ve kategoriye göre önde ve/veya arkada; Kategori-2''de G>4,50 m veya A≥150 t ise her yolda önde ve arkada. Genel Müdürlük sayıyı artırabilir.', 12, '2026-11-05', '20261105_02_Yukleme_Planlama.sql'),
-    (13, 1, 'ZABITA_DESTEGI', 11,
-     '{"ikiYonluYol":{"genislikBuyukMm":3400,"uzunlukBuyukMm":30000},"bolunmusYolVeOtoyol":{"genislikBuyukMm":4500,"uzunlukBuyukMm":30000},"yukseklikBuyukMmKgmTakdiri":4600,"gunlukBedelTl":16000}',
-     3, 'Taslak m.6/1 (j–o), m.8',
-     'Trafik zabıtası desteği zorunlu: iki yönlü yolda G>3,40 m veya U>30 m; bölünmüş yol/otoyolda G>4,50 m veya U>30 m. Y>4,60 m''de Genel Müdürlük şart koşabilir. Destek günü başına 16.000 TL; en az iki iş günü önce bildirim.', 13, '2026-11-05', '20261105_02_Yukleme_Planlama.sql'),
-    (14, 1, 'OZEL_YUK_YETERLILIK_BELGESI', 12, '{"kategori":"Kategori-2","agirlikBuyukKg":90000,"uzunlukBuyukMm":30000}', 3, 'Taslak m.6/1 (ğ-7), m.9',
-     'Kategori-2''de azami yüklü ağırlığı 90 t''u aşan veya uzunluğu 30 m''yi geçen taşıma ÖYYB sahibi işletenle yapılır; gönderen sorumludur.', 14, '2026-11-05', '20261105_02_Yukleme_Planlama.sql'),
-    (15, 1, 'GECE_YASAGI', 13, '{"kategoriler":["Kategori-1","Kategori-2"]}', 3, 'Taslak m.6/1 (f), (ğ-6)',
-     'Kategori-1 ve Kategori-2 izinli araçlar günün kararmasından gün aydınlanıncaya kadar trafiğe çıkamaz (zabıta izniyle istisna).', 15, '2026-11-05', '20261105_02_Yukleme_Planlama.sql'),
-    (16, 1, 'OTOYOL_KISITI', 14, '{"genislikEnFazlaMm":3200,"yukseklikEnFazlaMm":4600,"uzunlukEnFazlaMm":22000,"agirlikEnFazlaKg":54000,"kgmIzni":true}', 3, 'Taslak m.6/1 (i)',
-     'Otoyol yalnız G≤3,20 m, Y≤4,60 m, U≤22 m ve A≤54 t taşımada, Genel Müdürlüğün uygun gördüğü kesimlerde kullanılabilir.', 16, '2026-11-05', '20261105_02_Yukleme_Planlama.sql'),
-    (17, 1, 'ISARETLEME', 15,
-     '{"kehribarIsik":true,"bilgiLevhasi":["GENİŞ ARAÇ","UZUN ARAÇ","GENİŞ VE UZUN ARAÇ"],"yansiticiLevhaEnAzMm":500,"yansiticiStandart":"ECE R70","destekAracindaTelsiz":true}',
-     3, 'Taslak m.11–12',
-     'İzinli araçta kehribar ışıklı uyarı işareti ve "GENİŞ/UZUN ARAÇ" levhası; taşan geniş yükte her iki tarafta ECE R70''e uygun en az 50×50 cm yansıtıcı levha; destek aracı zorunluysa telsiz.', 17, '2026-11-05', '20261105_02_Yukleme_Planlama.sql')
-ON CONFLICT DO NOTHING;
-SELECT setval(pg_get_serial_sequence('"MevzuatKurallari"', 'Id'), (SELECT max("Id") FROM "MevzuatKurallari"));
-
 -- ===== İzinler =====
 DO $$
 DECLARE
@@ -473,11 +315,6 @@ BEGIN
         VALUES (5266, 'ekipman-dogrulama', 'MENU.EKIPMAN_DOGRULAMA', 'ri-shield-check-line', NULL, 1, 5265,
                 now() AT TIME ZONE 'Europe/Istanbul', '20261105_02_Yukleme_Planlama.sql');
     END IF;
-    IF NOT EXISTS (SELECT 1 FROM "MenuTanimlari" WHERE "Kod" = 'mevzuat-kurallari') THEN
-        INSERT INTO "MenuTanimlari" ("Id", "Kod", "LabelKey", "Icon", "Route", "Sira", "ParentId", "CreatedDate", "CreatedBy")
-        VALUES (5267, 'mevzuat-kurallari', 'MENU.MEVZUAT_KURALLARI', 'ri-scales-3-line', '/mevzuat-kurallari', 3, 5263,
-                now() AT TIME ZONE 'Europe/Istanbul', '20261105_02_Yukleme_Planlama.sql');
-    END IF;
     PERFORM setval(pg_get_serial_sequence('"MenuTanimlari"', 'Id'), (SELECT max("Id") FROM "MenuTanimlari"));
 END $$;
 
@@ -486,7 +323,7 @@ INSERT INTO "RolYetkileri" ("RolId", "MenuTanimiId", "YetkiTipiId", "CreatedDate
 SELECT 1, m."Id", (SELECT "Id" FROM "LookupYetkiTipleri" WHERE "Deger" = 'W'),
        now() AT TIME ZONE 'Europe/Istanbul', '20261105_02_Yukleme_Planlama.sql'
 FROM "MenuTanimlari" m
-WHERE m."Kod" IN ('yukleme-planlama', 'yukleme-planlari', 'ekipman-kitapligi', 'ekipman-dogrulama', 'mevzuat-kurallari')
+WHERE m."Kod" IN ('yukleme-planlama', 'yukleme-planlari', 'ekipman-kitapligi', 'ekipman-dogrulama')
   AND EXISTS (SELECT 1 FROM "Roller" WHERE "Id" = 1)
   AND NOT EXISTS (SELECT 1 FROM "RolYetkileri" mevcut WHERE mevcut."RolId" = 1 AND mevcut."MenuTanimiId" = m."Id");
 
@@ -500,7 +337,7 @@ BEGIN
         JOIN "Roller" r ON r."Id" = ry."RolId"
         JOIN "MenuTanimlari" m ON m."Id" = ry."MenuTanimiId"
         JOIN "LookupYetkiTipleri" tip ON tip."Id" = ry."YetkiTipiId"
-        WHERE m."Kod" IN ('yukleme-planlama', 'yukleme-planlari', 'ekipman-kitapligi', 'ekipman-dogrulama', 'mevzuat-kurallari')
+        WHERE m."Kod" IN ('yukleme-planlama', 'yukleme-planlari', 'ekipman-kitapligi', 'ekipman-dogrulama')
         ORDER BY r."Id", m."Id"
     LOOP
         RAISE NOTICE 'Rol "%": % = %', satir.rol, satir.kod, satir.seviye;

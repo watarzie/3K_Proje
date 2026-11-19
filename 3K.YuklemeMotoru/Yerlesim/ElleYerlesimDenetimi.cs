@@ -43,7 +43,7 @@ public static class ElleYerlesimDenetimi
                 genelUyarilar.Add($"Araç {sonuclar.Count + 1}: ekipman konfigürasyonu {elle.KonfigurasyonId} bulunamadı ya da yükleme yüzeyi yok; araç değerlendirilmedi.");
                 continue;
             }
-            var arac = new AracYerlesimi(aday, girdi.Ayarlar, girdi.Yasal);
+            var arac = new AracYerlesimi(aday, girdi.Ayarlar);
             var sorunlar = new List<YukSorunu>();
             var yerler = new List<Yer>();
             foreach (var k in elle.Konumlar)
@@ -82,7 +82,7 @@ public static class ElleYerlesimDenetimi
             // Gerekçe otomatik yerleşimle aynı ölçütle kurulur: zorunlu özel yük, aileye sığmayan yük, seçilen tiplere sığmayan yük.
             var aileAdaylari = YerlesimMotoru.AileAdaylari(girdi);
             bool Sigmaz(YerlesimYuku yuk, IEnumerable<EkipmanAdayi> adaylar) =>
-                adaylar.All(a => AracYerlesimi.SigmamaNedeni(a, girdi.Ayarlar, girdi.Yasal, yuk) != null);
+                adaylar.All(a => AracYerlesimi.SigmamaNedeni(a, girdi.Ayarlar, yuk) != null);
             var zorunluYukler = yerler.Where(y => y.Yuk.Zorunluluk == OzelEkipmanZorunlulugu.Her).Select(y => y.Yuk.Kod).ToList();
             var aileyeSigmayanlar = aday.OzelYukEkipmani && !aday.AileIci && aileAdaylari.Count > 0
                 ? yerler.Where(y => y.Yuk.Zorunluluk != OzelEkipmanZorunlulugu.Her && Sigmaz(y.Yuk, aileAdaylari)).Select(y => y.Yuk.Kod).ToList()
@@ -103,20 +103,23 @@ public static class ElleYerlesimDenetimi
                     ? $"Zorunlu özel ekipman: {string.Join(", ", zorunluYukler)} için {aday.Kod} (elle)."
                     : aileyeSigmayanlar.Count > 0 ? YerlesimMotoru.AileyeSigmayanGerekce(aday, girdi.AileAdi, aileyeSigmayanlar)
                     : $"Aile dışı ekipman elle eklendi: {aday.Kod}.";
-            var sonuc = AracKontrolcu.Olustur(sonuclar.Count + 1, arac, girdi.Ayarlar, girdi.Yasal, gerekce, zorunlu, ortala: false);
+            var sonuc = AracKontrolcu.Olustur(sonuclar.Count + 1, arac, girdi.Ayarlar, gerekce, zorunlu, ortala: false, teyitsizleriAyikla: false);
 
+            // Teyit edilemeyen yük sorunları gösterilmez; aynı türdeki kontrolü yine de "Uygun"dan düşürür (Birlestir),
+            // böylece sorunlu yük varken kontrol uygun yazılmaz, ayıklanır.
+            var gorunenSorunlar = sorunlar.Where(s => s.Sonuc != KontrolSonucu.TeyitEdilmedi).ToList();
             var ekKontroller = new List<AracKontrolu> { Organizasyon(girdi, yerler) };
-            var yukSonucu = AracKontrolcu.EnKotu(sorunlar.Select(s => s.Sonuc));
-            ekKontroller.Add(sorunlar.Count == 0
+            ekKontroller.Add(gorunenSorunlar.Count == 0
                 ? new(KontrolTuru.ElleYerlesim, KontrolSonucu.Uygun, "Elle yerleşimde çakışma, destek, istif ve giriş sorunu yok")
-                : new(KontrolTuru.ElleYerlesim, yukSonucu, $"{sorunlar.Select(s => s.YukAnahtari).Distinct().Count()} yükte {sorunlar.Count} sorun; yük listesine bakın"));
+                : new(KontrolTuru.ElleYerlesim, AracKontrolcu.EnKotu(gorunenSorunlar.Select(s => s.Sonuc)),
+                    $"{gorunenSorunlar.Select(s => s.YukAnahtari).Distinct().Count()} yükte {gorunenSorunlar.Count} sorun; yük listesine bakın"));
             var kodlar = yerler.ToDictionary(y => y.Yuk.Anahtar, y => y.Yuk.Kod);
-            var kontroller = ekKontroller.Concat(Birlestir(sonuc.Kontroller, sorunlar, kodlar)).ToList();
+            var kontroller = AracKontrolcu.Gosterilecekler(ekKontroller.Concat(Birlestir(sonuc.Kontroller, sorunlar, kodlar)));
             sonuclar.Add(sonuc with
             {
                 Kontroller = kontroller,
                 Sonuc = AracKontrolcu.EnKotu(kontroller.Select(x => x.Sonuc)),
-                YukSorunlari = sorunlar
+                YukSorunlari = gorunenSorunlar
             });
             yerlesimler.Add(arac);
         }
@@ -167,7 +170,7 @@ public static class ElleYerlesimDenetimi
     /// </summary>
     internal static AracYerlesimi SabitAracKur(YerlesimGirdisi girdi, EkipmanAdayi aday, ElleArac elle, IReadOnlyDictionary<string, YerlesimYuku> yukler)
     {
-        var arac = new AracYerlesimi(aday, girdi.Ayarlar, girdi.Yasal);
+        var arac = new AracYerlesimi(aday, girdi.Ayarlar);
         var yerler = elle.Konumlar.Where(k => yukler.ContainsKey(k.YukAnahtari)).Select(k => YerKur(yukler[k.YukAnahtari], k)).ToList();
         foreach (var istif in IstifleriKur(arac, yerler).Istifler)
             IstifEkle(arac, istif);

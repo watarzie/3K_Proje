@@ -214,8 +214,3 @@ public sealed class EkipmanDogrulaCommandValidator : AbstractValidator<EkipmanDo
         RuleFor(x => x.RevizyonNo).GreaterThan(0).WithMessage("Revizyon seçilmelidir.");
     }
 }
-
-public sealed class MevzuatKuralSetiGetirQueryValidator : AbstractValidator<MevzuatKuralSetiGetirQuery>
-{
-    public MevzuatKuralSetiGetirQueryValidator() => RuleFor(x => x.Id).GreaterThan(0).WithMessage("Kural seti seçilmelidir.");
-}

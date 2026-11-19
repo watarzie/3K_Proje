@@ -18,8 +18,8 @@
 -- 28 numaralı betik Kullanicilar.BasarisizGirisSayisi ve GirisKilitBitisTarihi kolonlarını birlikte arar.
 -- 29 numaralı betik menü düğümünü (barkod-etiket) arar.
 -- 30 numaralı betik Sandiklar.YukTuruId kolonunu ve LookupYukTurleri tablosunu birlikte arar.
--- 31 numaralı betik YuklemePlanYukleri, EkipmanKonfigurasyonRevizyonlari ve MevzuatKurallari tablolarını ve menü
--- düğümlerini (yukleme-planlama, mevzuat-kurallari) birlikte arar.
+-- 31 numaralı betik YuklemePlanYukleri ve EkipmanKonfigurasyonRevizyonlari tablolarını ve menü düğümünü
+-- (yukleme-planlama) birlikte arar.
 -- 32 numaralı betik YuklemePlanRevizyonlari.YerlesimJson kolonunu arar (kısıt aynı transaction'da eklenir).
 -- 33 numaralı betik YuklemeOturumlari ve YuklemeOturumYukleri tablolarını ve menü düğümünü (arac-yukleme) arar.
 -- 34 numaralı betik veri onarımıdır (S-27): sahada iptalle kapanacak Eksik Sevk Edildi normal proje kalmadıysa
@@ -132,9 +132,7 @@ FROM (VALUES
                                                     AND EXISTS (SELECT 1 FROM kolon WHERE tablo = 'LookupYukTurleri' AND ad = 'Deger')),
     (31, '20261105_02_Yukleme_Planlama',            EXISTS (SELECT 1 FROM kolon WHERE tablo = 'YuklemePlanYukleri' AND ad = 'ElleDegisenIzinler')
                                                     AND EXISTS (SELECT 1 FROM kolon WHERE tablo = 'EkipmanKonfigurasyonRevizyonlari' AND ad = 'TeknikVeriJson')
-                                                    AND EXISTS (SELECT 1 FROM kolon WHERE tablo = 'MevzuatKurallari' AND ad = 'ParametrelerJson')
-                                                    AND EXISTS (SELECT 1 FROM "MenuTanimlari" WHERE "Kod" = 'yukleme-planlama')
-                                                    AND EXISTS (SELECT 1 FROM "MenuTanimlari" WHERE "Kod" = 'mevzuat-kurallari')),
+                                                    AND EXISTS (SELECT 1 FROM "MenuTanimlari" WHERE "Kod" = 'yukleme-planlama')),
     (32, '20261105_03_Yukleme_Yerlesim',            EXISTS (SELECT 1 FROM kolon WHERE tablo = 'YuklemePlanRevizyonlari' AND ad = 'YerlesimJson')),
     (33, '20261109_01_Arac_Yukleme',                EXISTS (SELECT 1 FROM kolon WHERE tablo = 'YuklemeOturumlari' AND ad = 'RevizyonNo')
                                                     AND EXISTS (SELECT 1 FROM kolon WHERE tablo = 'YuklemeOturumYukleri' AND ad = 'YukAnahtari')

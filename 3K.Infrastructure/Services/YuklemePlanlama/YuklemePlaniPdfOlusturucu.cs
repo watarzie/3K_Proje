@@ -141,7 +141,8 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
         _ => Turuncu
     };
 
-    private static string TasmaMetni(PlanAraci a)
+    /// <summary>Kasa dışına taşma (yön ve miktar); taşma kontrolü listede gösterilmediği için raporda bu satırla yazılır.</summary>
+    internal static string TasmaMetni(PlanAraci a)
     {
         var parcalar = new List<string>();
         if (a.SolTasmaMm > 0) parcalar.Add($"sol {Mm(a.SolTasmaMm)}");
@@ -401,11 +402,6 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
             }))
             .ToList();
 
-    /// <summary>Teyit edilemeyen kontrol türleri (veri ya da pay eksik); araç sayfasında tek satır yazılır.</summary>
-    internal static IReadOnlyList<string> TeyitEdilmeyenler(PlanAraci a) =>
-        a.Kontroller.Where(k => k.Sonuc == YerlesimKontrolSonucu.TeyitEdilmedi)
-            .Select(k => k.Tur).Distinct().Order().Select(YuklemeEtiketleri.KontrolTuru).ToList();
-
     /// <summary>
     /// Çizimlerin yanına sığan yük satırı (taslak ibaresi ve araç başlığı varken; her uyarı satırı bir yük satırı yer
     /// kaplar). Kalan satırlar sonraki sayfada iki sütuna akar; tahmin az kalırsa tablo yine sonraki sayfaya devam eder.
@@ -424,10 +420,9 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
             (uygunsuz && Tasiyor(x.Konum, veri)) || sorunluYukler.Contains(x.Konum.YukAnahtari))).ToList();
         // Yandan bakışta istifin katları ayrı görünür; her kat yalnız kendi numarasını taşır.
         var yandanKutular = kutular.Select((k, i) => k with { Etiket = yukler[i].Etiket }).ToList();
-        var teyitler = TeyitEdilmeyenler(a);
         var yontemler = a.Konumlar.Select(k => YuklemeEtiketleri.GirisYonu(k.YuklemeYontemi)).Distinct().ToList();
 
-        var uyariSatiri = ustSatir + (a.AileDisiGerekce != null ? 2 : 0) + (TasmaMetni(a).Length > 0 ? 1 : 0) + (teyitler.Count > 0 ? 1 : 0) +
+        var uyariSatiri = ustSatir + (a.AileDisiGerekce != null ? 2 : 0) + (TasmaMetni(a).Length > 0 ? 1 : 0) +
                           a.Kontroller.Count(k => k.Sonuc == YerlesimKontrolSonucu.Uygunsuz) + a.YukSorunlari.Count(s => s.Sonuc == YerlesimKontrolSonucu.Uygunsuz);
         var yanda = Math.Min(yukler.Count, Math.Max(10, YanTablosuSatiri - uyariSatiri));
         var kalan = yukler.Count - yanda;
@@ -448,11 +443,9 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
             col.Item().PaddingTop(2).Text("Özel araç: " + a.AileDisiGerekce).FontColor(Turuncu).Bold();
         if (TasmaMetni(a) is { Length: > 0 } tasma)
             col.Item().PaddingTop(2).Text($"Taşma: {tasma}").FontColor(Turuncu).Bold();
-        // Yalnız uygunsuz sonuçlar yazılır (taslak ibaresinin nedeni); teyit notları ayrıntıdır (madde 7).
+        // Yalnız uygunsuz sonuçlar yazılır (taslak ibaresinin nedeni); teyit edilemeyen kontroller gösterilmez.
         foreach (var k in a.Kontroller.Where(k => k.Sonuc == YerlesimKontrolSonucu.Uygunsuz))
             col.Item().PaddingTop(2).Text($"{YuklemeEtiketleri.KontrolTuru(k.Tur)}: {k.Mesaj}").FontColor(Kirmizi);
-        if (teyitler.Count > 0)
-            col.Item().PaddingTop(2).Text($"Teyit edilmedi (veri ya da pay eksik): {string.Join(", ", teyitler)}").FontColor(Turuncu);
         foreach (var s in a.YukSorunlari.Where(s => s.Sonuc == YerlesimKontrolSonucu.Uygunsuz))
         {
             var etiket = yukler.Where(x => x.Konum.YukAnahtari == s.YukAnahtari).Select(x => x.Etiket).FirstOrDefault() ?? s.YukAnahtari;

@@ -42,7 +42,7 @@ public static class EkipmanKategoriKurali
         _ => []
     };
 
-    /// <summary>Kapalı ve tenteli gövdede yüzeyin iç (kullanılabilir) yüksekliği gerekir; açık platformda sınır yasal yüksekliktir.</summary>
+    /// <summary>Kapalı ve tenteli gövdede yüzeyin iç (kullanılabilir) yüksekliği gerekir; açık platformda iç yükseklik sınırı yoktur.</summary>
     public static bool IcYukseklikGerekliMi(EkipmanKategorisi kategori) => kategori is
         EkipmanKategorisi.KapaliKonteyner or EkipmanKategorisi.HardtopKonteyner or EkipmanKategorisi.KapaliKasa or
         EkipmanKategorisi.Frigo or EkipmanKategorisi.Tenteli;

@@ -21,7 +21,10 @@ public enum GirisYonu
     Ustten = 4
 }
 
-/// <summary>Kontrol sonucu. Veri yoksa kontrol yapılmış gibi uygunluk üretilmez: "Teyit edilmedi".</summary>
+/// <summary>
+/// Kontrol sonucu. Veri yoksa kontrol yapılmış gibi uygunluk üretilmez: "Teyit edilmedi". Teyit edilmeyen kontrol
+/// araçta gösterilmez ve araç sonucuna katılmaz (AracKontrolcu.Gosterilecekler).
+/// </summary>
 public enum KontrolSonucu
 {
     Uygun = 1,
@@ -35,7 +38,11 @@ public enum KontrolTuru
     Agirlik = 1,
     KapidanGecis = 2,
     IcYukseklik = 3,
+
+    /// <summary>Artık üretilmez (mevzuat kuralları kaldırıldı, 20 Kasım 2026); değer eski kayıtlar için ayrılmıştır.</summary>
     YasalYukseklik = 4,
+
+    /// <summary>Artık üretilmez; bkz. <see cref="YasalYukseklik"/>.</summary>
     YasalGenislik = 5,
     Tasma = 6,
     Dingil = 7,
@@ -43,6 +50,8 @@ public enum KontrolTuru
     Destek = 9,
     EkipmanVerisi = 10,
     GuvenlikPayi = 11,
+
+    /// <summary>Artık üretilmez; bkz. <see cref="YasalYukseklik"/>.</summary>
     Mevzuat = 12,
 
     /// <summary>Proje / lokasyon ayrımı ve zorunlu ekipman gibi plan tercihlerine uyum (elle düzenlemede).</summary>
@@ -120,12 +129,6 @@ public sealed record YerlesimAyarlari(
     int? YuklemeHareketiPayiMm,
     int? AgirlikMerkeziSapmaYuzde = null);
 
-/// <summary>
-/// Onaylı mevzuat kural setinden gelen yasal sınırlar. Onaylı set yoksa null verilir ve yasal kontroller "Teyit
-/// edilmedi" olur; taslak set kontrolde kullanılmaz. Kuralda bulunmayan değer null'dır (sıfır sayılmaz).
-/// </summary>
-public sealed record YasalSinirlar(int? GenislikMm, int? YukseklikMm, int? YandanTasmaMm, string KuralSetiAdi);
-
 /// <summary>Mevcut araçlara yerleştirmede kullanıcının verdiği araç: konfigürasyon ve adet.</summary>
 public sealed record MevcutArac(int KonfigurasyonId, int Adet);
 
@@ -137,7 +140,6 @@ public sealed record YerlesimGirdisi(
     bool ProjeBazindaAyri,
     bool LokasyonaGoreAyri,
     IReadOnlyList<MevcutArac>? MevcutAraclar,
-    YasalSinirlar? Yasal,
     string AileAdi);
 
 /// <summary>Araçtaki bir yükün konumu (ekipman koordinatları: X önden arkaya, Y soldan sağa, Z yerden yukarı; mm).</summary>

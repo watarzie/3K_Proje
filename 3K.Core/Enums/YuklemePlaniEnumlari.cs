@@ -70,7 +70,10 @@ namespace _3K.Core.Enums
         TeyitEdilmedi = 3
     }
 
-    /// <summary>Araç kontrolünün türü (Simülasyon isterleri 22–23); değerler motorla aynıdır.</summary>
+    /// <summary>
+    /// Araç kontrolünün türü (Simülasyon isterleri 22–23); değerler motorla aynıdır. YasalYukseklik, YasalGenislik ve
+    /// Mevzuat artık üretilmez (mevzuat kuralları kaldırıldı); değerler eski kayıtlar için ayrılmıştır.
+    /// </summary>
     public enum YerlesimKontrolTuru
     {
         Agirlik = 1,

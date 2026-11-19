@@ -47,7 +47,7 @@ public sealed class YuklemePlaniRaporTests
             yukler.Add(Sandik("PA200-35-UZUN", 2, 13_000, 1_000, 1_000, 900));
         }
         var girdi = new YerlesimGirdisi(yukler, [YerlesimMotoruTests.K40, YerlesimMotoruTests.Lowbed], Ayar, false, false, null,
-            new YasalSinirlar(2_550, 4_000, 0, "Onaylı TR"), "Konteyner");
+            "Konteyner");
         var sonuc = YerlesimMotoru.Hesapla(girdi);
         var yukSozluk = yukler.ToDictionary(y => y.Anahtar);
         // Lokasyonu belirsiz satırlar: biri lokasyonsuz, öbürü depo lokasyonu "Belirsiz" (Id 1) ile.
@@ -257,20 +257,34 @@ public sealed class YuklemePlaniRaporTests
         Assert.Equal(["P1-5", "P1-1", "P2-1", "P2-2", "P1-2"], yukler.Select(x => x.Etiket));
     }
 
-    /// <summary>Teyit edilemeyen kontroller araç sayfasında tür adlarıyla tek satır yazılır (tekrar ve uygun sonuç yok).</summary>
-    [Fact]
-    public void TeyitEdilmeyenler_TurAdlariyla()
+    /// <summary>
+    /// Mevzuattan önce saklanmış yerleşim gösterilirken "Teyit edilmedi" hiçbir yerde kalmaz: araç ve plan sonucu
+    /// "Uygun" olur (uygunsuz kontrol yoktu), teyitsiz kontrol ve yük sorunu ile kaldırılan kuralların uyarıları düşer.
+    /// </summary>
+    [Theory]
+    [InlineData(YerlesimKontrolSonucu.TeyitEdilmedi, YerlesimKontrolSonucu.Uygun)]
+    [InlineData(YerlesimKontrolSonucu.Uygun, YerlesimKontrolSonucu.Uygun)]
+    [InlineData(YerlesimKontrolSonucu.Uygunsuz, YerlesimKontrolSonucu.Uygunsuz)]
+    public void EskiYerlesim_TeyitEdilmediGosterilmez(YerlesimKontrolSonucu saklanan, YerlesimKontrolSonucu gosterilen)
     {
-        var arac = new PlanAraci
-        {
-            Kontroller =
-            [
-                new PlanAracKontrolu { Tur = YerlesimKontrolTuru.Dingil, Sonuc = YerlesimKontrolSonucu.TeyitEdilmedi },
-                new PlanAracKontrolu { Tur = YerlesimKontrolTuru.Dingil, Sonuc = YerlesimKontrolSonucu.TeyitEdilmedi },
-                new PlanAracKontrolu { Tur = YerlesimKontrolTuru.Tasma, Sonuc = YerlesimKontrolSonucu.Uygun }
-            ]
-        };
-        Assert.Equal([YuklemeEtiketleri.KontrolTuru(YerlesimKontrolTuru.Dingil)], YuklemePlaniPdfOlusturucu.TeyitEdilmeyenler(arac));
+        Assert.Equal(gosterilen, YerlesimGosterimKurali.Sonuc(saklanan));
+        Assert.False(YerlesimGosterimKurali.Gosterilir(YerlesimKontrolSonucu.TeyitEdilmedi));
+        Assert.True(YerlesimGosterimKurali.Gosterilir(YerlesimKontrolSonucu.Uygunsuz));
+        Assert.False(YerlesimGosterimKurali.UyariGosterilir("Onaylı mevzuat kural seti yok; yasal ölçü ve ağırlık kontrolleri teyit edilmedi."));
+        Assert.False(YerlesimGosterimKurali.UyariGosterilir("Tanımlanmamış güvenlik payları: yükseklik. İlgili kontroller teyit edilmedi."));
+        Assert.True(YerlesimGosterimKurali.UyariGosterilir("Araç 2: farklı lokasyonlardaki yükler aynı araca atandı; fiziksel yükleme organizasyonu belirlenmelidir."));
+    }
+
+    /// <summary>
+    /// Taşma kontrolü teyit gerektirdiği için kontrol listesinde gösterilmez; taşma yönü ve miktarı raporda araç
+    /// alanlarından yazılmaya devam eder.
+    /// </summary>
+    [Fact]
+    public void Tasma_KontrolGizliyseRapordaYazilir()
+    {
+        var arac = new PlanAraci { SolTasmaMm = 1_350, SagTasmaMm = 1_350 };
+        Assert.Equal("sol 1.350, sağ 1.350 mm", YuklemePlaniPdfOlusturucu.TasmaMetni(arac));
+        Assert.Equal(string.Empty, YuklemePlaniPdfOlusturucu.TasmaMetni(new PlanAraci()));
     }
 
     /// <summary>Tek araçta sayfaya sığmayan uzun yük listesi düzen hatası vermeden sonraki sayfaya akar.</summary>

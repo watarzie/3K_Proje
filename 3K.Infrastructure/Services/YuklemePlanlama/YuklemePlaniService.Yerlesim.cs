@@ -13,8 +13,7 @@ namespace _3K.Infrastructure.Services.YuklemePlanlama;
 /// <summary>
 /// Otomatik yerleşim (Simülasyon isterleri 2, 8–10, 16, 22–27): son revizyonun planlamaya dahil ve verisi tam yükleri
 /// motora verilir, sonuç yeni revizyonda saklanır. Adaylar: planın taşıma ailesindeki sandık taşımaya uygun aktif
-/// konfigürasyonlar ve zorunlu özel yük için lowbed / ağır yük dorseleri. Yasal sınırlar yalnız onaylı kural setinden
-/// gelir; taslak set kontrolde kullanılmaz.
+/// konfigürasyonlar ve zorunlu özel yük için lowbed / ağır yük dorseleri.
 /// </summary>
 internal sealed partial class YuklemePlaniService
 {
@@ -133,7 +132,7 @@ internal sealed partial class YuklemePlaniService
 
     /// <summary>
     /// Motor girdisini kurup otomatik yerleşimi hesaplar: planlamaya dahil ve ölçü/ağırlığı tam yükler, ailenin ve özel yük
-    /// ekipmanının adayları (tip seçimiyle kademe), paylar ve yasal sınırlar. Hesaplanacak yük yoksa 400.
+    /// ekipmanının adayları (tip seçimiyle kademe) ve paylar. Hesaplanacak yük yoksa 400.
     /// </summary>
     private async Task<YerlesimSonucu> YerlesimHesaplaAsync(
         int aileId, string aileAdi, YuklemeProjeKarisimi karisim, YuklemeLokasyonTercihi lokasyonTercihi, YuklemePlanAyarlari ayarlar,
@@ -163,7 +162,6 @@ internal sealed partial class YuklemePlaniService
             karisim == YuklemeProjeKarisimi.ProjeBazindaAyri,
             lokasyonTercihi == YuklemeLokasyonTercihi.LokasyonaGoreAyri,
             mevcut?.Select(m => new MevcutArac(m.KonfigurasyonId, m.Adet)).ToList(),
-            await YasalSinirlarAsync(cancellationToken),
             aileAdi);
         return YerlesimMotoru.Hesapla(girdi, cancellationToken);
     }
@@ -257,44 +255,10 @@ internal sealed partial class YuklemePlaniService
         return adaylar;
     }
 
-    /// <summary>Bugün geçerli onaylı Türkiye kural setinden genişlik, yükseklik ve yandan taşma sınırı; yoksa null.</summary>
-    private async Task<YasalSinirlar?> YasalSinirlarAsync(CancellationToken cancellationToken)
-    {
-        var bugun = TurkeyTime.Now.Date;
-        var set = await context.MevzuatKuralSetleri.AsNoTracking()
-            .Include(s => s.Kurallar)
-            .Where(s => s.YetkiAlani == MevzuatKuralSetiKurali.TurkiyeYetkiAlani && s.Durum == MevzuatKuralSetiDurumu.Onayli &&
-                        s.GecerlilikBaslangici <= bugun && (s.GecerlilikBitisi == null || s.GecerlilikBitisi >= bugun))
-            .OrderByDescending(s => s.SurumNo)
-            .FirstOrDefaultAsync(cancellationToken);
-        if (set == null)
-            return null;
-
-        int? Parametre(MevzuatKuralTipi tip, string ad)
-        {
-            var kural = set.Kurallar.Where(k => k.Tip == tip).OrderBy(k => k.Sira).FirstOrDefault();
-            if (kural == null)
-                return null;
-            try
-            {
-                using var belge = JsonDocument.Parse(kural.ParametrelerJson);
-                return belge.RootElement.TryGetProperty(ad, out var deger) && deger.TryGetInt32(out var sayi) ? sayi : null;
-            }
-            catch (JsonException)
-            {
-                // Okunamayan parametre sınır sayılmaz; ilgili kontrol "Teyit edilmedi" olur.
-                return null;
-            }
-        }
-
-        return new YasalSinirlar(
-            Parametre(MevzuatKuralTipi.AzamiGenislik, "genelMm"),
-            Parametre(MevzuatKuralTipi.AzamiYukseklik, "genelMm"),
-            Parametre(MevzuatKuralTipi.TasmaSiniri, "yandanMm"),
-            set.Ad);
-    }
-
-    /// <summary>Saklanan yerleşimi ekran modeline çevirir: satır bilgileri, proje/lokasyon adları ve kullanılan ekipman geometrisi.</summary>
+    /// <summary>
+    /// Saklanan yerleşimi ekran modeline çevirir: satır bilgileri, proje/lokasyon adları ve kullanılan ekipman geometrisi.
+    /// Ekran, saha ve raporlar buradan geçer; "Teyit edilmedi" gösterilmez (YerlesimGosterimKurali).
+    /// </summary>
     private async Task<PlanYerlesimi?> YerlesimAsync(
         YuklemePlani plan, YuklemePlanRevizyonu revizyon, YerlesimSonucu? sonuc, CancellationToken cancellationToken, DateTime? hesapTarihi = null)
     {
@@ -340,7 +304,7 @@ internal sealed partial class YuklemePlaniService
         return new PlanYerlesimi
         {
             HesapTarihi = hesapTarihi ?? revizyon.CreatedDate,
-            Sonuc = (YerlesimKontrolSonucu)(int)sonuc.Sonuc,
+            Sonuc = YerlesimGosterimKurali.Sonuc((YerlesimKontrolSonucu)(int)sonuc.Sonuc),
             LokasyonaGoreAyri = plan.LokasyonTercihi == YuklemeLokasyonTercihi.LokasyonaGoreAyri,
             ProjeBazindaAyri = plan.ProjeKarisimi == YuklemeProjeKarisimi.ProjeBazindaAyri,
             ElleDuzenlendi = sonuc.ElleDuzenlendi,
@@ -380,14 +344,14 @@ internal sealed partial class YuklemePlaniService
                         Tur = (YerlesimKontrolTuru)(int)k.Tur,
                         Sonuc = (YerlesimKontrolSonucu)(int)k.Sonuc,
                         Mesaj = k.Mesaj
-                    }).ToList(),
-                    Sonuc = (YerlesimKontrolSonucu)(int)a.Sonuc,
+                    }).Where(k => YerlesimGosterimKurali.Gosterilir(k.Sonuc)).ToList(),
+                    Sonuc = YerlesimGosterimKurali.Sonuc((YerlesimKontrolSonucu)(int)a.Sonuc),
                     YukSorunlari = a.YukSorunlari.Select(s => new PlanYukSorunu
                     {
                         YukAnahtari = s.YukAnahtari,
                         Sonuc = (YerlesimKontrolSonucu)(int)s.Sonuc,
                         Mesaj = s.Mesaj
-                    }).ToList(),
+                    }).Where(s => YerlesimGosterimKurali.Gosterilir(s.Sonuc)).ToList(),
                     TeknikVeriJson = geometriler.GetValueOrDefault((a.KonfigurasyonId, a.RevizyonNo), "{}")
                 };
             }).ToList(),
@@ -396,7 +360,7 @@ internal sealed partial class YuklemePlaniService
             EkIhtiyaclar = sonuc.EkIhtiyaclar
                 .Select(e => new PlanEkEkipmanIhtiyaci { KonfigurasyonId = e.KonfigurasyonId, EkipmanKodu = e.EkipmanKodu, EkipmanAdi = e.EkipmanAdi, Adet = e.Adet })
                 .ToList(),
-            Uyarilar = sonuc.Uyarilar
+            Uyarilar = sonuc.Uyarilar.Where(YerlesimGosterimKurali.UyariGosterilir).ToList()
         };
     }
 }

@@ -6,7 +6,7 @@ using _3K.Core.Models;
 namespace _3K.Infrastructure.Data;
 
 /// <summary>
-/// Yükleme Simülasyonu ve Araç Planlama: ekipman kitaplığı, mevzuat kural setleri ve yükleme planı eşlemeleri
+/// Yükleme Simülasyonu ve Araç Planlama: ekipman kitaplığı ve yükleme planı eşlemeleri
 /// (20261105_02_Yukleme_Planlama.sql aynı şemayı kurar; 20261119_01_Yukleme_Arac_Aileleri.sql tip sadelik sırasını ve
 /// Lowbed / ağır yük ailesini ekler).
 /// </summary>
@@ -84,48 +84,6 @@ internal static class YuklemeModelBuilderExtensions
             e.HasOne(p => p.Konfigurasyon)
                 .WithMany(k => k.Revizyonlar)
                 .HasForeignKey(p => p.KonfigurasyonId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
-
-        modelBuilder.Entity<MevzuatKaynagi>(e =>
-        {
-            e.ToTable("MevzuatKaynaklari");
-            e.Property(p => p.YetkiAlani).HasMaxLength(10).IsRequired();
-            e.Property(p => p.Ad).HasMaxLength(500).IsRequired();
-            e.Property(p => p.Tur).HasConversion<short>();
-            e.Property(p => p.ResmiGazeteSayisi).HasMaxLength(50);
-            e.Property(p => p.Url).HasMaxLength(1000);
-            e.Property(p => p.Aciklama).HasMaxLength(2000);
-        });
-
-        modelBuilder.Entity<MevzuatKuralSeti>(e =>
-        {
-            e.ToTable("MevzuatKuralSetleri", table => table.HasCheckConstraint(
-                "CK_MevzuatKuralSetleri_SurumNo_Pozitif", "\"SurumNo\" > 0"));
-            e.Property(p => p.YetkiAlani).HasMaxLength(10).IsRequired();
-            e.Property(p => p.Ad).HasMaxLength(200).IsRequired();
-            e.Property(p => p.Durum).HasConversion<short>();
-            e.Property(p => p.Aciklama).HasMaxLength(2000);
-            e.HasIndex(p => new { p.YetkiAlani, p.SurumNo }).IsUnique();
-        });
-
-        modelBuilder.Entity<MevzuatKurali>(e =>
-        {
-            e.ToTable("MevzuatKurallari", table => table.HasCheckConstraint(
-                "CK_MevzuatKurallari_ParametrelerJson_Nesne", "jsonb_typeof(\"ParametrelerJson\") = 'object'"));
-            e.Property(p => p.Kod).HasMaxLength(100).IsRequired();
-            e.Property(p => p.Tip).HasConversion<short>();
-            e.Property(p => p.ParametrelerJson).HasColumnType("jsonb").IsRequired();
-            e.Property(p => p.Madde).HasMaxLength(200);
-            e.Property(p => p.Aciklama).HasMaxLength(2000).IsRequired();
-            e.HasIndex(p => new { p.KuralSetiId, p.Kod }).IsUnique();
-            e.HasOne(p => p.KuralSeti)
-                .WithMany(s => s.Kurallar)
-                .HasForeignKey(p => p.KuralSetiId)
-                .OnDelete(DeleteBehavior.Cascade);
-            e.HasOne(p => p.Kaynak)
-                .WithMany()
-                .HasForeignKey(p => p.KaynakId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

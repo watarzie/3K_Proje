@@ -47,7 +47,7 @@ public sealed class YuklemeSirasiKuraliTests
     public void MotorSirasi_OndenArkaya_IstifAyniAdimda()
     {
         var yukler = Enumerable.Range(1, 14).Select(i => Sandik($"S{i:00}", 1_800 + i % 3 * 300, 1_100, 900, 400)).ToList();
-        var sonuc = YerlesimMotoru.Hesapla(new YerlesimGirdisi(yukler, [K40], Ayar, false, false, null, null, "Konteyner"));
+        var sonuc = YerlesimMotoru.Hesapla(new YerlesimGirdisi(yukler, [K40], Ayar, false, false, null, "Konteyner"));
         var arac = Assert.Single(sonuc.Araclar);
         var konumlar = arac.Konumlar.Select(k => new PlanYukKonumu
         {
@@ -73,7 +73,7 @@ public sealed class YuklemeSirasiKuraliTests
     public void IstifNoVeYuklemeSirasi_OtomatikVeElleYerlesimdeAyni()
     {
         var yukler = Enumerable.Range(1, 10).Select(i => Sandik($"S{i:00}", 2_000, 1_100, 900, 400)).ToList();
-        var girdi = new YerlesimGirdisi(yukler, [K40], Ayar, false, false, null, null, "Konteyner");
+        var girdi = new YerlesimGirdisi(yukler, [K40], Ayar, false, false, null, "Konteyner");
         var otomatik = Assert.Single(YerlesimMotoru.Hesapla(girdi).Araclar);
         Assert.Contains(otomatik.Konumlar, k => k.Kat > 1);
         Assert.All(otomatik.Konumlar, k => Assert.Equal(k.IstifNo, k.YuklemeSirasi));

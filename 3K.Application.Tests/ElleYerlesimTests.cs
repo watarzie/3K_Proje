@@ -14,7 +14,7 @@ namespace _3K.Application.Tests;
 public sealed class ElleYerlesimTests
 {
     private static YerlesimGirdisi Girdi(IReadOnlyList<YerlesimYuku> yukler, bool projeAyri = false) =>
-        new(yukler, [K40, Lowbed], Ayar, projeAyri, false, null, null, "Konteyner");
+        new(yukler, [K40, Lowbed], Ayar, projeAyri, false, null, "Konteyner");
 
     private static YerlesimSonucu Denetle(IReadOnlyList<YerlesimYuku> yukler, params ElleArac[] araclar) =>
         ElleYerlesimDenetimi.Denetle(Girdi(yukler), araclar);
@@ -39,14 +39,20 @@ public sealed class ElleYerlesimTests
         Assert.NotEqual(KontrolSonucu.Uygunsuz, sonuc.Sonuc);
     }
 
-    /// <summary>Çakışan yükler ilgili kodla bildirilir; boşluk payının altındaki yakınlık teyit ister.</summary>
+    /// <summary>
+    /// Çakışan yükler ilgili kodla bildirilir; boşluk payının altındaki yakınlık teyit gerektirir ve gösterilmez ("Teyit
+    /// edilmedi" hiçbir yerde yazılmaz, saha isteği 20 Kasım 2026).
+    /// </summary>
     [Fact]
     public void Cakisma_IlgiliKodlarlaBildirilir()
     {
         var yukler = new[] { Sandik("A", 1_000, 1_000, 1_000, 100), Sandik("B", 1_000, 1_000, 1_000, 100), Sandik("C", 1_000, 1_000, 1_000, 100) };
         var sonuc = Denetle(yukler, new ElleArac(40, [K("A", 100, 100), K("B", 600, 100), K("C", 1_610, 100)]));
         Assert.Contains("Çakışma: B", Sorunlar(sonuc, "A"));
-        Assert.Contains(Sorunlar(sonuc, "C"), m => m.StartsWith("Yerleşim boşluğu (30 mm) altında: B", StringComparison.Ordinal));
+        Assert.Empty(Sorunlar(sonuc, "C"));
+        Assert.DoesNotContain(sonuc.Araclar[0].YukSorunlari, s => s.Sonuc == KontrolSonucu.TeyitEdilmedi);
+        // A ve B çakışması iki yükte yazılır; C'nin teyitsiz yakınlığı sayılmaz.
+        Assert.Contains("2 yükte 2 sorun", sonuc.Araclar[0].Kontroller.Single(k => k.Tur == KontrolTuru.ElleYerlesim).Mesaj);
         Assert.Equal(KontrolSonucu.Uygunsuz, sonuc.Araclar[0].Sonuc);
     }
 
@@ -152,13 +158,17 @@ public sealed class ElleYerlesimTests
         Assert.Contains("Yetersiz destek: ALT üstünde zaten başka yük var; bir yükün üstüne tek yük oturur", Sorunlar(sonuc, "U2"));
     }
 
-    /// <summary>Açık ekipmanda yüzeyden taşma teyit ister; ağırlık merkezi yüzey dışındaysa kısmi oturma uygunsuzdur.</summary>
+    /// <summary>
+    /// Açık ekipmanda yüzeyden taşma teyit gerektirir: yük sorunu gösterilmez, taşma kontrolü de "Uygun" yazılmaz
+    /// (ayıklanır). Ağırlık merkezi yüzey dışındaysa kısmi oturma uygunsuzdur.
+    /// </summary>
     [Fact]
     public void AcikEkipman_KismiOturma()
     {
         var yukler = new[] { Sandik("A", 2_000, 1_000, 1_000, 100) };
         var tasan = Denetle(yukler, new ElleArac(90, [K("A", 10_500, 100, 900)]));
-        Assert.Contains(tasan.Araclar[0].YukSorunlari, s => s.Sonuc == KontrolSonucu.TeyitEdilmedi && s.Mesaj == "Yükleme yüzeyinden taşıyor: arka 300 mm");
+        Assert.Empty(tasan.Araclar[0].YukSorunlari);
+        Assert.DoesNotContain(tasan.Araclar[0].Kontroller, k => k.Tur == KontrolTuru.Tasma);
         var devrilir = Denetle(yukler, new ElleArac(90, [K("A", 11_500, 100, 900)]));
         Assert.Contains(devrilir.Araclar[0].YukSorunlari, s => s.Sonuc == KontrolSonucu.Uygunsuz && s.Mesaj.StartsWith("Kısmi oturma: ağırlık merkezi", StringComparison.Ordinal));
         Assert.Equal(KontrolSonucu.Uygunsuz, devrilir.Araclar[0].Kontroller.Single(k => k.Tur == KontrolTuru.Tasma).Sonuc);

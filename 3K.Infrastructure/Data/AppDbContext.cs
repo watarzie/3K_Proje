@@ -70,9 +70,6 @@ namespace _3K.Infrastructure.Data
         public DbSet<EkipmanModeli> EkipmanModelleri { get; set; } = null!;
         public DbSet<EkipmanKonfigurasyonu> EkipmanKonfigurasyonlari { get; set; } = null!;
         public DbSet<EkipmanKonfigurasyonRevizyonu> EkipmanKonfigurasyonRevizyonlari { get; set; } = null!;
-        public DbSet<MevzuatKaynagi> MevzuatKaynaklari { get; set; } = null!;
-        public DbSet<MevzuatKuralSeti> MevzuatKuralSetleri { get; set; } = null!;
-        public DbSet<MevzuatKurali> MevzuatKurallari { get; set; } = null!;
         public DbSet<YuklemePlani> YuklemePlanlari { get; set; } = null!;
         public DbSet<YuklemePlanRevizyonu> YuklemePlanRevizyonlari { get; set; } = null!;
         public DbSet<YuklemePlanProjesi> YuklemePlanProjeleri { get; set; } = null!;
