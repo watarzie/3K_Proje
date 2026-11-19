@@ -144,7 +144,7 @@ public sealed class YuklemePlanlamaTests
         mevcut.BeklenenRevizyonNo = 3;
         Assert.True(dogrulayici.Validate(mevcut).IsValid);
         var pay = Istek();
-        pay.Ayarlar = new YuklemePlanAyarlari { YukseklikPayiMm = YuklemePlaniKurali.GuvenlikPayiEnFazlaMm + 1 };
+        pay.Ayarlar = new YuklemePlanAyarlari { YerlesimBosluguMm = YuklemePlaniKurali.YerlesimBosluguEnFazlaMm + 1 };
         Assert.False(dogrulayici.Validate(pay).IsValid);
         var tip = Istek();
         tip.Ayarlar = new YuklemePlanAyarlari { TipIdleri = [3, 3] };
@@ -161,17 +161,18 @@ public sealed class YuklemePlanlamaTests
         Assert.EndsWith("…", uzun);
     }
 
-    /// <summary>İsterler 17: yerleşim boşluğu başlangıçta 3 cm; güvenlik payları işletmeyle kesinleşene kadar boş.</summary>
+    /// <summary>Yükler arası boşluk isteğe bağlıdır: girilmezse 3 cm uygulanır; 0–500 mm geçerlidir (güvenlik payları kaldırıldı).</summary>
     [Fact]
-    public void Ayarlar_VarsayilanUcSantim_PaylarBos_SinirDisiGecersiz()
+    public void Ayarlar_VarsayilanUcSantim_SinirDisiGecersiz()
     {
         var ayarlar = new YuklemePlanAyarlari();
-        Assert.Equal(30, ayarlar.YerlesimBosluguMm);
-        Assert.Null(ayarlar.YukseklikPayiMm);
+        Assert.Equal((null, 30), (ayarlar.YerlesimBosluguMm, YuklemePlaniKurali.UygulananYerlesimBoslugu(ayarlar)));
+        Assert.Equal(0, YuklemePlaniKurali.UygulananYerlesimBoslugu(ayarlar with { YerlesimBosluguMm = 0 }));
         Assert.True(YuklemePlaniKurali.AyarlarGecerli(ayarlar));
+        Assert.True(YuklemePlaniKurali.AyarlarGecerli(ayarlar with { YerlesimBosluguMm = 0 }));
+        Assert.True(YuklemePlaniKurali.AyarlarGecerli(ayarlar with { YerlesimBosluguMm = YuklemePlaniKurali.YerlesimBosluguEnFazlaMm }));
         Assert.False(YuklemePlaniKurali.AyarlarGecerli(ayarlar with { YerlesimBosluguMm = -1 }));
-        Assert.False(YuklemePlaniKurali.AyarlarGecerli(ayarlar with { YukseklikPayiMm = 2000 }));
-        Assert.True(YuklemePlaniKurali.AyarlarGecerli(ayarlar with { AgirlikPayiKg = 0, GenislikPayiMm = 50 }));
+        Assert.False(YuklemePlaniKurali.AyarlarGecerli(ayarlar with { YerlesimBosluguMm = YuklemePlaniKurali.YerlesimBosluguEnFazlaMm + 1 }));
     }
 
     /// <summary>

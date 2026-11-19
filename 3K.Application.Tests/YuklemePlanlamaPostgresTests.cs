@@ -89,7 +89,7 @@ public sealed class YuklemePlanlamaPostgresTests
             YuklemePlaniDetayi kayitli;
             await using (var db = new AppDbContext(options))
                 kayitli = await PlanServisi(db).KaydetAsync(Kayit(1, secimler), kullaniciId: null, Ct);
-            Assert.Equal((2, 7, 40, YuklemeProjeKarisimi.ProjeBazindaAyri), (kayitli.RevizyonNo, kayitli.Yukler.Count, kayitli.Ayarlar.YerlesimBosluguMm, kayitli.ProjeKarisimi));
+            Assert.Equal((2, 7, (int?)40, YuklemeProjeKarisimi.ProjeBazindaAyri), (kayitli.RevizyonNo, kayitli.Yukler.Count, kayitli.Ayarlar.YerlesimBosluguMm, kayitli.ProjeKarisimi));
             var kayitli2 = kayitli.Yukler.Single(y => y.SandikId == s2);
             Assert.Equal((false, 200m, PlanYukDurumu.HaricTutuldu), (kayitli2.Dahil, kayitli2.UstYukSiniriKg, kayitli2.Durum));
             var manuel = kayitli.Yukler.Where(y => y.Kaynak == PlanYukKaynagi.Manuel).ToList();
@@ -204,9 +204,11 @@ public sealed class YuklemePlanlamaPostgresTests
                 Assert.Equal(0, await db.YuklemePlanlari.CountAsync());
 
                 plan = await servis.PlanHesaplaAsync(new YuklemePlaniHesaplaModel(null, null, [projeId], 1,
-                    new YuklemePlanAyarlari { YukseklikPayiMm = 50, TipIdleri = [2] }), kullaniciId: null, Ct);
+                    new YuklemePlanAyarlari { YerlesimBosluguMm = 50, TipIdleri = [2] }), kullaniciId: null, Ct);
             }
-            Assert.Equal(("PA920-01", 1, "Hesaplandı.", (int?)50), (plan.Ad, plan.RevizyonNo, plan.RevizyonAciklamasi, plan.Ayarlar.YukseklikPayiMm));
+            Assert.Equal(("PA920-01", 1, "Hesaplandı.", (int?)50), (plan.Ad, plan.RevizyonNo, plan.RevizyonAciklamasi, plan.Ayarlar.YerlesimBosluguMm));
+            // Güvenlik payları kaldırıldı: kontroller paysız (0) yapılır, teyitsiz kalmaz; ağırlık kontrolü uygun yazılır.
+            Assert.Equal(YerlesimKontrolSonucu.Uygun, Assert.Single(plan.Yerlesim!.Araclar).Kontroller.Single(k => k.Tur == YerlesimKontrolTuru.Agirlik).Sonuc);
             Assert.Equal([2], plan.Ayarlar.TipIdleri);
             Assert.Equal(["PA920-01-1", "PA920-01-2"], plan.Yukler.Select(y => y.Kod));
             Assert.Equal("K40DV", Assert.Single(plan.Yerlesim!.Araclar).EkipmanKodu);
@@ -230,10 +232,10 @@ public sealed class YuklemePlanlamaPostgresTests
                     new YuklemePlaniHesaplaModel(plan.Id, 1, [projeId], 1, new YuklemePlanAyarlari { TipIdleri = [21] }), null, Ct));
                 Assert.Equal(400, tipRed.StatusCode);
                 Assert.Equal(1, await db.YuklemePlanRevizyonlari.CountAsync(r => r.PlanId == plan.Id));
-                // İstemcinin gönderdiği gizli ayar (yükler arası boşluk) önceki revizyondan gelir; otomatik ad proje kümesiyle güncellenir.
+                // Yükler arası boşluk istemciden gelir (ekranda, isteğe bağlı); otomatik ad proje kümesiyle güncellenir.
                 var yeni = await servis.PlanHesaplaAsync(new YuklemePlaniHesaplaModel(plan.Id, 1, [projeId, olcusuzProje], 1,
                     new YuklemePlanAyarlari { YerlesimBosluguMm = 300 }), null, Ct);
-                Assert.Equal((2, "PA920-01, PA920-02", 1600m, 30), (yeni.RevizyonNo, yeni.Ad, yeni.Yukler.Single(y => y.SandikId == sandik2).BoyMm,
+                Assert.Equal((2, "PA920-01, PA920-02", 1600m, (int?)300), (yeni.RevizyonNo, yeni.Ad, yeni.Yukler.Single(y => y.SandikId == sandik2).BoyMm,
                     yeni.Ayarlar.YerlesimBosluguMm));
                 Assert.Equal(3, yeni.Yukler.Count);
                 Assert.Empty(yeni.KaynakFarklari);

@@ -135,8 +135,7 @@ internal sealed partial class YuklemePlaniService
         return new YerlesimGirdisi(
             yukler,
             adaylar,
-            new YerlesimAyarlari(ayarlar.YerlesimBosluguMm, ayarlar.YukseklikPayiMm, ayarlar.GenislikPayiMm, ayarlar.UzunlukPayiMm,
-                ayarlar.AgirlikPayiKg, ayarlar.YuklemeHareketiPayiMm, ayarlar.AgirlikMerkeziSapmaYuzde),
+            MotorAyarlari(ayarlar),
             plan.ProjeKarisimi == YuklemeProjeKarisimi.ProjeBazindaAyri,
             plan.LokasyonTercihi == YuklemeLokasyonTercihi.LokasyonaGoreAyri,
             null,

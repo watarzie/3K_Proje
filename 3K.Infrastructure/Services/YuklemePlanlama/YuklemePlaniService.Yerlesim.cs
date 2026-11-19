@@ -92,13 +92,12 @@ internal sealed partial class YuklemePlaniService
         if (satirlar.Count > YuklemePlaniKurali.EnFazlaYuk)
             throw new IsKuraliException(YukSiniriAsildi);
 
-        // Ekranda olmayan ayarlar (yükler arası boşluk, ağırlık merkezi sapması) var olan planda önceki revizyondan gelir;
-        // istemcinin gönderdiği değer bunları değiştirmez. Mevcut araç listesi (çalışma biçimi kalktı) boşaltılır.
+        // Ekranda olmayan ayar (ağırlık merkezi sapması) var olan planda önceki revizyondan gelir; istemcinin gönderdiği
+        // değer onu değiştirmez. Yükler arası boşluk ekrandadır (isteğe bağlı). Mevcut araç listesi boşaltılır.
         var oncekiAyarlar = onceki == null ? null : Ayarlar(onceki);
         var ayarlar = model.Ayarlar with
         {
             MevcutAraclar = [],
-            YerlesimBosluguMm = oncekiAyarlar?.YerlesimBosluguMm ?? YuklemePlaniKurali.VarsayilanYerlesimBosluguMm,
             AgirlikMerkeziSapmaYuzde = oncekiAyarlar?.AgirlikMerkeziSapmaYuzde
         };
         var sonuc = await YerlesimHesaplaAsync(model.TasimaAilesiId, aileAdi, YuklemeProjeKarisimi.Karisik, YuklemeLokasyonTercihi.Karisik,
@@ -157,14 +156,21 @@ internal sealed partial class YuklemePlaniService
         var girdi = new YerlesimGirdisi(
             yukler,
             adaylar,
-            new YerlesimAyarlari(ayarlar.YerlesimBosluguMm, ayarlar.YukseklikPayiMm, ayarlar.GenislikPayiMm, ayarlar.UzunlukPayiMm,
-                ayarlar.AgirlikPayiKg, ayarlar.YuklemeHareketiPayiMm, ayarlar.AgirlikMerkeziSapmaYuzde),
+            MotorAyarlari(ayarlar),
             karisim == YuklemeProjeKarisimi.ProjeBazindaAyri,
             lokasyonTercihi == YuklemeLokasyonTercihi.LokasyonaGoreAyri,
             mevcut?.Select(m => new MevcutArac(m.KonfigurasyonId, m.Adet)).ToList(),
             aileAdi);
         return YerlesimMotoru.Hesapla(girdi, cancellationToken);
     }
+
+    /// <summary>
+    /// Motor ayarları: güvenlik payları kaldırıldığı için 0 verilir (pay uygulanmaz; boş pay gibi kontrolü teyitsiz
+    /// bırakmaz, ağırlık, iç yükseklik ve kapıdan geçiş uygun/uygunsuz değerlendirilir).
+    /// </summary>
+    private static YerlesimAyarlari MotorAyarlari(YuklemePlanAyarlari ayarlar) =>
+        new(YuklemePlaniKurali.UygulananYerlesimBoslugu(ayarlar), YukseklikPayiMm: 0, GenislikPayiMm: 0, UzunlukPayiMm: 0, AgirlikPayiKg: 0,
+            YuklemeHareketiPayiMm: 0, ayarlar.AgirlikMerkeziSapmaYuzde);
 
     /// <summary>Kaydedilen mevcut araç listesindeki konfigürasyonlar kitaplıkta var ve aktif olmalı.</summary>
     private async Task MevcutAraclariDenetleAsync(YuklemePlanAyarlari ayarlar, CancellationToken cancellationToken)

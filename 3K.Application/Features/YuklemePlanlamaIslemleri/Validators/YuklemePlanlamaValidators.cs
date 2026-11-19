@@ -62,7 +62,7 @@ public sealed class YuklemePlaniOlusturCommandValidator : AbstractValidator<Yukl
 public sealed class YuklemePlaniKaydetCommandValidator : AbstractValidator<YuklemePlaniKaydetCommand>
 {
     internal static readonly string AyarlarMesaji =
-        $"Yerleşim boşluğu 0–{YuklemePlaniKurali.YerlesimBosluguEnFazlaMm} mm, güvenlik payları boş ya da 0–{YuklemePlaniKurali.GuvenlikPayiEnFazlaMm} mm, ağırlık payı boş ya da 0–{YuklemePlaniKurali.AgirlikPayiEnFazlaKg} kg, ağırlık merkezi sapma sınırı boş ya da %1–{YuklemePlaniKurali.AgirlikMerkeziSapmaEnFazlaYuzde} olmalıdır.";
+        $"Yükler arası boşluk 0–{YuklemePlaniKurali.YerlesimBosluguEnFazlaMm} mm, ağırlık merkezi sapma sınırı boş ya da %1–{YuklemePlaniKurali.AgirlikMerkeziSapmaEnFazlaYuzde} olmalıdır.";
 
     public YuklemePlaniKaydetCommandValidator()
     {

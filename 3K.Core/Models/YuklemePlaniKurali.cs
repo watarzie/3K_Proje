@@ -22,12 +22,16 @@ public static class YuklemePlaniKurali
     public const int ManuelAdetEnFazla = 500;
     public const int OzelTasimaNotuEnFazla = 500;
 
-    /// <summary>Sandıklar ve araç engelleri arası başlangıç yerleşim boşluğu (isterler 17); yasal güvenlik payından ayrıdır.</summary>
+    /// <summary>
+    /// Yükler ve araç duvarları arası yerleşim boşluğu (isterler 17). Planda isteğe bağlıdır; girilmezse (boş) bu değer
+    /// kullanılır.
+    /// </summary>
     public const int VarsayilanYerlesimBosluguMm = 30;
 
     public const int YerlesimBosluguEnFazlaMm = 500;
-    public const int GuvenlikPayiEnFazlaMm = 1000;
-    public const int AgirlikPayiEnFazlaKg = 10_000;
+
+    /// <summary>Hesapta kullanılan yükler arası boşluk: girilen değer, boşsa varsayılan.</summary>
+    public static int UygulananYerlesimBoslugu(YuklemePlanAyarlari ayarlar) => ayarlar.YerlesimBosluguMm ?? VarsayilanYerlesimBosluguMm;
 
     /// <summary>Ağırlık merkezi sapma sınırının üst değeri (araç boyu/genişliğinin yüzdesi).</summary>
     public const int AgirlikMerkeziSapmaEnFazlaYuzde = 50;
@@ -82,12 +86,7 @@ public static class YuklemePlaniKurali
         : PlanYukDurumu.Bekliyor;
 
     public static bool AyarlarGecerli(YuklemePlanAyarlari ayarlar) =>
-        ayarlar.YerlesimBosluguMm is >= 0 and <= YerlesimBosluguEnFazlaMm &&
-        PayGecerli(ayarlar.YukseklikPayiMm, GuvenlikPayiEnFazlaMm) &&
-        PayGecerli(ayarlar.GenislikPayiMm, GuvenlikPayiEnFazlaMm) &&
-        PayGecerli(ayarlar.UzunlukPayiMm, GuvenlikPayiEnFazlaMm) &&
-        PayGecerli(ayarlar.YuklemeHareketiPayiMm, GuvenlikPayiEnFazlaMm) &&
-        PayGecerli(ayarlar.AgirlikPayiKg, AgirlikPayiEnFazlaKg) &&
+        ayarlar.YerlesimBosluguMm is null or (>= 0 and <= YerlesimBosluguEnFazlaMm) &&
         ayarlar.AgirlikMerkeziSapmaYuzde is null or (>= 1 and <= AgirlikMerkeziSapmaEnFazlaYuzde);
 
     /// <summary>Elle yerleşimde en fazla araç ve koordinat sınırı (mm, ekipman ölçüsünün çok dışı reddedilir).</summary>
@@ -142,21 +141,17 @@ public static class YuklemePlaniKurali
          araclar.All(a => a.KonfigurasyonId > 0 && a.Adet is >= 1 and <= MevcutAracAdetEnFazla) &&
          araclar.Select(a => a.KonfigurasyonId).Distinct().Count() == araclar.Count);
 
-    private static bool PayGecerli(int? pay, int enFazla) => pay is null || (pay >= 0 && pay <= enFazla);
 }
 
 /// <summary>
-/// Planın yerleşim boşluğu ve güvenlik payları (isterler 17). Sayısal güvenlik payları işletmeyle kesinleşene kadar
-/// boştur; boş pay "tanımlı değil" demektir ve sıfır sayılmaz. Paylar yasal aşım toleransı olarak kullanılmaz.
+/// Planın ayarları: yükler arası yerleşim boşluğu ve araç seçimi. Yükseklik, genişlik, uzunluk, ağırlık ve yükleme
+/// hareketi güvenlik payları kaldırıldı (saha isteği, 20 Kasım 2026); kontroller paysız yapılır. Eski revizyonlarda
+/// saklı pay değerleri okunmaz.
 /// </summary>
 public sealed record YuklemePlanAyarlari
 {
-    public int YerlesimBosluguMm { get; init; } = YuklemePlaniKurali.VarsayilanYerlesimBosluguMm;
-    public int? YukseklikPayiMm { get; init; }
-    public int? GenislikPayiMm { get; init; }
-    public int? UzunlukPayiMm { get; init; }
-    public int? AgirlikPayiKg { get; init; }
-    public int? YuklemeHareketiPayiMm { get; init; }
+    /// <summary>Yükler arası boşluk (mm, isteğe bağlı); boşsa <see cref="YuklemePlaniKurali.VarsayilanYerlesimBosluguMm"/>.</summary>
+    public int? YerlesimBosluguMm { get; init; }
 
     /// <summary>
     /// Yük ağırlık merkezinin araç ortasından izin verilen en fazla sapması (araç boyunun ve genişliğinin yüzdesi, 1–50).
