@@ -30,6 +30,30 @@ internal sealed class YuklemePlaniBaslikValidator : AbstractValidator<IYuklemePl
     }
 }
 
+public sealed class YuklemePlaniPlanHesaplaCommandValidator : AbstractValidator<YuklemePlaniPlanHesaplaCommand>
+{
+    public YuklemePlaniPlanHesaplaCommandValidator()
+    {
+        RuleFor(x => x.PlanId).GreaterThan(0).When(x => x.PlanId != null).WithMessage("Plan kimliği geçersiz.");
+        RuleFor(x => x.BeklenenRevizyonNo).Cascade(CascadeMode.Stop)
+            .NotNull().WithMessage(RevizyonEksik)
+            .GreaterThan(0).WithMessage(RevizyonEksik)
+            .When(x => x.PlanId != null);
+        RuleFor(x => x.TasimaAilesiId).GreaterThan(0).WithMessage("Taşıma ailesi seçilmelidir.");
+        RuleFor(x => x.ProjeIdleri).Cascade(CascadeMode.Stop).NotEmpty().WithMessage("En az bir proje seçilmelidir.")
+            .Must(p => p.Distinct().Count() <= YuklemePlaniKurali.EnFazlaProje).WithMessage(YuklemePlaniBaslikValidator.ProjeSayisiMesaji)
+            .Must(p => p.All(id => id > 0)).WithMessage("Proje kimliği geçersiz.");
+        RuleFor(x => x.Ayarlar.TipIdleri).Cascade(CascadeMode.Stop)
+            .NotNull().WithMessage(YuklemePlaniKurali.TipSecimiMesaji)
+            .Must(YuklemePlaniKurali.TipIdleriGecerli).WithMessage(YuklemePlaniKurali.TipSecimiMesaji)
+            .When(x => x.Ayarlar != null);
+        RuleFor(x => x.Ayarlar).Cascade(CascadeMode.Stop).NotNull().WithMessage("Plan ayarları eksik.").Must(YuklemePlaniKurali.AyarlarGecerli)
+            .WithMessage(YuklemePlaniKaydetCommandValidator.AyarlarMesaji);
+    }
+
+    private const string RevizyonEksik = "Plan revizyonu eksik; sayfayı yenileyin.";
+}
+
 public sealed class YuklemePlaniOlusturCommandValidator : AbstractValidator<YuklemePlaniOlusturCommand>
 {
     public YuklemePlaniOlusturCommandValidator() => Include(new YuklemePlaniBaslikValidator());
@@ -37,6 +61,9 @@ public sealed class YuklemePlaniOlusturCommandValidator : AbstractValidator<Yukl
 
 public sealed class YuklemePlaniKaydetCommandValidator : AbstractValidator<YuklemePlaniKaydetCommand>
 {
+    internal static readonly string AyarlarMesaji =
+        $"Yerleşim boşluğu 0–{YuklemePlaniKurali.YerlesimBosluguEnFazlaMm} mm, güvenlik payları boş ya da 0–{YuklemePlaniKurali.GuvenlikPayiEnFazlaMm} mm, ağırlık payı boş ya da 0–{YuklemePlaniKurali.AgirlikPayiEnFazlaKg} kg, ağırlık merkezi sapma sınırı boş ya da %1–{YuklemePlaniKurali.AgirlikMerkeziSapmaEnFazlaYuzde} olmalıdır.";
+
     public YuklemePlaniKaydetCommandValidator()
     {
         RuleFor(x => x.PlanId).GreaterThan(0).WithMessage("Plan seçilmelidir.");
@@ -54,7 +81,7 @@ public sealed class YuklemePlaniKaydetCommandValidator : AbstractValidator<Yukle
             .Must(YuklemePlaniKurali.TipIdleriGecerli).WithMessage(YuklemePlaniKurali.TipSecimiMesaji)
             .When(x => x.Ayarlar != null);
         RuleFor(x => x.Ayarlar).Cascade(CascadeMode.Stop).NotNull().WithMessage("Plan ayarları eksik.").Must(YuklemePlaniKurali.AyarlarGecerli)
-            .WithMessage($"Yerleşim boşluğu 0–{YuklemePlaniKurali.YerlesimBosluguEnFazlaMm} mm, güvenlik payları boş ya da 0–{YuklemePlaniKurali.GuvenlikPayiEnFazlaMm} mm, ağırlık payı boş ya da 0–{YuklemePlaniKurali.AgirlikPayiEnFazlaKg} kg, ağırlık merkezi sapma sınırı boş ya da %1–{YuklemePlaniKurali.AgirlikMerkeziSapmaEnFazlaYuzde} olmalıdır.");
+            .WithMessage(AyarlarMesaji);
         RuleFor(x => x.SandikYukleri).Cascade(CascadeMode.Stop).NotNull().WithMessage("Sandık yük listesi eksik.")
             .Must(y => y.Select(s => s.SandikId).Distinct().Count() == y.Count).WithMessage("Bir sandık plana birden fazla kez eklenemez.");
         RuleFor(x => x.ManuelYukler).NotNull().WithMessage("Elle eklenen yük listesi eksik.");

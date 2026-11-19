@@ -2,7 +2,7 @@ using _3K.Core.Enums;
 
 namespace _3K.Core.Models;
 
-/// <summary>Yeni plan: başlık bilgileri ve projeler; projelerin sevk edilmemiş bütün sandıkları seçili gelir.</summary>
+/// <summary>Yeni plan: başlık bilgileri ve projeler; projelerin bütün sandıkları (sevk edilmişler dahil) seçili gelir.</summary>
 public sealed record YuklemePlaniOlusturModel(
     string Ad,
     YuklemeCalismaBicimi CalismaBicimi,
@@ -258,14 +258,13 @@ public sealed record ElleAracModeli(int KonfigurasyonId, IReadOnlyList<ElleKonum
 /// <summary>Elle düzenlenen yerleşimin kaydı: son revizyon numarası beklenir (arada kaydedilmişse 409).</summary>
 public sealed record ElleYerlesimModeli(int PlanId, int BeklenenRevizyonNo, IReadOnlyList<ElleAracModeli> Araclar);
 
-/// <summary>Plandaki proje ve plana gelmeyen (sevk edilmiş) sandık sayısı.</summary>
+/// <summary>Plandaki proje.</summary>
 public sealed class PlanProjeBilgisi
 {
     public int? ProjeId { get; init; }
     public string ProjeNo { get; init; } = string.Empty;
     public string? Musteri { get; init; }
     public int? ProjeTipiId { get; init; }
-    public int SevkEdilmisSandikSayisi { get; init; }
 }
 
 /// <summary>Yük listesinin satırı (isterler 3); durum ve veri sorunları kopyadan hesaplanır.</summary>
@@ -308,7 +307,7 @@ public sealed class PlanYukSatiri
 
 /// <summary>
 /// Sayaçlar (isterler 5): seçilen, hesaplanabilir, veri eksikliği nedeniyle hesaplanmayan ve hariç tutulan yükler
-/// ayrı; plana gelmeyen sevk edilmiş sandıklar ayrıca. Yerleşen/yerleşemeyen sayıları motorla gelir.
+/// ayrı. Yerleşen/yerleşemeyen sayıları motorla gelir.
 /// </summary>
 public sealed class PlanYukSayaclari
 {
@@ -317,7 +316,6 @@ public sealed class PlanYukSayaclari
     public int Hesaplanabilir { get; init; }
     public int VeriEksik { get; init; }
     public int HaricTutulan { get; init; }
-    public int SevkEdilmisSandik { get; init; }
 
     /// <summary>Son hesapta yerleşen ve yerleşemeyen yükler (hesap yoksa 0).</summary>
     public int Yerlesen { get; init; }
@@ -343,7 +341,6 @@ public sealed class PlanProjeAdayi
     public int ProjeTipiId { get; init; }
     public string ProjeTipiAdi { get; init; } = string.Empty;
     public int PlanaGelecekSandikSayisi { get; init; }
-    public int SevkEdilmisSandikSayisi { get; init; }
 }
 
 /// <summary>
@@ -360,6 +357,14 @@ public sealed class YuklemePlaniTanimlari
 
 /// <summary>Kimlik ve görünen ad.</summary>
 public sealed record SecimOgesi(int Id, string Ad);
+
+/// <summary>
+/// Tek adımlı plan hesabı (saha geri bildirimi 19.11.2026 madde 5): projeler, taşıma ailesi ve tipleri, güvenlik payları.
+/// <see cref="PlanId"/> boşsa yeni plan açılır; doluysa planın yeni revizyonu yazılır ve <see cref="BeklenenRevizyonNo"/>
+/// tutmazsa 409 döner. Yükler her hesapta kaynaktan (sevk edilmişler dahil) yeniden kurulur.
+/// </summary>
+public sealed record YuklemePlaniHesaplaModel(
+    int? PlanId, int? BeklenenRevizyonNo, IReadOnlyList<int> ProjeIdleri, int TasimaAilesiId, YuklemePlanAyarlari Ayarlar);
 
 /// <summary>
 /// Taşıma ailesinin tipi. <see cref="OtomatikSecilir"/>: tip seçilmeyen planda da kullanılır (sadelik sırası var);

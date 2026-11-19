@@ -60,8 +60,9 @@ public sealed class YuklemePlanlamaPostgresTests
                     YuklemeProjeKarisimi.Karisik, null, null, [projeA, projeB]), kullaniciId: null, Ct);
             }
 
-            // Kabul 1: projelerin sevk edilmemiş bütün sandıkları seçili gelir; proje ve doğal numara sırasıyla.
-            Assert.Equal(["PA600-35-1", "PA600-35-2", "PA600-35-10", "PA600-35-SAHA-1"], plan.Yukler.Select(y => y.Kod));
+            // Kabul 1: projelerin bütün sandıkları (sevk edilmiş "3" dahil; saha geri bildirimi 19.11.2026 madde 6) seçili
+            // gelir; proje ve doğal numara sırasıyla.
+            Assert.Equal(["PA600-35-1", "PA600-35-2", "PA600-35-3", "PA600-35-10", "PA600-35-SAHA-1"], plan.Yukler.Select(y => y.Kod));
             Assert.All(plan.Yukler, y => Assert.True(y.Dahil));
             Assert.Equal((1, $"YP-{TurkeyTime.Now.Year}-000001"), (plan.RevizyonNo, plan.PlanNo));
             // Kabul 2: sandık varsayılanları; üst yük sınırı kendi brütü.
@@ -71,8 +72,8 @@ public sealed class YuklemePlanlamaPostgresTests
             var y10 = plan.Yukler.Single(y => y.SandikId == s10);
             Assert.Equal(PlanYukDurumu.EksikVeri, y10.Durum);
             Assert.Equal(["Ölçü giriniz."], y10.VeriSorunlari);
-            Assert.Equal((4, 4, 3, 1, 0, 1), (plan.Sayaclar.Toplam, plan.Sayaclar.Secilen, plan.Sayaclar.Hesaplanabilir,
-                plan.Sayaclar.VeriEksik, plan.Sayaclar.HaricTutulan, plan.Sayaclar.SevkEdilmisSandik));
+            Assert.Equal((5, 5, 4, 1, 0), (plan.Sayaclar.Toplam, plan.Sayaclar.Secilen, plan.Sayaclar.Hesaplanabilir,
+                plan.Sayaclar.VeriEksik, plan.Sayaclar.HaricTutulan));
             Assert.Empty(plan.KaynakFarklari);
 
             PlanSandikYukuKaydi Secim(PlanYukSatiri y) =>
@@ -88,7 +89,7 @@ public sealed class YuklemePlanlamaPostgresTests
             YuklemePlaniDetayi kayitli;
             await using (var db = new AppDbContext(options))
                 kayitli = await PlanServisi(db).KaydetAsync(Kayit(1, secimler), kullaniciId: null, Ct);
-            Assert.Equal((2, 6, 40, YuklemeProjeKarisimi.ProjeBazindaAyri), (kayitli.RevizyonNo, kayitli.Yukler.Count, kayitli.Ayarlar.YerlesimBosluguMm, kayitli.ProjeKarisimi));
+            Assert.Equal((2, 7, 40, YuklemeProjeKarisimi.ProjeBazindaAyri), (kayitli.RevizyonNo, kayitli.Yukler.Count, kayitli.Ayarlar.YerlesimBosluguMm, kayitli.ProjeKarisimi));
             var kayitli2 = kayitli.Yukler.Single(y => y.SandikId == s2);
             Assert.Equal((false, 200m, PlanYukDurumu.HaricTutuldu), (kayitli2.Dahil, kayitli2.UstYukSiniriKg, kayitli2.Durum));
             var manuel = kayitli.Yukler.Where(y => y.Kaynak == PlanYukKaynagi.Manuel).ToList();
@@ -101,7 +102,7 @@ public sealed class YuklemePlanlamaPostgresTests
                 // Önceki revizyon değişmez.
                 var ilk = await db.YuklemePlanYukleri.AsNoTracking()
                     .Where(y => y.Revizyon.PlanId == plan.Id && y.Revizyon.RevizyonNo == 1).ToListAsync();
-                Assert.Equal((4, true), (ilk.Count, ilk.Single(y => y.SandikId == s2).Dahil));
+                Assert.Equal((5, true), (ilk.Count, ilk.Single(y => y.SandikId == s2).Dahil));
                 // Eski revizyonla kaydetme 409; plana ait olmayan sandık 400; ikisinde de yeni revizyon yazılmaz.
                 var cakisma = await Assert.ThrowsAsync<IsKuraliException>(() => PlanServisi(db).KaydetAsync(Kayit(1, secimler), null, Ct));
                 Assert.Equal(409, cakisma.StatusCode);
@@ -110,7 +111,7 @@ public sealed class YuklemePlanlamaPostgresTests
                 Assert.Equal(2, await db.YuklemePlanRevizyonlari.CountAsync(r => r.PlanId == plan.Id));
             }
 
-            // Kaynak değişir: ölçü ve brüt değişir, eksik verili sandık sevk edilir, projeye yeni sandık eklenir.
+            // Kaynak değişir: ölçü ve brüt değişir, eksik verili sandık sevk edilir (plan farkı değildir), projeye yeni sandık eklenir.
             await using (var db = new AppDbContext(options))
             {
                 var sandik2 = await db.Sandiklar.SingleAsync(s => s.Id == s2);
@@ -126,7 +127,7 @@ public sealed class YuklemePlanlamaPostgresTests
                 // Plan sessizce değişmez: kopya eski, farklar listelenir.
                 Assert.Equal(1400m, acilan.Yukler.Single(y => y.SandikId == s2).BoyMm);
                 Assert.Equal(
-                    [PlanKaynakFarkTuru.OlcuDegisti, PlanKaynakFarkTuru.AgirlikDegisti, PlanKaynakFarkTuru.SandikSevkEdildi, PlanKaynakFarkTuru.YeniSandik],
+                    [PlanKaynakFarkTuru.OlcuDegisti, PlanKaynakFarkTuru.AgirlikDegisti, PlanKaynakFarkTuru.YeniSandik],
                     acilan.KaynakFarklari.Select(f => f.Tur));
                 Assert.Equal(("1.400 × 1.200 × 1.000 mm", "1.500 × 1.200 × 1.000 mm"),
                     (acilan.KaynakFarklari[0].Onceki, acilan.KaynakFarklari[0].Guncel));
@@ -134,7 +135,8 @@ public sealed class YuklemePlanlamaPostgresTests
                 var guncel = await PlanServisi(db).KaynaktanGuncelleAsync(plan.Id, beklenenRevizyonNo: 2, kullaniciId: null, Ct);
                 Assert.Equal(3, guncel.RevizyonNo);
                 Assert.Empty(guncel.KaynakFarklari);
-                Assert.Equal(["PA600-35-1", "PA600-35-2", "PA600-35-11", "PA600-35-SAHA-1", "M-1", "M-1"], guncel.Yukler.Select(y => y.Kod));
+                Assert.Equal(["PA600-35-1", "PA600-35-2", "PA600-35-3", "PA600-35-10", "PA600-35-11", "PA600-35-SAHA-1", "M-1", "M-1"],
+                    guncel.Yukler.Select(y => y.Kod));
                 var g2 = guncel.Yukler.Single(y => y.SandikId == s2);
                 // Seçim ve elle değişen üst yük korunur; ölçü/brüt yeni kopyadır.
                 Assert.Equal((false, 200m, 1500m, 1000m), (g2.Dahil, g2.UstYukSiniriKg, g2.BoyMm, g2.BrutKg));
@@ -147,9 +149,117 @@ public sealed class YuklemePlanlamaPostgresTests
             {
                 var liste = await PlanServisi(db).PlanlarAsync("wasit", null, null, Ct);
                 var ozet = Assert.Single(liste.Items);
-                Assert.Equal((3, 6, "PA600-35, PA600-35-SAHA"), (ozet.RevizyonNo, ozet.YukSayisi, ozet.Projeler));
+                Assert.Equal((3, 8, "PA600-35, PA600-35-SAHA"), (ozet.RevizyonNo, ozet.YukSayisi, ozet.Projeler));
                 var adaylar = await PlanServisi(db).ProjeAdaylariAsync("pa700", null, null, Ct);
-                Assert.Equal((projeC, 1, 0), (Assert.Single(adaylar.Items).ProjeId, adaylar.Items[0].PlanaGelecekSandikSayisi, adaylar.Items[0].SevkEdilmisSandikSayisi));
+                Assert.Equal((projeC, 1), (Assert.Single(adaylar.Items).ProjeId, adaylar.Items[0].PlanaGelecekSandikSayisi));
+            }
+        });
+    }
+
+    /// <summary>
+    /// Tek adımlı plan hesabı (saha geri bildirimi 19.11.2026 madde 5–6): kaydetme adımı olmadan proje + aile/tip + paylarla
+    /// plan açılır ve yerleşim aynı revizyonda yazılır; bütün sandıkları sevk edilmiş proje de seçilir ve sandıkları gelir.
+    /// Yeniden hesap güncel kaynaktan kurar; eski revizyonla 409; hesaplanacak yük yoksa hiçbir şey yazılmaz.
+    /// </summary>
+    [PostgresRaporFact, Trait("Category", "Postgres")]
+    public async Task Postgres_PlanHesapla_TekAdimdaPlanVeYerlesim()
+    {
+        await FinansPostgresTests.InDatabase(async options =>
+        {
+            int projeId, olcusuzProje, sandik2;
+            await using (var db = new AppDbContext(options))
+            {
+                db.EkipmanKonfigurasyonlari.Add(new EkipmanKonfigurasyonu
+                {
+                    Model = new EkipmanModeli { TipId = 2, Uretici = "Test", ModelAdi = "K40" },
+                    Kod = "K40DV", Ad = "K40DV", SonRevizyonNo = 1,
+                    Revizyonlar =
+                    [
+                        new EkipmanKonfigurasyonRevizyonu
+                        {
+                            RevizyonNo = 1, KaynakTuru = EkipmanKaynakTuru.Diger, DogrulamaDurumu = EkipmanDogrulamaDurumu.Dogrulandi,
+                            TeknikVeriJson = _3K.YuklemeMotoru.Ekipman.EkipmanTeknikVeriSerilestirici.Yaz(YerlesimMotoruTests.K40.TeknikVeri)
+                        }
+                    ]
+                });
+                // Bütün sandıkları sevk edilmiş proje.
+                var proje = new Proje { ProjeNo = "PA920-01", Musteri = "M", ProjeTipiId = (int)ProjeTipi.Normal };
+                var olcusuz = new Proje { ProjeNo = "PA920-02", Musteri = "M", ProjeTipiId = (int)ProjeTipi.Normal };
+                var s2 = Sandik(proje, "2", 1400, 500, (int)SandikDurum.Sevkedildi);
+                db.Sandiklar.AddRange(Sandik(proje, "1", 2000, 600, (int)SandikDurum.Sevkedildi), s2, Sandik(olcusuz, "1", null, 100));
+                await db.SaveChangesAsync();
+                (projeId, olcusuzProje, sandik2) = (proje.Id, olcusuz.Id, s2.Id);
+            }
+
+            YuklemePlaniDetayi plan;
+            await using (var db = new AppDbContext(options))
+            {
+                var servis = PlanServisi(db);
+                Assert.Equal(2, Assert.Single((await servis.ProjeAdaylariAsync("pa920-01", null, null, Ct)).Items).PlanaGelecekSandikSayisi);
+
+                // Hesaplanacak yük yoksa 400 ve plan açılmaz.
+                var bos = await Assert.ThrowsAsync<IsKuraliException>(() =>
+                    servis.PlanHesaplaAsync(new YuklemePlaniHesaplaModel(null, null, [olcusuzProje], 1, new YuklemePlanAyarlari()), null, Ct));
+                Assert.Equal(400, bos.StatusCode);
+                Assert.Equal(0, await db.YuklemePlanlari.CountAsync());
+
+                plan = await servis.PlanHesaplaAsync(new YuklemePlaniHesaplaModel(null, null, [projeId], 1,
+                    new YuklemePlanAyarlari { YukseklikPayiMm = 50, TipIdleri = [2] }), kullaniciId: null, Ct);
+            }
+            Assert.Equal(("PA920-01", 1, "Hesaplandı.", (int?)50), (plan.Ad, plan.RevizyonNo, plan.RevizyonAciklamasi, plan.Ayarlar.YukseklikPayiMm));
+            Assert.Equal([2], plan.Ayarlar.TipIdleri);
+            Assert.Equal(["PA920-01-1", "PA920-01-2"], plan.Yukler.Select(y => y.Kod));
+            Assert.Equal("K40DV", Assert.Single(plan.Yerlesim!.Araclar).EkipmanKodu);
+            Assert.Equal((YuklemeCalismaBicimi.IhtiyacaGoreArac, YuklemeProjeKarisimi.Karisik, YuklemeLokasyonTercihi.Karisik),
+                (plan.CalismaBicimi, plan.ProjeKarisimi, plan.LokasyonTercihi));
+
+            // Kaynak değişir; yeniden hesap güncel veriden kurar (ayrı "kaynaktan güncelle" ya da kaydetme yok), tek revizyon.
+            await using (var db = new AppDbContext(options))
+            {
+                (await db.Sandiklar.SingleAsync(s => s.Id == sandik2)).Boy = 1600;
+                await db.SaveChangesAsync();
+            }
+            await using (var db = new AppDbContext(options))
+            {
+                var servis = PlanServisi(db);
+                var eski = await Assert.ThrowsAsync<IsKuraliException>(() => servis.PlanHesaplaAsync(
+                    new YuklemePlaniHesaplaModel(plan.Id, 2, [projeId], 1, new YuklemePlanAyarlari()), null, Ct));
+                Assert.Equal(409, eski.StatusCode);
+                // Aile/tip reddi hiçbir şey yazmaz.
+                var tipRed = await Assert.ThrowsAsync<IsKuraliException>(() => servis.PlanHesaplaAsync(
+                    new YuklemePlaniHesaplaModel(plan.Id, 1, [projeId], 1, new YuklemePlanAyarlari { TipIdleri = [21] }), null, Ct));
+                Assert.Equal(400, tipRed.StatusCode);
+                Assert.Equal(1, await db.YuklemePlanRevizyonlari.CountAsync(r => r.PlanId == plan.Id));
+                // İstemcinin gönderdiği gizli ayar (yükler arası boşluk) önceki revizyondan gelir; otomatik ad proje kümesiyle güncellenir.
+                var yeni = await servis.PlanHesaplaAsync(new YuklemePlaniHesaplaModel(plan.Id, 1, [projeId, olcusuzProje], 1,
+                    new YuklemePlanAyarlari { YerlesimBosluguMm = 300 }), null, Ct);
+                Assert.Equal((2, "PA920-01, PA920-02", 1600m, 30), (yeni.RevizyonNo, yeni.Ad, yeni.Yukler.Single(y => y.SandikId == sandik2).BoyMm,
+                    yeni.Ayarlar.YerlesimBosluguMm));
+                Assert.Equal(3, yeni.Yukler.Count);
+                Assert.Empty(yeni.KaynakFarklari);
+                Assert.NotNull(yeni.Yerlesim);
+                Assert.Equal(2, await db.YuklemePlanRevizyonlari.CountAsync(r => r.PlanId == plan.Id));
+            }
+
+            // Eski akışla kaydedilmiş plan (elle yük, hariç sandık, proje bazında ayrı): tek adımlı hesap seçimleri
+            // varsayılana çeker; seçili projedeki ve projesiz elle yük kalır, çıkarılan projeninki düşer.
+            await using (var db = new AppDbContext(options))
+            {
+                var servis = PlanServisi(db);
+                var eski = await servis.OlusturAsync(new YuklemePlaniOlusturModel("Eski plan", YuklemeCalismaBicimi.IhtiyacaGoreArac, 1,
+                    YuklemeProjeKarisimi.ProjeBazindaAyri, null, null, [projeId, olcusuzProje]), null, Ct);
+                var secimler = eski.Yukler.Select(y => new PlanSandikYukuKaydi(y.SandikId!.Value, y.SandikId != sandik2, false, true, true, y.UstYukSiniriKg, PlanYukIzni.Yok)).ToList();
+                eski = await servis.KaydetAsync(new YuklemePlaniKaydetModel(eski.Id, 1, "Eski plan", YuklemeCalismaBicimi.IhtiyacaGoreArac, 1,
+                    YuklemeProjeKarisimi.ProjeBazindaAyri, null, null, null, new YuklemePlanAyarlari(), [projeId, olcusuzProje], secimler,
+                    [new PlanManuelYukKaydi("M-A", null, (int)YukTuru.DigerOzelYuk, 1000, 800, 600, 300, 1, projeId, null, null, []),
+                     new PlanManuelYukKaydi("M-B", null, (int)YukTuru.DigerOzelYuk, 1000, 800, 600, 300, 1, olcusuzProje, null, null, []),
+                     new PlanManuelYukKaydi("M-P", null, (int)YukTuru.DigerOzelYuk, 1000, 800, 600, 300, 1, null, null, null, [])]), null, Ct);
+                Assert.False(eski.Yukler.Single(y => y.SandikId == sandik2).Dahil);
+
+                var hesap = await servis.PlanHesaplaAsync(new YuklemePlaniHesaplaModel(eski.Id, 2, [projeId], 1, new YuklemePlanAyarlari()), null, Ct);
+                Assert.Equal(["PA920-01-1", "PA920-01-2", "M-A", "M-P"], hesap.Yukler.Select(y => y.Kod));
+                Assert.All(hesap.Yukler, y => Assert.True(y.Dahil));
+                Assert.Equal(("Eski plan", YuklemeProjeKarisimi.Karisik), (hesap.Ad, hesap.ProjeKarisimi));
             }
         });
     }

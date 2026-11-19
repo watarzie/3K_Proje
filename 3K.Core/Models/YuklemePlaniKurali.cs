@@ -1,13 +1,12 @@
 using System.Globalization;
-using System.Linq.Expressions;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
 
 namespace _3K.Core.Models;
 
 /// <summary>
-/// Yükleme planı sınırları ve kuralları (Simülasyon isterleri 3, 4, 17, 27). Plana yalnız sevk edilmemiş sandıklar gelir
-/// (kullanıcı kararı, 5 Kasım 2026); proje tipi sınırlanmaz.
+/// Yükleme planı sınırları ve kuralları (Simülasyon isterleri 3, 4, 17, 27). Seçilen projelerin bütün sandıkları, sevk
+/// edilmişler dahil, plana gelir (saha geri bildirimi 19.11.2026 madde 6); proje tipi sınırlanmaz.
 /// </summary>
 public static class YuklemePlaniKurali
 {
@@ -33,13 +32,15 @@ public static class YuklemePlaniKurali
     /// <summary>Ağırlık merkezi sapma sınırının üst değeri (araç boyu/genişliğinin yüzdesi).</summary>
     public const int AgirlikMerkeziSapmaEnFazlaYuzde = 50;
 
-    /// <summary>Plana gelen sandık: sevk edilmemiş olan (sevk sonrası düzeltmedeki sandık da sevk edilmiş sayılır).</summary>
-    public static bool PlanaGelirMi(int sandikDurumId) => sandikDurumId != (int)SandikDurum.Sevkedildi;
-
     /// <summary>
-    /// <see cref="PlanaGelirMi"/> kuralının veritabanı sorgusundaki karşılığı (aynı koşul; eşdeğerliği testle sabittir).
+    /// Tek adımlı hesapta (saha geri bildirimi 19.11.2026 madde 5) plana verilen ad: seçilen proje numaraları, sınırı
+    /// aşarsa kısaltılır. Sevk edilmiş sandıklar da plana gelir (madde 6); plan kaynak sandığın durumuna bakmaz.
     /// </summary>
-    public static readonly Expression<Func<Sandik, bool>> PlanaGelenSandik = s => s.DurumId != (int)SandikDurum.Sevkedildi;
+    public static string OtomatikPlanAdi(IEnumerable<string> projeNolari)
+    {
+        var ad = string.Join(", ", projeNolari);
+        return ad.Length <= AdEnFazla ? ad : string.Concat(ad.AsSpan(0, AdEnFazla - 1), "…");
+    }
 
     /// <summary>Sandığın plandaki kodu: proje numarası ve sandık numarası (ör. PA600-35-01).</summary>
     public static string SandikKodu(string projeNo, string sandikNo) => $"{projeNo.Trim()}-{sandikNo.Trim()}";

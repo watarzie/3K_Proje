@@ -21,7 +21,7 @@ public interface IYuklemePlaniBasligi
 }
 
 /// <summary>
-/// Yeni yükleme planı (yukleme-planlari W): seçilen projelerin sevk edilmemiş bütün sandıkları seçili ve varsayılan
+/// Yeni yükleme planı (yukleme-planlari W): seçilen projelerin bütün sandıkları (sevk edilmişler dahil) seçili ve varsayılan
 /// izinlerle gelir (isterler 3, 6); ilk revizyon yazılır.
 /// </summary>
 public sealed class YuklemePlaniOlusturCommand : IRequest<Result<YuklemePlaniDetayi>>, ISecuredRequest, IRequiresMenuPermission, IYuklemePlaniBasligi
@@ -79,7 +79,7 @@ public sealed class YuklemePlaniKaydetCommand : IRequest<Result<YuklemePlaniDeta
 
 /// <summary>
 /// Kaynak farklarını uygulayan yeni revizyon (yukleme-planlari W): değişen ölçü/ağırlık/lokasyon/yük türü kopyalanır,
-/// elle değiştirilmemiş izinler yeni varsayılandan kurulur, yeni sandık eklenir, silinen veya sevk edilen çıkar.
+/// elle değiştirilmemiş izinler yeni varsayılandan kurulur, yeni sandık eklenir, silinen ya da projeden çıkan düşer.
 /// </summary>
 public sealed class YuklemePlaniKaynaktanGuncelleCommand : IRequest<Result<YuklemePlaniDetayi>>, ISecuredRequest, IRequiresMenuPermission
 {
@@ -108,12 +108,38 @@ public sealed class YuklemePlaniHesaplaCommand : IRequest<Result<YuklemePlaniDet
     public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
 }
 
+/// <summary>
+/// Tek adımlı plan hesabı (saha geri bildirimi 19.11.2026 madde 5): proje, taşıma ailesi/tipleri ve paylarla planı (yoksa
+/// açar) kaynaktan kurar ve yerleşimi aynı revizyonda yazar. Kaydetme ve revizyon notu adımı yoktur.
+/// </summary>
+public sealed class YuklemePlaniPlanHesaplaCommand : IRequest<Result<YuklemePlaniDetayi>>, ISecuredRequest, IRequiresMenuPermission
+{
+    /// <summary>Boşsa yeni plan açılır.</summary>
+    public int? PlanId { get; set; }
+
+    /// <summary>Var olan planda zorunlu: arada başka biri hesapladıysa 409.</summary>
+    public int? BeklenenRevizyonNo { get; set; }
+
+    public List<int> ProjeIdleri { get; set; } = [];
+    public int TasimaAilesiId { get; set; }
+    public YuklemePlanAyarlari Ayarlar { get; set; } = new();
+
+    public string RequiredMenuKod => YetkiKodlari.YuklemePlanlama.Planlar;
+    public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
+
+    public YuklemePlaniHesaplaModel Model() => new(PlanId, BeklenenRevizyonNo, ProjeIdleri, TasimaAilesiId, Ayarlar);
+}
+
 public sealed class YuklemePlaniCommandHandlers(IYuklemePlaniService service, ICurrentUserService currentUser) :
     IRequestHandler<YuklemePlaniOlusturCommand, Result<YuklemePlaniDetayi>>,
     IRequestHandler<YuklemePlaniKaydetCommand, Result<YuklemePlaniDetayi>>,
     IRequestHandler<YuklemePlaniKaynaktanGuncelleCommand, Result<YuklemePlaniDetayi>>,
-    IRequestHandler<YuklemePlaniHesaplaCommand, Result<YuklemePlaniDetayi>>
+    IRequestHandler<YuklemePlaniHesaplaCommand, Result<YuklemePlaniDetayi>>,
+    IRequestHandler<YuklemePlaniPlanHesaplaCommand, Result<YuklemePlaniDetayi>>
 {
+    public async Task<Result<YuklemePlaniDetayi>> Handle(YuklemePlaniPlanHesaplaCommand request, CancellationToken cancellationToken) =>
+        Result<YuklemePlaniDetayi>.Success(await service.PlanHesaplaAsync(request.Model(), currentUser.UserId, cancellationToken));
+
     public async Task<Result<YuklemePlaniDetayi>> Handle(YuklemePlaniOlusturCommand request, CancellationToken cancellationToken) =>
         Result<YuklemePlaniDetayi>.Success(await service.OlusturAsync(request.Model(), currentUser.UserId, cancellationToken));
 

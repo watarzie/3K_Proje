@@ -23,7 +23,7 @@ internal sealed partial class YuklemePlaniService(AppDbContext context, IUnitOfW
     private static readonly CultureInfo Tr = CultureInfo.GetCultureInfo("tr-TR");
 
     private const string PlanBulunamadi = "Yükleme planı bulunamadı.";
-    private const string EszamanliKayit = "Plan siz açtıktan sonra başka biri tarafından kaydedildi; sayfayı yenileyip tekrar deneyin.";
+    private const string EszamanliKayit = "Plan siz açtıktan sonra başka biri tarafından değiştirildi; sayfayı yenileyip tekrar deneyin.";
     private const string AileGecersiz = "Taşıma ailesi bulunamadı veya sandık taşımaya uygun tipi yok.";
     private const string ProjeBulunamadi = "Seçilen projelerden biri bulunamadı.";
     private const string YabanciSandik = "Plana ait olmayan bir sandık gönderildi; sayfayı yenileyip tekrar deneyin.";
@@ -32,10 +32,10 @@ internal sealed partial class YuklemePlaniService(AppDbContext context, IUnitOfW
     private const string KaynakDegismedi = "Planın kaynağında değişiklik yok.";
     private static readonly string YukSiniriAsildi = $"Bir planda en fazla {YuklemePlaniKurali.EnFazlaYuk} yük olabilir.";
 
-    /// <summary>Sandığın güncel verisi (kopyalanan alanlar ve plana gelme durumu).</summary>
+    /// <summary>Sandığın güncel verisi (plana kopyalanan alanlar).</summary>
     private sealed record SandikKaynagi(
         int Id, int ProjeId, string ProjeNo, string SandikNo, string? Ad, decimal? Boy, decimal? En, decimal? Yukseklik,
-        decimal? Brut, int LokasyonId, string? LokasyonAdi, int YukTuruId, int DurumId)
+        decimal? Brut, int LokasyonId, string? LokasyonAdi, int YukTuruId)
     {
         public string Kod => YuklemePlaniKurali.SandikKodu(ProjeNo, SandikNo);
     }
@@ -67,8 +67,8 @@ internal sealed partial class YuklemePlaniService(AppDbContext context, IUnitOfW
 
     public async Task<SayfaliSonuc<PlanProjeAdayi>> ProjeAdaylariAsync(string? arama, int? sayfa, int? boyut, CancellationToken cancellationToken)
     {
-        // Yalnız plana gelecek (sevk edilmemiş) sandığı olan projeler; arama, sayım ve sayfalama veritabanında.
-        var adayIdleri = context.Sandiklar.Where(YuklemePlaniKurali.PlanaGelenSandik).Select(s => s.ProjeId);
+        // Sandığı olan projeler (sevk edilmiş sandıklar da plana gelir); arama, sayım ve sayfalama veritabanında.
+        var adayIdleri = context.Sandiklar.Select(s => s.ProjeId);
         var sorgu = context.Projeler.AsNoTracking().Where(p => adayIdleri.Contains(p.Id));
         if (!string.IsNullOrWhiteSpace(arama))
         {
@@ -85,9 +85,7 @@ internal sealed partial class YuklemePlaniService(AppDbContext context, IUnitOfW
             .Select(p => new { p.Id, p.ProjeNo, p.Musteri, p.ProjeTipiId })
             .ToListAsync(cancellationToken);
         var idler = sayfadakiler.Select(p => p.Id).ToList();
-        var toplamlar = await ProjeSandikSayilariAsync(context.Sandiklar.Where(s => idler.Contains(s.ProjeId)), cancellationToken);
-        var gelenler = await ProjeSandikSayilariAsync(
-            context.Sandiklar.Where(YuklemePlaniKurali.PlanaGelenSandik).Where(s => idler.Contains(s.ProjeId)), cancellationToken);
+        var gelenler = await ProjeSandikSayilariAsync(context.Sandiklar.Where(s => idler.Contains(s.ProjeId)), cancellationToken);
         var tipler = await context.LookupProjeTipleri.AsNoTracking().ToDictionaryAsync(t => t.Id, t => t.Deger, cancellationToken);
 
         return new SayfaliSonuc<PlanProjeAdayi>
@@ -99,8 +97,7 @@ internal sealed partial class YuklemePlaniService(AppDbContext context, IUnitOfW
                 Musteri = p.Musteri,
                 ProjeTipiId = p.ProjeTipiId,
                 ProjeTipiAdi = tipler.GetValueOrDefault(p.ProjeTipiId, string.Empty),
-                PlanaGelecekSandikSayisi = gelenler.GetValueOrDefault(p.Id),
-                SevkEdilmisSandikSayisi = toplamlar.GetValueOrDefault(p.Id) - gelenler.GetValueOrDefault(p.Id)
+                PlanaGelecekSandikSayisi = gelenler.GetValueOrDefault(p.Id)
             }).ToList(),
             PageNumber = gecerliSayfa,
             PageSize = sayfaBoyutu,
@@ -294,7 +291,7 @@ internal sealed partial class YuklemePlaniService(AppDbContext context, IUnitOfW
             throw new IsKuraliException(KaynakDegismedi);
 
         // Plana gelen her sandık: önceki satır varsa seçim ve elle değişen izinler korunur, kopya güncellenir; yoksa
-        // varsayılanla eklenir. Silinen, sevk edilen ve projeden çıkan sandık düşer. Elle eklenen yükler aynen kalır.
+        // varsayılanla eklenir. Silinen ve projeden çıkan sandık düşer. Elle eklenen yükler aynen kalır.
         var oncekiSatirlar = onceki.Yukler.Where(y => y.SandikId != null).ToDictionary(y => y.SandikId!.Value);
         var satirlar = new List<YuklemePlanYuku>();
         foreach (var s in PlanaGelenler(guncel, projeIdleri))
@@ -341,10 +338,6 @@ internal sealed partial class YuklemePlaniService(AppDbContext context, IUnitOfW
             .Select(p => new { p.Id, p.Musteri, p.ProjeTipiId })
             .ToDictionaryAsync(p => p.Id, cancellationToken);
         var guncel = await SandiklarAsync(projeIdleri, OncekiSandikIdleri(revizyon), cancellationToken);
-        var sevkliSayilari = guncel
-            .Where(s => projeIdleri.Contains(s.ProjeId) && !YuklemePlaniKurali.PlanaGelirMi(s.DurumId))
-            .GroupBy(s => s.ProjeId)
-            .ToDictionary(g => g.Key, g => g.Count());
 
         // Yerleşim yalnız bu revizyonla hesaplanmışsa vardır; satır durumu ondan okunur (yerleşti / yerleşemedi).
         var sonuc = YerlesimSerilestirici.Oku(revizyon.YerlesimJson);
@@ -420,7 +413,6 @@ internal sealed partial class YuklemePlaniService(AppDbContext context, IUnitOfW
                 ProjeNo = p.ProjeNo,
                 Musteri = p.ProjeId is { } id && projeBilgileri.TryGetValue(id, out var b) ? b.Musteri : null,
                 ProjeTipiId = p.ProjeId is { } tid && projeBilgileri.TryGetValue(tid, out var t) ? t.ProjeTipiId : null,
-                SevkEdilmisSandikSayisi = p.ProjeId is { } sid ? sevkliSayilari.GetValueOrDefault(sid) : 0
             }).ToList(),
             Yukler = satirlar,
             Sayaclar = new PlanYukSayaclari
@@ -430,7 +422,6 @@ internal sealed partial class YuklemePlaniService(AppDbContext context, IUnitOfW
                 Hesaplanabilir = satirlar.Count(s => s.Durum is PlanYukDurumu.Bekliyor or PlanYukDurumu.Yerlesti or PlanYukDurumu.Yerlesemedi),
                 VeriEksik = satirlar.Count(s => s.Durum == PlanYukDurumu.EksikVeri),
                 HaricTutulan = satirlar.Count(s => s.Durum == PlanYukDurumu.HaricTutuldu),
-                SevkEdilmisSandik = sevkliSayilari.Values.Sum(),
                 Yerlesen = satirlar.Count(s => s.Durum == PlanYukDurumu.Yerlesti),
                 Yerlesemeyen = satirlar.Count(s => s.Durum == PlanYukDurumu.Yerlesemedi)
             },
@@ -461,11 +452,6 @@ internal sealed partial class YuklemePlaniService(AppDbContext context, IUnitOfW
             if (!projeIdleri.Contains(s.ProjeId))
             {
                 farklar.Add(new PlanKaynakFarki { Tur = PlanKaynakFarkTuru.ProjedenCikti, SandikId = id, Kod = y.Kod, Guncel = s.Kod });
-                continue;
-            }
-            if (!YuklemePlaniKurali.PlanaGelirMi(s.DurumId))
-            {
-                farklar.Add(new PlanKaynakFarki { Tur = PlanKaynakFarkTuru.SandikSevkEdildi, SandikId = id, Kod = y.Kod });
                 continue;
             }
             if (s.Kod != y.Kod)
@@ -556,14 +542,19 @@ internal sealed partial class YuklemePlaniService(AppDbContext context, IUnitOfW
         return satirlar;
     }
 
+    /// <summary>
+    /// Planın sonraki revizyonunu ekler. Plan izlenen nesne olmalıdır (gezinmeyle bağlanır; izlenmeyen plan ikinci kez
+    /// eklenmeye çalışılır).
+    /// </summary>
     private void YeniRevizyonEkle(
         YuklemePlani plan, int? kullaniciId, string? aciklama, YuklemePlanAyarlari ayarlar,
         List<YuklemePlanProjesi> projeler, List<YuklemePlanYuku> yukler, string? yerlesimJson = null)
     {
         plan.SonRevizyonNo++;
+        // Gezinme ile bağlanır: tek adımlı hesapta plan aynı kayıtta açılır (kimliği henüz yoktur).
         context.YuklemePlanRevizyonlari.Add(new YuklemePlanRevizyonu
         {
-            PlanId = plan.Id,
+            Plan = plan,
             RevizyonNo = plan.SonRevizyonNo,
             KaydedenKullaniciId = kullaniciId,
             Aciklama = aciklama,
@@ -609,13 +600,16 @@ internal sealed partial class YuklemePlaniService(AppDbContext context, IUnitOfW
             .Where(s => projeIdleri.Contains(s.ProjeId) || ekSandikIdleri.Contains(s.Id))
             .Select(s => new SandikKaynagi(
                 s.Id, s.ProjeId, s.Proje.ProjeNo, s.SandikNo, s.Ad, s.Boy, s.En, s.Yukseklik, s.GrossKg, s.DepoLokasyonId,
-                s.DepoLokasyonLookup != null ? s.DepoLokasyonLookup.Deger : null, s.YukTuruId, s.DurumId))
+                s.DepoLokasyonLookup != null ? s.DepoLokasyonLookup.Deger : null, s.YukTuruId))
             .ToListAsync(cancellationToken);
 
-    /// <summary>Plana gelen sandıklar (projelerde, sevk edilmemiş), proje ve doğal sandık numarası sırasıyla.</summary>
+    /// <summary>
+    /// Plana gelen sandıklar: seçilen projelerin bütün sandıkları (sevk edilmişler dahil; saha geri bildirimi 19.11.2026
+    /// madde 6), proje ve doğal sandık numarası sırasıyla.
+    /// </summary>
     private static List<SandikKaynagi> PlanaGelenler(IEnumerable<SandikKaynagi> sandiklar, IReadOnlyCollection<int> projeIdleri) =>
         sandiklar
-            .Where(s => projeIdleri.Contains(s.ProjeId) && YuklemePlaniKurali.PlanaGelirMi(s.DurumId))
+            .Where(s => projeIdleri.Contains(s.ProjeId))
             .OrderBy(s => s.ProjeNo, StringComparer.Create(Tr, ignoreCase: false))
             .ThenBy(s => s.SandikNo.Length).ThenBy(s => s.SandikNo, StringComparer.Ordinal).ThenBy(s => s.Id)
             .ToList();

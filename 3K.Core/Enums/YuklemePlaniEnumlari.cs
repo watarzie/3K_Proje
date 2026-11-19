@@ -108,7 +108,8 @@ namespace _3K.Core.Enums
     {
         YeniSandik = 1,
         SandikSilindi = 2,
-        SandikSevkEdildi = 3,
+
+        // 3 (SandikSevkEdildi) kullanılmıyor: 19.11.2026'dan beri sevk edilmiş sandık da plana gelir.
         OlcuDegisti = 4,
         AgirlikDegisti = 5,
         LokasyonDegisti = 6,

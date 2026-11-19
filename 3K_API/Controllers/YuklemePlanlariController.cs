@@ -85,6 +85,14 @@ namespace _3K_API.Controllers
         public async Task<ActionResult> YuklemePlaniRaporu(int id, CancellationToken ct) =>
             (await mediator.Send(new YuklemePlaniYuklemeRaporuQuery { PlanId = id }, ct)).ToFileResult();
 
+        /// <summary>
+        /// Tek adımlı plan hesabı: proje, aile/tip ve paylarla planı (planId yoksa yenisini) kurar ve yerleşimi hesaplar;
+        /// sonuç tek revizyondur. Var olan planda arada başka biri hesapladıysa 409.
+        /// </summary>
+        [HttpPost("yerlesim-hesapla")]
+        public async Task<ActionResult> PlanHesapla([FromBody] YuklemePlaniPlanHesaplaCommand command, CancellationToken ct) =>
+            (await mediator.Send(command, ct)).ToActionResult();
+
         /// <summary>Otomatik yerleşim: sonuç yeni revizyon olarak yazılır; arada başka biri kaydettiyse 409.</summary>
         [HttpPost("{id:int}/hesapla")]
         public async Task<ActionResult> Hesapla(int id, [FromBody] YuklemePlaniHesaplaCommand command, CancellationToken ct)

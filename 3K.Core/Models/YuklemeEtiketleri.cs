@@ -69,7 +69,6 @@ public static class YuklemeEtiketleri
     {
         PlanKaynakFarkTuru.YeniSandik => "Yeni sandık",
         PlanKaynakFarkTuru.SandikSilindi => "Sandık silindi",
-        PlanKaynakFarkTuru.SandikSevkEdildi => "Sandık sevk edildi",
         PlanKaynakFarkTuru.OlcuDegisti => "Ölçü değişti",
         PlanKaynakFarkTuru.AgirlikDegisti => "Ağırlık değişti",
         PlanKaynakFarkTuru.LokasyonDegisti => "Lokasyon değişti",

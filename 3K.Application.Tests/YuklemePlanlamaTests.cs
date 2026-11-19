@@ -129,15 +129,36 @@ public sealed class YuklemePlanlamaTests
         Assert.Equal("PA600-35-01", YuklemePlaniKurali.SandikKodu(" PA600-35 ", "01"));
     }
 
-    /// <summary>Plana yalnız sevk edilmemiş sandık gelir; sorgudaki koşul bellekteki kuralla aynıdır.</summary>
+    /// <summary>Tek adımlı hesabın girdisi: proje ve aile zorunlu, var olan planda revizyon zorunlu, paylar ve tip seçimi sınırlı.</summary>
     [Fact]
-    public void PlanaGelenSandik_SorguKosuluBellekKuraliylaAyni()
+    public void PlanHesapla_Dogrulama()
     {
-        var sorguKurali = YuklemePlaniKurali.PlanaGelenSandik.Compile();
-        foreach (var durum in Enum.GetValues<SandikDurum>())
-            Assert.Equal(YuklemePlaniKurali.PlanaGelirMi((int)durum), sorguKurali(new Sandik { DurumId = (int)durum }));
-        Assert.False(YuklemePlaniKurali.PlanaGelirMi((int)SandikDurum.Sevkedildi));
-        Assert.True(YuklemePlaniKurali.PlanaGelirMi((int)SandikDurum.Kapandi));
+        var dogrulayici = new YuklemePlaniPlanHesaplaCommandValidator();
+        YuklemePlaniPlanHesaplaCommand Istek() => new() { ProjeIdleri = [1], TasimaAilesiId = 1 };
+        Assert.True(dogrulayici.Validate(Istek()).IsValid);
+        Assert.False(dogrulayici.Validate(new YuklemePlaniPlanHesaplaCommand { TasimaAilesiId = 1 }).IsValid);
+        Assert.False(dogrulayici.Validate(new YuklemePlaniPlanHesaplaCommand { ProjeIdleri = [1] }).IsValid);
+        var mevcut = Istek();
+        mevcut.PlanId = 5;
+        Assert.Equal(["Plan revizyonu eksik; sayfayı yenileyin."], dogrulayici.Validate(mevcut).Errors.Select(e => e.ErrorMessage));
+        mevcut.BeklenenRevizyonNo = 3;
+        Assert.True(dogrulayici.Validate(mevcut).IsValid);
+        var pay = Istek();
+        pay.Ayarlar = new YuklemePlanAyarlari { YukseklikPayiMm = YuklemePlaniKurali.GuvenlikPayiEnFazlaMm + 1 };
+        Assert.False(dogrulayici.Validate(pay).IsValid);
+        var tip = Istek();
+        tip.Ayarlar = new YuklemePlanAyarlari { TipIdleri = [3, 3] };
+        Assert.False(dogrulayici.Validate(tip).IsValid);
+    }
+
+    /// <summary>Tek adımlı hesapta plan adı seçilen proje numaralarıdır; sınırı aşarsa kısaltılır.</summary>
+    [Fact]
+    public void OtomatikPlanAdi_ProjeNumaralari()
+    {
+        Assert.Equal("PA600-23, PA600-24", YuklemePlaniKurali.OtomatikPlanAdi(["PA600-23", "PA600-24"]));
+        var uzun = YuklemePlaniKurali.OtomatikPlanAdi(Enumerable.Range(1, 40).Select(i => $"PA600-{i:00}"));
+        Assert.Equal(YuklemePlaniKurali.AdEnFazla, uzun.Length);
+        Assert.EndsWith("…", uzun);
     }
 
     /// <summary>İsterler 17: yerleşim boşluğu başlangıçta 3 cm; güvenlik payları işletmeyle kesinleşene kadar boş.</summary>
@@ -506,6 +527,7 @@ public sealed class YuklemePlanlamaTests
             (new YuklemePlaniKaydetCommand(), YetkiKodlari.YuklemePlanlama.Planlar, YetkiTipi.W),
             (new YuklemePlaniKaynaktanGuncelleCommand(), YetkiKodlari.YuklemePlanlama.Planlar, YetkiTipi.W),
             (new YuklemePlaniHesaplaCommand(), YetkiKodlari.YuklemePlanlama.Planlar, YetkiTipi.W),
+            (new YuklemePlaniPlanHesaplaCommand(), YetkiKodlari.YuklemePlanlama.Planlar, YetkiTipi.W),
             (new YuklemePlaniAracTalepRaporuQuery(), YetkiKodlari.YuklemePlanlama.Planlar, YetkiTipi.R),
             (new YuklemePlaniElleDenetleQuery(), YetkiKodlari.YuklemePlanlama.Planlar, YetkiTipi.W),
             (new YuklemePlaniElleKaydetCommand(), YetkiKodlari.YuklemePlanlama.Planlar, YetkiTipi.W),

@@ -21,7 +21,7 @@ public interface IYuklemePlaniService
     /// <summary>Planın son revizyonu ve güncel kaynakla farkları; plan yoksa null.</summary>
     Task<YuklemePlaniDetayi?> PlanGetirAsync(int planId, CancellationToken cancellationToken);
 
-    /// <summary>Planı ve ilk revizyonunu yazar: projelerin sevk edilmemiş bütün sandıkları seçili ve varsayılan izinli gelir.</summary>
+    /// <summary>Planı ve ilk revizyonunu yazar: projelerin bütün sandıkları (sevk edilmişler dahil) seçili ve varsayılan izinli gelir.</summary>
     Task<YuklemePlaniDetayi> OlusturAsync(YuklemePlaniOlusturModel model, int? kullaniciId, CancellationToken cancellationToken);
 
     /// <summary>Yeni revizyon yazar; beklenen revizyon son revizyon değilse 409.</summary>
@@ -29,14 +29,17 @@ public interface IYuklemePlaniService
 
     /// <summary>
     /// Kaynak farklarını uygulayan yeni revizyon yazar: değişen ölçü/ağırlık/lokasyon/yük türü kopyalanır, elle
-    /// değiştirilmemiş izinler yeni varsayılandan kurulur, yeni sandık eklenir, silinen veya sevk edilen sandık çıkar.
+    /// değiştirilmemiş izinler yeni varsayılandan kurulur, yeni sandık eklenir, silinen ya da projeden çıkan sandık düşer.
     /// </summary>
     Task<YuklemePlaniDetayi> KaynaktanGuncelleAsync(int planId, int beklenenRevizyonNo, int? kullaniciId, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Son revizyonun yüklerini otomatik yerleştirir ve sonucu yeni revizyon olarak yazar (yükler ve ayarlar aynen
-    /// kopyalanır). Arada başka biri kaydettiyse 409. Lokasyon tercihi plana kaydedilir.
+    /// Tek adımlı plan hesabı (saha geri bildirimi 19.11.2026 madde 5): planı (yoksa açar) seçilen projelerin güncel
+    /// sandıklarıyla, aile/tip ve paylarla yeniden kurar ve yerleşimi aynı revizyonda yazar. Kaydedilecek yerleşim yoksa
+    /// (hesaplanabilir yük yok) hiçbir şey yazılmaz.
     /// </summary>
+    Task<YuklemePlaniDetayi> PlanHesaplaAsync(YuklemePlaniHesaplaModel model, int? kullaniciId, CancellationToken cancellationToken);
+
     /// <summary>Elle yerleşimi kaydetmeden denetler (sürükle-bırak sonrası anlık kontrol, isterler 22).</summary>
     Task<PlanYerlesimi> ElleDenetleAsync(int planId, IReadOnlyList<ElleAracModeli> araclar, CancellationToken cancellationToken);
 
@@ -55,5 +58,9 @@ public interface IYuklemePlaniService
     /// <summary>Elle yerleşimde eklenebilecek ekipmanlar (teknik verisiyle).</summary>
     Task<IReadOnlyList<ElleEkipmanSecenegi>> ElleEkipmanlariAsync(int planId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Son revizyonun yüklerini otomatik yerleştirir ve sonucu yeni revizyon olarak yazar (yükler ve ayarlar aynen
+    /// kopyalanır). Arada başka biri kaydettiyse 409. Lokasyon tercihi plana kaydedilir.
+    /// </summary>
     Task<YuklemePlaniDetayi> HesaplaAsync(int planId, int beklenenRevizyonNo, YuklemeLokasyonTercihi lokasyonTercihi, int? kullaniciId, CancellationToken cancellationToken);
 }

@@ -36,8 +36,111 @@ internal sealed partial class YuklemePlaniService
         if (mevcut is { Count: 0 })
             throw new IsKuraliException(YuklemePlaniKurali.MevcutAracGerekliMesaji);
 
+        var sonuc = await YerlesimHesaplaAsync(plan.TasimaAilesiId, plan.TasimaAilesi.Ad, plan.ProjeKarisimi, lokasyonTercihi, ayarlar, mevcut,
+            onceki.Yukler, cancellationToken);
+
+        plan.LokasyonTercihi = lokasyonTercihi;
+        var satirlar = onceki.Yukler.OrderBy(y => y.SiraNo).Select((y, i) => Kopyala(y, i + 1)).ToList();
+        var projeler = onceki.Projeler.Select(p => new YuklemePlanProjesi { ProjeId = p.ProjeId, ProjeNo = p.ProjeNo }).ToList();
+        YeniRevizyonEkle(plan, kullaniciId, "Otomatik yerleşim hesaplandı.", ayarlar, projeler, satirlar, YerlesimSerilestirici.Yaz(sonuc));
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return (await PlanGetirAsync(plan.Id, cancellationToken))!;
+    }
+
+    public async Task<YuklemePlaniDetayi> PlanHesaplaAsync(YuklemePlaniHesaplaModel model, int? kullaniciId, CancellationToken cancellationToken)
+    {
+        await AileyiDenetleAsync(model.TasimaAilesiId, cancellationToken);
+        await TipleriDenetleAsync(model.TasimaAilesiId, model.Ayarlar.TipIdleri, cancellationToken);
+        var projeler = await ProjeleriAsync(model.ProjeIdleri, cancellationToken);
+        var aileAdi = await context.EkipmanAileleri.AsNoTracking().Where(a => a.Id == model.TasimaAilesiId).Select(a => a.Ad).SingleAsync(cancellationToken);
+
+        YuklemePlani plan;
+        YuklemePlanRevizyonu? onceki = null;
+        if (model.PlanId is { } planId)
+        {
+            plan = await context.YuklemePlanlari.SingleOrDefaultAsync(p => p.Id == planId, cancellationToken)
+                   ?? throw new KayitBulunamadiException(PlanBulunamadi);
+            if (plan.SonRevizyonNo != model.BeklenenRevizyonNo)
+                throw IsKuraliException.Cakisma(EszamanliKayit);
+            onceki = await RevizyonAsync(plan.Id, plan.SonRevizyonNo, cancellationToken);
+        }
+        else
+        {
+            var yil = TurkeyTime.Now.Year;
+            var onek = YuklemePlaniKurali.PlanNoOneki(yil);
+            var sonNo = await context.YuklemePlanlari.Where(p => p.PlanNo.StartsWith(onek)).MaxAsync(p => (string?)p.PlanNo, cancellationToken);
+            plan = new YuklemePlani
+            {
+                PlanNo = YuklemePlaniKurali.SonrakiPlanNo(yil, sonNo),
+                Ad = OtomatikAd(projeler),
+                OlusturanKullaniciId = kullaniciId
+            };
+        }
+        // Ad elle girilmez: otomatik adlı planın adı proje kümesiyle birlikte güncellenir (elle adlandırılmış eski plan korunur).
+        if (onceki != null && plan.Ad == OtomatikAd(onceki.Projeler.Where(p => p.ProjeId != null).Select(p => new SecimOgesi(p.ProjeId!.Value, p.ProjeNo))))
+            plan.Ad = OtomatikAd(projeler);
+
+        // Yükler her hesapta kaynaktan kurulur (sevk edilmişler dahil, planlamaya dahil, varsayılan izinlerle); formdan
+        // kalkan seçimler (çalışma biçimi, proje karışımı, lokasyon tercihi, mevcut araçlar) varsayılandır. Eski planda
+        // elle eklenmiş yükler seçili projelerdeyse (ya da projesizse) korunur.
+        var sandiklar = PlanaGelenler(await SandiklarAsync(model.ProjeIdleri, [], cancellationToken), model.ProjeIdleri);
+        var satirlar = sandiklar.Select((s, i) =>
+            SandikSatiri(s, i + 1, dahil: true, YukIzinKurali.Varsayilan(s.YukTuruId, s.Brut), PlanYukIzni.Yok)).ToList();
+        var secili = model.ProjeIdleri.ToHashSet();
+        var eskiManueller = (onceki?.Yukler ?? []).Where(y => y.Kaynak == PlanYukKaynagi.Manuel && (y.ProjeId == null || secili.Contains(y.ProjeId.Value)));
+        foreach (var manuel in eskiManueller.OrderBy(y => y.SiraNo))
+            satirlar.Add(Kopyala(manuel, satirlar.Count + 1));
+        if (satirlar.Count > YuklemePlaniKurali.EnFazlaYuk)
+            throw new IsKuraliException(YukSiniriAsildi);
+
+        // Ekranda olmayan ayarlar (yükler arası boşluk, ağırlık merkezi sapması) var olan planda önceki revizyondan gelir;
+        // istemcinin gönderdiği değer bunları değiştirmez. Mevcut araç listesi (çalışma biçimi kalktı) boşaltılır.
+        var oncekiAyarlar = onceki == null ? null : Ayarlar(onceki);
+        var ayarlar = model.Ayarlar with
+        {
+            MevcutAraclar = [],
+            YerlesimBosluguMm = oncekiAyarlar?.YerlesimBosluguMm ?? YuklemePlaniKurali.VarsayilanYerlesimBosluguMm,
+            AgirlikMerkeziSapmaYuzde = oncekiAyarlar?.AgirlikMerkeziSapmaYuzde
+        };
+        var sonuc = await YerlesimHesaplaAsync(model.TasimaAilesiId, aileAdi, YuklemeProjeKarisimi.Karisik, YuklemeLokasyonTercihi.Karisik,
+            ayarlar, null, satirlar, cancellationToken);
+
+        plan.TasimaAilesiId = model.TasimaAilesiId;
+        plan.CalismaBicimi = YuklemeCalismaBicimi.IhtiyacaGoreArac;
+        plan.ProjeKarisimi = YuklemeProjeKarisimi.Karisik;
+        plan.LokasyonTercihi = YuklemeLokasyonTercihi.Karisik;
+        // Yeni plan, hesap başarılı olunca eklenir: reddedilen hesap bağlamda yarım kayıt bırakmaz.
+        if (plan.Id == 0)
+            context.YuklemePlanlari.Add(plan);
+        YeniRevizyonEkle(plan, kullaniciId, "Hesaplandı.", ayarlar, ProjeSatirlari(projeler), satirlar, YerlesimSerilestirici.Yaz(sonuc));
+        try
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (UniqueConstraintViolationException ihlal) when (ihlal.ConstraintName == PlanNoIndeksi)
+        {
+            // İki kişi aynı anda yeni plan açtı: plan numarası tekildir, ikincisi yeniden dener.
+            throw IsKuraliException.Cakisma(AyniAndaYeniPlan);
+        }
+        return (await PlanGetirAsync(plan.Id, cancellationToken))!;
+    }
+
+    private const string PlanNoIndeksi = "IX_YuklemePlanlari_PlanNo";
+    private const string AyniAndaYeniPlan = "Aynı anda başka bir plan açıldı; tekrar \"Hesapla\"ya basın.";
+
+    private static string OtomatikAd(IEnumerable<SecimOgesi> projeler) =>
+        YuklemePlaniKurali.OtomatikPlanAdi(projeler.Select(p => p.Ad).Order(StringComparer.Create(Tr, ignoreCase: false)));
+
+    /// <summary>
+    /// Motor girdisini kurup otomatik yerleşimi hesaplar: planlamaya dahil ve ölçü/ağırlığı tam yükler, ailenin ve özel yük
+    /// ekipmanının adayları (tip seçimiyle kademe), paylar ve yasal sınırlar. Hesaplanacak yük yoksa 400.
+    /// </summary>
+    private async Task<YerlesimSonucu> YerlesimHesaplaAsync(
+        int aileId, string aileAdi, YuklemeProjeKarisimi karisim, YuklemeLokasyonTercihi lokasyonTercihi, YuklemePlanAyarlari ayarlar,
+        IReadOnlyList<PlanMevcutArac>? mevcut, IEnumerable<YuklemePlanYuku> satirlar, CancellationToken cancellationToken)
+    {
         var yukTurleri = await context.LookupYukTurleri.AsNoTracking().ToDictionaryAsync(t => t.Id, t => t.Deger, cancellationToken);
-        var yukler = onceki.Yukler
+        var yukler = satirlar
             .Where(y => y.Dahil && YukVeriKurali.Sorunlar(y.BoyMm, y.EnMm, y.YukseklikMm, y.BrutKg).Count == 0)
             .OrderBy(y => y.SiraNo)
             .Select(y => MotorYuku(y, yukTurleri))
@@ -48,7 +151,7 @@ internal sealed partial class YuklemePlaniService
         var mevcutIdleri = mevcut?.Select(m => m.KonfigurasyonId).ToList() ?? [];
         if (mevcutIdleri.Count > 0)
             await MevcutAraclariDenetleAsync(ayarlar, cancellationToken);
-        var adaylar = await AdaylarAsync(plan.TasimaAilesiId, ayarlar.TipIdleri, mevcutIdleri, cancellationToken);
+        var adaylar = await AdaylarAsync(aileId, ayarlar.TipIdleri, mevcutIdleri, cancellationToken);
         if (mevcutIdleri.Any(id => adaylar.All(a => a.KonfigurasyonId != id)))
             throw new IsKuraliException(MevcutAracKullanilamaz);
 
@@ -57,19 +160,12 @@ internal sealed partial class YuklemePlaniService
             adaylar,
             new YerlesimAyarlari(ayarlar.YerlesimBosluguMm, ayarlar.YukseklikPayiMm, ayarlar.GenislikPayiMm, ayarlar.UzunlukPayiMm,
                 ayarlar.AgirlikPayiKg, ayarlar.YuklemeHareketiPayiMm, ayarlar.AgirlikMerkeziSapmaYuzde),
-            plan.ProjeKarisimi == YuklemeProjeKarisimi.ProjeBazindaAyri,
+            karisim == YuklemeProjeKarisimi.ProjeBazindaAyri,
             lokasyonTercihi == YuklemeLokasyonTercihi.LokasyonaGoreAyri,
             mevcut?.Select(m => new MevcutArac(m.KonfigurasyonId, m.Adet)).ToList(),
             await YasalSinirlarAsync(cancellationToken),
-            plan.TasimaAilesi.Ad);
-        var sonuc = YerlesimMotoru.Hesapla(girdi, cancellationToken);
-
-        plan.LokasyonTercihi = lokasyonTercihi;
-        var satirlar = onceki.Yukler.OrderBy(y => y.SiraNo).Select((y, i) => Kopyala(y, i + 1)).ToList();
-        var projeler = onceki.Projeler.Select(p => new YuklemePlanProjesi { ProjeId = p.ProjeId, ProjeNo = p.ProjeNo }).ToList();
-        YeniRevizyonEkle(plan, kullaniciId, "Otomatik yerleşim hesaplandı.", ayarlar, projeler, satirlar, YerlesimSerilestirici.Yaz(sonuc));
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-        return (await PlanGetirAsync(plan.Id, cancellationToken))!;
+            aileAdi);
+        return YerlesimMotoru.Hesapla(girdi, cancellationToken);
     }
 
     /// <summary>Kaydedilen mevcut araç listesindeki konfigürasyonlar kitaplıkta var ve aktif olmalı.</summary>
