@@ -32,9 +32,9 @@ internal static class AracKontrolcu
         var maxY = Math.Max(arac.DisGenislik, konumlar.Select(k => k.YMm + k.EnMm).DefaultIfEmpty(0).Max());
         var yukluYukseklik = Math.Max(veri.DisOlcu?.YukseklikMm ?? 0, konumlar.Select(k => k.ZMm + k.YukseklikMm).DefaultIfEmpty(0).Max());
         var toplamKg = arac.ToplamKg;
-        var agirlikMerkezi = toplamKg > 0
-            ? (int)Math.Round(konumlar.Sum(k => yukler[k.YukAnahtari].BrutKg * (k.XMm + k.BoyMm / 2m)) / toplamKg)
-            : (int?)null;
+        // Boyuna ağırlık merkezi raporla aynı hesaptan gelir (rapor enine ve düşey değerleri de yazar).
+        var agirlikMerkezi = AgirlikMerkeziHesabi.Hesapla(konumlar.Select(k =>
+            new AgirlikliKutu(yukler[k.YukAnahtari].BrutKg, k.XMm, k.YMm, k.ZMm, k.BoyMm, k.EnMm, k.YukseklikMm)))?.XMm;
         var taban = konumlar.Where(k => k.Kat == 1).Sum(k => (long)k.BoyMm * k.EnMm);
         var doluluk = arac.TabanAlani > 0 ? (int)Math.Min(100, Math.Round(taban * 100m / arac.TabanAlani)) : 0;
 

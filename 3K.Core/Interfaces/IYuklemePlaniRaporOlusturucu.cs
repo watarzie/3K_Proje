@@ -12,8 +12,10 @@ public interface IYuklemePlaniRaporOlusturucu
     byte[] AracTalepRaporu(YuklemePlaniDetayi plan, DateTime raporTarihi);
 
     /// <summary>
-    /// Araç bazlı yükleme planı: her araç çizimleri ve sandık numaralı yük listesiyle aynı sayfada (yükleme adımı sırası);
-    /// sayfaya sığmayan liste sonraki sayfada iki sütunla sürer.
+    /// Araç bazlı yükleme planı: ilk sayfa planın özeti (araç sayısı, tip dağılımı, yük sayısı, toplam ağırlık ve hacim);
+    /// her araç kendi sayfasında 3B çizim, yandan/üstten/arkadan görünümler, araç–kullanım–toplam–ağırlık merkezi
+    /// bilgileri ve sandık numaralı yük tablosuyla (yükleme adımı sırası, her sandık ayrı renkte) başlar; sayfaya sığmayan
+    /// liste iki sütunla sonraki sayfada sürer. Araca atanamayan yükler son sayfadadır.
     /// </summary>
     byte[] YuklemePlaniRaporu(YuklemePlaniDetayi plan, DateTime raporTarihi);
 }
