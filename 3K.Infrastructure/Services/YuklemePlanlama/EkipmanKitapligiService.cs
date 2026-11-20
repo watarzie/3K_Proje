@@ -13,6 +13,7 @@ namespace _3K.Infrastructure.Services.YuklemePlanlama;
 /// <summary>
 /// Ekipman kitaplığı (Simülasyon isterleri 11–12): aile/tip/model/konfigürasyon ve değişmez teknik veri revizyonları.
 /// Teknik veri yükleme motorunun şemasıyla okunur ve denetlenir; eksik veri uyarı olarak saklanır, değer tahmin edilmez.
+/// Excel içe aktarımı ve ekrandan kayıt tek konfigürasyon için aynı kararı ve aynı yazımı kullanır.
 /// </summary>
 internal sealed class EkipmanKitapligiService(AppDbContext context, IUnitOfWork unitOfWork) : IEkipmanKitapligiService
 {
@@ -151,6 +152,7 @@ internal sealed class EkipmanKitapligiService(AppDbContext context, IUnitOfWork 
             Ad = konf.Ad,
             Aktif = konf.Aktif,
             AileAdi = konf.Model.Tip.Aile.Ad,
+            TipId = konf.Model.TipId,
             TipKodu = konf.Model.Tip.Kod,
             TipAdi = konf.Model.Tip.Ad,
             Kategori = kategori,
@@ -225,42 +227,32 @@ internal sealed class EkipmanKitapligiService(AppDbContext context, IUnitOfWork 
                 continue;
             }
 
-            var denetim = EkipmanTeknikVeriDenetimi.Denetle(kayit.TeknikVeri, Baglam(tip.Kategori));
-            sorunlar.AddRange(denetim.Hatalar.Select(h => new EkipmanIceAktarimSorunu(EkipmanExcelDosyasi.KonfigurasyonSayfasi, kayit.Satir, kayit.Kod, h)));
-
             var mevcut = mevcutlar.GetValueOrDefault(kayit.Kod);
-            if (mevcut != null &&
-                (mevcut.Model.TipId != tip.Id ||
-                 !string.Equals(mevcut.Model.Uretici, kayit.Uretici, StringComparison.Ordinal) ||
-                 !string.Equals(mevcut.Model.ModelAdi, kayit.ModelAdi, StringComparison.Ordinal)))
+            var karar = Degerlendir(kayit, tip, mevcut, mevcut == null ? null : sonRevizyonlar.GetValueOrDefault(mevcut.Id));
+            sorunlar.AddRange(karar.Denetim.Hatalar.Select(h => new EkipmanIceAktarimSorunu(EkipmanExcelDosyasi.KonfigurasyonSayfasi, kayit.Satir, kayit.Kod, h)));
+            if (karar.BaskaModel)
             {
                 sorunlar.Add(new(EkipmanExcelDosyasi.KonfigurasyonSayfasi, kayit.Satir, kayit.Kod,
-                    $"'{kayit.Kod}' kodu başka bir modele ait ({mevcut.Model.Tip.Kod} / {mevcut.Model.Uretici} / {mevcut.Model.ModelAdi}); kodu değiştirin veya modeli aynı yazın."));
+                    $"'{kayit.Kod}' kodu başka bir modele ait ({mevcut!.Model.Tip.Kod} / {mevcut.Model.Uretici} / {mevcut.Model.ModelAdi}); kodu değiştirin veya modeli aynı yazın."));
                 continue;
             }
 
-            var json = EkipmanTeknikVeriSerilestirici.Yaz(kayit.TeknikVeri);
-            var islem = mevcut == null
-                ? EkipmanIceAktarimIslemi.Yeni
-                : sonRevizyonlar.TryGetValue(mevcut.Id, out var son) && AyniRevizyon(son, kayit, json)
-                    ? EkipmanIceAktarimIslemi.Degismedi
-                    : EkipmanIceAktarimIslemi.YeniRevizyon;
             satirlar.Add(new EkipmanIceAktarimSatiri
             {
                 Kod = kayit.Kod,
                 Ad = kayit.Ad,
                 OncekiAd = mevcut != null && !string.Equals(mevcut.Ad, kayit.Ad, StringComparison.Ordinal) ? mevcut.Ad : null,
                 TipKodu = tip.Kod,
-                Islem = islem,
-                RevizyonNo = islem switch
+                Islem = karar.Islem,
+                RevizyonNo = karar.Islem switch
                 {
                     EkipmanIceAktarimIslemi.Yeni => 1,
                     EkipmanIceAktarimIslemi.YeniRevizyon => mevcut!.SonRevizyonNo + 1,
                     _ => mevcut!.SonRevizyonNo
                 },
-                VeriUyarilari = denetim.Uyarilar
+                VeriUyarilari = karar.Denetim.Uyarilar
             });
-            yazilacaklar.Add((kayit, tip, mevcut, islem, json));
+            yazilacaklar.Add((kayit, tip, mevcut, karar.Islem, karar.Json));
         }
 
         var sonuc = new EkipmanIceAktarimSonucu
@@ -292,6 +284,77 @@ internal sealed class EkipmanKitapligiService(AppDbContext context, IUnitOfWork 
             Konfigurasyonlar = satirlar,
             Sorunlar = []
         };
+    }
+
+    public async Task<EkipmanKayitSonucu> EkleAsync(EkipmanKonfigurasyonKaydi kayit, int? kullaniciId, CancellationToken cancellationToken)
+    {
+        var kod = EkipmanKitapligiKurali.KodNormalize(kayit.Kod);
+        // İçe aktarım var olan koda revizyon yazar; ekrandaki "yeni ekipman" var olan kaydı sessizce değiştirmez.
+        if (await context.EkipmanKonfigurasyonlari.AnyAsync(k => k.Kod == kod, cancellationToken))
+            throw IsKuraliException.Cakisma(EkipmanKitapligiKurali.KodZatenVarMesaji);
+        return await KaydetAsync(kayit, kod, mevcut: null, kullaniciId, cancellationToken);
+    }
+
+    public async Task<EkipmanKayitSonucu> GuncelleAsync(
+        int konfigurasyonId, int beklenenRevizyonNo, EkipmanKonfigurasyonKaydi kayit, int? kullaniciId, CancellationToken cancellationToken)
+    {
+        var mevcut = await context.EkipmanKonfigurasyonlari
+                         .Include(k => k.Model).ThenInclude(m => m.Tip)
+                         .SingleOrDefaultAsync(k => k.Id == konfigurasyonId, cancellationToken)
+                     ?? throw new KayitBulunamadiException(KonfigurasyonBulunamadi);
+        // Kod konfigürasyonun kimliğidir (içe aktarım da kodla eşler, harf duyarsız); güncellemede değişmez.
+        if (!string.Equals(mevcut.Kod, EkipmanKitapligiKurali.KodNormalize(kayit.Kod), StringComparison.OrdinalIgnoreCase))
+            throw new IsKuraliException(EkipmanKitapligiKurali.KodDegistirilemezMesaji);
+        if (mevcut.SonRevizyonNo != beklenenRevizyonNo)
+            throw IsKuraliException.Cakisma(EkipmanKitapligiKurali.KayitDegistiMesaji);
+        return await KaydetAsync(kayit, mevcut.Kod, mevcut, kullaniciId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Ekrandan gelen kaydı Excel'deki tek konfigürasyon satırına çevirir ve içe aktarımın kararını
+    /// (<see cref="Degerlendir"/>) ve yazımını (<see cref="YazAsync"/>) kullanır. Sorun varsa hiçbir şey yazılmaz.
+    /// </summary>
+    private async Task<EkipmanKayitSonucu> KaydetAsync(
+        EkipmanKonfigurasyonKaydi kayit, string kod, EkipmanKonfigurasyonu? mevcut, int? kullaniciId, CancellationToken cancellationToken)
+    {
+        var girdi = EkipmanTeknikVeriGirdisi.Oku(kayit.TeknikVeriJson);
+        var sorunlar = girdi.Sorunlar.ToList();
+        var tip = await context.EkipmanTipleri.AsNoTracking().SingleOrDefaultAsync(t => t.Id == kayit.TipId, cancellationToken);
+        if (tip == null)
+            sorunlar.Add(EkipmanKitapligiKurali.TipBulunamadiMesaji);
+        if (!EkipmanKitapligiKurali.KaynakTarihiGecerli(kayit.KaynakTarihi))
+            sorunlar.Add(EkipmanKitapligiKurali.KaynakTarihiMesaji);
+        // Okuma ya da sınır sorunu olan veri denetime girmez (Excel'de de sorunlu satır okunmadan düşer): sınırı aşan
+        // kullanıcı metni denetim mesajlarında tekrarlanmaz.
+        if (girdi.Veri is not { } teknikVeri || tip == null || sorunlar.Count > 0)
+            return new EkipmanKayitSonucu { Sorunlar = sorunlar };
+
+        // Metinler Excel hücresi gibi okunur (kırpılır, boş "yok" olur).
+        var satir = new EkipmanExcelKaydi(0, kod,
+            EkipmanKitapligiKurali.MetinNormalize(kayit.Ad) ?? string.Empty, tip.Kod,
+            EkipmanKitapligiKurali.MetinNormalize(kayit.Uretici) ?? string.Empty,
+            EkipmanKitapligiKurali.MetinNormalize(kayit.ModelAdi) ?? string.Empty,
+            kayit.KaynakTuru, EkipmanKitapligiKurali.MetinNormalize(kayit.KaynakAciklama), kayit.KaynakTarihi,
+            EkipmanKitapligiKurali.MetinNormalize(kayit.Aciklama), teknikVeri);
+        var sonRevizyon = mevcut == null
+            ? null
+            : await context.EkipmanKonfigurasyonRevizyonlari.AsNoTracking()
+                .SingleOrDefaultAsync(r => r.KonfigurasyonId == mevcut.Id && r.RevizyonNo == mevcut.SonRevizyonNo, cancellationToken);
+
+        var karar = Degerlendir(satir, tip, mevcut, sonRevizyon);
+        sorunlar.AddRange(karar.Denetim.Hatalar);
+        if (karar.BaskaModel)
+            sorunlar.Add($"Var olan ekipmanın tipi, üreticisi ve modeli değiştirilemez ({mevcut!.Model.Tip.Ad} / {mevcut.Model.Uretici} / {mevcut.Model.ModelAdi}); farklı model için yeni ekipman ekleyin.");
+        if (sorunlar.Count > 0)
+            return new EkipmanKayitSonucu { Sorunlar = sorunlar };
+
+        // Teknik veri, kaynak ve ad aynıysa yazılacak bir şey yoktur (revizyon da açılmaz).
+        var degisiklikYok = karar.Islem == EkipmanIceAktarimIslemi.Degismedi && string.Equals(mevcut!.Ad, satir.Ad, StringComparison.Ordinal);
+        if (!degisiklikYok)
+            await YazAsync([(satir, tip, mevcut, karar.Islem, karar.Json)], kullaniciId, cancellationToken);
+
+        var id = mevcut?.Id ?? await context.EkipmanKonfigurasyonlari.Where(k => k.Kod == kod).Select(k => k.Id).SingleAsync(cancellationToken);
+        return new EkipmanKayitSonucu { Detay = await KonfigurasyonGetirAsync(id, cancellationToken) };
     }
 
     public async Task<EkipmanKonfigurasyonDetayi> DogrulaAsync(int konfigurasyonId, int revizyonNo, int kullaniciId, CancellationToken cancellationToken)
@@ -359,6 +422,36 @@ internal sealed class EkipmanKitapligiService(AppDbContext context, IUnitOfWork 
             });
         }
         await unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Tek konfigürasyonun kararı: teknik veri denetimi, kodun başka modele ait olup olmadığı ve (aitse boş kalan)
+    /// yazılacak işlem ile kanonik JSON.
+    /// </summary>
+    private sealed record KayitKarari(EkipmanDenetimSonucu Denetim, bool BaskaModel, EkipmanIceAktarimIslemi Islem, string Json);
+
+    /// <summary>
+    /// Tek konfigürasyonun kuralları; Excel içe aktarımı ve ekrandan kayıt aynı kararı kullanır: teknik veri kategoriye göre
+    /// denetlenir, var olan kod başka tip/üretici/modele taşınamaz, teknik verisi ya da kaynağı değişen konfigürasyon yeni
+    /// revizyon alır, değişmeyene dokunulmaz.
+    /// </summary>
+    private static KayitKarari Degerlendir(
+        EkipmanExcelKaydi kayit, EkipmanTipi tip, EkipmanKonfigurasyonu? mevcut, EkipmanKonfigurasyonRevizyonu? sonRevizyon)
+    {
+        var denetim = EkipmanTeknikVeriDenetimi.Denetle(kayit.TeknikVeri, Baglam(tip.Kategori));
+        if (mevcut != null &&
+            (mevcut.Model.TipId != tip.Id ||
+             !string.Equals(mevcut.Model.Uretici, kayit.Uretici, StringComparison.Ordinal) ||
+             !string.Equals(mevcut.Model.ModelAdi, kayit.ModelAdi, StringComparison.Ordinal)))
+            return new KayitKarari(denetim, BaskaModel: true, default, string.Empty);
+
+        var json = EkipmanTeknikVeriSerilestirici.Yaz(kayit.TeknikVeri);
+        var islem = mevcut == null
+            ? EkipmanIceAktarimIslemi.Yeni
+            : sonRevizyon != null && AyniRevizyon(sonRevizyon, kayit, json)
+                ? EkipmanIceAktarimIslemi.Degismedi
+                : EkipmanIceAktarimIslemi.YeniRevizyon;
+        return new KayitKarari(denetim, BaskaModel: false, islem, json);
     }
 
     /// <summary>Teknik veri (kanonik JSON) ve kaynak bilgisi aynıysa yeni revizyon gerekmez.</summary>

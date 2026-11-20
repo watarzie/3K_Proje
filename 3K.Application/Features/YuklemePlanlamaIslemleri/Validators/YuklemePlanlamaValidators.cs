@@ -246,6 +246,52 @@ public sealed class EkipmanIceAktarCommandValidator : AbstractValidator<EkipmanI
     }
 }
 
+/// <summary>
+/// Ekrandan girilen konfigürasyonun ortak kuralları (ekleme ve güncelleme komutlarına <c>Include</c> edilir): Excel'deki
+/// konfigürasyon satırının zorunlu alanları ve sınırları. Metin kırpılmış haliyle ölçülür. İç sınıftır; tek başına kayda
+/// girmez.
+/// </summary>
+internal sealed class EkipmanKonfigurasyonKaydiValidator : AbstractValidator<EkipmanKonfigurasyonKaydiIstegi>
+{
+    public EkipmanKonfigurasyonKaydiValidator()
+    {
+        RuleFor(x => x.Kod).Must(v => EkipmanKitapligiKurali.ZorunluMetinGecerli(v, EkipmanKitapligiKurali.KodEnFazla))
+            .WithMessage($"Ekipman kodu zorunludur ve en fazla {EkipmanKitapligiKurali.KodEnFazla} karakter olabilir.");
+        RuleFor(x => x.Ad).Must(v => EkipmanKitapligiKurali.ZorunluMetinGecerli(v, EkipmanKitapligiKurali.AdEnFazla))
+            .WithMessage($"Ekipman adı zorunludur ve en fazla {EkipmanKitapligiKurali.AdEnFazla} karakter olabilir.");
+        RuleFor(x => x.TipId).GreaterThan(0).WithMessage("Ekipman tipi seçilmelidir.");
+        RuleFor(x => x.Uretici).Must(v => EkipmanKitapligiKurali.ZorunluMetinGecerli(v, EkipmanKitapligiKurali.UreticiEnFazla))
+            .WithMessage($"Üretici zorunludur ve en fazla {EkipmanKitapligiKurali.UreticiEnFazla} karakter olabilir.");
+        RuleFor(x => x.ModelAdi).Must(v => EkipmanKitapligiKurali.ZorunluMetinGecerli(v, EkipmanKitapligiKurali.ModelEnFazla))
+            .WithMessage($"Model adı zorunludur ve en fazla {EkipmanKitapligiKurali.ModelEnFazla} karakter olabilir.");
+        RuleFor(x => x.KaynakTuru).IsInEnum().WithMessage("Kaynak türü geçersiz.");
+        RuleFor(x => x.KaynakAciklama).Must(v => EkipmanKitapligiKurali.IstegeBagliMetinGecerli(v, EkipmanKitapligiKurali.KaynakAciklamaEnFazla))
+            .WithMessage($"Kaynak açıklaması en fazla {EkipmanKitapligiKurali.KaynakAciklamaEnFazla} karakter olabilir.");
+        RuleFor(x => x.KaynakTarihi).Must(EkipmanKitapligiKurali.KaynakTarihiGecerli).WithMessage(EkipmanKitapligiKurali.KaynakTarihiMesaji);
+        RuleFor(x => x.Aciklama).Must(v => EkipmanKitapligiKurali.IstegeBagliMetinGecerli(v, EkipmanKitapligiKurali.AciklamaEnFazla))
+            .WithMessage($"Açıklama en fazla {EkipmanKitapligiKurali.AciklamaEnFazla} karakter olabilir.");
+        // Cascade Stop: gövdede null gelen teknik veri uzunluk kuralında 500 değil 400 olur.
+        RuleFor(x => x.TeknikVeriJson).Cascade(CascadeMode.Stop)
+            .NotEmpty().WithMessage("Teknik veri zorunludur.")
+            .MaximumLength(EkipmanKitapligiKurali.TeknikVeriJsonEnFazla).WithMessage("Teknik veri çok büyük.");
+    }
+}
+
+public sealed class EkipmanKonfigurasyonEkleCommandValidator : AbstractValidator<EkipmanKonfigurasyonEkleCommand>
+{
+    public EkipmanKonfigurasyonEkleCommandValidator() => Include(new EkipmanKonfigurasyonKaydiValidator());
+}
+
+public sealed class EkipmanKonfigurasyonGuncelleCommandValidator : AbstractValidator<EkipmanKonfigurasyonGuncelleCommand>
+{
+    public EkipmanKonfigurasyonGuncelleCommandValidator()
+    {
+        RuleFor(x => x.KonfigurasyonId).GreaterThan(0).WithMessage("Konfigürasyon seçilmelidir.");
+        RuleFor(x => x.BeklenenRevizyonNo).GreaterThan(0).WithMessage("Ekipmanın revizyon numarası eksik; sayfayı yenileyin.");
+        Include(new EkipmanKonfigurasyonKaydiValidator());
+    }
+}
+
 public sealed class EkipmanDogrulaCommandValidator : AbstractValidator<EkipmanDogrulaCommand>
 {
     public EkipmanDogrulaCommandValidator()

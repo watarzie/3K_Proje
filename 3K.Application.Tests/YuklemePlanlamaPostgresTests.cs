@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using _3K.Application.Features.YuklemePlanlamaIslemleri.Commands;
 using _3K.Application.Features.YuklemePlanlamaIslemleri.Queries;
 using Microsoft.Extensions.Logging.Abstractions;
 using _3K.Core.Entities;
@@ -520,7 +521,34 @@ public sealed class YuklemePlanlamaPostgresTests
 
             await using (var db = new AppDbContext(options))
             {
+                // Var olan kod başka üretici/modelle gelirse satır reddedilir ve hiçbir şey yazılmaz (ad da değişmez).
+                var guncel = kayit with { TeknikVeri = kayit.TeknikVeri with { TeknikKapasiteKg = 42_000 } };
+                var baskaModel = await EkipmanServisi(db).IceAktarAsync(
+                    Dosya(guncel with { Uretici = "Üretici B", ModelAdi = "LB 4", Ad = "Başka ad" }), uygula: true, kullaniciId: null, Ct);
+                Assert.Equal((false, 0), (baskaModel.Uygulandi, baskaModel.Konfigurasyonlar.Count));
+                var sorun = Assert.Single(baskaModel.Sorunlar);
+                Assert.Equal((EkipmanExcelDosyasi.KonfigurasyonSayfasi, "LB-3D"), (sorun.Sayfa, sorun.KonfigurasyonKodu));
+                Assert.Contains("başka bir modele ait (lowbed / Üretici A / LB 3)", sorun.Mesaj);
+            }
+
+            await using (var db = new AppDbContext(options))
+            {
+                var onceki = await db.EkipmanKonfigurasyonlari.AsNoTracking().SingleAsync();
+                Assert.Equal((kayit.Ad, 2, 1, 2), (onceki.Ad, onceki.SonRevizyonNo, await db.EkipmanModelleri.CountAsync(),
+                    await db.EkipmanKonfigurasyonRevizyonlari.CountAsync()));
+
+                // Yalnız adı değişen satır: revizyon açılmaz ("değişmedi"), ad güncellenir ve sonuç eski adı gösterir.
+                var guncel = kayit with { TeknikVeri = kayit.TeknikVeri with { TeknikKapasiteKg = 42_000 } };
+                var adli = await EkipmanServisi(db).IceAktarAsync(Dosya(guncel with { Ad = "Yeni ad" }), uygula: true, kullaniciId: null, Ct);
+                Assert.Equal((true, 1, 0, 0), (adli.Uygulandi, adli.DegismeyenSayisi, adli.YeniRevizyonSayisi, adli.YeniSayisi));
+                var satir = Assert.Single(adli.Konfigurasyonlar);
+                Assert.Equal(("Yeni ad", kayit.Ad, EkipmanIceAktarimIslemi.Degismedi, 2), (satir.Ad, satir.OncekiAd, satir.Islem, satir.RevizyonNo));
+            }
+
+            await using (var db = new AppDbContext(options))
+            {
                 var konf = await db.EkipmanKonfigurasyonlari.AsNoTracking().SingleAsync();
+                Assert.Equal(("Yeni ad", 2), (konf.Ad, await db.EkipmanKonfigurasyonRevizyonlari.CountAsync()));
                 Assert.Equal((2, 1), (konf.SonRevizyonNo, await db.EkipmanModelleri.CountAsync()));
                 // Yalnız son revizyon doğrulanır; doğrulanmış revizyon tekrar doğrulanmaz.
                 Assert.Equal(409, (await Assert.ThrowsAsync<IsKuraliException>(() => EkipmanServisi(db).DogrulaAsync(konf.Id, 1, 7, Ct))).StatusCode);
@@ -542,6 +570,177 @@ public sealed class YuklemePlanlamaPostgresTests
                 var disa = await EkipmanServisi(db).DisaAktarAsync(Ct);
                 var tekrar = await EkipmanServisi(db).IceAktarAsync(new MemoryStream(disa), uygula: false, kullaniciId: null, Ct);
                 Assert.Equal((1, 0), (tekrar.DegismeyenSayisi, tekrar.Sorunlar.Count));
+            }
+        });
+    }
+
+    /// <summary>
+    /// Ekrandan kayıt tek konfigürasyonluk içe aktarımla aynı kurallardan geçer: yeni kayıt revizyon 1 ve doğrulanmamış,
+    /// aynı kod 409, denetim hatasında 400 + sorun listesi ve hiçbir şey yazılmaz; güncellemede teknik veri ya da kaynak
+    /// değişince yeni doğrulanmamış revizyon (eskisi değişmez), değişiklik yokken yazım yok, eski revizyon numarasıyla 409.
+    /// Ekrandan girilen veri Excel dışa aktarımında aynı değerlerle çıkar ve aynı Excel satırı "değişmedi" sayılır.
+    /// </summary>
+    [PostgresRaporFact, Trait("Category", "Postgres")]
+    public async Task Postgres_EkipmanEkrandanKayit_IceAktarimlaAyniKurallar()
+    {
+        await FinansPostgresTests.InDatabase(async options =>
+        {
+            const int lowbedTipId = 21;
+            var ornek = YuklemePlanlamaTests.LowbedKaydi();
+            // Ekran satırları Excel'den farklı sırada ve boşluklu gönderebilir; sonuç aynı kanonik veridir.
+            var karisik = ornek.TeknikVeri with
+            {
+                Yuzeyler = ornek.TeknikVeri.Yuzeyler.Reverse().ToList(),
+                Dingiller = ornek.TeknikVeri.Dingiller.Reverse().ToList()
+            };
+            EkipmanKonfigurasyonKaydi Kayit(_3K.YuklemeMotoru.Ekipman.EkipmanTeknikVerisi veri, string? kod = null) => new(
+                kod ?? " lb-3d ", $" {ornek.Ad} ", lowbedTipId, ornek.Uretici, ornek.ModelAdi, ornek.KaynakTuru, ornek.KaynakAciklama,
+                ornek.KaynakTarihi, ornek.Aciklama, _3K.YuklemeMotoru.Ekipman.EkipmanTeknikVeriSerilestirici.Yaz(veri));
+            async Task<(int Konfigurasyon, int Model, int Revizyon)> Sayilar(AppDbContext db) => (
+                await db.EkipmanKonfigurasyonlari.CountAsync(), await db.EkipmanModelleri.CountAsync(),
+                await db.EkipmanKonfigurasyonRevizyonlari.CountAsync());
+
+            int id;
+            await using (var db = new AppDbContext(options))
+            {
+                // Denetim hatası: istek 400 ve her hata bir satır; okunamayan JSON ve tanımsız tip de sorun olur. Hiçbiri yazmaz.
+                var isleyici = new EkipmanKitapligiCommandHandlers(
+                    EkipmanServisi(db), new OrtakUser());
+                var hatali = await isleyici.Handle(new EkipmanKonfigurasyonEkleCommand
+                {
+                    Kod = "LB-3D", Ad = ornek.Ad, TipId = lowbedTipId, Uretici = ornek.Uretici, ModelAdi = ornek.ModelAdi, KaynakTuru = ornek.KaynakTuru,
+                    TeknikVeriJson = _3K.YuklemeMotoru.Ekipman.EkipmanTeknikVeriSerilestirici.Yaz(ornek.TeknikVeri with { Yuzeyler = [], DaraKg = -5 })
+                }, Ct);
+                Assert.Equal((false, 400), (hatali.IsSuccess, hatali.StatusCode));
+                var sorunlar = Assert.IsAssignableFrom<IReadOnlyList<string>>(hatali.Error!.Issues);
+                Assert.Equal(2, sorunlar.Count);
+                Assert.Contains(sorunlar, s => s.StartsWith("Boş ağırlık sıfırdan büyük", StringComparison.Ordinal));
+                Assert.Contains(sorunlar, s => s.StartsWith("En az bir yükleme yüzeyi", StringComparison.Ordinal));
+
+                var okunamayan = await EkipmanServisi(db).EkleAsync(Kayit(karisik) with { TeknikVeriJson = "{\"yuzeyler\":[{\"kod\":\"A\"}]}" }, 7, Ct);
+                Assert.Null(okunamayan.Detay);
+                Assert.StartsWith("Teknik veri okunamadı: 'yuzeyler[0]", Assert.Single(okunamayan.Sorunlar), StringComparison.Ordinal);
+                var tipsiz = await EkipmanServisi(db).EkleAsync(Kayit(karisik) with { TipId = 999_999 }, 7, Ct);
+                Assert.Equal(EkipmanKitapligiKurali.TipBulunamadiMesaji, Assert.Single(tipsiz.Sorunlar));
+                // Sınırı aşan metin denetime girmez: yalnız sınır sorunu döner, uzun metin hiçbir mesajda tekrarlanmaz
+                // (aynı veride denetim hatası da var: negatif boş ağırlık).
+                var uzunKod = new string('K', EkipmanKitapligiKurali.KodEnFazla + 1);
+                var sinirDisi = await EkipmanServisi(db).EkleAsync(Kayit(ornek.TeknikVeri with
+                {
+                    DaraKg = -5,
+                    Yuzeyler = [ornek.TeknikVeri.Yuzeyler[0] with { Kod = uzunKod }, ornek.TeknikVeri.Yuzeyler[1]]
+                }), 7, Ct);
+                Assert.StartsWith("Yüzey kodu en fazla", Assert.Single(sinirDisi.Sorunlar), StringComparison.Ordinal);
+                Assert.DoesNotContain(uzunKod, sinirDisi.Sorunlar[0], StringComparison.Ordinal);
+                // Saat dilimi taşıyan kaynak tarihi günü kaydırabileceği için kaydedilmez.
+                var dilimli = await EkipmanServisi(db).EkleAsync(
+                    Kayit(karisik) with { KaynakTarihi = new DateTime(2026, 9, 30, 21, 0, 0, DateTimeKind.Utc) }, 7, Ct);
+                Assert.Equal(EkipmanKitapligiKurali.KaynakTarihiMesaji, Assert.Single(dilimli.Sorunlar));
+                Assert.Equal((0, 0, 0), await Sayilar(db));
+
+                // Yeni kayıt: kod büyük harfe çevrilir, ad kırpılır, revizyon 1 doğrulanmamış başlar.
+                var eklenen = (await EkipmanServisi(db).EkleAsync(Kayit(karisik), 7, Ct)).Detay!;
+                id = eklenen.Id;
+                Assert.Equal(("LB-3D", ornek.Ad, lowbedTipId, "lowbed", 1, EkipmanDogrulamaDurumu.Dogrulanmadi),
+                    (eklenen.Kod, eklenen.Ad, eklenen.TipId, eklenen.TipKodu, eklenen.Revizyon.RevizyonNo, eklenen.Revizyon.DogrulamaDurumu));
+                Assert.Equal((ornek.KaynakTuru, ornek.KaynakAciklama, ornek.KaynakTarihi, ornek.Aciklama),
+                    (eklenen.Revizyon.KaynakTuru, eklenen.Revizyon.KaynakAciklama, eklenen.Revizyon.KaynakTarihi, eklenen.Revizyon.Aciklama));
+                Assert.Empty(eklenen.VeriUyarilari);
+                Assert.Equal((1, 1, 1), await Sayilar(db));
+                Assert.Equal(7, (await db.EkipmanKonfigurasyonRevizyonlari.AsNoTracking().SingleAsync()).OlusturanKullaniciId);
+            }
+
+            await using (var db = new AppDbContext(options))
+            {
+                // Aynı kod (harf farkıyla da) ikinci kez eklenmez; var olan kayıt değişmez.
+                var ayniKod = await Assert.ThrowsAsync<IsKuraliException>(() => EkipmanServisi(db).EkleAsync(
+                    Kayit(ornek.TeknikVeri with { TeknikKapasiteKg = 1 }, "Lb-3D"), 7, Ct));
+                Assert.Equal((409, EkipmanKitapligiKurali.KodZatenVarMesaji), (ayniKod.StatusCode, ayniKod.Message));
+                Assert.Equal((1, 1, 1), await Sayilar(db));
+
+                // İki yol aynı veriyi üretir: dışa aktarılan Excel örnek kayıtla aynı değerleri taşır ve aynı Excel satırı "değişmedi" olur.
+                var okuma = EkipmanExcelDosyasi.Oku(new MemoryStream(await EkipmanServisi(db).DisaAktarAsync(Ct)));
+                Assert.Empty(okuma.Sorunlar);
+                var disa = Assert.Single(okuma.Kayitlar);
+                Assert.Equal((ornek.Kod, ornek.Ad, ornek.TipKodu, ornek.Uretici, ornek.ModelAdi, ornek.KaynakTuru, ornek.KaynakAciklama, ornek.KaynakTarihi, ornek.Aciklama),
+                    (disa.Kod, disa.Ad, disa.TipKodu, disa.Uretici, disa.ModelAdi, disa.KaynakTuru, disa.KaynakAciklama, disa.KaynakTarihi, disa.Aciklama));
+                Assert.Equal(_3K.YuklemeMotoru.Ekipman.EkipmanTeknikVeriSerilestirici.Yaz(ornek.TeknikVeri),
+                    _3K.YuklemeMotoru.Ekipman.EkipmanTeknikVeriSerilestirici.Yaz(disa.TeknikVeri));
+                EkipmanExcelTipi[] tipler = [new("lowbed", "Lowbed", "Açık kasa / açık platform / lowbed", EkipmanKategorisi.Lowbed)];
+                var ayniExcel = await EkipmanServisi(db).IceAktarAsync(
+                    new MemoryStream(EkipmanExcelDosyasi.Yaz(tipler, [ornek])), uygula: true, kullaniciId: null, Ct);
+                Assert.Equal((true, 1, 0, 0), (ayniExcel.Uygulandi, ayniExcel.DegismeyenSayisi, ayniExcel.YeniRevizyonSayisi, ayniExcel.YeniSayisi));
+            }
+
+            uint surum;
+            string eskiJson;
+            await using (var db = new AppDbContext(options))
+            {
+                surum = (await db.EkipmanKonfigurasyonlari.AsNoTracking().SingleAsync()).Version;
+                eskiJson = (await db.EkipmanKonfigurasyonRevizyonlari.AsNoTracking().SingleAsync()).TeknikVeriJson;
+
+                // Değişiklik yok: revizyon yazılmaz, satır da yazılmaz (xmin aynı kalır); mevcut ayrıntı döner. Ekran formu
+                // ayrıntıdaki teknik veri JSON'unu (jsonb metni, şema sürümüyle) aynen geri gönderir; o da "değişmedi" sayılır.
+                var ayrinti = (await EkipmanServisi(db).KonfigurasyonGetirAsync(id, Ct))!;
+                foreach (var ayniKayit in new[] { Kayit(ornek.TeknikVeri, "LB-3D"), Kayit(ornek.TeknikVeri) with { TeknikVeriJson = ayrinti.TeknikVeriJson } })
+                {
+                    var ayni = (await EkipmanServisi(db).GuncelleAsync(id, 1, ayniKayit, 7, Ct)).Detay!;
+                    Assert.Equal((1, 1), (ayni.Revizyon.RevizyonNo, ayni.Revizyonlar.Count));
+                }
+                Assert.Equal(surum, (await db.EkipmanKonfigurasyonlari.AsNoTracking().SingleAsync()).Version);
+            }
+
+            var degisen = ornek.TeknikVeri with { TeknikKapasiteKg = 42_000 };
+            await using (var db = new AppDbContext(options))
+            {
+                // Eski revizyon numarasıyla, farklı kodla ve olmayan kayıtla güncelleme yazmaz.
+                var eski = await Assert.ThrowsAsync<IsKuraliException>(() => EkipmanServisi(db).GuncelleAsync(id, 2, Kayit(degisen), 7, Ct));
+                Assert.Equal((409, EkipmanKitapligiKurali.KayitDegistiMesaji), (eski.StatusCode, eski.Message));
+                var baskaKod = await Assert.ThrowsAsync<IsKuraliException>(() => EkipmanServisi(db).GuncelleAsync(id, 1, Kayit(degisen, "LB-4D"), 7, Ct));
+                Assert.Equal((400, EkipmanKitapligiKurali.KodDegistirilemezMesaji), (baskaKod.StatusCode, baskaKod.Message));
+                await Assert.ThrowsAsync<KayitBulunamadiException>(() => EkipmanServisi(db).GuncelleAsync(999_999, 1, Kayit(degisen), 7, Ct));
+                // Var olan ekipman başka modele taşınmaz (içe aktarımdaki "kod başka modele ait" kuralı) ve denetim hatası yazmaz.
+                var baskaModel = await EkipmanServisi(db).GuncelleAsync(id, 1, Kayit(degisen) with { Uretici = "Üretici B" }, 7, Ct);
+                Assert.Contains("değiştirilemez", Assert.Single(baskaModel.Sorunlar));
+                var hatali = await EkipmanServisi(db).GuncelleAsync(id, 1, Kayit(degisen with { DaraKg = 50_000, AzamiBrutKg = 40_000 }), 7, Ct);
+                Assert.Contains("Boş ağırlık azami brüt", Assert.Single(hatali.Sorunlar));
+            }
+
+            await using (var db = new AppDbContext(options))
+            {
+                Assert.Equal((1, 1, 1), await Sayilar(db));
+                var konf = await db.EkipmanKonfigurasyonlari.AsNoTracking().SingleAsync();
+                Assert.Equal((surum, 1, ornek.Ad), (konf.Version, konf.SonRevizyonNo, konf.Ad));
+
+                // Doğrulanmış revizyonun üstüne teknik veri değişince yeni revizyon doğrulanmamış açılır; eski revizyon aynen kalır.
+                await EkipmanServisi(db).DogrulaAsync(id, 1, 9, Ct);
+            }
+
+            await using (var db = new AppDbContext(options))
+            {
+                var guncel = (await EkipmanServisi(db).GuncelleAsync(id, 1, Kayit(degisen), 7, Ct)).Detay!;
+                Assert.Equal((2, EkipmanDogrulamaDurumu.Dogrulanmadi, 2), (guncel.Revizyon.RevizyonNo, guncel.Revizyon.DogrulamaDurumu, guncel.Revizyonlar.Count));
+                Assert.Contains("42000", guncel.TeknikVeriJson);
+                var ilk = await db.EkipmanKonfigurasyonRevizyonlari.AsNoTracking().SingleAsync(r => r.RevizyonNo == 1);
+                Assert.Equal((eskiJson, EkipmanDogrulamaDurumu.Dogrulandi, 9, ornek.KaynakAciklama),
+                    (ilk.TeknikVeriJson, ilk.DogrulamaDurumu, ilk.DogrulayanKullaniciId, ilk.KaynakAciklama));
+            }
+
+            await using (var db = new AppDbContext(options))
+            {
+                // Yalnız ad değişirse içe aktarımdaki gibi ad güncellenir, revizyon açılmaz.
+                var adli = (await EkipmanServisi(db).GuncelleAsync(id, 2, Kayit(degisen) with { Ad = "Yeni ad" }, 7, Ct)).Detay!;
+                Assert.Equal(("Yeni ad", 2, 2), (adli.Ad, adli.Revizyon.RevizyonNo, adli.Revizyonlar.Count));
+            }
+
+            await using (var db = new AppDbContext(options))
+            {
+                // Yalnız kaynak değişirse de yeni revizyon açılır (içe aktarımla aynı karar).
+                var kaynakli = (await EkipmanServisi(db).GuncelleAsync(
+                    id, 2, Kayit(degisen) with { Ad = "Yeni ad", KaynakAciklama = "Föy 2026/1" }, 7, Ct)).Detay!;
+                Assert.Equal((3, "Föy 2026/1", EkipmanDogrulamaDurumu.Dogrulanmadi),
+                    (kaynakli.Revizyon.RevizyonNo, kaynakli.Revizyon.KaynakAciklama, kaynakli.Revizyon.DogrulamaDurumu));
+                Assert.Equal((1, 1, 3), await Sayilar(db));
             }
         });
     }

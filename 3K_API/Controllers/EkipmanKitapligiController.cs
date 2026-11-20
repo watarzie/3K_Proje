@@ -9,8 +9,8 @@ using _3K_API.Extensions;
 namespace _3K_API.Controllers
 {
     /// <summary>
-    /// Ekipman kitaplığı (ekipman-kitapligi: R görüntüleme ve Excel indirme, W içe aktarma; ekipman-dogrulama: W
-    /// doğrulama).
+    /// Ekipman kitaplığı (ekipman-kitapligi: R görüntüleme ve Excel indirme, W içe aktarma ve ekrandan
+    /// ekleme/güncelleme; ekipman-dogrulama: W doğrulama).
     /// </summary>
     [Authorize]
     [ApiController]
@@ -19,6 +19,10 @@ namespace _3K_API.Controllers
     {
         // Gövde, dosya sınırı (10 MB) ve form başlıkları kadar; daha büyüğü tamponlanmadan reddedilir.
         private const long DosyaGovdeSiniri = EkipmanKitapligiKurali.DosyaEnFazlaBayt + 1024 * 1024;
+
+        // Ekrandan kayıt gövdesi: teknik veri en fazla 1.000.000 karakterdir; UTF-8 ve JSON kaçışıyla birkaç katına
+        // çıkabildiği için 4 MB. Daha büyüğü okunmadan reddedilir (genel sınır 50 MB'tır).
+        private const long KayitGovdeSiniri = 4L * 1024 * 1024;
 
         /// <summary>Taşıma aileleri ve tipleri.</summary>
         [HttpGet("aileler")]
@@ -34,6 +38,21 @@ namespace _3K_API.Controllers
         [HttpGet("konfigurasyonlar/{id:int}")]
         public async Task<ActionResult> Konfigurasyon(int id, CancellationToken ct) =>
             (await mediator.Send(new EkipmanKonfigurasyonGetirQuery { Id = id }, ct)).ToActionResult();
+
+        /// <summary>Ekrandan yeni konfigürasyon; aynı kod varsa 409, kural sorunu varsa 400 ve sorun listesi.</summary>
+        [HttpPost("konfigurasyonlar")]
+        [RequestSizeLimit(KayitGovdeSiniri)]
+        public async Task<ActionResult> Ekle([FromBody] EkipmanKonfigurasyonEkleCommand command, CancellationToken ct) =>
+            (await mediator.Send(command, ct)).ToActionResult();
+
+        /// <summary>Ekrandan güncelleme; teknik veri ya da kaynak değiştiyse yeni revizyon, arada değiştiyse 409.</summary>
+        [HttpPut("konfigurasyonlar/{id:int}")]
+        [RequestSizeLimit(KayitGovdeSiniri)]
+        public async Task<ActionResult> Guncelle(int id, [FromBody] EkipmanKonfigurasyonGuncelleCommand command, CancellationToken ct)
+        {
+            command.KonfigurasyonId = id;
+            return (await mediator.Send(command, ct)).ToActionResult();
+        }
 
         /// <summary>Son revizyonu doğrulanmış işaretler.</summary>
         [HttpPost("konfigurasyonlar/{id:int}/dogrula")]

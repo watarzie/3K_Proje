@@ -4,7 +4,7 @@ namespace _3K.Core.Interfaces;
 
 /// <summary>
 /// Ekipman kitaplığı: aileler ve tipler, konfigürasyon listesi ve ayrıntısı, Excel şablonu/dışa aktarımı, Excel'den
-/// içe aktarma (önizleme ve atomik uygulama) ve revizyon doğrulama.
+/// içe aktarma (önizleme ve atomik uygulama), ekrandan ekleme/güncelleme ve revizyon doğrulama.
 /// </summary>
 public interface IEkipmanKitapligiService
 {
@@ -26,6 +26,20 @@ public interface IEkipmanKitapligiService
     /// değişen konfigürasyon yeni (doğrulanmamış) revizyon alır, değişmeyene dokunulmaz.
     /// </summary>
     Task<EkipmanIceAktarimSonucu> IceAktarAsync(Stream dosya, bool uygula, int? kullaniciId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Ekrandan yeni konfigürasyon: tek konfigürasyonluk bir içe aktarımla aynı kurallardan geçer ve ilk (doğrulanmamış)
+    /// revizyonu yazar. Aynı kod varsa 409; kural sorunu varsa hiçbir şey yazılmaz ve sorunlar döner.
+    /// </summary>
+    Task<EkipmanKayitSonucu> EkleAsync(EkipmanKonfigurasyonKaydi kayit, int? kullaniciId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Ekrandan güncelleme, içe aktarımla aynı revizyon kuralıyla: teknik verisi ya da kaynağı değişen konfigürasyon yeni
+    /// (doğrulanmamış) revizyon alır; yalnız adı değişenin adı güncellenir; değişiklik yoksa hiçbir şey yazılmaz. Kayıt
+    /// yoksa 404, kod farklıysa 400, <paramref name="beklenenRevizyonNo"/> son revizyon değilse 409.
+    /// </summary>
+    Task<EkipmanKayitSonucu> GuncelleAsync(
+        int konfigurasyonId, int beklenenRevizyonNo, EkipmanKonfigurasyonKaydi kayit, int? kullaniciId, CancellationToken cancellationToken);
 
     /// <summary>Son revizyonu doğrulanmış işaretler; revizyon son değilse veya zaten doğrulanmışsa 409.</summary>
     Task<EkipmanKonfigurasyonDetayi> DogrulaAsync(int konfigurasyonId, int revizyonNo, int kullaniciId, CancellationToken cancellationToken);

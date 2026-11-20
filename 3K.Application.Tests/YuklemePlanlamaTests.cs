@@ -597,6 +597,216 @@ public sealed class YuklemePlanlamaTests
         Assert.Contains(sonuc.Hatalar, h => h.StartsWith("Dingil (X=70000", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// Ekrandan gelen teknik veri Excel'in alt sayfalarıyla aynı sonucu verir: listeler kanonik sıraya dizilir, metin
+    /// kırpılır ve boş metin "yok" olur; böylece aynı bilgi iki yoldan aynı JSON'u (aynı revizyon kararını) üretir.
+    /// </summary>
+    [Fact]
+    public void EkranTeknikVerisi_ExcelIleAyniKanonikVeri()
+    {
+        var ornek = LowbedKaydi().TeknikVeri;
+        var karisik = ornek with
+        {
+            Yuzeyler = [ornek.Yuzeyler[1] with { Kod = " HAVUZ " }, ornek.Yuzeyler[0] with { Ad = " Boyun " }],
+            Dingiller = ornek.Dingiller.Reverse().ToList(),
+            Engeller = [ornek.Engeller[0] with { Aciklama = "  Arka dingil üstü " }]
+        };
+
+        var girdi = EkipmanTeknikVeriGirdisi.Oku(EkipmanTeknikVeriSerilestirici.Yaz(karisik));
+        Assert.Empty(girdi.Sorunlar);
+        Assert.Equal(EkipmanTeknikVeriSerilestirici.Yaz(ornek), EkipmanTeknikVeriSerilestirici.Yaz(girdi.Veri!));
+
+        // Boş metin "yok" olur; "sokulebilir" verilmezse hayır sayılır (Excel'de boş hücre); kök alanların hepsi isteğe bağlıdır.
+        var bos = EkipmanTeknikVeriGirdisi.Oku(
+            "{\"yuzeyler\":[{\"kod\":\"ANA\",\"ad\":\"  \",\"baslangicXMm\":0,\"uzunlukMm\":6000,\"genislikMm\":2400,\"yerdenYukseklikMm\":1200}]," +
+            "\"engeller\":[{\"tur\":\"dikme\",\"xMm\":0,\"yMm\":0,\"zMm\":0,\"uzunlukMm\":100,\"genislikMm\":100,\"yukseklikMm\":100,\"aciklama\":\"\"}]}");
+        Assert.Empty(bos.Sorunlar);
+        Assert.Null(Assert.Single(bos.Veri!.Yuzeyler).Ad);
+        Assert.Equal((false, null), (Assert.Single(bos.Veri.Engeller).Sokulebilir, bos.Veri.Engeller[0].Aciklama));
+        Assert.NotNull(EkipmanTeknikVeriGirdisi.Oku("{}").Veri);
+
+        // Yazılan her enum adı katı okumada da tanınır (ayrıntıdaki JSON aynen geri gönderilebilir).
+        var tumEnumlar = KapaliKonteyner() with
+        {
+            Acikliklar = Enum.GetValues<AciklikTarafi>().Select(t => new Aciklik(t, 0, 1_000, 1_000, 1_000)).ToList(),
+            Engeller = Enum.GetValues<EngelTuru>().Select((t, i) => new Engel(t, i, 0, 0, 10, 10, 10, false, null)).ToList(),
+            Dingiller = Enum.GetValues<DingilTuru>().Select((t, i) => new Dingil(i, t, 1, null)).ToList()
+        };
+        var enumlu = EkipmanTeknikVeriGirdisi.Oku(EkipmanTeknikVeriSerilestirici.Yaz(tumEnumlar));
+        Assert.Empty(enumlu.Sorunlar);
+        Assert.Equal(EkipmanTeknikVeriSerilestirici.Yaz(EkipmanTeknikVeriSerilestirici.KanonikSira(tumEnumlar)),
+            EkipmanTeknikVeriSerilestirici.Yaz(enumlu.Veri!));
+
+        // Metin sınırları Excel sütunlarıyla aynıdır.
+        var uzun = EkipmanTeknikVeriGirdisi.Oku(EkipmanTeknikVeriSerilestirici.Yaz(ornek with
+        {
+            Yuzeyler = [ornek.Yuzeyler[0] with { Kod = new string('K', EkipmanKitapligiKurali.KodEnFazla + 1) },
+                ornek.Yuzeyler[1] with { Ad = new string('A', EkipmanKitapligiKurali.AdEnFazla + 1) }],
+            Engeller = [ornek.Engeller[0] with { Aciklama = new string('E', EkipmanKitapligiKurali.AciklamaEnFazla + 1) }]
+        }));
+        Assert.Equal(3, uzun.Sorunlar.Count);
+        Assert.Contains(uzun.Sorunlar, s => s.StartsWith("Yüzey kodu en fazla", StringComparison.Ordinal));
+        Assert.Contains(uzun.Sorunlar, s => s.StartsWith("Yüzey 'HAVUZ': ad en fazla", StringComparison.Ordinal));
+        Assert.Contains(uzun.Sorunlar, s => s.StartsWith("Engel açıklaması en fazla", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Ekrandan gelen teknik veri katı okunur: bilinmeyen ya da yinelenen alan, yanlış tür ve alt kayıtta eksik zorunlu
+    /// alan reddedilir (eksik sayı sıfır sayılmaz); mesaj alanın yolunu söyler, iç ayrıntı taşımaz.
+    /// </summary>
+    [Theory]
+    [InlineData("{\"bilinmeyen\":1}", "bilinmeyen")]
+    [InlineData("{\"daraKg\":1,\"daraKg\":2}", "daraKg")]
+    [InlineData("{\"daraKg\":12.5}", "daraKg")]
+    [InlineData("{\"yuzeyler\":null}", "yuzeyler")]
+    [InlineData("{\"yuzeyler\":[{\"kod\":\"A\",\"uzunlukMm\":6000,\"genislikMm\":2400,\"yerdenYukseklikMm\":0}]}", "yuzeyler[0]")]
+    [InlineData("{\"yuzeyler\":[{\"baslangicXMm\":0,\"uzunlukMm\":6000,\"genislikMm\":2400,\"yerdenYukseklikMm\":0}]}", "yuzeyler[0]")]
+    [InlineData("{\"yuzeyler\":[{\"kod\":null,\"baslangicXMm\":0,\"uzunlukMm\":6000,\"genislikMm\":2400,\"yerdenYukseklikMm\":0}]}", "yuzeyler[0]")]
+    [InlineData("{\"disOlcu\":{\"uzunlukMm\":12000}}", "disOlcu")]
+    [InlineData("{\"kingPin\":{\"azamiBaglantiYukuKg\":18000}}", "kingPin")]
+    [InlineData("{\"acikliklar\":[{\"taraf\":1}]}", "acikliklar[0]")]
+    [InlineData("{\"acikliklar\":[{\"taraf\":\"yok\"}]}", "acikliklar[0]")]
+    [InlineData("{\"dingiller\":[{\"xMm\":100,\"tur\":\"tahriksiz\"}]}", "dingiller[0]")]
+    [InlineData("{\"baglamaNoktalari\":[{\"xMm\":1,\"yMm\":1}]}", "baglamaNoktalari[0]")]
+    // Enum yalnız tanımlı adıyla kabul edilir: virgüllü birleşim ve sayı (metin ya da sayı olarak, tanımlı olsa da)
+    // reddedilir; etiketi olmayan değer Excel'e yazılırken 500 üretmesin.
+    [InlineData("{\"engeller\":[{\"tur\":\"travers, kapak\",\"xMm\":0,\"yMm\":0,\"zMm\":0,\"uzunlukMm\":100,\"genislikMm\":100,\"yukseklikMm\":100}]}", "engeller[0].tur")]
+    [InlineData("{\"engeller\":[{\"tur\":\"7\",\"xMm\":0,\"yMm\":0,\"zMm\":0,\"uzunlukMm\":100,\"genislikMm\":100,\"yukseklikMm\":100}]}", "engeller[0].tur")]
+    [InlineData("{\"engeller\":[{\"tur\":7,\"xMm\":0,\"yMm\":0,\"zMm\":0,\"uzunlukMm\":100,\"genislikMm\":100,\"yukseklikMm\":100}]}", "engeller[0].tur")]
+    [InlineData("{\"dingiller\":[{\"xMm\":100,\"tur\":\"2\",\"grupNo\":1}]}", "dingiller[0].tur")]
+    [InlineData("{\"acikliklar\":[{\"taraf\":\"arka, sol\",\"genislikMm\":2340,\"yukseklikMm\":2580}]}", "acikliklar[0].taraf")]
+    public void EkranTeknikVerisi_SemaDisiJsonReddedilir(string json, string yol)
+    {
+        var girdi = EkipmanTeknikVeriGirdisi.Oku(json);
+        Assert.Null(girdi.Veri);
+        var sorun = Assert.Single(girdi.Sorunlar);
+        Assert.StartsWith($"Teknik veri okunamadı: '{yol}", sorun, StringComparison.Ordinal);
+        Assert.DoesNotContain("_3K", sorun, StringComparison.Ordinal);
+        Assert.DoesNotContain("System.", sorun, StringComparison.Ordinal);
+    }
+
+    /// <summary>JSON nesnesi olmayan girdi ve liste içindeki boş kayıt da okunmaz; hiçbir durumda istisna çıkmaz.</summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("null")]
+    [InlineData("[]")]
+    [InlineData("{bozuk")]
+    [InlineData("{\"yuzeyler\":[null]}")]
+    public void EkranTeknikVerisi_NesneOlmayanGirdiReddedilir(string? json)
+    {
+        var girdi = EkipmanTeknikVeriGirdisi.Oku(json);
+        Assert.Null(girdi.Veri);
+        Assert.Contains(Assert.Single(girdi.Sorunlar), new[] { EkipmanTeknikVeriGirdisi.OkunamadiMesaji, EkipmanTeknikVeriGirdisi.BosKayitMesaji });
+    }
+
+    private static EkipmanKonfigurasyonGuncelleCommand GecerliEkipmanKaydi() => new()
+    {
+        KonfigurasyonId = 5,
+        BeklenenRevizyonNo = 1,
+        Kod = "LB-3D",
+        Ad = "3 dingil lowbed",
+        TipId = 21,
+        Uretici = "Üretici A",
+        ModelAdi = "LB 3",
+        KaynakTuru = EkipmanKaynakTuru.UreticiFoyu,
+        TeknikVeriJson = "{}"
+    };
+
+    /// <summary>
+    /// Ekrandan kaydın alan kuralları Excel'deki konfigürasyon satırıyla aynıdır: kod, ad, tip, üretici, model ve kaynak
+    /// türü zorunlu; sınırlar <see cref="EkipmanKitapligiKurali"/>'ndan ve kırpılmış metne göre.
+    /// </summary>
+    [Fact]
+    public void EkipmanKaydiDogrulamasi_ZorunluAlanlarVeSinirlar()
+    {
+        var dogrulayici = new EkipmanKonfigurasyonGuncelleCommandValidator();
+        Assert.True(dogrulayici.Validate(GecerliEkipmanKaydi()).IsValid);
+
+        // Sınır kırpılmış metne uygulanır: baştaki/sondaki boşluk sınırı aşırmaz.
+        var sinirda = GecerliEkipmanKaydi();
+        sinirda.Kod = "  " + new string('K', EkipmanKitapligiKurali.KodEnFazla) + "  ";
+        sinirda.Ad = new string('A', EkipmanKitapligiKurali.AdEnFazla);
+        sinirda.Uretici = new string('U', EkipmanKitapligiKurali.UreticiEnFazla);
+        sinirda.ModelAdi = new string('M', EkipmanKitapligiKurali.ModelEnFazla);
+        sinirda.KaynakAciklama = new string('B', EkipmanKitapligiKurali.KaynakAciklamaEnFazla);
+        sinirda.Aciklama = new string('C', EkipmanKitapligiKurali.AciklamaEnFazla);
+        sinirda.KaynakTarihi = new DateTime(2026, 10, 1);
+        Assert.True(dogrulayici.Validate(sinirda).IsValid);
+
+        (Action<EkipmanKonfigurasyonGuncelleCommand> Boz, string Mesaj)[] hatalilar =
+        [
+            (k => k.Kod = "   ", "Ekipman kodu zorunludur"),
+            (k => k.Kod = null!, "Ekipman kodu zorunludur"),
+            (k => k.Kod = new string('K', EkipmanKitapligiKurali.KodEnFazla + 1), "Ekipman kodu zorunludur"),
+            (k => k.Ad = "", "Ekipman adı zorunludur"),
+            (k => k.Ad = new string('A', EkipmanKitapligiKurali.AdEnFazla + 1), "Ekipman adı zorunludur"),
+            (k => k.TipId = 0, "Ekipman tipi seçilmelidir."),
+            (k => k.Uretici = " ", "Üretici zorunludur"),
+            (k => k.Uretici = new string('U', EkipmanKitapligiKurali.UreticiEnFazla + 1), "Üretici zorunludur"),
+            (k => k.ModelAdi = null!, "Model adı zorunludur"),
+            (k => k.ModelAdi = new string('M', EkipmanKitapligiKurali.ModelEnFazla + 1), "Model adı zorunludur"),
+            (k => k.KaynakTuru = 0, "Kaynak türü geçersiz."),
+            (k => k.KaynakTuru = (EkipmanKaynakTuru)6, "Kaynak türü geçersiz."),
+            (k => k.KaynakAciklama = new string('B', EkipmanKitapligiKurali.KaynakAciklamaEnFazla + 1), "Kaynak açıklaması en fazla"),
+            (k => k.Aciklama = new string('C', EkipmanKitapligiKurali.AciklamaEnFazla + 1), "Açıklama en fazla"),
+            (k => k.KaynakTarihi = new DateTime(2026, 10, 1, 10, 30, 0), EkipmanKitapligiKurali.KaynakTarihiMesaji),
+            (k => k.KaynakTarihi = new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc), EkipmanKitapligiKurali.KaynakTarihiMesaji),
+            (k => k.KaynakTarihi = new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Local), EkipmanKitapligiKurali.KaynakTarihiMesaji),
+            (k => k.TeknikVeriJson = null!, "Teknik veri zorunludur."),
+            (k => k.TeknikVeriJson = " ", "Teknik veri zorunludur."),
+            (k => k.TeknikVeriJson = new string(' ', EkipmanKitapligiKurali.TeknikVeriJsonEnFazla) + "{}", "Teknik veri çok büyük."),
+            (k => k.BeklenenRevizyonNo = 0, "Ekipmanın revizyon numarası eksik"),
+            (k => k.KonfigurasyonId = 0, "Konfigürasyon seçilmelidir.")
+        ];
+        foreach (var (boz, mesaj) in hatalilar)
+        {
+            var istek = GecerliEkipmanKaydi();
+            boz(istek);
+            Assert.StartsWith(mesaj, Assert.Single(dogrulayici.Validate(istek).Errors).ErrorMessage, StringComparison.Ordinal);
+        }
+
+        // Ekleme aynı alan kurallarını kullanır; revizyon numarası istemez.
+        var ekleme = new EkipmanKonfigurasyonEkleCommandValidator();
+        EkipmanKonfigurasyonEkleCommand Ekle(string kod) => new()
+        {
+            Kod = kod, Ad = "Ad", TipId = 21, Uretici = "Ü", ModelAdi = "M", KaynakTuru = EkipmanKaynakTuru.Diger, TeknikVeriJson = "{}"
+        };
+        Assert.True(ekleme.Validate(Ekle("LB-3D")).IsValid);
+        Assert.StartsWith("Ekipman kodu zorunludur", Assert.Single(ekleme.Validate(Ekle(" ")).Errors).ErrorMessage, StringComparison.Ordinal);
+
+        // İstek servise olduğu gibi aktarılır (kırpma ve kod normalizasyonu servisindir, içe aktarımla aynı yerde).
+        var kayit = GecerliEkipmanKaydi().Kayit();
+        Assert.Equal(("LB-3D", "3 dingil lowbed", 21, "Üretici A", "LB 3", EkipmanKaynakTuru.UreticiFoyu, "{}"),
+            (kayit.Kod, kayit.Ad, kayit.TipId, kayit.Uretici, kayit.ModelAdi, kayit.KaynakTuru, kayit.TeknikVeriJson));
+    }
+
+    /// <summary>
+    /// Kaynak tarihi saatsiz gündür: gövdede yalnız gün (ya da ayrıntıdaki gibi dilimsiz gece yarısı) kabul edilir ve aynı
+    /// gün olarak okunur. Saat ya da saat dilimi taşıyan değer (ör. tarayıcının UTC'ye çevirdiği "bir önceki gün 21:00Z")
+    /// günü kaydırabileceği için reddedilir.
+    /// </summary>
+    [Theory]
+    [InlineData("null", true)]
+    [InlineData("\"2026-10-01\"", true)]
+    [InlineData("\"2026-10-01T00:00:00\"", true)]
+    [InlineData("\"2026-10-01T10:30:00\"", false)]
+    [InlineData("\"2026-09-30T21:00:00Z\"", false)]
+    [InlineData("\"2026-10-01T00:00:00Z\"", false)]
+    [InlineData("\"2026-10-01T00:00:00+03:00\"", false)]
+    public void EkipmanKaydi_KaynakTarihiSaatsizGun_GunKaymaz(string deger, bool gecerli)
+    {
+        // API gövdeyi ASP.NET'in varsayılan (Web) JSON ayarlarıyla bağlar.
+        var istek = System.Text.Json.JsonSerializer.Deserialize<EkipmanKonfigurasyonEkleCommand>(
+            "{\"kaynakTarihi\":" + deger + "}", new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))!;
+        Assert.Equal(gecerli, EkipmanKitapligiKurali.KaynakTarihiGecerli(istek.KaynakTarihi));
+        if (gecerli && deger != "null")
+            Assert.Equal(new DateTime(2026, 10, 1), istek.KaynakTarihi);
+
+        var dogrulama = new EkipmanKonfigurasyonKaydiValidator().Validate(istek);
+        Assert.Equal(!gecerli, dogrulama.Errors.Any(e => e.ErrorMessage == EkipmanKitapligiKurali.KaynakTarihiMesaji));
+    }
+
     /// <summary>Sahaya aktarılan yeni sandık, ürünlerinin hepsi aynı yük türündeki sandıklardan geliyorsa o türü korur.</summary>
     [Fact]
     public void SahaAktarimi_OrtakYukTuruKorunur_KarisikVeyaKaynaksizSandik()
@@ -650,6 +860,8 @@ public sealed class YuklemePlanlamaTests
             (new EkipmanDisaAktarQuery(), YetkiKodlari.YuklemePlanlama.EkipmanKitapligi, YetkiTipi.R),
             (new EkipmanIceAktarOnizleQuery(), YetkiKodlari.YuklemePlanlama.EkipmanKitapligi, YetkiTipi.W),
             (new EkipmanIceAktarCommand(), YetkiKodlari.YuklemePlanlama.EkipmanKitapligi, YetkiTipi.W),
+            (new EkipmanKonfigurasyonEkleCommand(), YetkiKodlari.YuklemePlanlama.EkipmanKitapligi, YetkiTipi.W),
+            (new EkipmanKonfigurasyonGuncelleCommand(), YetkiKodlari.YuklemePlanlama.EkipmanKitapligi, YetkiTipi.W),
             (new EkipmanDogrulaCommand(), YetkiKodlari.YuklemePlanlama.EkipmanDogrulama, YetkiTipi.W)
         ];
         foreach (var (istek, kod, tip) in beklenen)

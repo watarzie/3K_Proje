@@ -325,10 +325,10 @@ internal static class EkipmanExcelDosyasi
                 return x is { } bx && yv is { } by && z is { } bz ? new BaglamaNoktasi(bx, by, bz, kapasite) : null;
             });
 
-            // Teknik veri kanonik sırayla kurulur: satır sırası değişti diye yeni revizyon yazılmaz.
+            // Teknik veri kanonik sırayla kurulur: satır sırası değişti diye yeni revizyon yazılmaz (ekrandan kayıtla aynı sıra).
             var kayitlar = basliklar.Select(k => new EkipmanExcelKaydi(
                 k.Satir, k.Kod, k.Ad, k.TipKodu, k.Uretici, k.Model, k.Kaynak, k.KaynakAciklama, k.KaynakTarihi, k.Aciklama,
-                new EkipmanTeknikVerisi
+                EkipmanTeknikVeriSerilestirici.KanonikSira(new EkipmanTeknikVerisi
                 {
                     DisOlcu = k.Dis,
                     DaraKg = k.Dara,
@@ -336,12 +336,12 @@ internal static class EkipmanExcelDosyasi
                     AzamiBrutKg = k.Brut,
                     UzamaEnFazlaMm = k.Uzama,
                     KingPin = k.KingPin,
-                    Yuzeyler = yuzeyler.GetValueOrDefault(k.Kod, []).OrderBy(s => s.BaslangicXMm).ThenBy(s => s.Kod, StringComparer.Ordinal).ToList(),
-                    Acikliklar = acikliklar.GetValueOrDefault(k.Kod, []).OrderBy(s => s.Taraf).ThenBy(s => s.BaslangicXMm).ToList(),
-                    Engeller = engeller.GetValueOrDefault(k.Kod, []).OrderBy(s => s.XMm).ThenBy(s => s.YMm).ThenBy(s => s.ZMm).ThenBy(s => s.Tur).ToList(),
-                    Dingiller = dingiller.GetValueOrDefault(k.Kod, []).OrderBy(s => s.XMm).ToList(),
-                    BaglamaNoktalari = baglamalar.GetValueOrDefault(k.Kod, []).OrderBy(s => s.XMm).ThenBy(s => s.YMm).ThenBy(s => s.ZMm).ToList()
-                })).ToList();
+                    Yuzeyler = yuzeyler.GetValueOrDefault(k.Kod, []),
+                    Acikliklar = acikliklar.GetValueOrDefault(k.Kod, []),
+                    Engeller = engeller.GetValueOrDefault(k.Kod, []),
+                    Dingiller = dingiller.GetValueOrDefault(k.Kod, []),
+                    BaglamaNoktalari = baglamalar.GetValueOrDefault(k.Kod, [])
+                }))).ToList();
             return new EkipmanExcelOkumasi(kayitlar, sorunlar);
         }
     }
