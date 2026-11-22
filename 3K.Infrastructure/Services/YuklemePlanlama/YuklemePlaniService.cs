@@ -262,7 +262,7 @@ internal sealed partial class YuklemePlaniService(AppDbContext context, IUnitOfW
                 SecimiUygula(satir, secim);
             satirlar.Add(satir);
         }
-        satirlar.AddRange(await ManuelSatirlarAsync(model.ManuelYukler, projeler, satirlar.Count, cancellationToken));
+        satirlar.AddRange(await ManuelSatirlarAsync(model.ManuelYukler, projeler, satirlar.Count, bayraksizIzinleriYenile: false, cancellationToken));
         if (satirlar.Count > YuklemePlaniKurali.EnFazlaYuk)
             throw new IsKuraliException(YukSiniriAsildi);
 
@@ -447,9 +447,16 @@ internal sealed partial class YuklemePlaniService(AppDbContext context, IUnitOfW
         return farklar;
     }
 
+    /// <summary>
+    /// Elle eklenen yüklerin plan satırları: proje planın projelerinden biri (ya da boş), lokasyon tanımlı olmalı (değilse
+    /// 400); her yük adet kadar birim satırı olur, grup numarası listedeki sıraya göre 1'den verilir. Gönderilmeyen birim
+    /// varsayılan izinleri alır. <paramref name="bayraksizIzinleriYenile"/> tek adımlı hesapta açıktır: sandık seçimindeki
+    /// gibi yalnız elle değiştirilmiş (bayraklı) izin istemciden alınır, öbürleri girilen yük türü ve brütten yeniden
+    /// kurulur. Kaydetmede kapalıdır (gönderilen birim izinleri aynen yazılır; sandık seçimi de orada yenilenmez).
+    /// </summary>
     private async Task<List<YuklemePlanYuku>> ManuelSatirlarAsync(
         IReadOnlyList<PlanManuelYukKaydi> manuelYukler, IReadOnlyList<SecimOgesi> projeler, int oncekiSatirSayisi,
-        CancellationToken cancellationToken)
+        bool bayraksizIzinleriYenile, CancellationToken cancellationToken)
     {
         var satirlar = new List<YuklemePlanYuku>();
         if (manuelYukler.Count == 0)
@@ -471,6 +478,11 @@ internal sealed partial class YuklemePlaniService(AppDbContext context, IUnitOfW
             for (var birimNo = 1; birimNo <= m.Adet; birimNo++)
             {
                 var birim = birimler.GetValueOrDefault(birimNo);
+                var izin = birim == null
+                    ? varsayilan
+                    : new PlanYukIzinleri(birim.DondurulebilirMi, birim.UsteKonabilirMi, birim.AltaKalabilirMi, birim.UstYukSiniriKg);
+                if (birim != null && bayraksizIzinleriYenile)
+                    izin = YukIzinKurali.Yenile(izin, birim.ElleDegisenIzinler, m.YukTuruId, m.BrutKg);
                 satirlar.Add(new YuklemePlanYuku
                 {
                     SiraNo = oncekiSatirSayisi + satirlar.Count + 1,
@@ -490,10 +502,10 @@ internal sealed partial class YuklemePlaniService(AppDbContext context, IUnitOfW
                     LokasyonId = m.LokasyonId,
                     LokasyonAdi = m.LokasyonId is { } lid ? lokasyonlar[lid] : null,
                     Dahil = birim?.Dahil ?? true,
-                    DondurulebilirMi = birim?.DondurulebilirMi ?? varsayilan.DondurulebilirMi,
-                    UsteKonabilirMi = birim?.UsteKonabilirMi ?? varsayilan.UsteKonabilirMi,
-                    AltaKalabilirMi = birim?.AltaKalabilirMi ?? varsayilan.AltaKalabilirMi,
-                    UstYukSiniriKg = birim != null ? birim.UstYukSiniriKg : varsayilan.UstYukSiniriKg,
+                    DondurulebilirMi = izin.DondurulebilirMi,
+                    UsteKonabilirMi = izin.UsteKonabilirMi,
+                    AltaKalabilirMi = izin.AltaKalabilirMi,
+                    UstYukSiniriKg = izin.UstYukSiniriKg,
                     ElleDegisenIzinler = birim?.ElleDegisenIzinler ?? PlanYukIzni.Yok,
                     OzelTasimaNotu = m.OzelTasimaNotu
                 });

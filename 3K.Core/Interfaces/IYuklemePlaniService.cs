@@ -36,8 +36,9 @@ public interface IYuklemePlaniService
     /// <summary>
     /// Tek adımlı plan hesabı (saha geri bildirimi 19.11.2026 madde 5): planı (yoksa açar) seçilen projelerin güncel
     /// sandıklarıyla, kullanıcının sandık seçimleri, aile/tip, yükleme yeri tercihi ve yükler arası boşlukla yeniden kurar ve yerleşimi
-    /// aynı revizyonda yazar. Plan verilmezse aynı proje kümesinin en son planına yazılır. Kaydedilecek yerleşim yoksa
-    /// (hesaplanabilir yük yok) hiçbir şey yazılmaz.
+    /// aynı revizyonda yazar. Plan verilmezse aynı proje kümesinin en son planına yazılır (elle yükler eşleşmeyi
+    /// etkilemez). Elle yük listesi gönderilirse önceki elle yüklerin yerine o yazılır, gönderilmezse öncekiler korunur.
+    /// Kaydedilecek yerleşim yoksa (hesaplanabilir yük yok) ya da elle yük reddedilirse hiçbir şey yazılmaz.
     /// </summary>
     Task<YuklemePlaniDetayi> PlanHesaplaAsync(YuklemePlaniHesaplaModel model, int? kullaniciId, CancellationToken cancellationToken);
 

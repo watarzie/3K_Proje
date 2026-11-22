@@ -134,11 +134,19 @@ public sealed class YuklemePlaniPlanHesaplaCommand : IRequest<Result<YuklemePlan
     /// </summary>
     public List<PlanSandikYukuDto>? SandikYukleri { get; set; }
 
+    /// <summary>
+    /// Sistemde olmayan, elle girilen yükler (saha isteği, 22 Kasım 2026; kaydetmedeki biçim). Gönderilmezse (null) önceki
+    /// hesabın elle yükleri korunur; gönderilirse (boş liste dahil) yalnız bu liste plana yazılır, böylece ekrandan silinen
+    /// elle yük plandan da düşer.
+    /// </summary>
+    public List<PlanManuelYukDto>? ManuelYukler { get; set; }
+
     public string RequiredMenuKod => YetkiKodlari.YuklemePlanlama.Planlar;
     public YetkiTipi RequiredYetkiTipi => YetkiTipi.W;
 
     public YuklemePlaniHesaplaModel Model() =>
-        new(PlanId, BeklenenRevizyonNo, ProjeIdleri.Distinct().ToList(), TasimaAilesiId, Ayarlar, LokasyonTercihi, SandikYukleri?.Select(y => y.Model()).ToList());
+        new(PlanId, BeklenenRevizyonNo, ProjeIdleri.Distinct().ToList(), TasimaAilesiId, Ayarlar, LokasyonTercihi,
+            SandikYukleri?.Select(y => y.Model()).ToList(), ManuelYukler?.Select(y => y.Model()).ToList());
 }
 
 public sealed class YuklemePlaniCommandHandlers(IYuklemePlaniService service, ICurrentUserService currentUser) :

@@ -90,13 +90,24 @@ internal sealed partial class YuklemePlaniService
 
         // Yükler her hesapta kaynaktan kurulur (sevk edilmişler dahil); hangi sandığın yükleneceği ve izinleri kullanıcının
         // gönderdiği seçimlerden gelir, seçimi olmayan sandık dahil ve varsayılan izinlidir. Formda olmayan seçimler
-        // (çalışma biçimi, proje karışımı, mevcut araçlar) varsayılandır. Eski planda elle eklenmiş yükler seçili
-        // projelerdeyse (ya da projesizse) korunur.
+        // (çalışma biçimi, proje karışımı, mevcut araçlar) varsayılandır.
         var satirlar = await KaynakSatirlariAsync(model.ProjeIdleri, model.SandikYukleri, cancellationToken);
-        var secili = model.ProjeIdleri.ToHashSet();
-        var eskiManueller = (onceki?.Yukler ?? []).Where(y => y.Kaynak == PlanYukKaynagi.Manuel && (y.ProjeId == null || secili.Contains(y.ProjeId.Value)));
-        foreach (var manuel in eskiManueller.OrderBy(y => y.SiraNo))
-            satirlar.Add(Kopyala(manuel, satirlar.Count + 1));
+        if (model.ManuelYukler is { } manuelYukler)
+        {
+            // Elle yük listesi gönderildiyse (boş dahil) istemci tek kaynaktır (saha isteği, 22 Kasım 2026): önceki elle
+            // yükler yok sayılır, ekrandan silinen yük plandan da düşer. Kurallar kaydetmeyle aynıdır (proje/lokasyon
+            // denetimi, adet kadar birim, grup numarası istekteki sırayla); bayraksız izinler sandık seçimindeki gibi
+            // girilen yük türü ve brütten yeniden kurulur.
+            satirlar.AddRange(await ManuelSatirlarAsync(manuelYukler, projeler, satirlar.Count, bayraksizIzinleriYenile: true, cancellationToken));
+        }
+        else
+        {
+            // Liste gönderilmediyse önceki revizyonda elle eklenmiş yükler seçili projelerdeyse (ya da projesizse) korunur.
+            var secili = model.ProjeIdleri.ToHashSet();
+            var eskiManueller = (onceki?.Yukler ?? []).Where(y => y.Kaynak == PlanYukKaynagi.Manuel && (y.ProjeId == null || secili.Contains(y.ProjeId.Value)));
+            foreach (var manuel in eskiManueller.OrderBy(y => y.SiraNo))
+                satirlar.Add(Kopyala(manuel, satirlar.Count + 1));
+        }
         if (satirlar.Count > YuklemePlaniKurali.EnFazlaYuk)
             throw new IsKuraliException(YukSiniriAsildi);
 

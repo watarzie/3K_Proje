@@ -58,6 +58,17 @@ public sealed class YuklemePlaniPlanHesaplaCommandValidator : AbstractValidator<
                 .Must(PlanSandikYukuDtoValidator.Tekil).WithMessage(YuklemePlaniKurali.SandikTekrariMesaji);
             RuleForEach(x => x.SandikYukleri).SetValidator(new PlanSandikYukuDtoValidator());
         });
+        // Elle yükler isteğe bağlıdır (saha isteği, 22 Kasım 2026); gönderilirse kaydetmedeki elle yük kurallarıyla
+        // doğrulanır. Boş öge doğrulayıcıda atlanıp sonra 500 üretmesin diye ayrıca reddedilir.
+        When(x => x.ManuelYukler != null, () =>
+        {
+            RuleFor(x => x.ManuelYukler!).Must(y => y.All(m => m != null)).WithMessage(PlanManuelYukDtoValidator.BosOgeMesaji);
+            RuleForEach(x => x.ManuelYukler).SetValidator(new PlanManuelYukDtoValidator());
+        });
+        // Toplam yük sınırı kaydetmedeki sayımla aynıdır (sandık seçimleri + elle yük birimleri); kesin sayım serviste,
+        // kaynaktan kurulan sandıklarla yapılır.
+        RuleFor(x => x).Must(x => (x.SandikYukleri?.Count ?? 0) + PlanManuelYukDtoValidator.BirimSayisi(x.ManuelYukler) <= YuklemePlaniKurali.EnFazlaYuk)
+            .WithMessage(YuklemePlaniKurali.YukSiniriMesaji);
     }
 
     private const string RevizyonEksik = "Plan revizyonu eksik; sayfayı yenileyin.";
@@ -132,13 +143,23 @@ public sealed class YuklemePlaniKaydetCommandValidator : AbstractValidator<Yukle
         RuleFor(x => x.ManuelYukler).NotNull().WithMessage("Elle eklenen yük listesi eksik.");
         RuleForEach(x => x.SandikYukleri).SetValidator(new PlanSandikYukuDtoValidator());
         RuleForEach(x => x.ManuelYukler).SetValidator(new PlanManuelYukDtoValidator());
-        RuleFor(x => x).Must(x => (x.SandikYukleri?.Count ?? 0) + (x.ManuelYukler ?? []).Sum(m => Math.Max(m.Adet, 0)) <= YuklemePlaniKurali.EnFazlaYuk)
+        RuleFor(x => x).Must(x => (x.SandikYukleri?.Count ?? 0) + PlanManuelYukDtoValidator.BirimSayisi(x.ManuelYukler) <= YuklemePlaniKurali.EnFazlaYuk)
             .WithMessage(YuklemePlaniKurali.YukSiniriMesaji);
     }
 }
 
+/// <summary>
+/// Elle eklenen yükün kuralları (kaydetme ve tek adımlı hesap aynı kuralları kullanır): kod, yük türü, ölçü/ağırlık
+/// sınırları (boş bırakılabilir; boşsa yük "veri eksik" sayılır), adet ve birim seçimleri.
+/// </summary>
 public sealed class PlanManuelYukDtoValidator : AbstractValidator<PlanManuelYukDto>
 {
+    internal const string BosOgeMesaji = "Elle eklenen yük listesinde boş kayıt var.";
+
+    /// <summary>Elle yüklerin plana yazılacak birim (satır) sayısı: toplam yük sınırı bu sayıyla denetlenir.</summary>
+    internal static int BirimSayisi(IEnumerable<PlanManuelYukDto?>? yukler) =>
+        (yukler ?? []).Sum(m => m == null ? 0 : Math.Max(m.Adet, 0));
+
     public PlanManuelYukDtoValidator()
     {
         RuleFor(x => x.Kod).NotEmpty().WithMessage("Elle eklenen yükün kodu zorunludur.")
@@ -157,7 +178,8 @@ public sealed class PlanManuelYukDtoValidator : AbstractValidator<PlanManuelYukD
         RuleFor(x => x.LokasyonId).GreaterThan(0).When(x => x.LokasyonId.HasValue).WithMessage("Lokasyon kimliği geçersiz.");
         RuleFor(x => x.OzelTasimaNotu).MaximumLength(YuklemePlaniKurali.OzelTasimaNotuEnFazla)
             .WithMessage($"Özel taşıma notu en fazla {YuklemePlaniKurali.OzelTasimaNotuEnFazla} karakter olabilir.");
-        RuleFor(x => x).Must(x => (x.Birimler ?? []).All(b => b.BirimNo >= 1 && b.BirimNo <= x.Adet) &&
+        // Boş birim ögesi de bu kuralda reddedilir (null öge 500 değil 400 olsun).
+        RuleFor(x => x).Must(x => (x.Birimler ?? []).All(b => b != null && b.BirimNo >= 1 && b.BirimNo <= x.Adet) &&
                                   (x.Birimler ?? []).Select(b => b.BirimNo).Distinct().Count() == (x.Birimler ?? []).Count)
             .WithMessage("Birim numaraları 1'den adede kadar ve tekil olmalıdır.");
         RuleForEach(x => x.Birimler).ChildRules(b =>

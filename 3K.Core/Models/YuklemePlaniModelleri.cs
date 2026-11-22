@@ -365,10 +365,14 @@ public sealed record SecimOgesi(int Id, string Ad);
 /// hesapta kaynaktan (sevk edilmişler dahil) yeniden kurulur. <see cref="LokasyonTercihi"/> boş ya da "henüz seçilmedi"
 /// ise tek yerden (karışık) hesaplanır. <see cref="SandikYukleri"/> kullanıcının sandık seçimleridir (dahil ve izinler):
 /// listede olmayan sandık dahil ve varsayılan izinlidir, seçilen projelerde olmayan sandık yok sayılır.
+/// <see cref="ManuelYukler"/> sistemde olmayan, elle girilen yüklerdir (saha isteği, 22 Kasım 2026): null ise önceki
+/// revizyonun seçili projedeki ya da projesiz elle yükleri korunur; liste (boş dahil) gönderilirse istemci tek kaynaktır,
+/// önceki elle yükler yok sayılır ve gönderilen liste istekteki sırayla (grup numarası 1'den) yazılır.
 /// </summary>
 public sealed record YuklemePlaniHesaplaModel(
     int? PlanId, int? BeklenenRevizyonNo, IReadOnlyList<int> ProjeIdleri, int TasimaAilesiId, YuklemePlanAyarlari Ayarlar,
-    YuklemeLokasyonTercihi? LokasyonTercihi = null, IReadOnlyList<PlanSandikYukuKaydi>? SandikYukleri = null);
+    YuklemeLokasyonTercihi? LokasyonTercihi = null, IReadOnlyList<PlanSandikYukuKaydi>? SandikYukleri = null,
+    IReadOnlyList<PlanManuelYukKaydi>? ManuelYukler = null);
 
 /// <summary>
 /// Hesaptan önce yük önizlemesi: seçilen projelerin plana gelecek sandıkları (hesapla ile aynı kaynak ve sıra) varsayılan

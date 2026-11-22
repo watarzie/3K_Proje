@@ -214,6 +214,60 @@ public sealed class YuklemePlanlamaTests
         Assert.False(dogrulayici.Validate(bosOge).IsValid);
     }
 
+    /// <summary>
+    /// Tek adımlı hesapta elle yük (saha isteği, 22 Kasım 2026): isteğe bağlıdır (null ve boş liste geçerli, model
+    /// ayrımı korur); gönderilirse kaydetmedeki elle yük kurallarıyla doğrulanır, ölçü/ağırlık boş bırakılabilir; toplam
+    /// yük sınırı sandık seçimleri + elle yük birimleriyle sayılır; boş öge ve boş birim 500 değil 400 olur.
+    /// </summary>
+    [Fact]
+    public void PlanHesapla_ElleYukDogrulamasi_KaydetmeIleAyniKurallarVeSinir()
+    {
+        var dogrulayici = new YuklemePlaniPlanHesaplaCommandValidator();
+        YuklemePlaniPlanHesaplaCommand Istek(List<PlanManuelYukDto>? manuel) => new() { ProjeIdleri = [1], TasimaAilesiId = 1, ManuelYukler = manuel };
+        PlanManuelYukDto Manuel(int adet = 2, decimal? boy = 1200, decimal? brut = 300, int birimNo = 1, string kod = "M-1") =>
+            new(kod, "Yedek kablo", (int)YukTuru.Trafo, boy, 800, 600, brut, adet, 1, null, null,
+                [new PlanManuelYukBirimiDto(birimNo, true, false, true, true, null, PlanYukIzni.Yok)]);
+
+        // Gönderilmeyen (null) ile boş liste modelde ayrı kalır: null öncekileri korur, boş liste siler.
+        Assert.True(dogrulayici.Validate(Istek(null)).IsValid);
+        Assert.Null(Istek(null).Model().ManuelYukler);
+        Assert.True(dogrulayici.Validate(Istek([])).IsValid);
+        Assert.Empty(Istek([]).Model().ManuelYukler!);
+        // Ağırlığı ve ölçüsü boş elle yük geçerlidir (hesapta "veri eksik" sayılır); kod/açıklama kırpılır.
+        var gecerli = Istek([Manuel(), Manuel(adet: 1, boy: null, brut: null, kod: "  M-2 ")]);
+        Assert.True(dogrulayici.Validate(gecerli).IsValid);
+        var model = gecerli.Model().ManuelYukler!;
+        Assert.Equal(["M-1", "M-2"], model.Select(m => m.Kod));
+        Assert.Equal(((int?)1, (int)YukTuru.Trafo, 2), (model[0].ProjeId, model[0].YukTuruId, model[0].Adet));
+
+        // Kaydetmedeki elle yük kuralları aynı mesajla (tek doğrulayıcı).
+        foreach (var hatali in new[] { Manuel(adet: 0), Manuel(boy: -1), Manuel(boy: 0), Manuel(brut: 0), Manuel(birimNo: 3), Manuel(kod: " ") })
+        {
+            var hesapHatalari = dogrulayici.Validate(Istek([hatali])).Errors.Select(e => e.ErrorMessage).ToList();
+            Assert.NotEmpty(hesapHatalari);
+            var kayit = GecerliKayit();
+            kayit.ManuelYukler = [hatali];
+            Assert.Equal(hesapHatalari, new YuklemePlaniKaydetCommandValidator().Validate(kayit).Errors.Select(e => e.ErrorMessage));
+        }
+
+        // Toplam sınır: sandık seçimleri + elle birimler.
+        var sinirda = Istek(Enumerable.Range(1, YuklemePlaniKurali.EnFazlaYuk / YuklemePlaniKurali.ManuelAdetEnFazla)
+            .Select(i => Manuel(adet: YuklemePlaniKurali.ManuelAdetEnFazla, kod: $"M-{i}")).ToList());
+        Assert.True(dogrulayici.Validate(sinirda).IsValid);
+        sinirda.SandikYukleri = [new PlanSandikYukuDto(5, true, false, true, true, null, PlanYukIzni.Yok)];
+        Assert.Equal([YuklemePlaniKurali.YukSiniriMesaji], dogrulayici.Validate(sinirda).Errors.Select(e => e.ErrorMessage));
+
+        // Boş öge ve boş birim istisna değil doğrulama hatasıdır.
+        Assert.Equal([PlanManuelYukDtoValidator.BosOgeMesaji], dogrulayici.Validate(Istek([null!])).Errors.Select(e => e.ErrorMessage));
+        var bosBirim = Manuel() with { Birimler = [null!] };
+        Assert.False(dogrulayici.Validate(Istek([bosBirim])).IsValid);
+
+        // Proje seçmeden yalnız elle yükle hesap yapılmaz (en az bir proje kuralı sürer).
+        var projesiz = Istek([Manuel()]);
+        projesiz.ProjeIdleri = [];
+        Assert.Equal(["En az bir proje seçilmelidir."], dogrulayici.Validate(projesiz).Errors.Select(e => e.ErrorMessage));
+    }
+
     /// <summary>Gönderilmeyen ya da "henüz seçilmedi" tercih tek yerden (karışık) hesaplanır; yalnız açık seçim araçları lokasyona böler.</summary>
     [Theory]
     [InlineData(null, YuklemeLokasyonTercihi.Karisik)]

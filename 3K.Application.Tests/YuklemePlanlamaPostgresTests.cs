@@ -425,6 +425,154 @@ public sealed class YuklemePlanlamaPostgresTests
     }
 
     /// <summary>
+    /// Tek adımlı hesapta elle yük (saha isteği, 22 Kasım 2026): (1) proje sandıklarına ek elle yükler adet kadar birimle
+    /// yerleşir (anahtar <c>m:{grup}:{birim}</c>, grup istekteki sırayla 1'den), bayraksız izinler girilen yük türü ve
+    /// brütten kurulur, elle trafo lowbed'e gider, rapor elle yükün açıklamasını taşır; (2) liste gönderilmezse önceki elle
+    /// yükler korunur, boş liste onları siler; (3) seçili olmayan projeye bağlı ya da lokasyonu tanımsız elle yük 400 ve
+    /// hiçbir şey yazılmaz; (4) ağırlığı boş elle yük "veri eksik" sayılır, hesaba girmez.
+    /// </summary>
+    [PostgresRaporFact, Trait("Category", "Postgres")]
+    public async Task Postgres_PlanHesapla_ElleYukler()
+    {
+        await FinansPostgresTests.InDatabase(async options =>
+        {
+            int projeA, projeB;
+            await using (var db = new AppDbContext(options))
+            {
+                db.EkipmanKonfigurasyonlari.AddRange(K40Konfigurasyonu(), new EkipmanKonfigurasyonu
+                {
+                    Model = new EkipmanModeli { TipId = 21, Uretici = "Test", ModelAdi = "LB-3" },
+                    Kod = "LB-3", Ad = "LB-3", SonRevizyonNo = 1,
+                    Revizyonlar =
+                    [
+                        new EkipmanKonfigurasyonRevizyonu
+                        {
+                            RevizyonNo = 1, KaynakTuru = EkipmanKaynakTuru.Diger, DogrulamaDurumu = EkipmanDogrulamaDurumu.Dogrulandi,
+                            TeknikVeriJson = _3K.YuklemeMotoru.Ekipman.EkipmanTeknikVeriSerilestirici.Yaz(YerlesimMotoruTests.Lowbed.TeknikVeri)
+                        }
+                    ]
+                });
+                var a = new Proje { ProjeNo = "PA950-01", Musteri = "M", ProjeTipiId = (int)ProjeTipi.Normal };
+                var b = new Proje { ProjeNo = "PA950-02", Musteri = "M", ProjeTipiId = (int)ProjeTipi.Normal };
+                db.Sandiklar.AddRange(Sandik(a, "1", 2000, 600), Sandik(a, "2", 1400, 500), Sandik(b, "1", 1400, 200));
+                await db.SaveChangesAsync();
+                (projeA, projeB) = (a.Id, b.Id);
+            }
+
+            // Birim 1'in izinleri bayraksız (istemciden alınmaz, sandık varsayılanı kurulur); birim 2'de "üste konma" elle değişti.
+            PlanManuelYukKaydi Kablo(int? proje) => new("M-1", "Yedek kablo", (int)YukTuru.Sandik, 1200, 800, 600, 300, 2, proje,
+                (int)DepoLokasyon.Seymen, "Forkliftle",
+                [new PlanManuelYukBirimi(1, true, true, false, false, 5m, PlanYukIzni.Yok),
+                 new PlanManuelYukBirimi(2, true, false, false, true, 300m, PlanYukIzni.UsteKonma)]);
+            var trafo = new PlanManuelYukKaydi("T-1", "Elle trafo", (int)YukTuru.Trafo, 6000, 3000, 3800, 45_000, 1, null, null, null, []);
+            YuklemePlaniHesaplaModel Hesap(IReadOnlyList<PlanManuelYukKaydi>? manuel, IReadOnlyList<int>? projeler = null) =>
+                new(null, null, projeler ?? [projeA], 1, new YuklemePlanAyarlari(), null, null, manuel);
+            static List<string> Gruplar(YuklemePlaniDetayi plan) => plan.Yukler.Where(y => y.Kaynak == PlanYukKaynagi.Manuel)
+                .Select(y => $"{y.Kod} {y.ManuelGrupNo}:{y.BirimNo}/{y.BirimSayisi}").ToList();
+            static List<string> Anahtarlar(YuklemePlaniDetayi plan) =>
+                plan.Yerlesim!.Araclar.SelectMany(a => a.Konumlar).Select(k => k.YukAnahtari).Order(StringComparer.Ordinal).ToList();
+
+            // (1) Proje + 2 adetli elle yük + projesiz elle trafo.
+            YuklemePlaniDetayi ilk;
+            await using (var db = new AppDbContext(options))
+                ilk = await PlanServisi(db).PlanHesaplaAsync(Hesap([Kablo(projeA), trafo]), kullaniciId: null, Ct);
+            Assert.Equal(["PA950-01-1", "PA950-01-2", "M-1", "M-1", "T-1"], ilk.Yukler.Select(y => y.Kod));
+            Assert.Equal(["M-1 1:1/2", "M-1 1:2/2", "T-1 2:1/1"], Gruplar(ilk));
+            var manuel = ilk.Yukler.Where(y => y.Kaynak == PlanYukKaynagi.Manuel).ToList();
+            Assert.All(manuel, m => Assert.Equal((PlanYukDurumu.Yerlesti, (int?)null, true), (m.Durum, m.SandikId, m.Dahil)));
+            Assert.All(manuel.Take(2), m => Assert.Equal(("Yedek kablo", (int?)projeA, "PA950-01", "Seymen", "Forkliftle", 1200m, 300m),
+                (m.Aciklama, m.ProjeId, m.ProjeNo, m.LokasyonAdi, m.OzelTasimaNotu, m.BoyMm, m.BrutKg)));
+            Assert.Equal((false, true, true, 300m, PlanYukIzni.Yok),
+                (manuel[0].DondurulebilirMi, manuel[0].UsteKonabilirMi, manuel[0].AltaKalabilirMi, manuel[0].UstYukSiniriKg, manuel[0].ElleDegisenIzinler));
+            Assert.Equal((false, false, true, 300m, PlanYukIzni.UsteKonma),
+                (manuel[1].DondurulebilirMi, manuel[1].UsteKonabilirMi, manuel[1].AltaKalabilirMi, manuel[1].UstYukSiniriKg, manuel[1].ElleDegisenIzinler));
+            Assert.Equal(((int?)null, (string?)null), (manuel[2].ProjeId, manuel[2].ProjeNo));
+            Assert.Equal(["m:1:1", "m:1:2", "m:2:1"], Anahtarlar(ilk).Where(k => k.StartsWith("m:", StringComparison.Ordinal)));
+            Assert.Empty(ilk.Yerlesim!.Yerlesemeyenler);
+            var konumlar = ilk.Yerlesim.Araclar.SelectMany(a => a.Konumlar.Select(k => (a.EkipmanKodu, k.YukAnahtari, k.Kod))).ToList();
+            Assert.Contains(("LB-3", "m:2:1", "T-1"), konumlar);
+            Assert.Contains(konumlar, k => k.YukAnahtari == "m:1:1" && k.Kod == "M-1 (1/2)");
+            Assert.Contains(konumlar, k => k.YukAnahtari == "m:1:2" && k.Kod == "M-1 (2/2)");
+            Assert.Equal(5, ilk.Sayaclar.Yerlesen);
+            // Rapor: elle yükün adı açıklamasıdır; PDF üretilir.
+            Assert.Equal("Yedek kablo", YuklemePlaniRaporHesabi.YukAdlari(ilk)["m:1:2"]);
+            await using (var db = new AppDbContext(options))
+            {
+                var raporlar = new YuklemePlaniRaporQueryHandlers(PlanServisi(db), new YuklemePlaniPdfOlusturucu());
+                var yukleme = await raporlar.Handle(new YuklemePlaniYuklemeRaporuQuery { PlanId = ilk.Id }, Ct);
+                var talep = await raporlar.Handle(new YuklemePlaniAracTalepRaporuQuery { PlanId = ilk.Id }, Ct);
+                Assert.True(yukleme.IsSuccess && talep.IsSuccess);
+                Assert.Equal(DosyaIcerigi.PdfTuru, yukleme.Value!.IcerikTuru);
+                Assert.NotEmpty(yukleme.Value.Icerik);
+                // Saklanan satırlar: elle birimler grup/birim numarasıyla yazıldı.
+                var saklanan = await db.YuklemePlanYukleri.AsNoTracking()
+                    .Where(y => y.Revizyon.PlanId == ilk.Id && y.Revizyon.RevizyonNo == 1 && y.Kaynak == PlanYukKaynagi.Manuel)
+                    .OrderBy(y => y.SiraNo).Select(y => new { y.ManuelGrupNo, y.BirimNo, y.SandikId }).ToListAsync();
+                Assert.Equal([(1, 1), (1, 2), (2, 1)], saklanan.Select(y => (y.ManuelGrupNo!.Value, y.BirimNo)));
+                Assert.All(saklanan, y => Assert.Null(y.SandikId));
+            }
+
+            // (2) Liste gönderilmezse elle yükler korunur; boş liste siler; yeni liste istekteki sırayla numaralanır.
+            // Elle yükler aynı projeli planın eşleşmesini etkilemez: hepsi aynı planın revizyonudur.
+            await using (var db = new AppDbContext(options))
+            {
+                var servis = PlanServisi(db);
+                var korunan = await servis.PlanHesaplaAsync(Hesap(null), null, Ct);
+                Assert.Equal((ilk.Id, 2), (korunan.Id, korunan.RevizyonNo));
+                Assert.Equal(Gruplar(ilk), Gruplar(korunan));
+                Assert.Equal(PlanYukIzni.UsteKonma, korunan.Yukler.Single(y => y.ManuelGrupNo == 1 && y.BirimNo == 2).ElleDegisenIzinler);
+
+                var silinen = await servis.PlanHesaplaAsync(Hesap([]), null, Ct);
+                Assert.Equal((ilk.Id, 3), (silinen.Id, silinen.RevizyonNo));
+                Assert.Equal(["PA950-01-1", "PA950-01-2"], silinen.Yukler.Select(y => y.Kod));
+                Assert.DoesNotContain(Anahtarlar(silinen), k => k.StartsWith("m:", StringComparison.Ordinal));
+                // Önceki revizyon değişmez.
+                Assert.Equal(3, await db.YuklemePlanYukleri.CountAsync(y => y.Revizyon.PlanId == ilk.Id && y.Revizyon.RevizyonNo == 2 &&
+                                                                            y.Kaynak == PlanYukKaynagi.Manuel));
+                // Silindikten sonra gönderilmeyen liste geri getirmez.
+                Assert.Empty(Gruplar(await servis.PlanHesaplaAsync(Hesap(null), null, Ct)));
+
+                var sirali = await servis.PlanHesaplaAsync(Hesap([trafo, Kablo(null)]), null, Ct);
+                Assert.Equal((ilk.Id, 5), (sirali.Id, sirali.RevizyonNo));
+                Assert.Equal(["T-1 1:1/1", "M-1 2:1/2", "M-1 2:2/2"], Gruplar(sirali));
+                Assert.All(sirali.Yukler.Where(y => y.Kaynak == PlanYukKaynagi.Manuel), y => Assert.Null(y.ProjeNo));
+                Assert.Equal(1, await db.YuklemePlanlari.CountAsync());
+            }
+
+            // (3) Seçili olmayan projeye bağlı ya da lokasyonu tanımsız elle yük 400; plan ve revizyon yazılmaz.
+            await using (var db = new AppDbContext(options))
+            {
+                var servis = PlanServisi(db);
+                var (planOnce, revizyonOnce, yukOnce) = (await db.YuklemePlanlari.CountAsync(), await db.YuklemePlanRevizyonlari.CountAsync(),
+                    await db.YuklemePlanYukleri.CountAsync());
+                var yabanci = await Assert.ThrowsAsync<IsKuraliException>(() => servis.PlanHesaplaAsync(Hesap([trafo, Kablo(projeB)]), null, Ct));
+                Assert.Equal((400, "Elle eklenen yükün projesi planın projelerinden biri olmalıdır."), (yabanci.StatusCode, yabanci.Message));
+                // Yeni plan açılacak proje kümesinde de aynı: plan açılmaz.
+                var yeniPlan = await Assert.ThrowsAsync<IsKuraliException>(() => servis.PlanHesaplaAsync(Hesap([Kablo(projeA)], [projeB]), null, Ct));
+                Assert.Equal(400, yeniPlan.StatusCode);
+                var lokasyonsuz = await Assert.ThrowsAsync<IsKuraliException>(() =>
+                    servis.PlanHesaplaAsync(Hesap([Kablo(projeA) with { LokasyonId = 999_999 }]), null, Ct));
+                Assert.Equal((400, "Elle eklenen yükün lokasyonu bulunamadı."), (lokasyonsuz.StatusCode, lokasyonsuz.Message));
+                Assert.Equal((planOnce, revizyonOnce, yukOnce), (await db.YuklemePlanlari.CountAsync(), await db.YuklemePlanRevizyonlari.CountAsync(),
+                    await db.YuklemePlanYukleri.CountAsync()));
+            }
+
+            // (4) Ağırlığı boş elle yük veri eksik: satırda görünür, yerleşime girmez (ne araçta ne yerleşemeyenlerde).
+            await using (var db = new AppDbContext(options))
+            {
+                var eksik = new PlanManuelYukKaydi("M-E", null, (int)YukTuru.Sandik, 1000, 800, 600, null, 1, projeA, null, null, []);
+                var hesap = await PlanServisi(db).PlanHesaplaAsync(Hesap([eksik]), null, Ct);
+                var satir = hesap.Yukler.Single(y => y.Kod == "M-E");
+                Assert.Equal((PlanYukDurumu.EksikVeri, (int?)null, (decimal?)null), (satir.Durum, satir.AracNo, satir.UstYukSiniriKg));
+                Assert.Equal([YukVeriKurali.AgirlikGiriniz], satir.VeriSorunlari);
+                Assert.DoesNotContain("m:1:1", Anahtarlar(hesap));
+                Assert.DoesNotContain(hesap.Yerlesim!.Yerlesemeyenler, y => y.YukAnahtari == "m:1:1");
+                Assert.Equal((1, 2), (hesap.Sayaclar.VeriEksik, hesap.Sayaclar.Yerlesen));
+            }
+        });
+    }
+
+    /// <summary>
     /// Yük önizlemesi: seçilen projelerin plana gelecek sandıkları hesapla ile aynı satırlardır (aynı kaynak ve sıra, sevk
     /// edilmişler dahil, varsayılan izinli, verisi eksik olan sorunuyla) ve hiçbir şey yazılmaz.
     /// </summary>
