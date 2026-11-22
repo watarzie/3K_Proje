@@ -43,7 +43,7 @@ internal sealed class SahadanSahayaTasimaHazirligi
 
     /// <summary>
     /// Kutunun kendisi taşınıyor mu: tek kaynak sandık var ve taşımadan sonra boşalıyor. Yalnız o zaman yeni hedef
-    /// sandığa kaynak sandığın adı, tipi, ölçüsü, ağırlığı ve lokasyonu kopyalanır; içinde ürün kalan sandığın ölçüsü
+    /// sandığa kaynak sandığın adı, tipi, yük türü, ölçüsü, ağırlığı ve lokasyonu kopyalanır; içinde ürün kalan sandığın ölçüsü
     /// kopyalanırsa aynı kutu iki sahada sayılır (packing list ağırlığı, m³).
     /// </summary>
     public bool ButunSandikTasiniyor => KaynakSandiklar.Count == 1 && BosalacakSandikIds.Contains(KaynakSandiklar[0].Id);
@@ -342,7 +342,7 @@ internal sealed class SahadanSahayaTasimaIslemi(
         var hedefEskiDurumId = hedefSandik?.DurumId;
         if (hedefSandik == null)
         {
-            // Kutunun kendisi taşınıyorsa (kaynak boşalıyor) ad, tip, ölçü ve lokasyon kopyalanır; aksi halde yeni kutu
+            // Kutunun kendisi taşınıyorsa (kaynak boşalıyor) ad, tip, yük türü, ölçü ve lokasyon kopyalanır; aksi halde yeni kutu
             // ölçüsüzdür, ölçüyü kullanıcı girer.
             var ornek = h.ButunSandikTasiniyor ? h.KaynakSandiklar[0] : null;
             hedefSandik = new Sandik
@@ -352,6 +352,7 @@ internal sealed class SahadanSahayaTasimaIslemi(
                 Ad = ornek?.Ad,
                 AdIngilizce = ornek?.AdIngilizce,
                 TipId = ornek?.TipId ?? (int)SandikTipi.AhsapKapali,
+                YukTuruId = ornek?.YukTuruId ?? (int)YukTuru.Sandik,
                 En = ornek?.En,
                 Boy = ornek?.Boy,
                 Yukseklik = ornek?.Yukseklik,

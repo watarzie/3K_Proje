@@ -17,7 +17,11 @@
 -- menü düğümünü (sandik-acilis-istatistigi) birlikte arar.
 -- 28 numaralı betik Kullanicilar.BasarisizGirisSayisi ve GirisKilitBitisTarihi kolonlarını birlikte arar.
 -- 29 numaralı betik menü düğümünü (barkod-etiket) arar.
--- 30–33 feature/yukleme-simulasyonu dalındadır.
+-- 30 numaralı betik Sandiklar.YukTuruId kolonunu ve LookupYukTurleri tablosunu birlikte arar.
+-- 31 numaralı betik YuklemePlanYukleri ve EkipmanKonfigurasyonRevizyonlari tablolarını ve menü düğümünü
+-- (yukleme-planlama) birlikte arar.
+-- 32 numaralı betik YuklemePlanRevizyonlari.YerlesimJson kolonunu arar (kısıt aynı transaction'da eklenir).
+-- 33 numaralı betik YuklemeOturumlari ve YuklemeOturumYukleri tablolarını ve menü düğümünü (arac-yukleme) arar.
 -- 34 numaralı betik veri onarımıdır (S-27): sahada iptalle kapanacak Eksik Sevk Edildi normal proje kalmadıysa
 -- uygulanmış görünür; UYGULANMAMIŞ ise onarılacak proje vardır. Seçim betiktekiyle aynıdır; biri değişirse öteki de
 -- güncellenir (saha_iptal_* CTE'leri). 34 canlıda 11.11.2026'da kayıt bloğundan önceki sürümüyle çalıştı (kaynak "iz").
@@ -25,6 +29,7 @@
 -- bütün sandıkları sevkli Eksik Sevk Edildi saha/yedek proje kalmadıysa uygulanmış görünür (saha_kapanis_onarilacak).
 -- 36 numaralı betik veri onarımıdır: sayaçları boş eski geri gönderim satırı (canlı Id 34371) onarılmış ya da durumu
 -- değişmişse uygulanmış görünür (geri_gonderim_onarilacak; seçim betiktekiyle aynıdır).
+-- 37 numaralı betik EkipmanTipleri.OtomatikSecimSirasi kolonunu arar (lowbed ailesi aynı transaction'da kurulur).
 -- Yeni betik eklenince buraya satır eklenir (CanliyaAlimBetikleriTests dosya listesiyle karşılaştırır); betiğin sonunda
 -- README'deki "Betik kaydı" bloğu bulunur. İz satırı yine yazılır: kayıt bloğundan önce elle uygulanmış veritabanı için.
 -- =====================================================================================
@@ -135,9 +140,19 @@ FROM (VALUES
     (28, '20261025_01_Giris_Kilidi',                EXISTS (SELECT 1 FROM kolon WHERE tablo = 'Kullanicilar' AND ad = 'BasarisizGirisSayisi')
                                                     AND EXISTS (SELECT 1 FROM kolon WHERE tablo = 'Kullanicilar' AND ad = 'GirisKilitBitisTarihi')),
     (29, '20261026_01_Barkod_Etiket_Yetkisi',       EXISTS (SELECT 1 FROM "MenuTanimlari" WHERE "Kod" = 'barkod-etiket')),
+    (30, '20261105_01_Yuk_Turu',                    EXISTS (SELECT 1 FROM kolon WHERE tablo = 'Sandiklar' AND ad = 'YukTuruId')
+                                                    AND EXISTS (SELECT 1 FROM kolon WHERE tablo = 'LookupYukTurleri' AND ad = 'Deger')),
+    (31, '20261105_02_Yukleme_Planlama',            EXISTS (SELECT 1 FROM kolon WHERE tablo = 'YuklemePlanYukleri' AND ad = 'ElleDegisenIzinler')
+                                                    AND EXISTS (SELECT 1 FROM kolon WHERE tablo = 'EkipmanKonfigurasyonRevizyonlari' AND ad = 'TeknikVeriJson')
+                                                    AND EXISTS (SELECT 1 FROM "MenuTanimlari" WHERE "Kod" = 'yukleme-planlama')),
+    (32, '20261105_03_Yukleme_Yerlesim',            EXISTS (SELECT 1 FROM kolon WHERE tablo = 'YuklemePlanRevizyonlari' AND ad = 'YerlesimJson')),
+    (33, '20261109_01_Arac_Yukleme',                EXISTS (SELECT 1 FROM kolon WHERE tablo = 'YuklemeOturumlari' AND ad = 'RevizyonNo')
+                                                    AND EXISTS (SELECT 1 FROM kolon WHERE tablo = 'YuklemeOturumYukleri' AND ad = 'YukAnahtari')
+                                                    AND EXISTS (SELECT 1 FROM "MenuTanimlari" WHERE "Kod" = 'arac-yukleme')),
     (34, '20261112_01_Saha_Iptal_Proje_Sevk_Durumu', NOT EXISTS (SELECT 1 FROM saha_iptal_onarilacak)),
     (35, '20261117_01_Saha_Kapanis_Proje_Sevk_Durumu', NOT EXISTS (SELECT 1 FROM saha_kapanis_onarilacak)),
-    (36, '20261119_01_Geri_Gonderim_Sevk_Partisi_Sayaci', NOT EXISTS (SELECT 1 FROM geri_gonderim_onarilacak))
+    (36, '20261119_01_Geri_Gonderim_Sevk_Partisi_Sayaci', NOT EXISTS (SELECT 1 FROM geri_gonderim_onarilacak)),
+    (37, '20261119_02_Yukleme_Arac_Aileleri',       EXISTS (SELECT 1 FROM kolon WHERE tablo = 'EkipmanTipleri' AND ad = 'OtomatikSecimSirasi'))
 ) AS t(sira, betik, uygulandi)
 LEFT JOIN kayit k ON k.ad = t.betik
 ORDER BY t.sira;

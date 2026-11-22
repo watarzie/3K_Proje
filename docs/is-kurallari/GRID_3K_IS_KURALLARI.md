@@ -29,6 +29,7 @@ Bu doküman, mevcut backend ve önyüzün **uyguladığı davranışların** yaz
 - **G-…:** Grid kuralları.
 - **U-…:** 3K kuralları.
 - **K-…:** kaynak, tahsis ve revizyon kuralları.
+- **YK-…:** araç yükleme (saha) kuralları (bölüm 6.4).
 - **“Mevcut uygulama farkı”** olarak belirtilen yerler, farklı işlem yollarının aynı kontrolü uygulamadığını gösterir. Bunlar tek bir ideal kurala dönüştürülerek gizlenmemiştir.
 - Kod referansları belge hazırlanırken incelenen sürüme aittir; ileride satır numaraları değişebilir.
 - Yerel veritabanı yapılandırmaları ayrıca tarihli bir anlık görüntü olarak verilmiştir. Kalıcı ürün politikası değildir.
@@ -413,8 +414,8 @@ Engel listesi dışındaki retler 400 döner. Seçimde normal projeden aktarılm
 - **Eşzamanlılık:** Taşıma ve aktarım, içine ürün koyduğu mevcut sandıkları (taşımada kaynak sandıkları da) her durumda günceller. Okumadan sonra başlayan bir sevkiyatla yarışan işlem `xmin` eşzamanlılık çakışmasıyla 409 alır.
 
 **S-25 — Taşımada yeni hedef sandığın kutu bilgisi.** Hedef sandık seçilmediyse taşıma hedef sahada Hazırlanıyor durumunda yeni sandık açar.
-- **Kutu taşınıyorsa:** Taşımada tek kaynak sandık varsa ve bu sandık taşımadan sonra boşalıyorsa kutunun kendisi taşınmış sayılır. Kaynak sandığın adı (TR/EN), tipi, ölçüleri (en, boy, yükseklik), net ve brüt ağırlığı ile depo lokasyonu yeni sandığa kopyalanır.
-- **Aksi halde:** Kaynakta ürün kalıyorsa ya da satırlar birden çok sandıktan geliyorsa yeni sandık adsız, ölçüsüz ve ağırlıksız açılır; tipi varsayılan (`AhsapKapali`), lokasyonu Belirsiz olur ve ölçüyü kullanıcı girer.
+- **Kutu taşınıyorsa:** Taşımada tek kaynak sandık varsa ve bu sandık taşımadan sonra boşalıyorsa kutunun kendisi taşınmış sayılır. Kaynak sandığın adı (TR/EN), tipi, yük türü (5 Kasım 2026), ölçüleri (en, boy, yükseklik), net ve brüt ağırlığı ile depo lokasyonu yeni sandığa kopyalanır.
+- **Aksi halde:** Kaynakta ürün kalıyorsa ya da satırlar birden çok sandıktan geliyorsa yeni sandık adsız, ölçüsüz ve ağırlıksız açılır; tipi varsayılan (`AhsapKapali`), yük türü Sandık, lokasyonu Belirsiz olur ve ölçüyü kullanıcı girer.
 - **Neden:** Aynı kutu iki sahanın packing list ağırlığında ve m³'ünde sayılmaz.
 
 **S-26 — Saha sandık numarası: çakışma normal biçimle aranır, numara sessizce değiştirilmez (28.10.2026).** Saha projesinde yeni sandık açan bütün yollar (sahadan sahaya taşıma, otomatik aktarım, elle ürün ya da sandık bazlı aktarım) istenen numarayı hedefteki numaralarla `KoliNoKurali.Normalize` biçiminde karşılaştırır; sevk edilmiş sandıklar da numarayı tutar.
@@ -592,6 +593,103 @@ Kaynak: [GetEksikUrunlerPdfQuery.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.
 - **Sıra:** Satırlar kaynak proje numarası, kök satırın sıra numarası ve saha proje numarasına göre sıralanır.
 
 Kaynak: [EksikUrunlerRaporService.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Infrastructure/Services/Raporlar/EksikUrunlerRaporService.cs) (`GetSahaIziSatirlariAsync`).
+
+### 6.4 Araç yükleme (saha) (9 Kasım 2026)
+
+Yükleme planının yerleşimi sahada tabletle uygulanır: operatör sandık barkodunu el okuyucusuyla okutur, sunucu yükü çözer ve "yüklendi" işaretini kaydeder. Bu bölüm yalnız sahadaki yükleme kaydını ve bunun sandık/sevk kurallarıyla sınırını anlatır. Yükleme planının kendisi (plan ve revizyon, otomatik ve elle yerleşim, ekipman kitaplığı) bu katalogda kural olarak yazılmamıştır. Uçlar `api/arac-yukleme` altındadır; ekran `/arac-yukleme` rotasındadır.
+
+**YK-01 — Yükleme adımı ve yük numarası tek kuraldan türer (9 Kasım 2026).** Bir aracın yükleri `YuklemeSirasiKurali` ile sıralanır; rapor, plan ekranı ve saha ekranı aynı numarayı ve aynı adımı gösterir.
+- **Numara ("No"):** Yükler yükleme sırasına (`YuklemeSirasi`), aynı sırada kata (`Kat`, alt kat önce) göre dizilir. Yükün numarası bu listedeki konumudur ve 1'den başlar. Girdi sırası sonucu değiştirmez.
+- **Adım:** Aynı yükleme sırasını paylaşan yükler tek adımdır (istif grubu, alt kattan üste). Grup dışarıda hazırlanır ve bütün hâlinde yüklenir; tek yükte adım o yüktür. Adım numarası 1'den başlar ve saklanan yükleme sırası boşluklu olsa da ardışıktır (sıra 1, 3, 7 → adım 1, 2, 3).
+- **Kullananlar:**
+  - Yükleme planı PDF'inin araç sayfası yük listesindeki "No"yu, çizim etiketini ve istif gruplarını bu adımlardan üretir. İstifin en üst katının etiketi grubun bütün numaralarını taşır ("3/4").
+  - Saha servisinde sıradaki adım, sıra dışı denetimi, barkod çözümündeki adım ve numara ile işarete yazılan adım numarası aynı kuraldan gelir.
+  - Ön yüzdeki aynası `yukleme-adimlari.ts` dosyasıdır; plan ekranındaki adım adım oynatıcı ve saha ekranı onu kullanır.
+- **Motor:** Yerleşim motoru otomatik yerleşimde ve elle yerleşim denetiminde istif numarası ile yükleme sırasını aynı verir; bir istifin bütün katları aynı adımdadır.
+
+**YK-02 — Yükleme oturumu planın son revizyonuyla başlar; planda aynı anda tek açık oturum olur (9 Kasım 2026).** `POST api/arac-yukleme/planlar/{planId}/oturum`; gövdede `beklenenRevizyonNo`.
+- **Son revizyon:** Oturum planın son revizyonuna bağlanır. İstekteki beklenen revizyon numarası son revizyondan farklıysa (plan arada revize edilmiş) 409 döner. Numara gönderilmezse 400.
+- **Yerleşim şartı:** Son revizyonda yerleşim yoksa 400 ("Planın son revizyonunda yerleşim yok; önce hesaplayın."). Yerleşimde araca konmuş hiç yük yoksa da 400. Yerleşim sonucunun uygunsuz olması başlatmayı engellemez; sonuç, ekranın uyarabilmesi için durum yanıtında (`yerlesimSonucu`) döner.
+- **Tek açık oturum:** Planda süren oturum varken ikinci başlatma 409 alır ("Bu planda süren bir yükleme oturumu var."). İki kişi aynı anda başlatırsa kısmi benzersiz indeks (`IX_YuklemeOturumlari_PlanId`, yalnız açık oturumlar) ikincisini reddeder ve aynı 409 döner.
+- **Oturum kaydı:** Revizyon kimliği ve numarası, araç sayısı, toplam yük sayısı, başlatan ve başlama zamanı (`TurkeyTime`) yazılır. Sayılar başlangıçtaki yerleşimin kopyasıdır.
+- **Plan yoksa** 404.
+- **Liste ve durum:**
+  - `GET api/arac-yukleme/planlar` yalnız son revizyonunda yerleşim olan ya da yüklemesi süren planları verir. Sayfalıdır (varsayılan 25, en fazla 100); süren oturumu olanlar önce gelir. Arama plan no ve adında yapılır; arama metni en fazla 100 karakterdir, uzunu 400 alır.
+  - `GET api/arac-yukleme/planlar/{planId}` süren oturumu, yoksa en son kapanan oturumu ve araçların ilerlemesini verir. `baslatilabilir`, son revizyonda yerleşim varken ve süren oturum yokken doğrudur.
+  - Planın ne yükleme oturumu ne de son revizyonunda yerleşimi varsa durum isteği 404 döner (listeyle aynı görünürlük: taslak plan araç yükleme izniyle görülmez). Plan yoksa da 404.
+
+**YK-03 — Oturum başladığı revizyonun yerleşimine sabittir (9 Kasım 2026).** Araçlar, adımlar, barkod çözümü ve işaretleme oturumun revizyonundaki yerleşimden okunur.
+- Plan sonradan revize edilse de oturum başladığı revizyonun yerleşimiyle sürer; işaretleme ve geri alma devam eder. İlerleme yeni revizyona taşınmaz.
+- **"Plan değişti" uyarısı:** Planın son revizyonu oturumun revizyonundan farklıysa oturum başlığında `planDegisti` doğru döner (araç yükleme liste, durum ve araç yanıtları). Plan detayı (`GET api/yukleme-planlari/{id}`) süren oturumu `surenYukleme` alanında taşır; plan ekranı bununla uyarır.
+- Durum yanıtında `yerlesimVar` ve `baslatilabilir` son revizyona, araç listesi oturumun revizyonuna göredir.
+- Yükleme kaydı olan plan ve revizyon silinemez (`ON DELETE RESTRICT`). Sandık silinirse işaretin sandık bağı boşalır, yük kodunun kopyası kalır (`ON DELETE SET NULL`).
+
+**YK-04 — Sandık barkodunu sunucu çözer; çözüm hiçbir kaydı değiştirmez (9 Kasım 2026).** `GET api/arac-yukleme/oturumlar/{oturumId}/cozumle?barkod=&aracNo=`; `aracNo` ekranda açık olan araçtır.
+- **Barkod:** Sandık barkodu, etiketteki gibi (C-16) `Sandik.Id` değerinin 12 haneye soldan sıfırla doldurulmuş hâlidir. Okutulan metin kırpılır; tam 12 ASCII rakam olmalı ve sıfırdan büyük, `int` sınırı içinde bir kimlik vermelidir (`000002060008` → 2060008). Ürün barkodu (16 hane), harf içeren, 11 ya da 13 haneli, tamamı sıfır olan ve ASCII dışı rakam içeren metin sandık barkodu değildir.
+- **Yük anahtarı:** Çözülen kimlik plan yük anahtarına (`s:{sandıkId}`) çevrilir. Plana elle eklenen yükün (`m:{grupNo}:{birimNo}`) barkodu yoktur.
+- **Sonuçlar** (bu sırayla değerlendirilir):
+  - *Geçersiz barkod* (6): metin sandık barkodu değildir.
+  - *Planda yok* (5): sandık oturumun yerleşiminde yoktur (plan dışı, hariç tutulmuş ya da yerleşememiş).
+  - *Zaten yüklendi* (4): yükün etkin işareti vardır; yanıt işareti (kim, ne zaman) taşır. Yük başka araca ait olsa da bu sonuç döner.
+  - *Başka araçta* (3): yük oturumun başka bir aracına aittir; yanıt doğru aracı gösterir.
+  - *Sıra dışı* (2): yük ekrandaki araçtadır ama sıradaki adımdan ileridedir (YK-06).
+  - *Yüklenebilir* (1): yük ekrandaki araçta ve sıradadır; yanıt adımı ve numarayı taşır.
+- **Doğrulama:** Barkod boşsa ya da 64 karakterden uzunsa, oturum ya da araç numarası pozitif değilse 400.
+- **Oturum:** Oturum yoksa 404, kapalıysa 409 (YK-09).
+- **Salt okunur:** İstek sorgudur, işaret yazmaz. İşaretleme ayrı komuttur (YK-05).
+
+**YK-05 — Yalnız ekrandaki aracın yerleşimindeki yük işaretlenir; barkod kaynağı sunucuda doğrulanır (9 Kasım 2026).** `POST api/arac-yukleme/oturumlar/{oturumId}/yuklemeler`; gövdede `aracNo`, `yukAnahtari`, `kaynak`, `siraDisiOnayi` ve kaynak Barkod ise `barkod`.
+- **İşaretlenmeyenler:**
+  - Başka aracın yükü 400 alır; mesaj doğru aracı söyler.
+  - Oturumun yerleşiminde olmayan yük 400 alır ("Bu yük bu yükleme planının yerleşiminde yok.").
+  - Araç oturumda yoksa 404.
+  - Bu retlerin hiçbiri kayıt yazmaz.
+- **Kaynak:** Barkodla okutulan yük *Barkod* (1), listeden elle işaretlenen yük *Elle* (2) olarak kaydedilir. Kaynak istemcinin beyanına bırakılmaz:
+  - Barkod kaynağında istek okutulan barkodu da taşır; barkod boşsa ya da 64 karakterden uzunsa 400.
+  - Sunucu barkodu çözer (YK-04). Çözülen yük işaretlenen yük anahtarıyla eşleşmiyorsa 400 döner ("Okutulan barkod işaretlenen yükün barkodu değil; barkodu yeniden okutun."). Barkodu olmayan "barkodla okutuldu" kaydı yazılamaz.
+  - Plana elle eklenen yükün (`m:` anahtarı) barkodu yoktur; Barkod kaynağıyla işaretlenemez (400), listeden Elle işaretlenir.
+  - Elle işaretleme her yük için kabul edilir ve barkod istemez. Geçersiz kaynak değeri 400 alır.
+- **İşaret kaydı:** Oturum, araç numarası, yük anahtarı, sandık bağı (revizyondaki yük satırından), yük kodunun kopyası, adım numarası, kaynak, sıra dışı işareti, yükleyen ve zaman (`TurkeyTime`).
+- **Doğrulama:** Yük anahtarı boşsa ya da 64 karakterden uzunsa, oturum ya da araç numarası pozitif değilse 400.
+
+**YK-06 — Sıra dışı yük onay ister ve işaretiyle kaydedilir (9 Kasım 2026).** Sıra araç bazında, YK-01 adımlarıyla izlenir.
+- **Sıradaki adım:** Yüklenmemiş yükü olan ilk adımdır; aracın bütün yükleri yüklendiyse sıradaki adım yoktur. Sıra dışı yüklenmiş sonraki bir adım, önceki eksik adımı sıradaki olmaktan çıkarmaz.
+- **Sıra dışı:** Adımı sıradaki adımdan sonra olan yüktür. Bunu sunucu etkin işaretlerden hesaplar. İstemcinin gönderdiği `siraDisiOnayi` yalnız operatörün kabulüdür; sıra dışılığı belirlemez.
+- **Onay:** Onaysız sıra dışı işaretleme 409 alır; mesaj sıradaki adımı ve bekleyen yükleri söyler. Onaylı istek kabul edilir ve işaret `siraDisi` doğru olarak kaydedilir. Sırasındaki yük, onay gönderilse de sıra dışı kaydedilmez.
+- **İstif grubu:** Aynı adımdaki katlar kendi arasında herhangi bir sırayla işaretlenebilir (grup dışarıda hazırlanıp birlikte yüklenir). Adım, bütün katları işaretlenmeden bitmez.
+
+**YK-07 — Bir yükün oturumda en çok bir etkin işareti olur (9 Kasım 2026).**
+- Zaten yüklü yük yeniden işaretlenirse yeni kayıt yazılmaz. İstek başarıyla döner, yanıtta `zatenYuklendi` doğrudur ve aracın güncel durumu gelir. Bu denetim sıra denetiminden önce yapılır.
+- İki tablet aynı yükü aynı anda işaretlerse istekler sırayla yürür (YK-09) ve tek kayıt kalır; ikinci istek hata almaz, `zatenYuklendi` döner. Kısmi benzersiz indeks (`IX_YuklemeOturumYukleri_OturumId_YukAnahtari`, yalnız geri alınmamış işaretler) aynı sınırı veritabanında da korur.
+- Ayrı bir tekrar anahtarı yoktur; tekillik oturum ve yük anahtarıyla sağlanır. Geri alınmış işaretler bu sınıra girmez (YK-08).
+
+**YK-08 — İşareti geri alma gerekçe ister; işaret silinmez (9 Kasım 2026).** `POST api/arac-yukleme/oturumlar/{oturumId}/yuklemeler/{isaretId}/geri-al`; gövdede `gerekce`.
+- Gerekçe kırpıldıktan sonra en az 5, en çok 500 karakterdir; değilse 400.
+- İşaret silinmez: geri alan, zaman ve kırpılmış gerekçe aynı satıra yazılır. Geri alınan işaret ilerlemeye ve sıradaki adım hesabına girmez.
+- Yük yeniden işaretlenebilir. Yeni işaret yeni satırdır; eski satır geçmişte kalır.
+- İşaret bu oturumda yoksa ya da daha önce geri alınmışsa 404; aynı işareti iki tablet aynı anda geri alırsa ikincisi 404 alır ve ilk gerekçe ezilmez. Kapalı oturumda 409 (YK-09).
+
+**YK-09 — Tamamlama ve iptal gerekçe kurallarına bağlıdır; kapanan oturum yeniden açılmaz (9 Kasım 2026).** `POST api/arac-yukleme/oturumlar/{oturumId}/tamamla` ve `POST api/arac-yukleme/oturumlar/{oturumId}/iptal`; gövdede `gerekce`.
+- **Tamamlama:** Etkin işaret sayısı oturumun toplam yük sayısından azsa (yüklenmemiş yük var) gerekçe zorunludur; yoksa 400. Bütün yükler yüklendiyse gerekçe isteğe bağlıdır. Yazılan gerekçe her durumda 5–500 karakter olmalıdır.
+- **İptal** her zaman gerekçe ister (5–500 karakter).
+- **Kapanış kaydı:** Durum *Tamamlandı* (2) ya da *İptal edildi* (3) olur; kapatan, zaman ve kırpılmış gerekçe yazılır. Reddedilen kapatmada oturum açık kalır.
+- **Kapalı oturum:** İşaretleme, geri alma, yeniden kapatma ve barkod çözme 409 alır ("Yükleme oturumu kapalı; işaretleme ve geri alma yapılamaz."). Yeniden açma ucu yoktur. Durum ve araç sorguları kapanan oturumu okumayı sürdürür.
+- **Sıralı yürütme:** İşaretleme, geri alma ve kapatma oturum satırının kilidi (`FOR UPDATE`) altında sırayla yürür. Kapanmış oturuma işaret düşmez; "zaten yüklendi", sıra dışılık ve tamamlamadaki eksik yük sayımı kilit altında hesaplanır, başka tabletin araya giren işiyle bayatlamaz.
+- **Yeni oturum:** Aynı plan için yeniden oturum başlatılabilir (YK-02 şartlarıyla; son revizyonda yerleşim olmalıdır). Yeni oturum sıfırdan başlar; önceki oturumun işaretleri ona taşınmaz.
+
+**YK-10 — Yükleme işareti planlama kaydıdır; sandık durumunu, sevki ve sayaçları değiştirmez (9 Kasım 2026).** Oturum başlatma, işaretleme, geri alma, tamamlama ve iptal yalnız `YuklemeOturumlari` ve `YuklemeOturumYukleri` tablolarına yazar.
+- Sandık durumu, sevkiyat ve sefer kayıtları, hareket geçmişi ve plan revizyonu değişmez. Grid/3K miktar sayaçlarına dokunulmaz.
+- "Yüklendi" işareti sandık kapatma, Grid sevki ya da son sevkiyat değildir (C ve L kuralları). Bu olayların hiçbirini üretmez ve onların yerine geçmez.
+- Bu istekler dinamik onaya girmez; onay işlemi olarak tanımlı değildir.
+
+**YK-11 — Araç yükleme ayrı izindir: `arac-yukleme` R izler, W işler (9 Kasım 2026).**
+- **R:** Plan listesi, plan yükleme durumu, oturumdaki araç ve barkod çözümü. **W:** Oturum başlatma, işaretleme, geri alma, tamamlama ve iptal. Sekiz isteğin hepsi yalnız bu kodu ister.
+- **Düğüm:** `yukleme-planlama` (Id 5263) altındadır: Id 5268, rota `/arac-yukleme`, `MENU.ARAC_YUKLEME`. Üst düğüm tavandır (Y-03): role `arac-yukleme` W verilmesi için `yukleme-planlama` da W olmalıdır.
+- **Ayrım:** `yukleme-planlari` izni bu uçları açmaz, `arac-yukleme` de plan düzenlemeyi açmaz. İzin, saha operatörüne plan düzenleme yetkisi vermeden verilebilsin diye ayrıdır.
+- Proje tipinin sandık izni ayrıca sorulmaz (yükleme planıyla aynı model; kullanıcı kararı, 5 Kasım 2026).
+- Betik (33, `20261109_01_Arac_Yukleme.sql`) yalnız Admin rolüne W verir (kullanıcı kararı, 9 Kasım 2026). Saha operatörü rolüne izin rol yönetiminden verilir; verilmiş izin betikle değişmez.
+
+Kaynak: [YuklemeSirasiKurali.cs](../../3K.Core/Models/YuklemeSirasiKurali.cs), [YuklemeOturumuKurali.cs](../../3K.Core/Models/YuklemeOturumuKurali.cs), [BarkodEtiketKurali.cs](../../3K.Core/Models/BarkodEtiketKurali.cs) (`SandikBarkoduCoz`), [YuklemeOturumuEntities.cs](../../3K.Core/Entities/YuklemeOturumuEntities.cs), [YuklemeOturumuModelleri.cs](../../3K.Core/Models/YuklemeOturumuModelleri.cs), [IYuklemeOturumuService.cs](../../3K.Core/Interfaces/IYuklemeOturumuService.cs), [YuklemePlaniService.Oturum.cs](../../3K.Infrastructure/Services/YuklemePlanlama/YuklemePlaniService.Oturum.cs), [YuklemePlaniPdfOlusturucu.cs](../../3K.Infrastructure/Services/YuklemePlanlama/YuklemePlaniPdfOlusturucu.cs) (`AracSayfasi`), [YuklemeModelBuilderExtensions.cs](../../3K.Infrastructure/Data/YuklemeModelBuilderExtensions.cs), [AracYuklemeCommands.cs](../../3K.Application/Features/YuklemePlanlamaIslemleri/Commands/AracYuklemeCommands.cs), [AracYuklemeQueries.cs](../../3K.Application/Features/YuklemePlanlamaIslemleri/Queries/AracYuklemeQueries.cs), [AracYuklemeValidators.cs](../../3K.Application/Features/YuklemePlanlamaIslemleri/Validators/AracYuklemeValidators.cs), [AracYuklemeController.cs](../../3K_API/Controllers/AracYuklemeController.cs), [20261109_01_Arac_Yukleme.sql](../../scripts/database/bekleyen/20261109_01_Arac_Yukleme.sql).
 
 ---
 
@@ -1639,6 +1737,7 @@ Aşağıdaki test dosyaları kuralların bakımında kullanılabilecek mevcut re
 | Fiziksel sevk ve düzeltme | [NormalProjeSevkDurumHelperTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/NormalProjeSevkDurumHelperTests.cs), [NormalProjeSevkDurumHesaplayiciTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/NormalProjeSevkDurumHesaplayiciTests.cs), [NormalProjeSevkKomutlariTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/NormalProjeSevkKomutlariTests.cs), [SevkiyatKilidiAcRegresyonTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/SevkiyatKilidiAcRegresyonTests.cs), [ProjectLockCorrectionScopeTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/ProjectLockCorrectionScopeTests.cs) |
 | Sevk sonrası düzeltme (L-12–L-17) | [SevkSonrasiDuzeltmeTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/SevkSonrasiDuzeltmeTests.cs), [SevkSonrasiDuzeltmePostgresTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/SevkSonrasiDuzeltmePostgresTests.cs), [ProjectLockCorrectionScopeTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/ProjectLockCorrectionScopeTests.cs), [ServerAuthorizationRegressionTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/ServerAuthorizationRegressionTests.cs), [SandikTasimaKatalogKurallariTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/SandikTasimaKatalogKurallariTests.cs), [SandikTopluTasimaTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/SandikTopluTasimaTests.cs) |
 | Sandık açılış/kapanış (C-11–C-15) | [SandikAcilisKapanisTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/SandikAcilisKapanisTests.cs), [SandikAcilisKapanisPostgresTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/SandikAcilisKapanisPostgresTests.cs), [CanliyaAlimBetikleriTests.cs](C:/Users/Watarzie/source/repos/3K_Proje/3K.Application.Tests/CanliyaAlimBetikleriTests.cs) |
+| Araç yükleme (YK-01–YK-11) | [AracYuklemeTests.cs](../../3K.Application.Tests/AracYuklemeTests.cs), [YuklemeSirasiKuraliTests.cs](../../3K.Application.Tests/YuklemeSirasiKuraliTests.cs), [YuklemePlanlamaPostgresTests.cs](../../3K.Application.Tests/YuklemePlanlamaPostgresTests.cs), [CanliyaAlimBetikleriTests.cs](../../3K.Application.Tests/CanliyaAlimBetikleriTests.cs) |
 
 ### 12.3 Belgenin güncel tutulması
 

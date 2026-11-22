@@ -186,4 +186,31 @@ public static class YetkiKodlari
         /// <summary>İş Takibi'ndeki vade uyarısı (vadesi geçen/yaklaşan faturalar, tek tek kalan günüyle); yalnız R.</summary>
         public const string VadeUyarisi = "finans-vade-uyarisi";
     }
+
+    /// <summary>
+    /// Yükleme Simülasyonu ve Araç Planlama modülü (kenar menüde grup; alt düğümler ekrandır). Üst düğüm alt düğümün
+    /// tavanıdır.
+    /// </summary>
+    public static class YuklemePlanlama
+    {
+        public const string Modul = "yukleme-planlama";
+
+        /// <summary>Yükleme planları ekranı: R planları görür, W oluşturur ve kaydeder.</summary>
+        public const string Planlar = "yukleme-planlari";
+
+        /// <summary>Ekipman kitaplığı ekranı: R görür, W Excel'den içe aktarır.</summary>
+        public const string EkipmanKitapligi = "ekipman-kitapligi";
+
+        /// <summary>
+        /// Ekipman teknik verisini "Doğrulandı" işaretleme (W; kitaplığın altında rotasız düğüm). Veriyi giren ile
+        /// doğrulayanın ayrı rol olabilmesi için ayrı izindir.
+        /// </summary>
+        public const string EkipmanDogrulama = "ekipman-dogrulama";
+
+        /// <summary>
+        /// Araç yükleme (saha) ekranı: R yükleme oturumunu ve ilerlemeyi görür; W oturum başlatır, kapatır, yükü
+        /// yüklendi işaretler ve işareti geri alır. Operatöre plan düzenleme izni vermeden verilebilsin diye ayrı izindir.
+        /// </summary>
+        public const string AracYukleme = "arac-yukleme";
+    }
 }

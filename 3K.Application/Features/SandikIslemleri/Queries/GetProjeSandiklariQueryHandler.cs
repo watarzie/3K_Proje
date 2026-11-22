@@ -112,6 +112,8 @@ namespace _3K.Application.Features.SandikIslemleri.Queries
                     DepoLokasyonMetni = _lookupCache.GetDeger<LookupDepoLokasyon>(s.DepoLokasyonId),
                     TipId = s.TipId,
                     TipMetni = _lookupCache.GetDeger<LookupSandikTipi>(s.TipId),
+                    YukTuruId = s.YukTuruId,
+                    YukTuruMetni = _lookupCache.GetDeger<LookupYukTuru>(s.YukTuruId),
                     UrunSayisi = icerikler.Count,
                     IsManuelSandik = isManuelSandik,
                     SandikNoKilitNedeni = SandikNoDegisikligiKurali.KilitNedeni(s, cekiSandikNolari, ambalajKayitlari[s.Id]),

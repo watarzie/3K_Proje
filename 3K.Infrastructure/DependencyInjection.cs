@@ -10,6 +10,7 @@ using _3K.Infrastructure.Services.Cekiler;
 using _3K.Infrastructure.Services.Etiketler;
 using _3K.Infrastructure.Services.Finans;
 using _3K.Infrastructure.Services.Raporlar;
+using _3K.Infrastructure.Services.YuklemePlanlama;
 
 namespace _3K.Infrastructure;
 
@@ -22,6 +23,7 @@ public static class DependencyInjection
         services.AddDomainServices();
         services.AddFinansServices();
         services.AddRaporServices();
+        services.AddYuklemePlanlamaServices();
         services.AddCekiServices();
         services.AddBackgroundJobs();
 
@@ -147,6 +149,15 @@ public static class DependencyInjection
         services.AddScoped<IStokRaporService, StokRaporService>();
         services.AddScoped<ITalepFormuRaporService, TalepFormuRaporService>();
         services.AddScoped<IUcKSandikDurumRaporService, UcKSandikDurumRaporService>();
+    }
+
+    /// <summary>Yükleme Simülasyonu ve Araç Planlama: plan ve ekipman kitaplığı.</summary>
+    private static void AddYuklemePlanlamaServices(this IServiceCollection services)
+    {
+        services.AddScoped<IYuklemePlaniService, YuklemePlaniService>();
+        services.AddScoped<IYuklemeOturumuService, YuklemePlaniService>();
+        services.AddScoped<IEkipmanKitapligiService, EkipmanKitapligiService>();
+        services.AddSingleton<IYuklemePlaniRaporOlusturucu, YuklemePlaniPdfOlusturucu>();
     }
 
     private static void AddBackgroundJobs(this IServiceCollection services)

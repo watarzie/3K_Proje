@@ -13,6 +13,9 @@ namespace _3K.Application.Features.SandikIslemleri.DTOs
         /// <summary>Sandık tipi; özellik güncellemesinde zorunlu olduğu için ön yüz mevcut değeri buradan alır (G2).</summary>
         public int TipId { get; set; }
         public string TipMetni { get; set; } = string.Empty;
+        /// <summary>Yük türü; özellik güncellemesi mevcut değeri buradan alır (gönderilmezse değişmez).</summary>
+        public int YukTuruId { get; set; }
+        public string YukTuruMetni { get; set; } = string.Empty;
         /// <summary>
         /// Sandık numarası "Özellikleri Güncelle"de değiştirilemiyorsa nedeni (çekiden gelen, sevkli, 1 numara, Ambalaj
         /// üretimi); <c>null</c> ise numara değiştirilebilir.

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using _3K.Core.Entities;
+using _3K.Core.Enums;
 using _3K.Core.Models;
 
 namespace _3K.Infrastructure.Data;
@@ -48,6 +49,16 @@ internal static class SandikModelBuilderExtensions
             .HasOne(s => s.DepoLokasyonLookup)
             .WithMany()
             .HasForeignKey(s => s.DepoLokasyonId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // --- Sandik.YukTuruId → LookupYukTuru.Id (varsayılan 1 = Sandık; 20261105_01 betiği) ---
+        modelBuilder.Entity<Sandik>()
+            .Property(s => s.YukTuruId)
+            .HasDefaultValue((int)YukTuru.Sandik);
+        modelBuilder.Entity<Sandik>()
+            .HasOne(s => s.YukTuruLookup)
+            .WithMany()
+            .HasForeignKey(s => s.YukTuruId)
             .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<SandikIcerik>(e =>

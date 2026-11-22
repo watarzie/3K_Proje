@@ -4,6 +4,7 @@
     <Project Path="3K.Core/3K.Core.csproj" />
     <Project Path="3K.Infrastructure/3K.Infrastructure.csproj" />
     <Project Path="3K_API/3K_API.csproj" />
+    <Project Path="3K.YuklemeMotoru/3K.YuklemeMotoru.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="3K.Application.Tests/3K.Application.Tests.csproj" />

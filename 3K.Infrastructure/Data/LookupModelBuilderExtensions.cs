@@ -25,6 +25,7 @@ internal static class LookupModelBuilderExtensions
         ConfigureLookupTable<LookupKaliteDurum>(modelBuilder);
         ConfigureLookupTable<LookupSurecDurum>(modelBuilder);
         ConfigureLookupTable<LookupSandikAcilmaSebebi>(modelBuilder);
+        ConfigureLookupTable<LookupYukTuru>(modelBuilder);
     }
 
     /// <summary>
@@ -151,6 +152,13 @@ internal static class LookupModelBuilderExtensions
         modelBuilder.Entity<LookupSandikAcilmaSebebi>().HasData(
             new LookupSandikAcilmaSebebi { CreatedDate = new DateTime(2026, 10, 24), Id = 1, Anahtar = 1, Deger = "Trafo kurulum" },
             new LookupSandikAcilmaSebebi { CreatedDate = new DateTime(2026, 10, 24), Id = 2, Anahtar = 2, Deger = "Tadilat" }
+        );
+
+        // YukTuru (20261105_01 numaralı betik aynı kayıtları tohumlar; kimlikler YukTuru enum'uyla aynıdır)
+        modelBuilder.Entity<LookupYukTuru>().HasData(
+            new LookupYukTuru { CreatedDate = new DateTime(2026, 11, 5), Id = 1, Anahtar = 1, Deger = "Sandık" },
+            new LookupYukTuru { CreatedDate = new DateTime(2026, 11, 5), Id = 2, Anahtar = 2, Deger = "Trafo" },
+            new LookupYukTuru { CreatedDate = new DateTime(2026, 11, 5), Id = 3, Anahtar = 3, Deger = "Diğer özel yük" }
         );
 
         // YetkiTipi

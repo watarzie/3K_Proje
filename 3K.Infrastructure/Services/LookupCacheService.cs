@@ -49,6 +49,7 @@ namespace _3K.Infrastructure.Services
             await LoadLookup<LookupBirim>(ct);
             await LoadLookup<LookupProjeTipi>(ct);
             await LoadLookup<LookupSandikAcilmaSebebi>(ct);
+            await LoadLookup<LookupYukTuru>(ct);
         }
 
         public Task RefreshAsync<TLookup>(CancellationToken ct = default) where TLookup : LookupBase

@@ -13,16 +13,26 @@ namespace _3K.Application.Tests;
 /// 25 <c>20261024_01_Proje_Baglanti_Turu.sql</c>, 26 <c>20261024_02_Barkod_Urun_Arama_Yetkisi.sql</c>,
 /// 27 <c>20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql</c>, 28 <c>20261025_01_Giris_Kilidi.sql</c>,
 /// 29 <c>20261026_01_Barkod_Etiket_Yetkisi.sql</c>; hepsi <c>uygulandi/2026-10/</c> altında; 34
-/// <c>uygulandi/2026-11/20261112_01_Saha_Iptal_Proje_Sevk_Durumu.sql</c>; 35
-/// <c>bekleyen/20261117_01_Saha_Kapanis_Proje_Sevk_Durumu.sql</c>; 36
-/// <c>bekleyen/20261119_01_Geri_Gonderim_Sevk_Partisi_Sayaci.sql</c>) önceki sürümün şemasında çalıştırılır. Sonuç şeması EF modeliyle
+/// <c>uygulandi/2026-11/20261112_01_Saha_Iptal_Proje_Sevk_Durumu.sql</c>; 30 <c>bekleyen/20261105_01_Yuk_Turu.sql</c>,
+/// 31 <c>bekleyen/20261105_02_Yukleme_Planlama.sql</c>, 32 <c>bekleyen/20261105_03_Yukleme_Yerlesim.sql</c>,
+/// 33 <c>bekleyen/20261109_01_Arac_Yukleme.sql</c>, 35
+/// <c>bekleyen/20261117_01_Saha_Kapanis_Proje_Sevk_Durumu.sql</c>, 36
+/// <c>bekleyen/20261119_01_Geri_Gonderim_Sevk_Partisi_Sayaci.sql</c>, 37 <c>bekleyen/20261119_02_Yukleme_Arac_Aileleri.sql</c>)
+/// önceki sürümün şemasında çalıştırılır. Sonuç şeması EF modeliyle
 /// aynıdır (kolon, kısıt, ON DELETE kuralı, indeks). Betiklerin tekrarı hiçbir şeyi değiştirmez: var olan taşıma izi ve
 /// verilmiş izinler korunur. Salt okunur durum sorgusu (<c>kontrol/Betik_Durumu.sql</c>) klasördeki her betiği listeler
 /// ve öncesini/sonrasını doğru gösterir. 1–20 numaralı betikler canlıya uygulanıp depodan kaldırıldığı için burada yoktur.
 /// </summary>
 public sealed class CanliyaAlimBetikleriTests
 {
-    /// <summary>Canlıda çalıştırma sırası (scripts/database/README.md, sıra 22–29 ve 34–36; 30–33 yükleme dalında).</summary>
+    /// <summary>30–33: yükleme simülasyonu betikleri; kayıt bloğuyla yazıldıkları için kendi kayıtlarını bırakırlar. Statik başlatma sırası için listeden önce tanımlıdır.</summary>
+    private static readonly string[] YuklemeBetikleri =
+        ["20261105_01_Yuk_Turu", "20261105_02_Yukleme_Planlama", "20261105_03_Yukleme_Yerlesim", "20261109_01_Arac_Yukleme"];
+
+    /// <summary>37: araç aileleri ve tip sadelik sırası (36'dan sonra, ad sırasıyla).</summary>
+    private const string AracAileleriBetigi = "20261119_02_Yukleme_Arac_Aileleri";
+
+    /// <summary>Canlıda çalıştırma sırası (scripts/database/README.md, sıra 22–29, 34, 30–33, 35, 36 ve 37).</summary>
     private static readonly string[] Betikler =
         [.. new[]
         {
@@ -31,7 +41,15 @@ public sealed class CanliyaAlimBetikleriTests
             "20261024_02_Barkod_Urun_Arama_Yetkisi", "20261024_03_Sandik_Acilis_Kapanis_Gecmisi",
             "20261025_01_Giris_Kilidi", "20261026_01_Barkod_Etiket_Yetkisi"
         }.Select(ad => $"uygulandi/2026-10/{ad}.sql"), $"uygulandi/2026-11/{VeriOnarimBetigi}.sql",
-        $"bekleyen/{VeriOnarimBetigi35}.sql", $"bekleyen/{VeriOnarimBetigi36}.sql"];
+        .. YuklemeBetikleri.Select(ad => $"bekleyen/{ad}.sql"), $"bekleyen/{VeriOnarimBetigi35}.sql", $"bekleyen/{VeriOnarimBetigi36}.sql",
+        $"bekleyen/{AracAileleriBetigi}.sql"];
+
+    /// <summary>Kayıt bloğu taşıyan betikler, ad sırasıyla (kayıt tablosu da ada göre okunur).</summary>
+    private static readonly string[] KayitYazanlar =
+        [.. YuklemeBetikleri.Append(VeriOnarimBetigi).Append(VeriOnarimBetigi35).Append(VeriOnarimBetigi36).Append(AracAileleriBetigi)
+            .Order(StringComparer.Ordinal)];
+
+    private static bool KayitYazar(string betik) => KayitYazanlar.Contains(betik);
 
     /// <summary>
     /// 34 numaralı veri onarımı iz bırakmaz: onarılacak proje yoksa uygulanmış görünür. Seçimi ve C# kuralıyla eşliği
@@ -47,6 +65,16 @@ public sealed class CanliyaAlimBetikleriTests
 
     private static bool VeriOnarimi(string betik) => betik is VeriOnarimBetigi or VeriOnarimBetigi35 or VeriOnarimBetigi36;
 
+    /// <summary>31 ve 33 numaralı betiklerin izin düğümleri: kod, Id, rota, üst düğüm.</summary>
+    private static readonly (string Kod, int Id, string? Route, int? ParentId)[] YuklemeDugumleri =
+    [
+        (YetkiKodlari.YuklemePlanlama.Modul, 5263, null, null),
+        (YetkiKodlari.YuklemePlanlama.Planlar, 5264, "/yukleme-planlari", 5263),
+        (YetkiKodlari.YuklemePlanlama.EkipmanKitapligi, 5265, "/ekipman-kitapligi", 5263),
+        (YetkiKodlari.YuklemePlanlama.EkipmanDogrulama, 5266, null, 5265),
+        (YetkiKodlari.YuklemePlanlama.AracYukleme, 5268, "/arac-yukleme", 5263)
+    ];
+
     /// <summary>Önceki sürümün (master) şeması: bu sürümün eklediği tablo, kolon, kısıt ve indeksler yoktur.</summary>
     private const string OncekiSema = """
         DROP TABLE "SahaTasimaKalemleri";
@@ -59,6 +87,21 @@ public sealed class CanliyaAlimBetikleriTests
         DROP TABLE "SandikDurumOlaylari";
         DROP TABLE "LookupSandikAcilmaSebepleri";
         ALTER TABLE "Sandiklar" DROP COLUMN "KapanmaTarihi";
+        DROP TABLE "YuklemeOturumYukleri";
+        DROP TABLE "YuklemeOturumlari";
+        DROP TABLE "YuklemePlanYukleri";
+        DROP TABLE "YuklemePlanProjeleri";
+        DROP TABLE "YuklemePlanRevizyonlari";
+        DROP TABLE "YuklemePlanlari";
+        DROP TABLE "EkipmanKonfigurasyonRevizyonlari";
+        DROP TABLE "EkipmanKonfigurasyonlari";
+        DROP TABLE "EkipmanModelleri";
+        DROP TABLE "EkipmanTipleri";
+        DROP TABLE "EkipmanAileleri";
+        ALTER TABLE "Sandiklar" DROP CONSTRAINT "FK_Sandiklar_LookupYukTurleri_YukTuruId";
+        DROP INDEX "IX_Sandiklar_YukTuruId";
+        ALTER TABLE "Sandiklar" DROP COLUMN "YukTuruId";
+        DROP TABLE "LookupYukTurleri";
         """;
 
     /// <summary>
@@ -114,10 +157,10 @@ public sealed class CanliyaAlimBetikleriTests
                 await CalistirAsync(db, betik);
 
             Assert.All(await BetikDurumuAsync(db), x => Assert.Equal("uygulanmış", x.Value));
-            // Betik kaydı: 34–36 kendi satırını yazar (kaynak "kayıt"); kayıt bloğundan önceki 22–29 izden tanınır.
+            // Betik kaydı: 30–37 kendi satırını yazar (kaynak "kayıt"); kayıt bloğundan önceki 22–29 izden tanınır.
             var kayitlar = await BetikKayitlariAsync(db);
-            Assert.Equal(new[] { VeriOnarimBetigi, VeriOnarimBetigi35, VeriOnarimBetigi36 }, kayitlar.Keys);
-            Assert.All(await BetikKaynagiAsync(db), x => Assert.Equal(VeriOnarimi(x.Key) ? "kayıt" : "iz", x.Value));
+            Assert.Equal(KayitYazanlar, kayitlar.Keys);
+            Assert.All(await BetikKaynagiAsync(db), x => Assert.Equal(KayitYazar(x.Key) ? "kayıt" : "iz", x.Value));
             var gridSaha = await db.MenuTanimlari.AsNoTracking().SingleAsync(m => m.Kod == YetkiKodlari.Sandik.GridSahaGorunumu);
             // Rotasız izin düğümü: kenar menüde görünmez, ekran proje listesindeki düğmeyle açılır.
             Assert.Equal((5258, (string?)null, "MENU.GRID_SAHA_GORUNUMU", 5, 10), (gridSaha.Id, gridSaha.Route, gridSaha.LabelKey, gridSaha.ParentId!.Value, gridSaha.Sira));
@@ -156,6 +199,25 @@ public sealed class CanliyaAlimBetikleriTests
             await GecmisAktarildiAsync(db, gecmis, gecmis.SonKapanma);
             // 28: var olan kullanıcı sayaç 0, kilitsiz başlar.
             Assert.Equal((0, (DateTime?)null), await GirisKilidiAsync(db, gecmis.KullaniciId));
+            // 30: var olan sandıklar "Sandık" (1) başlar; hiçbir sandık betikle Trafo yapılmaz.
+            Assert.All(await db.Database.SqlQueryRaw<int>("SELECT \"YukTuruId\" AS \"Value\" FROM \"Sandiklar\"").ToListAsync(),
+                tur => Assert.Equal((int)YukTuru.Sandik, tur));
+            Assert.Equal(["Sandık", "Trafo", "Diğer özel yük"],
+                await db.LookupYukTurleri.AsNoTracking().OrderBy(t => t.Id).Select(t => t.Deger).ToListAsync());
+            // 31 ve 33: modül düğümleri (araç yükleme dahil), yalnız Admin W; aile ve tip tohumları.
+            var yukleme = await YuklemeDurumuAsync(db);
+            Assert.Equal(YuklemeDugumleri.Select(d => (d.Id, d.Route, d.ParentId)), yukleme.Dugumler.Select(d => (d.Id, d.Route, d.ParentId)));
+            Assert.True(yukleme.Dugumler[0].Sira > (await db.MenuTanimlari.AsNoTracking()
+                .Where(m => m.ParentId == null && m.Id != 5263).MaxAsync(m => m.Sira)));
+            Assert.All(yukleme.Izinler, x => Assert.Equal([(SistemRolleri.AdminId, (int)YetkiTipi.W)], x));
+            Assert.Equal((8, 37), yukleme.Tohumlar);
+            // 36: lowbed ve ağır yük tipleri kendi ailesinde; tohum tiplerin sadelik sırası EF tohumuyla aynı.
+            var tipler = await db.EkipmanTipleri.AsNoTracking().OrderBy(t => t.Id)
+                .Select(t => new { t.Id, t.AileId, t.OtomatikSecimSirasi }).ToListAsync();
+            Assert.Equal(EkipmanTohumu.Tipler.Select(t => (t.Id, t.AileId, t.OtomatikSecimSirasi)),
+                tipler.Select(t => (t.Id, t.AileId, t.OtomatikSecimSirasi)));
+            Assert.Equal(EkipmanTohumu.Aileler.OrderBy(a => a.Id).Select(a => (a.Id, a.Ad, a.Sira)),
+                (await db.EkipmanAileleri.AsNoTracking().OrderBy(a => a.Id).Select(a => new { a.Id, a.Ad, a.Sira }).ToListAsync()).Select(a => (a.Id, a.Ad, a.Sira)));
             var sema = await SemaAsync(db);
             var fark = modelSemasi.Except(sema).Select(x => "eksik: " + x).Concat(sema.Except(modelSemasi).Select(x => "fazla: " + x)).ToList();
             Assert.True(fark.Count == 0, string.Join(Environment.NewLine, fark));
@@ -172,6 +234,9 @@ public sealed class CanliyaAlimBetikleriTests
             var elleTarih = new DateTime(2026, 9, 30, 12, 0, 0);
             await db.Database.ExecuteSqlAsync(
                 $"""UPDATE "Sandiklar" SET "KapanmaTarihi" = {elleTarih} WHERE "Id" IN ({gecmis.KapaliSandikId}, {gecmis.AcikSandikId})""");
+            // 36: elle değiştirilen tip sadelik sırası ve aile sırası tekrar çalıştırmada korunur.
+            await db.Database.ExecuteSqlRawAsync("""UPDATE "EkipmanTipleri" SET "OtomatikSecimSirasi" = 9 WHERE "Kod" = 'k40-hc'""");
+            await db.Database.ExecuteSqlRawAsync("""UPDATE "EkipmanAileleri" SET "Sira" = 20 WHERE "Kod" = 'tenteli'""");
             // 28: tekrar çalıştırma var olan sayaç ve kilide dokunmaz.
             var kilit = new DateTime(2026, 10, 25, 9, 30, 0);
             await db.Database.ExecuteSqlAsync(
@@ -179,6 +244,8 @@ public sealed class CanliyaAlimBetikleriTests
             foreach (var betik in Betikler)
                 await CalistirAsync(db, betik);
             Assert.Equal((3, (DateTime?)kilit), await GirisKilidiAsync(db, gecmis.KullaniciId));
+            Assert.Equal(9, (await db.EkipmanTipleri.AsNoTracking().SingleAsync(t => t.Kod == "k40-hc")).OtomatikSecimSirasi);
+            Assert.Equal(20, (await db.EkipmanAileleri.AsNoTracking().SingleAsync(a => a.Kod == "tenteli")).Sira);
             Assert.Null((await db.MenuTanimlari.AsNoTracking().SingleAsync(m => m.Kod == YetkiKodlari.Sandik.GridSahaGorunumu)).Route);
             Assert.Null((await db.MenuTanimlari.AsNoTracking().SingleAsync(m => m.Kod == YetkiKodlari.Sandik.BarkodUrunArama)).Route);
 
@@ -197,6 +264,12 @@ public sealed class CanliyaAlimBetikleriTests
             Assert.Equal(etiketIzinleri, await IzinlerAsync(db, YetkiKodlari.Sandik.BarkodEtiket));
             Assert.Equal(1, await db.MenuTanimlari.CountAsync(m => m.Kod == YetkiKodlari.Sandik.BarkodEtiket));
             Assert.Equal(2, await db.LookupSandikAcilmaSebepleri.CountAsync());
+            // 31: tekrar çalıştırma düğüm, izin ve tohum sayısını değiştirmez.
+            var yuklemeTekrar = await YuklemeDurumuAsync(db);
+            Assert.Equal(yukleme.Dugumler, yuklemeTekrar.Dugumler);
+            Assert.Equal(yukleme.Izinler.SelectMany(x => x), yuklemeTekrar.Izinler.SelectMany(x => x));
+            Assert.Equal(yukleme.Tohumlar, yuklemeTekrar.Tohumlar);
+            Assert.Equal(3, await db.LookupYukTurleri.CountAsync());
             // Geçmiş ikinci kez aktarılmaz; dolu kapanma tarihi korunur, açık sandığınki boşalır.
             await GecmisAktarildiAsync(db, gecmis, elleTarih);
             var iz = await db.SahaTasimaKalemleri.AsNoTracking().SingleAsync();
@@ -328,6 +401,26 @@ public sealed class CanliyaAlimBetikleriTests
     private static Task<List<(int RolId, int YetkiTipiId)>> GridSahaIzinleriAsync(AppDbContext db) =>
         IzinlerAsync(db, YetkiKodlari.Sandik.GridSahaGorunumu);
 
+    private sealed record YuklemeBetikDurumu(
+        List<(int Id, string? Route, int? ParentId, int Sira)> Dugumler,
+        List<List<(int RolId, int YetkiTipiId)>> Izinler,
+        (int Aile, int Tip) Tohumlar);
+
+    /// <summary>31 ve 33 numaralı betiklerin bıraktıkları: düğümler (betikteki sırayla), her düğümün izinleri ve tohum sayıları.</summary>
+    private static async Task<YuklemeBetikDurumu> YuklemeDurumuAsync(AppDbContext db)
+    {
+        var dugumler = new List<(int Id, string? Route, int? ParentId, int Sira)>();
+        var izinler = new List<List<(int RolId, int YetkiTipiId)>>();
+        foreach (var (kod, _, _, _) in YuklemeDugumleri)
+        {
+            var dugum = await db.MenuTanimlari.AsNoTracking().SingleAsync(m => m.Kod == kod);
+            dugumler.Add((dugum.Id, dugum.Route, dugum.ParentId, dugum.Sira));
+            izinler.Add(await IzinlerAsync(db, kod));
+        }
+        var tohumlar = (await db.EkipmanAileleri.CountAsync(), await db.EkipmanTipleri.CountAsync());
+        return new YuklemeBetikDurumu(dugumler, izinler, tohumlar);
+    }
+
     private static async Task<List<(int RolId, int YetkiTipiId)>> IzinlerAsync(AppDbContext db, string kod) =>
         (await db.RolYetkileri.AsNoTracking()
             .Where(ry => ry.MenuTanimi.Kod == kod)
@@ -368,7 +461,12 @@ public sealed class CanliyaAlimBetikleriTests
         var metin = await File.ReadAllTextAsync(Betik(betik));
         try
         {
-            await db.Database.ExecuteSqlRawAsync(metin);
+            // Betik psql'deki gibi olduğu gibi gönderilir: ExecuteSqlRaw metni biçimlendirdiği için JSON'daki süslü
+            // parantezler (31 numaralı betiğin kural parametreleri) bozulurdu.
+            await db.Database.OpenConnectionAsync();
+            await using var komut = db.Database.GetDbConnection().CreateCommand();
+            komut.CommandText = metin;
+            await komut.ExecuteNonQueryAsync();
         }
         catch (PostgresException hata)
         {
