@@ -792,6 +792,100 @@ public sealed class GridUcKParcaliSevkPartisiRegresyonTests
         Assert.Equal((int)GridSevkDurum.YenidenSevkGerekli, kurgu.Satir.GridSevkDurumuId);
     }
 
+    /// <summary>
+    /// Canlı PA558-01 satır 58 (19.11.2026): 15.09'da, aktif parti sayaçları canlıya girmeden bir gün önce yapılan geri
+    /// gönderim sayaçları boş bıraktı. Kayıt belirsiz eski parti sayılır (G-037, U-244): tekil ve toplu Grid sevki
+    /// tahmin yürütmez, satırı değiştirmez. Çözüm kod değil, 20261119_01 veri onarımıdır.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LegacyGeriGonderimSayaclariBos_GridYenidenSevkiTahminleAcmaz(bool toplu)
+    {
+        using var kurgu = LegacyGeriGonderimKurgusu(onarilmis: false);
+
+        Assert.True(GridUcKSevkPartisiKurali.LegacyAktifPartiBelirsizMi(kurgu.Satir));
+        Assert.False(GridUcKSevkPartisiKurali.DevamSevkiniDegerlendir(kurgu.Satir).YeniPartiMi);
+
+        var sonuc = toplu
+            ? await kurgu.TopluGridSevkEtAsync()
+            : await kurgu.TekliGridSevkEtAsync(1);
+
+        if (!toplu)
+            Assert.False(sonuc.IsSuccess);
+        Assert.Equal(1, kurgu.Satir.GridSevkMiktari);
+        Assert.Equal(1, kurgu.Satir.YenidenSevkGerekliAdet);
+        Assert.Equal((int)GridSevkDurum.YenidenSevkGerekli, kurgu.Satir.GridSevkDurumuId);
+        Assert.Equal((int)UcKDurum.GeriGonderildi, kurgu.Satir.UcKDurumuId);
+        Assert.Null(kurgu.Satir.AktifGridSevkKarsilananMiktari);
+        Assert.Null(kurgu.Satir.AktifGridSevkPartisiErkenSonuclandirildiMi);
+        Assert.Null(kurgu.Icerik.AktifGridSevkKarsilananMiktari);
+    }
+
+    /// <summary>
+    /// 20261119_01 onarımının hedef durumu, bugünkü geri gönderimin yazdığı sayaçlarla aynıdır (0 + sonuçlandı). Bu
+    /// durumda geri gönderilen adet tekil ve toplu uçta yeniden sevk edilir; kümülatif 3K teslimi ve geri gönderim
+    /// toplamı değişmez, yeni parti 3K'da tutarlı sayaçlarla teslim alınır.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OnarilmisGeriGonderimSayaclari_YenidenSevkBorcunuAcarVeTeslimTutarliKalir(bool toplu)
+    {
+        using var kurgu = LegacyGeriGonderimKurgusu(onarilmis: true);
+
+        var devamKarari = GridUcKSevkPartisiKurali.DevamSevkiniDegerlendir(kurgu.Satir);
+        Assert.Equal((true, GridUcKDevamSevkTipi.YenidenSevk, 1m), (devamKarari.YeniPartiMi, devamKarari.Tip, devamKarari.UstSinir));
+
+        var sevk = toplu
+            ? await kurgu.TopluGridSevkEtAsync()
+            : await kurgu.TekliGridSevkEtAsync(1);
+
+        Assert.True(sevk.IsSuccess, sevk.Error?.Message);
+        Assert.Equal(1, kurgu.Satir.GridSevkMiktari);
+        Assert.Equal(0, kurgu.Satir.YenidenSevkGerekliAdet);
+        Assert.Equal((int)GridSevkDurum.SevkEdildi, kurgu.Satir.GridSevkDurumuId);
+        Assert.Equal((int)UcKDurum.Bekliyor, kurgu.Satir.UcKDurumuId);
+        Assert.Equal(0, kurgu.Satir.AktifGridSevkKarsilananMiktari);
+        Assert.False(kurgu.Satir.AktifGridSevkPartisiErkenSonuclandirildiMi);
+        Assert.Equal(0, kurgu.Satir.GelenMiktar);
+        Assert.Equal(1, kurgu.Satir.GeriGonderilenMiktar);
+
+        var teslim = await kurgu.TekliUcKTamGeldiAsync();
+
+        Assert.True(teslim.IsSuccess, teslim.Error?.Message);
+        Assert.Equal(1, kurgu.Satir.GelenMiktar);
+        Assert.Equal(1, kurgu.Satir.AktifGridSevkKarsilananMiktari);
+        Assert.Equal(1, kurgu.Icerik.AktifGridSevkKarsilananMiktari);
+        Assert.Equal(1, kurgu.Icerik.KonulanAdet);
+        Assert.Equal(1, kurgu.Satir.KalanMiktar);
+    }
+
+    /// <summary>
+    /// Canlı satır 34371'in sentetik eşi: 2 istenir, Grid'e 2 gelir, aktif parti 1; 1 adet Tadilat için geri gönderilmiş,
+    /// 3K'da adet kalmamış. Tek sandık içeriği tahsissiz (0). Onarılmamışsa aktif parti sayaçları boştur.
+    /// </summary>
+    private static Kurgu LegacyGeriGonderimKurgusu(bool onarilmis)
+    {
+        var kurgu = new Kurgu(
+            istenen: 2,
+            tahsis: 0,
+            gridGelen: 2,
+            aktifSevk: 1,
+            gelen: 0,
+            konulan: 0,
+            aktifPartideKarsilanan: onarilmis ? 0 : null);
+        kurgu.Satir.GridSevkDurumuId = (int)GridSevkDurum.YenidenSevkGerekli;
+        kurgu.Satir.YenidenSevkGerekliAdet = 1;
+        kurgu.Satir.UcKDurumuId = (int)UcKDurum.GeriGonderildi;
+        kurgu.Satir.UcKKarsilamaTipiId = (int)UcKDurum.GeriGonderildi;
+        kurgu.Satir.GeriGonderilenMiktar = 1;
+        kurgu.Satir.GeriGonderilmeSebebiId = 1;
+        kurgu.Satir.TeslimTarihi = new DateTime(2026, 8, 8, 13, 43, 0);
+        kurgu.Satir.AktifGridSevkPartisiErkenSonuclandirildiMi = onarilmis ? true : null;
+        return kurgu;
+    }
+
     [Fact]
     public async Task GeriGonderim_KarisikKaynakliSandiktaGridPayiniAsamaz()
     {

@@ -16,7 +16,8 @@ namespace _3K.Application.Tests;
 /// <c>uygulandi/2026-11/20261112_01_Saha_Iptal_Proje_Sevk_Durumu.sql</c>; 30 <c>bekleyen/20261105_01_Yuk_Turu.sql</c>,
 /// 31 <c>bekleyen/20261105_02_Yukleme_Planlama.sql</c>, 32 <c>bekleyen/20261105_03_Yukleme_Yerlesim.sql</c>,
 /// 33 <c>bekleyen/20261109_01_Arac_Yukleme.sql</c>, 35
-/// <c>bekleyen/20261117_01_Saha_Kapanis_Proje_Sevk_Durumu.sql</c>, 36 <c>bekleyen/20261119_01_Yukleme_Arac_Aileleri.sql</c>)
+/// <c>bekleyen/20261117_01_Saha_Kapanis_Proje_Sevk_Durumu.sql</c>, 36
+/// <c>bekleyen/20261119_01_Geri_Gonderim_Sevk_Partisi_Sayaci.sql</c>, 37 <c>bekleyen/20261119_02_Yukleme_Arac_Aileleri.sql</c>)
 /// önceki sürümün şemasında çalıştırılır. Sonuç şeması EF modeliyle
 /// aynıdır (kolon, kısıt, ON DELETE kuralı, indeks). Betiklerin tekrarı hiçbir şeyi değiştirmez: var olan taşıma izi ve
 /// verilmiş izinler korunur. Salt okunur durum sorgusu (<c>kontrol/Betik_Durumu.sql</c>) klasördeki her betiği listeler
@@ -28,10 +29,10 @@ public sealed class CanliyaAlimBetikleriTests
     private static readonly string[] YuklemeBetikleri =
         ["20261105_01_Yuk_Turu", "20261105_02_Yukleme_Planlama", "20261105_03_Yukleme_Yerlesim", "20261109_01_Arac_Yukleme"];
 
-    /// <summary>36: araç aileleri ve tip sadelik sırası (35'ten sonra, ad sırasıyla).</summary>
-    private const string AracAileleriBetigi = "20261119_01_Yukleme_Arac_Aileleri";
+    /// <summary>37: araç aileleri ve tip sadelik sırası (36'dan sonra, ad sırasıyla).</summary>
+    private const string AracAileleriBetigi = "20261119_02_Yukleme_Arac_Aileleri";
 
-    /// <summary>Canlıda çalıştırma sırası (scripts/database/README.md, sıra 22–29, 34, 30–33, 35 ve 36).</summary>
+    /// <summary>Canlıda çalıştırma sırası (scripts/database/README.md, sıra 22–29, 34, 30–33, 35, 36 ve 37).</summary>
     private static readonly string[] Betikler =
         [.. new[]
         {
@@ -40,11 +41,13 @@ public sealed class CanliyaAlimBetikleriTests
             "20261024_02_Barkod_Urun_Arama_Yetkisi", "20261024_03_Sandik_Acilis_Kapanis_Gecmisi",
             "20261025_01_Giris_Kilidi", "20261026_01_Barkod_Etiket_Yetkisi"
         }.Select(ad => $"uygulandi/2026-10/{ad}.sql"), $"uygulandi/2026-11/{VeriOnarimBetigi}.sql",
-        .. YuklemeBetikleri.Select(ad => $"bekleyen/{ad}.sql"), $"bekleyen/{VeriOnarimBetigi35}.sql", $"bekleyen/{AracAileleriBetigi}.sql"];
+        .. YuklemeBetikleri.Select(ad => $"bekleyen/{ad}.sql"), $"bekleyen/{VeriOnarimBetigi35}.sql", $"bekleyen/{VeriOnarimBetigi36}.sql",
+        $"bekleyen/{AracAileleriBetigi}.sql"];
 
     /// <summary>Kayıt bloğu taşıyan betikler, ad sırasıyla (kayıt tablosu da ada göre okunur).</summary>
     private static readonly string[] KayitYazanlar =
-        [.. YuklemeBetikleri.Append(VeriOnarimBetigi).Append(VeriOnarimBetigi35).Append(AracAileleriBetigi).Order(StringComparer.Ordinal)];
+        [.. YuklemeBetikleri.Append(VeriOnarimBetigi).Append(VeriOnarimBetigi35).Append(VeriOnarimBetigi36).Append(AracAileleriBetigi)
+            .Order(StringComparer.Ordinal)];
 
     private static bool KayitYazar(string betik) => KayitYazanlar.Contains(betik);
 
@@ -57,7 +60,10 @@ public sealed class CanliyaAlimBetikleriTests
     /// <summary>35 numaralı veri onarımı da iz bırakmaz; seçimi <see cref="SahaIptalSevkKapanisPostgresTests"/> sınar.</summary>
     private const string VeriOnarimBetigi35 = "20261117_01_Saha_Kapanis_Proje_Sevk_Durumu";
 
-    private static bool VeriOnarimi(string betik) => betik is VeriOnarimBetigi or VeriOnarimBetigi35;
+    /// <summary>36 numaralı veri onarımı da iz bırakmaz; seçimi <see cref="GeriGonderimSevkPartisiOnarimPostgresTests"/> sınar.</summary>
+    private const string VeriOnarimBetigi36 = "20261119_01_Geri_Gonderim_Sevk_Partisi_Sayaci";
+
+    private static bool VeriOnarimi(string betik) => betik is VeriOnarimBetigi or VeriOnarimBetigi35 or VeriOnarimBetigi36;
 
     /// <summary>31 ve 33 numaralı betiklerin izin düğümleri: kod, Id, rota, üst düğüm.</summary>
     private static readonly (string Kod, int Id, string? Route, int? ParentId)[] YuklemeDugumleri =
@@ -151,7 +157,7 @@ public sealed class CanliyaAlimBetikleriTests
                 await CalistirAsync(db, betik);
 
             Assert.All(await BetikDurumuAsync(db), x => Assert.Equal("uygulanmış", x.Value));
-            // Betik kaydı: 30–36 kendi satırını yazar (kaynak "kayıt"); kayıt bloğundan önceki 22–29 izden tanınır.
+            // Betik kaydı: 30–37 kendi satırını yazar (kaynak "kayıt"); kayıt bloğundan önceki 22–29 izden tanınır.
             var kayitlar = await BetikKayitlariAsync(db);
             Assert.Equal(KayitYazanlar, kayitlar.Keys);
             Assert.All(await BetikKaynagiAsync(db), x => Assert.Equal(KayitYazar(x.Key) ? "kayıt" : "iz", x.Value));

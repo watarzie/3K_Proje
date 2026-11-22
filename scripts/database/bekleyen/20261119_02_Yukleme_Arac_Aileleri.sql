@@ -1,5 +1,5 @@
 -- =====================================================================================
--- 36 — Yükleme simülasyonu: araç aileleri ve tip sadelik sırası (saha geri bildirimi 19.11.2026, madde 1–4)
+-- 37 — Yükleme simülasyonu: araç aileleri ve tip sadelik sırası (saha geri bildirimi 19.11.2026, madde 1–4)
 -- -------------------------------------------------------------------------------------
 -- 1) EkipmanTipleri.OtomatikSecimSirasi (integer, boş olabilir; doluysa > 0): otomatik yerleşimde her yük kendisini alan
 --    en sade tipe gider (standart konteyner 1, High Cube 2, Hardtop 3, Open Top 4, Flat Rack 5, Platform 6…). Boş tip
@@ -123,7 +123,7 @@ CREATE TABLE IF NOT EXISTS "BetikKayitlari" (
     "Uygulayan"      text NOT NULL
 );
 INSERT INTO "BetikKayitlari" ("BetikAdi", "UygulamaTarihi", "Uygulayan")
-VALUES ('20261119_01_Yukleme_Arac_Aileleri', now() AT TIME ZONE 'Europe/Istanbul', current_user)
+VALUES ('20261119_02_Yukleme_Arac_Aileleri', now() AT TIME ZONE 'Europe/Istanbul', current_user)
 ON CONFLICT ("BetikAdi") DO NOTHING;
 
 COMMIT;

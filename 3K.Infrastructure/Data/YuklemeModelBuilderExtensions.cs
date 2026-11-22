@@ -7,7 +7,7 @@ namespace _3K.Infrastructure.Data;
 
 /// <summary>
 /// Yükleme Simülasyonu ve Araç Planlama: ekipman kitaplığı ve yükleme planı eşlemeleri
-/// (20261105_02_Yukleme_Planlama.sql aynı şemayı kurar; 20261119_01_Yukleme_Arac_Aileleri.sql tip sadelik sırasını ve
+/// (20261105_02_Yukleme_Planlama.sql aynı şemayı kurar; 20261119_02_Yukleme_Arac_Aileleri.sql tip sadelik sırasını ve
 /// Lowbed / ağır yük ailesini ekler).
 /// </summary>
 internal static class YuklemeModelBuilderExtensions
@@ -263,7 +263,7 @@ internal static class YuklemeModelBuilderExtensions
 }
 
 /// <summary>
-/// Tohum aileler ve tipler; betikler (20261105_02 kurar, 20261119_01 lowbed ailesini ayırır ve sadelik sırasını yazar) aynı
+/// Tohum aileler ve tipler; betikler (20261105_02 kurar, 20261119_02 lowbed ailesini ayırır ve sadelik sırasını yazar) aynı
 /// kimlik, kod ve değerleri yazar. Lowbed ve ağır yük tipleri kendi ailesindedir (saha geri bildirimi 19.11.2026 madde 3):
 /// standart açık kasa seçilince lowbed gelmez.
 /// </summary>
@@ -336,7 +336,7 @@ internal static class EkipmanTohumu
         ["kapali-kasa"] = 1
     };
 
-    /// <summary>Lowbed ve ağır yük tiplerinin ailesi (20261119_01 bu tipleri 2'den 8'e taşır).</summary>
+    /// <summary>Lowbed ve ağır yük tiplerinin ailesi (20261119_02 bu tipleri 2'den 8'e taşır).</summary>
     public const int LowbedAilesiId = 8;
 
     private static readonly HashSet<string> LowbedAilesiTipleri =
