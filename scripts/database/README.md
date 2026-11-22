@@ -10,6 +10,7 @@
 | `uygulandi/YYYY-AA/` | Canlıda çalışmış betikler, canlıya alındıkları aya göre. Silinmez; geçmiş ve testler için kalır. |
 | `geri-alma/` | Bir betiğin yedek ve geri alma eşleri; ana betikle aynı tarih önekini taşır (`20261112_01_Yedek.sql`). |
 | `kontrol/` | Salt okunur sorgular: `Betik_Durumu.sql` hangi betiğin bu veritabanında uygulandığını gösterir. |
+| `roller/` | Veritabanı rolleri ve izinleri. Şema değiştirmez, numaralı sıraya girmez, `Betik_Durumu.sql`'de listelenmez (bkz. "Uygulama rolü"). |
 
 **Canlıya alım akışı:**
 1. Canlıda `kontrol/Betik_Durumu.sql` çalıştırılır; `UYGULANMAMIŞ` satırlar görülür.
@@ -41,6 +42,20 @@ ON CONFLICT ("BetikAdi") DO NOTHING;
 
 Tekrar çalıştırma ilk tarihi korur. Geri alma betiği, geri aldığı betiğin kaydını siler. 22–29 numaralı betikler kayıt
 bloğundan önce yazıldı; `Betik_Durumu.sql` onları bıraktıkları izden tanır (kaynak `iz`).
+
+## Uygulama rolü
+
+API veritabanına süper kullanıcıyla (`postgres`) değil, `roller/Uygulama_Rolu.sql`'in kurduğu `uck_uygulama` rolüyle
+bağlanır. Rol tabloları okur/yazar; tablo, rol, şema oluşturamaz, `TRUNCATE` edemez, sunucu dosyası okuyamaz, program
+çalıştıramaz (`UygulamaRoluBetigiPostgresTests`). Betik süper kullanıcıyla, uygulama veritabanına bağlıyken bir kez
+çalıştırılır; parola içermez, parola ayrıca `\password uck_uygulama` ile verilir.
+
+- Şema betikleri eskisi gibi, tabloların sahibi olan rolle çalıştırılır (canlıda `Watarzie`); o rolün sonradan
+  oluşturduğu tablolar uygulama rolüne kendiliğinden açılır (varsayılan izinler). Şema betikleri başka bir rolle
+  çalıştırılmaya başlanırsa `Uygulama_Rolu.sql` bir kez daha çalıştırılır, yoksa yeni tablolara izin gelmez.
+- Uygulamanın **doğrudan** çağıracağı yeni bir fonksiyon ekleyen betik `GRANT EXECUTE ... TO uck_uygulama` satırını
+  kendisi içerir (tetikleyici fonksiyonları için gerekmez).
+- Yedek başka bir sunucuya geri yüklenirse rol yedekle gelmez: önce bu betik çalıştırılır.
 
 ## Betik yazma kuralları
 
