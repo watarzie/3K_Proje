@@ -372,6 +372,7 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
         var tekProje = TekProje(plan);
         var atanamayanlar = AtanamayanYukler(plan);
         var ustuneKonmazlar = YuklemePlaniRaporHesabi.UstuneKonmazlar(plan);
+        var yukAdlari = YuklemePlaniRaporHesabi.YukAdlari(plan);
 
         void Sayfa(IDocumentContainer container, string altBilgi, Action<ColumnDescriptor> icerik) =>
             container.Page(page =>
@@ -393,7 +394,7 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
             var ustSatir = (y.ElleDuzenlendi ? 2 : 0) + (plan.KaynakFarklari.Count > 0 ? 2 : 0);
             foreach (var a in y.Araclar)
                 Sayfa(container, $"{altMetin} | Araç {a.AracNo} / {y.Araclar.Count}",
-                    col => AracSayfasi(col, a, y.Araclar.Count, renkler, tekProje, y.LokasyonaGoreAyri, ustuneKonmazlar, ustSatir));
+                    col => AracSayfasi(col, a, y.Araclar.Count, renkler, tekProje, y.LokasyonaGoreAyri, ustuneKonmazlar, ustSatir, yukAdlari));
             if (atanamayanlar.Count > 0)
                 Sayfa(container, altMetin, col =>
                 {
@@ -538,15 +539,18 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
 
     /// <summary>
     /// Araç sayfasındaki yük: yükleme sırasıyla, sandık rengiyle. <see cref="Renk"/> yükün bütün çizimlerde ve tabloda
-    /// kullanılan rengidir; <see cref="Sorunlu"/> yük çizimde ve tabloda kırmızıyla vurgulanır.
+    /// kullanılan rengidir; <see cref="Sorunlu"/> yük çizimde ve tabloda kırmızıyla vurgulanır. <see cref="Ad"/> sandığın adı
+    /// (tabloda numaranın yanında; yoksa boş).
     /// </summary>
-    internal sealed record AracYukSatiri(PlanYukKonumu Konum, string Etiket, string CizimEtiketi, int Sira, string Renk, bool Sorunlu, bool UstuneKonmaz);
+    internal sealed record AracYukSatiri(PlanYukKonumu Konum, string Etiket, string CizimEtiketi, int Sira, string Renk, bool Sorunlu, bool UstuneKonmaz,
+        string? Ad = null);
 
     /// <summary>
     /// Aracın yük satırları (<see cref="AracYukleri"/> sırası): her yüke sandık rengi, uygunsuz/taşan yük işareti ve
     /// "üstüne konmaz" izni. Çizimler ve tablo bu tek listeden üretilir (aynı sandık her yerde aynı renkte).
     /// </summary>
-    internal static IReadOnlyList<AracYukSatiri> AracYukSatirlari(PlanAraci a, bool tekProje, IReadOnlySet<string> ustuneKonmazlar)
+    internal static IReadOnlyList<AracYukSatiri> AracYukSatirlari(PlanAraci a, bool tekProje, IReadOnlySet<string> ustuneKonmazlar,
+        IReadOnlyDictionary<string, string>? yukAdlari = null)
     {
         var veri = TeknikVeri(a);
         var yukler = AracYukleri(a, tekProje);
@@ -556,7 +560,7 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
         var sorunluYukler = a.YukSorunlari.Where(s => s.Sonuc == YerlesimKontrolSonucu.Uygunsuz).Select(s => s.YukAnahtari).ToHashSet(StringComparer.Ordinal);
         return yukler.Select((x, i) => new AracYukSatiri(x.Konum, x.Etiket, x.CizimEtiketi, x.Sira, renkler[i],
             (uygunsuz && Tasiyor(x.Konum, veri)) || sorunluYukler.Contains(x.Konum.YukAnahtari),
-            ustuneKonmazlar.Contains(x.Konum.YukAnahtari))).ToList();
+            ustuneKonmazlar.Contains(x.Konum.YukAnahtari), yukAdlari?.GetValueOrDefault(x.Konum.YukAnahtari))).ToList();
     }
 
     /// <summary>
@@ -576,10 +580,12 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
 
     private static void AracSayfasi(
         ColumnDescriptor col, PlanAraci a, int aracSayisi, Dictionary<string, string> projeRenkleri, bool tekProje, bool lokasyonaGoreAyri,
-        IReadOnlySet<string> ustuneKonmazlar, int ustSatir)
+        IReadOnlySet<string> ustuneKonmazlar, int ustSatir, IReadOnlyDictionary<string, string> yukAdlari)
     {
         var veri = TeknikVeri(a);
-        var satirlar = AracYukSatirlari(a, tekProje, ustuneKonmazlar);
+        var satirlar = AracYukSatirlari(a, tekProje, ustuneKonmazlar, yukAdlari);
+        // Sandık adı ayrı sütundur (geniş tablo); dar (iki sütunlu) tabloda numaranın altında küçük yazılır.
+        var adVar = satirlar.Any(s => s.Ad != null);
         var kutular = CizimKutulari(satirlar, katEtiketi: false);
         var katKutulari = CizimKutulari(satirlar, katEtiketi: true);
         var yontemler = a.Konumlar.Select(k => YuklemeEtiketleri.GirisYonu(k.YuklemeYontemi)).Distinct().ToList();
@@ -732,6 +738,8 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
 
         void YukTablosu(IContainer kap, bool dar) => kap.Table(table =>
         {
+            // Ölçü sütunlarından önceki sütunlar: renk + sıra, sandık, (geniş tabloda) sandık adı, (çok projede) proje.
+            var basSutunSayisi = (uint)(2 + (adVar && !dar ? 1 : 0) + (cokProje ? 1 : 0));
             var yazi = dar ? 6.5f : 7.5f;
             var baslik = dar ? 5.5f : 6.5f;
             var olcuSutunu = dar ? 25 : 52;
@@ -745,6 +753,8 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
             {
                 cd.ConstantColumn(dar ? 22 : 36);          // renk + sıra
                 cd.RelativeColumn(cokProje ? 1.25f : 1);   // sandık
+                if (adVar && !dar)
+                    cd.RelativeColumn(2);                  // sandık adı
                 if (cokProje)
                     cd.RelativeColumn(1);                  // proje
                 cd.ConstantColumn(dar ? 27 : 52);          // boy (en uzun ölçü: 12.032)
@@ -762,13 +772,15 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
                     (orta ? hucre.AlignCenter() : hucre).Text(metin).Bold().FontSize(baslik).FontColor(Colors.White);
                 }
                 // Üst satır birimleri taşır (örnek rapordaki gibi): ölçüler mm, ağırlık kg.
-                Yaz(h.Cell().ColumnSpan(cokProje ? 3u : 2u), string.Empty);
+                Yaz(h.Cell().ColumnSpan(basSutunSayisi), string.Empty);
                 Yaz(h.Cell().ColumnSpan(3), "MM", orta: true);
                 Yaz(h.Cell(), "KG", orta: true);
                 Yaz(h.Cell(), string.Empty);
                 Yaz(h.Cell(), "ÜSTÜNE", orta: true);
                 Yaz(h.Cell(), "SIRA");
                 Yaz(h.Cell(), "SANDIK");
+                if (adVar && !dar)
+                    Yaz(h.Cell(), "SANDIK ADI");
                 if (cokProje)
                     Yaz(h.Cell(), "PROJE");
                 Yaz(h.Cell(), "BOY", orta: true);
@@ -795,7 +807,11 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
                     t.Span(s.Etiket).SemiBold();
                     if (k.Donduruldu)
                         t.Span(" 90°").FontSize(yazi - 1).FontColor(Gri);
+                    if (dar && s.Ad != null)
+                        t.Span("\n" + s.Ad).FontSize(yazi - 1).FontColor(Gri);
                 });
+                if (adVar && !dar)
+                    H(table.Cell(), zebra).Text(s.Ad ?? string.Empty).FontSize(yazi);
                 if (cokProje)
                     H(table.Cell(), zebra).Row(r =>
                     {
@@ -811,7 +827,7 @@ internal sealed class YuklemePlaniPdfOlusturucu : IYuklemePlaniRaporOlusturucu
                 H(table.Cell(), zebra).AlignCenter().Text(s.UstuneKonmaz ? "X" : string.Empty).Bold().FontSize(yazi).FontColor(Turuncu);
             }
             // Toplam satırı: adet ve toplam ağırlık (aracın saklanan toplamı; başlıktaki ve özetteki değerle aynı).
-            T(table.Cell().ColumnSpan(cokProje ? 3u : 2u)).Text($"Toplam: {satirlar.Count.ToString(Tr)} yük").Bold().FontSize(yazi);
+            T(table.Cell().ColumnSpan(basSutunSayisi)).Text($"Toplam: {satirlar.Count.ToString(Tr)} yük").Bold().FontSize(yazi);
             T(table.Cell().ColumnSpan(3)).Text(string.Empty).FontSize(yazi);
             T(table.Cell()).AlignRight().Text(a.ToplamKg.ToString("#,0", Tr)).Bold().FontSize(yazi);
             T(table.Cell().ColumnSpan(2)).Text(string.Empty).FontSize(yazi);

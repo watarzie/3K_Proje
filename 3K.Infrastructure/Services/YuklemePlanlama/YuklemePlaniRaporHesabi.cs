@@ -182,6 +182,16 @@ internal static class YuklemePlaniRaporHesabi
             .ToHashSet(StringComparer.Ordinal);
 
     /// <summary>
+    /// Yüklerin adları (yük anahtarı → ad): sandıkta sandık kaydının adı (plana kopyalanan), elle eklenen yükte
+    /// açıklaması. Adı boş yük ve satırı kalmamış konum listede yoktur.
+    /// </summary>
+    internal static IReadOnlyDictionary<string, string> YukAdlari(YuklemePlaniDetayi plan) =>
+        plan.Yukler
+            .Where(y => !string.IsNullOrWhiteSpace(y.Aciklama) && (y.Kaynak != PlanYukKaynagi.Sandik || y.SandikId != null))
+            .GroupBy(y => YuklemePlaniKurali.YukAnahtari(y.Kaynak, y.SandikId, y.ManuelGrupNo, y.BirimNo), StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First().Aciklama!.Trim(), StringComparer.Ordinal);
+
+    /// <summary>
     /// Planın özeti (ilk sayfa): kullanılan araç ve ölçü dışı yük taşıyan araç sayısı, araca yüklenen yük sayısı (ve
     /// bunların kaçı sandık), toplam yük ağırlığı ve hacmi. Araca atanamayan yükler sayılmaz.
     /// </summary>

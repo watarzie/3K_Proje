@@ -101,6 +101,8 @@ public sealed class YuklemePlaniRaporTests
         var satirlar = yukler.Select((y, i) => new PlanYukSatiri
         {
             SiraNo = i + 1, Kaynak = PlanYukKaynagi.Sandik, SandikId = i + 1, BirimNo = 1, BirimSayisi = 1, Kod = y.Kod, ProjeNo = y.ProjeNo,
+            // Sandık adı (sandık kaydının "Ad" alanı); her üçüncü sandığın adı yok (raporda boş kalır).
+            Aciklama = i % 3 == 2 ? null : OrnekSandikAdlari[i % OrnekSandikAdlari.Length],
             LokasyonId = SatirLokasyonu(y), BoyMm = y.BoyMm, EnMm = y.EnMm, YukseklikMm = y.YukseklikMm, BrutKg = y.BrutKg,
             DondurulebilirMi = y.Dondurulebilir, UsteKonabilirMi = y.UsteKonabilir, AltaKalabilirMi = y.AltaKalabilir, UstYukSiniriKg = y.UstYukSiniriKg,
             Dahil = true, Durum = PlanYukDurumu.Yerlesti
@@ -692,6 +694,38 @@ public sealed class YuklemePlaniRaporTests
         Assert.Equal(YuklemePlaniRaporHesabi.SandikPaleti.Count, YuklemePlaniRaporHesabi.SandikPaleti.Distinct().Count());
         Assert.DoesNotContain("#dc2626", YuklemePlaniRaporHesabi.SandikPaleti);
         Assert.Empty(YuklemePlaniRaporHesabi.SandikRenkleri([]));
+    }
+
+    private static readonly string[] OrnekSandikAdlari =
+        ["Radyatör grubu", "Yağ genleşme tankı ve bağlantı boruları", "Aksesuar sandığı", "Buşing", "Kontrol panosu"];
+
+    /// <summary>
+    /// Sandık adı plan yük satırından (sandık kaydının adı) gelir, konuma yük anahtarıyla bağlanır ve tablo satırına taşınır;
+    /// adı boş sandık ve satırı kalmamış konum boş kalır, ad kırpılır.
+    /// </summary>
+    [Fact]
+    public void SandikAdi_PlanSatirindanTabloyaTasinir()
+    {
+        var plan = OrnekPlan();
+        var adlar = YuklemePlaniRaporHesabi.YukAdlari(plan);
+        var satirlar = plan.Yerlesim!.Araclar
+            .SelectMany(a => YuklemePlaniPdfOlusturucu.AracYukSatirlari(a, tekProje: false, YuklemePlaniRaporHesabi.UstuneKonmazlar(plan), adlar)).ToList();
+        var planSatirlari = plan.Yukler.Where(y => y.SandikId != null).ToDictionary(y => "s:" + y.SandikId);
+        Assert.All(satirlar, s => Assert.Equal(planSatirlari.TryGetValue(s.Konum.YukAnahtari, out var y) ? y.Aciklama : null, s.Ad));
+        Assert.Contains(satirlar, s => s.Ad != null);
+        Assert.Contains(satirlar, s => s.Ad == null);
+
+        var ozel = new YuklemePlaniDetayi
+        {
+            Yukler =
+            [
+                new PlanYukSatiri { Kaynak = PlanYukKaynagi.Sandik, SandikId = 7, BirimNo = 1, Aciklama = "  Trafo kazanı " },
+                new PlanYukSatiri { Kaynak = PlanYukKaynagi.Sandik, SandikId = 8, BirimNo = 1, Aciklama = "   " },
+                new PlanYukSatiri { Kaynak = PlanYukKaynagi.Sandik, SandikId = null, BirimNo = 1, Aciklama = "Silinmiş" },
+                new PlanYukSatiri { Kaynak = PlanYukKaynagi.Manuel, ManuelGrupNo = 2, BirimNo = 1, Aciklama = "Elle yük" }
+            ]
+        };
+        Assert.Equal(new Dictionary<string, string> { ["s:7"] = "Trafo kazanı", ["m:2:1"] = "Elle yük" }, YuklemePlaniRaporHesabi.YukAdlari(ozel));
     }
 
     /// <summary>
