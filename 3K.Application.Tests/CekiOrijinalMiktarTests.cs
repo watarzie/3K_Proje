@@ -265,9 +265,62 @@ public sealed class CekiOrijinalMiktarTests
         }
         finally
         {
-            var testDosyasi = Path.Combine(uploads, dosyaAdi);
-            if (File.Exists(testDosyasi)) File.Delete(testDosyasi);
-            if (Directory.Exists(uploads)) Directory.Delete(uploads); // yalnızca bu teste ait boş dizin
+            // Dizin yalnız bu teste aittir (rastgele proje kimliği, başta yok olduğu doğrulandı).
+            if (Directory.Exists(uploads)) Directory.Delete(uploads, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// İstemcinin gönderdiği dosya adı güvenilmezdir: yol parçaları ya da mutlak yol içerse de ana çeki dosyası
+    /// yalnız projenin Uploads klasörüne yazılır.
+    /// </summary>
+    [Theory]
+    [InlineData("../../{0}")]
+    [InlineData("..\\..\\{0}")]
+    [InlineData("{1}")]
+    public async Task AnaCekiYuklemesi_IstemciDosyaAdiProjeKlasorununDisinaYazamaz(string dosyaAdiKalibi)
+    {
+        await using var context = Context();
+        var uow = new UowStub();
+        var kacakAd = $"kacak-{Guid.NewGuid():N}.xlsx";
+        var mutlakKacak = Path.Combine(Path.GetTempPath(), kacakAd);
+        var dosyaAdi = string.Format(dosyaAdiKalibi, kacakAd, mutlakKacak);
+        var projeId = Random.Shared.Next(1_800_000_000, int.MaxValue);
+        var uploads = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "Uploads", projeId.ToString()));
+        // Düzeltmeden önce dosyanın yazıldığı yer: istemci adının proje klasörüyle birleşimi.
+        var kacakYol = Path.GetFullPath(Path.Combine(uploads, dosyaAdi));
+        Assert.False(Directory.Exists(uploads));
+        Assert.False(File.Exists(kacakYol));
+        uow.Repo<Proje>().YeniId = projeId;
+        try
+        {
+            using var workbook = new XLWorkbook();
+            var sheet = workbook.Worksheets.Add("ÇIKTI SAYFASI");
+            sheet.Cell(1, 1).Value = "FB NO";
+            sheet.Cell(1, 2).Value = "TEST-KACAK";
+            sheet.Cell(6, 1).Value = 1;
+            sheet.Cell(6, 3).Value = "TEST-BARKOD";
+            sheet.Cell(6, 4).Value = "Test ürün";
+            sheet.Cell(6, 5).Value = "1";
+            sheet.Cell(6, 6).Value = 1;
+            sheet.Cell(6, 7).Value = "Adet";
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+            stream.Position = 0;
+
+            var ceki = await new CekiYuklemeService(uow, context).CekiYukleAsync(stream, dosyaAdi);
+
+            Assert.False(File.Exists(kacakYol));
+            var kayitliYol = Path.GetFullPath(ceki.OrijinalDosyaYolu);
+            Assert.StartsWith(uploads + Path.DirectorySeparatorChar, kayitliYol, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(uploads, Path.GetDirectoryName(kayitliYol), ignoreCase: true);
+            Assert.Equal(".xlsx", Path.GetExtension(kayitliYol));
+            Assert.Equal(kayitliYol, Assert.Single(Directory.GetFiles(uploads, "*", SearchOption.AllDirectories)), ignoreCase: true);
+        }
+        finally
+        {
+            if (File.Exists(kacakYol)) File.Delete(kacakYol);
+            if (Directory.Exists(uploads)) Directory.Delete(uploads, recursive: true);
         }
     }
 

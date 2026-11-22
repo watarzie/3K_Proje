@@ -1,6 +1,9 @@
+using System.Globalization;
 using ClosedXML.Excel;
 using _3K.Core.Entities;
 using _3K.Core.Enums;
+using _3K.Core.Exceptions;
+using _3K.Core.Helpers;
 using _3K.Core.Interfaces;
 using _3K.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +15,9 @@ internal sealed class CekiYuklemeService(
     IUnitOfWork unitOfWork,
     AppDbContext context) : ICekiYuklemeService
 {
+    /// <summary>Saklanan adın istemciden gelen kısmı; önek ve uzantıyla birlikte dosya sistemi sınırının altında kalır.</summary>
+    private const int AzamiDosyaGovdesiUzunlugu = 120;
+
     public async Task<Ceki> CekiYukleAsync(Stream excelDosya, string dosyaAdi)
     {
         // 1. Stream'i MemoryStream'e kopyala
@@ -130,9 +136,10 @@ internal sealed class CekiYuklemeService(
             await unitOfWork.SaveChangesAsync();
 
             // --- 3. DOSYAYI KAYDETME ---
-            var uploadsDir = Path.Combine(Directory.GetCurrentDirectory(), "Uploads", proje.Id.ToString());
+            var uploadsDir = Path.Combine(
+                Directory.GetCurrentDirectory(), "Uploads", proje.Id.ToString(CultureInfo.InvariantCulture));
+            dosyaYolu = KaliciDosyaYolu(uploadsDir, dosyaAdi);
             Directory.CreateDirectory(uploadsDir);
-            dosyaYolu = Path.Combine(uploadsDir, dosyaAdi);
             await File.WriteAllBytesAsync(dosyaYolu, dosyaBytes);
 
             // --- 4. ÇEKİ KAYDI ---
@@ -303,5 +310,39 @@ internal sealed class CekiYuklemeService(
         }
 
         return ceki;
+    }
+
+    /// <summary>
+    /// Ana çeki dosyasının diskteki yolu. İstemcinin gönderdiği ad güvenilmezdir (yol parçası, mutlak yol,
+    /// çalıştırılabilir uzantı içerebilir): ad sunucuda üretilir, istemci adından yalnız son parçanın gövdesi
+    /// okunabilirlik için eklenir ve sonuç proje klasörünün içinde değilse yazılmaz.
+    /// </summary>
+    internal static string KaliciDosyaYolu(string projeKlasoru, string? dosyaAdi)
+    {
+        // Linux'ta '\' yol ayırıcı sayılmaz; Path.GetFileName tek başına yetmediği için iki ayırıcı da bölünür.
+        var sonParca = (dosyaAdi ?? string.Empty)
+            .Replace('\\', '/')
+            .Split('/', StringSplitOptions.RemoveEmptyEntries)
+            .LastOrDefault() ?? string.Empty;
+
+        var govde = Path.GetFileNameWithoutExtension(sonParca);
+        foreach (var gecersiz in Path.GetInvalidFileNameChars())
+            govde = govde.Replace(gecersiz, '_');
+        govde = new string(govde.Where(karakter => !char.IsControl(karakter)).ToArray()).Trim(' ', '.');
+        if (govde.Length == 0)
+            govde = "ceki";
+        if (govde.Length > AzamiDosyaGovdesiUzunlugu)
+            govde = govde[..AzamiDosyaGovdesiUzunlugu];
+
+        var kok = Path.TrimEndingDirectorySeparator(Path.GetFullPath(projeKlasoru));
+        var hedef = Path.GetFullPath(Path.Combine(
+            kok,
+            $"{TurkeyTime.Now:yyyyMMdd_HHmmss}_{Guid.NewGuid():N}_{govde}.xlsx"));
+
+        var karsilastirma = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        if (!hedef.StartsWith(kok + Path.DirectorySeparatorChar, karsilastirma))
+            throw new IsKuraliException("Dosya adı geçersiz.");
+
+        return hedef;
     }
 }
