@@ -23,8 +23,10 @@ internal sealed class FinansAylikOzetService(AppDbContext context, FinansPoOnayO
             .OrderBy(x => x.UretimTarihi)
             .ThenBy(x => x.Id)
             .ToListAsync(cancellationToken);
+        // Yalnız kimlik ve ad okunur: Finans özeti Ambalaj tipinin diğer kolonlarına (ör. Aktif) bağlı kalmaz.
         var sablonAdlari = await context.Set<AmbalajIcSandikSablonu>()
             .AsNoTracking()
+            .Select(x => new { x.Id, x.Ad })
             .ToDictionaryAsync(x => x.Id, x => x.Ad, cancellationToken);
 
         return AylikModelleriOlustur(kayitlar, sablonAdlari);
@@ -316,6 +318,7 @@ internal sealed class FinansAylikOzetService(AppDbContext context, FinansPoOnayO
         return await context.Set<AmbalajIcSandikSablonu>()
             .AsNoTracking()
             .Where(x => ids.Contains(x.Id))
+            .Select(x => new { x.Id, x.Ad })
             .ToDictionaryAsync(x => x.Id, x => x.Ad, cancellationToken);
     }
 
