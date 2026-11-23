@@ -111,6 +111,7 @@ internal sealed class FinansUrunService(
         var code = model.Kod.Trim().ToUpperInvariant();
         if (await context.Set<FinansUrun>().AnyAsync(x => x.Kod == code, cancellationToken))
             throw IsKuraliException.Cakisma("Finans ürün kodu benzersiz olmalıdır.");
+        await IcKatlanirEslesmeleriniDogrulaAsync(model, cancellationToken);
         var entity = new FinansUrun
         {
             Kod = code,
@@ -150,6 +151,7 @@ internal sealed class FinansUrunService(
         var actualIds = entity.Eslesmeler.Select(x => x.Id).ToHashSet();
         if (requestedExistingIds.Except(actualIds).Any())
             throw IsKuraliException.Cakisma("Ürün eşleşmelerinden en az biri bu ürüne ait değil veya bulunamadı.");
+        await IcKatlanirEslesmeleriniDogrulaAsync(model, cancellationToken);
         var auditBefore = FinansDenetimKaydi.AnlikGoruntu(entity);
         entity.Kod = code;
         entity.Ad = model.Ad.Trim();
@@ -402,6 +404,36 @@ internal sealed class FinansUrunService(
             .OrderBy(x => x.Id)
             .ToListAsync(cancellationToken);
         return (urun, surum, kalemler);
+    }
+
+    /// <summary>
+    /// İç sandık katlanır yalnız kendi iç sandık tipine bağlı, adet birimli ve malzemesiz üründen fiyat alır
+    /// (<see cref="IcSandikKatlanirKurali.EslesmeUygun"/>). Bu tipe bağlanan aktif eşleşme başka birimli üründe
+    /// fiyatlamada sessizce yok sayılacağı için tanım baştan reddedilir.
+    /// </summary>
+    private async Task IcKatlanirEslesmeleriniDogrulaAsync(FinansUrunKaydetModel model, CancellationToken cancellationToken)
+    {
+        var aktifler = model.Eslesmeler.Where(x => x is { Aktif: true }).ToList();
+        var sablonIdleri = aktifler.Where(x => x.IcSandikSablonId.HasValue)
+            .Select(x => x.IcSandikSablonId!.Value).Distinct().ToList();
+        // Eşleşme ile iç sandık tipi arasında FK yoktur: var olmayan (ya da sonradan oluşacak) kimliğe tarife bağlanmasın.
+        // Bu okuma Serializable transaction'da tip silmeyle çakışmayı da görünür kılar.
+        var sablonlar = sablonIdleri.Count == 0
+            ? []
+            : await context.Set<AmbalajIcSandikSablonu>().AsNoTracking()
+                .Where(x => sablonIdleri.Contains(x.Id))
+                .Select(x => new { x.Id, x.SandikCinsi })
+                .ToListAsync(cancellationToken);
+        if (sablonlar.Count != sablonIdleri.Count)
+            throw IsKuraliException.Cakisma("Seçilen kayıtlı iç sandık tipi bulunamadı.");
+        var icKatlanirSablonlari = sablonlar.Where(x => x.SandikCinsi == AmbalajSandikCinsi.IcKatlanir)
+            .Select(x => x.Id).ToHashSet();
+        var icKatlanirlar = aktifler.Where(x => IcSandikKatlanirKurali.SandikTipiMi(x.SandikTipi) ||
+            x.IcSandikSablonId is { } id && icKatlanirSablonlari.Contains(id)).ToList();
+        if (icKatlanirlar.Count == 0) return;
+        if (model.FiyatlandirmaBirimi != FinansFiyatlandirmaBirimi.Adet || aktifler.Any(x => x.Malzeme.HasValue) ||
+            icKatlanirlar.Any(x => x.IsTuru != FinansIsTuru.IcSandik))
+            throw IsKuraliException.Cakisma(IcSandikKatlanirKurali.EslesmeMesaji);
     }
 
     private static FinansUrunEslesmesi NewMatch(FinansUrunEslesmesiModel model)

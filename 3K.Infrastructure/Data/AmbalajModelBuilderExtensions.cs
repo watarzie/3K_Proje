@@ -142,6 +142,7 @@ internal static class AmbalajModelBuilderExtensions
             entity.Property(x => x.Boy).HasPrecision(18, 4);
             entity.Property(x => x.En).HasPrecision(18, 4);
             entity.Property(x => x.Yukseklik).HasPrecision(18, 4);
+            entity.Property(x => x.Aktif).HasDefaultValue(true);
         });
 
         modelBuilder.Entity<AmbalajKaynakSenkronizasyonKuyrukKaydi>(entity =>

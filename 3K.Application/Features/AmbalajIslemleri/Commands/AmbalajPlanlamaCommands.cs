@@ -79,6 +79,30 @@ public sealed class AmbalajIcSandikSablonuEkleCommand
     public decimal Yukseklik { get; init; }
 }
 
+/// <summary>
+/// Kayıtlı iç sandık tipini günceller. Tipten oluşturulmuş sandık kayıtları değerleri kopyaladığı için değişmez;
+/// finans tarife eşleşmesi tipe kimlikle bağlıdır ve korunur.
+/// </summary>
+public sealed class AmbalajIcSandikSablonuGuncelleCommand
+    : AmbalajPlanlamaCommand<AmbalajIcSandikSablonDto>
+{
+    public int SablonId { get; set; }
+    public string Ad { get; init; } = string.Empty;
+    public string SandikTipi { get; init; } = "Ahşap Kapalı";
+    public decimal Boy { get; init; }
+    public decimal En { get; init; }
+    public decimal Yukseklik { get; init; }
+}
+
+/// <summary>İç sandık tipini pasife alır veya yeniden aktif eder; pasif tip yeni kayda atanamaz.</summary>
+public sealed class AmbalajIcSandikSablonuDurumCommand
+    : AmbalajPlanlamaCommand<AmbalajIcSandikSablonDto>
+{
+    public int SablonId { get; set; }
+    public bool Aktif { get; init; }
+}
+
+/// <summary>Yalnız hiç kullanılmamış iç sandık tipini kalıcı siler; kullanılan tip 409 alır ve pasife alınır.</summary>
 public sealed class AmbalajIcSandikSablonuSilCommand : AmbalajPlanlamaCommand
 {
     public int SablonId { get; init; }

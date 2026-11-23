@@ -452,6 +452,75 @@ public sealed class FinansPostgresTests
         });
     }
 
+    /// <summary>
+    /// İç sandık katlanır (2026-11-23): tarifeyle hesaplanır, tutar = adet × işin iç sandık tipine eşlenmiş adet ürününün
+    /// fiyatı. Tipsiz genel iç sandık eşleşmesi bu tipi fiyatlamaz; tipe bağlı olmayan veya eşleşmesi olmayan iş fiyatsız
+    /// kalır; aynı tipe m³ ürünü bağlanamaz. "Katlanır Sandık" aynı tipe bağlı olsa da elle fiyat kuralında kalır.
+    /// </summary>
+    [PostgresRaporFact, Trait("Category", "Postgres")]
+    public async Task IcSandikKatlanir_TipinAdetTarifesiyleHesaplanir_KatlanirElleKalir()
+    {
+        await InDatabase(async options =>
+        {
+            await using var db = new AppDbContext(options); var finans = Finans(db);
+            var baslangic = new DateTime(2026, 1, 1);
+            var tipA = new AmbalajIcSandikSablonu { Ad = "QA iç A", SandikCinsi = AmbalajSandikCinsi.IcKatlanir, Boy = 800, En = 400, Yukseklik = 350 };
+            var tipB = new AmbalajIcSandikSablonu { Ad = "QA iç B", SandikCinsi = AmbalajSandikCinsi.IcKatlanir, Boy = 500, En = 500, Yukseklik = 500 };
+            db.AddRange(tipA, tipB);
+            await db.SaveChangesAsync();
+            db.ChangeTracker.Clear();
+            FinansUrunEslesmesiModel Ic(int? sablonId) => new(null, FinansIsTuru.IcSandik, null, null, sablonId);
+            var urunA = await finans.Urun.UrunOlusturAsync(new("ICA", "İç katlanır A", FinansFiyatlandirmaBirimi.Adet, true, 0, [Ic(tipA.Id)], 120m, "EUR", 20, baslangic), Ct);
+            await finans.Urun.UrunOlusturAsync(new("ICGENEL", "Genel iç adet", FinansFiyatlandirmaBirimi.Adet, true, 1, [Ic(null)], 999m, "EUR", 20, baslangic), Ct);
+            db.ChangeTracker.Clear();
+            var m3Hata = await Assert.ThrowsAsync<IsKuraliException>(() => finans.Urun.UrunOlusturAsync(
+                new("ICM3", "İç m³", FinansFiyatlandirmaBirimi.Metrekup, true, 2, [Ic(tipB.Id)], 300m, "EUR", 20, baslangic), Ct));
+            Assert.Equal((409, IcSandikKatlanirKurali.EslesmeMesaji), (m3Hata.StatusCode, m3Hata.Message));
+            db.ChangeTracker.Clear();
+            // İç sandık katlanır tipine başka iş türüyle bağlanan eşleşme ve var olmayan tip kimliği de reddedilir.
+            var isTuruHata = await Assert.ThrowsAsync<IsKuraliException>(() => finans.Urun.UrunOlusturAsync(
+                new("ICSAHA", "Saha", FinansFiyatlandirmaBirimi.Adet, true, 2, [new(null, FinansIsTuru.SahaSandigi, null, null, tipB.Id)], 50m, "EUR", 20, baslangic), Ct));
+            Assert.Equal(IcSandikKatlanirKurali.EslesmeMesaji, isTuruHata.Message);
+            db.ChangeTracker.Clear();
+            var yokHata = await Assert.ThrowsAsync<IsKuraliException>(() => finans.Urun.UrunOlusturAsync(
+                new("ICYOK", "Yok", FinansFiyatlandirmaBirimi.Adet, true, 2, [Ic(999_999)], 50m, "EUR", 20, baslangic), Ct));
+            Assert.Equal("Seçilen kayıtlı iç sandık tipi bulunamadı.", yokHata.Message);
+            Assert.False(await db.Set<FinansUrun>().AnyAsync(x => x.Kod == "ICSAHA" || x.Kod == "ICYOK"));
+            db.ChangeTracker.Clear();
+
+            FinansUretimAktarimModel Sandik(string id, int? sablonId, AmbalajSandikCinsi cinsi) =>
+                new("AMBALAJURETIM", id, true, null, "QA", "Sentetik", FinansIsTuru.IcSandik, id, 3, 0m, Date, Date,
+                    SandikTipi: FinansEtiketleri.SandikCinsi(cinsi), IcSandikSablonId: sablonId, SandikCinsi: cinsi, UretimM3Hesaplanabilir: false);
+            await finans.UretimAktarim.UretimKayitlariniAktarAsync([
+                Sandik("ic-a", tipA.Id, AmbalajSandikCinsi.IcKatlanir),
+                Sandik("ic-b", tipB.Id, AmbalajSandikCinsi.IcKatlanir),
+                Sandik("ic-tipsiz", null, AmbalajSandikCinsi.IcKatlanir),
+                Sandik("katlanir-a", tipA.Id, AmbalajSandikCinsi.Katlanir),
+                Sandik("ahsap", null, AmbalajSandikCinsi.AhsapKapali)], Ct);
+            var kayitlar = await db.Set<FinansIsKaydi>().AsNoTracking().ToDictionaryAsync(x => x.KaynakKayitId!, x => x.Id);
+            db.ChangeTracker.Clear();
+            async Task<(bool, int?, FinansFiyatlandirmaBirimi, decimal, decimal)> Fiyat(string id)
+            {
+                var x = (await finans.IsKaydi.IsKaydiGetirAsync(kayitlar[id], Ct))!;
+                return (x.ElleFiyatlanir, x.FinansUrunId, x.FiyatlandirmaBirimi, x.BirimFiyat, x.NetTutar);
+            }
+
+            Assert.Equal((false, (int?)urunA.Id, FinansFiyatlandirmaBirimi.Adet, 120m, 360m), await Fiyat("ic-a"));
+            Assert.Equal((false, (int?)null, FinansFiyatlandirmaBirimi.Adet, 0m, 0m), await Fiyat("ic-b"));
+            Assert.Equal((false, (int?)null, FinansFiyatlandirmaBirimi.Adet, 0m, 0m), await Fiyat("ic-tipsiz"));
+            Assert.Equal((true, (int?)null, FinansFiyatlandirmaBirimi.Adet, 0m, 0m), await Fiyat("katlanir-a"));
+            // Diğer iç sandıklar genel eşleşmeyle eskisi gibi fiyatlanır.
+            Assert.Equal(2997m, (await Fiyat("ahsap")).Item5);
+            Assert.Equal(360m, await db.Set<FinansIsKaydi>().AsNoTracking().Where(x => x.Id == kayitlar["ic-a"])
+                .Select(FinansSorgulari.IsNetIfadesi).SingleAsync());
+
+            // Tip B'ye sonradan adet tarifesi tanımlanınca fiyatsız iş geriye dönük doldurmayla fiyatlanır.
+            await finans.Urun.UrunOlusturAsync(new("ICB", "İç katlanır B", FinansFiyatlandirmaBirimi.Adet, true, 3, [Ic(tipB.Id)], 80m, "EUR", 20, baslangic), Ct);
+            db.ChangeTracker.Clear();
+            Assert.Equal(240m, (await Fiyat("ic-b")).Item5);
+        });
+    }
+
     [PostgresRaporFact, Trait("Category", "Postgres")]
     public async Task KaynakNetSarf_ManuelFinansSahipligi_SilmeBastirmasi_Duzenli31Catchup()
     {

@@ -115,6 +115,20 @@ namespace _3K_API.Controllers
         public async Task<ActionResult> IcSandikSablonuEkle([FromBody] AmbalajIcSandikSablonuEkleCommand command, CancellationToken ct) =>
             (await _mediator.Send(command, ct)).ToActionResult();
 
+        [HttpPut("ic-sandik-sablonlari/{sablonId:int}")]
+        public async Task<ActionResult> IcSandikSablonuGuncelle(int sablonId, [FromBody] AmbalajIcSandikSablonuGuncelleCommand command, CancellationToken ct)
+        {
+            command.SablonId = sablonId;
+            return (await _mediator.Send(command, ct)).ToActionResult();
+        }
+
+        [HttpPut("ic-sandik-sablonlari/{sablonId:int}/durum")]
+        public async Task<ActionResult> IcSandikSablonuDurum(int sablonId, [FromBody] AmbalajIcSandikSablonuDurumCommand command, CancellationToken ct)
+        {
+            command.SablonId = sablonId;
+            return (await _mediator.Send(command, ct)).ToActionResult();
+        }
+
         [HttpDelete("ic-sandik-sablonlari/{sablonId:int}")]
         public async Task<ActionResult> IcSandikSablonuSil(int sablonId, CancellationToken ct) =>
             (await _mediator.Send(new AmbalajIcSandikSablonuSilCommand { SablonId = sablonId }, ct)).ToActionResult();

@@ -30,6 +30,7 @@
 -- 36 numaralı betik veri onarımıdır: sayaçları boş eski geri gönderim satırı (canlı Id 34371) onarılmış ya da durumu
 -- değişmişse uygulanmış görünür (geri_gonderim_onarilacak; seçim betiktekiyle aynıdır).
 -- 37 numaralı betik EkipmanTipleri.OtomatikSecimSirasi kolonunu arar (lowbed ailesi aynı transaction'da kurulur).
+-- 38 numaralı betik AmbalajIcSandikSablonlari.Aktif kolonunu arar.
 -- Yeni betik eklenince buraya satır eklenir (CanliyaAlimBetikleriTests dosya listesiyle karşılaştırır); betiğin sonunda
 -- README'deki "Betik kaydı" bloğu bulunur. İz satırı yine yazılır: kayıt bloğundan önce elle uygulanmış veritabanı için.
 -- =====================================================================================
@@ -152,7 +153,8 @@ FROM (VALUES
     (34, '20261112_01_Saha_Iptal_Proje_Sevk_Durumu', NOT EXISTS (SELECT 1 FROM saha_iptal_onarilacak)),
     (35, '20261117_01_Saha_Kapanis_Proje_Sevk_Durumu', NOT EXISTS (SELECT 1 FROM saha_kapanis_onarilacak)),
     (36, '20261119_01_Geri_Gonderim_Sevk_Partisi_Sayaci', NOT EXISTS (SELECT 1 FROM geri_gonderim_onarilacak)),
-    (37, '20261119_02_Yukleme_Arac_Aileleri',       EXISTS (SELECT 1 FROM kolon WHERE tablo = 'EkipmanTipleri' AND ad = 'OtomatikSecimSirasi'))
+    (37, '20261119_02_Yukleme_Arac_Aileleri',       EXISTS (SELECT 1 FROM kolon WHERE tablo = 'EkipmanTipleri' AND ad = 'OtomatikSecimSirasi')),
+    (38, '20261123_01_Ic_Sandik_Tipi_Aktif',        EXISTS (SELECT 1 FROM kolon WHERE tablo = 'AmbalajIcSandikSablonlari' AND ad = 'Aktif'))
 ) AS t(sira, betik, uygulandi)
 LEFT JOIN kayit k ON k.ad = t.betik
 ORDER BY t.sira;

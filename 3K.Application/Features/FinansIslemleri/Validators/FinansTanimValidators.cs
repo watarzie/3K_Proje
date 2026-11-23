@@ -141,6 +141,11 @@ public sealed class FinansUrunKaydetModelValidator : AbstractValidator<FinansUru
             match.RuleFor(x => x.Malzeme)
                 .Must(x => x is null or FinansSandikMalzemesi.Ahsap or FinansSandikMalzemesi.Kontra)
                 .WithMessage("Tarife malzemesi Ahşap veya Kontra olmalıdır.");
+            // İç sandık katlanır tarifesi iç sandık iş türünde, kayıtlı bir iç sandık tipine bağlanır (adet × tipin fiyatı).
+            match.RuleFor(x => x)
+                .Must(x => x.IsTuru == FinansIsTuru.IcSandik && x.IcSandikSablonId.HasValue)
+                .When(x => x.Aktif && IcSandikKatlanirKurali.SandikTipiMi(x.SandikTipi))
+                .WithMessage(IcSandikKatlanirKurali.EslesmeMesaji);
         });
     }
 }

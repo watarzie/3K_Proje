@@ -243,6 +243,7 @@ internal static partial class AmbalajPlanlamaYardimcisi
         "Kafes Sandık" => AmbalajSandikCinsi.Kafes,
         "Kontrplak Sandık" => AmbalajSandikCinsi.Kontrplak,
         "Katlanır Sandık" => AmbalajSandikCinsi.Katlanir,
+        IcSandikKatlanirKurali.SandikTipiAdi => AmbalajSandikCinsi.IcKatlanir,
         _ => AmbalajSandikCinsi.Diger
     };
 
@@ -252,11 +253,38 @@ internal static partial class AmbalajPlanlamaYardimcisi
         AmbalajSandikCinsi.Kafes => "Kafes Sandık",
         AmbalajSandikCinsi.Kontrplak => "Kontrplak Sandık",
         AmbalajSandikCinsi.Katlanir => "Katlanır Sandık",
+        AmbalajSandikCinsi.IcKatlanir => IcSandikKatlanirKurali.SandikTipiAdi,
         _ => string.IsNullOrWhiteSpace(diger) ? "Diğer" : diger
     };
 
     public static bool GecerliSandikTipi(string? value) => value is
-        "Ahşap Kapalı" or "Kafes Sandık" or "Kontrplak Sandık" or "Katlanır Sandık";
+        "Ahşap Kapalı" or "Kafes Sandık" or "Kontrplak Sandık" or "Katlanır Sandık" or IcSandikKatlanirKurali.SandikTipiAdi;
+
+    public const string IcKatlanirTipUyumMesaji =
+        "İç Sandık Katlanır yalnız sandık tipi de İç Sandık Katlanır olan kayıtlı iç sandık tipine bağlanabilir.";
+
+    /// <summary>
+    /// Kayda atanacak kayıtlı iç sandık tipi: bulunmalı ve aktif olmalı. Kaydın zaten bağlı olduğu tip sonradan pasife
+    /// alındıysa korunur (eski kayıt düzenlenebilsin); pasif tip yeni bağlantıda kullanılamaz. Kayıt ya da tip İç Sandık
+    /// Katlanır ise ikisinin cinsi aynı olmalı: fiyat tipin adet tarifesinden gelir, tarife doğrulaması tipin cinsine
+    /// bakar (<see cref="IcSandikKatlanirKurali"/>).
+    /// </summary>
+    public static string? IcSandikSablonuHatasi(
+        IQueryable<AmbalajIcSandikSablonu> sablonlar,
+        int? sablonId,
+        int? mevcutSablonId,
+        AmbalajSandikCinsi kayitCinsi)
+    {
+        if (!sablonId.HasValue) return null;
+        var sablon = sablonlar.Where(x => x.Id == sablonId.Value)
+            .Select(x => new { x.Aktif, x.SandikCinsi }).FirstOrDefault();
+        if (sablon is null) return "Seçilen kayıtlı iç sandık tipi bulunamadı.";
+        if (!sablon.Aktif && sablonId != mevcutSablonId) return "Seçilen iç sandık tipi pasif; yeni kayıtta kullanılamaz.";
+        return (kayitCinsi == AmbalajSandikCinsi.IcKatlanir || sablon.SandikCinsi == AmbalajSandikCinsi.IcKatlanir) &&
+               kayitCinsi != sablon.SandikCinsi
+            ? IcKatlanirTipUyumMesaji
+            : null;
+    }
 
     public static int SandikAdediHesapla(string? sandikNo)
     {

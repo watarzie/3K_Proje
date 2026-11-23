@@ -356,13 +356,13 @@ public sealed class GetAmbalajIcSandikSablonlariQueryHandler
         CancellationToken cancellationToken)
     {
         var izin = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(_roller, _kullanici, cancellationToken);
+        // Pasif tipler de döner: yönetim listesi ve eski kayıtların seçimi için; ön yüz yeni seçimde aktifleri sunar.
+        var kullanim = AmbalajIcSandikSablonKullanimi.Sayilar(_unitOfWork);
         var sonuc = _unitOfWork.GetRepository<AmbalajIcSandikSablonu>().Queryable()
             .OrderBy(x => x.Ad)
             .ToList()
-            .Select(x => AmbalajAlanMaskesi.Maskele(new AmbalajIcSandikSablonDto(
-                x.Id, x.Ad,
-                AmbalajPlanlamaYardimcisi.SandikTipiMetni(x.SandikCinsi, x.DigerSandikCinsi),
-                x.Boy, x.En, x.Yukseklik), izin))
+            .Select(x => AmbalajAlanMaskesi.Maskele(
+                AmbalajIcSandikSablonKullanimi.Dto(x, kullanim.GetValueOrDefault(x.Id)), izin))
             .ToList();
         return Result<IReadOnlyList<AmbalajIcSandikSablonDto>>.Success(sonuc);
     }
