@@ -8,6 +8,20 @@ koşum sayıları tarihsel kayıttır; depo dışında yönetilen 02–04 SQL'le
 bugünkü halini veya canlıda elle uygulanmasını doğrulamaz. Bu geçiş için
 ayrı staging provası ve DBA doğrulaması gerekir.
 
+## İç sandık katlanır ve iç sandık tipi yönetimi — 23 Kasım 2026
+
+Yeni sandık tipi "İç Sandık Katlanır" (`AmbalajSandikCinsi.IcKatlanir` = 5) yalnız iç sandıkta seçilir, m³ hesaplanmaz ve 26 Ekim "Katlanır sandık elle fiyatlanır" kuralına girmez: Finans'ta tutar = adet × işin kayıtlı iç sandık tipine eşlenmiş, adet birimli ve malzemesiz ürünün finans tarihindeki tarife fiyatı (`IcSandikKatlanirKurali`, `FinansFiyatBelirleyici`). Tipsiz genel iç sandık eşleşmesi bu tipi fiyatlamaz; tipe bağlı olmayan ya da eşleşmesi/tarifesi olmayan iş fiyatsız kalır ve sonradan tanımlanan tarife geriye dönük doldurmayla fiyatlar. Bu tipe (sandık tipi metniyle ya da iç sandık katlanır tipine bağlanarak) eşleşen aktif tanım iç sandık iş türünde ve kayıtlı tipe bağlı olmalı (doğrulayıcı 400), ürünü adet birimli ve malzemesiz olmalıdır, iç sandık tipine bağlı her eşleşmenin tipi de var olmalıdır (servis 409). Kayıt ya da bağlı iç sandık tipi İç Sandık Katlanır ise ikisinin cinsi aynı olmalıdır (400); kullanılan tipin cinsi İç Sandık Katlanır'a geçemez/ondan çıkamaz (409). "Katlanır Sandık" ve diğer tipler değişmedi.
+
+Kayıtlı iç sandık tipleri Özel Sandıklar ekranındaki panelden listelenir, düzenlenir (`PUT api/ambalaj/ic-sandik-sablonlari/{id}`, `Ambalaj.KayitDuzenle` W), pasife alınır/aktif edilir (`PUT …/{id}/durum`, aynı izin) ve hiç kullanılmamışsa silinir (`DELETE`, `Ambalaj.KayitSil` W). Kullanım = bağlı ambalaj kaydı (iptal edilmiş dahil; FK silmeyi engeller) + finans işi + tarife eşleşmesi; kullanılan tip 409 alır ve pasife alınır. Pasif tip yeni bağlantıda reddedilir; kaydın zaten bağlı olduğu tip korunur. Düzenleme tipten oluşturulmuş kayıtları değiştirmez. Şema: `AmbalajIcSandikSablonlari.Aktif` (betik 38).
+
+- [IcSandikKatlanirTests](../../3K.Application.Tests/IcSandikKatlanirTests.cs): tip metni ↔ cins, yalnız iç sandık, elle fiyat kuralına girmeme, m³/malzeme yokluğu, adet × fiyat, eşleşme uygunluğu ve doğrulayıcı.
+- [FinansPostgresTests](../../3K.Application.Tests/FinansPostgresTests.cs) `IcSandikKatlanir_TipinAdetTarifesiyleHesaplanir_KatlanirElleKalir` (PostgreSQL): tipin adet tarifesiyle 3 × 120 = 360, başka tip ve tipsiz işin fiyatsız kalması, genel eşleşmenin kullanılmaması, m³ ürünün reddi, aynı tipe bağlı "Katlanır Sandık"ın elle kalması, SQL tutar ifadesi, geriye dönük doldurma.
+- [AmbalajIcSandikTipiPostgresTests](../../3K.Application.Tests/AmbalajIcSandikTipiPostgresTests.cs) (PostgreSQL): ekle, düzenle (kayıt değişmez, aynı ad 409), kullanılan tipin silinmemesi (iptal kaydı ve eşleşme), pasife alma, liste aktiflik/kullanım sayısı, pasif tipin yeni bağlantıda reddi ve bağlı kayıtta korunması, kullanılmayan tipin silinmesi.
+- [AmbalajIcSandikTipiHandlerTests](../../3K.Application.Tests/AmbalajIcSandikTipiHandlerTests.cs) (bellek içi iş birimi): plan kalemi ve özel sandıkta iç sandık dışı türde İç Sandık Katlanır reddi, pasif tipin yeni kayıtta reddi ve bağlı pasif tiple düzenleme, kayıt–tip cins uyumu, kullanılan tipin katlanır geçişi reddi, yalnız finans işiyle kullanılan tipin silinmemesi, pasif/yeniden aktif; retlerde kayıt eklenmez ve değişmez.
+- `CanliyaAlimBetikleriTests`: betik 38 sırası, kayıt bloğu ve şema eşliği.
+
+Koşum (Release): `AmbalajIcSandikTipiHandlerTests|IcSandikKatlanirTests|FinansKatlanirFiyatTests|AmbalajAlanMaskelemeTests|FinansUrunTarifeTests|AmbalajUretimAkisRegresyonTests|AmbalajSandikTipiVeTamamlamaTests|AmbalajKritikIslemTests` → 216/216; izole 127.0.0.1:55439 sunucusunda `AmbalajIcSandikTipiPostgresTests|FinansPostgresTests.IcSandikKatlanir|FinansPostgresTests.KatlanirSandik|CanliyaAlimBetikleriTests` → 4/4, 0 atlanan (finans tarafında var olmayan tip ve yanlış iş türü reddi dahil). Silme ile eşzamanlı finans bağlama yarışı Serializable transaction'a dayanır; eşzamanlılık testi yazılmadı. Tam paket koşulmadı.
+
 ## Sahada Grid Kapandı yapılan ürün ve 35 numaralı onarım (S-27 genişlemesi) — 17 Kasım 2026
 
 Değişiklik henüz commit edilmedi.

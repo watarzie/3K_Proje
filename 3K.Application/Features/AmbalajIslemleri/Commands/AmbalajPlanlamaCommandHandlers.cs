@@ -333,11 +333,16 @@ public sealed class AmbalajPlanKalemKaydetCommandHandler
         if (hata != null) return Result<AmbalajPlanlamaKalemDto>.Failure(hata);
         if (!_currentUser.IslemKullaniciId.HasValue)
             return Result<AmbalajPlanlamaKalemDto>.Failure("Kullanıcı bilgisi alınamadı.", 401);
-        if (request.IcSandikSablonId.HasValue && !_unitOfWork.GetRepository<AmbalajIcSandikSablonu>()
-                .Queryable().Any(x => x.Id == request.IcSandikSablonId.Value))
-            return Result<AmbalajPlanlamaKalemDto>.Failure("Seçilen kayıtlı iç sandık tipi bulunamadı.");
 
         var kayitRepo = _unitOfWork.GetRepository<AmbalajUretimKaydi>();
+        // Tip denetimi kayıt yüklenmeden/eklenmeden yapılır: ret hiçbir satırı değiştirmez.
+        var mevcutSablonId = request.KalemId is { } kalemId
+            ? kayitRepo.Queryable().Where(k => k.Id == kalemId).Select(k => k.IcSandikSablonId).FirstOrDefault()
+            : null;
+        var sablonHatasi = AmbalajPlanlamaYardimcisi.IcSandikSablonuHatasi(
+            _unitOfWork.GetRepository<AmbalajIcSandikSablonu>().Queryable(), request.Tur == 3 ? request.IcSandikSablonId : null,
+            mevcutSablonId, AmbalajPlanlamaYardimcisi.SandikCinsiCoz(request.SandikTipi));
+        if (sablonHatasi != null) return Result<AmbalajPlanlamaKalemDto>.Failure(sablonHatasi);
         AmbalajUretimKaydi kayit;
         Proje? proje;
         IReadOnlyDictionary<string, string?>? eski = null;
@@ -400,6 +405,8 @@ public sealed class AmbalajPlanKalemKaydetCommandHandler
             return "Kayıtlı iç sandık tipi yalnız İç Sandık grubunda kullanılabilir.";
         if (string.IsNullOrWhiteSpace(request.Ad)) return "Sandık adı zorunludur.";
         if (!AmbalajPlanlamaYardimcisi.GecerliSandikTipi(request.SandikTipi)) return "Sandık tipi geçersizdir.";
+        if (request.Tur != 3 && IcSandikKatlanirKurali.SandikTipiMi(request.SandikTipi))
+            return IcSandikKatlanirKurali.YalnizIcSandikMesaji;
         if (request.Adet <= 0) return "Adet sıfırdan büyük olmalıdır.";
         if (!olcuKorunur && (request.Boy <= 0 || request.En <= 0 || request.Yukseklik <= 0))
             return "Boy, en ve yükseklik zorunludur.";
@@ -530,31 +537,117 @@ public sealed class AmbalajIcSandikSablonuEkleCommandHandler
         AmbalajIcSandikSablonuEkleCommand request,
         CancellationToken cancellationToken)
     {
-        var ad = request.Ad.Trim();
-        if (string.IsNullOrWhiteSpace(ad))
-            return Result<AmbalajIcSandikSablonDto>.Failure("Şablon adı zorunludur.");
-        if (!AmbalajPlanlamaYardimcisi.GecerliSandikTipi(request.SandikTipi))
-            return Result<AmbalajIcSandikSablonDto>.Failure("Sandık tipi geçersizdir.");
-        if (request.Boy <= 0 || request.En <= 0 || request.Yukseklik <= 0)
-            return Result<AmbalajIcSandikSablonDto>.Failure("Boy, en ve yükseklik zorunludur.");
         var repo = _unitOfWork.GetRepository<AmbalajIcSandikSablonu>();
-        if (repo.Queryable().Any(x => x.Ad.ToLower() == ad.ToLower()))
-            return Result<AmbalajIcSandikSablonDto>.Failure("Bu isimde bir iç sandık şablonu zaten var.", 409);
+        var hata = IcSandikSablonDogrulama.Hata(repo.Queryable(), null, request.Ad, request.SandikTipi, request.Boy, request.En, request.Yukseklik);
+        if (hata is { } h) return Result<AmbalajIcSandikSablonDto>.Failure(h.Mesaj, h.Kod);
 
         var entity = new AmbalajIcSandikSablonu
         {
-            Ad = ad,
+            Ad = request.Ad.Trim(),
             SandikCinsi = AmbalajPlanlamaYardimcisi.SandikCinsiCoz(request.SandikTipi),
             Boy = request.Boy,
             En = request.En,
             Yukseklik = request.Yukseklik,
+            Aktif = true,
             CreatedBy = _currentUser.IslemKullaniciId?.ToString()
         };
         await repo.AddAsync(entity);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         var izin = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(_roller, _currentUser, cancellationToken);
-        return Result<AmbalajIcSandikSablonDto>.Success(AmbalajAlanMaskesi.Maskele(new AmbalajIcSandikSablonDto(
-            entity.Id, entity.Ad, request.SandikTipi, entity.Boy, entity.En, entity.Yukseklik), izin));
+        return Result<AmbalajIcSandikSablonDto>.Success(
+            AmbalajAlanMaskesi.Maskele(AmbalajIcSandikSablonKullanimi.Dto(entity, 0), izin));
+    }
+}
+
+/// <summary>Ekleme ve güncellemenin ortak doğrulaması: ad zorunlu ve benzersiz, tip geçerli, ölçüler pozitif.</summary>
+internal static class IcSandikSablonDogrulama
+{
+    public static (string Mesaj, int Kod)? Hata(
+        IQueryable<AmbalajIcSandikSablonu> sablonlar,
+        int? haricId,
+        string? ad,
+        string? sandikTipi,
+        decimal boy,
+        decimal en,
+        decimal yukseklik)
+    {
+        var temizAd = ad?.Trim() ?? string.Empty;
+        if (temizAd.Length == 0) return ("Şablon adı zorunludur.", 400);
+        if (temizAd.Length > 150) return ("Şablon adı en fazla 150 karakter olabilir.", 400);
+        if (!AmbalajPlanlamaYardimcisi.GecerliSandikTipi(sandikTipi)) return ("Sandık tipi geçersizdir.", 400);
+        if (boy <= 0 || en <= 0 || yukseklik <= 0) return ("Boy, en ve yükseklik zorunludur.", 400);
+        var kucukAd = temizAd.ToLower();
+        if (sablonlar.Any(x => x.Id != haricId && x.Ad.ToLower() == kucukAd))
+            return ("Bu isimde bir iç sandık şablonu zaten var.", 409);
+        return null;
+    }
+}
+
+public sealed class AmbalajIcSandikSablonuGuncelleCommandHandler(
+    IUnitOfWork unitOfWork,
+    ICurrentUserService currentUser,
+    IRolService roller)
+    : IRequestHandler<AmbalajIcSandikSablonuGuncelleCommand, Result<AmbalajIcSandikSablonDto>>
+{
+    public async Task<Result<AmbalajIcSandikSablonDto>> Handle(
+        AmbalajIcSandikSablonuGuncelleCommand request,
+        CancellationToken cancellationToken)
+    {
+        var repo = unitOfWork.GetRepository<AmbalajIcSandikSablonu>();
+        var entity = await repo.GetByIdAsync(request.SablonId);
+        if (entity == null) return Result<AmbalajIcSandikSablonDto>.Failure("İç sandık şablonu bulunamadı.", 404);
+        var izin = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(roller, currentUser, cancellationToken);
+        // RR Q1 (A): ölçü görme izni olmayan kullanıcıya ölçüler maskeli gelir; kayıtlı ölçüler korunur.
+        var boy = izin.OlcuGorunur ? request.Boy : entity.Boy;
+        var en = izin.OlcuGorunur ? request.En : entity.En;
+        var yukseklik = izin.OlcuGorunur ? request.Yukseklik : entity.Yukseklik;
+        var hata = IcSandikSablonDogrulama.Hata(repo.Queryable(), entity.Id, request.Ad, request.SandikTipi, boy, en, yukseklik);
+        if (hata is { } h) return Result<AmbalajIcSandikSablonDto>.Failure(h.Mesaj, h.Kod);
+        var yeniCins = AmbalajPlanlamaYardimcisi.SandikCinsiCoz(request.SandikTipi);
+        // Kullanılan tip İç Sandık Katlanır'a geçemez ya da ondan çıkamaz: bağlı kayıtların cinsi ve tarife eşleşmelerinin
+        // birimi o cinse göre doğrulandı; değişiklik onları tutarsız bırakır (iş sessizce fiyatsız kalırdı).
+        var katlanirGecisi = entity.SandikCinsi != yeniCins &&
+            (entity.SandikCinsi == AmbalajSandikCinsi.IcKatlanir || yeniCins == AmbalajSandikCinsi.IcKatlanir);
+        var kullanim = AmbalajIcSandikSablonKullanimi.Sayi(unitOfWork, entity.Id);
+        if (katlanirGecisi && kullanim > 0)
+            return Result<AmbalajIcSandikSablonDto>.Failure(AmbalajIcSandikSablonKullanimi.KatlanirGecisiMesaji, 409);
+
+        entity.Ad = request.Ad.Trim();
+        entity.SandikCinsi = yeniCins;
+        entity.DigerSandikCinsi = null;
+        entity.Boy = boy;
+        entity.En = en;
+        entity.Yukseklik = yukseklik;
+        entity.UpdatedDate = TurkeyTime.Now;
+        entity.UpdatedBy = currentUser.IslemKullaniciId?.ToString();
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return Result<AmbalajIcSandikSablonDto>.Success(AmbalajAlanMaskesi.Maskele(
+            AmbalajIcSandikSablonKullanimi.Dto(entity, kullanim), izin));
+    }
+}
+
+public sealed class AmbalajIcSandikSablonuDurumCommandHandler(
+    IUnitOfWork unitOfWork,
+    ICurrentUserService currentUser,
+    IRolService roller)
+    : IRequestHandler<AmbalajIcSandikSablonuDurumCommand, Result<AmbalajIcSandikSablonDto>>
+{
+    public async Task<Result<AmbalajIcSandikSablonDto>> Handle(
+        AmbalajIcSandikSablonuDurumCommand request,
+        CancellationToken cancellationToken)
+    {
+        var entity = await unitOfWork.GetRepository<AmbalajIcSandikSablonu>().GetByIdAsync(request.SablonId);
+        if (entity == null) return Result<AmbalajIcSandikSablonDto>.Failure("İç sandık şablonu bulunamadı.", 404);
+        if (entity.Aktif != request.Aktif)
+        {
+            entity.Aktif = request.Aktif;
+            entity.UpdatedDate = TurkeyTime.Now;
+            entity.UpdatedBy = currentUser.IslemKullaniciId?.ToString();
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        var izin = await AmbalajYetkilendirmeYardimcisi.GorunumYetkileriniGetirAsync(roller, currentUser, cancellationToken);
+        return Result<AmbalajIcSandikSablonDto>.Success(AmbalajAlanMaskesi.Maskele(
+            AmbalajIcSandikSablonKullanimi.Dto(entity, AmbalajIcSandikSablonKullanimi.Sayi(unitOfWork, entity.Id)), izin));
     }
 }
 
@@ -564,18 +657,24 @@ public sealed class AmbalajIcSandikSablonuSilCommandHandler
     private readonly IUnitOfWork _unitOfWork;
     public AmbalajIcSandikSablonuSilCommandHandler(IUnitOfWork unitOfWork) => _unitOfWork = unitOfWork;
 
-    public async Task<Result> Handle(AmbalajIcSandikSablonuSilCommand request, CancellationToken cancellationToken)
-    {
-        var repo = _unitOfWork.GetRepository<AmbalajIcSandikSablonu>();
-        var entity = await repo.GetByIdAsync(request.SablonId);
-        if (entity == null) return Result.Failure("İç sandık şablonu bulunamadı.", 404);
-        if (_unitOfWork.GetRepository<AmbalajUretimKaydi>().Queryable()
-            .Any(k => k.IcSandikSablonId == entity.Id && !k.IptalMi))
-            return Result.Failure("Kullanımda olan iç sandık şablonu silinemez.", 409);
-        repo.Remove(entity);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-        return Result.Success();
-    }
+    /// <summary>
+    /// Kullanım denetimi ve silme tek Serializable transaction'dadır: finans eşleşmesi/işi FK'sız olduğu için aynı anda
+    /// bağlanan finans kaydı (o da Serializable, tipin varlığını okur) ile çakışırsa biri serileştirme hatası alır;
+    /// finans bağı yetim kalmaz.
+    /// </summary>
+    public Task<Result> Handle(AmbalajIcSandikSablonuSilCommand request, CancellationToken cancellationToken) =>
+        _unitOfWork.ExecuteAtomicAsync(async token =>
+        {
+            var repo = _unitOfWork.GetRepository<AmbalajIcSandikSablonu>();
+            var entity = await repo.GetByIdAsync(request.SablonId);
+            if (entity == null) return Result.Failure("İç sandık şablonu bulunamadı.", 404);
+            // İptal edilmiş ambalaj kaydı, finans işi ve tarife eşleşmesi de kullanım sayılır (bkz. AmbalajIcSandikSablonKullanimi).
+            if (AmbalajIcSandikSablonKullanimi.Sayi(_unitOfWork, entity.Id) > 0)
+                return Result.Failure(AmbalajIcSandikSablonKullanimi.KullanimdaMesaji, 409);
+            repo.Remove(entity);
+            await _unitOfWork.SaveChangesAsync(token);
+            return Result.Success();
+        }, cancellationToken);
 }
 
 public sealed class AmbalajBagimsizSandikKaydetCommandHandler
@@ -791,12 +890,20 @@ public sealed class AmbalajBagimsizSandikKaydetCommandHandler
             if (!_unitOfWork.GetRepository<Sandik>().Queryable()
                 .Any(s => s.Id == request.UstKaynakSandikId.Value && s.ProjeId == request.ProjeId))
                 return "Seçilen dış koli bu projeye ait değildir.";
-            if (request.IcSandikSablonId.HasValue && !_unitOfWork.GetRepository<AmbalajIcSandikSablonu>()
-                .Queryable().Any(s => s.Id == request.IcSandikSablonId.Value))
-                return "Seçilen kayıtlı iç sandık tipi bulunamadı.";
+            var mevcutSablonId = request.SandikId is { } sandikId
+                ? _unitOfWork.GetRepository<AmbalajUretimKaydi>().Queryable()
+                    .Where(k => k.Id == sandikId).Select(k => k.IcSandikSablonId).FirstOrDefault()
+                : null;
+            var sablonHatasi = AmbalajPlanlamaYardimcisi.IcSandikSablonuHatasi(
+                _unitOfWork.GetRepository<AmbalajIcSandikSablonu>().Queryable(), request.IcSandikSablonId, mevcutSablonId,
+                OzelSandikCinsi(request));
+            if (sablonHatasi != null) return sablonHatasi;
         }
         if (string.IsNullOrWhiteSpace(request.Ad)) return "Sandık adı zorunludur.";
         if (!AmbalajPlanlamaYardimcisi.GecerliSandikTipi(request.SandikTipi)) return "Sandık tipi geçersizdir.";
+        // Kaynaktan dönüştürülen kaydın cinsi kaynak tipidir (A7); iç sandık katlanır yalnız iç sandıkta seçilir.
+        if (!IcSandikKatlanirKurali.TurUygun(OzelSandikCinsi(request), AmbalajPlanlamaYardimcisi.OzelTurCoz(request.Tur)))
+            return IcSandikKatlanirKurali.YalnizIcSandikMesaji;
         if (request.Adet <= 0) return "Adet sıfırdan büyük olmalıdır.";
         if (!olcuKorunur && (request.Boy <= 0 || request.En <= 0 || request.Yukseklik <= 0))
             return "Boy, en ve yükseklik zorunludur.";

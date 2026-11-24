@@ -273,6 +273,7 @@ namespace _3K.Application.Features.AmbalajIslemleri
             AmbalajSandikCinsi.Kafes => "Kafes Sandık",
             AmbalajSandikCinsi.Kontrplak => "Kontrplak Sandık",
             AmbalajSandikCinsi.Katlanir => "Katlanır Sandık",
+            AmbalajSandikCinsi.IcKatlanir => IcSandikKatlanirKurali.SandikTipiAdi,
             _ => diger ?? "Diğer"
         };
 

@@ -37,7 +37,8 @@ internal sealed class FinansFiyatBelirleyici(AppDbContext context)
     /// İşi en özgül aktif ürün eşleşmesine ve finans tarihindeki tarifeye göre fiyatlar. Kontrplak sandıkta
     /// malzemeli eşleşme varsa ahşap m³ ahşap tarifesiyle, kontra m³ kontra tarifesiyle fiyatlanır
     /// (<see cref="FinansTutarKurallari.IsNet"/>); yoksa eski tek tarifeli hesap geçerlidir. Katlanır sandık tarifeyle
-    /// fiyatlanmaz: adetle fiyatsız kalır ve elle fiyat bekler (<see cref="FinansKatlanirKurali"/>).
+    /// fiyatlanmaz: adetle fiyatsız kalır ve elle fiyat bekler (<see cref="FinansKatlanirKurali"/>). İç sandık katlanır
+    /// ise tarifeyle fiyatlanır: adet × işin iç sandık tipine eşlenmiş adet ürününün fiyatı (<see cref="IcSandikKatlanirKurali"/>).
     /// </summary>
     public async Task OtomatikFiyatUygulaAsync(FinansIsKaydi entity, CancellationToken cancellationToken)
     {
@@ -54,10 +55,13 @@ internal sealed class FinansFiyatBelirleyici(AppDbContext context)
             .Include(x => x.FinansUrun)
             .Where(x => x.Aktif && x.FinansUrun.Aktif && x.IsTuru == entity.IsTuru);
         var matches = await matchQuery.OrderBy(x => x.FinansUrun.Sira).ThenBy(x => x.Id).ToListAsync(cancellationToken);
+        var icKatlanir = IcSandikKatlanirKurali.IcKatlanir(entity);
         var adaylar = matches
             .Where(x => string.IsNullOrWhiteSpace(x.SandikAdi) || string.Equals(x.SandikAdi, entity.SandikAdi, StringComparison.OrdinalIgnoreCase))
             .Where(x => string.IsNullOrWhiteSpace(x.SandikTipi) || string.Equals(x.SandikTipi, entity.SandikTipi, StringComparison.OrdinalIgnoreCase))
             .Where(x => !x.IcSandikSablonId.HasValue || x.IcSandikSablonId == entity.IcSandikSablonId)
+            // İç sandık katlanır yalnız kendi iç sandık tipinin adet tarifesiyle fiyatlanır; genel iç sandık eşleşmesi almaz.
+            .Where(x => !icKatlanir || IcSandikKatlanirKurali.EslesmeUygun(x, entity))
             .ToList();
         var malzeme = FinansHacimKurallari.Malzeme(entity.SandikCinsi, entity.SandikTipi);
         if (malzeme == FinansSandikMalzemesi.Kontra && adaylar.Any(x => x.Malzeme.HasValue))

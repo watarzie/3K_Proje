@@ -25,6 +25,7 @@ internal static class AmbalajBagimsizSandikAramaFiltresi
         var kafesEslesir = "kafes sandık".Contains(arama);
         var kontrplakEslesir = "kontrplak sandık".Contains(arama);
         var katlanirEslesir = "katlanır sandık".Contains(arama);
+        var icKatlanirEslesir = "iç sandık katlanır".Contains(arama);
         var digerCinsEslesir = "diğer".Contains(arama);
         var ilaveEslesir = "ilave".Contains(arama);
         var icEslesir = "iç sandık".Contains(arama);
@@ -36,6 +37,7 @@ internal static class AmbalajBagimsizSandikAramaFiltresi
             (kafesEslesir && k.SandikCinsi == AmbalajSandikCinsi.Kafes) ||
             (kontrplakEslesir && k.SandikCinsi == AmbalajSandikCinsi.Kontrplak) ||
             (katlanirEslesir && k.SandikCinsi == AmbalajSandikCinsi.Katlanir) ||
+            (icKatlanirEslesir && k.SandikCinsi == AmbalajSandikCinsi.IcKatlanir) ||
             (digerCinsEslesir && k.SandikCinsi == AmbalajSandikCinsi.Diger) ||
             (ilaveEslesir && k.Tur == AmbalajSandikTuru.Ilave) ||
             (icEslesir && k.Tur == AmbalajSandikTuru.Ic) ||

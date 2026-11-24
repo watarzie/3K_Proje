@@ -103,13 +103,19 @@ public sealed record AmbalajPlanlamaKalemDto(
     int UretimDurumu = 1,
     bool OlcuHazir = false);
 
+/// <summary>
+/// Kayıtlı iç sandık tipi. <see cref="KullanimSayisi"/>: tipe bağlı ambalaj kaydı, finans işi ve tarife eşleşmesi
+/// sayısı; sıfırsa tip kalıcı silinebilir, değilse yalnız pasife alınır.
+/// </summary>
 public sealed record AmbalajIcSandikSablonDto(
     int Id,
     string Ad,
     string SandikTipi,
     decimal? Boy,
     decimal? En,
-    decimal? Yukseklik);
+    decimal? Yukseklik,
+    bool Aktif = true,
+    int KullanimSayisi = 0);
 
 public sealed record AmbalajKullaniciSecenegiDto(int Id, string AdSoyad);
 

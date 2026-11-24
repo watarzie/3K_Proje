@@ -46,6 +46,11 @@ namespace _3K.Core.Enums
         Kafes = 2,
         Kontrplak = 3,
         Katlanir = 4,
+        /// <summary>
+        /// Yalnız iç sandıkta seçilen katlanır sandık. "Katlanır Sandık"tan farklı olarak Finans'ta tarifeyle fiyatlanır:
+        /// adet × kayıtlı iç sandık tipinin birim fiyatı (<see cref="Models.IcSandikKatlanirKurali"/>).
+        /// </summary>
+        IcKatlanir = 5,
         Diger = 99
     }
 }

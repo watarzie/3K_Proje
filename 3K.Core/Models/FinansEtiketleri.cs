@@ -52,6 +52,7 @@ public static class FinansEtiketleri
         AmbalajSandikCinsi.Kafes => "Kafes Sandık",
         AmbalajSandikCinsi.Kontrplak => "Kontrplak Sandık",
         AmbalajSandikCinsi.Katlanir => "Katlanır Sandık",
+        AmbalajSandikCinsi.IcKatlanir => IcSandikKatlanirKurali.SandikTipiAdi,
         AmbalajSandikCinsi.Diger => string.IsNullOrWhiteSpace(sandikTipi) ? "Diğer" : sandikTipi.Trim(),
         _ => sandikTipi?.Trim() ?? string.Empty
     };

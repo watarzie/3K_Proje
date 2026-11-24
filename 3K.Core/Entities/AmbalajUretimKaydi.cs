@@ -194,5 +194,10 @@ namespace _3K.Core.Entities
         public decimal Boy { get; set; }
         public decimal En { get; set; }
         public decimal Yukseklik { get; set; }
+        /// <summary>
+        /// Pasif tip yeni kayda atanamaz; bağlı eski kayıtlar ve finans eşleşmeleri adıyla görünmeye devam eder.
+        /// Kullanılan tip silinmez, pasife alınır.
+        /// </summary>
+        public bool Aktif { get; set; } = true;
     }
 }
