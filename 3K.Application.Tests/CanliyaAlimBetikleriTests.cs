@@ -13,12 +13,12 @@ namespace _3K.Application.Tests;
 /// 25 <c>20261024_01_Proje_Baglanti_Turu.sql</c>, 26 <c>20261024_02_Barkod_Urun_Arama_Yetkisi.sql</c>,
 /// 27 <c>20261024_03_Sandik_Acilis_Kapanis_Gecmisi.sql</c>, 28 <c>20261025_01_Giris_Kilidi.sql</c>,
 /// 29 <c>20261026_01_Barkod_Etiket_Yetkisi.sql</c>; hepsi <c>uygulandi/2026-10/</c> altında; 34
-/// <c>uygulandi/2026-11/20261112_01_Saha_Iptal_Proje_Sevk_Durumu.sql</c>; 30 <c>bekleyen/20261105_01_Yuk_Turu.sql</c>,
-/// 31 <c>bekleyen/20261105_02_Yukleme_Planlama.sql</c>, 32 <c>bekleyen/20261105_03_Yukleme_Yerlesim.sql</c>,
-/// 33 <c>bekleyen/20261109_01_Arac_Yukleme.sql</c>, 35
-/// <c>bekleyen/20261117_01_Saha_Kapanis_Proje_Sevk_Durumu.sql</c>, 36
-/// <c>bekleyen/20261119_01_Geri_Gonderim_Sevk_Partisi_Sayaci.sql</c>, 37 <c>bekleyen/20261119_02_Yukleme_Arac_Aileleri.sql</c>,
-/// 38 <c>bekleyen/20261123_01_Ic_Sandik_Tipi_Aktif.sql</c>)
+/// <c>uygulandi/2026-11/20261112_01_Saha_Iptal_Proje_Sevk_Durumu.sql</c>; 30 <c>uygulandi/2026-11/20261105_01_Yuk_Turu.sql</c>,
+/// 31 <c>uygulandi/2026-11/20261105_02_Yukleme_Planlama.sql</c>, 32 <c>uygulandi/2026-11/20261105_03_Yukleme_Yerlesim.sql</c>,
+/// 33 <c>uygulandi/2026-11/20261109_01_Arac_Yukleme.sql</c>, 35
+/// <c>uygulandi/2026-11/20261117_01_Saha_Kapanis_Proje_Sevk_Durumu.sql</c>, 36
+/// <c>uygulandi/2026-11/20261119_01_Geri_Gonderim_Sevk_Partisi_Sayaci.sql</c>, 37 <c>uygulandi/2026-11/20261119_02_Yukleme_Arac_Aileleri.sql</c>,
+/// 38 <c>uygulandi/2026-11/20261123_01_Ic_Sandik_Tipi_Aktif.sql</c>)
 /// önceki sürümün şemasında çalıştırılır. Sonuç şeması EF modeliyle
 /// aynıdır (kolon, kısıt, ON DELETE kuralı, indeks). Betiklerin tekrarı hiçbir şeyi değiştirmez: var olan taşıma izi ve
 /// verilmiş izinler korunur. Salt okunur durum sorgusu (<c>kontrol/Betik_Durumu.sql</c>) klasördeki her betiği listeler
@@ -45,8 +45,8 @@ public sealed class CanliyaAlimBetikleriTests
             "20261024_02_Barkod_Urun_Arama_Yetkisi", "20261024_03_Sandik_Acilis_Kapanis_Gecmisi",
             "20261025_01_Giris_Kilidi", "20261026_01_Barkod_Etiket_Yetkisi"
         }.Select(ad => $"uygulandi/2026-10/{ad}.sql"), $"uygulandi/2026-11/{VeriOnarimBetigi}.sql",
-        .. YuklemeBetikleri.Select(ad => $"bekleyen/{ad}.sql"), $"bekleyen/{VeriOnarimBetigi35}.sql", $"bekleyen/{VeriOnarimBetigi36}.sql",
-        $"bekleyen/{AracAileleriBetigi}.sql", $"bekleyen/{IcSandikTipiBetigi}.sql"];
+        .. YuklemeBetikleri.Select(ad => $"uygulandi/2026-11/{ad}.sql"), $"uygulandi/2026-11/{VeriOnarimBetigi35}.sql", $"uygulandi/2026-11/{VeriOnarimBetigi36}.sql",
+        $"uygulandi/2026-11/{AracAileleriBetigi}.sql", $"uygulandi/2026-11/{IcSandikTipiBetigi}.sql"];
 
     /// <summary>Kayıt bloğu taşıyan betikler, ad sırasıyla (kayıt tablosu da ada göre okunur).</summary>
     private static readonly string[] KayitYazanlar =

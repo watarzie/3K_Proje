@@ -246,7 +246,7 @@ public sealed class SahaIptalSevkKapanisPostgresTests
     private const string BetikAdi = "uygulandi/2026-11/20261112_01_Saha_Iptal_Proje_Sevk_Durumu.sql";
     private const string YedekBetigi = "geri-alma/20261112_01_Yedek.sql";
     private const string GeriAlmaBetigi = "geri-alma/20261112_01_Geri_Al.sql";
-    private const string Betik35 = "bekleyen/20261117_01_Saha_Kapanis_Proje_Sevk_Durumu.sql";
+    private const string Betik35 = "uygulandi/2026-11/20261117_01_Saha_Kapanis_Proje_Sevk_Durumu.sql";
     private const string Yedek35 = "geri-alma/20261117_01_Yedek.sql";
     private const string GeriAlma35 = "geri-alma/20261117_01_Geri_Al.sql";
 

@@ -28,10 +28,10 @@ Değişiklik henüz commit edilmedi.
 
 **Davranış.** S-27 artık sahada Grid Kapandı yapılan ürünü de Grid İptal gibi kapanmış sayar (`SahaTamamlamaService.GetSahaIptalKapananMapAsync`). Canlı kopyada (17.11.2026) PA600-12, PA600-47 ve PA613-01 bu yüzden Eksik Sevk Edildi'de kalıyordu. PA600-47-SAHA'nın tek sandığı sevkli olduğu halde eski sürümün yazdığı Eksik Sevk Edildi durumu onu Saha Yönetimi listesinde tutuyordu.
 
-**Veri onarımı.** `scripts/database/bekleyen/20261117_01_Saha_Kapanis_Proje_Sevk_Durumu.sql` (README 35) ve `geri-alma/20261117_01_Yedek.sql`, `geri-alma/20261117_01_Geri_Al.sql`. 34 numaralı betik canlıda 11.11.2026'da çalıştığı için değiştirilmedi ve `uygulandi/2026-11/` altına taşındı. Canlı kopyada 35'in seçimi tam olarak PA600-12, PA600-47, PA600-47-SAHA ve PA613-01'dir; 34'ün onarılacak projesi kalmamıştır.
+**Veri onarımı.** `scripts/database/uygulandi/2026-11/20261117_01_Saha_Kapanis_Proje_Sevk_Durumu.sql` (README 35) ve `geri-alma/20261117_01_Yedek.sql`, `geri-alma/20261117_01_Geri_Al.sql`. 34 numaralı betik canlıda 11.11.2026'da çalıştığı için değiştirilmedi ve `uygulandi/2026-11/` altına taşındı. Canlı kopyada 35'in seçimi tam olarak PA600-12, PA600-47, PA600-47-SAHA ve PA613-01'dir; 34'ün onarılacak projesi kalmamıştır.
 
 - [SahaIptalSevkKapanisPostgresTests](../../3K.Application.Tests/SahaIptalSevkKapanisPostgresTests.cs): sahada Grid Kapandı (yeni defter ve legacy) ile Sevk Edildi, kısmi Grid Kapandı ile Eksik Sevk korunur; 35'in seçimi (normal projelerde C# senkronuyla aynı), saha projesi adımı (sandığı elde olan saha değişmez), yedek, geri alma, tekrar ve durum sorgusu.
-- [CanliyaAlimBetikleriTests](../../3K.Application.Tests/CanliyaAlimBetikleriTests.cs): 34 `uygulandi/2026-11/`, 35 `bekleyen/` altında; ikisi de kayıt yazar.
+- [CanliyaAlimBetikleriTests](../../3K.Application.Tests/CanliyaAlimBetikleriTests.cs): 34 ve 35 `uygulandi/2026-11/` altında; ikisi de kayıt yazar.
 
 ## Sahada iptal edilen ürün ve ana projenin sevk durumu (S-27) — 12 Kasım 2026
 
@@ -63,7 +63,7 @@ Değişiklik henüz commit edilmedi (dal `feature/yukleme-simulasyonu`). Kullan�
 - Yükleme adımı ve yük numarası tek kuraldan (`YuklemeSirasiKurali`) türer; yükleme planı PDF'i, plan ekranındaki oynatıcı ve saha ekranı aynı numarayı kullanır.
 - Durum isteği, oturumu ve son revizyonunda yerleşimi olmayan planı 404 ile gizler. Plan listesi araması en fazla 100 karakterdir.
 
-**Kapsam sınırı.** Şema ve izin `scripts/database/bekleyen/20261109_01_Arac_Yukleme.sql` ile kurulur (README sıra 33). Kurallar katalog bölüm 6.4'tedir. Eşleme satırları `coverage/ORTAK_SAHA_YETKI_TEST_ESLESMESI.md` dosyasındadır: YK-01, YK-04, YK-06 ve YK-11 Birim; YK-02, YK-03, YK-07, YK-08 ve YK-10 Entegrasyon; YK-05 ve YK-09 Kısmi. Yükleme planlamasının önceki aşamaları (plan ve revizyon, otomatik ve elle yerleşim, ekipman kitaplığı) katalogda kural olarak ve bu dosyada koşum bölümü olarak yer almaz. Ambalaj ve Finans'ta yeni kural yoktur.
+**Kapsam sınırı.** Şema ve izin `scripts/database/uygulandi/2026-11/20261109_01_Arac_Yukleme.sql` ile kurulur (README sıra 33). Kurallar katalog bölüm 6.4'tedir. Eşleme satırları `coverage/ORTAK_SAHA_YETKI_TEST_ESLESMESI.md` dosyasındadır: YK-01, YK-04, YK-06 ve YK-11 Birim; YK-02, YK-03, YK-07, YK-08 ve YK-10 Entegrasyon; YK-05 ve YK-09 Kısmi. Yükleme planlamasının önceki aşamaları (plan ve revizyon, otomatik ve elle yerleşim, ekipman kitaplığı) katalogda kural olarak ve bu dosyada koşum bölümü olarak yer almaz. Ambalaj ve Finans'ta yeni kural yoktur.
 
 - [AracYuklemeTests](../../3K.Application.Tests/AracYuklemeTests.cs) (7 metot, 26 vaka; bellek içi):
   - Sandık barkodunun çözülmesi (Theory, 11 vaka) ve Barkod kaynağında barkod–yük eşleşmesi (Theory, 6 vaka; elle eklenen yük eşleşmez).

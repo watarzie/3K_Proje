@@ -10,7 +10,7 @@ namespace _3K.Application.Tests;
 /// <summary>
 /// Canlı PA558-01 sandık 14 satır 58 (19.11.2026): 15.09'daki geri gönderim aktif Grid sevk partisi sayaçlarını boş
 /// bıraktı; uygulama kaydı belirsiz eski parti sayıp Grid yeniden sevkini kilitliyordu (G-037, U-244). 36 numaralı onarım
-/// betiği (<c>bekleyen/20261119_01_Geri_Gonderim_Sevk_Partisi_Sayaci.sql</c>) yalnız canlı Id 34371'i, hâlâ aynı
+/// betiği (<c>uygulandi/2026-11/20261119_01_Geri_Gonderim_Sevk_Partisi_Sayaci.sql</c>) yalnız canlı Id 34371'i, hâlâ aynı
 /// durumdaysa, bugünkü geri gönderimin yazdığı sayaçlara getirir. Sonrasında C# kuralı yeniden sevki açar; aynı desendeki
 /// başka satır değişmez; tekrar çalıştırma hiçbir şey değiştirmez; geri alma yedeğe döndürür. Handler akışı
 /// <see cref="GridUcKParcaliSevkPartisiRegresyonTests"/> içindedir.
@@ -18,7 +18,7 @@ namespace _3K.Application.Tests;
 public sealed class GeriGonderimSevkPartisiOnarimPostgresTests
 {
     private const int CanliSatirId = 34371;
-    private const string Betik = "bekleyen/20261119_01_Geri_Gonderim_Sevk_Partisi_Sayaci.sql";
+    private const string Betik = "uygulandi/2026-11/20261119_01_Geri_Gonderim_Sevk_Partisi_Sayaci.sql";
     private const string Yedek = "geri-alma/20261119_01_Yedek.sql";
     private const string GeriAlma = "geri-alma/20261119_01_Geri_Al.sql";
 
